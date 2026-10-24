@@ -3,7 +3,10 @@ import { readFileSync } from "fs";
 
 const functions = readFileSync("src/lib/admin-records.functions.ts", "utf8");
 const partners = readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8");
-const businesses = readFileSync("src/routes/_authenticated/admin.businesses.tsx", "utf8");
+// O5 build B: approved partners moved into Partners › Approved + the business file (admin.businesses is a redirect).
+const businesses = readFileSync("src/routes/_authenticated/admin.partners_.business.$businessId.tsx", "utf8");
+const officeTabs = readFileSync("src/components/portal/office-tabs.tsx", "utf8");
+const board = readFileSync("src/lib/office-partners.server.ts", "utf8");
 const users = readFileSync("src/routes/_authenticated/admin.users.tsx", "utf8");
 const job = readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8");
 
@@ -23,20 +26,22 @@ describe("admin record reliability", () => {
   it("does not silently turn list failures into empty screens", () => {
     for (const page of [partners, businesses, users]) {
       expect(page).toContain("useServerFn");
-      expect(page).toContain("Try again");
       expect(page).toContain("retry: 3");
     }
+    expect(users).toContain("Try again");
+    // Partners and the business file show the shared LoadError (with Try again) instead of an empty screen.
+    for (const page of [partners, businesses]) expect(page).toContain("<LoadError");
+    expect(officeTabs).toContain("Try again");
     expect(partners).not.toContain('supabase.from("partner_enquiries")');
     expect(businesses).not.toContain('supabase.from("businesses")');
     expect(users).not.toContain('supabase.from("profiles")');
   });
 
   it("puts signed portal applications in a distinct pending approval queue", () => {
-    expect(partners).toContain("Pending approval");
-    expect(partners).toContain('queue === "approval"');
-    expect(partners).toContain("&& isOnboarding(row)");
-    expect(partners).toContain("Website enquiries");
-    expect(partners).toContain("Onboarding form (signed application)");
+    expect(partners).toContain("Pending approval · signed applications");
+    expect(partners).toContain("rows.filter((r) => r.signed)");
+    expect(partners).toContain("Website enquiries · no signed application yet");
+    expect(board).toContain('signed: String(r["source"] ?? "").startsWith("portal_")');
   });
 
   it("keeps a failed job read distinct from a missing job", () => {

@@ -38,7 +38,6 @@ import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
-import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, sendMessage } from "@/lib/portal.functions";
@@ -51,7 +50,7 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
-import { firstName, jobNext, payNote, quoteStatusRow, readyCheckRows, shortDate, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { completeView, electricianRow, firstName, installRow, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { QUICK_ACTIONS } from "@/lib/messaging.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
@@ -141,7 +140,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   const invited = useMittiInvited();
   return (
     <>
-      {data && invited ? <><Row label="Mitti form" value="Linked" /><div className="mt-1"><MittiCard jobId={jobId} isAdmin={false} /></div><MittiFormLink auditId={data} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open form in Mitti</span><span className="text-xl text-sub">›</span></MittiFormLink></>
+      {data && invited ? <><Row label="Mitti form" value="Linked" /><MittiFormLink auditId={data} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink></>
         : <Row label="Mitti form" value={!invited ? "Your Mitti account isn't invited yet" : "Not linked yet — Home Insulation Victoria links it"} tone="sub" last />}
     </>
   );
@@ -288,13 +287,34 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const rcTurn: ReadyCheckTurn = rc && rc.applies ? (rc.turn as ReadyCheckTurn) : null;
   const next = page ? jobNext({
     channel: page.channel, stage: page.stage, ownerFirstName: owner, formLinked: page.form.linked, formCompleted: page.form.completed, quoteLine: page.quote?.line ?? null,
-    needsFinishing: page.form.needsFinishing, readyCheckTurn: rcTurn, readyCheckBookedAt: page.readyCheck.bookedAt,
+    needsFinishing: page.form.needsFinishing, needsFinishingItems: page.form.needsFinishingItems, readyCheckTurn: rcTurn, readyCheckBookedAt: page.readyCheck.bookedAt,
     installTurn: (days?.turn as never) ?? null, installBookedAt: page.install.bookedAt, installDeadline: days?.deadline ?? null, installDaysLeft: days?.daysLeft ?? null, clearedOn: page.clearance.clearedOn,
     installFormComplete: page.install.form.complete, installationRecorded: !!page.install.recordedAt, rebateSigned: page.install.rebateSigned,
+    quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
+    piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
+    installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
   }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length }) : null;
-  const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote, acceptedAt: null } : null);
+  const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
   const atReadyCheck = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(job.stage ?? "");
+  const elecRow = page ? electricianRow({ name: page.piesa.electrician ?? (page.form.electrician?.startsWith("Home Insulation Victoria") ? "Home Insulation Victoria electrician" : page.form.electrician), piesaBookedAt: page.piesa.bookedAt, piesaPassedOn: page.piesa.passedOn, fixesNote: page.piesa.fixesNote }) : null;
+  const installLine = page ? installRow({ doneAt: page.install.recordedAt, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 }) : null;
+
+  // Approved state M2-complete: read-only summary; owner contact is no longer shown (contactVisible rule).
+  if (page && job.stage === "complete") {
+    const v = completeView({ jobNumber: job.job_number ?? null, suburb: (job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null, channel: page.channel, completedAt: page.install.recordedAt,
+      product: page.complete.product, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2, crew: page.install.crew, pay: page.complete.pay,
+      piisaSignedAt: page.complete.piisaSignedAt, installerSignedAt: page.complete.installerSignedAt, ownerSignedAt: page.complete.ownerSignedAt, apSignedAt: page.complete.apSignedAt });
+    return (
+      <Screen>
+        <ScreenHead title={v.heading} line2={v.sub} />
+        <NextPanel eyebrow="Done" title={v.done.title} sub={v.done.body} />
+        <Group title="Summary">{v.summary.map(([k, val], i) => <Row key={k} label={k} value={val} last={i === v.summary.length - 1} />)}</Group>
+        <Group title="Paperwork">{v.paperwork.map(([k, val], i) => <Row key={k} label={k} value={val} tone={/^Signed/.test(val) ? "green" : "sub"} last={i === v.paperwork.length - 1} />)}</Group>
+        {page.complete.pay && <LinkRow to="/field/money/$jobId" params={{ jobId }}>See it in Money</LinkRow>}
+      </Screen>
+    );
+  }
   return (
     <Screen>
       <ScreenHead title={streetAndSuburb(job.property_address) || "Your job"} line1={job.owner_name ?? undefined} line2={[job.job_number, sourceLabel(job.channel)].filter(Boolean).join(" · ")}>
@@ -304,7 +324,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       {page && next && (
         <NextPanel title={next.title} sub={next.sub}>
+          {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
+          {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
+          {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
+          {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
           {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
@@ -315,29 +339,33 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
                 : <InstallerFinalDeclaration jobId={jobId} />}
             </div>
           )}
+          {next.note && <Note className="mt-3">{next.note}</Note>}
         </NextPanel>
       )}
 
       {page && (
         <Group title="Quote">
           <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />
-          {page.pay.amount != null && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
-          {page.pay.amount != null && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
+          {/* Approved M2-quote-declined: the pay line is hidden when there is no install. */}
+          {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
+          {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
+          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add the $349 Accredited Provider fee and send the owner their quote.</Note>}
           <OwnerQuoteCard jobId={jobId} hideStatus />
-          {page.form.electrician && <div className="mt-1.5 border-t border-line"><Row label="Electrician" value={<span className="font-medium">{page.form.electrician}{page.piesa.passedOn && <><br /><span className="text-[13px] font-normal text-sub">PIESA passed {shortDate(page.piesa.passedOn)}</span></>}</span>} last /></div>}
+          {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
+          {installLine && <Row label="Install" value={installLine} last />}
         </Group>
       )}
 
       {page && readyCheck && (atReadyCheck || page.form.linked) && (
         <Group title="Ready Check">
-          <Row label="Visit" value={readyCheck.visit} />
-          {readyCheck.form && <Row label="Mitti form" value={readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
-          {page.form.linked && page.form.auditId && page.mittiInvited && <MittiMissingInfo missing={page.form.missing} stops={page.form.stops} auditId={page.form.auditId} />}
+          {(readyCheck.visit !== "Not booked yet" || page.channel === "hivic_sourced") && <Row label="Visit" value={readyCheck.visit} />}
+          {readyCheck.form && <Row label="Mitti form" value={page.form.linked && !page.form.completed && page.form.missing.length === 0 && page.form.stops.length === 0 && !page.readyCheck.done ? "Ready · nothing filled in yet" : readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
+          {page.form.linked && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
           {!page.form.linked && page.channel === "hivic_sourced" && <MittiOnly jobId={jobId} which="ready_check" />}
         </Group>
       )}
 
-      <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} />
+      <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
 
       <InstallerMessages jobId={jobId} />
 

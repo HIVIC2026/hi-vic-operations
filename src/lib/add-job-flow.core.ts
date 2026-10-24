@@ -92,3 +92,47 @@ export function outcomeFor(r: { booking: AddJobBooking; state: OnsiteState | und
   if (s?.kind === "preparing") return { tone: "waiting", heading: "Job saved", body: FORM_WITHIN_15, waitingOn: null, visit };
   return { tone: "blocked", heading: "Job saved — form not ready yet", body: `${s?.message ?? "The form couldn't be prepared."} You don't need to add the job again.`, waitingOn: s?.kind === "owner_paperwork" ? "The owner" : s?.kind === "retry" && /signal|answering/i.test(s.message) ? null : "Home Insulation Victoria", visit };
 }
+
+// ---------- Heavier Add a job (approved 24 Oct 2026, decision 237): error state + "Job added" screen. Presentation only. ----------
+export type AddJobField = "full_name" | "address" | "phone" | "email" | "permission" | "visit";
+/** One short red line per field from the existing validator messages (validation itself is unchanged). */
+export function fieldErrors(problems: string[]): Partial<Record<AddJobField, string>> {
+  const out: Partial<Record<AddJobField, string>> = {};
+  for (const p of problems) {
+    if (/full name|first and last|owner's name/i.test(p)) out.full_name ??= "Enter the owner's first and last name.";
+    else if (/mobile/i.test(p)) out.phone ??= /Check the mobile/i.test(p) ? "That doesn't look like a mobile number." : "Enter the owner's mobile.";
+    else if (/email/i.test(p)) out.email ??= /Check the email/i.test(p) ? "That doesn't look like an email address." : "Enter the owner's email.";
+    else if (/permission/i.test(p)) out.permission ??= "Tick this once the owner has agreed.";
+    else if (p === PICK_ADDRESS || /address|street|suburb|postcode|Victorian/i.test(p)) out.address ??= /Victorian jobs|postcode list/i.test(p) ? p.replace(/ — .*$/, ".") : "Pick the address from the list.";
+    else out.visit ??= p.replace(/\.?$/, ".");
+  }
+  return out;
+}
+/** "3 things to fix before the job can be added." */
+export function errorSummary(n: number): string | null {
+  return n <= 0 ? null : `${n} thing${n === 1 ? "" : "s"} to fix before the job can be added.`;
+}
+export const ADD_JOB_OFFLINE_NOTE = "Your typed details stay on your phone if the signal drops.";
+export const VISIT_CARD = { title: "Ready Check visit (optional)", sub: "Only if you've already agreed a time with the owner." } as const;
+export const OWNER_CARD_TITLE = "Owner";
+
+/** The approved "Job added" screen: tick header, Mitti card, what we do now, two links. Every fact comes from the save result. */
+export type AddedView = { heading: string; line1: string; line2: string; card: { title: string; body: string; button: "Open Mitti form" | "Try again" | null }; steps: string[]; goToJob: string; addAnother: string };
+export function addedView(r: { jobNumber: string | null; address: string; ownerName: string; phone: string; ownerFirstName: string | null; booking: AddJobBooking; visit: VisitPick; state: OnsiteState | undefined }): AddedView {
+  const owner = r.ownerFirstName ?? "the owner";
+  const visit = r.booking === "confirmed" && visitPayload(r.visit) ? `Ready Check ${dayOptionLabel(r.visit.day)} at ${installTimeLabel(r.visit.time)} — it's in your 6:30am text. ` : r.booking === "blocked" ? "The visit day and time couldn't be saved — enter it on the job. " : "";
+  const s = r.state;
+  const card = s?.kind === "open"
+    ? { title: "Your Ready Check form is ready in Mitti", body: `${visit}Fill in as much as you can at the visit. Press Complete only when it's fully finished — that sends ${owner} their quote.`, button: "Open Mitti form" as const }
+    : s?.kind === "preparing" || !s
+      ? { title: "Your Ready Check form is being set up in Mitti", body: `${visit}It appears within about 15 minutes. Press Complete only when it's fully finished — that sends ${owner} their quote.`, button: null }
+      : { title: "Job added — form not ready yet", body: `${s.message} You don't need to add the job again.`, button: s.kind === "retry" ? "Try again" as const : null };
+  return {
+    heading: "Job added",
+    line1: [r.jobNumber, r.address].filter(Boolean).join(" · "),
+    line2: [r.ownerName, r.phone].filter(Boolean).join(" · "),
+    card,
+    steps: [`Nothing is sent to ${owner} until you press Complete.`, "We prepare the quote from your form: your price plus our $349 fee.", `We arrange the electrical safety check once ${owner} accepts.`],
+    goToJob: "Go to the job", addAnother: "Add another job",
+  };
+}

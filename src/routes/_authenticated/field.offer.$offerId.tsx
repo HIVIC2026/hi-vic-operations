@@ -9,8 +9,8 @@ import { TradeShell, aud } from "@/components/trade/TradeShell";
 import { getTradeOffer, offerTradeReadyCheckTimes, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.functions";
 import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/portal/ready-check-times-installer";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
-import { OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
-import { ContactButtons, ErrorLine, Group, NextPanel, Note, QuietButton, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
+import { NOT_FOR_ME_SHEET, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
+import { ContactButtons, ErrorLine, Group, NextPanel, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
   head: () => ({ meta: [{ title: "New job offer – Home Insulation Victoria" }, { name: "description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:title", content: "New job offer – Home Insulation Victoria" }, { property: "og:description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -36,6 +36,7 @@ function OfferPage() {
   const [note, setNote] = useState("");
   const [fail, setFail] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [confirmDecline, setConfirmDecline] = useState(false);
   const flight = useRef(false); // one booking/reply at a time, even for same-tick double taps
   const rc = data?.kind === "ready_check";
   if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
@@ -70,15 +71,24 @@ function OfferPage() {
       </TradeShell>
     );
   }
-  if (rc && data.accepted && !data.locked) return (
-    <TradeShell installer>
-      <Screen>
-        <ScreenHead pill="Job accepted" title={`Ready Check in ${data.suburb ?? "Victoria"}`} line2="You've taken this job. The address and the owner's details show once a time is booked." />
-        <NextPanel title="Waiting for the owner to pick a time" sub="They pick one of your times or suggest other days. You get a text with the day, time and address."><InstallerReadyCheckTimesCard jobId={data.jobId} /></NextPanel>
-        <Link to="/field/$jobId" params={{ jobId: data.jobId }} className={outlineLinkClass}>Open the job page</Link>
-      </Screen>
-    </TradeShell>
-  );
+  // Approved state M5-accepted (decision 52): times sent, the owner picks; address released on booking (decision 82).
+  if (rc && data.accepted && !data.locked) {
+    const v = offerAcceptedView({ ownerFirstName: null, suburb: data.suburb, jobNumber: data.jobNumber, times: data.offeredTimes });
+    return (
+      <TradeShell installer>
+        <Screen>
+          <ScreenHead pill={v.pill} title={v.title} line2={v.line2} />
+          <NextPanel title={v.next.title} sub={v.next.sub}>
+            {v.times.length > 0 && <ul className="mt-3" data-offered-times>{v.times.map((t) => <li key={t} className="flex min-h-10 items-center border-b border-line text-[15px] font-medium last:border-b-0">{t}</li>)}</ul>}
+            <InstallerReadyCheckTimesCard jobId={data.jobId} />
+          </NextPanel>
+          <Group title="Owner">{v.owner.map(([k, val], i) => <Row key={k} label={k} value={val} tone="sub" last={i === v.owner.length - 1} />)}</Group>
+          <Group title="What happens next">{v.what.map(([k, val], i) => <Row key={k} label={k} value={val} last={i === v.what.length - 1} />)}</Group>
+          <Link to="/field" className={outlineLinkClass}>Back to My work</Link>
+        </Screen>
+      </TradeShell>
+    );
+  }
   if (tooSlow || data.status !== "pending") {
     const c = offerClosed(data.status, mode === "declined");
     return (
@@ -117,7 +127,17 @@ function OfferPage() {
               {OFFER_STEPS.map((s, i) => <div key={s} className={`flex min-h-11 items-center gap-3 text-sm leading-[1.45] ${i < OFFER_STEPS.length - 1 ? "border-b border-line" : ""}`}><span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-mist text-xs font-bold">{i + 1}</span>{s}</div>)}
             </Group>
             <p className="text-center text-[13px] leading-[1.5] text-sub">{OFFER_ONLY_YOU}</p>
-            <button type="button" className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub disabled:opacity-50" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending ? "Sending…" : "Not for me"}</button>
+            {/* Approved state M5-not-for-me (decision 51): one confirmation sheet before the offer goes back to the office. */}
+            {confirmDecline ? (
+              <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={NOT_FOR_ME_SHEET.title} data-not-for-me-sheet>
+                <h2 className="text-[17px] font-semibold">{NOT_FOR_ME_SHEET.title}</h2>
+                <p className="mt-1 text-sm leading-[1.45] text-sub">{NOT_FOR_ME_SHEET.body}</p>
+                <QuietButton className="mt-3" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending ? "Sending…" : NOT_FOR_ME_SHEET.yes}</QuietButton>
+                <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub" onClick={() => setConfirmDecline(false)}>{NOT_FOR_ME_SHEET.keep}</button>
+              </section>
+            ) : (
+              <button type="button" className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub disabled:opacity-50" disabled={sending || !!busy} data-not-for-me-open onClick={() => setConfirmDecline(true)}>Not for me</button>
+            )}
           </>
         ) : (
           <>

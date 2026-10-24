@@ -60,10 +60,9 @@ function Users() {
   });
   return (
     <AppShell wide>
-      <p className="text-xs font-bold uppercase text-primary">Access control</p>
-      <h1 className="mb-1 mt-1 text-4xl font-bold">USERS & ACCESS</h1>
-      {me?.roles.includes("admin") && <div className="my-3 flex flex-wrap items-center gap-2">
-        <Button variant="outline" disabled={downloading} onClick={() => void prepareDownload()}><Download className="h-4 w-4" />{downloading ? "Preparing private file…" : "Download Dad’s TEST login"}</Button>
+      <h1 className="mb-1 mt-1 font-display text-3xl font-extrabold">Users & access</h1>
+      {me?.roles.includes("admin") && <div id="test-login" className="my-3 flex flex-wrap items-center gap-2">
+        <Button variant="outline" disabled={downloading} onClick={() => void prepareDownload()}><Download className="h-4 w-4" />{downloading ? "Preparing private file…" : "Prepare Deep’s TEST login (private file)"}</Button>
         {privateFile && <Button variant="outline" onClick={() => void savePrivateFile(privateFile)}><Download className="h-4 w-4" />Save private login file</Button>}
         {downloadError && <p role="alert" className="text-sm text-danger">TEST login download was blocked or could not be verified. No account details were changed.</p>}
       </div>}

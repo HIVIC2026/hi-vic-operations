@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createTestEnquiry, getAdminPipeline, getXeroConnection } from "@/lib/portal.functions";
+import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
 import { QA_PERSONA_LABEL, qaAccessPath, type QaPersona } from "@/lib/qa-role-link.core";
 import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, issueQaWorkerLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
@@ -53,7 +53,6 @@ function TestCentre() {
         <CreateTestJob onDone={() => void refetch()} />
       </div>
       <JoTradiePanel />
-      <XeroConnectionCard />
       <div className="mb-5 rounded-md border border-workspace-sun-strong/40 bg-workspace-sun p-4 text-sm"><b>Safe testing is active.</b> Customer messages and external writes remain locked. Use separate role accounts for final permission testing.</div>
       {error ? <div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">Test records could not be loaded. Nothing has been deleted. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>
         : isPending ? <p className="text-sm text-muted-foreground">Loading test journeys…</p>
@@ -262,30 +261,5 @@ function OnboardingLimits() {
         <span className="text-xs text-muted-foreground">{swept ?? "Uploads never accepted are removed automatically after 24 hours; accepted certificates are never touched."}</span>
       </div>
     </section>
-  );
-}
-
-function XeroConnectionCard() {
-  const load = useServerFn(getXeroConnection);
-  const { data, error, isPending, refetch } = useQuery({ queryKey: ["xero-connection"], queryFn: () => load() });
-  const checkError = error ? (error instanceof Error ? error.message : "The connection check failed.") : data?.error;
-  return (
-    <div className="mb-5 rounded-md border bg-card p-4 text-sm">
-      <div className="flex items-center justify-between gap-3"><b>Xero connection and routes</b><Button size="sm" variant="outline" disabled={isPending} onClick={() => void refetch()}>Check connection</Button></div>
-      {isPending ? <p className="mt-2">Checking available organisations…</p> : checkError
-        ? <p role="alert" className="mt-2 text-danger">Connection check failed: {checkError}</p>
-        : <p className="mt-2">{!data?.configured ? "Connection credentials are not configured." : data.connected ? "Available organisations were confirmed." : "No connected organisations are available."}</p>}
-      {data && <>
-        {error && <p className="mt-2 text-muted-foreground">The routing details below are from the last completed check.</p>}
-        <dl className="mt-3 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]">
-          <dt className="text-muted-foreground">TEST job route</dt><dd>{data.routing.testOrganisation ?? "No Demo Company route is available."}</dd>
-          <dt className="text-muted-foreground">Available real candidates</dt><dd>{data.routing.liveCandidates.length ? data.routing.liveCandidates.join(", ") : "None found in this check."}</dd>
-          <dt className="text-muted-foreground">Live job route</dt><dd>{!data.routing.liveCallsEnabled ? "Live calls are switched off." : data.routing.liveOrganisation ?? "No live route is selected."}</dd>
-          <dt className="text-muted-foreground">Checked</dt><dd><time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString()}</time></dd>
-        </dl>
-        {data.routing.liveBlocker && <p className="mt-2 text-muted-foreground">Live route blocker: {data.routing.liveBlocker}</p>}
-        {data.orgs.length > 0 && <p className="mt-2 text-muted-foreground">Organisations available on this connection: {data.orgs.map(org => org.name + (org.test ? " (test)" : "")).join(", ")}.</p>}
-      </>}
-    </div>
   );
 }

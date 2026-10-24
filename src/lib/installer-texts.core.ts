@@ -74,6 +74,16 @@ export function installTomorrowDue(now: Date, startIso: string, fromHm = INSTALL
 /** The Melbourne day whose installs are "tomorrow" from `now` (for the sweep's booking query). */
 export const tomorrowMelbourneYmd = (now: Date) => addYmd(melbourneYmd(now), 1);
 
+// ---- Decision 251: team member added → their single-use login link ----
+/** One text per invite link + mobile (a new link, or a corrected number, is a new text; a retry of the same never is). */
+export const teamMemberInviteKey = (inviteId: string, mobileE164: string) => `team-member-invite:v1:${inviteId}:${mobileE164}`;
+/** Decision 251 draft, approved by Jo as written (decision 252). The sender adds "Home Insulation Victoria: ". */
+export function teamMemberInviteText(f: { business: string | null; link: string }): string {
+  return `${f.business?.trim() || "Your business"} added you to Home Insulation Victoria. Set up your login: ${f.link}`;
+}
+/** The /join link the invitee opens (same route the owner's copy of the link uses). */
+export const teamMemberJoinLink = (base: string, token: string) => `${base.replace(/\/+$/, "")}/join/${token}`;
+
 /** Decision 79 is still worth sending only while it is the installer's move on the owner's days. */
 export const daysSuggestedStillCurrent = (turn: string) => turn === "installer_to_answer";
 /** Decision 82 is still worth sending only while that start time is the confirmed booking. */

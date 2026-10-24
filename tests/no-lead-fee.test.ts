@@ -30,7 +30,7 @@ describe("C03 no lead fee", () => {
   });
   test("office fee editor and fee service are gone", () => {
     expect(existsSync("src/lib/partner-fees.functions.ts")).toBe(false);
-    expect(readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8")).not.toMatch(/LeadFeeCard|updatePartnerLeadFee/);
+    for (const f of ["src/routes/_authenticated/admin.partners.tsx", "src/components/portal/partner-application.tsx"]) expect(readFileSync(f, "utf8")).not.toMatch(/LeadFeeCard|updatePartnerLeadFee/);
   });
   test("payout/margin is identical for our leads and installer-owned customers", () => {
     const b = { installerCostExGst: 2000, installerMarginExGst: 200, apFeeExGst: 317, electricalCostExGst: 0, electricalChargeExGst: 0, installerSourced: true, veecDiscountIncGst: 700, piesaRecCostExGst: null, veecLodgementFeeExGst: null };

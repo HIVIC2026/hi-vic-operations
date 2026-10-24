@@ -206,7 +206,7 @@ try {
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
       { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "email" }, mustSee: ["Templates", "Viewing here never sends, saves or connects anything."] },
-      { step: "office-partners", persona: "office", path: "/admin/partners-overview" },
+      { step: "office-partners", persona: "office", path: "/admin/partners?tab=approved", expectedPath: "/admin/partners" }, // O5: Partners overview removed (office audit); Approved shows stored names
       { step: "office-templates", persona: "office", path: "/admin/templates" },
       { step: "rec-home", persona: "rec", path: "/field", noPrices: false },
       { step: "rec-business", persona: "rec", path: "/field/business" },
@@ -235,10 +235,10 @@ try {
       else notRun('screens', '/admin/jobs/$jobId', 'existing isolated TEST Office fixture unavailable');
       if (REVIEW_GAPS) {
         screens = [
-          { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Recent send log'], safeTabs: true },
+          { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Held & queued'], safeTabs: true },
           { step: 'gap-list', path: '/admin/list?test=true', persona: 'office', expectedPath: '/admin/list', readinessSelector: 'table', mustSee: ['Jobs'] },
           { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/enquiries', mustSee: ['Enquiries'] },
-          { step: 'gap-pricing', path: '/admin/pricing', persona: 'office', expectedPath: '/admin/pricing', mustSee: ['Prices & margins', 'Owner prices', 'Price history'] },
+          { step: 'gap-pricing', path: '/admin/money?tab=prices', persona: 'office', expectedPath: '/admin/money', mustSee: ['Money', 'Owner price list', 'Fixed rule'] },
           { step: 'gap-job-queue', path: '/admin/job-queue', persona: 'office', expectedPath: '/admin/job-queue', mustSee: ['Job queue'] },
           { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-my-work]', discoverTestJob: true },
           { step: 'gap-installer-money', path: '/field/money', persona: 'installer', expectedPath: '/field/money', mustSee: ['Money'] },
