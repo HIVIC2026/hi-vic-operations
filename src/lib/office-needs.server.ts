@@ -56,7 +56,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("10-day flags", (a, b) => (opts.onlyIds ? admin.from("jobs").select("id, install_10day_flagged_at, stage").in("id", opts.onlyIds) : admin.from("jobs").select("id, install_10day_flagged_at, stage")).not("install_10day_flagged_at", "is", null).eq("stage", "installation_scheduling").range(a, b)),
     all("no-access reports", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "trade_couldnt_get_in").contains("details", { visit: "install", needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("VEEC day-10 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", VEEC_OFFICE_ALERT_EVENT).range(a, b)),
-    all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, effective_status, total_inc_gst, total_paid, updated_at")).eq("effective_status", "overdue").range(a, b)),
+    all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, effective_status, total_inc_gst, total_paid, deposit_due_date, balance_due_date")).eq("effective_status", "overdue").range(a, b)),
     // Decision 246: automatic offers that came back to the office (2 misses or no covering trade) -> "Choose again".
     all("auto offers returned", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, summary, details")).eq("event_type", AUTO_OFFER_RETURNED_EVENT).order("created_at", { ascending: false }).range(a, b)),
     all("install bookings on hold", (a, b) => scoped(admin.from("bookings").select("job_id, created_at, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("created_at", new Date(now - 2 * DAY).toISOString()).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
@@ -117,7 +117,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobs.find((k) => k.id === e["job_id"]); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
-  for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["updated_at"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
+  for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
   // Install deposit (10%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
   if (provisionalBookings.length && provisionalBookings.length <= 40) {
     const { jobPaymentView } = await import("./payments.server");
