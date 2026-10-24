@@ -1,10 +1,27 @@
 // Owner ESC consent persistence (server-only, service role, after caller checks). Fails closed.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import type { Json } from "@/integrations/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { logEvent, WorkflowError } from "./workflow.server";
 import { activeTemplate, sha256Hex, stableJson } from "./assignment.core";
 import { apConsentBlockers, apRepFullName, buildConsentFacts, ESC_AP_FULL_NAME, consentStaleReasons, isEscTemplateVersion, ownerConsentBlockers, renderConsentBody, splitFullName, type ApRep, type ConsentFacts, type ConsentSignInput, type OwnerDeclarations } from "./consent.core";
 import { formatPropertyAddress } from "./address";
+
+// Migration 0226 adds these fields; keep its types local until the generated schema includes them.
+type ConsentColumns = { owner_declarations: Json | null; ap_rep: Json | null };
+type ConsentTable = Database["public"]["Tables"]["owner_esc_consents"];
+type ConsentDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Tables"> & {
+    Tables: Omit<Database["public"]["Tables"], "owner_esc_consents"> & {
+      owner_esc_consents: Omit<ConsentTable, "Row" | "Insert" | "Update"> & {
+        Row: ConsentTable["Row"] & Partial<ConsentColumns>;
+        Insert: ConsentTable["Insert"] & Partial<ConsentColumns>;
+        Update: ConsentTable["Update"] & Partial<ConsentColumns>;
+      };
+    };
+  };
+};
+const consentAdmin = admin as unknown as SupabaseClient<ConsentDatabase>;
 
 async function templates() {
   const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields").eq("is_active", true);
@@ -12,7 +29,7 @@ async function templates() {
 }
 
 export async function currentConsent(jobId: string) {
-  const { data } = await admin.from("owner_esc_consents").select("*").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data } = await consentAdmin.from("owner_esc_consents").select("*").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
 
@@ -70,14 +87,15 @@ export async function signOwnerConsent(p: { jobId: string; actorId: string; inpu
   const b = ownerConsentBlockers({ status: c?.status ?? null, templateApproved: !!tpl, templateVersion: tpl?.version ?? null, scheduledStart: c?.scheduled_start ?? null, nowIso: new Date().toISOString(), input: p.input });
   if (!c) b.unshift("No installation date booked yet – consent is generated once the exact date is known.");
   if (b.length) throw new WorkflowError(b.join(" "));
+  if (!c || !tpl) throw new WorkflowError("Owner consent or approved template is unavailable.");
   // ESC template (decision 123): the four Section 2 ticks are recorded with the consent; older wording keeps the single tick.
-  const declarations: OwnerDeclarations | null = isEscTemplateVersion(tpl!.version) ? { ...p.input.declarations } : null;
-  await admin.from("owner_esc_consents").update({
-    status: "awaiting_ap", template_version: tpl!.version, owner_signatory_name: p.input.signatoryName, owner_authority_type: p.input.authorityType,
+  const declarations: OwnerDeclarations | null = isEscTemplateVersion(tpl.version) ? { ...p.input.declarations } : null;
+  await consentAdmin.from("owner_esc_consents").update({
+    status: "awaiting_ap", template_version: tpl.version, owner_signatory_name: p.input.signatoryName, owner_authority_type: p.input.authorityType,
     owner_signature_name: p.input.signatureName, owner_signed_at: new Date().toISOString(), owner_signed_by: p.actorId, owner_ip: p.ip, owner_user_agent: p.userAgent,
     owner_declarations: declarations as Json,
-  }).eq("id", c!.id);
-  await logEvent(p.jobId, p.actorId, "esc_consent_owner_signed", `Owner signed ESC information-sharing consent (${tpl!.version})${declarations ? " – all four Section 2 declarations ticked" : ""} – awaiting AP representative`, { consent_id: c!.id, declarations });
+  }).eq("id", c.id);
+  await logEvent(p.jobId, p.actorId, "esc_consent_owner_signed", `Owner signed ESC information-sharing consent (${tpl.version})${declarations ? " – all four Section 2 declarations ticked" : ""} – awaiting AP representative`, { consent_id: c.id, declarations });
 }
 
 /** Section 3 Part A prefill for the signing office user (their profile); role is typed by the user. */
@@ -111,7 +129,7 @@ export async function confirmApConsent(p: { jobId: string; actorId: string; apRe
   const text = [`OWNER CONSENT – ESC INFORMATION SHARING (${c.template_version})`, `AP: ${esc ? ESC_AP_FULL_NAME : c.ap_legal_entity}`, `Premises: ${c.premises_address}`, `Installation day(s): ${(c.installation_days as string[]).join(", ")}`, "", form, "",
     `Owner/authorised representative: ${c.owner_signatory_name} (${c.owner_authority_type}) · typed signature "${c.owner_signature_name}" · ${c.owner_signed_at}`, `AP representative: ${apRepName}${rep?.role ? ` (${rep.role})` : ""} · purpose explained · ${now}`, `SHA-256: ${sha}`, "", json].join("\n");
   const path = await storeCopy(p.jobId, `${p.jobId}/consent/esc-consent-v${c.version}-${sha.slice(0, 12)}.txt`, text, `Owner ESC consent v${c.version} (signed)`, p.actorId);
-  await admin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: apRepName, ap_rep: rep as Json, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, copy_path: path, delivery_status: delivery }).eq("id", c.id);
+  await consentAdmin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: apRepName, ap_rep: rep as Json, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, copy_path: path, delivery_status: delivery }).eq("id", c.id);
   await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${apRepName} confirmed purpose explained (copy stored; delivery ${delivery === "ready_to_send" ? "ready" : delivery === "not_ready" ? "blocked – no owner contact consent" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha });
   // The ESC recommends providing the owner a copy of the executed form: best-effort through the guarded owner path.
   try {
