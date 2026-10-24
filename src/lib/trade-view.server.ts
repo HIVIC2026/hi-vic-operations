@@ -379,7 +379,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const billing = b.kind === "assessment" || b.kind === "rectification"
       ? electricalBillingSource({ channel: jj.channel ?? null, choice: jj.electrician_choice ?? null, committedLineOnAcceptedQuote: committed(b.job_id, b.kind), hivPaidAt: explicitPaid })
       : "hivic" as const;
-    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt };
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
   });
 }
 
@@ -640,5 +640,112 @@ export async function setMittiInvited(actorId: string, businessId: string, invit
   if (error) throw new WorkflowError(error.message);
   await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_mitti_invited", summary: `Mitti account invited ${invited ? "ticked" : "unticked"}`, details: { business_id: businessId, invited } });
   return { ok: true };
+}
+
+// ---- Installer screens M2/M4/M6 (Jo 24 Oct 2026, decisions 196–203). Business-scoped reads only; labels in
+// installer-screens.core. Never the owner's price or our margin: the installer's pay is the agreed-rate cost on the quote. ----
+
+/** The signed PIESA says an electrician must be present at the start (B1 "rectification not possible"). */
+async function piesaNeedsElectricianAtStart(jobId: string): Promise<boolean> {
+  try {
+    const { currentCopy } = await import("./official-forms.server");
+    const { answersFromDocument, B1_OPTIONS } = await import("./official-forms.core");
+    const pe = await currentCopy(jobId, "piesa");
+    if (!pe.copy) return false;
+    return (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] === B1_OPTIONS[2];
+  } catch { return false; }
+}
+
+/** Installer pay on this job = agreed-rate cost (ex GST) on the latest installation quote, shown inc GST. Null until a quote exists. */
+async function installerPayForJob(jobId: string): Promise<number | null> {
+  const { data: q } = await admin.from("quotes").select("id, status, created_at, quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(5);
+  const pick = (q ?? []).find((x) => x.status === "accepted") ?? (q ?? [])[0];
+  const qi = pick?.quote_internals as { cost_ex_gst: number | string | null } | { cost_ex_gst: number | string | null }[] | null | undefined;
+  const cost = Number((Array.isArray(qi) ? qi[0] : qi)?.cost_ex_gst);
+  return Number.isFinite(cost) && cost > 0 ? Math.round(cost * 1.1 * 100) / 100 : null;
+}
+
+/** Mitti install form (PIISA): its audit id and whether it is Complete (signed installer declaration read from the completed form). */
+async function installFormFacts(jobId: string): Promise<{ auditId: string | null; complete: boolean }> {
+  const [{ data: ev }, { data: decl }] = await Promise.all([
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").limit(1).maybeSingle(),
+  ]);
+  const id = (ev?.details as { audit_id?: unknown } | null)?.audit_id;
+  return { auditId: id ? String(id) : null, complete: !!decl };
+}
+
+async function rebateSignedByInstaller(jobId: string): Promise<boolean> {
+  const { data } = await admin.from("customer_assignments").select("installer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return !!data?.installer_signed_at;
+}
+
+/** Job page facts (M2): Ready Check visit, quote status, own pay, PIESA/clearance, install form, rebate signing. */
+export async function tradeJobPage(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti] = await Promise.all([
+    admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single(),
+    admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
+    rebateSignedByInstaller(jobId),
+    (await import("./installer-quote-status.server")).loadInstallerQuote(jobId),
+    installerPayForJob(jobId),
+    installFormFacts(jobId),
+    (async () => { const { clearanceFacts } = await import("./allocation.server"); const { electricalClearance } = await import("./allocation.core"); return electricalClearance(await clearanceFacts(jobId)); })(),
+    c.kind === "installer" ? (await import("./mitti-job-presentation.server")).mittiJobPresentation(jobId, userId).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+  ]);
+  const { needsFinishingTask } = await import("./trade-view.core");
+  const { installerQuoteLine } = await import("./installer-quote-status.core");
+  const qq = quote.quote as { sent_at?: string | null } | null;
+  return {
+    jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null,
+    readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
+    install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned },
+    form: mitti.applies
+      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? "") }
+      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null },
+    quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null } : null,
+    pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
+    piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null },
+    clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
+    mittiInvited: c.biz.mitti_account_invited === true,
+  };
+}
+
+/** Today's job extras (M4): the job facts and own pay, the electrician-on-site rule, install form state. */
+export async function tradeDayExtras(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  const [{ data: j }, { data: m }, { data: q }, rebateSigned, pay, form, needsElec] = await Promise.all([
+    admin.from("jobs").select("channel, installation_completed_at").eq("id", jobId).single(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("quotes").select("status, created_at, quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    rebateSignedByInstaller(jobId),
+    installerPayForJob(jobId),
+    installFormFacts(jobId),
+    piesaNeedsElectricianAtStart(jobId),
+  ]);
+  const { data: el } = needsElec ? await admin.from("job_assignments").select("profiles:user_id(full_name, phone)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle() : { data: null };
+  const prof = (el?.profiles as unknown as { full_name: string | null; phone: string | null } | null) ?? null;
+  const items = ((q?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? []).sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0));
+  const product = items.find((i) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(i.code ?? "") && !/removal|safety assessment|accredited person/i.test(i.description ?? ""))?.description ?? null;
+  return {
+    channel: j?.channel ?? null, product, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null,
+    access: m?.access_difficulty ?? null, pay: c.boss ? pay : null, installForm: form, installationRecorded: !!j?.installation_completed_at, rebateSigned,
+    electrician: { required: needsElec, name: prof?.full_name ?? null, phone: prof?.phone ?? null },
+  };
+}
+
+/** Money extras (M6): masked bank line parts and the account name. Business owner only. */
+export async function tradeMoneyExtras(userId: string) {
+  const c = await bossOrThrow(userId);
+  const [{ data: bank }, { data: b }] = await Promise.all([
+    admin.from("business_bank_details").select("account_name, account_number, bsb").eq("business_id", c.biz.id).maybeSingle(),
+    admin.from("businesses").select("legal_name, name").eq("id", c.biz.id).maybeSingle(),
+  ]);
+  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
+  const bsb = String(bank?.bsb ?? "").replace(/\D/g, "");
+  return { accountName: bank?.account_name ?? b?.legal_name ?? b?.name ?? c.biz.name, bsbStart: bsb.length >= 3 ? bsb.slice(0, 3) : null, accountEnding: digits.length >= 3 ? digits.slice(-3) : null };
 }
 
