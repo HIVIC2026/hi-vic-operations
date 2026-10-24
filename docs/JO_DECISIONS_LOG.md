@@ -99,3 +99,10 @@ Newest first. Each line is settled; anything still open is under "Open".
     No answer or "Not for me" goes back to the office.
 53. **Remove the owner's "pick Ready Check times" step** from Save my spot. The owner waits for the installer's times (a link by email or text; wording in the template review).
 54. **Installer's own customers: they arrange the Ready Check visit directly with the owner. Nothing is entered in the portal.** They open the Mitti form when they are there. Any "book Ready Check time" step is hidden on their own jobs.
+
+## Template review – batch 1, owner first messages (24 Oct 2026)
+55. O3, O1, O2 and O2b say **"estimate"**, not "quote". "Quote" is kept for the real quote after the Ready Check.
+56. O1, O2, O2b, O10 and O17: the Ready Check line becomes **"When an installer is free near you, they'll offer you times for your free Ready Check."**
+57. O2 draft line **approved**: "You told us there is some existing insulation in your ceiling. Your free Ready Check checks what's there and confirms whether you qualify before anything goes ahead."
+58. O17 Spot saved text: **add "Reply STOP to opt out."**
+59. O3 and O10: Jo wants changes (details to follow).
