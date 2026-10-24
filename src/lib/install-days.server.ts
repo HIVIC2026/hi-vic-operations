@@ -102,6 +102,8 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(jobId, "installation", startsAt, userId, roleLabel);
     await releaseInstallationContacts(jobId, userId);
+    // Decision 139: the day is provisional for 48h until the 10% install deposit is received (bank transfer / PayID).
+    await (await import("./payments.server")).noteProvisionalBooking(jobId, userId).catch((e) => console.error("provisional booking note skipped", (e as Error).message));
     // Owner "Your install is booked" email (best-effort; held until Jo approves the wording and messages are on).
     await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
     return { ok: true, booked: true };

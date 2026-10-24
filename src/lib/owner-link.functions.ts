@@ -146,6 +146,17 @@ export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware(
     return { ok: true };
   });
 
+/** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).
+ *  Link token only: the page merely opens Stripe's own payment page for our exact amount; no money moves without Stripe's flow. */
+export const ownerCardCheckoutFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return { blocker: "Link not recognised." };
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    return (await import("./stripe.server")).createStepCheckout(jobId, `${CUSTOMER_BASE}/my-job/${data.token}`, null);
+  });
+
 async function ownerJobId(t: string): Promise<string | null> {
   const { isWellFormedToken, LINK_PURPOSE, linkUsable } = await import("./estimatelink.core");
   if (!isWellFormedToken(t)) return null;

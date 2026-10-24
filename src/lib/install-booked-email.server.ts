@@ -25,8 +25,14 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string): 
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
   const { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } = await import("./install-booked-email.core");
+  // Decision 139: the 10% install deposit (bank transfer / PayID, 48h hold) when it is still owing under the payment rule.
+  const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
+  const depositStep = pay?.steps.find((s) => s.key === "install_deposit");
+  const deposit = pay && depositStep && (depositStep.state === "requested" || depositStep.state === "overdue") && pay.provisional.decision === "provisional"
+    ? { amount: `$${(depositStep.outstandingCents / 100).toFixed(2)}`, holdUntil: pay.provisional.expiresAt ? formatInstallDay(pay.provisional.expiresAt) : null, bankLines: (await import("./payments.core")).bankDetailLines(pay.bank, pay.reference) }
+    : null;
   const input = {
-    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso),
+    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit,
     address: prop ? fullAddress(prop.address_line, prop.suburb, prop.postcode) || null : null,
     installerName: biz?.trading_name ?? biz?.name ?? null, installerPhone: biz?.phone ?? null,
     removal: m?.removal_required === true, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,

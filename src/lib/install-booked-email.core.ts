@@ -8,6 +8,8 @@ export const INSTALL_BOOKED_EMAIL_APPROVED = false as boolean;
 export type InstallBookedInput = {
   firstName: string | null; when: string; address: string | null;
   installerName: string | null; installerPhone: string | null; removal: boolean; myJobUrl: string; test?: boolean;
+  /** Decision 139: 10% install deposit by bank transfer / PayID within 48h (day held meanwhile); omitted when already paid or not under the payment rule. */
+  deposit?: { amount: string; holdUntil: string | null; bankLines: string[] } | null;
 };
 
 export function renderInstallBookedEmail(i: InstallBookedInput) {
@@ -17,10 +19,14 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
     `When: ${i.when}`,
     ...(i.installerName ? [`Installer: ${i.installerName}${i.installerPhone ? `, ${i.installerPhone}` : ""}`] : []),
     ...(i.address ? [`Address: ${i.address}`] : []),
+    ...(i.deposit ? [
+      `To lock in your day, please pay your ${i.deposit.amount} install deposit by bank transfer or PayID within 48 hours${i.deposit.holdUntil ? ` (we hold the day until ${i.deposit.holdUntil})` : ""}. No card for this one – bank transfer or PayID is free.`,
+      ...i.deposit.bankLines,
+    ] : []),
     "Before the day: sign your install consent at least 24 hours before. It takes a minute, from the button below.",
     "On the day, please have an adult (18+) home to let the installer in and sign off at the end, clear the area under the ceiling hatch and a path to it, move cars if you can so the van can park close, and keep pets away from the work area.",
     ...(i.removal ? ["Your job includes removing the old insulation, so expect some extra dust and a longer day. Close internal doors and cover anything near the hatch."] : []),
-    "What happens: the installer takes photos before and after (the VEU rebate requires them), lays the insulation and tidies up. Most homes take a few hours. Your remaining balance is due on the day.",
+    "What happens: the installer takes photos before and after (the VEU rebate requires them), lays the insulation and tidies up. Most homes take a few hours. Your remaining balance is due on the day, by bank transfer or PayID.",
     "Need to change the day? Use Change day on your job page.",
     "Questions? Just reply to this email.",
   ];

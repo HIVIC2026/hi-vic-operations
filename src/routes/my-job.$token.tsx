@@ -13,11 +13,12 @@ import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { PAYMENT_OPTION_SUMMARY } from "@/lib/payment-gate.core";
+import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
@@ -101,6 +102,7 @@ function Home({ v, token }: { v: View; token: string }) {
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
     <StatusSnapshot v={v} />
+    <PayNowCard v={v} token={token} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-canvas/70">{a.kicker}</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">{a.title}</h2>
@@ -376,10 +378,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
       <section className="rounded-[22px] bg-estimate-mint p-5"><p className="font-display text-lg font-extrabold">You don't lift a finger</p><p className="mt-1 text-sm">We book the Pre Insulation Electrical Safety Assessment (PIESA), the install and do all the rebate paperwork for you.</p></section>
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
         <h3 className="font-display text-lg font-extrabold">How you can pay</h3>
-        <ul className="mt-2 space-y-1 text-sm">
-          {q.split && <li>{aud(q.split.deposit)} Pre Insulation Electrical Safety Assessment (PIESA) payment first</li>}
-          {q.split && <li>Then {aud(q.split.firstHalf)} when your install is booked and {aud(q.split.secondHalf)} on install day</li>}
-          <li>Or pay the full {aud(q.total)} now</li>
+        <ul className="mt-2 space-y-1 text-sm" data-testid="how-you-pay">
+          {howYouPayLines(paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null })).map((l) => <li key={l}>{l}</li>)}
         </ul>
         <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
         {q.status === "issued"
@@ -388,8 +388,31 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
             ? <p data-quote-declined className="mt-4 rounded-2xl bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
             : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
       </section>
+      {q.status === "accepted" && <PayNowCard v={v} token={token} />}
     </>}
   </>;
+}
+
+/** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
+ *  safety check and electrical fixes; the install deposit and balance are bank transfer / PayID only. Never a card fee. */
+function PayNowCard({ v, token }: { v: View; token: string }) {
+  const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
+  const checkout = useServerFn(ownerCardCheckoutFn);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  if (!p || (p.dueNow <= 0 && !p.provisional)) return null;
+  return <section data-testid="pay-now" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
+    <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">Payment</p>
+    <h3 className="mt-1 font-display text-lg font-extrabold">{p.payNow.title}</h3>
+    {p.provisional && <p className="mt-1 text-sm font-semibold">Your install day is held for 48 hours{p.provisional.expiresAt ? ` (until ${visitPill(p.provisional.expiresAt)})` : ""} while your {aud(p.provisional.deposit)} deposit arrives.</p>}
+    {p.payNow.card && <button type="button" disabled={busy} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas disabled:opacity-60" onClick={async () => {
+      setErr(""); setBusy(true);
+      try { const r = await checkout({ data: { token } }); if ("url" in r && r.url) window.location.assign(r.url); else setErr(("blocker" in r && r.blocker) || "Please pay by bank transfer."); }
+      catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+    }}>{busy ? "Opening secure card payment…" : `Pay now by card — ${aud(p.payNow.amount)}`}</button>}
+    {err && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{err}</p>}
+    <ul className="mt-3 space-y-1 text-sm">{p.payNow.lines.map((l) => <li key={l}>{l}</li>)}</ul>
+    {p.paid > 0 && <p className="mt-2 text-xs text-estimate-navy/70">Paid so far: {aud(p.paid)}. Remaining: {aud(p.remaining)}.</p>}
+  </section>;
 }
 
 /** Jo insists this is clear and boxed (7 Oct 2026). */
@@ -410,6 +433,7 @@ function BookScreen({ v, token }: { v: View; token: string }) {
     </section>
     <FixesNote />
     <BookPickers token={token} />
+    <PayNowCard v={v} token={token} />
   </>;
 }
 

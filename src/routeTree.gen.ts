@@ -116,6 +116,8 @@ import { Route as ApiPublicEmailArtPreviewKindRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
+import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
@@ -712,6 +714,18 @@ const ApiPublicHooksExternalActionsRoute =
     path: '/api/public/hooks/external-actions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksXeroPaymentsRoute =
+  ApiPublicHooksXeroPaymentsRouteImport.update({
+    id: '/api/public/hooks/xero-payments',
+    path: '/api/public/hooks/xero-payments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksStripePaymentsRoute =
+  ApiPublicHooksStripePaymentsRouteImport.update({
+    id: '/api/public/hooks/stripe-payments',
+    path: '/api/public/hooks/stripe-payments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksOutlookSyncRoute =
   ApiPublicHooksOutlookSyncRouteImport.update({
     id: '/api/public/hooks/outlook-sync',
@@ -861,6 +875,8 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -972,6 +988,8 @@ export interface FileRoutesByTo {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1089,6 +1107,8 @@ export interface FileRoutesById {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1481,6 +1501,8 @@ export interface RootRouteChildren {
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
+  ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
+  ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
@@ -2247,6 +2269,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksOutlookSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/xero-payments': {
+      id: '/api/public/hooks/xero-payments'
+      path: '/api/public/hooks/xero-payments'
+      fullPath: '/api/public/hooks/xero-payments'
+      preLoaderRoute: typeof ApiPublicHooksXeroPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/stripe-payments': {
+      id: '/api/public/hooks/stripe-payments'
+      path: '/api/public/hooks/stripe-payments'
+      fullPath: '/api/public/hooks/stripe-payments'
+      preLoaderRoute: typeof ApiPublicHooksStripePaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/post-intake': {
       id: '/api/public/hooks/post-intake'
       path: '/api/public/hooks/post-intake'
@@ -2535,6 +2571,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
+  ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
+  ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,

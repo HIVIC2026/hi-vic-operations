@@ -68,6 +68,15 @@ export async function resolveOwnerJob(token: unknown) {
   }
   const owner = j.owners as { full_name: string | null } | null;
   const total = quote ? n(quote.customer_total_inc_gst) : null;
+  // Decisions 139/140/141: what is due now, how to pay it (card only for the $349 / fixes), bank details + reference.
+  // Owner-safe: amounts, state, the Xero online-invoice link and the invoice reference only – never Xero IDs or errors.
+  const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null) : null;
+  const payment = pay ? {
+    steps: pay.steps.map((s) => ({ key: s.key, label: s.label, amount: s.amountCents / 100, state: s.state, card: s.methods.includes("card") })),
+    dueNow: pay.due.dueNowCents / 100, remaining: pay.due.remainingCents / 100, paid: pay.paidCents / 100,
+    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.reference,
+    provisional: pay.provisional.decision === "provisional" ? { expiresAt: pay.provisional.expiresAt, deposit: pay.plan.installDepositCents / 100 } : null,
+  } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   return {
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
@@ -75,6 +84,7 @@ export async function resolveOwnerJob(token: unknown) {
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
     quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, ws?.safety_check_payment_inc_gst ?? null) : null } : null,
+    payment,
     consent: consent ? { scheduledStart: consent.scheduled_start } : null,
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,

@@ -77,6 +77,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          // Decision 139: Xero payment poll fallback (env XERO_PAYMENT_POLL_ENABLED=true) and the 48h provisional
+          // install-booking release (deposit unpaid). Office alerts only; the owner notice is held behind approval.
+          const { sweepProvisionalBookings } = await import("@/lib/payments.server");
+          const { pollXeroPayments } = await import("@/lib/xero.server");
+          (out as Record<string, unknown>)['payments'] = { poll: await pollXeroPayments(), provisional: await sweepProvisionalBookings() };
+        } catch (e) {
+          console.error("allocation tick: payments sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
+        }
+        try {
           const { sweepTradeNoShows } = await import("@/lib/visit-events.server");
           (out as Record<string, unknown>)['tradeNoShows'] = await sweepTradeNoShows();
         } catch (e) {
