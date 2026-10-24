@@ -10,20 +10,15 @@
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
-import { APPROVED_PRODUCTS } from "./insulation-product.core";
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A3 – Install day";
 export const INSTALL_DAY_RULE = "install-day-2026-10-24";
-export const INSTALL_DAY_AREAS = 3;
-/** The same product list as the Ready Check (decision 150). */
-export const INSTALL_DAY_PRODUCT_OPTIONS: readonly string[] = APPROVED_PRODUCTS.map((p) => p.option);
-export const INSTALL_DAY_AREA_COUNT_OPTIONS = ["1", "2", "3"] as const;
 export const INSTALL_DAY_SOLAR_BACK_OPTIONS = ["Yes", "No", "There isn't one"] as const;
 /** Q35, a text item (not a question) after the declaration signature. */
 export const INSTALL_DAY_AFTER_SIGN_TEXT = "That's the before-work part done. Come back to the next page when the insulation is in.";
 export const INSTALL_DAY_DECLARATION_START = "INSTALLER DECLARATION – Sign BEFORE insulation work starts.";
 
-/** Every label, by key. Area labels take the area number (1..3). */
+/** Every label, by key. */
 export const INSTALL_DAY_Q = {
   jobNumber: "Portal Job Number",
   address: "Site address",
@@ -58,13 +53,10 @@ export const INSTALL_DAY_Q = {
   productPhotos: "Photo of the packaging showing brand, model and R-value",
   declaration: "Everything on this form is true and complete",
   signature: "Lead installer's signature",
-  areaCount: "How many ceiling areas did you insulate?",
-  areaName: (a: number) => `Area ${a}: which part of the home?`,
-  areaBeforeVideo: (a: number) => `Area ${a}: video before you start`,
-  areaProduct: (a: number) => `Area ${a}: product installed`,
-  areaM2: (a: number) => `Area ${a}: m² installed`,
-  areaAfterVideo: (a: number) => `Area ${a}: video when it's done`,
-  areaNewPhoto: (a: number) => `Area ${a}: photo of the new insulation with a ruler showing its depth`,
+  /** Decision 263: one multi-file item each; the files must cover every Ready Check area. */
+  beforeVideos: "Before videos: one slow 360° of each ceiling area, lit, saying the area's name",
+  afterVideos: "After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left",
+  depthPhotos: "Depth photos: the new insulation in each area with a ruler standing in it",
   multiDay: "Did the install take more than one day?",
   dailyRecheck: "I checked every item on this form again before starting each day",
   lockoutOff: "Is the lock-out off and the power back on?",
@@ -75,18 +67,20 @@ export const INSTALL_DAY_Q = {
 } as const;
 
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";
-export type InstallDayPrefillKey = "jobNumber" | "address" | "installDate" | "apName" | "businessName" | "leadName" | "leadCii" | "lifeSupport" | "solarPresent" | "electricianAtStart" | "areaName" | "areaProduct" | "areaM2";
+export type InstallDayPrefillKey = "jobNumber" | "address" | "installDate" | "apName" | "businessName" | "leadName" | "leadCii" | "lifeSupport" | "solarPresent" | "electricianAtStart";
 export type InstallDayQuestion = {
   n: number; label: string; type: InstallDayType; required: boolean; group: number;
   options?: readonly string[]; help?: string;
   /** Only show when question `n` has one of these answers. */
   showWhen?: { n: number; is: readonly string[] };
   stop?: { when: "Yes" | "No"; text: string };
-  prefill?: InstallDayPrefillKey; area?: number;
+  prefill?: InstallDayPrefillKey;
+  /** Several files allowed. */
+  multiple?: boolean;
 };
 
 const Q = INSTALL_DAY_Q;
-/** Every question in form order (Q1–62), area 2 and 3 blocks written out. */
+/** Every question in form order (Q1–46). */
 export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   const out: InstallDayQuestion[] = [];
   let n = 0;
@@ -126,17 +120,9 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(7, Q.declaration, "checkbox", true);
   q(7, Q.signature, "signature", true);
   n++; // Q35: "That's the before-work part done…" text item, not a question
-  const count = q(8, Q.areaCount, "pick_one", true, { options: INSTALL_DAY_AREA_COUNT_OPTIONS, help: "Use the same areas as the Ready Check." });
-  for (let a = 1; a <= INSTALL_DAY_AREAS; a++) {
-    const show = a === 1 ? undefined : { n: count, is: INSTALL_DAY_AREA_COUNT_OPTIONS.slice(a - 1) };
-    const w = (x: Partial<InstallDayQuestion>) => ({ area: a, ...(show ? { showWhen: show } : {}), ...x });
-    q(8, Q.areaName(a), "text", true, w({ prefill: "areaName" }));
-    q(8, Q.areaBeforeVideo(a), "video", true, w({ help: "Slow 360°, lit, say the area name." }));
-    q(8, Q.areaProduct(a), "pick_one", true, w({ options: INSTALL_DAY_PRODUCT_OPTIONS, prefill: "areaProduct" }));
-    q(8, Q.areaM2(a), "number", true, w({ prefill: "areaM2" }));
-    q(8, Q.areaAfterVideo(a), "video", true, w({ help: "Slow 360°, lit, say the area name. Show full coverage and no rubbish left." }));
-    q(8, Q.areaNewPhoto(a), "photo", true, w({ help: "Ruler standing up, insulation not squashed." }));
-  }
+  q(8, Q.beforeVideos, "video", true, { multiple: true });
+  q(8, Q.afterVideos, "video", true, { multiple: true });
+  q(8, Q.depthPhotos, "photo", true, { multiple: true, help: "Don't squash it." });
   const md = q(8, Q.multiDay, "yes_no", true);
   q(8, Q.dailyRecheck, "checkbox", true, { showWhen: { n: md, is: ["Yes"] } });
   const lo = q(9, Q.lockoutOff, "yes_no", true, { stop: { when: "No", text: "Don't leave until it is." } });
@@ -194,7 +180,7 @@ export const allWithLabel = (items: Labelled[], label: string) => items.filter((
 /** Is this template / audit the "A3 – Install day" form? (Two labels no other form carries.) */
 export function isInstallDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
-  return allWithLabel(items, Q.declaration).length > 0 && allWithLabel(items, Q.areaCount).length > 0;
+  return allWithLabel(items, Q.declaration).length > 0 && allWithLabel(items, Q.beforeVideos).length > 0;
 }
 /** Question labels the template does not carry (exact wording; "Lead installer's signature" twice). Empty = built. */
 export function installDayMissingQuestions(template: unknown): string[] {
@@ -215,7 +201,7 @@ const yesNo = (v: string | null | undefined): "Yes" | "No" | null => (v == null 
 export type InstallDayRead = {
   text: (label: string) => string | null; yn: (label: string) => "Yes" | "No" | null; ticked: (label: string) => boolean;
   media: (label: string) => MittiMediaFile[];
-  /** Q34 (before work) and Q62 (after install): the 1st and 2nd "Lead installer's signature". */
+  /** Q34 (before work) and Q46 (after install): the 1st and 2nd "Lead installer's signature". */
   declarationSignature: ReadSignature; completionSignature: ReadSignature;
 };
 export function readInstallDay(audit: unknown): InstallDayRead {
@@ -272,10 +258,10 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   return { answers: a, crew: [row(r.text(Q.lead), r.text(Q.leadCii)), second, third] };
 }
 
-/** The four A3 photo items of this form, by the A3 evidence keys; the whole-job videos come from the areas. */
-export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[] } {
+/** The A3 photo items of this form by the A3 evidence keys, plus the three after-install multi-file items (decision 263). */
+export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[]; before_videos: MittiMediaFile[]; after_videos: MittiMediaFile[]; depth_photos: MittiMediaFile[] } {
   const r = readInstallDay(audit);
-  return { installer_photos: r.media(Q.installerPhotos), electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload) };
+  return { installer_photos: r.media(Q.installerPhotos), electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), before_videos: r.media(Q.beforeVideos), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
 }
 
 // ======================================================================================================
@@ -315,7 +301,6 @@ export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefi
 export type InstallDayPrefillFacts = {
   jobNumber: string | null; address: string | null; installDate: string | null; apName: string | null; businessName: string | null;
   leadName: string | null; leadCii: string | null; lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
-  areas: { name: string | null; product: string | null; m2: number | null }[];
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /** Prefill items for the template's own item IDs, matched by exact wording. Choice answers use the template's own option
@@ -326,13 +311,11 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
   const yn = (b: boolean | null) => (b == null ? null : b ? "Yes" : "No");
   for (const q of INSTALL_DAY_QUESTIONS) {
     if (!q.prefill) continue;
-    const area = q.area ? f.areas[q.area - 1] : undefined;
     const raw: string | null = (() => {
       switch (q.prefill) {
         case "jobNumber": return f.jobNumber; case "address": return f.address; case "installDate": return f.installDate; case "apName": return f.apName;
         case "businessName": return f.businessName; case "leadName": return f.leadName; case "leadCii": return f.leadCii;
         case "lifeSupport": return yn(f.lifeSupport); case "solarPresent": return yn(f.solarPresent); case "electricianAtStart": return yn(f.electricianAtStart);
-        case "areaName": return area?.name ?? null; case "areaProduct": return area?.product ?? null; case "areaM2": return area?.m2 == null ? null : String(area.m2);
       }
     })();
     if (raw == null || !String(raw).trim()) continue;
