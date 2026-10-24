@@ -31,6 +31,19 @@ function requireOurLead(c: Ctx) {
   if (c.job.channel !== "hivic_sourced") throw new WorkflowError("Installers arrange the Ready Check directly with their own customers.");
 }
 
+/** Read-only: whose move it is now (installer-texts.server uses it to hold a stale decision-79 text). */
+export const readyCheckTurnFor = async (jobId: string) => (await context(jobId)).turn;
+
+/** Decision 79: the owner suggested other days → one text to the installer (best-effort, never blocks the save). */
+async function tellInstallerDaysSuggested(jobId: string, triggerEventId: string | null, suggestedAt: string) {
+  if (!triggerEventId) return;
+  await (await import("./installer-texts.server")).textInstallerOwnerSuggestedDays(jobId, triggerEventId, suggestedAt).catch((e) => console.error("owner suggested days text skipped", (e as Error).message));
+}
+/** Decision 82 (installer text A): Ready Check booked → one text to the installer per booked start (best-effort). */
+async function tellInstallerBooked(jobId: string, startsAt: string) {
+  await (await import("./installer-texts.server")).textInstallerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked installer text skipped", (e as Error).message));
+}
+
 const view = (c: Ctx) => ({
   turn: c.turn, booked: c.booked, bookedAt: c.bookedAt,
   open: c.open.map((p) => ({ id: p.id, starts_at: p.starts_at, by: p.proposer_role === "installer" ? "installer" as const : "owner" as const })),
@@ -196,6 +209,7 @@ async function bookAgreedTime(jobId: string, proposalId: string, startsAt: strin
     // Confirmed booking starts the Mitti form in the background (never undoes the booking if it can't).
     await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, actorId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
     await tellOwnerBooked(jobId, startsAt);
+    await tellInstallerBooked(jobId, startsAt);
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
@@ -267,6 +281,9 @@ export async function ownerSuggestReadyCheckDays(jobId: string, userId: string, 
   await insertTimes(jobId, userId, "owner", c.asg?.id ?? null, days.map((d) => melbourneAt(d, 7).toISOString()));
   await logEvent(jobId, userId, "ready_check_days_suggested", `Owner suggested ${days.length} other Ready Check day${days.length === 1 ? "" : "s"}`, { days }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new times" }).eq("id", jobId);
+  // Decision 79: the installer is told once per suggestion (the event just written is the trigger and the key).
+  const { data: ev } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "ready_check_days_suggested").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  await tellInstallerDaysSuggested(jobId, ev?.id ?? null, ev?.created_at ?? new Date().toISOString());
   return { ok: true };
 }
 
@@ -310,6 +327,7 @@ export async function installerChangeReadyCheck(jobId: string, userId: string, p
   await logEvent(jobId, userId, "ready_check_changed", "Installer changed the booked Ready Check to a new time", { by: "installer", was: c.bookedAt, starts_at: start }, { internal: true });
   await admin.from("jobs").update({ next_action: "Ready Check booked" }).eq("id", jobId);
   await tellOwnerBooked(jobId, start);
+  await tellInstallerBooked(jobId, start);
   return { ok: true, booked: true };
 }
 

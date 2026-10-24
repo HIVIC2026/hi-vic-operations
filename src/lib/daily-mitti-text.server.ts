@@ -165,12 +165,14 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
   if (s.missing.length) return { skipped: "form_ids_missing" };
   const since = new Date(now.getTime() - 36 * 3_600_000).toISOString();
   const { data: bks } = await db.from("bookings")
-    .select("id, job_id, scheduled_start, business_id, assignment_id, jobs!inner(source, properties(address_line, suburb))")
+    .select("id, job_id, scheduled_start, business_id, assignment_id, jobs!inner(source, channel, properties(address_line, suburb))")
     .eq("kind", "ready_check").eq("status", "confirmed").gte("scheduled_start", since).order("scheduled_start");
   const date = melbourneDate(now);
   const out = { sent: 0, skipped: 0 };
   for (const b of bks ?? []) {
-    const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
+    const job = b.jobs as { source: string | null; channel: string | null; properties: { address_line: string | null; suburb: string | null } | null };
+    // Our leads get the approved decision-82 installer text from installer-texts.server instead (never both).
+    if (job.channel === "hivic_sourced") { out.skipped++; continue; }
     let biz: string | null = b.business_id;
     if (!biz && b.assignment_id) {
       const { data: a } = await db.from("job_assignments").select("business_id").eq("id", b.assignment_id).maybeSingle();

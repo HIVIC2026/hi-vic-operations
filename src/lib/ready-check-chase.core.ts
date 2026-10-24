@@ -31,9 +31,10 @@ export function incompleteDecision(p: { completed: boolean; modifiedAt: string |
   return { notify: idle && visitPassed, missing };
 }
 
-/** Draft installer text — NOT approved; the sms type stays wordingApproved:false until Jo signs it off. */
+/** Decision 83 (Jo, 24 Oct 2026) "Missing answers" text, verbatim: "Nearly there! {HV} ({address}) still needs: {items}.
+ *  Add them in Mitti and we'll prepare the owner's quote." The sender adds the brand prefix. */
 export function readyCheckIncompleteText(jobNumber: string, address: string | null, missing: string[]): string {
-  return `Ready Check ${jobNumber}${address ? ` (${address})` : ""} is missing: ${missing.join("; ")}. Please update it in Mitti. – Home Insulation Victoria`;
+  return `Nearly there! ${jobNumber}${address ? ` (${address})` : ""} still needs: ${missing.join("; ")}. Add them in Mitti and we'll prepare the owner's quote.`;
 }
 
 /** Stable signature so the same gaps are recorded (and texted) once, not on every 15-minute sync. */
