@@ -1184,6 +1184,13 @@
       "when": 1792793154373,
       "tag": "0168_owner_insulation_details_save",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1792837401816,
+      "tag": "0169_mitti_template_dumps_scratch",
+      "breakpoints": true
     }
   ]
 }
