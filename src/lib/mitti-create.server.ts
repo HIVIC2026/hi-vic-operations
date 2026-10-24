@@ -95,7 +95,8 @@ export async function scheduleReadyCheckFormCreation(jobId: string, actorId: str
 
 /**
  * Facts deciding whether a Ready Check form may be created automatically for this job (same switches as the
- * on-site flow: business invited to Mitti, template set, auto_send_mitti ON, owner paperwork A, confirmed booking).
+ * on-site flow: business invited to Mitti, template set, auto_send_mitti ON, owner paperwork A; a confirmed booking
+ * only on the booking paths — Add a job creates the form without one, decision 115).
  */
 export async function readyCheckFormFacts(jobId: string) {
   const { data: j } = await admin.from("jobs").select("channel, source, stage, originating_installer_business_id").eq("id", jobId).maybeSingle();
@@ -123,8 +124,18 @@ export async function readyCheckFormFacts(jobId: string) {
 
 /** Called after a Ready Check booking is confirmed. Schedules creation only when every existing switch allows it. */
 export async function onReadyCheckBooked(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
+  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: true });
+}
+
+/** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
+ *  needed. Same switches, same atomic claim; a booking entered later (decision 116) finds the form and skips. */
+export async function onReadyCheckJobAdded(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
+  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: false });
+}
+
+async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | null, call: MittiCall | undefined, opts: { requireBooking: boolean }): Promise<"scheduled" | "skipped"> {
   const f = await readyCheckFormFacts(jobId);
-  if (!f || !f.booked || f.auditId || f.measurementComplete || !f.installerUserId) return "skipped";
+  if (!f || (opts.requireBooking && !f.booked) || f.auditId || f.measurementComplete || !f.installerUserId) return "skipped";
   if (!f.mittiInvited || !f.templateSet || !f.autoSend || !f.gateADone) return "skipped";
   let assignee: ReadyCheckAssignee | null = null;
   if (f.job.source === "qa_test") {

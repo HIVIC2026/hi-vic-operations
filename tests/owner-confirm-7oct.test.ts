@@ -34,7 +34,8 @@ describe("owner confirm link for installer-quoted jobs (Jo 7 Oct 9:25pm)", () =>
     expect(page.match(/<FixesNote \/>/g)?.length).toBe(2);
     expect(page).toContain("ownerPriceTitle(v.agreed)");
     expect(readFileSync("src/lib/owner-gates.server.ts", "utf8")).toContain('d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote()');
-    expect(readFileSync("src/components/trade/add-job-flow.tsx", "utf8")).toContain("OWNER_AGREED_TICK");
+    // Decision 34 (Jo 24 Oct): Add a job is basics only, so the optional agreed-price tick is no longer asked there; the record stays on the intake server path.
+    expect(readFileSync("src/components/trade/add-job-flow.tsx", "utf8")).not.toContain("OWNER_AGREED_TICK");
     expect(readFileSync("src/lib/partner-import.server.ts", "utf8")).toContain("owner_agreed_price: true");
   });
 });

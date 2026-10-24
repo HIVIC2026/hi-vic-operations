@@ -68,14 +68,22 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     .in("jobs.stage", ["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "awaiting_quote_acceptance"]).order("completed_at", { ascending: false }).limit(opts.limit ?? 20);
   if (error) throw new Error(`Completed Ready Checks could not be read: ${error.message}`);
   let retried = 0, watched = 0;
-  const { mittiApi } = await import("./mitti.core");
+  const { mittiApi, parseAudit } = await import("./mitti.core");
   const call = opts.call ?? (await import("./mitti.server")).realMittiCall;
   for (const r of rows ?? []) {
     const j = r.jobs as { stage: string; channel: string | null };
     const { count: auto } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", r.job_id).eq("event_type", "measurement_completed").contains("details", { audit_id: r.external_id, basis: "mitti_complete" });
     if (!auto) continue; // only Ready Checks this automation completed
     let modifiedAt: string | null = null;
-    try { const a = await mittiApi(call).getAudit(String(r.external_id)); modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; watched++; } catch { /* Mitti unavailable: retry next tick */ }
+    let entries: { label: string; value: string | null }[] = [];
+    try { const a = await mittiApi(call).getAudit(String(r.external_id)); modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; entries = parseAudit(a).snapshot; watched++; } catch { /* Mitti unavailable: retry next tick */ }
+    // Decision 113 (Jo 24 Oct): a quote held at Complete (e.g. "My usual electrician" with none saved yet) simply waits.
+    // The regular sync stops reading a completed form, so once the missing details are in (usual electrician saved in
+    // My business, or the form changed to our electrician) this tick prepares the installer's draft from the form.
+    if (j.channel === "installer_sourced" && entries.length && j.stage !== "awaiting_quote_acceptance") {
+      const { data: open } = await admin.from("quotes").select("id").eq("job_id", r.job_id).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).limit(1);
+      if (!open?.length) await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(r.job_id, null, entries, String(r.external_id)).catch(() => null);
+    }
     if (j.stage === "awaiting_quote_acceptance") {
       const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
       await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled }).catch(() => undefined);

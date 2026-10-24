@@ -146,9 +146,10 @@ describe("2. a slow Mitti never blocks the installer", () => {
     expect((await onsiteFormFor(JOB, INSTALLER, m.call, false)).kind).toBe("open");
     expect(m.creates()).toBe(1);
   });
-  test("start of the on-site flow schedules creation instead of awaiting it", () => {
+  test("Add a job schedules creation (decision 115: straight away, no booking) instead of awaiting it; status reads stay read-only", () => {
     const src = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
-    expect(src).toContain("const state = await onsiteFormFor(job.id, userId, call, true);");
+    expect(src).toContain("await onReadyCheckJobAdded(job.id, userId, call)");
+    expect(src).toContain("const state = await onsiteFormFor(job.id, userId, call, false);");
     expect(src).not.toMatch(/await createAssignMittiAudit\(/);
     expect(src).toContain("scheduleReadyCheckFormCreation(");
   });
@@ -181,16 +182,17 @@ describe("3. a confirmed Ready Check booking starts exactly one creation", () =>
       ["src/lib/ready-check-times.server.ts", 'await confirmBooking(jobId, "ready_check", startsAt'], // Jo 24 Oct: owner/installer agree a time
       ["src/lib/installer-ready-check.server.ts", 'await confirmBooking(jobId, "ready_check", new Date(startIso)'],
       ["src/lib/installer-ready-check.server.ts", 'try { await confirmBooking(jobId, "ready_check", w.starts_at'],
-      ["src/lib/onsite-ready-check.server.ts", 'await confirmBooking(job.id, "ready_check"'],
+      ["src/lib/trade-view.server.ts", 'await confirmBooking(jobId, "ready_check", start, userId, "installer (time entered on own job)")'], // decisions 110/116: A1 day + time (job page and Add a job)
     ];
     for (const [file, call] of sites) {
       const src = readFileSync(file, "utf8"); const i = src.indexOf(call);
       expect(i).toBeGreaterThan(0);
-      const after = src.slice(i, i + 700);
-      // on-site "now" schedules through onsiteFormFor(request); every other path through onReadyCheckBooked
-      expect(after.includes("onReadyCheckBooked(") || file.endsWith("onsite-ready-check.server.ts")).toBe(true);
+      expect(src.slice(i, i + 700)).toContain("onReadyCheckBooked(");
     }
-    expect(readFileSync("src/lib/onsite-ready-check.server.ts", "utf8")).toContain("if (later) await (await import(\"./mitti-create.server\")).onReadyCheckBooked(job.id, userId)");
+    // Add a job never books by itself (decision 115): a visit entered there goes through the same job-page path.
+    const onsite = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
+    expect(onsite).not.toContain("confirmBooking(");
+    expect(onsite).toContain("tradeSetReadyCheckTime(userId, job.id, opts.visit, now, call)");
   });
 });
 

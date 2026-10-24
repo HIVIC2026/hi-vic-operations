@@ -30,8 +30,18 @@ async function bookingFormAuditId(jobId: string, kind: string): Promise<string |
     const id = (ev?.details as { audit_id?: unknown } | null)?.audit_id;
     return id ? String(id) : null; // no PIISA yet → "form not ready yet"
   }
+  if (src === "ready_checks") return readyCheckFormAuditId(jobId);
   const { data: f } = await db.from(src).select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   return f?.external_mitti_id ? String(f.external_mitti_id) : null;
+}
+
+/** The job's Ready Check form: a portal ready_checks record that carries one, else the current Mitti measure-up record
+ *  (installer jobs made from Add a job and picked-up A1 forms keep their audit id there — decision 115). */
+async function readyCheckFormAuditId(jobId: string): Promise<string | null> {
+  const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (f?.external_mitti_id) return String(f.external_mitti_id);
+  const { data: m } = await db.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  return m?.external_source === "mitti" && m.external_id ? String(m.external_id) : null;
 }
 
 /** Every trade's bookings for one Melbourne day, with their Mitti links. */
@@ -151,7 +161,7 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     const g: Group = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
       phone: normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? ""), isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: job.source === "qa_test" };
     if (skipReason(g.trade)) { out.skipped++; continue; }
-    const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const f = { external_mitti_id: await readyCheckFormAuditId(b.job_id) };
     const when = new Date(b.scheduled_start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const street = job.properties?.address_line?.split(",")[0] ?? null;
     const where = [street, job.properties?.suburb].filter(Boolean).join(", ") || "see your portal";

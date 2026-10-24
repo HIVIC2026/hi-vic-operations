@@ -21,8 +21,10 @@ describe("Add job confirmations and source-specific pricing", () => {
   test("single Add job records consent, fee awareness, R2 and attaches uploaded files", () => {
     const server = read("src/lib/partner-import.server.ts");
     for (const fact of ["contact_permission", "fee_awareness", "existing_below_r2", 'from("documents").insert']) expect(server).toContain(fact);
+    // Decision 34 (Jo 24 Oct): Add a job itself is basics only — no file upload, fee or R2 ticks on that screen.
     const page = read("src/components/trade/add-job-flow.tsx");
-    expect(page).toContain("Upload one customer file");
+    expect(page).toContain("READY_CHECK_CONTACT_PERMISSION");
+    expect(page).not.toContain("Upload one customer file");
     expect(page).not.toContain('to="/partner/bulk-import"');
   });
 
