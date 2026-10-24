@@ -1,4 +1,4 @@
-# Install day form (A3): the one rebuild prompt (24 Oct 2026, decision 260)
+# Install day form (A3): the one rebuild prompt (24 Oct 2026, decisions 260–261)
 
 Paste everything below the line into ChatGPT. It describes the finished form, so it is safe to run on the form as it
 is now. Quoted labels must be copied exactly; the portal reads them by wording.
@@ -22,23 +22,15 @@ form that is not listed here is deleted. `*` = required. "Help:" = help text und
 - Text * "Lead installer name"
 - Text * "Lead installer CII number"
 - Text "Installer 2 name (blank if none)"
-  → when filled:
-  - Text * "Installer 2 CII number"
-  - Signature * "Installer 2 signature: I have read the safety plan and will follow it"
-- Text "Installer 3 name (blank if none)" → same two items with "Installer 3"
-- Text "Installer 4 name (blank if none)" → same two items with "Installer 4"
+  → when filled: Text * "Installer 2 CII number"
+- Text "Installer 3 name (blank if none)" → when filled: Text * "Installer 3 CII number"
+- Text "Installer 4 name (blank if none)" → when filled: Text * "Installer 4 CII number"
 
-## Section "Safety plan"
-- Multiple choice (multiple answers) * "High-risk work on this job (tick all)"
-  Answers exactly: "Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists)" /
-  "Work on or near energised electrical installations or services (ceiling cables, switchboard, solar/battery)" /
-  "Work in or near a confined space" / "Work that may disturb asbestos (home built before 1990, or asbestos suspected)" /
-  "Work on or near a roadway or in an area with powered mobile plant" / "None of these apply (explain in the next box)"
-  → when "None of these apply (explain in the next box)" is ticked: Text * "None apply: why?"
-- Checkbox * "Standard controls are in place (they're on your job page)"
-- Text "Anything specific to this house (optional)"
+## Section "Photos before work"
 - Media * "Photo: each installer at the front door with ID"   Help: "One photo per installer, geotagged."
 - Media * "Photo: power isolated, lock-out tag on switchboard"   Help: "Solar and battery isolators off too, where fitted. Geotagged."
+
+(The safety plan itself is NOT on this form: the portal writes it and the crew sign it on the job page before install day.)
 
 ## Section "Household"
 - Yes/No * "Household told the power will be off?"   → when No: Stop line "Stop. Tell them first."

@@ -15,15 +15,10 @@ A solo installer with one zone, no solar, no existing insulation and no recessed
 7. Lead installer CII number *
 8. Installer 2 name (blank if none)
    → Installer 2 CII number *
-   → Installer 2 signature: I have read the safety plan and will follow it *
-9. Installer 3 name (blank if none) → same two
-10. Installer 4 name (blank if none) → same two
+9. Installer 3 name (blank if none) → CII number
+10. Installer 4 name (blank if none) → CII number
 
-## Safety plan (SWMS)
-11. High-risk work on this job (tick all) *
-    → None apply: why? *
-12. Standard controls are in place (they're on your job page) *   [tick]
-13. Anything specific to this house (optional)
+## Photos before work (the safety plan lives on the portal job page, decision 261)
 14. Photo: each installer at the front door with ID *
 15. Photo: power isolated, lock-out tag on switchboard *
 
