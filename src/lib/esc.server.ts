@@ -109,7 +109,8 @@ export async function regenerateEscNotification(jobId: string, actorId: string |
   return ins?.id ?? null;
 }
 
-async function assertCanSubmit(n: { job_id: string; scheduled_start: string }, sentAt: string) {
+/** Valid owner consent + inside the window — shared by the office record paths and the Registry robot (decision 272). */
+export async function assertCanSubmit(n: { job_id: string; scheduled_start: string }, sentAt: string) {
   const { currentConsent } = await import("./consent.server");
   const b = submissionBlockers({ consent: await currentConsent(n.job_id), scheduledStart: n.scheduled_start, sentAt });
   if (b.length) throw new WorkflowError(b.join(" "));
