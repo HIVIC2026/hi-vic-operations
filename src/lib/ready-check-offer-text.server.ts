@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 export async function textInstallerAboutOffer(offerId: string): Promise<string> {
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary").eq("id", offerId).maybeSingle();
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, offered_at, expires_at").eq("id", offerId).maybeSingle();
   if (!o || o.kind !== "ready_check" || o.status !== "pending") return "skipped";
   const [{ data: job }, { data: b }] = await Promise.all([
     admin.from("jobs").select("source").eq("id", o.job_id).maybeSingle(),
@@ -26,9 +26,13 @@ export async function textInstallerAboutOffer(offerId: string): Promise<string> 
     return `${r.status}: ${r.detail}`;
   }
   const { CUSTOMER_BASE } = await import("./engagement.core");
+  // Decision 165: the trigger is this offer. A switch flipped on after the 24h window (or after the installer answered)
+  // must not text an old offer, so the sender gets the offer time and whether it is still open.
+  const stillOpen = o.status === "pending" && (!o.expires_at || Date.parse(o.expires_at) > Date.now());
   const r = await (await import("./sms.server")).sendRealSms({
     type: "job_offer", idempotencyKey: `job-offer:v1:${offerId}`, to, jobId: o.job_id, businessId: o.business_id,
     body: readyCheckOfferText(suburb, `${CUSTOMER_BASE}/field/offer/${offerId}`, area),
+    event: { at: o.offered_at, current: stillOpen },
   });
   return `${r.status}: ${r.detail}`;
 }

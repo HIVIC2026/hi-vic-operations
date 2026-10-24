@@ -97,9 +97,13 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   }
 
   const { sendRealSms } = await import("./sms.server");
+  // Decision 165: the trigger is the quote release (sent_at). A switch flipped on days later must not text an old
+  // release, and never one that has since been accepted/declined/reopened — so the sender gets the release time and state.
+  const { data: q } = await admin.from("quotes").select("sent_at, status, release_state").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   const s = await sendRealSms({
     type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,
     body: quoteReadySmsBody(String(job.job_number ?? "")),
+    event: { at: q?.sent_at ?? null, current: q?.status === "issued" && q?.release_state === "released" },
   }).catch((e) => ({ status: "failed" as const, detail: e instanceof Error ? e.message : "error", sid: null }));
 
   // Approved rendered email wins; until Jo approves it only an approved DB template may be sent.

@@ -90,6 +90,9 @@ async function sendSms(g: Group, to: string, body: string, kind: "daily" | "upda
     return { status: r.status, detail: r.detail, sid: null };
   }
   // Real trades: the ONE real sender (customer_comms_enabled + this message's switch, STOP list, send-once key).
+  // Decision 165 (`window` type): the day/change signature is in the key and sendOnce claimed trade_text_log.send_key
+  // first, so a held morning text stays held for that day and the next day is recomputed — a switch flip never re-fires
+  // an old day's links; within the day it cannot double-send.
   const { sendRealSms } = await import("./sms.server");
   const r = await sendRealSms({ type: kind === "update" ? "daily_mitti_update" : "daily_mitti", idempotencyKey: `daily-mitti:${key}`, to, body, businessId: g.trade.businessId, jobId: g.jobs[0]?.jobId ?? null });
   return { status: r.status === "sent" ? "sent" : r.status === "blocked" || r.status === "already" ? "blocked" : "failed", detail: r.detail, sid: r.sid };

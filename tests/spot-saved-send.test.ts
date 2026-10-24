@@ -43,4 +43,11 @@ describe("spot saved confirmation plan", () => {
     expect(planSpotSaved({ ...ok, emailSwitchOn: false }).email).toEqual({ send: false, reason: "Spot saved emails are switched off" });
     expect(planSpotSaved({ ...ok, smsSwitchOn: false }).sms).toEqual({ send: false, reason: "Spot saved texts are switched off" });
   });
+  test("decision 165: the real text carries the spot-saved time as its trigger, so a switch flip never confirms an old spot (source)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../src/lib/spot-saved-send.server.ts", import.meta.url), "utf8");
+    expect(src).toContain('type: "spot_saved", idempotencyKey: plan.sms.key, to: plan.sms.to, body: msgs.sms, jobId, event: { at: resp?.spot_saved_at ?? null }');
+    const { SMS_FRESHNESS } = await import("../src/lib/sms.core");
+    expect(SMS_FRESHNESS.spot_saved).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
+  });
 });

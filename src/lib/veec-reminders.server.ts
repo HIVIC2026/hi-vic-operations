@@ -60,6 +60,8 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
     } catch (e) { out.push(`email not sent — ${(e as Error).message}`); }
   }
   // The one real text sender: wording not approved → blocked and recorded, never sent.
+  // Decision 165 (`window` type): this step was recorded as done above before any send, so a switch flip never re-fires an
+  // old step; the next due step (day 1/3/7) is recomputed each tick and goes once when allowed.
   const { sendRealSms } = await import("./sms.server");
   const s = await sendRealSms({ type: smsType, idempotencyKey: key, to: owner?.phone ?? null, body: smsBody, jobId });
   out.push(`sms ${s.status}: ${s.detail}`);

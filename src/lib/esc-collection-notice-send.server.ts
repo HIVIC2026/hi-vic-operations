@@ -85,6 +85,8 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     email = await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text);
   } else {
     const { sendRealSms } = await import("./sms.server");
+    // Decision 165 (`window` type): attempts 1/2/3 are planned from the recorded send history (held ones included), so a
+    // switch flip never re-fires an old attempt; held attempts no longer claim the key, and the manual re-send keeps its own key.
     const key = p.manual ? `esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}` : `esc-notice-link:v1:${p.worker.id}:${p.attempt}`;
     const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: key, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
     sms = { status: r.status, detail: r.detail };
