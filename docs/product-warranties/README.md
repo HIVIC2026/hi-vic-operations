@@ -20,13 +20,12 @@ The PDFs are bundled for the server by `bun scripts/embed-product-warranties.ts`
 The script refuses anything that is not a real PDF (`%PDF-` header) and warns when the text does not mention a warranty.
 **Run it after adding or replacing any file here.**
 
-## Status (24 Oct 2026)
+## Status (25 Oct 2026)
 
-No document could be downloaded from the build container: the egress proxy refuses every manufacturer and mirror host
-(csrbradford.com.au, bradfordinsulation.com.au, eboss.co.nz, insulation.com.au, knauf.com, media.bunnings.com.au,
-pgfinsulation.com.au all answer `CONNECT … 403`). Nothing was fabricated. Until the files below are added and embedded,
-every completion pack sends without a warranty attachment and every AP signature holds on the warranty prerequisite
-(the office can still record a manually provided copy).
+Three PDFs are on file and embedded (fetched through the Lovable sandbox on 25 Oct 2026; the build container's proxy
+blocks the manufacturer hosts): Pink Batts (insulation.com.au Rev2 29 Apr 2024), Earthwool unfaced (Knauf via the Bunnings
+media mirror, KIAU08181747WA), Bradford (eboss.co.nz NZ-issued lifetime warranty certificate — replace with the current
+Australian CSR Bradford 70-year document when the office has it). ECOWOOL is still missing (PGF to supply).
 
 | Product option(s) | Manufacturer | Warranty | Expected file (exact name) | Source |
 |---|---|---|---|---|
