@@ -1,16 +1,12 @@
 // Ready Check for installer-supplied customers the installer hasn't quoted (Jo, 7 Oct 6pm). Pure rules only.
 // Persistence: installer-ready-check.server.ts. The installer is already assigned from upload, so no offer round
 // runs; the job is NEVER offered to another trade.
+// Decision 180 (Jo, 24 Oct 2026): the owner "choose 3–5 times" email, its /times link and the waiting/pick states are
+// retired — installers arrange their own customers' Ready Checks directly (decisions 110/116: optional visit day and
+// time on Add a job / the job screen). Old times-request workflow events stay as history only.
 
 export const BOOK_READY_CHECK = "Book a Ready Check";
 export const READY_CHECK_BOOKED = "Ready Check booked";
-export const WAITING_FOR_OWNER_TIMES = "Waiting for the owner to choose Ready Check times";
-export const OWNER_TIMES_READY = "The owner chose times — tap one to book the Ready Check";
-export const RC_TIMES_REQUESTED_EVENT = "installer_ready_check_times_requested";
-export const RC_TIMES_LINK_PURPOSE = "ready_check_times";
-/** DRAFT — Jo must approve the wording before any real owner receives it. */
-export const RC_TIMES_EMAIL_VERSION = "installer-rc-times-v1-draft";
-export const RC_TIMES_EMAIL_APPROVED = false;
 
 export type InstallerRcFacts = {
   channel: string | null; stage: string; quoted: "yes" | "no" | null;
@@ -18,9 +14,9 @@ export type InstallerRcFacts = {
   attended?: "yes" | "no" | null;
   /** A canonical onsite Ready Check/measurement already exists for this job. */
   onsiteDone?: boolean;
-  timesRequested: boolean; openWindows: number; booked: boolean;
+  booked: boolean;
 };
-export type InstallerRcAction = "none" | "confirm_attendance" | "book" | "waiting_for_owner" | "pick_owner_time" | "booked";
+export type InstallerRcAction = "none" | "confirm_attendance" | "book" | "booked";
 
 /** What the installer's job page shows for the Ready Check. Only unquoted installer jobs still waiting for one. */
 export function installerReadyCheckAction(f: InstallerRcFacts): InstallerRcAction {
@@ -32,8 +28,6 @@ export function installerReadyCheckAction(f: InstallerRcFacts): InstallerRcActio
   if (f.attended === "yes") return "none";
   if (f.attended == null) return f.onsiteDone ? "none" : "confirm_attendance";
   if (f.stage !== "ready_check_ready_to_schedule") return "none";
-  if (f.openWindows > 0) return "pick_owner_time";
-  if (f.timesRequested) return "waiting_for_owner";
   return "book";
 }
 
@@ -52,16 +46,4 @@ export function ownBookingBlocker(startIso: string, now = new Date()): string | 
   if (t <= now.getTime()) return "That time has already passed. Enter the time you agreed with the owner.";
   if (t > now.getTime() + 90 * 86_400_000) return "Ready Checks can be booked up to 90 days ahead.";
   return null;
-}
-
-const first = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0] ?? "";
-
-/** DRAFT owner email (Jo to approve). Names the installer's business so the owner recognises it. */
-export function renderRcTimesEmail(v: { ownerName: string | null; installerBusiness: string; link: string }) {
-  const hi = first(v.ownerName) ? `Hi ${first(v.ownerName)},` : "Hi,";
-  const subject = `${v.installerBusiness} – choose a time for your free Ready Check`;
-  const text = `${hi}\n\n${v.installerBusiness} has asked Home Insulation Victoria to arrange your free Ready Check. Please choose 3 to 5 times that suit you, and ${v.installerBusiness} will confirm one.\n\nChoose my times: ${v.link}\n\nKind regards,\nHome Insulation Victoria`;
-  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
-  const html = `<p>${esc(hi)}</p><p>${esc(v.installerBusiness)} has asked Home Insulation Victoria to arrange your free Ready Check. Please choose 3 to 5 times that suit you, and ${esc(v.installerBusiness)} will confirm one.</p><p><a href="${esc(v.link)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#3C51C4;color:#ffffff;font-weight:700;text-decoration:none">Choose my times</a></p><p>Kind regards,<br>Home Insulation Victoria</p>`;
-  return { subject, text, html };
 }

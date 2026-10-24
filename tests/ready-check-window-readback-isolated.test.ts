@@ -31,7 +31,6 @@ mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { f
   return chain;
 } } }));
 mock.module('../src/lib/workflow.server', () => ({ WorkflowError: Error, getStage: async () => 'ready_check_ready_to_schedule', transition: async () => {}, logEvent: async (_j: string, _a: unknown, event: string) => { events.push(event); } }));
-mock.module('../src/lib/installer-ready-check.server', () => ({ ownerTimesRequested: async () => false }));
 mock.module('../src/lib/visit-events.server', () => ({ timesReopenedSince: async () => false }));
 mock.module('../src/lib/offer-dispatch.server', () => ({ jobOfficePicks: async () => true }));
 let bookingAllowed = true;

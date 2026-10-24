@@ -181,7 +181,6 @@ describe("3. a confirmed Ready Check booking starts exactly one creation", () =>
     const sites: [string, string][] = [
       ["src/lib/ready-check-times.server.ts", 'await confirmBooking(jobId, "ready_check", startsAt'], // Jo 24 Oct: owner/installer agree a time
       ["src/lib/installer-ready-check.server.ts", 'await confirmBooking(jobId, "ready_check", new Date(startIso)'],
-      ["src/lib/installer-ready-check.server.ts", 'try { await confirmBooking(jobId, "ready_check", w.starts_at'],
       ["src/lib/trade-view.server.ts", 'await confirmBooking(jobId, "ready_check", start, userId, "installer (time entered on own job)")'], // decisions 110/116: A1 day + time (job page and Add a job)
     ];
     for (const [file, call] of sites) {

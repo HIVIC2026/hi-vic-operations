@@ -550,7 +550,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await admin.from("electrician_nominations").update({ ended_at: new Date().toISOString() }).eq("id", nom!.id);
     await jobsOk(c, [r.jobId]);
   });
-  await step(steps, "C13", "C13 Not quoted: Book a Ready Check (book it myself / ask the owner), never offered to anyone else", async (c) => {
+  await step(steps, "C13", "C13 Not quoted: Book a Ready Check (installer books it with the owner), never offered to anyone else", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
     const rc = await import("../src/lib/installer-ready-check.server");
     const { writeFileSync } = await import("node:fs");
@@ -559,7 +559,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     for (const r of u.rows) await admin.from("bulk_import_rows").update({ extracted: { ...r.extracted, quoted_answer: "no" } as never }).eq("id", r.id); // installer answered Quoted? No
     await bi.confirmBatch(u.batchId, ownerId, []);
     const { data: made } = await admin.from("bulk_import_rows").select("job_id, extracted").eq("batch_id", u.batchId).not("job_id", "is", null).order("row_index");
-    // Ready Check jobs are checked inside C13 (the "ask the owner" one deliberately sends a TEST email).
+    // Ready Check jobs are checked inside C13 (nothing is ever sent to these owners).
     c("both not-quoted customers confirmed", (made ?? []).length === 2, String(made?.length));
     const mk = async (n: string) => (made ?? [])[Number(n) - 1]!.job_id!;
     let where = "start";
@@ -582,28 +582,13 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
       where = 'const { count: sent1 } = await admin.from("job_communication';
       const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
       c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
-      if (!process.argv.includes("--allow-test-email")) throw new NotRun('own-booking checks above recorded separately; ask-owner path NOT_RUN because it sends to a real recipient');
+      // Decision 180 (Jo, 24 Oct 2026): the "ask the owner for times" email/link path is retired — installers arrange their own
+      // customers' visits directly. The second customer only proves nobody else is ever offered the job.
       where = 'const j2 = await mk("2");';
       const j2 = await mk("2");
-      where = 'const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId)';
-      const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId);
-      c("Ask the owner: email only to Jo's TEST inbox", /^TEST email (sent|blocked)/.test(ask.delivery), ask.delivery);
-      where = 'const { data: comm } = await admin.from("job_communications"';
-      const { data: comm } = await admin.from("job_communications").select("recipients, subject").eq("job_id", j2).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      c("Ask the owner: message names the installer's business", !!comm && (comm.recipients as string[]).every((x) => x === "jolowexo@hotmail.com") && !/\[TEST PARTNER\]/.test(comm.subject ?? "") && (comm.subject ?? "").length > 20, `${comm?.recipients} / ${comm?.subject}`);
-      where = 'const token = (ask as { testLink?: string }).testLink!.split';
-      const token = (ask as { testLink?: string }).testLink!.split("/").pop()!;
-      where = 'const { allowedPiesaDays } = await import("../src/lib/piesa-';
-      const { allowedPiesaDays } = await import("../src/lib/piesa-windows.core");
-      where = 'const days = allowedPiesaDays().slice(1, 4);';
-      const days = allowedPiesaDays().slice(1, 4);
-      where = 'const { submitReadyCheckWindows } = await import("../src/lib';
-      const { submitReadyCheckWindows } = await import("../src/lib/readycheck-booking.server");
-      where = 'await submitReadyCheckWindows((await rc.jobForTimesToken(tok';
-      await submitReadyCheckWindows((await rc.jobForTimesToken(token))!, days.map((d) => ({ date: d, slot: "10-12" as const })));
       where = 'const s2 = await rc.installerRcState(j2);';
       const s2 = await rc.installerRcState(j2);
-      c("owner's 3 times show to the installer", s2?.action === "pick_owner_time" && s2.windows.length === 3, `${s2?.action} ${s2?.windows.length}`);
+      c("second not-quoted customer also shows 'Book a Ready Check' (no owner email path)", s2?.action === "book", String(s2?.action));
       where = 'const { count: offers } = await admin.from("partner_offers")';
       const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j2);
       c("never offered to any other trade (no offers at all)", !offers, String(offers));
@@ -613,12 +598,9 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
       const { data: other } = await admin.from("businesses").select("id").ilike("onboarding_notes", "%[TEST PARTNER]%").neq("id", BIZ).limit(1).maybeSingle();
       where = 'if (other) c("an offer to another TEST trade is refused", aw';
       if (other) c("an offer to another TEST trade is refused", await assertOfferPairsAllowed(j2, [other.id], "ready_check").then(() => false, () => true));
-      where = 'const first = await rc.takeOwnerReadyCheckTime(j2, ownerId, ';
-      const first = await rc.takeOwnerReadyCheckTime(j2, ownerId, s2!.windows[0]!.id).then(() => "booked", (e) => (e as Error).message);
-      where = 'const { data: b2 } = await admin.from("jobs").select("stage"';
-      const { data: b2 } = await admin.from("jobs").select("stage").eq("id", j2).single();
-      c("installer taps a time: booked, or held until the owner signs paperwork A", first === "booked" ? b2?.stage === "ready_check_scheduled" : /paperwork A/.test(first), first === "booked" ? String(b2?.stage) : first);
-    
+      where = 'const { count: sent2 } = await admin.from("job_communication';
+      const { count: sent2 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j2);
+      c("nothing sent to the second owner either", !sent2, String(sent2));
     } catch (e) { if (e instanceof NotRun) throw e; c(`stopped at: ${where}`, false, (e as Error).message); }
   });
 

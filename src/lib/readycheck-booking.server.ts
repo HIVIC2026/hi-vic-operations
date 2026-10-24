@@ -37,9 +37,8 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
   // Jo 24 Oct 2026 (decision 53): owners of our leads no longer give Ready Check times — the installer offers them.
   if (job?.channel === "hivic_sourced") throw new WorkflowError(OWNER_WAITS_FOR_INSTALLER_TIMES);
   if (!job || !(READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage)) throw new WorkflowError("Ready Check times can't be chosen at this point.");
-  // Installer-supplied customer whose installer asked us to collect the owner's times (Jo, 7 Oct 6pm).
-  const ownInstaller = inst && (await import("./installer-ready-check.server")).ownerTimesRequested(jobId);
-  if (inst && !(await ownInstaller)) throw new WorkflowError("An installer is already arranging your Ready Check.");
+  // An assigned installer (installer-supplied customer) arranges the visit directly (decision 180): the owner never picks windows here.
+  if (inst) throw new WorkflowError("An installer is already arranging your Ready Check.");
   if (w.open.length) throw new WorkflowError("Your Ready Check times are already with our installers.");
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "ready_check", w.roundStart);
   if (!reopened && w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange your Ready Check.");
@@ -51,10 +50,6 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
   const { error } = await admin.from("ready_check_windows").insert(picks.map((p) => ({ job_id: jobId, round, ...windowBounds(p.date, p.slot) })));
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, "ready_check_windows_chosen", `Owner chose ${picks.length} Ready Check times (round ${round})`, { round, count: picks.length });
-  if (inst) { // never offered to anyone else: the supplying installer picks one of these times
-    await admin.from("jobs").update({ next_action: "Installer to tap one of the owner's Ready Check times" }).eq("id", jobId);
-    return { ok: true, round };
-  }
   // No installer and not our lead: nothing is offered automatically (office picks the installer).
   await admin.from("jobs").update({ next_action: "Waiting for Home Insulation Victoria to choose an installer" }).eq("id", jobId);
   return { ok: true, round };
@@ -72,8 +67,7 @@ export async function ownerReadyCheckWindowState(jobId: string) {
   // Our leads: the owner never picks Ready Check windows (decision 53); old windows stay as read-only history.
   const stageOk = !!job && job.channel !== "hivic_sourced" && (READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage);
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "ready_check", w.roundStart);
-  const ownInstaller = inst && (await (await import("./installer-ready-check.server")).ownerTimesRequested(jobId));
-  const canPick = access.allowed && stageOk && (!inst || ownInstaller) && w.open.length === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
+  const canPick = access.allowed && stageOk && !inst && w.open.length === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
   return { bookingAllowed: access.allowed, canPick, moreTimes: access.allowed && w.round === 1 && !!asked, round: w.round, windows: w.all.map((r) => ({ starts_at: r.starts_at, ends_at: r.ends_at, status: r.status })) };
 }
 
