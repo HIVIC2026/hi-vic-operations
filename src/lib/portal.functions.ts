@@ -537,6 +537,14 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
+    // Decision 178: a Mitti PIESA cannot be completed until its evidence (switchboard + on-site photos geotagged,
+    // a photo per hazard, the CES after fixes) is on the synced form. Same pure rule as the sync and the stage gate.
+    if (a.external_mitti_id) {
+      const { piesaEvidenceBlockersFromSnapshot } = await import("./piesa-evidence.core");
+      const { shortAnswersFromEntries } = await import("./official-short.core");
+      const evb = piesaEvidenceBlockersFromSnapshot(a.mitti_raw_snapshot, (entries) => shortAnswersFromEntries("piesa", entries));
+      if (evb.length) throw new WorkflowError(`PIESA evidence still needed on the Mitti form: ${evb.join("; ")}`);
+    }
     // Defence in depth: even a value written before this guard existed cannot be completed with a future date.
     const dateBlockers = piesaDateBlockers(a.assessed_on);
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);

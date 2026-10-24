@@ -22,6 +22,9 @@ export type PiesaAdvanceFacts = {
   outcome: string | null | undefined;
   /** True only when the assessment is complete AND a current `piesa_records` row exists. */
   hasCurrentPiesa: boolean;
+  /** Decision 178: PIESA evidence blockers from the stored onsite-form snapshot (`piesaEvidenceHold`);
+   *  empty (or omitted for a manual PIESA) means the evidence is in. Any blocker holds the job. */
+  evidenceBlockers?: string[];
 };
 
 export type PiesaAdvanceDecision =
@@ -33,12 +36,15 @@ export const PIESA_HOLD = {
   notComplete: "Electrical assessment is not complete yet.",
   noOutcome: "PIESA outcome not recorded yet.",
   noRecord: "No current PIESA record.",
+  /** Decision 178 — the onsite-form PIESA evidence is not all in. */
+  evidence: (blockers: string[]) => `PIESA evidence still needed: ${blockers.join("; ")}`,
 } as const;
 
 /** Advance only on a genuinely completed assessment with a recorded outcome and a current PIESA record. */
 export function piesaAdvanceDecision(f: PiesaAdvanceFacts): PiesaAdvanceDecision {
   if (f.stage !== PIESA_ADVANCE_STAGE) return { action: "hold", reason: PIESA_HOLD.wrongStage };
   if (f.assessmentStatus !== "complete") return { action: "hold", reason: PIESA_HOLD.notComplete };
+  if (f.evidenceBlockers?.length) return { action: "hold", reason: PIESA_HOLD.evidence(f.evidenceBlockers) };
   const outcome = String(f.outcome ?? "").trim().toLowerCase();
   if (!(PIESA_RECORDED_OUTCOMES as readonly string[]).includes(outcome)) return { action: "hold", reason: PIESA_HOLD.noOutcome };
   if (!f.hasCurrentPiesa) return { action: "hold", reason: PIESA_HOLD.noRecord };

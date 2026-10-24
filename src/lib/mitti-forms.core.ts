@@ -25,6 +25,7 @@ import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./officia
 import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
+import { PIESA_EVIDENCE } from "./piesa-evidence.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
@@ -45,10 +46,12 @@ function officialFields(key: "piesa" | "piisa"): FormField[] {
 const YN = ["Yes", "No"];
 const SUPP = "Home Insulation Victoria evidence – not part of the official form";
 const sup = (label: string, source: string, extra: Partial<FormField> = {}): FormField => ({ label, type: "media", required: true, supplemental: true, source: `${SUPP}: ${source}`, ...extra });
-const PIESA_SUPPLEMENTAL: FormField[] = [
-  sup("Electrician photo at front of premises with photo ID", `${G} Table 4`),
-  sup("Switchboard cable photo", `${G} Table 4`),
-];
+// Decision 178 (Jo 24 Oct 2026): the four AP evidence items (docs/MITTI_PIESA_FORM_SPEC.md q42–q45). Wording and
+// accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
+const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
+  aliases: e.aliases,
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes" } : e.id === "ces_file" ? { when: "Repair work was completed (Section C answered)" } : {}),
+}));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
   sup("Is the existing insulation foil backed or electrically conductive?", "HI VIC portal record (not on the official PIISA) — needed to apply the printed Part 6 note (NEEDS OFFICIAL/LEGAL CONFIRMATION)", { type: "choice", choices: ["Yes", "No"], when: "Existing insulation present", id: "supp.conductive" }),

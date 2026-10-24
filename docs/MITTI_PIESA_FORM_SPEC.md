@@ -1,6 +1,17 @@
 # Mitti PIESA form: build sheet
 
-For whoever builds the electrician's **PIESA** form in Mitti. It's generated from the portal's own definition (`src/lib/official-short.core.ts`, `SHORT_PIESA_FIELDS`), so the portal can read every answer.
+> **AP evidence (decision 178, Jo 24 Oct 2026).** The PIESA form carries four evidence items and the portal will not count the PIESA as complete until the ones that apply are on the form:
+>
+> | # | Evidence | When it is required | Checked by the portal |
+> |---|---|---|---|
+> | 42 | Photo of the cables at the switchboard (geotagged) | Always | Present **and** geotagged |
+> | 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Always | Present **and** geotagged |
+> | 44 | Photo of each hazard listed (one per hazard; geotagged) | Only when any hazard was answered Yes (mains/solar/ceiling not safe, non-IC downlights, appliances/flues) | One photo per hazard listed, all geotagged |
+> | 45 | Certificate of Electrical Safety (photo or PDF) | Only once repair work was done (q30 answered Yes) | Present |
+>
+> Sources: ESC 30 Jul 2026 update (switchboard photo by the licensed electrician during the PIESA), DEECA industry pack (electrician identity at the premises). The files are copied into the job file (`documents`, kind `piesa_evidence`) for the 6-year AP record. Rules: `src/lib/piesa-evidence.core.ts`; sync: `src/lib/mitti.server.ts`; gates: `completeAssessment`, `stageEntryBlockers("piesa_complete")`, `piesaAdvanceDecision`.
+
+For whoever builds the electrician's **PIESA** form in Mitti. It's generated from the portal's own definition (`src/lib/official-short.core.ts`, `SHORT_PIESA_FIELDS`, plus the four evidence items in `src/lib/piesa-evidence.core.ts`), so the portal can read every answer.
 
 **The question wording must match exactly.** The portal finds each answer by its question text, and the portal turns the answers into the official DEECA PIESA Word form, so the electrician only sees short, plain questions.
 
@@ -56,11 +67,24 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 39 | Name: | Text answer | Required · **portal fills this in** |
 | 40 | Date: | Date | Required |
 | 41 | Owner signature | Signature | Required |
-| 42 | Photo of the cables at the switchboard (geotagged) | Photo / attachment (location on) | Required · **new: VEU requirement for installs from 21 Aug 2026** |
-| 43 | Photo showing you on site at the property (geotagged) | Photo / attachment (location on) | Required · **new: VEU evidence the electrician attended** |
+| 42 | Photo of the cables at the switchboard (geotagged) | Photo / attachment (location on) | Required · **VEU requirement for installs from 21 Aug 2026** · portal blocks completion until present and geotagged |
+| 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Photo / attachment (location on) | Required · **VEU evidence the electrician attended** · portal blocks completion until present and geotagged |
+| 44 | Photo of each hazard listed (one per hazard; geotagged) | Photo / attachment (location on, several files) | Required · only show when: any hazard answered Yes (mainsSafe = No, solarSafe = No, ceilingSafe = No, downlightsNonIc = Yes or appliancesPresent = Yes) · portal expects one photo per hazard listed, all geotagged |
+| 45 | Certificate of Electrical Safety (photo or PDF) | Photo / attachment (PDF allowed) | Required · only show when: rectificationComplete = Yes (q30) · portal blocks completion until present |
 
-Questions 42–43 are the newer VEU photo requirements from the 30 Jul 2026 ESC update. They're stored with the form's PDF in the job file. Once the regulator's wording is confirmed, the portal will also check that they're present.
+Questions 42–45 are the evidence items from decision 178 (Jo 24 Oct 2026). Earlier wordings ("Switchboard cable photo", "Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID") are still recognised by the portal, but build the form with the wording above. The portal copies each file into the job file (`documents`, kind `piesa_evidence`, private `job-files` bucket, one copy per Mitti media id) when the Mitti form is marked complete, so the AP record keeps them for 6 years even while another item is still missing.
+
+### How the CES gets attached after fixes (q45)
+There is one PIESA template. Repair work is handled in two ways, and the CES follows the same path as the repair:
+- **Fixed on the same visit** (electrician repairs on the day, answers q30 "Have you completed all of the repair work…" = Yes and fills q31–q37): q45 appears on the same form and the CES is attached in Mitti. The portal will not count the PIESA as complete until q45 has a file.
+- **Fixed on a later visit** (q20 = "Yes, repair work is needed", q30 left as No/blank, electrician signs off, the office prices the fixes and the owner approves): the first form is completed without q45. After the electrical fixes visit the electrician records the result in the portal (`recordPiesa`, kind `post_rectification`, which already requires the "Electrical fixes completion" evidence upload and the Section C details, CES number and date). The CES photo/PDF goes in as that **portal evidence upload** (`rectification_completion` evidence category) — the current code supports this path; a second Mitti form is not sent for the re-visit. The Mitti form is read-only for the portal once the assessment is complete, so a CES added to Mitti later would not be read.
 
 ## After it's published
-- Send me the template ID. I'll connect it (`workflow_settings.mitti_piesa_template_id`), and the portal's form-health check will confirm every question above is present before the PIESA is marked approved.
+- Send me the template ID. I'll connect it (`workflow_settings.mitti_piesa_template_id`), and the portal's form-health check will confirm every question above (42–45 included) is present before the PIESA is marked approved.
 - Then I'll run one TEST electrician job end to end before any real electrician receives the form.
+
+## Approval step for Jo (official PIESA mapping, currently `approved: false`)
+The official DEECA PIESA Word form is only filled from the Mitti answers once the mapping is approved, the same way the PIISA was approved on 24 Oct 2026. Nothing goes live before step 3; `officialFormUseBlocker("piesa")` refuses PIESA audits, form connection and official filling until then.
+1. **Connect the template ID.** Compliance → Mitti forms → PIESA: paste the published template ID. `connectMittiForm` runs `validateTemplate("piesa", …)` on the live `/templates/v1/templates/{id}` definition and refuses any missing, duplicated or wrong-type question (q1–q45). Fix the form in Mitti and retry until it passes.
+2. **Read the portal definition diff.** The form-health page (`mitti-form-health.*`) lists every difference between the connected Mitti template and the portal definition (`FORMS.piesa`: `SHORT_PIESA_FIELDS` + the four evidence items). Also run `bun test ./tests/official-forms.test.ts ./tests/official-short.test.ts ./tests/piesa-evidence.test.ts` and read `docs/official-forms/` to confirm the official wording is unchanged (SHA-256 in `OFFICIAL_TEMPLATES.piesa`).
+3. **Approve the mapping.** In `src/lib/official-forms.core.ts`, change `OFFICIAL_TEMPLATES.piesa` from `approved: false` to `approved: { by: "Jo (Home Insulation Victoria)", at: "<date>" }` and set `effectiveFrom` to the same date (exactly as the PIISA record reads), update the test in `tests/official-forms.test.ts` that pins the PIESA as unapproved, log the decision in `docs/JO_DECISIONS_LOG.md`, and run one TEST electrician job end to end before any real electrician receives the form.

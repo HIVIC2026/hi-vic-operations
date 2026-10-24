@@ -82,15 +82,19 @@ export async function advanceSiteRequirements(jobId: string, actorId: string) {
  * a missing current PIESA record, so no stage change can happen on partial facts.
  */
 async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) {
-  const [{ data: a }, electrical] = await Promise.all([
+  // Decision 178: an onsite-form PIESA holds until its evidence is on the synced form (same pure rule as the sync
+  // and the stage gate; one assessment-row read, no network).
+  const [{ data: a }, electrical, evidenceBlockers] = await Promise.all([
     admin.from("assessments").select("id, status, piesa_outcome").eq("job_id", jobId).maybeSingle(),
     electricalState(jobId),
+    (await import("./piesa-evidence.server")).piesaEvidenceHold(jobId),
   ]);
   const decision = piesaAdvanceDecision({
     stage: PIESA_ADVANCE_STAGE,
     assessmentStatus: a?.status,
     outcome: a?.piesa_outcome,
     hasCurrentPiesa: electrical.hasCurrentPiesa,
+    evidenceBlockers,
   });
   if (decision.action === "hold") return { advanced: false, scope, held: decision.reason };
   try {

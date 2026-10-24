@@ -7,6 +7,7 @@ type Any = any;
 // EDITOR DOM of the draft (Jo, 8 Oct 2026 12:57 UTC) — draft-observed until the published API definition agrees;
 // any disagreement fails closed (a3MissingFields).
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
+import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { crewClearance, melbourneToday } from "./worker-compliance.core";
@@ -209,19 +210,9 @@ export function a3MissingFields(template: unknown): string[] {
 /** One media file on the audit with ONLY the metadata Mitti actually returned. Unknown stays null (never faked). */
 /** capturedAt = a real capture time only. Mitti's `date_created` is when the file reached Mitti (upload), so it is kept
  * separately as uploadedAt and never treated as the time the photo was taken. */
-export type A3MediaFile = { mediaId: string | null; capturedAt: string | null; uploadedAt?: string | null; lat: number | null; lng: number | null };
-const num = (v: unknown) => { const x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN; return Number.isFinite(x) ? x : null; };
-function mediaFile(m: Any): A3MediaFile {
-  const loc = m?.location ?? m?.geo ?? m?.metadata?.location ?? null;
-  const coords = Array.isArray(loc?.geometry?.coordinates) ? loc.geometry.coordinates : null;
-  let lat = num(loc?.lat ?? loc?.latitude ?? m?.lat ?? m?.latitude ?? (coords ? coords[1] : undefined));
-  let lng = num(loc?.lng ?? loc?.lon ?? loc?.longitude ?? m?.lng ?? m?.longitude ?? (coords ? coords[0] : undefined));
-  if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { lat = null; lng = null; }
-  const ts = [m?.captured_at, m?.date_taken, m?.metadata?.captured_at].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
-  const id = m?.media_id ?? m?.id ?? null;
-  const up = typeof m?.date_created === "string" && !Number.isNaN(Date.parse(m.date_created)) ? m.date_created : null;
-  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, uploadedAt: up, lat, lng };
-}
+export type A3MediaFile = MittiMediaFile;
+/** Shared with the PIESA evidence rules (piesa-evidence.core.ts): one media shape, one geotag check. */
+function mediaFile(m: Any): A3MediaFile { return mittiMediaFile(m); }
 function itemsById(audit: unknown): Map<string, Any> {
   const byId = new Map<string, Any>();
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (id != null && "label" in o) byId.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };

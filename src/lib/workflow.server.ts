@@ -439,6 +439,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const r = await installReadiness(jobId);
     for (const b of r.blockers) blockers.push(`Not ready to install: ${b}`);
   }
+  // Decision 178: a Mitti PIESA is not complete until its evidence is on the synced form (same pure rule as the sync).
+  if (to === "piesa_complete") {
+    const { piesaEvidenceHold } = await import("./piesa-evidence.server");
+    for (const b of await piesaEvidenceHold(jobId)) blockers.push(`PIESA evidence: ${b}`);
+  }
   // PIESA Part 7: an unresolved hazard blocks PIESA completion and installation (evidence_outstanding via piisaPanel).
   if (["piesa_complete", "assessment_complete", "installation_scheduling", "installation_booked"].includes(to)) {
     const { hazardBlockers } = await import("./official-forms.server");
