@@ -67,23 +67,25 @@ export const INSTALL_EVIDENCE_RELABELS = {
 /** Alias used by the Mitti build prompt. */
 export const A3_RELABELS = INSTALL_EVIDENCE_RELABELS;
 
-/** Part C — SWMS section, slimmed to the legal minimum (decision 256, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md,
- *  docs/MITTI_INSTALL_FORM_FIX_PROMPT.md §1). Prepared by / for / work / date come from job facts on the filed PDF; there are
- *  no per-hazard blocks, emergency items or worker rows — the crew signs inside each "Additional Installer N" block. */
+/** Part C — SWMS section, the legal minimum (decisions 256 + 258, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md).
+ *  End state = docs/MITTI_INSTALL_FORM_FIX_PROMPT.md §1 + docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md: high-risk work, one
+ *  standard-controls instruction covering all nine ESC hazards with a tick, an optional specific/changes box, and each named
+ *  additional installer's signature inside their own crew block. The lead's SWMS sign-off is the Part 8 signature (and its
+ *  time); prepared by / for / work / date come from job facts on the filed PDF. */
 export const SWMS_QUESTIONS = {
   hrcw: "SWMS — which high-risk construction work applies to this job? (tick all)",
   hrcwNone: "SWMS — if none of the high-risk work types apply, explain why",
-  hazards: "SWMS — hazards on this job (tick every one that applies)",
-  standardControls: "SWMS — the standard controls above are in place for every ticked hazard",
-  changes: "SWMS — anything specific to this house, or any change to hazards or controls during the job (write 'None' if none)",
+  standardControls: "SWMS — the standard controls above are in place on this job",
+  /** Optional (decision 258). */
+  changes: "SWMS — anything specific to this house, or any change during the job (optional)",
   /** Inside "Additional Installer N" (N = 1..3), shown only when that installer's name is filled in. */
-  installerRead: (n: number) => `SWMS — additional installer ${n}: I have read this SWMS, understand the hazards and controls, and will follow it`,
-  installerSignature: (n: number) => `SWMS — additional installer ${n}: signature`,
-  leadDeclaration: "SWMS — I am the lead installer. This SWMS was prepared for this address before work started, every hazard above was assessed with the crew, the controls are in place, and work will stop if the SWMS cannot be followed.",
-  leadSignature: "SWMS — lead installer signature",
-  signedAt: "SWMS — signed at (date and time)",
-  day2Recheck: "SWMS — day 2 re-check: date, time and lead installer initials (and any change to the SWMS)",
-  day3Recheck: "SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)",
+  installerSignature: (n: number) => `SWMS — additional installer ${n}: signature (I have read this SWMS, understand the hazards and controls, and will follow it)`,
+} as const;
+/** Earlier wordings still read on forms built before the follow-up prompt (decision 256 interim form). */
+export const SWMS_LEGACY_LABELS = {
+  standardControls: ["SWMS — the standard controls above are in place for every ticked hazard"],
+  changes: ["SWMS — anything specific to this house, or any change to hazards or controls during the job (write 'None' if none)", "SWMS — changes to hazards or controls during this job (write 'None' if none)"],
+  installerSignature: (n: number) => [`SWMS — additional installer ${n}: signature`],
 } as const;
 export const SWMS_HRCW_OPTIONS = [
   "Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists)",
@@ -94,23 +96,23 @@ export const SWMS_HRCW_OPTIONS = [
   "None of these apply (explain in the next box)",
 ] as const;
 export const SWMS_HRCW_NONE = SWMS_HRCW_OPTIONS[5];
-/** The nine ESC hazards (answers of SWMS_QUESTIONS.hazards, in form order) with each one's sentence from the
- *  standard-controls instruction on the form (`short`: `control`.). The filed PDF prints exactly these sentences. */
+/** The nine ESC hazards of every ceiling insulation job (all always apply, decision 258) with each one's sentence from
+ *  the standard-controls instruction on the form (`short`: `control`.). The filed PDF prints every one of them. */
 export const SWMS_HAZARDS: readonly { name: string; short: string; control: string }[] = [
   { name: "Live electrical hazards", short: "Live electrical", control: "power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables" },
   { name: "Hazardous substances (friable asbestos, harmful chemicals)", short: "Hazardous substances", control: "if asbestos is suspected, do not disturb it — stop work and call the office (an asbestos control plan is needed before work continues); no chemicals or solvents used in the ceiling" },
-  { name: "Biological hazards (mould, animal waste)", short: "Biological", control: "do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating" },
+  { name: "Biological hazards (mould, animal waste)", short: "Biological (mould, animal waste)", control: "do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating" },
   { name: "High temperatures and heat exhaustion", short: "Heat", control: "work early, water and a break every 30 minutes, stop in extreme heat" },
   { name: "Unsafe noise and vibration levels", short: "Noise and vibration", control: "hearing protection for blowers and power tools" },
   { name: "Respiratory hazards and irritants (dust, odours)", short: "Dust and irritants", control: "P2 mask, goggles, gloves and long sleeves in the ceiling; removed material bagged in the ceiling" },
   { name: "Working in enclosed spaces", short: "Enclosed spaces", control: "exits kept clear, lighting set up first, stay in contact with someone outside the ceiling" },
-  { name: "Working at height (inside and outside the ceiling space)", short: "Height", control: "walk only on joists or crawl boards, never on plasterboard; ladder secured and footed with three points of contact; no roof access in wind or rain" },
+  { name: "Working at height (inside and outside the ceiling space)", short: "Height (inside and outside the ceiling space)", control: "walk only on joists or crawl boards, never on plasterboard; ladder secured and footed with three points of contact; no roof access in wind or rain" },
   { name: "Fire hazards and ignition sources (flues, chimneys, gas heaters, heat lamps, exhaust fans, downlights, cables over 400 mm surrounded by insulation)", short: "Fire and ignition sources", control: "AS 3999 clearances kept to flues, chimneys, gas heaters, heat lamps, exhaust fans and downlights; cables over 400 mm in insulation as the PIESA directs" },
 ];
 /** Closing sentence of the standard-controls instruction (how the controls are implemented and monitored). */
 export const SWMS_HOW_IN_PLACE = "How these are put in place: the lead installer directly supervises the crew, checks every control before anyone enters the ceiling and again at the start of each day, and stops work if any control cannot be followed.";
 /** The instruction (text item, not a question) shown above SWMS_QUESTIONS.standardControls — verbatim. */
-export const SWMS_STANDARD_CONTROLS_TEXT = ["Standard controls.", ...SWMS_HAZARDS.map((h) => `${h.short}: ${h.control}.`), SWMS_HOW_IN_PLACE].join(" ");
+export const SWMS_STANDARD_CONTROLS_TEXT = ["Standard controls for the hazards of every ceiling insulation job.", ...SWMS_HAZARDS.map((h) => `${h.short}: ${h.control}.`), SWMS_HOW_IN_PLACE].join(" ");
 /** Header facts printed on the filed SWMS (from the job, not the form). */
 export const SWMS_PREPARED_FOR = "Home Insulation Victoria (DC Construction Solutions Pty Ltd)";
 export const SWMS_WORK_DEFAULT = "Ceiling insulation removal (if required) and installation of bulk ceiling insulation – VEU Activity 48";
@@ -121,10 +123,11 @@ export const AFTER_INSTALL_QUESTIONS = {
   lockoutRemovedBy: "Who removed the lock-out and re-energised the premises? (name and role — the person who applied the lock, or the attending electrician)",
   switchboardAfterPhoto: "Photo of the switchboard after re-energising — lock-out tag removed, main switch on (geotagged)",
   solarRestarted: "Solar, battery or generator restarted following the shutdown/restart instructions?",
-  finishedAt: "Installation finished at (date and time)",
   leadPresent: "I, the lead installer, was on site for the whole installation, supervised every other installer and confirm the installation complies with the VEU program requirements.",
   completionSignature: "Lead installer signature at completion",
 } as const;
+/** Decision 258: deleted from the form; still read on older forms. Otherwise the completion signature's time is the finish time. */
+export const LEGACY_FINISHED_AT_LABEL = "Installation finished at (date and time)";
 export const SOLAR_RESTARTED_OPTIONS = ["Yes", "No", "N/A – none at this property"] as const;
 
 /** Part E — foil / conductive existing insulation (decision 210 c; audit A3-10), feeding the official P6 foil rule. */
@@ -151,26 +154,19 @@ export const zoneNameCore = (v: string | null | undefined) => norm(String(v ?? "
 // Question list (form order) — drives the build prompt, form health and the drift test
 // ======================================================================================================
 export type QuestionType = "pick_one" | "tick_all" | "text" | "yes_no" | "photo" | "video" | "checkbox" | "number" | "date_time" | "signature";
-export type QuestionSpec = { part: "B" | "C" | "D" | "E"; label: string; type: QuestionType; zone?: number | null; options?: readonly string[]; showWhen?: string | undefined; prefill?: string | undefined };
+export type QuestionSpec = { part: "B" | "C" | "D" | "E"; label: string; type: QuestionType; zone?: number | null; options?: readonly string[]; showWhen?: string | undefined; prefill?: string | undefined; /** Not required on the form. */ optional?: boolean };
 
 export function installEvidenceQuestionList(): QuestionSpec[] {
   const Q = INSTALL_EVIDENCE_QUESTIONS, S = SWMS_QUESTIONS, A = AFTER_INSTALL_QUESTIONS, F = FOIL_QUESTIONS;
   const out: QuestionSpec[] = [];
-  // Part C — SWMS (decision 256). Crew sign-offs sit inside each "Additional Installer N" block of Part 2 (shown when
-  // that name is filled in); the SWMS questions sit before Part 3 of the PIISA, so the SWMS is signed before isolation.
-  for (let n = 1; n <= SWMS_ADDITIONAL_INSTALLERS; n++) out.push(
-    { part: "C", label: S.installerRead(n), type: "checkbox", showWhen: `Additional installer ${n} name is filled in` },
-    { part: "C", label: S.installerSignature(n), type: "signature", showWhen: `Additional installer ${n} name is filled in` },
-  );
+  // Part C — SWMS (decisions 256/258). Crew signatures sit inside each "Additional Installer N" block of Part 2 (shown
+  // when that name is filled in); the SWMS questions sit before Part 3 of the PIISA, so they are done before isolation.
+  for (let n = 1; n <= SWMS_ADDITIONAL_INSTALLERS; n++) out.push({ part: "C", label: S.installerSignature(n), type: "signature", showWhen: `Additional installer ${n} name is filled in` });
   out.push(
     { part: "C", label: S.hrcw, type: "tick_all", options: SWMS_HRCW_OPTIONS },
     { part: "C", label: S.hrcwNone, type: "text", showWhen: `${S.hrcw} has "${SWMS_HRCW_NONE}" ticked` },
-    { part: "C", label: S.hazards, type: "tick_all", options: SWMS_HAZARDS.map((h) => h.name) },
     { part: "C", label: S.standardControls, type: "checkbox" },
-    { part: "C", label: S.changes, type: "text" },
-    { part: "C", label: S.leadDeclaration, type: "checkbox" },
-    { part: "C", label: S.leadSignature, type: "signature" },
-    { part: "C", label: S.signedAt, type: "date_time" },
+    { part: "C", label: S.changes, type: "text", optional: true },
   );
   // Part B — zones.
   out.push({ part: "B", label: Q.zoneCount, type: "pick_one", zone: null, options: ZONE_COUNT_OPTIONS });
@@ -190,8 +186,6 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
   out.push(
     { part: "B", label: Q.multiDay, type: "yes_no", zone: null },
     { part: "B", label: Q.dailyRecheck, type: "checkbox", zone: null, showWhen: `${Q.multiDay} = Yes` },
-    { part: "B", label: S.day2Recheck, type: "text", showWhen: `${Q.multiDay} = Yes` },
-    { part: "B", label: S.day3Recheck, type: "text", showWhen: `${Q.multiDay} = Yes` },
   );
   // Part E — foil (with the existing-insulation part of the PIISA).
   out.push(
@@ -204,7 +198,6 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
     { part: "D", label: A.lockoutRemovedBy, type: "text", showWhen: `${A.lockoutRemoved} = Yes` },
     { part: "D", label: A.switchboardAfterPhoto, type: "photo", showWhen: `${A.lockoutRemoved} = Yes` },
     { part: "D", label: A.solarRestarted, type: "pick_one", options: SOLAR_RESTARTED_OPTIONS },
-    { part: "D", label: A.finishedAt, type: "date_time" },
     { part: "D", label: A.leadPresent, type: "checkbox" },
     { part: "D", label: A.completionSignature, type: "signature" },
   );
@@ -251,6 +244,8 @@ function labelledItems(doc: unknown): Labelled[] {
   return out;
 }
 const find = (items: Labelled[], label: string) => items.find((i) => key(i.label) === key(label));
+/** First item carrying any of the labels (current wording first, then older wordings). */
+const findAny = (items: Labelled[], labels: readonly string[]) => labels.map((l) => find(items, l)).find((x) => !!x);
 const yn = (v: string | null): boolean | null => (v == null ? null : /^yes\b/i.test(v.trim()) ? true : /^no\b/i.test(v.trim()) ? false : null);
 const numberOf = (v: string | null): number | null => { if (v == null) return null; const n = Number(String(v).replace(/[^0-9.]/g, "")); return Number.isFinite(n) ? n : null; };
 /** Ticked options of a tick-all answer: the selected labels, else the comma-joined text matched against the option list. */
@@ -269,14 +264,8 @@ export function installEvidenceMissingQuestions(template: unknown): string[] {
 
 export type InstallEvidenceZoneRead = { zone: number; name: string | null; underInsulated: boolean | null; existingPhoto: MittiMediaFile[]; beforeVideo: MittiMediaFile[]; afterVideo: MittiMediaFile[]; depthPhoto: MittiMediaFile[]; product: string | null; areaM2: number | null };
 /** One "Additional Installer N" SWMS sign-off (N = row, 1..3). */
-export type SwmsInstallerRead = { row: number; read: boolean; signature: ReadSignature };
-export type SwmsRead = {
-  onForm: boolean;
-  hrcw: string[]; hrcwNone: string | null;
-  /** Ticked hazard names (SWMS_HAZARDS order). */
-  hazards: string[]; standardControls: boolean; changes: string | null;
-  installers: SwmsInstallerRead[]; leadDeclaration: boolean; leadSignature: ReadSignature; signedAt: string | null; day2Recheck: string | null; day3Recheck: string | null;
-};
+export type SwmsInstallerRead = { row: number; signature: ReadSignature };
+export type SwmsRead = { onForm: boolean; hrcw: string[]; hrcwNone: string | null; standardControls: boolean; changes: string | null; installers: SwmsInstallerRead[] };
 export type AfterInstallRead = { onForm: boolean; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
 export type InstallEvidenceRead = { formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; swms: SwmsRead; after: AfterInstallRead; foil: FoilRead };
@@ -288,7 +277,8 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const v = (label: string) => find(items, label)?.value ?? null;
   const t = (label: string) => { const x = v(label); return x && x.trim() ? x.trim() : null; };
   const m = (label: string) => find(items, label)?.media ?? [];
-  const sig = (label: string): ReadSignature => find(items, label)?.signature ?? { present: false, name: null, signedAt: null, mediaId: null };
+  const sig = (label: string, legacy: readonly string[] = []): ReadSignature => findAny(items, [label, ...legacy])?.signature ?? { present: false, name: null, signedAt: null, mediaId: null };
+  const tAny = (labels: readonly string[]) => { const x = findAny(items, labels)?.value ?? null; return x && x.trim() ? x.trim() : null; };
   const zc = v(Q.zoneCount);
   const n = zc == null ? NaN : Number(String(zc).trim());
   const zones: InstallEvidenceZoneRead[] = [];
@@ -298,13 +288,14 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
     product: t(Q.zoneProduct(z)), areaM2: numberOf(v(Q.zoneAreaM2(z))),
   });
   const swms: SwmsRead = {
-    onForm: !!find(items, S.hazards),
+    onForm: !!findAny(items, [S.standardControls, ...SWMS_LEGACY_LABELS.standardControls]),
     hrcw: ticks(find(items, S.hrcw), SWMS_HRCW_OPTIONS), hrcwNone: t(S.hrcwNone),
-    hazards: ticks(find(items, S.hazards), SWMS_HAZARDS.map((h) => h.name)), standardControls: !!v(S.standardControls), changes: t(S.changes),
-    installers: Array.from({ length: SWMS_ADDITIONAL_INSTALLERS }, (_, i) => ({ row: i + 1, read: !!v(S.installerRead(i + 1)), signature: sig(S.installerSignature(i + 1)) })),
-    leadDeclaration: !!v(S.leadDeclaration), leadSignature: sig(S.leadSignature), signedAt: t(S.signedAt), day2Recheck: t(S.day2Recheck), day3Recheck: t(S.day3Recheck),
+    standardControls: !!tAny([S.standardControls, ...SWMS_LEGACY_LABELS.standardControls]), changes: tAny([S.changes, ...SWMS_LEGACY_LABELS.changes]),
+    installers: Array.from({ length: SWMS_ADDITIONAL_INSTALLERS }, (_, i) => ({ row: i + 1, signature: sig(S.installerSignature(i + 1), SWMS_LEGACY_LABELS.installerSignature(i + 1)) })),
   };
-  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(A.finishedAt), leadPresent: !!v(A.leadPresent), completionSignature: sig(A.completionSignature) };
+  // Decision 258: "Installation finished at" is gone — the completion signature's own time stands as the finish time.
+  const completionSignature = sig(A.completionSignature);
+  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
   return { formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), swms, after, foil };
 }
@@ -334,15 +325,11 @@ export type InstallEvidenceCtx = {
   zones: JobZone[];
   /** Installation runs over more than one day (booked days, or form start ≠ completion date). */
   multiDay: boolean;
-  /** Expected days on site (start → completion inclusive). Informational: the day-3 re-check line is optional (fix prompt §4). */
-  daysOnSite?: number | null;
-  /** Lead installer's recorded name (Part 2) — SWMS and completion signatures must carry it. null = not checked. */
+  /** Lead installer's recorded name (Part 2) — the completion signature must carry it; printed on the SWMS. null = not checked. */
   leadName?: string | null;
   /** Part 2 "Additional installer 1–3" names by row (index 0 = additional installer 1; null = row empty). Every filled
-   *  row needs its SWMS read-tick and signature (decision 256). */
+   *  row needs its SWMS signature (decisions 256/258). */
   additionalInstallers?: (string | null)[];
-  /** Capture time of the isolation photo — the SWMS must be signed before it. */
-  isolationCapturedAt?: string | null;
   /** PIISA Part 4 "solar, battery or other supply present" answer. */
   solarPresent?: boolean | null;
   /** PIISA Part 6 "existing insulation present" answer (foil question applies). */
@@ -384,36 +371,23 @@ function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: numb
 }
 const sameName = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && norm(a) === norm(b);
 
-/** SWMS section (decisions 206/256): what is still missing before work may start. Empty = complete. */
-export function swmsBlockers(s: SwmsRead, ctx: Pick<InstallEvidenceCtx, "leadName" | "additionalInstallers" | "isolationCapturedAt" | "multiDay" | "daysOnSite">): string[] {
+/** SWMS section (decisions 206/256/258): what is still missing before work may start. Empty = complete. The lead's
+ *  sign-off is the PIISA Part 8 signature, checked by the PIISA gate; the specific/changes box is optional. */
+export function swmsBlockers(s: SwmsRead, ctx: Pick<InstallEvidenceCtx, "additionalInstallers">): string[] {
   const S = SWMS_QUESTIONS;
-  if (!s.onForm) return [`The Mitti Install day form does not have the current SWMS yet ("${S.hazards}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md to the template.`];
+  if (!s.onForm) return [`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md and docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md to the template.`];
   const b: string[] = [];
-  const need = (ok: unknown, line: string) => { if (!ok) b.push(line); };
   if (!s.hrcw.length) b.push(`${S.hrcw}: nothing ticked`);
-  else if (s.hrcw.includes(SWMS_HRCW_NONE)) { if (s.hrcw.length > 1) b.push("SWMS — high-risk work: \"None of these apply\" cannot be ticked with another type"); need(s.hrcwNone, `${S.hrcwNone}: not entered`); }
-  if (!s.hazards.length) b.push(`${S.hazards}: nothing ticked`);
+  else if (s.hrcw.includes(SWMS_HRCW_NONE)) { if (s.hrcw.length > 1) b.push("SWMS — high-risk work: \"None of these apply\" cannot be ticked with another type"); if (!s.hrcwNone) b.push(`${S.hrcwNone}: not entered`); }
   if (!s.standardControls) b.push(`${S.standardControls}: not ticked`);
-  need(s.changes, `${S.changes}: not entered`);
   // Every additional installer named on the form signs the SWMS inside their own block.
   (ctx.additionalInstallers ?? []).slice(0, SWMS_ADDITIONAL_INSTALLERS).forEach((name, i) => {
     if (!name) return;
     const w = s.installers[i]!;
     const who = `SWMS — additional installer ${i + 1} (${name})`;
-    if (!w.read) b.push(`${who}: has not ticked that they read the SWMS`);
     if (!w.signature.present) b.push(`${who}: signature missing`);
     else if (!w.signature.signedAt) b.push(`${who}: signature has no time recorded`);
   });
-  if (!s.leadDeclaration) b.push("SWMS — lead installer declaration not ticked");
-  if (!s.leadSignature.present) b.push(`${S.leadSignature}: missing`);
-  else {
-    if (!s.leadSignature.signedAt) b.push(`${S.leadSignature}: no time recorded`);
-    if (ctx.leadName && s.leadSignature.name && !sameName(s.leadSignature.name, ctx.leadName)) b.push(`${S.leadSignature}: signed by "${s.leadSignature.name}", not the lead installer (${ctx.leadName}) — signing on behalf is not accepted`);
-    if (s.leadSignature.signedAt && ctx.isolationCapturedAt && Date.parse(s.leadSignature.signedAt) > Date.parse(ctx.isolationCapturedAt)) b.push("SWMS was signed after the power-isolation photo was taken — the SWMS must be completed before work starts; office review");
-  }
-  need(s.signedAt, `${S.signedAt}: not entered`);
-  // Fix prompt §4: the day-3-or-later re-check line is optional on the form (still read and filed when written).
-  if (ctx.multiDay) need(s.day2Recheck, `${S.day2Recheck}: not entered for this multi-day installation`);
   return b;
 }
 
@@ -422,9 +396,9 @@ export function swmsCrossCheck(s: SwmsRead, swmsProblems: string[], p3Swms: "Yes
   const out: string[] = [];
   if (!s.onForm) return out;
   const complete = swmsProblems.length === 0;
-  const tableOneDone = s.hazards.length > 0 && s.standardControls;
+  const tableOneDone = s.standardControls;
   if (p3Swms === "Yes" && !complete) out.push("PIISA Part 3 says the SWMS is complete, but the SWMS section on the form is not — finish the SWMS section");
-  if (p3Table1 === "Yes" && !tableOneDone) out.push("PIISA Part 3 says every Table 1 hazard is controlled, but the SWMS has no hazard ticked or the standard controls are not confirmed");
+  if (p3Table1 === "Yes" && !tableOneDone) out.push("PIISA Part 3 says every Table 1 hazard is controlled, but the SWMS standard controls are not confirmed");
   if (p3Swms === "No" && complete) out.push("PIISA Part 3 says the SWMS is not complete although the SWMS section is — the installer must correct Part 3");
   return out;
 }
@@ -445,8 +419,7 @@ export function afterInstallBlockers(a: AfterInstallRead, ctx: Pick<InstallEvide
   if (!a.solarRestarted) b.push(`${A.solarRestarted}: not answered`);
   else if (/^no\b/i.test(a.solarRestarted)) b.push("Solar, battery or generator not restarted — restart it per the instructions (or have the electrician do it) before leaving site");
   else if (/^n\/?a/i.test(a.solarRestarted) && ctx.solarPresent === true) b.push("Solar/battery restart answered N/A but the safety form says the home has solar, a battery or another supply — office review");
-  if (!a.finishedAt) b.push(`${A.finishedAt}: not entered`);
-  else if (Number.isNaN(Date.parse(a.finishedAt))) b.push(`${A.finishedAt}: not a readable date and time`);
+  if (a.finishedAt && Number.isNaN(Date.parse(a.finishedAt))) b.push(`${LEGACY_FINISHED_AT_LABEL}: not a readable date and time`);
   if (!a.leadPresent) b.push("Lead installer has not confirmed being on site for the whole installation");
   if (!a.completionSignature.present) b.push(`${A.completionSignature}: missing`);
   else {
@@ -516,7 +489,7 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
     } else items.push({ id: "daily_recheck", zone: null, label: Q.dailyRecheck, state: "not_required", count: read.dailyRecheck ? 1 : 0, problems: [] });
   }
   // SWMS (before work), its cross-check with the official Part 3, foil (before work), after-install sign-off.
-  const swmsProblems = swmsBlockers(read.swms, { ...ctx, multiDay: read.multiDay === true || ctx.multiDay });
+  const swmsProblems = swmsBlockers(read.swms, ctx);
   before.push(...swmsProblems.map((p) => (p.startsWith("SWMS") || p.startsWith("The Mitti") ? p : `SWMS: ${p}`)), ...swmsCrossCheck(read.swms, swmsProblems, ctx.p3Swms, ctx.p3Table1));
   const existing = ctx.existingInsulation === true || ctx.zones.some((z) => z.underInsulated === true) || read.zones.some((z) => z.underInsulated === true);
   before.push(...foilBlockers(read.foil, existing, workStartAt));
@@ -564,8 +537,8 @@ function labelledItemsWithIds(doc: unknown): { id: string; label: string }[] {
 // ======================================================================================================
 // SWMS record text (filed as the 6-year PDF, decision 206)
 // ======================================================================================================
-/** Job facts for the SWMS header (decision 256: not asked on the form). */
-export type SwmsRecordMeta = { jobNumber: string; address: string | null; auditId: string; preparedBy: string | null; leadName: string | null; additionalInstallers: (string | null)[] };
+/** Job facts for the SWMS header (decisions 256/258: not asked on the form). `leadSignature` = the PIISA Part 8 signature. */
+export type SwmsRecordMeta = { jobNumber: string; address: string | null; auditId: string; preparedBy: string | null; leadName: string | null; leadSignature: ReadSignature | null; additionalInstallers: (string | null)[]; multiDay: boolean | null; dailyRecheck: boolean };
 /** Fixed wording on the filed SWMS (WorkSafe Victoria sample template layout, decision 256). */
 export const SWMS_RECORD_TASK = "Ceiling insulation removal (if required) and installation in the ceiling space";
 export const SWMS_COMPLIANCE_MEASURES = "Direct supervision by the lead installer; every control checked before first entry and at the start of each day";
@@ -573,14 +546,15 @@ export const SWMS_HOW_IMPLEMENTED = "Lead installer directly supervises the crew
 /**
  * The filed SWMS (6-year record) laid out like WorkSafe Victoria's sample SWMS template (Safe-work-method-statements-2023-07):
  * header rows from job facts, compliance rows, a Tasks | Hazard | Control measures | How implemented | Responsible table for
- * each ticked hazard (control = that hazard's own sentence from the form's standard-controls text), review rows and a
- * Name | Signature | Date sign-off table (lead + each named additional installer; date = the Mitti signature time).
+ * all nine hazards (control = that hazard's own sentence from the form's standard-controls text), the review row (daily
+ * re-check tick + the optional specific/changes box) and a Name | Signature | Date sign-off table (lead = Part 8 signature,
+ * then each named additional installer; date = the Mitti signature time).
  */
 export function swmsRecordText(s: SwmsRead, meta: SwmsRecordMeta): string {
-  const S = SWMS_QUESTIONS;
   const L: string[] = [];
   const val = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "—");
-  const lead = val(s.leadSignature.name ?? meta.leadName);
+  const leadSig = meta.leadSignature ?? { present: false, name: null, signedAt: null, mediaId: null };
+  const lead = val(meta.leadName ?? leadSig.name);
   const sigCell = (x: ReadSignature) => (x.present ? `signed (signature image ${x.mediaId})` : "NOT SIGNED");
   L.push("Safe Work Method Statement — ceiling insulation (VEU Activity 48)", `Job ${meta.jobNumber} — Mitti Install day form ${meta.auditId}`, "");
   L.push(
@@ -589,25 +563,22 @@ export function swmsRecordText(s: SwmsRead, meta: SwmsRecordMeta): string {
     `Work supervisor: ${lead}`,
     `Site location/address: ${val(meta.address)}`,
     `Work activity: ${SWMS_WORK_DEFAULT}`,
-    `Date SWMS prepared: ${val(s.signedAt ?? s.leadSignature.signedAt)}`,
+    `Date SWMS signed: ${val(leadSig.signedAt)}`,
     `High-risk construction work: ${s.hrcw.length ? s.hrcw.join("; ") : "—"}`,
   );
   if (s.hrcwNone) L.push(`Why no high-risk construction work applies: ${s.hrcwNone}`);
   L.push("", `Person responsible for ensuring compliance with SWMS: ${lead}`, `Measures to ensure compliance: ${SWMS_COMPLIANCE_MEASURES}`);
-  const reviews = [s.day2Recheck ? `Day 2 re-check: ${s.day2Recheck}` : null, s.day3Recheck ? `Day 3 or later re-checks: ${s.day3Recheck}` : null, `Specific to this house / changes during the job: ${val(s.changes)}`].filter((x): x is string => !!x);
-  L.push(`How control measures will be reviewed: ${reviews.join(" · ")}`);
+  const daily = meta.multiDay === true ? `Daily re-check before each day's work: ${meta.dailyRecheck ? "confirmed by the lead installer" : "NOT CONFIRMED"}` : "One-day installation: controls checked before first entry";
+  L.push(`How control measures will be reviewed: ${daily} · Specific to this house / changes during the job: ${val(s.changes ?? "None recorded")}`);
   L.push("", "Tasks | Hazard | Control measures | How implemented | Responsible");
-  const ticked = SWMS_HAZARDS.filter((h) => s.hazards.includes(h.name));
-  if (!ticked.length) L.push("— no hazard ticked —");
-  for (const h of ticked) L.push(`${SWMS_RECORD_TASK} | ${h.name} | ${h.short}: ${h.control}. | ${SWMS_HOW_IMPLEMENTED} | ${lead} (lead installer)`);
-  L.push("", SWMS_HOW_IN_PLACE, `Standard controls in place for every ticked hazard: ${s.standardControls ? "Yes" : "No"}`);
-  L.push("", "Lead installer declaration", S.leadDeclaration, `Ticked: ${s.leadDeclaration ? "Yes" : "No"}`);
+  for (const h of SWMS_HAZARDS) L.push(`${SWMS_RECORD_TASK} | ${h.name} | ${h.short}: ${h.control}. | ${SWMS_HOW_IMPLEMENTED} | ${lead} (lead installer)`);
+  L.push("", SWMS_HOW_IN_PLACE, `Standard controls in place on this job: ${s.standardControls ? "Yes" : "No"}`);
   L.push("", "Worker sign-off (I have read this SWMS, understand the hazards and controls, and will follow it)", "Name | Signature | Date");
-  L.push(`${lead} (lead installer) | ${sigCell(s.leadSignature)} | ${val(s.leadSignature.signedAt)}`);
+  L.push(`${lead} (lead installer — PIISA Part 8 signature) | ${sigCell(leadSig)} | ${val(leadSig.signedAt)}`);
   meta.additionalInstallers.slice(0, SWMS_ADDITIONAL_INSTALLERS).forEach((name, i) => {
     const w = s.installers[i]!;
-    if (!name && !w.read && !w.signature.present) return;
-    L.push(`${val(name)} (additional installer ${w.row}; read and will follow: ${w.read ? "Yes" : "No"}) | ${sigCell(w.signature)} | ${val(w.signature.signedAt)}`);
+    if (!name && !w.signature.present) return;
+    L.push(`${val(name)} (additional installer ${w.row}) | ${sigCell(w.signature)} | ${val(w.signature.signedAt)}`);
   });
   return L.join("\n");
 }

@@ -72,10 +72,9 @@ export async function installEvidenceContext(jobId: string, audit: unknown): Pro
   const leadName = nameOf(crew[0]!) ?? null;
   // Decision 256: each filled "Additional installer N" row (by position) signs the SWMS inside its own block.
   const additionalInstallers = crew.slice(1, 4).map((c, i) => (c.kind === "none" ? null : nameOf(c) ?? `Additional installer ${i + 1}`));
-  const iso = a3.a3MediaFiles(audit).isolation_photo.map((f) => f.capturedAt).filter((t): t is string => !!t).sort()[0] ?? null;
   const yn = (k: string): boolean | null => (str(k) === "Yes" ? true : str(k) === "No" ? false : null);
   const p3 = (k: string): "Yes" | "No" | null => (str(k) === "Yes" ? "Yes" : str(k) === "No" ? "No" : null);
-  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, daysOnSite: days, leadName, additionalInstallers, isolationCapturedAt: iso, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
+  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, leadName, additionalInstallers, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
 }
 
 /** Read the audit, evaluate, and record the result when it changed. Returns the summary. */
@@ -112,7 +111,10 @@ export async function fileSwmsRecord(jobId: string, actorId: string | null, audi
   const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
   const ctx = await installEvidenceContext(jobId, audit);
-  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId, preparedBy: biz?.name ?? null, leadName: ctx.leadName ?? null, additionalInstallers: ctx.additionalInstallers ?? [] });
+  // Decision 258: the lead's SWMS sign-off is the PIISA Part 8 signature and its own time.
+  const part8 = (await import("./piisa-a3.core")).a3Signature(audit);
+  const leadSignature = { present: part8.present, name: part8.name, signedAt: part8.signedAt, mediaId: part8.mediaId };
+  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId, preparedBy: biz?.name ?? null, leadName: ctx.leadName ?? null, leadSignature, additionalInstallers: ctx.additionalInstallers ?? [], multiDay: read.multiDay === true || ctx.multiDay, dailyRecheck: read.dailyRecheck });
   const { createHash } = await import("node:crypto");
   const sha = createHash("sha256").update(text).digest("hex");
   const key = `swms:${auditId}:${sha.slice(0, 16)}`;
@@ -123,7 +125,7 @@ export async function fileSwmsRecord(jobId: string, actorId: string | null, audi
   const base = `${jobId}/official/swms-${auditId}-${sha.slice(0, 8)}`;
   const up = await admin.storage.from("job-files").upload(`${base}.pdf`, pdf, { contentType: "application/pdf", upsert: false });
   if (up.error && !/exists/i.test(up.error.message)) return { filed: false, path: null, reason: `SWMS could not be stored: ${up.error.message}` };
-  const sigs = [read.swms.leadSignature, ...read.swms.installers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
+  const sigs = [leadSignature, ...read.swms.installers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
   const images: string[] = [];
   for (const s of sigs) {
     try {
