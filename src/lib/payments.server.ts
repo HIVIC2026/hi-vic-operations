@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
-  BANK_DETAILS_TO_CONFIRM, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey,
+  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey,
   cumulativePaidCents, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, toCents,
 } from "./payments.core";
 
@@ -13,12 +13,12 @@ export const PAYMENT_EVENT = "owner_payment_recorded";
 /** Owner notice when an unpaid provisional booking is released: wording not approved yet (office alert only). */
 export const PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED = false as boolean;
 
-/** Bank details for owner pages/emails. From env (HIV_BANK_BSB, HIV_BANK_ACCOUNT_NUMBER, HIV_BANK_ACCOUNT_NAME, HIV_PAYID); TO CONFIRM with Jo. */
+/** Bank details for owner pages/emails: Jo's NAB account (decision 152), env vars override. */
 export function bankDetails(): BankDetails {
-  const bsb = process.env["HIV_BANK_BSB"]?.trim() || null;
-  const accountNumber = process.env["HIV_BANK_ACCOUNT_NUMBER"]?.trim() || null;
-  const payId = process.env["HIV_PAYID"]?.trim() || null;
-  const accountName = process.env["HIV_BANK_ACCOUNT_NAME"]?.trim() || BANK_DETAILS_TO_CONFIRM.accountName;
+  const bsb = process.env["HIV_BANK_BSB"]?.trim() || HIV_BANK_DETAILS.bsb;
+  const accountNumber = process.env["HIV_BANK_ACCOUNT_NUMBER"]?.trim() || HIV_BANK_DETAILS.accountNumber;
+  const payId = process.env["HIV_PAYID"]?.trim() || HIV_BANK_DETAILS.payId;
+  const accountName = process.env["HIV_BANK_ACCOUNT_NAME"]?.trim() || HIV_BANK_DETAILS.accountName;
   return { accountName, bsb, accountNumber, payId, configured: !!((bsb && accountNumber) || payId) };
 }
 

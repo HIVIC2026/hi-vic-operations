@@ -154,6 +154,8 @@ export function xeroDateIso(d?: string): string {
 // ---------- Bank details (TO CONFIRM with Jo; never invent numbers) ----------
 export type BankDetails = { accountName: string; bsb: string | null; accountNumber: string | null; payId: string | null; configured: boolean };
 export const BANK_DETAILS_TO_CONFIRM: BankDetails = { accountName: "DC Construction Solutions Pty Ltd T/A Home Insulation Victoria", bsb: null, accountNumber: null, payId: null, configured: false };
+/** Jo 24 Oct 2026 (decision 152): the business account owners pay into (NAB). No PayID yet. Env vars may override. */
+export const HIV_BANK_DETAILS: BankDetails = { accountName: "Home Insulation Victoria", bsb: "082-902", accountNumber: "777966349", payId: null, configured: true };
 export const formatBsb = (bsb: string) => bsb.replace(/\D/g, "").replace(/^(\d{3})(\d{3})$/, "$1-$2");
 /** Lines for pages and emails. Unconfigured details say so instead of showing blanks. */
 export function bankDetailLines(b: BankDetails, reference: string | null): string[] {
