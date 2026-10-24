@@ -65,3 +65,15 @@ Newest first. Each line is settled; anything still open is under "Open".
 33. Keep the "Not drafted yet" section on Quotes to check.
 34. **Add a job = basics only**: owner's full name, address picked from the list, mobile, email, and the "owner agreed to be contacted" tick. Everything else (visit, measurements, existing insulation, removal, price, product, electrician) is answered in the Mitti Ready Check form. Bulk upload uses the same basics.
 35. HV-3151 moved onto the Ready Check path (live, at Jo's request). Its Mitti form follows within 24 hours (retry wait after the earlier failure).
+36. **Installer job page: simple layout.**
+    - Owner, address, and Call / Text / Directions.
+    - One "What's next" line (whose move it is) with one button, e.g. Open Mitti form.
+    - Short "still missing in your Mitti form" list.
+    - Quote status ("See the owner's quote" on their own jobs only).
+    - Install days at that stage.
+    - Messages.
+    - Removed: the old intake "Measurements and quote" card and "Add or update details", the owner eligibility questions link, and the long blocker lists before the install stage.
+37. Evidence and paperwork lists show **only from the install stage** (install day booked onwards), as a checklist.
+38. Remove the "What's happened" history from the installer's job page.
+39. Staff job links ("Create job link") go behind a "More" button.
+40. Ready-made messages must match the new install-day flow (wording to be refined in the template review).
