@@ -15,7 +15,7 @@ export function isReadyCheckQuote(optionCode: string | null | undefined, mitti: 
 
 export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote";
 /** Shown while the office checks the quote: after Complete in Mitti, or when a check held it for the office. */
-export const QUOTE_HELD_LINE = "Waiting on office: checking your quote";
+export const QUOTE_HELD_LINE = "Waiting on office: checking the quote";
 export const QUOTE_DECLINED_LINE = "Waiting on office: the owner declined the quote";
 export const QUOTE_ACCEPTED_LINE = "Waiting on owner: quote accepted – waiting for owner's payment";
 export const QUOTE_SENT_LINE = "Waiting on owner: to accept the quote";

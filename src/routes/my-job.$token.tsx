@@ -189,15 +189,7 @@ function AcceptQuote({ token, quote }: { token: string; quote: { id: string; ver
       <Tick on={over18} set={setOver18}>I'm 18 or older.</Tick>
       <Tick on={read} set={setRead}>I've read the consumer information.</Tick>
       <Tick on={agree} set={setAgree}>I accept this quote and the agreement.</Tick>
-      {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
-      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${day(data.install.bookedAt)} (8am–4pm)` : ""}.</p>
-      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
-        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
-        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
-        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
-      </> : null}
-    </section>}
-    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
       <button className={signBtn} disabled={busy || blocked.length > 0 || !over18 || !read || !agree || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => {
         setErr(""); setBusy(true);
         try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
@@ -272,6 +264,14 @@ function BookPickers({ token }: { token: string }) {
         <div className="mt-2 grid grid-cols-2 gap-2">{(data.install.days as string[]).map((d) => { const on = days.includes(d); return <button key={d} className={tile(on)} onClick={() => setDays(on ? days.filter((x) => x !== d) : days.length < 5 ? [...days, d] : days)}>{day(d + "T02:00:00Z")}</button>; })}</div>
         <button className={`${signBtn} mt-4`} disabled={busy || !days.length} onClick={() => go(() => suggestDays({ data: { token, session, days } }))}>Send my {days.length || ""} day{days.length === 1 ? "" : "s"}</button>
       </>}
+    </section>}
+    {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
+      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${day(data.install.bookedAt)} (8am–4pm)` : ""}.</p>
+      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
+        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
+        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
+        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
+      </> : null}
     </section>}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
   </>;

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 const aud = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 
-/** Installer sees the whole owner quote and its status. Jo 24 Oct 2026: no approval step for installer jobs (A1) or
+/** Installer sees the whole owner quote and its status on their own jobs; on our leads only the status (Jo 24 Oct). Jo 24 Oct 2026: no approval step for installer jobs (A1) or
  *  our leads (A2) — the installer presses Complete in Mitti and the office sends the quote. Read-only. */
 export function OwnerQuoteCard({ jobId, hideStatus = false }: { jobId: string; hideStatus?: boolean }) {
   const load = useServerFn(getMyOwnerQuote);
@@ -15,6 +15,7 @@ export function OwnerQuoteCard({ jobId, hideStatus = false }: { jobId: string; h
   const [open, setOpen] = useState(false);
   const d = q.data;
   if (!d || !d.applies) return null;
+  if (d.priceHidden) return hideStatus ? null : <section data-owner-quote className="rounded-[14px] border border-line bg-paper p-4"><p className="text-sm font-semibold text-estimate-navy">{d.line}</p></section>;
   return (
     <section data-owner-quote className="rounded-[14px] border border-line bg-paper p-4">
       {!hideStatus && <p className="text-sm font-semibold text-estimate-navy">{d.line}</p>}

@@ -10,7 +10,7 @@ describe("installer quote status line", () => {
     expect(installerQuoteLine(f)).toBe(PRESS_COMPLETE_LINE);
     expect(PRESS_COMPLETE_LINE).toBe("You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote");
     expect(installerQuoteLine({ ...f, held: true })).toBe(QUOTE_HELD_LINE);
-    expect(installerQuoteLine({ ...f, formCompleted: true })).toBe("Waiting on office: checking your quote");
+    expect(installerQuoteLine({ ...f, formCompleted: true })).toBe("Waiting on office: checking the quote");
   });
   test("sent / accepted / declined", () => {
     expect(installerQuoteLine({ ...f, sent: true })).toBe("Waiting on owner: to accept the quote");

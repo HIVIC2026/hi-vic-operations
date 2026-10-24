@@ -40,7 +40,8 @@ export function roughInstallValue(ratePerM2: number | null | undefined, areaM2: 
 /** Never implies the install is guaranteed. */
 export function roughValueNote(source: AreaSource): string {
   const lead = source === "aerial" ? "Based on an aerial measurement." : "Based on the owner's guess.";
-  return `${lead} Your quote at the Ready Check sets the real price, including any removal or extras.`;
+  // Jo 24 Oct: offers are our leads — the installer doesn't quote; their pay is their agreed rates × the measured area.
+  return `${lead} Your pay is set by your agreed rates and the area measured at the Ready Check, including any removal.`;
 }
 
 export type InsulationNow = "none" | "some" | "unknown";

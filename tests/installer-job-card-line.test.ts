@@ -8,7 +8,7 @@ describe("Jo 23 Oct: installer job card line", () => {
     expect(needsFinishingTask("Owner to book Ready Check")).toBeNull();
   });
   it("prefixes who it's waiting on", () => {
-    expect(jobCardLine({ who: "Home Insulation Victoria", text: "Checking your quote." })).toBe("Waiting on office: checking your quote");
+    expect(jobCardLine({ who: "Home Insulation Victoria", text: "Checking your quote." })).toBe("Waiting on office: checking the quote");
     expect(jobCardLine({ who: "Owner", text: "Review and accept the quote." })).toBe("Waiting on owner: review and accept the quote");
     expect(jobCardLine({ who: "Electrician", text: "Electrician to upload missing evidence: X." })).toBe("Waiting on electrician: upload missing evidence: X");
     expect(jobCardLine({ who: "You", text: "Install on 4 Nov" })).toBe("You: install on 4 Nov");
