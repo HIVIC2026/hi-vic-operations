@@ -341,6 +341,6 @@ Newest first. Each line is settled; anything still open is under "Open".
 
 264. **Before video is taken at the Ready Check, not install day (Jo 24 Oct).** Ready Check lean prompt Q27 becomes a required slow 360° video of each ceiling area (replaces the optional overview photo); it is the ESC "pre-installation environment" video. Install day keeps only the after videos and depth photos (Q1–45).
 
-265. **Deep's email goes now (Jo 24 Oct: "urgently").** The approved email (decision 164) is written as a before-go-live note, so it is sent ahead of the PR; step 9 updated for the safety plan on the job page (decision 261) and the short install day form. Jo sends it from her own mailbox; the portal sends nothing.
+265. **Deep's email goes after the TEST run, not before (Jo 24 Oct).** Jo asked to send it urgently; on seeing that nothing in it is live yet she chose to send it the same day the TEST phone run passes and the switches go on, with "this weekend" changed to the real day. Step 9 updated for the safety plan on the job page (decision 261) and the texted link (decision 266). Jo sends from her own mailbox.
 
 266. **Safety plan link is texted (Jo 24 Oct: "so it's not missed").** The existing installer "install booked" text carries the job's safety plan link; the existing 6:30am install-day text repeats it while unsigned. No new message type, no office step.
