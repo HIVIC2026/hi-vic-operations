@@ -10,6 +10,8 @@ export type OwnerEmailFacts = { firstName: string | null; ownerName: string | nu
 export async function sendOwnerTemplateEmail(p: {
   jobId: string; purpose: string; key: string; approved: boolean; label: string; notSentEvent: string;
   render: (f: OwnerEmailFacts) => { subject: string; html: string; text: string };
+  /** Files sent with the email (e.g. the manufacturer warranty on the completion pack); the same on TEST and real sends. */
+  attachments?: import("./email-kit.core").EmailAttachment[];
 }): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, source").eq("id", p.jobId).maybeSingle();
   if (!job) return "skipped";
@@ -38,7 +40,7 @@ export async function sendOwnerTemplateEmail(p: {
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
     const mail = p.render(facts);
-    const r = await sendTestEmail({ jobId: p.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${p.purpose}:${p.key}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
+    const r = await sendTestEmail({ jobId: p.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${p.purpose}:${p.key}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text, p.attachments?.length ? { attachments: p.attachments } : {});
     return `${r.status}: ${r.detail}`;
   }
   if (!p.approved) {
@@ -48,5 +50,5 @@ export async function sendOwnerTemplateEmail(p: {
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   try { await assertCustomerDeliveryAllowed(p.jobId, p.label); } catch (e) { return `not sent — ${(e as Error).message}`; }
-  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: () => p.render({ ...facts, test: false }) });
+  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: () => ({ ...p.render({ ...facts, test: false }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }) });
 }

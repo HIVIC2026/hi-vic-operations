@@ -74,11 +74,13 @@ export async function emailOwnerFinalInvoice(jobId: string, i: Omit<import("./co
     render: (f) => renderFinalInvoiceEmail({ ...i, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
 }
 
-export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null) {
+/** Workflow caller: completion-pack.server.ts (install complete + invoice paid), which passes the manufacturer warranty PDF(s) for the installed product(s). */
+export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null,
+  extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[] } = {}) {
   const { COMPLETION_EMAILS_APPROVED, renderCompletionPackEmail } = await import("./completion-emails.core");
   const installed = await installedLineFor(jobId, installedGiven);
-  return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: `completion-pack:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent",
-    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, test: f.test }) });
+  return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: `completion-pack:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent", ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
+    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, attachedWarranties: extras.attachedWarranties ?? [], test: f.test }) });
 }
 
 export async function emailOwnerReviewRequest(jobId: string, i: { googleReviewUrl: string; referralUrl: string }) {

@@ -110,6 +110,8 @@ export type CompletionPackInput = {
   test?: boolean;
   /** Decision 209: the same installed product line as the tax invoice (with ESC model codes when known); omitted when unknown. */
   installed?: InstalledLine | null;
+  /** VEU checklist G1: product names whose manufacturer warranty PDF is attached to this email (completion-pack.server.ts); [] = none attached. */
+  attachedWarranties?: string[];
 };
 
 /** Decision 103: downloads, "Something not right?" (installer → us → ESC), care tips. */
@@ -117,10 +119,12 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
   const first = K.cleanName(i.firstName) ?? "there";
   const subject = `Your completion pack, ${first}`;
   const intro = "Everything about your new ceiling insulation in one place. Keep this email, as it's handy if you sell your home or need your warranty.";
+  const attachedNames = (i.attachedWarranties ?? []).map((s) => s.trim()).filter(Boolean);
+  const warrantyDetail = `1-year installer workmanship · 5-year product warranty${attachedNames.length ? ` · ${attachedNames.join(" and ")} manufacturer's warranty attached (PDF)` : ""}`;
   const downloads = [
     { title: "Certificate of Completion", detail: "Product, R-value, area, installer, date and rebate", href: i.downloads.certificateUrl },
     { title: "Tax invoice", detail: "Paid in full", href: i.downloads.invoiceUrl },
-    { title: "Your warranties", detail: "1-year installer workmanship · 5-year product warranty", href: i.downloads.warrantiesUrl },
+    { title: "Your warranties", detail: warrantyDetail, href: i.downloads.warrantiesUrl },
     { title: "Signed forms", detail: "Acceptance, install consent, rebate form, safety check", href: i.downloads.signedFormsUrl },
   ];
   const ins = i.installer?.name?.trim() || "your installer";

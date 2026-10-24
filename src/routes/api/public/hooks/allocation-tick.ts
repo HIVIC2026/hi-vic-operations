@@ -77,6 +77,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['veecReminders'] = "failed";
         }
         try {
+          // VEU checklist G1 (Jo 25 Oct): completion pack (O47) once the install is complete and the invoice paid in full, with the
+          // installed product's manufacturer warranty attached, filed on the job and `warranty_copy_provided` recorded at that send.
+          const { sweepCompletionPacks } = await import("@/lib/completion-pack.server");
+          (out as Record<string, unknown>)['completionPacks'] = await sweepCompletionPacks();
+        } catch (e) {
+          console.error("allocation tick: completion pack sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['completionPacks'] = "failed";
+        }
+        try {
           // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
           const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
           (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
