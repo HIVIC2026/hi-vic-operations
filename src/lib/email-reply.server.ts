@@ -6,8 +6,11 @@
 // no code path here calls a sender. Idempotent per Outlook message via the `email_reply_drafted` event.
 // Switches: EMAIL_REPLY_DRAFTS_ENABLED (code constant, OFF) and TEST mode (allow-list sender + qa_test jobs only).
 // Per-type automatic sending is NOT built (TODO in email-reply.core); only the pure `wouldAutoSend` decision is recorded.
-// Best-effort: never throws to the copier or the office action; facts are read-only (no links minted, no estimates
-// refreshed, no job changes).
+// Best-effort: never throws to the copier or the office action. Matched mail: facts are read-only (no links minted, no
+// estimates refreshed, no job changes). Decision 255: an unmatched NEW sender whose email is an enquiry or a price /
+// rebate question gets the enquiry created from the email (email-enquiry.server: existing guarded intake, linked
+// instead when the email is already an owner's) and the draft carries that enquiry's homeowner page — never the
+// calculator. Created only behind the same switches (TEST mode: allow-listed sender → a qa_test enquiry).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OUTLOOK_REQUEST_REDIRECT, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath } from "./outlook-connection.core";
@@ -16,7 +19,8 @@ import { classifyEmailIntents, recentEnoughForAction } from "./email-intent.core
 import { jobNumbersIn } from "./outlook-guess.core";
 import {
   EMAIL_REPLY_DRAFTED_EVENT, EMAIL_REPLY_DRAFTS_ENABLED, EMAIL_REPLY_DRAFTS_TEST_ONLY, assertDraftOnlyRequest, composeReply, draftBlocker,
-  draftCategories, isEnquiryStage, looksLikeNewEnquiry, wouldAutoSend, type DueStep, type OwnerFacts, type PartnerFacts, type ReplyDraft,
+  draftCategories, isEnquiryStage, looksLikeNewEnquiry, pickReplyType, wouldAutoSend, type DueStep, type EmailEnquiryFacts, type OwnerFacts,
+  type PartnerFacts, type ReplyDraft,
 } from "./email-reply.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
@@ -185,27 +189,43 @@ export async function draftReplyForMessage(p: {
     if (await alreadyDrafted(m.providerMessageId)) return { status: "skipped", reason: "A reply draft already exists for this email" };
 
     const biz = await partnerBusiness(m.from);
-    const jobIds = [...new Set(p.jobIds)];
+    let jobIds = [...new Set(p.jobIds)];
     // TEST mode first (allow-listed sender, qa_test jobs only, TEST partners only), before any job facts are read.
-    const sources: (string | null)[] = [];
-    if (jobIds.length) {
-      const { data: js, error } = await admin.from("jobs").select("id, source").in("id", jobIds);
-      if (error) throw new Error(error.message);
-      sources.push(...(js ?? []).map((x) => x.source ?? null));
-    }
-    const blocked = draftBlocker({ enabled: sw.enabled, testOnly: sw.testOnly, from: m.from, jobSources: sources, partnerIsTest: biz ? isTestPartner(biz) : null });
+    const blockerFor = async (ids: string[]) => {
+      const sources: (string | null)[] = [];
+      if (ids.length) {
+        const { data: js, error } = await admin.from("jobs").select("id, source").in("id", ids);
+        if (error) throw new Error(error.message);
+        sources.push(...(js ?? []).map((x) => x.source ?? null));
+      }
+      return draftBlocker({ enabled: sw.enabled, testOnly: sw.testOnly, from: m.from, jobSources: sources, partnerIsTest: biz ? isTestPartner(biz) : null });
+    };
+    const blocked = await blockerFor(jobIds);
     if (blocked) return { status: "skipped", reason: blocked };
 
     const hits = classifyEmailIntents({ subject: m.subject, body: m.body, direction: "inbound", from: m.from, fromPartner: !!biz });
-    // Unmatched mail: only partners and new enquirers get a draft; everyone else waits for the office's Match (decision 247).
-    if (!jobIds.length && !biz && !(looksLikeNewEnquiry(m.subject, m.body) && !hits.some((h) => h.intent === "trade")))
-      return { status: "skipped", reason: "Unmatched email — drafted after the office matches it" };
+    let emailEnquiry: EmailEnquiryFacts | null = null;
+    if (!jobIds.length && !biz) {
+      // Unmatched mail: partners get a draft below; a new sender's enquiry or price / rebate question gets its enquiry
+      // created (decision 255); everyone else waits for the office's Match (decision 247).
+      const unmatchedType = pickReplyType({ hits, fromPartner: false, matchedJob: false, stage: null, spotSaved: false, enquiryCue: looksLikeNewEnquiry(m.subject, m.body) });
+      if (unmatchedType !== "new_enquiry" && unmatchedType !== "price_rebate_eligibility")
+        return { status: "skipped", reason: "Unmatched email — drafted after the office matches it" };
+      const made = await (await import("./email-enquiry.server")).enquiryFromEmail(m, { testOnly: sw.testOnly });
+      if (made.status === "skipped") return { status: "skipped", reason: made.reason };
+      jobIds = [made.jobId];
+      if (made.status === "existing_owner") {
+        // Linked to the owner already on file: the normal matched-owner reply, under the same TEST guard.
+        const linkedBlocked = await blockerFor(jobIds);
+        if (linkedBlocked) return { status: "skipped", reason: linkedBlocked };
+      } else emailEnquiry = { created: true, addressFound: made.addressFound };
+    }
     const owner = jobIds.length && !biz ? await ownerFactsFor(jobIds[0]!, jobIds.length, now) : null;
-    if (owner && hits.length === 0 && !isEnquiryStage(owner.stage, owner.spotSaved) && !looksLikeNewEnquiry(m.subject, m.body))
+    if (owner && !emailEnquiry && hits.length === 0 && !isEnquiryStage(owner.stage, owner.spotSaved) && !looksLikeNewEnquiry(m.subject, m.body))
       return { status: "skipped", reason: "No question or request recognised" };
     const partner = biz || hits.some((h) => h.intent === "trade") ? await partnerFactsFor(biz, m, now) : null;
 
-    const draft = composeReply({ subject: m.subject, body: m.body, from: m.from, fromName: m.fromName, hits, fromPartner: !!biz, owner, partner, now });
+    const draft = composeReply({ subject: m.subject, body: m.body, from: m.from, fromName: m.fromName, hits, fromPartner: !!biz, owner, partner, emailEnquiry, now });
     if (!draft) return { status: "skipped", reason: "No reply type applies" };
 
     const written = await writeDraft(mailbox, m, draft);
@@ -213,7 +233,7 @@ export async function draftReplyForMessage(p: {
       message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, mailbox, from: m.from, subject: m.subject, received_at: m.at,
       origin: p.origin, draft_id: written.draftId, method: written.method, reply_type: draft.type, intents: draft.intents, flags: draft.flags,
       check_before_sending: draft.checkBeforeSending, would_auto_send: wouldAutoSend(draft), auto_send_built: false,
-      job_ids: jobIds, partner_business_id: biz?.id ?? null, link: draft.link,
+      job_ids: jobIds, partner_business_id: biz?.id ?? null, link: draft.link, email_enquiry_created: !!emailEnquiry,
     };
     const { error } = await loose.from("workflow_events").insert({ job_id: jobIds[0] ?? null, actor_id: null, event_type: EMAIL_REPLY_DRAFTED_EVENT, internal: true,
       summary: `Reply drafted in Outlook (${draft.type.replace(/_/g, " ")})${draft.checkBeforeSending ? " — check before sending" : ""}; not sent`, details });

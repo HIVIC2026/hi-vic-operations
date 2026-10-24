@@ -12,7 +12,7 @@ const chips = z.object({
   insulation: z.array(z.enum(INSULATION_CHIPS)).max(3).optional(),
   size: z.array(z.enum(SIZE_CHIPS)).max(4).optional(),
   region: z.array(z.enum(REGION_CHIPS)).max(6).optional(),
-  source: z.array(z.enum(SOURCE_CHIPS)).max(3).optional(),
+  source: z.array(z.enum(SOURCE_CHIPS)).max(4).optional(),
   heard: z.array(z.enum(HEARD_CHIPS)).max(4).optional(),
   stage: z.array(z.enum(JOBS_STAGE_KEYS as [string, ...string[]])).max(6).optional(),
   installer: z.array(z.string().max(200)).max(40).optional(),

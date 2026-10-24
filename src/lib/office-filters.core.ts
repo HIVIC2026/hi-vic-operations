@@ -6,13 +6,13 @@ import { regionForPostcode } from "./coverage-regions.core";
 export type InsulationChip = "no" | "some" | "not_sure";
 export type SizeChip = "under_100" | "100_150" | "over_150" | "none";
 export type LastHeardChip = "today" | "week" | "older" | "never";
-export type SourceChip = "website" | "phone" | "installer";
+export type SourceChip = "website" | "email" | "phone" | "installer";
 export type RegionChip = "inner" | "east" | "south_east" | "north" | "west" | "regional";
 
 export const INSULATION_LABEL: Record<InsulationChip, string> = { no: "No", some: "Some", not_sure: "Not sure" };
 export const SIZE_LABEL: Record<SizeChip, string> = { under_100: "Under 100 m²", "100_150": "100–150 m²", over_150: "Over 150 m²", none: "No size" };
 export const LAST_HEARD_LABEL: Record<LastHeardChip, string> = { today: "Today", week: "This week", older: "Older", never: "Never" };
-export const SOURCE_LABEL: Record<SourceChip, string> = { website: "Website", phone: "Phone", installer: "Installer" };
+export const SOURCE_LABEL: Record<SourceChip, string> = { website: "Website", email: "Email", phone: "Phone", installer: "Installer" };
 export const REGION_LABEL: Record<RegionChip, string> = { inner: "Inner Melbourne", east: "Eastern suburbs", south_east: "South-east", north: "North", west: "West", regional: "Regional" };
 
 const DAY = 86_400_000;
@@ -34,10 +34,10 @@ export function lastHeardChip(at: string | null | undefined, now: number): LastH
   if (melDay(t) === melDay(now)) return "today";
   return now - t <= 7 * DAY ? "week" : "older";
 }
-/** Website = signed Base44 intake; Phone = entered by the office (New enquiry); Installer = installer-sourced job. */
+/** Website = signed Base44 intake; Email = created from the owner's email (decision 255); Phone = entered by the office (New enquiry); Installer = installer-sourced job. */
 export function sourceChip(j: { source: string | null; channel: string | null }): SourceChip {
   if (j.channel === "installer_sourced") return "installer";
-  return j.source === "base44" ? "website" : "phone";
+  return j.source === "base44" ? "website" : j.source === "email" ? "email" : "phone";
 }
 
 /** Suburb / area chip from the SAME postcode regions as Partners › Coverage (coverage-regions.core, decision 229). */
@@ -112,7 +112,7 @@ export function parseList<T extends string>(raw: unknown, allowed: readonly T[])
 export const INSULATION_CHIPS = ["no", "some", "not_sure"] as const;
 export const SIZE_CHIPS = ["under_100", "100_150", "over_150", "none"] as const;
 export const REGION_CHIPS = ["east", "south_east", "north", "west", "inner", "regional"] as const;
-export const SOURCE_CHIPS = ["website", "phone", "installer"] as const;
+export const SOURCE_CHIPS = ["website", "email", "phone", "installer"] as const;
 export const HEARD_CHIPS = ["today", "week", "older", "never"] as const;
 
 /** Page of 50 (same size as the database enquiry page). */
