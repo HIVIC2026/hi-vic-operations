@@ -17,6 +17,8 @@ import {
 import { credentialState, ONBOARDING_STATUSES } from "@/lib/pilot.core";
 import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rate-requests.functions";
 import { openFileViewer } from "@/components/portal/file-viewer";
+import { collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
+import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 
 const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
@@ -41,6 +43,15 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       <Details b={b} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Credentials businessId={b.id} creds={data.credentials} isHivicAdmin={isHivicAdmin} canAdd={canEdit || data.myRole === "member"} onDone={refetch} />
       <Team businessId={b.id} members={data.members} workers={data.workers} canEdit={canEdit} onDone={refetch} />
+      {data.collectionNotice.length > 0 && <Section title="ESC privacy collection notice">
+        <p className="mb-2 text-xs text-muted-foreground">Decision 130: every installer person gets their own secure link (text + email, reminders at 3 and 7 days) to read the Essential Services Commission's VEU Scheme Participant Privacy Collection Notice and acknowledge it themself. Until they do they can't be lead or crew on an installation. Approval is not blocked by this.</p>
+        {data.collectionNotice.map((s) => (
+          <div key={s.email} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm last:border-0" data-esc-notice-state={s.state}>
+            <span><b>{s.name}</b><span className="block text-xs text-muted-foreground">{s.email}{s.state === "acknowledged" && s.source ? ` · via ${s.source === "secure_link" ? "secure link" : s.source === "onboarding" ? "onboarding" : "My business"}` : ""}</span></span>
+            <span className="flex items-center gap-2"><Badge variant={s.state === "acknowledged" ? "default" : "destructive"}>{collectionNoticeLabel(s)}</Badge>{isHivicAdmin && s.state !== "acknowledged" && s.workerId && <SendNoticeLinkInline workerId={s.workerId} />}</span>
+          </div>
+        ))}
+      </Section>}
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – Home Insulation Victoria sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>

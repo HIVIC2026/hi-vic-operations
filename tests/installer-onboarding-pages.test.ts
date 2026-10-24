@@ -9,7 +9,7 @@ const complete: InstData = {
   works_for_business: false, primary_contact_name: "Sam Taylor", business_phone: "0412345678", business_email: "sam@example.com",
   legal_entity_name: "Sample Pty Ltd", abn: "51824753556", business_address: "1 Main St, Melbourne VIC 3000", business_address_details: addr("1 Main St, Melbourne VIC 3000"),
   insurance_uploaded: true, insurer: "X", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  installers: [{ full_legal_name: "A B", piisa_done: "no", qualification: "CII", mobile: "0412345679", email: "a@example.com", cii_holds: "held", cii_certificate_number: "CII-1", cii_issuer: "EEC", cii_issue_date: "2024-01-01", cii_level: "full", cii_expiry: "2099-01-01" }],
+  installers: [{ full_legal_name: "A B", piisa_done: "no", qualification: "CII", mobile: "0412345679", email: "a@example.com", cii_holds: "held", cii_certificate_number: "CII-1", cii_issuer: "EEC", cii_issue_date: "2024-01-01", cii_level: "full", cii_expiry: "2099-01-01", esc_notice_ticked: true }],
   electrician_choice: "match", wants_hivic_leads: false, service_origin: "1 Main St, Melbourne VIC 3000", service_origin_details: addr("1 Main St, Melbourne VIC 3000"), travel_radius_km: 50,
   typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "4-8", accepting_jobs: true, gst_registered: true, r5_rate: 20, batts_removal_rate: 8, loose_fill_removal_rate: 10,
   bank_account_name: "S", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,

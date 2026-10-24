@@ -143,7 +143,7 @@ function application(tag: string): InstData {
     legal_entity_name: `TEST ${tag} Insulation Pty Ltd`, trading_name: `TEST ${tag} Insulation`, abn: "51824753556",
     business_address: ba, business_address_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"),
     insurer: `TEST Insurer ${tag}`, insurance_policy_number: `POL-${tag}`, public_liability_cover_amount: 10_000_000, public_liability_expiry: "2030-06-30",
-    installers: [{ full_legal_name: `TEST ${tag} Installer`, mobile: "0412345602", email: `qa.newinstaller.${tag.toLowerCase()}.w1@hivic-test.example`, cii_holds: "held", cii_certificate_number: `CII-${tag}`, cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full", cii_expiry: "2029-05-19", piisa_done: "no" }],
+    installers: [{ full_legal_name: `TEST ${tag} Installer`, mobile: "0412345602", email: `qa.newinstaller.${tag.toLowerCase()}.w1@hivic-test.example`, cii_holds: "held", cii_certificate_number: `CII-${tag}`, cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full", cii_expiry: "2029-05-19", piisa_done: "no", esc_notice_ticked: true }],
     self_is_installer: false, electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true, free_quotes_for_hivic_leads: true,
     service_origin: ba, service_origin_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"), travel_radius_km: 50,
     typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "1-2 weeks", accepting_jobs: true,
@@ -235,6 +235,7 @@ async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { ap
     const cases: [string, Parameters<typeof pageFieldErrors>[0], InstData, RegExp][] = [
       ["missing CII licence number", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_certificate_number: "" }] }, /CII certificate/i],
       ["expired CII certificate", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_expiry: "2020-01-01" }] }, /expired/i],
+      ["ESC collection notice not ticked", "installers", { ...f, installers: [{ ...f.installers![0]!, esc_notice_ticked: false }] }, /ESC privacy collection notice/i],
       ["expired insurance", "insurance", { ...f, insurance_uploaded: true, public_liability_expiry: "2020-01-01" } as InstData, /expiry must be today or later/i],
       ["cover under $5m", "insurance", { ...f, insurance_uploaded: true, public_liability_cover_amount: 1_000_000 } as InstData, /\$5/],
       ["bad ABN", "about", { ...f, abn: "12345678901" }, /valid 11-digit ABN/i],

@@ -121,6 +121,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
         }
         try {
+          // Decision 130: each installer person's ESC collection notice link (first send, then 3- and 7-day reminders)
+          // through the guarded senders; real texts/emails stay held until the wording is approved. Counts only.
+          const { sweepCollectionNoticeLinks } = await import("@/lib/esc-collection-notice-send.server");
+          (out as Record<string, unknown>)['escNoticeLinks'] = await sweepCollectionNoticeLinks();
+        } catch (e) {
+          console.error("allocation tick: ESC notice link sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['escNoticeLinks'] = "failed";
+        }
+        try {
           const { sweepVisitReminders } = await import("@/lib/daily-brief.server");
           (out as Record<string, unknown>)['reminders'] = await sweepVisitReminders();
         } catch (e) {

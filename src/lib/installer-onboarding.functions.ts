@@ -8,6 +8,7 @@ import {
   INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, agreementText, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
 } from "./installer-onboarding.core";
 import { performInstallerSign, signedData } from "./installer-sign.core";
+import { stampOnboardingNoticeAcks } from "./esc-collection-notice.core";
 
 async function sha256(s: string) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -44,7 +45,9 @@ const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
-  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional(), piisa_done: z.enum(["yes", "no"]).nullable().optional(), piisa_date: s(10), piisa_uploaded: z.boolean().optional() })).max(50).optional(),
+  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional(), piisa_done: z.enum(["yes", "no"]).nullable().optional(), piisa_date: s(10), piisa_uploaded: z.boolean().optional(),
+    // ESC collection notice: only the tick is taken from the browser; esc_notice_ack is re-stamped server-side (stampOnboardingNoticeAcks).
+    esc_notice_ticked: z.boolean().optional(), esc_notice_ack: z.object({ at: z.string().max(40), by_name: z.string().max(200), kind: z.enum(["acknowledged", "given"]), notice_version: z.string().max(20), notice_sha256: z.string().max(64) }).nullable().optional() })).max(50).optional(),
   self_is_installer: z.boolean().nullable().optional(),
   service_batts_removal: z.boolean().optional(), service_loose_fill_removal: z.boolean().optional(), wants_hivic_leads: z.boolean().nullable().optional(), free_quotes_for_hivic_leads: z.boolean().nullable().optional(), free_measureups_for_hivic_quote_leads: z.boolean().nullable().optional(),
   service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
@@ -111,7 +114,11 @@ export const saveInstallerOnboarding = createServerFn({ method: "POST" })
     // Compare-and-swap: a save from a tab holding an older revision never overwrites newer answers.
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error("Your application changed in another tab. Reload to continue.");
     const prevFiles = (app.data as { piisa_files?: Record<string, string> } | null)?.piisa_files;
-    const next = { ...normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData)), piisa_files: prevFiles ?? {} } as InstData;
+    // The ESC notice record is stamped here (never trusted from the browser) before the material-change check, so an unchanged
+    // echo of the stamp does not reset the agreement review.
+    const prevData = app.data as InstData;
+    const incoming = { ...(data.data as InstData), installers: stampOnboardingNoticeAcks(prevData.installers, (data.data as InstData).installers) };
+    const next = { ...normaliseInstallerDraft(applyMaterialReset(prevData, incoming)), piisa_files: prevFiles ?? {} } as InstData;
     // The "uploaded" tick is never trusted from the browser; it is derived from piisa_files.
     next.installers = (next.installers ?? []).map(({ piisa_uploaded: _p, ...x }) => x);
     const sec = await import("./onboarding-security.server");

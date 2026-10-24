@@ -81,6 +81,22 @@ export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).midd
   .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), priceIncGst: z.number().finite().min(0).max(1_000_000) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));
 
+/** ESC collection notice: the business's installers and their acknowledgement state (boss sees all; a worker only their own row). */
+export const getTradeCollectionNotice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./esc-collection-notice-send.server")).tradeNoticeView(context.userId)));
+
+/** The signed-in installer acknowledges the current notice for themself (append-only; never on someone's behalf). */
+export const acknowledgeTradeCollectionNotice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./esc-collection-notice-send.server")).tradeAcknowledgeNotice(context.userId)));
+
+/** Business owner (own business) or office: send / re-send one installer person's secure notice link by text + email (guarded senders). */
+export const sendCollectionNoticeLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("is_admin");
+    return plain(await (await import("./esc-collection-notice-send.server")).sendNoticeLinkFor(context.userId, data.workerId, isAdmin === true));
+  });
+
 export const getTradeAgreementPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeAgreementPdf(context.userId));
 

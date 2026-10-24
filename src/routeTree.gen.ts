@@ -31,6 +31,7 @@ import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticate
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
 import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
@@ -110,6 +111,7 @@ import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
 import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_authenticated/field.business_.team'
+import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicEmailArtPreviewKindRouteImport } from './routes/api/public/email-art-preview.$kind'
@@ -231,6 +233,11 @@ const EstimateTokenRoute = EstimateTokenRouteImport.update({
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NoticeTokenRoute = NoticeTokenRouteImport.update({
+  id: '/notice/$token',
+  path: '/notice/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyEstimateTokenRoute = MyEstimateTokenRouteImport.update({
@@ -676,6 +683,12 @@ const AuthenticatedFieldBusinessTeamRoute =
     path: '/business/team',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldBusinessEscNoticeRoute =
+  AuthenticatedFieldBusinessEscNoticeRouteImport.update({
+    id: '/business_/esc-notice',
+    path: '/business/esc-notice',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedFieldDayJobIdRoute =
   AuthenticatedFieldDayJobIdRouteImport.update({
     id: '/day/$jobId',
@@ -775,6 +788,7 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -854,6 +868,7 @@ export interface FileRoutesByFullPath {
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
@@ -886,6 +901,7 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -965,6 +981,7 @@ export interface FileRoutesByTo {
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
@@ -1003,6 +1020,7 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -1082,6 +1100,7 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/_authenticated/field/business_/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
@@ -1120,6 +1139,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1199,6 +1219,7 @@ export interface FileRouteTypes {
     | '/field/business/insurance'
     | '/field/business/rates'
     | '/field/business/team'
+    | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/email-art-preview/$kind'
@@ -1231,6 +1252,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1310,6 +1332,7 @@ export interface FileRouteTypes {
     | '/field/business/insurance'
     | '/field/business/rates'
     | '/field/business/team'
+    | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/email-art-preview/$kind'
@@ -1347,6 +1370,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1426,6 +1450,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
     | '/_authenticated/field/business_/team'
+    | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
     | '/api/public/email-art-preview/$kind'
@@ -1459,6 +1484,7 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
+  NoticeTokenRoute: typeof NoticeTokenRoute
   MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
@@ -1643,6 +1669,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notice/$token': {
+      id: '/notice/$token'
+      path: '/notice/$token'
+      fullPath: '/notice/$token'
+      preLoaderRoute: typeof NoticeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-estimate/$token': {
@@ -2198,6 +2231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessTeamRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/business_/esc-notice': {
+      id: '/_authenticated/field/business_/esc-notice'
+      path: '/business/esc-notice'
+      fullPath: '/field/business/esc-notice'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessEscNoticeRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/day/$jobId': {
       id: '/_authenticated/field/day/$jobId'
       path: '/day/$jobId'
@@ -2413,6 +2453,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
   AuthenticatedFieldBusinessTeamRoute: typeof AuthenticatedFieldBusinessTeamRoute
+  AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
 }
@@ -2433,6 +2474,8 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
     AuthenticatedFieldBusinessInsuranceRoute,
   AuthenticatedFieldBusinessRatesRoute: AuthenticatedFieldBusinessRatesRoute,
   AuthenticatedFieldBusinessTeamRoute: AuthenticatedFieldBusinessTeamRoute,
+  AuthenticatedFieldBusinessEscNoticeRoute:
+    AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
 }
@@ -2513,6 +2556,7 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
+  NoticeTokenRoute: NoticeTokenRoute,
   MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,

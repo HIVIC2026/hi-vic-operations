@@ -8,6 +8,7 @@ type Any = any;
 // any disagreement fails closed (a3MissingFields).
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import type { OfficialAnswers } from "./official-forms.core";
+import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -377,6 +378,8 @@ export type StaffOption = {
   issuer?: string | null; certificationId?: string | null;
   /** Recorded level/expiry only — null when not recorded; never invented. */
   level?: string | null; expiresOn?: string | null;
+  /** ESC collection notice (decision 130): false = not acknowledged, so this person can't be lead or crew. Undefined = not loaded. */
+  noticeAcknowledged?: boolean;
 };
 
 /** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
@@ -389,7 +392,7 @@ export const certificationRef = (c: unknown): string | null => { const v = (c as
 
 /** Roster from RECORDED facts: EEC verified only through a linked verified certification row (declared text never counts). */
 export type LevelRow = { certification_id: string; level: string | null; expires_on: string | null; recorded_at: string };
-export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = []): StaffOption[] {
+export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = [], noticeAck?: Map<string, boolean>): StaffOption[] {
   const byId = new Map(certs.map((c) => [c.id, c]));
   const lv = new Map<string, LevelRow>();
   for (const l of [...levels].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) lv.set(l.certification_id, l); // latest recorded wins
@@ -397,7 +400,7 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     const ref = certificationRef(w.certification);
     const c = ref ? byId.get(ref) : undefined;
     const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: ok ? lv.get(c!.id)?.level ?? null : null, expiresOn: ok ? lv.get(c!.id)?.expires_on ?? null : null };
+    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: ok ? lv.get(c!.id)?.level ?? null : null, expiresOn: ok ? lv.get(c!.id)?.expires_on ?? null : null, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
@@ -428,6 +431,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   else if (!lead) p.push("Choose the lead installer from your staff, or Other");
   else if (unapproved(lead)) p.push(`${lead.name}: waiting for office approval — can't go on the safety form yet`);
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
+  else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
   if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
   for (const a of sel.additional) {
@@ -438,6 +442,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       seenIds.add(a.workerId); seenName.add(norm(s.name)); if (s.eec) seenEec.add(norm(s.eec));
       if (unapproved(s)) p.push(`${s.name}: waiting for office approval — can't go on the safety form yet`);
       else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
+      else if (s.noticeAcknowledged === false) p.push(`${s.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
     } else {
       const name = a.other.name.trim(), eec = a.other.eec.trim();
       if (!name || !eec) { p.push("Other installer needs a full name and EEC certification number"); continue; }
