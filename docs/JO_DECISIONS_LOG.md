@@ -42,6 +42,7 @@ Newest first. Each line is settled; anything still open is under "Open".
 - First weeks: quotes are prepared on Complete and the office presses Send.
 
 ## Open
+- Lawyer: owner-terms wording for "whoever's move pays for a new safety check" (unfair contract terms).
 - Lawyer: cooling-off for unsolicited sales (no payment in 10 business days?) and the domestic building deposit limits (10% under $20k, 5% at $20k or more), since $349 plus 10% of the total can be more than 10% of the price.
 
 ## 24 Oct 2026 (later)
@@ -49,3 +50,14 @@ Newest first. Each line is settled; anything still open is under "Open".
 20. Testing setup: put the branch on the Lovable test copy (not published) for the screen review and the TEST run. Messages stay off and quotes wait for office Send.
 21. **Many installers, not just Deep.** Everything is built for every installer. The Deep email becomes a standard "How it works" guide: emailed to each installer when approved, and kept as a help page in their portal. Deep's job list is a one-off extra for him.
 22. To check: whether Mitti can invite a new installer automatically on approval (today it's a manual office step).
+23. 30 days after the safety check runs out with nothing booked: **whoever's move it was pays for the new safety check**. The installer's share comes out of their payout; the owner pays $349 again. **No exceptions** (storm, illness and so on are still whoever's move). It goes in the installer agreement and the owner's acceptance terms (lawyer to check the owner wording), plus a plain line on the install-day screens.
+24. Reminders to whoever's move it is at **20 and 10 days left** (wording reviewed in the template review).
+
+## Our leads in the installer portal (24 Oct 2026)
+25. On our leads the installer sees **quote status only** (sent / accepted / declined) and their own pay. Never the owner's price or our margin.
+26. Our-lead owner price comes from **our fixed price list** (R5/R6/R7 per m²). The installer is paid their agreed rates. (Corrects my earlier wording.)
+27. Electrician on our leads: most installers have one in house. Their **saved usual electrician does the safety check by default** and is paid our standard electrician rate; the owner still pays us $349. If none is saved, we arrange one.
+28. Keep the visit-day tick on our leads ("I will not discuss pricing with the owner").
+29. The Ready Check visit on our leads is **free** (as the agreement says). The installer is paid for the install.
+30. The installer's 7-day pay clock on our leads starts after **AP approval and the owner paying in full** (same as their own jobs).
+31. The office keeps installers' own jobs separate: "New from installers" and the installer summary stay their-own-jobs only.
