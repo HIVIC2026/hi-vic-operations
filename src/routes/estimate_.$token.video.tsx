@@ -115,17 +115,18 @@ function VideoPage() {
           <section className="mt-6 space-y-3 rounded-2xl border bg-card p-6" role="status"><h1 className="font-display text-3xl font-bold">Thank you</h1><p>{NOT_INTERESTED_THANKS}</p></section>
         ) : (
           <div className="mt-6 space-y-5">
-            <QuoteBox p={(quote.data as { pricing?: QuotePricing } | undefined)?.pricing ?? null} name={(quote.data as { owner?: { firstName: string | null } } | undefined)?.owner?.firstName ?? null} />
-            {/* Jo 23 Oct 08:36 UTC final design: quote, 3 required questions, optional photos, SAVE MY SPOT. */}
-            <h2 className="font-display text-2xl font-bold">To get your free Ready Check, we need you to answer 3 quick questions:</h2>
-            {INSULATION_DETAIL_QUESTIONS.map(q=><fieldset key={q.key} className="space-y-2"><legend className="mb-2 font-semibold">{q.label}</legend>{q.options.map(o=><Button key={o.value} className="h-auto min-h-12 w-full justify-start whitespace-normal text-left" role="radio" aria-checked={answers[q.key]===o.value} variant={answers[q.key]===o.value?"default":"outline"} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))}>{o.label}</Button>)}</fieldset>)}
+            {/* Jo 24 Oct (decision 84): opens straight on the 3 questions; Save stays locked until all are answered. */}
+            <QuestionsIntro p={(quote.data as { pricing?: QuotePricing } | undefined)?.pricing ?? null} name={(quote.data as { owner?: { firstName: string | null } } | undefined)?.owner?.firstName ?? null} />
+            {INSULATION_DETAIL_QUESTIONS.map((q,i)=><fieldset key={q.key} className={q.key==="house_built_period"?"grid grid-cols-2 gap-2":"space-y-2"}><legend className="mb-2"><span className="block text-xs font-bold uppercase tracking-wider text-estimate-blue">Question {i+1} of 3</span><span className="block text-lg font-bold">{q.label}</span></legend>{q.options.map(o=><Button key={o.value} className="h-auto min-h-12 w-full justify-start whitespace-normal text-left" role="radio" aria-checked={answers[q.key]===o.value} variant={answers[q.key]===o.value?"default":"outline"} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))}>{o.label}</Button>)}</fieldset>)}
             <section className="space-y-3 rounded-2xl border bg-card p-4">
-              <h2 className="font-semibold">Got photos? Add them here — it helps</h2>
-              <p className="text-sm text-muted-foreground">Optional. Only if you can do it safely. Please don’t enter the roof space.</p>
+              <h2 className="font-semibold">Got photos or a video? (optional)</h2>
+              <p className="text-sm text-muted-foreground">It helps the installer prepare. Only if it’s safe: hold your phone up through the ceiling hatch. Please don’t climb into the roof space.</p>
               <div className="flex gap-2"><Button className="h-12" variant={option==="photos"?"default":"outline"} disabled={uploading} onClick={()=>setOption("photos")}>Photos</Button><Button className="h-12" variant={option==="video"?"default":"outline"} disabled={uploading} onClick={()=>setOption("video")}>Video</Button></div>
               {(option==="photos"||option==="video")&&<CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading}/>}
             </section>
-            <Button className="h-12 w-full" disabled={uploading||declaring||declared||!answers.insulation_type||!answers.insulation_thickness||!answers.house_built_period} onClick={()=>void submitDeclaration()}>{declaring?"Saving…":"SAVE MY SPOT"}</Button>
+            <Button className="h-12 w-full" disabled={uploading||declaring||declared||!answers.insulation_type||!answers.insulation_thickness||!answers.house_built_period} onClick={()=>void submitDeclaration()}>{declaring?"Saving…":"Save my free spot"}</Button>
+            {!declaring&&!declared&&unanswered(answers)&&<p className="text-center text-sm font-semibold text-amber-700">Answer {unanswered(answers)} to save your spot</p>}
+            <p className="text-center text-sm text-muted-foreground">No payment · no obligation</p>
             {declarationError&&<p role="alert" className="text-sm text-destructive">{declarationError}</p>}
             <div className="text-center">{!leaving ? <Button variant="link" className="h-12 text-sm text-muted-foreground" onClick={()=>setLeaving(true)}>No longer interested</Button> : (
               <fieldset className="space-y-2 rounded-2xl border bg-card p-4 text-left"><legend className="mb-2 font-semibold">Sorry to see you go. What's the main reason?</legend>
@@ -140,26 +141,19 @@ function VideoPage() {
   );
 }
 
-type QuotePricing = { gross: number; discount: number; total: number; areaM2: number; removalUpTo?: number | null } | null;
-function QuoteBox({ p, name }: { p: QuotePricing; name: string | null }) {
-  if (!p) return null;
-  const $ = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
-  // Jo 23 Oct 08:40 UTC: lead with THEIR rebate (same hero as Save my spot), price box underneath.
+/** First unanswered question, e.g. "question 3" (null when all 3 are answered). */
+function unanswered(a: Partial<InsulationTapAnswers>): string | null {
+  const i = INSULATION_DETAIL_QUESTIONS.findIndex((q) => !a[q.key]);
+  if (i < 0) return null;
+  return INSULATION_DETAIL_QUESTIONS.every((q) => !a[q.key]) ? "all 3 questions" : `question ${i + 1}`;
+}
+function QuestionsIntro({ p, name }: { p: QuotePricing; name: string | null }) {
+  const rebate = p ? `$${Math.floor(Number(p.discount)).toLocaleString("en-AU")}` : null;
   return <div className="text-estimate-navy">
-    <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-estimate-logo-green">🎉 Your rebate is waiting</p>
-    <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{name ? `${name}, you` : "You"} could save <span className="text-estimate-logo-green">{$(p.discount)}</span> on ceiling insulation</h1>
-    <section aria-label="Your preliminary quote" className="mt-5 rounded-[22px] bg-estimate-mist p-5">
-      <div className="rounded-[18px] border-2 border-estimate-green bg-estimate-mint px-3 py-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated VEU rebate</p>
-        <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {$(p.discount)}</p>
-      </div>
-      <div className="pb-2 pt-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
-        <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{$(p.total)}</p>
-        <p className="text-sm">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
-      </div>
-      {p.removalUpTo != null && p.removalUpTo > 0 && <p className="rounded-xl bg-card p-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}<br /><span className="mt-1 block text-[13px]">{REMOVAL_UPTO_NOTE}</span><strong className="mt-2 block text-[15px]">{priceRangeLine(p.total, p.removalUpTo)}</strong></p>}
-      <p className="mt-3 text-center text-sm font-extrabold">No payment · no obligation</p>
-    </section>
+    <p className="text-xs font-extrabold uppercase tracking-[0.13em] text-estimate-logo-green">Almost there{name ? `, ${name}` : ""}</p>
+    <h1 className="mt-2 font-display text-[28px] font-extrabold leading-[1.15]">Answer 3 quick questions to save your spot</h1>
+    <p className="mt-2 text-muted-foreground">Just tap. It takes under a minute.{rebate ? ` Your ${rebate} rebate is waiting.` : ""}</p>
   </div>;
 }
+
+type QuotePricing = { gross: number; discount: number; total: number; areaM2: number; removalUpTo?: number | null } | null;
