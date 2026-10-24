@@ -26,7 +26,9 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited, getMittiJobPresentation } from "@/lib/trade-view.functions";
+import { getMyMittiInvited, getMittiJobPresentation, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
+import { installTimeLabel } from "@/lib/install-days.core";
 import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
 
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
@@ -104,6 +106,7 @@ function FieldJob() {
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
         {role === "installer" && job.channel === "hivic_sourced" && (job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled") && <InstallerReadyCheckTimesCard jobId={jobId} />}
+        {role === "installer" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
@@ -115,6 +118,35 @@ function FieldJob() {
       </div>
       </div>
     </TradeShell>
+  );
+}
+
+/** Jo 24 Oct 2026 (decision 110): on the installer's own job the installer enters the Ready Check day and time. It is
+ *  saved as the job's Ready Check booking, so the 6:30am text lists it with the Mitti form link. Nothing goes to the owner. */
+function A1ReadyCheckTimeCard({ jobId }: { jobId: string }) {
+  const save = useAction(setA1ReadyCheckTimeFn);
+  const days = allowedReadyCheckDays();
+  const [day, setDay] = useState(days[0] ?? melbourneToday());
+  const [time, setTime] = useState("");
+  const [busy, setBusy] = useState(false);
+  const blockers = a1ReadyCheckTimeBlockers({ day, time });
+  const times = allowedReadyCheckTimes(day);
+  return (
+    <Section title="Ready Check day and time (optional)">
+      <p className="text-sm text-sub">You arrange the visit with the owner. Enter the day and time here and it goes on your day list, with the Mitti form link in the 6:30am text. No time entered = no reminder for this job. The owner isn't messaged.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div><Label htmlFor="a1-rc-day">Day</Label><Input id="a1-rc-day" type="date" value={day} min={days[0]} max={days[days.length - 1]} onChange={(e) => { setDay(e.target.value); setTime(""); }} /></div>
+        <div><Label htmlFor="a1-rc-time">Arrival time</Label>
+          <select id="a1-rc-time" aria-label="Arrival time" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={time} onChange={(e) => setTime(e.target.value)}>
+            <option value="">Time…</option>
+            {times.map((t) => <option key={t} value={t}>{installTimeLabel(t)}</option>)}
+          </select></div>
+      </div>
+      {time && blockers.length > 0 && <p className="mt-2 text-sm text-rose" data-a1-rc-blocker>{blockers.join(" ")}</p>}
+      <Button size="field" className="mt-3 w-full" disabled={busy || !time || blockers.length > 0} onClick={async () => { setBusy(true); try { await save({ jobId, day, time }, "Ready Check time saved"); } finally { setBusy(false); } }}>
+        {busy ? "Saving…" : "Save Ready Check time"}
+      </Button>
+    </Section>
   );
 }
 

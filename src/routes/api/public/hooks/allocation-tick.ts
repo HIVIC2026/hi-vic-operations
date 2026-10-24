@@ -60,6 +60,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installHolds'] = "failed";
         }
         try {
+          // Jo 24 Oct (decision 111): signed PIESA copy to the owner and installer once the install day is booked.
+          // Held behind PIESA_COPY_EMAIL_APPROVED (false) for real jobs; TEST jobs use the allowlisted test sender.
+          const { sweepPiesaCopyDeliveries } = await import("@/lib/piesa-delivery.server");
+          (out as Record<string, unknown>)['piesaCopies'] = await sweepPiesaCopyDeliveries();
+        } catch (e) {
+          console.error("allocation tick: PIESA copy delivery sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['piesaCopies'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
         } catch (e) {
@@ -89,6 +98,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: pre-start sweep failed", (e as Error).message);
           out['ok'] = false;
           (out as Record<string, unknown>)['prestart'] = "failed";
+        }
+        try {
+          // Jo 24 Oct: the install-day PIISA Mitti form is created the day(s) before the install (same guarded path as
+          // the office button, one per job) so the 6:30am text below can link it. Runs BEFORE the daily text.
+          const { sweepPiisaAutoSend } = await import("@/lib/piisa-autosend.server");
+          const a = await sweepPiisaAutoSend();
+          (out as Record<string, unknown>)['piisaAutoSend'] = { checked: a.checked, created: a.results.filter((x) => x.outcome === "created").length, failed: a.results.filter((x) => x.outcome === "failed").length };
+        } catch (e) {
+          console.error("allocation tick: PIISA auto-send failed", (e as Error).message);
+          (out as Record<string, unknown>)['piisaAutoSend'] = "failed"; // Mitti outages must not fail the whole tick
         }
         try {
           // Daily Mitti links text: switch OFF by default; sends nothing unless ON and form IDs are set.

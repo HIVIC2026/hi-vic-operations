@@ -1,7 +1,7 @@
 // Daily Mitti links text: runs on the 15-minute allocation tick. Sends nothing unless the
 // "Daily Mitti links text" switch is ON and the Mitti form IDs are set. Never retries a text.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { dailySendDue, dailyText, diffDay, melbourneDate, skipReason, snap, updateText, type DayJob, type Snap, type Trade } from "./daily-mitti-text.core";
+import { dailySendDue, dailyText, diffDay, melbourneDate, mittiFormSource, skipReason, snap, updateText, type DayJob, type Snap, type Trade } from "./daily-mitti-text.core";
 import { melbourneMidnight } from "./daily-brief.core";
 import { addYmd } from "./melbourne-time.core";
 import { isTestPartner, normaliseAuMobile } from "./test-send.core";
@@ -21,6 +21,18 @@ export async function dailyTextSettings() {
 }
 
 type Group = { trade: Trade & { name: string; isTest: boolean }; jobs: DayJob[]; qaOnly: boolean };
+
+/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit. */
+async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
+  const src = mittiFormSource(kind);
+  if (src === "piisa_event") {
+    const { data: ev } = await db.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const id = (ev?.details as { audit_id?: unknown } | null)?.audit_id;
+    return id ? String(id) : null; // no PIISA yet → "form not ready yet"
+  }
+  const { data: f } = await db.from(src).select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return f?.external_mitti_id ? String(f.external_mitti_id) : null;
+}
 
 /** Every trade's bookings for one Melbourne day, with their Mitti links. */
 export async function collectDay(date: string): Promise<Group[]> {
@@ -54,10 +66,9 @@ export async function collectDay(date: string): Promise<Group[]> {
     g.trade.linked = g.trade.linked && linked;
     const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
     if (job.source !== "qa_test") g.qaOnly = false;
-    const tbl = b.kind === "ready_check" ? "ready_checks" : "assessments";
-    const { data: f } = await db.from(tbl).select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: f?.external_mitti_id ? mittiFormUrl(f.external_mitti_id) : null });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null });
   }
   return [...groups.values()];
 }

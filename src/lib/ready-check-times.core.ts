@@ -114,6 +114,16 @@ export function installerRebookBlockers(pick: ReadyCheckPick, bookedAt: string |
   return [];
 }
 
+/** Decision 110 (Jo 24 Oct): the installer's own customers (A1) — the installer arranges the visit himself and may
+ *  enter the day and time on the job so the 6:30am text lists it. Only while the job waits for a Ready Check booking. */
+export function a1ReadyCheckEntryAllowed(j: { channel: string | null; stage: string | null }): boolean {
+  return j.channel === "installer_sourced" && j.stage === "ready_check_ready_to_schedule";
+}
+/** Same allowed-times rules as our-lead offers (exact times 7am–5pm, business days, 24h+ ahead, within 21 days). */
+export function a1ReadyCheckTimeBlockers(pick: ReadyCheckPick, now: Date = new Date()): string[] {
+  return installerRebookBlockers(pick, null, now);
+}
+
 /** When an office-picked offer closes by itself. */
 export function readyCheckOfferExpiry(offeredAt: Date = new Date()): string {
   return new Date(offeredAt.getTime() + READY_CHECK_OFFER_OPEN_HOURS * 3_600_000).toISOString();

@@ -489,7 +489,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
-export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
+export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
   const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");

@@ -96,6 +96,8 @@ export async function officePickReadyCheckInstaller(jobId: string, actorId: stri
   await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the Ready Check — offer sent only to them (open 24 hours)`, { kind: "ready_check", business_ids: [c.business_id], business_names: [c.name], business_id: c.business_id, business_name: c.name, expires_at: expires, offer_id: row.id }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to offer the owner Ready Check times" }).eq("id", jobId);
   await (await import("./ready-check-offer-text.server")).textInstallerAboutOffer(row.id).catch((e) => console.error("job offer text skipped", (e as Error).message));
+  // Decision 106: the offer email alongside the text (same wording + the offer link).
+  await (await import("./ready-check-offer-text.server")).emailInstallerAboutOffer(row.id).catch((e) => console.error("job offer email skipped", (e as Error).message));
   return { offered: 1, exhausted: false, offerId: row.id as string };
 }
 

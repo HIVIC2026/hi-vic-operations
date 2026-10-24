@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import {
   READY_CHECK_OFFER_OPEN_HOURS, READY_CHECK_TIMES, allowedReadyCheckDays, allowedReadyCheckTimes, installerTimesBlockers, ownerDaysBlockers,
   readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckOfficeItem, readyCheckOfferText, readyCheckStartAt, readyCheckTurn,
+  a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers,
 } from "../src/lib/ready-check-times.core";
 import { isBusinessDay, melbourneYmd } from "../src/lib/piesa-windows.core";
 
@@ -110,3 +111,27 @@ test("installer text: short, suburb, link straight to the offer (draft wording)"
 });
 
 test("melbourne date sanity for the fixed clock", () => expect(melbourneYmd(NOW)).toBe("2026-10-26"));
+
+describe("A1 Ready Check day + time entered by the installer (decision 110)", () => {
+  test("only the installer's own customers while waiting for a Ready Check booking", () => {
+    expect(a1ReadyCheckEntryAllowed({ channel: "installer_sourced", stage: "ready_check_ready_to_schedule" })).toBe(true);
+    expect(a1ReadyCheckEntryAllowed({ channel: "hivic_sourced", stage: "ready_check_ready_to_schedule" })).toBe(false);
+    expect(a1ReadyCheckEntryAllowed({ channel: "installer_sourced", stage: "ready_check_scheduled" })).toBe(false);
+  });
+  test("same rules as our-lead offers: exact time, business day, 24h+ ahead, within 21 days", () => {
+    const days = allowedReadyCheckDays(NOW);
+    expect(a1ReadyCheckTimeBlockers({ day: days[1]!, time: "09:30" }, NOW)).toEqual([]);
+    expect(a1ReadyCheckTimeBlockers({ day: days[1]!, time: "09:15" }, NOW)).toEqual(["Please choose a time."]);
+    expect(a1ReadyCheckTimeBlockers({ day: "2026-10-31", time: "09:00" }, NOW)).toEqual(["That day is not available. Please choose again."]); // Saturday
+    expect(a1ReadyCheckTimeBlockers({ day: "2026-10-27", time: "07:00" }, NOW)).toEqual(["The time must be at least 24 hours away."]); // tomorrow 7am < 24h from 11am
+    expect(a1ReadyCheckTimeBlockers({ day: "2026-12-01", time: "09:00" }, NOW)).toEqual(["That day is not available. Please choose again."]); // past 21 days
+  });
+  test("server: saved through confirmBooking as the ready_check booking the 6:30am text reads; nothing to the owner", () => {
+    const src = require("node:fs").readFileSync(new URL("../src/lib/trade-view.server.ts", import.meta.url), "utf8") as string;
+    const fn = src.slice(src.indexOf("export async function tradeSetReadyCheckTime"), src.indexOf("export async function setMittiInvited"));
+    expect(fn).toContain('confirmBooking(jobId, "ready_check"');
+    expect(fn).toContain("originating_installer_business_id !== c.biz.id");
+    expect(fn).toContain("a1ReadyCheckTimeBlockers(pick, now)");
+    expect(fn).not.toMatch(/sendTestEmail|sendRealSms|sendOfficeEmail|sendGuardedOwnerEmail|tellOwner/);
+  });
+});

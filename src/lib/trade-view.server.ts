@@ -544,6 +544,28 @@ export async function tradeMittiInvited(userId: string) {
 }
 
 /** Office only: tick/untick "Mitti account invited" for a partner. */
+/** Jo 24 Oct 2026 (decision 110): on the installer's own job (A1) the installer enters the Ready Check day and time.
+ *  Business-scoped (the business that supplied the customer), the same slots the owner's times link offers, written
+ *  as the normal ready_check booking so the 6:30am daily text lists it with the Mitti link. No owner notification. */
+export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick: { day: string; time: string }, now = new Date()) {
+  const c = await ctxOrThrow(userId);
+  if (c.kind !== "installer") throw new WorkflowError("Only the installer enters the Ready Check time.");
+  const { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, readyCheckStartAt } = await import("./ready-check-times.core");
+  const { data: j } = await admin.from("jobs").select("id, channel, stage, deleted_at, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  if (!j || j.deleted_at || j.originating_installer_business_id !== c.biz.id) throw new WorkflowError("This job isn't one of your supplied customers.");
+  if (!a1ReadyCheckEntryAllowed(j)) throw new WorkflowError("This job isn't waiting for a Ready Check time.");
+  const b = a1ReadyCheckTimeBlockers(pick, now);
+  if (b.length) throw new WorkflowError(b.join(" "));
+  const start = readyCheckStartAt(pick.day, pick.time).toISOString();
+  const { confirmBooking } = await import("./booking.server");
+  await confirmBooking(jobId, "ready_check", start, userId, "installer (time entered on own job)");
+  const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
+  await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", jobId);
+  await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
+  await logEvent(jobId, userId, "installer_ready_check_time_entered", "Installer entered the Ready Check day and time on his own job (nothing sent to the owner)", { starts_at: start, business_id: c.biz.id });
+  return { ok: true, startsAt: start };
+}
+
 export async function setMittiInvited(actorId: string, businessId: string, invited: boolean) {
   const { error } = await admin.from("businesses").update({ mitti_account_invited: invited, mitti_account_invited_at: invited ? new Date().toISOString() : null, mitti_account_invited_by: invited ? actorId : null }).eq("id", businessId);
   if (error) throw new WorkflowError(error.message);
