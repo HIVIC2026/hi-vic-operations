@@ -12,15 +12,17 @@ describe("spot saved confirmations", () => {
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
-    for (const t of ["/api/public/email-art/", "/spot.png", 'alt="Spot saved, Sarah. Your', "Smart move, Sarah. Your spot is saved.", "approving homes in batches, in the order spots were saved", "one is free in Ballarat to book your free Ready Check", "See my job →", "No payment · no obligation", "DC Construction Solutions Pty Ltd", "Privacy", "Remove my enquiry", "#07BF61"]) expect(e.html).toContain(t);
+    // Decision 70 design (O10): logo card, smart-move headline, green rebate line, three steps, See my job, AP footer.
+    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting.", "we book homes in the order spots were saved", "When a certified installer is free near Ballarat, we'll text and email you their times for your free Ready Check.", "What happens next", "Tap the time that suits you", "Free Ready Check, then your exact price", ">See my job<", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe", "#07BF61"]) expect(e.html).toContain(t);
+    expect(e.html).not.toContain("/api/public/email-art/");
     expect(e.html).not.toContain("Heads up");
-    expect(/call us|phone|1300|04\d{2}/i.test(e.html + e.text)).toBe(false);
+    expect(/call us|phone number|1300|04\d{2}/i.test(e.html + e.text)).toBe(false); // "No phone tag." is approved wording (decision 70)
   });
   test("address bits", () => expect(addressBits("12 Smith St", "Ballarat")).toEqual({ suburb: "Ballarat", short: "12 Smith St, Ballarat" }));
   test("referral card (Jo, 7 Oct): email + plain text when referralUrl present, absent without it, text message unchanged", () => {
     const ref = "https://homeinsulationvictoria.com.au/homeowner?ref=" + "R".repeat(43);
     const e = renderSpotSavedEmail({ ...i, referralUrl: ref });
-    for (const t of ["Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", "Send to a friend →", `href="${ref}"`]) expect(e.html).toContain(t);
+    for (const t of ["Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", "Send to a friend &rarr;", `href="${ref}"`]) expect(e.html).toContain(t);
     for (const t of ["HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${ref}`]) expect(e.text).toContain(t);
     const without = renderSpotSavedEmail(i);
     expect(without.html).not.toContain("Have a friend who needs a spot saved?");

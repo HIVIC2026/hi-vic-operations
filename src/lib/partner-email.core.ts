@@ -1,65 +1,56 @@
-// One look for every partner email (welcome, send back, decline): real logo, portal fonts, dark-grey 16px body.
-// Pure. Logo is the same public file the website uses (absolute URL so Outlook/Hotmail/Gmail load it).
+// One look for every partner email (welcome, send back, decline, application received): the approved email kit
+// (Jo 24 Oct 2026, decisions 107 and 136; designs docs/templates/approved/I54-welcome.html and I53-application-received.html).
+// Pure. The logo is the bundled PNG data URI the kit embeds (same as every owner email).
 import { CUSTOMER_BRAND } from "./customer-quote-system";
+import { SET_PASSWORD_BASE } from "./set-password-link.core";
+import * as K from "./email-kit.core";
 
+/** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx). */
+export const INSTALLER_GUIDE_URL = `${SET_PASSWORD_BASE}/field/guide`;
+
+/** Public website logo (kept for callers that still reference it; the emails embed the bundled PNG). */
 export const PARTNER_EMAIL_LOGO_URL = CUSTOMER_BRAND.logoUrl;
-const FONT_BODY = "'Figtree', 'Inter', Helvetica, Arial, sans-serif";
-const FONT_HEAD = "'Outfit', 'Inter', Helvetica, Arial, sans-serif";
-const TEXT = "#333A40", BRAND = "#07864B", NAVY = "#22376B", LINE = "#E4E9F5";
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] ?? c));
-const p = (html: string, extra = "") => `<p style="margin:0 0 16px;font-family:${FONT_BODY};font-size:16px;line-height:1.6;color:${TEXT};${extra}">${html}</p>`;
 
 export type PartnerBlock = { kind: "p"; text: string } | { kind: "list"; items: string[] } | { kind: "button"; label: string; url: string } | { kind: "sign"; lines: string[] };
 
+/** Generic partner email (send back / decline / one-off): heading, paragraphs, lists, one button, sign-off, in the kit shell. */
 export function partnerEmailLayout(i: { subject: string; heading?: string | null; blocks: PartnerBlock[]; preview?: string; test?: boolean }) {
-  const body = i.blocks.map((b) => {
-    if (b.kind === "p") return p(esc(b.text));
-    if (b.kind === "list") return `<ul style="margin:0 0 16px;padding-left:22px;font-family:${FONT_BODY};font-size:16px;line-height:1.6;color:${TEXT};">${b.items.map((x) => `<li style="margin:0 0 6px;">${esc(x)}</li>`).join("")}</ul>`;
-    if (b.kind === "button") return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr><td style="background:${BRAND};border-radius:12px;"><a href="${esc(b.url)}" style="display:inline-block;padding:14px 28px;font-family:${FONT_BODY};font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">${esc(b.label)}</a></td></tr></table>`;
-    return p(b.lines.map(esc).join("<br>"), "margin-top:8px;");
-  }).join("\n");
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(i.subject)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet"></head>
-<body style="margin:0;padding:0;background:#ffffff;">
-${i.preview ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(i.preview)}</div>` : ""}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;"><tr><td align="center" style="padding:28px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;"><tr><td style="padding:0 4px 20px;border-bottom:1px solid ${LINE};">
-<img src="${PARTNER_EMAIL_LOGO_URL}" alt="Home Insulation Victoria" width="160" style="display:block;width:160px;max-width:60%;height:auto;border:0;">
-${i.test === false ? "" : `<div style="display:inline-block;margin-top:12px;background:#FDF2F6;color:${NAVY};font-family:${FONT_BODY};font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;">TEST — only sent to Jo</div>`}
-</td></tr><tr><td style="padding:28px 4px 8px;">
-${i.heading ? `<h1 style="margin:0 0 20px;font-family:${FONT_HEAD};font-size:26px;line-height:1.25;font-weight:700;color:${NAVY};">${esc(i.heading)}</h1>` : ""}
-${body}
-</td></tr><tr><td style="padding:20px 4px 0;border-top:1px solid ${LINE};font-family:${FONT_BODY};font-size:13px;line-height:1.5;color:#6B7280;">
-Home Insulation Victoria · operated by DC Construction Solutions<br>
-<a href="mailto:info@homeinsulationvictoria.com.au" style="color:#6B7280;">info@homeinsulationvictoria.com.au</a>
-</td></tr></table></td></tr></table></body></html>`;
-  const text = [
+  const body = [
+    ...(i.heading ? [K.h1(i.heading, 8)] : []),
+    ...i.blocks.map((b) => {
+      if (b.kind === "p") return K.p(b.text);
+      if (b.kind === "list") return K.checkList(b.items.map(K.esc));
+      if (b.kind === "button") return K.button(b.url, b.label);
+      return K.p(b.lines.map(K.esc).join("<br>"), "16px 0 0", true);
+    }),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: i.preview ?? null, testLabel: i.test !== false, unsubscribe: null });
+  const text = K.plainText([
+    ...(i.heading ? [i.heading, ""] : []),
     ...i.blocks.flatMap((b) => b.kind === "p" ? [b.text, ""] : b.kind === "list" ? [...b.items.map((x) => `• ${x}`), ""] : b.kind === "button" ? [`${b.label}: ${b.url}`, ""] : [...b.lines, ""]),
     "Home Insulation Victoria · info@homeinsulationvictoria.com.au",
-    ...(i.test === false ? [] : ["", "TEST — only sent to Jo."]),
-  ];
-  if (i.heading) text.unshift(i.heading, "");
-  return { html, text: text.join("\n") };
+  ], { testLabel: i.test !== false });
+  return { html, text };
 }
 
-/** Jo's exact approved welcome wording (8 Oct 2026). */
-export function partnerWelcomeEmail(i: { firstName: string | null; businessName: string; trade: "installer" | "electrician"; email: string; link: string; test?: boolean }) {
+/** Decision 107: "Welcome aboard, {First}. You're approved!" — 3 benefits, Set your password, the 2-minute guide card. */
+export function partnerWelcomeEmail(i: { firstName: string | null; businessName: string; trade: "installer" | "electrician"; email: string; link: string; guideUrl?: string | null; test?: boolean }) {
   const subject = "You're approved — welcome to Home Insulation Victoria";
-  const blocks: PartnerBlock[] = [
-    { kind: "p", text: `Hi ${i.firstName?.trim() || "there"},` },
-    { kind: "p", text: `Great news — ${i.businessName} is now an approved Home Insulation Victoria partner.` },
-    { kind: "p", text: "Your partner portal is where you'll:" },
-    { kind: "list", items: [
-      i.trade === "installer" ? "see and accept insulation jobs near you" : "see and accept PIESAs near you",
-      "add your own customers",
-      "track every job, payment and form in one place",
-    ] },
-    { kind: "p", text: "Tap below to set your password. The link works once and lasts 24 hours." },
-    { kind: "button", label: "Set up my account", url: i.link },
-    { kind: "p", text: `You'll sign in with: ${i.email}` },
-    { kind: "p", text: "Questions? Just reply to this email." },
-    { kind: "sign", lines: ["Welcome aboard,", "Jo", "Home Insulation Victoria"] },
-  ];
-  return { subject, ...partnerEmailLayout({ subject, blocks, preview: `${i.businessName} is now an approved Home Insulation Victoria partner.`, test: i.test ?? true }) };
+  const first = K.cleanName(i.firstName);
+  const headline = `Welcome aboard${first ? `, ${first}` : ""}. You're approved!`;
+  const intro = i.trade === "installer"
+    ? `${i.businessName} can now take VEU ceiling insulation jobs through Home Insulation Victoria. Here's what that gets you:`
+    : `${i.businessName} can now take VEU electrical safety checks (PIESAs) through Home Insulation Victoria. Here's what that gets you:`;
+  const benefits = i.trade === "installer"
+    ? ["<strong>Jobs sent to you</strong>, plus add your own customers", "<strong>Your price, never marked up.</strong> We only add our $349 AP fee", "<strong>Quotes, electrician, compliance and rebate paperwork</strong> handled by us"]
+    : ["<strong>PIESAs sent to you</strong> near where you work", "<strong>Your agreed rate, paid 7 days after approval</strong>", "<strong>Bookings, compliance and rebate paperwork</strong> handled by us"];
+  const guide = { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL, label: "Read the guide", marginTop: 18 };
+  const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
+  const body = [K.h1(headline, 8), K.p(intro, "0 0 14px"), K.checkList(benefits, 15, "9px"), K.button(i.link, "Set your password", "14px 0 4px"), K.small(signIn, "10px 0 0", { center: true }), K.linkCard(guide), K.small("Questions? Just reply to this email.")].join("\n");
+  const html = K.emailShell({ body, previewText: `${i.businessName} is now an approved Home Insulation Victoria partner.`, testLabel: i.test === true, unsubscribe: null });
+  const text = K.plainText([
+    `Hi ${first ?? "there"},`, "", headline, "", intro, ...benefits.map((b) => `✓ ${K.stripTags(b)}`), "",
+    `Set your password: ${i.link}`, signIn, "", `${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, "", "Questions? Just reply to this email.", "", "Welcome aboard,", "Jo", "Home Insulation Victoria",
+  ], { testLabel: i.test === true });
+  return { subject, html, text };
 }

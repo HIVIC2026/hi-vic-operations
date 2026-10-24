@@ -1,26 +1,40 @@
 import { describe, expect, test } from "bun:test";
-import { partnerWelcomeEmail, PARTNER_EMAIL_LOGO_URL } from "../src/lib/partner-email.core";
-import { declineEmail, changesEmail } from "../src/lib/application-review.core";
+import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
+import { declineEmail, changesEmail, renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
+import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
 
-describe("partner emails (Jo 8 Oct)", () => {
+describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () => {
   const w = (trade: "installer" | "electrician") => partnerWelcomeEmail({ firstName: "Sam", businessName: "Acme Insulation", trade, email: "sam@acme.test", link: "https://x.test/l", test: false });
-  test("exact welcome wording and trade line", () => {
+  test("welcome (I54): headline, three benefits, Set your password, the 2-minute guide card", () => {
     const i = w("installer"), e = w("electrician");
     expect(i.subject).toBe("You're approved — welcome to Home Insulation Victoria");
-    expect(i.text).toContain("Hi Sam,\n\nGreat news — Acme Insulation is now an approved Home Insulation Victoria partner.");
-    expect(i.text).toContain("• see and accept insulation jobs near you");
-    expect(e.text).toContain("• see and accept PIESAs near you");
-    expect(i.text).toContain("Tap below to set your password. The link works once and lasts 24 hours.");
-    expect(i.text).toContain("Set up my account: https://x.test/l");
-    expect(i.text).toContain("You'll sign in with: sam@acme.test");
+    expect(i.text).toContain("Hi Sam,\n\nWelcome aboard, Sam. You're approved!");
+    expect(i.html).toContain("Welcome aboard, Sam. You're approved!");
+    expect(i.html).toContain("Acme Insulation can now take VEU ceiling insulation jobs through Home Insulation Victoria.");
+    expect(i.text).toContain("✓ Jobs sent to you, plus add your own customers");
+    expect(i.text).toContain("✓ Your price, never marked up. We only add our $349 AP fee");
+    expect(e.text).toContain("✓ PIESAs sent to you near where you work");
+    expect(i.text).toContain("Set your password: https://x.test/l");
+    expect(i.text).toContain("You'll sign in with sam@acme.test. The link works once and lasts 24 hours.");
+    expect(i.html).toContain("New to how we work?");
+    expect(i.html).toContain("Read the guide &rarr;");
+    expect(i.html).toContain('href="https://estimate.homeinsulationvictoria.com.au/field/guide"');
     expect(i.text).toContain("Welcome aboard,\nJo\nHome Insulation Victoria");
     expect(i.html).not.toContain("TEST — only sent to Jo");
   });
-  test("all partner emails share the logo, font and 16px dark-grey body", () => {
-    for (const m of [w("installer"), declineEmail({ contactName: "Sam", test: false }), changesEmail({ contactName: "Sam", message: "Fix ABN", link: "https://x.test", test: false })]) {
-      expect(m.html).toContain(`<img src="${PARTNER_EMAIL_LOGO_URL}" alt="Home Insulation Victoria"`);
-      expect(m.html).toMatch(/^https:\/\//.test(PARTNER_EMAIL_LOGO_URL) ? /font-size:16px;line-height:1.6;color:#333A40/ : /never/);
-      expect(m.html).toContain("Helvetica, Arial, sans-serif");
+  test("all partner emails share the approved kit shell (embedded logo, AP/ABN footer, no unsubscribe link)", () => {
+    for (const m of [w("installer"), declineEmail({ contactName: "Sam", test: false }), changesEmail({ contactName: "Sam", message: "Fix ABN", link: "https://x.test", test: false }), renderApplicationReceivedEmail({ contactName: "Sam", businessName: "Reinsulate" })]) {
+      expect(m.html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+      expect(m.html).toContain(FOOTER_TEXT);
+      expect(m.html).not.toContain(">Unsubscribe</a>");
+      expect(m.html).toContain("Arial,Helvetica,sans-serif");
     }
+  });
+  test("application received (I53): three steps, not sent to real applicants yet", () => {
+    const m = renderApplicationReceivedEmail({ contactName: "Sam Lee", businessName: "Reinsulate" });
+    expect(m.subject).toBe("We've got your application");
+    expect(m.html).toContain("Thanks Sam, we've got your application");
+    for (const t of ["We check your details", "CII certification, public liability insurance (min $5 million) and PIISA training.", "You're approved", "invite to Mitti", "Start adding jobs", "If anything's missing from your application we'll email you exactly what we need."]) expect(m.text).toContain(t);
+    expect(APPLICATION_RECEIVED_EMAIL_APPROVED).toBe(false);
   });
 });

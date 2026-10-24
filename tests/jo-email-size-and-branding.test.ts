@@ -1,17 +1,19 @@
 /**
- * Jo's T1–T8: size wording, area-source truthfulness and the shared Spot Saved visual system.
+ * Jo's T1–T8: size wording, area-source truthfulness and the approved email designs (decision 137).
  *
  * PURE: renders through the same functions every send uses. No database, no provider, no sending.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
+  basisLine,
   renderJoOutcomeEmail,
   renderJoReadyCheckInvitationEmail,
   type JoOutcomeEmailInput,
 } from "../src/lib/jo-outcome-email.core";
 import { joAreaBasis } from "../src/lib/jo-area-basis.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
+import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
 
 const RECIPIENT = {
   firstName: "Alex",
@@ -61,15 +63,15 @@ const KNOWN = [
   ["T6", { outcome: "needs_onsite_confirmation", insulation: "unknown" }],
 ] as const;
 
+const ASSUMED = "Based on a typical 150 m² ceiling (estimated, not measured)";
+
 describe("A. size-unknown previews state the 150 m² assumption", () => {
   for (const [name, facts] of UNKNOWN) {
     test(`${name}: 150 m², labelled as an assumption, never as the owner's size`, () => {
       const m = render({ ...facts, ceilingSizeKnown: false, figures: figures(150, true) });
-      expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
-      expect(m.html).toContain("150 m² — estimated, not measured"); // approved layout: "Ceiling" row
-      expect(m.html).toContain("150 m² for this preliminary quote");
-      expect(m.html).toContain("didn’t provide a ceiling size");
-      expect(m.html).not.toContain("based on the size you provided");
+      expect(m.plainText).toContain(ASSUMED);
+      expect(m.html).toContain(ASSUMED);
+      expect(m.html).not.toContain("Based on what you told us");
     });
   }
 });
@@ -78,12 +80,10 @@ describe("B. size-known previews state the provided size, not the assumption", (
   for (const [name, facts] of KNOWN) {
     test(`${name}: 210 m² sample, described as provided by the owner`, () => {
       const m = render({ ...facts, ceilingSizeKnown: true, figures: figures(210, false) });
-      expect(m.plainText).toContain("Ceiling size: 210 m² — based on the size you provided");
-      expect(m.html).toContain("210 m² — based on the size you provided"); // approved layout: "Ceiling" row
+      expect(m.plainText).toContain("Based on what you told us: 210 m² ceiling");
+      expect(m.html).toContain("Based on what you told us: 210 m² ceiling");
       expect(m.html).not.toContain("150 m²");
-      expect(m.html).not.toContain("didn’t provide a ceiling size");
       expect(m.html).not.toContain("estimated, not measured");
-      expect(m.plainText).toContain("Ceiling size: 210 m² — based on the size you provided");
     });
   }
 });
@@ -96,20 +96,13 @@ describe("C. real customer data is preserved, never replaced with the sample or 
       ceilingSizeKnown: true,
       figures: figures(185, false),
     });
-    expect(m.plainText).toContain("Ceiling size: 185 m² — based on the size you provided");
-      expect(m.html).toContain("185 m² — based on the size you provided"); // approved layout: "Ceiling" row
+    expect(m.plainText).toContain("Based on what you told us: 185 m² ceiling, no existing insulation.");
     expect(m.html).not.toContain("150 m²");
     expect(m.html).not.toContain("210 m²");
   });
   test("a non-typical assumed size keeps its own figure and stays labelled assumed", () => {
-    const m = render({
-      outcome: "likely_eligible",
-      insulation: "none",
-      ceilingSizeKnown: false,
-      figures: figures(150, true),
-    });
-    expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
-      expect(m.html).toContain("150 m² — estimated, not measured"); // approved layout: "Ceiling" row
+    expect(basisLine({ ...figures(160, true) }, false)).toBe("Based on a typical 160 m² ceiling (estimated, not measured), no existing insulation.");
+    expect(basisLine({ ...figures(137, false) }, true)).toBe("Based on what you told us: 137 m² ceiling, with some existing insulation.");
   });
 });
 
@@ -153,89 +146,35 @@ describe("D. property-research area is never described as owner-provided", () =>
   });
 });
 
-describe("E. T1–T8 use the shared Spot Saved branded layout", () => {
+describe("E. T1–T7 use the approved email kit shell", () => {
   const brandChecks = (html: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    // Header = the Spot Saved art row, or (T7, no rebate) the same logo alone — never logo+badge.
-    expect(/email-art|\bhiv-logo\b/.test(html)).toBe(true);
+    // The approved design: embedded logo PNG, the 540px card, one AP/ABN footer, no campaign art and no badge.
+    expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116"`);
+    expect(html).toContain("max-width:540px;background:#FBFCFA");
+    expect(html).toContain(FOOTER_TEXT);
+    expect(html).not.toContain("/api/public/email-art");
     expect(html).not.toContain('class="lx-badge"');
-    expect(html).toContain('class="hiv-main lx-main"');
-    expect(html).toContain("Home Insulation Victoria");
-    expect(html).toContain("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria");
   };
-  test("T1–T6, T7 and T8 all render inside the 640px branded shell with one footer", () => {
+  test("T1–T6 and T7 all render inside the approved card with one footer and one unsubscribe link", () => {
     const mails = [
-      render({
-        outcome: "likely_eligible",
-        insulation: "none",
-        ceilingSizeKnown: false,
-        figures: figures(150, true),
-      }),
-      render({
-        outcome: "likely_eligible",
-        insulation: "none",
-        ceilingSizeKnown: true,
-        figures: figures(210, false),
-      }),
-      render({
-        outcome: "needs_onsite_confirmation",
-        insulation: "unknown",
-        ceilingSizeKnown: true,
-        figures: figures(210, false),
-      }),
-      render({
-        outcome: "does_not_appear_eligible",
-        insulation: null,
-        reason: "Built after 2010.",
-      }),
-      withUnsubscribe(
-        renderJoReadyCheckInvitationEmail(RECIPIENT, {
-          ...figures(150, true),
-          savedAt: "2026-10-19T00:00:00Z",
-          personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
-          readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
-        }),
-        UNSUB,
-      ),
+      render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: false, figures: figures(150, true) }),
+      render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, figures: figures(210, false) }),
+      render({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, figures: figures(210, false) }),
+      render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." }),
     ];
     for (const m of mails) {
       brandChecks(m.html);
       expect(m.html.match(/DC Construction Solutions Pty Ltd/g)?.length).toBe(1);
       expect(m.html.match(/<html/g)?.length).toBe(1);
       expect(m.html.match(/<\/body>/g)?.length).toBe(1);
-      expect(m.html.match(/Don’t want these emails\?/g)?.length).toBe(1);
-      expect(m.html).toContain("Remove my enquiry");
+      // withUnsubscribe fills the inline slot: no second "Don't want these emails?" footer.
+      expect(m.html.match(/>Unsubscribe<\/a>/g)?.length).toBe(1);
+      expect(m.html).not.toContain("Don’t want these emails?");
+      expect(m.plainText).toContain(`Unsubscribe: ${UNSUB}`);
     }
   });
-  test("header reuses the Spot Saved art: email-art for T1–T6/T8, logo-only for T7, never a badge", () => {
-    const t2 = render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, figures: figures(210, false) });
-    expect(t2.html).toContain("/api/public/email-art/");
-    expect(t2.html).toContain("/headline.png");
-    expect(t2.html).not.toContain('class="lx-badge"');
-
-    const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
-    expect(t7.html).toContain("hiv-logo");
-    expect(t7.html).not.toContain("/api/public/email-art/");
-    expect(t7.html).not.toContain('class="lx-badge"');
-
-    const t8 = renderJoReadyCheckInvitationEmail(RECIPIENT, {
-      ...figures(150, true),
-      savedAt: "2026-10-19T00:00:00Z",
-      personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
-      readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
-    });
-    expect(t8.html).toContain("/api/public/email-art/");
-    expect(t8.html).toContain("/spot.png");
-    expect(t8.html).not.toContain('class="lx-badge"');
-  });
-  test("T7 keeps no estimate section and T8 keeps the Ready Check sections", () => {
-    const t7 = render({
-      outcome: "does_not_appear_eligible",
-      insulation: null,
-      reason: "Built after 2010.",
-    });
-    expect(t7.html).not.toContain("What this includes");
-    expect(t7.html).not.toContain("Ceiling size");
+  test("T8 (retired office invitation) keeps its earlier presentation", () => {
     const t8 = withUnsubscribe(
       renderJoReadyCheckInvitationEmail(RECIPIENT, {
         ...figures(150, true),
@@ -247,68 +186,68 @@ describe("E. T1–T8 use the shared Spot Saved branded layout", () => {
     );
     expect(t8.html).toContain("Book your free Ready Check");
     expect(t8.html).not.toContain("Save my spot");
+    expect(t8.plainText).toContain("You saved your spot. Now it’s your turn!");
+    expect(t8.plainText).toContain("We’ve retained the pricing from your saved preliminary quote.");
+  });
+  test("T7 keeps no estimate section", () => {
+    const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
+    expect(t7.html).not.toContain("What's included");
+    expect(t7.html).not.toContain("Based on what you told us:");
+    expect(t7.html).not.toContain("You save");
   });
 });
 
-describe("F. Jo's approved wording is unchanged", () => {
-  test("verbatim headline, quote labels, includes table and savings lines survive", () => {
-    const m = render({
-      outcome: "likely_eligible",
-      insulation: "none",
-      ceilingSizeKnown: true,
-      figures: figures(210, false),
-    });
-    // Escaped in HTML (curly apostrophes are preserved as-is).
-    expect(m.html).toContain(
-      "Good news—based on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.",
-    );
-    expect(m.plainText).toContain("Your estimated cost after rebate: $1,900 including GST");
-    expect(m.plainText).toContain("Before rebate: $4,500 including GST");
-    // Approved Save my spot layout: label, big price and "before rebate" line.
-    expect(m.html).toContain("Your estimated cost after rebate");
-    expect(m.html).toContain("$1,900");
-    expect(m.html).toContain("before rebate $4,500");
-    expect(m.html).toContain("✓");
-    expect(m.html).toContain("You could save $2,600");
-    expect(m.html).toContain("We’ll confirm the ceiling measurements at your free Ready Check.");
-    expect(m.html).toContain("What this includes");
-    expect(m.plainText).toContain("Home Insulation Victoria");
+describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", () => {
+  test("O1 Save my spot: headline, intro, price box, save section and both cards", () => {
+    const m = render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, figures: figures(210, false) });
+    expect(m.subject).toBe("Alex, you could save $2,600 on ceiling insulation");
+    for (const t of [
+      "Alex, you could save $2,600 on ceiling insulation",
+      "To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.",
+      "Your estimated VEU rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price before rebate", "$4,500",
+      "Try a different ceiling size", "Save your spot, it's free",
+      "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check. No payment, no obligation.",
+      "Save my free spot", "What's included in $1,900", "Free Ready Check", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
+      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included, only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
+      "We check these at your free Ready Check and tell you the exact price before you agree to anything.", "See your full estimate",
+    ]) expect(m.html).toContain(t);
+    expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
+    expect(m.html).toContain(`href="${LINKS.calculatorUrl}"`);
+    expect(m.html).not.toContain("may qualify");
+    expect(m.html).not.toContain("Your existing insulation");
   });
-  test("T7's approved ineligibility wording and T8's saved-quote wording are intact", () => {
-    const t7 = render({
-      outcome: "does_not_appear_eligible",
-      insulation: null,
-      reason: "Built after 2010.",
-    });
-    expect(t7.plainText).toContain(
-      "your property doesn’t appear eligible for a VEU ceiling insulation rebate at this stage.",
-    );
+  test("O2 some insulation (T3/T4): 'may qualify', potential rebate, the existing-insulation card and the R2.0 line", () => {
+    const m = render({ outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible", ceilingSizeKnown: true, figures: { ...figures(137, false), removalUpTo: 2055 } });
+    for (const t of [
+      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential VEU rebate", "Your cost if eligible",
+      "Your existing insulation", "it may be able to stay.", "If it can stay", "New batts go straight over the top", ">$0<", "If some needs removing", "Up to $2,055 for your 137 m² ceiling.", "$15/m²",
+      "where they'll also check your existing insulation", "only if it can't stay ($15 per m², see above)",
+      "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know.",
+    ]) expect(m.html).toContain(t);
+    expect(m.html).toContain("Based on what you told us: 137 m² ceiling, with some existing insulation.");
+  });
+  test("O2 questions (T5/T6): three tap questions and the Answer & save my spot button to the owner's questions link", () => {
+    const m = render({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, figures: figures(210, false) });
+    for (const t of ["Save your spot: answer 3 quick questions", "Just tap, no typing.", "What type is it?", "About how thick is it?", "When was your home built?", "Answer &amp; save my spot", "Got photos or a video? You can add them too, only if it's safe."]) expect(m.html).toContain(t);
+    expect(m.html).toContain(`href="${LINKS.uploadMediaUrl}"`);
+    expect(m.html).not.toContain(`href="${LINKS.saveMySpotUrl}"`);
+    expect(m.plainText).toContain(`Answer & save my spot: ${LINKS.uploadMediaUrl}`);
+  });
+  test("O6 not eligible (T7): result headline, Why box, Review my result, friend card", () => {
+    const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
+    for (const t of ["Alex, your ceiling insulation result", "We'd rather tell you now than waste your time.", ">Why<", "Built after 2010.", "Something doesn't look right?", "Review my result", "Know someone thinking about insulation?", "Send to a friend"]) expect(t7.html).toContain(t);
+    expect(t7.html).toContain(`href="${LINKS.reviewResultUrl}"`);
     expect(t7.plainText).toContain("Built after 2010.");
-    const t8 = withUnsubscribe(
-      renderJoReadyCheckInvitationEmail(RECIPIENT, {
-        ...figures(150, true),
-        savedAt: "2026-10-19T00:00:00Z",
-        personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
-        readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
-      }),
-      UNSUB,
-    );
-    expect(t8.plainText).toContain("You saved your spot. Now it’s your turn!");
-    expect(t8.plainText).toContain("We’ve retained the pricing from your saved preliminary quote.");
   });
 });
 
 describe("G. email safety is unchanged", () => {
   test("the unsubscribe slot is filled once and no CTA placeholder survives", () => {
-    const m = render({
-      outcome: "likely_eligible",
-      insulation: "none",
-      ceilingSizeKnown: false,
-      figures: figures(150, true),
-    });
+    const m = render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: false, figures: figures(150, true) });
     expect(m.html).toContain(UNSUB);
     expect(m.html).not.toContain("data-hiv-remove-enquiry");
     expect(m.html).not.toContain("{{HIV_REMOVE_MY_ENQUIRY_LINK}}");
+    expect(m.plainText).not.toContain("{{HIV_REMOVE_MY_ENQUIRY_LINK}}");
     expect(m.html).not.toMatch(/\[(Save my spot|Upload my photos|Review my result)[^\]]*\]/);
   });
   test("T5/T6 keep the upload CTA only; T1–T4 keep Save my spot only", () => {
@@ -317,12 +256,7 @@ describe("G. email safety is unchanged", () => {
       const m = render({ ...facts, ceilingSizeKnown: true, figures: figures(210, false) });
       expect(m.html).toContain(expected[name]!);
     }
-    const t5 = render({
-      outcome: "needs_onsite_confirmation",
-      insulation: "unknown",
-      ceilingSizeKnown: false,
-      figures: figures(150, true),
-    });
+    const t5 = render({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, figures: figures(150, true) });
     expect(t5.html).not.toContain("/campaign");
   });
   test("the Templates preview uses template-specific sample data (210 known / 150 assumed)", () => {
@@ -335,22 +269,21 @@ describe("G. email safety is unchanged", () => {
   });
 });
 
-describe("G. T1–T6 use the approved Save my spot layout (Jo, 19 Oct)", () => {
+describe("H. T1–T6 use the approved layout pieces", () => {
   const cases = [
     { outcome: "likely_eligible", insulation: "none" },
     { outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible" },
     { outcome: "needs_onsite_confirmation", insulation: "unknown" },
   ] as const;
   for (const c of cases) {
-    test(`${c.outcome}/${c.insulation}: rebate box, big price, ticked includes with real fees, pink action card`, () => {
+    test(`${c.outcome}/${c.insulation}: green rebate pill, big blue price, five ticked items, four + items, green button`, () => {
       const m = render({ ...c, ceilingSizeKnown: true, figures: { ...figures(210, false), piesaFee: 349, apFee: 349 } });
-      expect(m.html).toContain("border:2px solid #07BF61"); // green rebate box
-      expect(m.html).toContain("lx-cost"); // big after-rebate price
-      expect((m.html.match(/✓&nbsp;/g) ?? []).length).toBe(4); // four ticked included items
-      expect((m.html.match(/>\$349</g) ?? []).length).toBe(2); // PIESA and AP management
-      expect(m.html).toContain(">FREE<"); // Ready Check
-      expect(m.html).toContain("#FDF2F6"); // pink action card
-      expect(m.html).not.toContain(">$0<");
+      expect(m.html).toContain("border:2px solid #07BF61"); // green rebate pill
+      expect(m.html).toContain("font-size:42px;font-weight:bold;color:#3C51C4"); // big price
+      expect((m.html.match(/&#10003;<\/span>/g) ?? []).length).toBe(5 + (c.insulation === "none" ? 0 : 1)); // included ticks (+ "If it can stay")
+      expect((m.html.match(/>\+<\/span>/g) ?? []).length).toBe(4 + (c.insulation === "none" ? 0 : 1)); // not-included rows (+ "If some needs removing")
+      expect(m.html).toContain('bgcolor="#07BF61"'); // the one approved button
+      expect(m.html).not.toContain("#FDF2F6"); // no pink action card any more
     });
   }
 });

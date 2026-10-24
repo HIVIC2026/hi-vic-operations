@@ -57,22 +57,25 @@ describe("Part A — Jo template defects fixed", () => {
         expect(m.html).not.toContain(bad);
         expect(m.plainText).not.toContain(bad);
       }
-      expect(m.html).toContain(`href="${JO_CONTACT_URL}"`);
-      expect(m.html).toContain(`href="${PRIVACY_URL}"`);
-      expect(m.html).toContain(`>Remove my enquiry</a>`);
-      expect(m.plainText).toContain(`Contact us: ${JO_CONTACT_URL} · Privacy: ${PRIVACY_URL} · Remove my enquiry: ${UNSUB}`);
+      // Decision 137: T1–T7 carry the approved footer (AP number · ABN · Unsubscribe); T8 keeps its earlier footer links.
+      expect(m.html).toContain(`href="${UNSUB}"`);
+      expect(m.html).toContain(">Unsubscribe</a>");
       expect(m.plainText).toContain(`Unsubscribe: ${UNSUB}`);
     }
+    expect(t8().html).toContain(`href="${JO_CONTACT_URL}"`);
+    expect(t8().html).toContain(`href="${PRIVACY_URL}"`);
     expect(JO_FOOTER_LINKS_LINE).toBe("[Contact us] · [Privacy] · [Remove my enquiry]");
   });
 
   test("T7 “Checking another property?” calculator opens the PUBLIC calculator; T1–T6 open the customer's own estimate", () => {
     const t7 = sent(ALL[6]![1]);
-    expect(t7.plainText).toContain(`Open the calculator →: ${PUBLIC_CALCULATOR_URL}`);
+    // Decision 73: the T7 "Send to a friend" card opens the PUBLIC eligibility checker (no customer data in the link).
+    expect(t7.plainText).toContain(`Send to a friend: ${PUBLIC_CALCULATOR_URL}`);
     expect(t7.html).toContain(`href="${PUBLIC_CALCULATOR_URL}"`);
     for (const [, o] of ALL.slice(0, 6)) {
       const m = sent(o);
-      expect(m.plainText).toContain(`Open the calculator →: ${TOK}#calculator`);
+      expect(m.plainText).toContain(`Try a different ceiling size: ${TOK}#calculator`);
+      expect(m.html).toContain(`href="${TOK}#calculator"`);
       expect(m.plainText).not.toContain(`: ${PUBLIC_CALCULATOR_URL}\n`);
     }
   });
@@ -111,7 +114,7 @@ describe("Part B — one template source; superseded templates unreachable", () 
   test("no fallback: when no Jo template applies the sender holds for manual review (and releases any reservation)", () => {
     const h = code("src/lib/hot-leads-send.server.ts");
     expect(h).not.toMatch(/joMail\s*\?\?/);
-    expect(h).toContain("const mail = joMail;");
+    expect(h).toMatch(/(const|let) mail(: [^=]+)? = joMail;/);
     expect(h).toMatch(/if \(!joMail\) \{[\s\S]{0,400}status: "failed", provider: "not_sent"[\s\S]{0,200}return r\("blocked"/);
     const f = code("src/lib/followups.server.ts");
     expect(f).toContain('reason: "no_jo_template_manual_review"');

@@ -6,10 +6,15 @@ describe("service-area customer update", () => {
   test("names only the unavailable trade and makes no payment request", () => {
     const mail = renderCoverageUnavailableEmail({ firstName: "Jo", suburb: "Sale", postcode: "3850", missing: ["installer"], reference: "HV-1001" });
     expect(mail.subject).toContain("Sale 3850");
-    expect(mail.plainText).toContain("approved installer with verified coverage");
-    expect(mail.plainText).toContain("do not need to pay anything");
+    // Decision 74 design (O7): "{First}, we're not in {Suburb} just yet", what happens now, no payment or obligation.
+    expect(mail.plainText).toContain("Jo, we're not in Sale just yet");
+    expect(mail.plainText).toContain("an approved installer with verified coverage for Sale 3850 yet");
+    expect(mail.plainText).toContain("No payment, no obligation.");
+    expect(mail.plainText).toContain("We keep your details on file.");
     expect(mail.plainText).not.toContain("Ready Check");
     expect(mail.plainText).not.toContain("$220");
+    expect(mail.html).toContain("What happens now");
+    expect(mail.html).toContain("Know someone thinking about insulation?");
   });
 
   test("adds the mandatory unsubscribe footer", () => {
