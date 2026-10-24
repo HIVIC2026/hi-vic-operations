@@ -14,14 +14,14 @@ describe("PIISA product-label phase and actual statutory data", () => {
     const rows = a3EvidenceChecklist({}, ctx, before).filter((r) => r.key === "product_photos");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ phase: "before", required: 1, state: "missing" });
-    expect(a3PrestartBlockers({}, ctx, before).filter((b) => b.includes("packaging label"))).toHaveLength(1);
+    expect(a3PrestartBlockers({}, ctx, before).filter((b) => b.includes("packaging showing brand, model and R-value"))).toHaveLength(1);
     expect(a3CompletionBlockers({}, ctx, before)).toHaveLength(1);
     expect(a3EvidenceChecklist({}, ctx, before).filter((r) => r.phase === "after" && r.state === "missing").map((r) => r.key)).toEqual(["completed_video"]);
   });
   test("product label without real geotag or taken after starting cannot clear prestart", () => {
     expect(a3PrestartBlockers({}, ctx, [...before, { ...product, geotagged: 0 }]).join()).toContain("location not recorded");
     expect(a3PrestartBlockers({}, ctx, [...before, { ...product, capturedAt: "2026-10-08T10:00:00Z" }], "2026-10-08T09:30:00Z").join()).toContain("must be taken before work starts");
-    expect(a3PrestartBlockers({}, ctx, [...before, product], "2026-10-08T09:30:00Z").filter((b) => b.includes("packaging label"))).toEqual([]);
+    expect(a3PrestartBlockers({}, ctx, [...before, product], "2026-10-08T09:30:00Z").filter((b) => b.includes("packaging showing brand, model and R-value"))).toEqual([]);
   });
   test("a photo alone never fills official Part 7 and missing actual products blocks official readiness", () => {
     const parsed = parseA3Answers({ items: [{ item_id: A3_MEDIA_IDS.product_photos, label: "Product labels", media: [{ media_id: "photo" }] }] });
