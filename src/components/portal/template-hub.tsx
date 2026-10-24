@@ -181,7 +181,7 @@ function ComplianceVersions({ templateKey }: { templateKey: string }) {
     <div className="space-y-3">
       {reg && <p className="rounded-[14px] border border-line bg-paper p-4 text-sm"><b>Blocks:</b> {reg.blocks} · <b>Source:</b> {reg.source}</p>}
       <div className="rounded-[14px] border border-line bg-paper p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Versions</h3><Link to="/admin/compliance" search={{ key: templateKey }} className={btnClass("secondary")}>Add a new version<ArrowUpRight className="h-4 w-4" /></Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Versions</h3><Link to="/admin/settings" search={{ tab: "templates", key: templateKey }} className={btnClass("secondary")}>Add a new version<ArrowUpRight className="h-4 w-4" /></Link></div>
         <p className="mt-1 text-xs text-sub">Approved versions can't be edited — add a new version instead.</p>
         {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Versions could not load.</p>
           : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
@@ -223,7 +223,7 @@ function OwnerPaperwork({ gate }: { gate: string }) {
   const bodies = (q.data?.bodies ?? {}) as Record<string, string>;
   return (
     <div className="rounded-[14px] border border-line bg-paper p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Documents</h3><Link to="/admin/owner-paperwork" className={btnClass("secondary")}>Approve in Owner paperwork<ArrowUpRight className="h-4 w-4" /></Link></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Documents</h3><Link to="/admin/settings" search={{ tab: "templates" }} className={btnClass("secondary")}>Approve in Settings › Templates<ArrowUpRight className="h-4 w-4" /></Link></div>
       {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Owner paperwork could not load.</p> : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : docs.length === 0 ? <p className="mt-2 text-sm text-sub">No documents recorded for this gate.</p> :
         <ul className="mt-2 divide-y divide-line">{docs.map((d) => <li key={d.key} className="py-2 text-sm">
           <div className="flex flex-wrap items-center gap-2"><b>{d.title}</b><span className="text-sub">{d.version}</span><Pill tone={d.status === "Approved" ? "green" : "rose"}>{d.status}</Pill>{d.approvedBy && <span className="text-xs text-sub">{d.approvedBy}{d.approvedAt ? `, ${d.approvedAt.slice(0, 10)}` : ""}</span>}</div>

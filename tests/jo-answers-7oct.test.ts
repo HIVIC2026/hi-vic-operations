@@ -32,7 +32,7 @@ describe("application send back / decline emails (DRAFT)", () => {
     expect(src).toContain("sendTestEmail");
   });
   test("office page never says optional", () => {
-    expect(readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8").match(/ReviewDecision[\s\S]*?Office CII/)![0].toLowerCase()).not.toContain("optional");
+    expect(readFileSync("src/components/portal/partner-application.tsx", "utf8").match(/ReviewDecision[\s\S]*?Office CII/)![0].toLowerCase()).not.toContain("optional");
   });
 });
 
