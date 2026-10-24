@@ -68,7 +68,6 @@ export const SITUATION: Record<string, { tag: string; next?: string }> = {
   "enquiry.video_in": { tag: "Owner sent photos" },
   "enquiry.spot_saved": { tag: "Spot saved", next: "Choose installer" },
   "enquiry.spot_saved_video": { tag: "Spot saved", next: "Choose installer" },
-  "enquiry.spot_saved_waiting": { tag: "Waiting – Ready Checks not open yet" },
   "ready_check.pick_times": { tag: "Owner to take a Ready Check time" },
   "ready_check.offered": { tag: "Offered to the installer" },
   "ready_check.booked": { tag: "Ready Check booked" },

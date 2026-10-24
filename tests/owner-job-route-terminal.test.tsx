@@ -21,7 +21,6 @@ mock.module("@/components/portal/panels", () => ({
   QuotesPanel: stub("quotes"), TimelinePanel: stub("timeline"), Section: ({ children }: { children: ReactNode }) => <section>{children}</section>,
 }));
 mock.module("@/components/portal/allocation", () => ({ VisitContactsCard: stub("contacts") }));
-mock.module("@/components/portal/instalment-plan", () => ({ OwnerInstalmentPlanCard: stub("instalments") }));
 mock.module("@/components/portal/piesa-times", () => ({ PiesaTimesCard: stub("piesa-times") }));
 mock.module("@/components/portal/visit-changes", () => ({ OwnerVisitChangeCard: stub("visit-change") }));
 mock.module("@/components/portal/install-days", () => ({ OwnerInstallDaysCard: stub("install-days") }));

@@ -82,19 +82,20 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
 }
 
 // "Arrange the visit" (propose/accept/decline) was removed 24 Oct 2026 (decisions 52/61/80, audit removal 2).
-/** Admin-only emergency path: set an assessment booking directly. Needs a reason; permanently audited. */
-export function AdminBookingOverride({ jobId }: { jobId: string }) {
+/** Admin-only emergency path (decision 220): set the PIESA (assessment) or Ready Check visit directly. Needs a reason; permanently audited. */
+export function AdminBookingOverride({ jobId, kind = "assessment" }: { jobId: string; kind?: "assessment" | "ready_check" }) {
   const book = useAction(createBooking);
   const [start, setStart] = useState("");
   const [reason, setReason] = useState("");
+  const visit = kind === "ready_check" ? "Ready Check" : "assessment";
   return (
-    <details className="rounded-xl border border-danger/30 p-3">
+    <details className="rounded-xl border border-danger/30 p-3" open={kind === "ready_check" || undefined}>
       <summary className="cursor-pointer text-sm font-medium text-danger">Admin override / set booking directly</summary>
       <p className="mt-2 text-xs text-muted-foreground">Not the normal path – use only if the visit can't be arranged through proposals. Recorded permanently with your reason.</p>
       <div className="mt-2 grid gap-2">
         <Input type="datetime-local" aria-label="Override booking time" value={start} onChange={(e) => setStart(e.target.value)} className="h-10" />
         <Textarea placeholder="Reason for override (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <Button variant="destructive" disabled={!start || reason.trim().length < 5} onClick={async () => { await book({ jobId, kind: "assessment", start: new Date(start).toISOString(), overrideReason: reason }, "Override booking saved"); setStart(""); setReason(""); }}>Set assessment booking (override)</Button>
+        <Button variant="destructive" disabled={!start || reason.trim().length < 5} onClick={async () => { await book({ jobId, kind, start: new Date(start).toISOString(), overrideReason: reason }, "Override booking saved"); setStart(""); setReason(""); }}>Set {visit} booking (override)</Button>
       </div>
     </details>
   );

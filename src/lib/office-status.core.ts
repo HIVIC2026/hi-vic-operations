@@ -31,7 +31,6 @@ export const OFFICE_STATUSES = {
   "enquiry.spot_saved": {stage: "enquiry", label: SITUATION["enquiry.spot_saved"]!.tag, waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: SITUATION["enquiry.spot_saved"]!.next! },
   "enquiry.spot_saved_video": {stage: "enquiry", label: SITUATION["enquiry.spot_saved_video"]!.tag, waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: SITUATION["enquiry.spot_saved_video"]!.next! },
   // Jo 22 Oct: while Ready Check booking is OFF, a saved spot waits on nobody — no office action.
-  "enquiry.spot_saved_waiting": {stage: "enquiry", label: SITUATION["enquiry.spot_saved_waiting"]!.tag, waiting: "Nobody", limit: null },
   "ready_check.pick_times": {stage: "ready_check", label: SITUATION["ready_check.pick_times"]!.tag, waiting: "Owner", limit: { d: 3 }, limitKey: "owner_times_days", action: SITUATION["ready_check.pick_times"]!.next! },
   "ready_check.offered": {stage: "ready_check", label: SITUATION["ready_check.offered"]!.tag, waiting: "Installer", limit: { bh: 4 }, limitKey: "offer_business_hours", action: SITUATION["ready_check.offered"]!.next! },
   "ready_check.booked": {stage: "ready_check", label: SITUATION["ready_check.booked"]!.tag, waiting: "Installer", limit: null },
@@ -107,7 +106,7 @@ export type JobFacts = {
   estimateSentAt?: string | null;
   /** Earliest real send record to the owner (customer_email_sends / outbound job_communications with sent_at). Only this may make a status say "sent" or "waiting for owner". */
   ownerContactedAt?: string | null;
-  /** Ready Check booking master switch (Office). false = saved spots wait with no office action. */ readyCheckBookingOpen?: boolean;
+  // readyCheckBookingOpen + "enquiry.spot_saved_waiting" removed 24 Oct 2026 (decision 53, audit removal 5): a saved spot is always "Spot saved".
   rcWindowsOpen?: number; rcAccepted?: boolean; rcOfferAt?: string | null; rcBookingAt?: string | null; rcSubmittedAt?: string | null;
   /** Earliest current ceiling measurement row (any status) — proof the visit actually started. */
   measurementStartedAt?: string | null;
@@ -156,7 +155,6 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     if (!c || c.optedOutAt) return null;
     if (c.mediaReceivedAt && !c.deskCheckStatus) return pick("enquiry.video_in", c.mediaReceivedAt);
     if (!c.spotSavedAt) return null;
-    if (f.readyCheckBookingOpen === false) return pick("enquiry.spot_saved_waiting", c.spotSavedAt);
     return pick(c.mediaReceivedAt || c.queuePriority === "video" ? "enquiry.spot_saved_video" : "enquiry.spot_saved", c.spotSavedAt);
   };
   switch (f.stage) {

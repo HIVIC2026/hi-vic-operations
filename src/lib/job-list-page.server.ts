@@ -5,19 +5,45 @@
 // which page is open, and only the rows on the requested page are enriched and serialised.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { enrichPipeline, jobOverview } from "./job-pipeline.server";
+import { reopenPlan } from "./office-jobs.core";
+import { retiredStageBlocker } from "./workflow";
 import { clampPage, toPage, toPageSize, totalPagesFor } from "./list-paging.core";
 import { countOf, notInChunks, searchFilter, toDirection, toEnum } from "./list-query.core";
 import {
   JOB_SEARCH_COLUMNS,
   JOB_SORT_KEYS,
   JOB_STAGES,
+  closedAllCount,
+  closedPile,
   jobArchiveFilter,
+  type JobClosedFilter,
   type JobClosedView,
   type JobListParams,
   type JobMode,
 } from "./job-list-page.core";
 
 const OPEN_STAGES = "(complete,cancelled)";
+
+/** Closed page rows only (≤ one page of ids, one batched read per table): the facts reopenPlan and closedPile need. */
+async function closedRowFacts(ids: string[]) {
+  const out = new Map<string, { priorStage: string | null; cancelledReason: string | null; officeRemoved: boolean; contactRank: number; removedLead: boolean; testPriorSource: string | null }>();
+  if (!ids.length) return out;
+  const [jobs, list, events] = await Promise.all([
+    admin.from("jobs").select("id, prior_stage, cancelled_reason").in("id", ids),
+    admin.from("office_job_list").select("id, office_removed, contact_rank").in("id", ids),
+    admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", ids).in("event_type", ["lead_removed", "marked_test"]).order("created_at", { ascending: true }),
+  ]);
+  for (const r of [jobs, list, events]) if (r.error) throw new Error(`Closed job details unavailable: ${r.error.message}`);
+  for (const j of jobs.data ?? []) out.set(j.id, { priorStage: j.prior_stage ?? null, cancelledReason: j.cancelled_reason ?? null, officeRemoved: false, contactRank: 1, removedLead: false, testPriorSource: null });
+  for (const l of list.data ?? []) { const f = l.id ? out.get(l.id) : undefined; if (f) { f.officeRemoved = !!l.office_removed; f.contactRank = l.contact_rank ?? 1; } }
+  for (const e of events.data ?? []) {
+    const f = e.job_id ? out.get(e.job_id) : undefined;
+    if (!f) continue;
+    if (e.event_type === "lead_removed") f.removedLead = true;
+    else f.testPriorSource = ((e.details as { prior_source?: string | null } | null)?.prior_source) ?? null; // latest wins (ascending order)
+  }
+  return out;
+}
 
 /**
  * A PostgREST builder viewed only through the filters this loader uses, so ONE scope implementation can
@@ -35,13 +61,13 @@ interface ScopeChain<T> {
  * The scope every count and every page shares. The stage chip and the search term are deliberately NOT
  * part of it: they narrow the page only, so the tile totals keep describing the view the office chose.
  */
-function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArchiveFilter>, mode: JobMode, closedView: JobClosedView): T {
+function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArchiveFilter>, mode: JobMode, closedView: JobClosedFilter): T {
   let cur = q;
   if (mode === "active") return cur.eq("office_bucket", "active");
   cur = cur.eq("office_bucket", "closed");
   if (mode === "closed" && closedView === "test") {
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
-  } else if (mode === "closed") {
+  } else if (mode === "closed" && closedView !== "all") {
     // One pile per job (Jo 21 Oct): Removed/test wins; Ineligible is the catch-all for any other closure.
     cur = cur.or("source.is.null,source.neq.qa_test").eq("office_removed", false).or("contact_rank.is.null,contact_rank.lte.1");
     if (closedView === "completed") cur = cur.eq("stage", "complete");
@@ -94,7 +120,7 @@ export async function loadJobListPage(params: JobListParams) {
   const archived = jobArchiveFilter(archiveRows);
   if (deletedError) throw new Error(`Deleted jobs could not be read: ${deletedError.message}`);
   archived.archivedOtherIds.push(...(deleted ?? []).map(r => r.id).filter(id => !archived.archivedOtherIds.includes(id)));
-  const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
+  const scoped = (m: JobMode = mode, v: JobClosedFilter = closedView) => scope(jobOverview("exact", true), archived, m, v);
   const searchedScope = () => searched(scoped(), search);
 
   const run = async (page: number) => {
@@ -144,15 +170,15 @@ export async function loadJobListPage(params: JobListParams) {
   for (const r of stageRows.data ?? []) stageCounts[r.stage ?? "unknown"] = (stageCounts[r.stage ?? "unknown"] ?? 0) + 1;
 
   const enriched = await enrichPipeline(page.rows);
-  // Closed jobs show why they were closed.
-  const cancelledIds = enriched.filter((r) => r.stage === "cancelled" && r.id).map((r) => r.id!);
-  const reasons = new Map<string, string | null>();
-  if (cancelledIds.length) {
-    const { data: rs, error: re } = await admin.from("jobs").select("id, cancelled_reason").in("id", cancelledIds);
-    if (re) throw new Error(`Closure reasons unavailable: ${re.message}`);
-    for (const r of rs ?? []) reasons.set(r.id, r.cancelled_reason);
-  }
-  const rows = enriched.map((r) => (r.id && reasons.has(r.id) ? { ...r, cancelled_reason: reasons.get(r.id) ?? null } : r));
+  // Closed jobs show why they were closed, which pile they are in (for "All") and whether Reopen applies.
+  const closedFacts = mode === "closed" ? await closedRowFacts(enriched.map((r) => r.id).filter((id): id is string => !!id)) : null;
+  const rows = enriched.map((r) => {
+    const f = r.id ? closedFacts?.get(r.id) : undefined;
+    if (!f) return r;
+    const plan = reopenPlan({ stage: r.stage, priorStage: f.priorStage, eligibilityOutcome: r.eligibility_outcome ?? null, source: r.source ?? null, testPriorSource: f.testPriorSource, removedLead: f.removedLead, duplicateContact: f.contactRank > 1, retired: retiredStageBlocker });
+    const closedAs = closedPile({ source: r.source ?? null, office_removed: f.officeRemoved, contact_rank: f.contactRank, stage: r.stage, deleted: false });
+    return { ...r, cancelled_reason: f.cancelledReason, closed_as: closedAs === "deleted" ? "test" as const : closedAs, removed_lead: f.removedLead, can_reopen: plan.ok, reopen_blocker: plan.ok ? null : plan.blocker };
+  });
   const start = (current - 1) * size;
   return {
     rows,
@@ -167,6 +193,6 @@ export async function loadJobListPage(params: JobListParams) {
     tiles:
       mode === "active"
         ? { inProgress: page.total, reviewRequired: tiles[0], paymentOverdue: tiles[1], safetyAttention: tiles[2] }
-        : { completed: tiles[0], cancelled: tiles[1], ineligible: tiles[2], test: tiles[3] },
+        : { completed: tiles[0], cancelled: tiles[1], ineligible: tiles[2], test: tiles[3], all: closedAllCount({ completed: tiles[0], cancelled: tiles[1], ineligible: tiles[2], test: tiles[3] ?? 0 }) },
   };
 }

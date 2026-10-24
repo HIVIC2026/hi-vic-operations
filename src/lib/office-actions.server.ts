@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fixDetailsErrors, tidyEnquiryDetails } from "./name-address-tidy.core";
-import { reopenBlocker } from "./office-jobs.core";
+import { reopenPlan } from "./office-jobs.core";
 
 /** Owner email / installer text on Cancel and Hold: the dialog is approved (228) but the wording is not yet (227), so the
  *  ticks are recorded for the office and NOTHING is sent until Jo approves the wording and a guarded sender exists. */
@@ -29,34 +29,61 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
   const { applyHoldOrCancel } = await import("./job-disposition.server");
   await applyHoldOrCancel(jobId, "cancel", full, actorId, { decision: 227, reason: reason.trim(), note: opts.note?.trim() || null, ...(opts.bulk ? { bulk: true } : {}) });
   const now = new Date().toISOString();
-  const [books, props, offers, asg, esc] = await Promise.all([
+  const [books, props, offers, asg, esc, holds] = await Promise.all([
     admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).gt("scheduled_start", now).select("id, kind"),
     admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("status", "proposed").select("id"),
     admin.from("partner_offers").update({ status: "withdrawn", responded_at: now }).eq("job_id", jobId).eq("status", "pending").select("id"),
     admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: `Job cancelled: ${reason.trim()}` } as never).eq("job_id", jobId).eq("active", true).select("id, role"),
     admin.from("esc_notifications").update({ status: "cancelled" }).eq("job_id", jobId).is("sent_at", null).not("status", "in", "(cancelled,withdrawn)").select("id"),
+    // The expected install week (planning note) stops counting against the installer's capacity.
+    admin.from("install_holds").update({ status: "released", released_at: now, release_reason: `Job cancelled: ${reason.trim()}`.slice(0, 480), updated_at: now }).eq("job_id", jobId).eq("status", "active").select("id"),
   ]);
-  for (const r of [books, props, offers, asg, esc]) if (r.error) throw new Error(`Cancelled, but releasing the job's bookings failed: ${r.error.message}. Open the job and check.`);
+  for (const r of [books, props, offers, asg, esc, holds]) if (r.error) throw new Error(`Cancelled, but releasing the job's bookings failed: ${r.error.message}. Open the job and check.`);
   await admin.from("jobs").update({ next_action: null }).eq("id", jobId);
-  const released = { bookings: books.data?.length ?? 0, dayOffers: props.data?.length ?? 0, tradeOffers: offers.data?.length ?? 0, trades: asg.data?.length ?? 0, escNotices: esc.data?.length ?? 0 };
+  const released = { bookings: books.data?.length ?? 0, dayOffers: props.data?.length ?? 0, tradeOffers: offers.data?.length ?? 0, trades: asg.data?.length ?? 0, escNotices: esc.data?.length ?? 0, installHolds: holds.data?.length ?? 0 };
   await logEvent(jobId, actorId, "job_cancel_released", `Cancelled: released ${released.bookings} booking(s), ${released.trades} trade(s), ${released.tradeOffers} open offer(s); reminders and texts stop. History kept.`, { ...released, decision: 227 }, { internal: true });
   const tell = opts.tell ?? { owner: false, installer: false };
   if (tell.owner || tell.installer) await logEvent(jobId, actorId, "cancel_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "text the installer"].filter(Boolean).join(" and ")} — not sent: the wording is still to be approved (decision 227).`, { tell, wording_approved: CANCEL_HOLD_NOTICE_WORDING_APPROVED }, { internal: true });
   return { ok: true, released, noticesSent: false };
 }
 
-/** Decision 227: a cancelled job reopens from Closed with a reason, back to the stage it was at; history kept. */
+/** Decision 227 (+ office gaps A4): a closed job reopens with a reason — every closed reason except Completed. Undoes
+ *  exactly what closed it (reopenPlan); history kept. The installer / electrician released at cancel is not re-offered. */
 export async function reopenJob(jobId: string, reason: string, actorId: string) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
-  const { data: job } = await admin.from("jobs").select("stage, prior_stage, job_number").eq("id", jobId).maybeSingle();
+  const { data: job } = await admin.from("jobs").select("stage, prior_stage, job_number, source, eligibility_outcome").eq("id", jobId).maybeSingle();
   if (!job) throw new WorkflowError("Job not found.");
+  const [removed, marked, dup] = await Promise.all([
+    admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "lead_removed").limit(1),
+    admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "marked_test").order("created_at", { ascending: false }).limit(1),
+    admin.from("office_job_list").select("contact_rank").eq("id", jobId).maybeSingle(),
+  ]);
+  const testPriorSource = ((marked.data?.[0] as { details?: { prior_source?: unknown } } | undefined)?.details?.prior_source as string | undefined) ?? null;
   const { retiredStageBlocker } = await import("./workflow");
-  const blocker = reopenBlocker({ stage: job.stage, priorStage: job.prior_stage, retired: retiredStageBlocker });
-  if (blocker) throw new WorkflowError(blocker);
-  const { error } = await admin.from("jobs").update({ stage: job.prior_stage!, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
-  if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "stage_changed", `Reopened: ${reason.trim()}`, { reason: reason.trim(), decision: 227 }, { from: "cancelled", to: job.prior_stage! });
-  return { ok: true, stage: job.prior_stage };
+  const plan = reopenPlan({
+    stage: job.stage, priorStage: job.prior_stage, eligibilityOutcome: job.eligibility_outcome ?? null, source: job.source ?? null, testPriorSource,
+    removedLead: (removed.data?.length ?? 0) > 0, duplicateContact: (dup.data?.contact_rank ?? 1) > 1, retired: retiredStageBlocker,
+  });
+  if (!plan.ok) throw new WorkflowError(plan.blocker);
+  const why = reason.trim();
+  if (plan.source) {
+    const { error } = await admin.from("jobs").update({ source: plan.source as never }).eq("id", jobId).eq("source", "qa_test");
+    if (error) throw new Error(error.message);
+    await logEvent(jobId, actorId, "unmarked_test", `Back from test records (source ${plan.source}): ${why}`, { reason: why, source: plan.source, decision: 227 }, { internal: true });
+  }
+  if (plan.clearIneligible) {
+    const { error } = await admin.from("jobs").update({ eligibility_outcome: "needs_onsite_confirmation", eligibility_set_by: actorId, eligibility_set_at: new Date().toISOString(), eligibility_decision_source: "admin", eligibility_review_required: false }).eq("id", jobId);
+    if (error) throw new Error(error.message);
+    await logEvent(jobId, actorId, "eligibility_set", `Eligibility reopened: needs onsite confirmation (${why})`, { reason: why, previous_outcome: job.eligibility_outcome, decision: 227 }, { internal: true });
+  }
+  if (plan.stage) {
+    const { error } = await admin.from("jobs").update({ stage: plan.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
+    if (error) throw new Error(error.message);
+    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227 }, { from: "cancelled", to: plan.stage as never });
+  } else {
+    await logEvent(jobId, actorId, "job_reopened", `Reopened: ${why}`, { reason: why, decision: 227 }, { internal: true });
+  }
+  return { ok: true, stage: plan.stage ?? job.stage };
 }
 
 /** Decision 233 Hold dialog: reason, until (optional), tell-them ticks (recorded only), 30-day clock unchanged. */
@@ -73,9 +100,11 @@ export async function holdJob(jobId: string, reason: string, actorId: string, op
 /** Decision 233 More › Mark as test: the job becomes a TEST record (Closed › Removed / test). */
 export async function markJobAsTest(jobId: string, reason: string, actorId: string) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
+  const { data: before } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
   const { error } = await admin.from("jobs").update({ source: "qa_test" }).eq("id", jobId);
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "marked_test", `Marked as test record: ${reason.trim()}`, {}, { internal: true });
+  // prior_source lets Reopen put it back (office gaps A4).
+  await logEvent(jobId, actorId, "marked_test", `Marked as test record: ${reason.trim()}`, { prior_source: before?.source ?? null }, { internal: true });
   return { ok: true };
 }
 

@@ -965,29 +965,37 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
 
 // ---------- Gate 4: bookings ----------
 export const createBooking = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional(), overrideReason: z.string().trim().max(1000).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "ready_check", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional(), overrideReason: z.string().trim().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    const need = data.kind === "installation" ? "installer" : "electrician";
+    const need = data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician";
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", need]);
     const { directBookingBlocker } = await import("./pilot.core");
     const blocked = directBookingBlocker(data.kind, role, data.overrideReason);
     if (blocked) throw new WorkflowError(blocked);
     const { confirmBooking } = await import("./booking.server");
-    // D-12: an assessment booking here is always an admin override (directBookingBlocker refuses everyone else).
-    // confirmBooking checks every gate before it writes, so the override's own writes (superseding open proposals,
-    // the homeowner-visible override event) happen only AFTER it succeeds. A refused override changes nothing
-    // and leaves only an internal (office-only) diagnostic event.
-    const override = data.kind === "assessment";
+    // D-12 / decision 220: an assessment (PIESA) or Ready Check booking here is always an admin override
+    // (directBookingBlocker refuses everyone else). confirmBooking checks every gate before it writes, so the override's
+    // own writes (superseding open proposals, the override event) happen only AFTER it succeeds. A refused override
+    // changes nothing and leaves only an internal (office-only) diagnostic event.
+    const override = data.kind === "assessment" || data.kind === "ready_check";
+    const visit = data.kind === "ready_check" ? "Ready Check" : "assessment";
     try {
       await confirmBooking(data.jobId, data.kind, data.start, context.userId, role === "admin" && override ? "admin (override)" : role, data.notes);
     } catch (e) {
-      if (override) await logEvent(data.jobId, context.userId, "admin_booking_override_refused", `Admin override refused: ${(e as Error).message}`, { reason: data.overrideReason, start: data.start }, { internal: true })
+      if (override) await logEvent(data.jobId, context.userId, "admin_booking_override_refused", `Admin override refused: ${(e as Error).message}`, { reason: data.overrideReason, start: data.start, kind: data.kind }, { internal: true })
         .catch((le) => console.error("override refusal log skipped", (le as Error).message));
       throw e;
     }
     if (override) {
-      await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "proposed");
-      await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: assessment booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start });
+      await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", data.kind).eq("status", "proposed");
+      await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: ${visit} booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start, kind: data.kind });
+    }
+    if (data.kind === "ready_check") {
+      // Same follow-on as an agreed time (ready-check-times bookAgreedTime) minus the owner/installer sends: the time
+      // was agreed by phone. The booked Ready Check starts the Mitti form (never undoes the booking if it can't).
+      const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
+      await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", data.jobId);
+      await (await import("./mitti-create.server")).onReadyCheckBooked(data.jobId, context.userId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
     }
     return { ok: true };
   });
@@ -1403,7 +1411,7 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
 export const getJobListPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     mode: z.enum(["active", "closed"]),
-    closedView: z.enum(["completed", "cancelled", "ineligible", "test"]).default("completed"),
+    closedView: z.enum(["all", "completed", "cancelled", "ineligible", "test"]).default("all"),
     stage: z.string().max(40).default("all"),
     search: z.string().max(120).default(""),
     sort: z.string().max(40).default("last_activity_at"),

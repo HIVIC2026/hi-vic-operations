@@ -49,7 +49,7 @@ Server functions (all literal `createServerFn().middleware([requireSupabaseAuth]
 | Lapsed window | 30-day window lapsed | `loadOffice` | N5 | 2 |
 | Email change → Apply / Ignore | backend `openEmailItems().changes` (`email_change_request`, intent cancel/reschedule/contact_change/attachment) | `applyEmailChange`, `ignoreEmailChange`; reschedule opens `#stage-install` | N5 (`CHANGE_LINE`) | 245 |
 | Match this email | backend `openEmailItems().unmatched` with guesses | `matchOutlookEmail({messageEventId, jobId|null})` | N5 (`emailRow`) | 247 |
-| Email-change Cancel uses the decision-227 helper | `email-office.server.ts` cancel case → `cancelJobFully` | — | — (see GAP 2) | 227 |
+| Email-change Cancel uses the decision-227 helper | `email-office.server.ts` cancel case → `cancelJobFully` | — | `tests/cancel-job-fully.test.ts` | 227 |
 | Partner & system fold line | Mitti pickups to link, Mitti sync problems, quotes not drafted | existing mitti-pickups and sync caches | — | Mitti-first rule |
 | Include TEST jobs toggle | `includeTest` | `getNeedsMePage` | — | practice isolation |
 | Removed: dispatch switch "Office picks first / Automatic", "Send to all", numbers strip, "Later" | — | — | — | audit removal 3 |
@@ -71,8 +71,8 @@ Server functions (all literal `createServerFn().middleware([requireSupabaseAuth]
 | File list incl. area diagram, SWMS, PIESA, consent, VEEC | `FileList` | `fileChecklist` | N7 | 118, 123, 119 |
 | More › Hold / Resume (dialog, reason, revisit date) | `HoldDialog` | `holdOfficeJob` → `applyHoldOrCancel` | — | 227 |
 | More › Mark as test | `JobMoreMenu` | `markOfficeJobTest` | — | practice isolation |
-| More › Cancel (reason, tell-them ticks off by default; releases install day + installer, stops reminders, keeps history) | `CancelDialog` | `cancelOfficeJob` → `cancelJobFully` | — (GAP 2) | 227 |
-| More › Reopen (cancelled jobs) | `JobMoreMenu` | `reopenOfficeJob` | N4 (`reopenBlocker`) | 227 |
+| More › Cancel (reason, tell-them ticks off by default; releases install day + installer, stops reminders, keeps history) | `CancelDialog` | `cancelOfficeJob` → `cancelJobFully` (also releases the active expected install week) | `tests/cancel-job-fully.test.ts` (mocked DB) | 227 |
+| More › Reopen (cancelled, ineligible or marked-as-test jobs; never Completed) | `JobMoreMenu` | `reopenOfficeJob` → `reopenJob` (`reopenPlan`) | N4 (`reopenPlan`), `cancel-job-fully` | 227 |
 | More › Delete (TEST jobs only) | `JobMoreMenu` | existing `bulkJobAction` delete | — | test isolation |
 | Removed: Invoice route select, Profit card VEEC price entry, Generate installer quotes, Internal pricing, Offer Ready Check booking, expected install week, installer intake review, JobRightNow/StageTracker/CompactJobStatus | — | — | `job-profit`, `office-page-safety`, `admin-record-reliability`, `daily-job-limit` | audit removals 1, 5, 6, 9, 10 |
 
@@ -86,7 +86,7 @@ Server functions (all literal `createServerFn().middleware([requireSupabaseAuth]
 | Filter chips (insulation, size, last heard, source, region) | `ChipGroup`, `matchesChips` | — | N2 | 226 |
 | Sortable columns, paging | `SortHead`, `sortRows`, `pageOf` | — | N2 | 226 |
 | Actions › bulk Cancel (reason required) | `ActionsMenu`, `ReasonDialog` | `bulkCancelOfficeJobs` → `cancelJobFully` per job | — | 227 |
-| Closed tab: why closed, Reopen + reason | `ClosedJobs` | existing `getJobListPage` closed mode, `reopenOfficeJob` | N4 (`closedWhy`) | 227 |
+| Closed tab: All · Completed · Cancelled · Ineligible · Removed / test chips (All default, count = sum of the exclusive piles); per-row "Closed as", why closed, Reopen + reason on every row except Completed (rows that cannot be undone say "Stays closed" with the reason) | `ClosedJobs` | `getJobListPage` closed mode (`closedView: "all"`, page rows enriched by `closedRowFacts`), `reopenOfficeJob` | N4 (`closedWhy`, `reopenPlan`, `CLOSED_FILTERS`) | 227, O3 |
 
 ## O4 Enquiries — `/admin/enquiries`
 
@@ -106,27 +106,27 @@ Server functions (all literal `createServerFn().middleware([requireSupabaseAuth]
 | # | Done | Where |
 |---|---|---|
 | 1 Pipeline board + Quote approvals | Yes | `/admin/board`, `/admin/quotes` redirect to Jobs; links gone; board no longer runs `sweepAuthorities`/`autoAdvancePipeline` on open |
-| 2 Office booking forms / Arrange the visit | Office side yes (AppointmentPanel, office BookingPanel uses gone); one by-hand override kept in More ("Set a visit time by hand") | owner/field pages untouched (other agents) |
+| 2 Office booking forms / Arrange the visit | Office side yes (AppointmentPanel, office BookingPanel uses gone); one by-hand override kept in More ("Set a visit time by hand": Ready Check or PIESA by stage, `manualVisitKind`, reason required, `admin_booking_override` logged; `scheduling.test.ts`) | owner/field pages untouched (other agents) |
 | 3 Dispatch switch, Send to all, Offer PIESA to approved, Offer to partner | Yes (office screens) | `choose-electrician.tsx` one REC; `AdminPartnerPanel` export removed |
-| 4 50% deposit leftovers, 3-instalment card | Office yes (`OfficeInstalmentPlanCard` removed); `PaymentsPanel` admin branch is only reachable from the owner page | GAP 6 |
-| 5 Offer Ready Check booking on the job page | Yes (`OfficeReadyCheckBooking` removed) | Settings switch + `spot_saved_waiting` status: GAP 5 |
+| 4 50% deposit leftovers, 3-instalment card | Yes: `OfficeInstalmentPlanCard`, the `PaymentsPanel` deposit-request button and the owner `OwnerInstalmentPlanCard` removed | `office-page-safety` |
+| 5 Offer Ready Check booking on the job page | Yes: `OfficeReadyCheckBooking`, the Settings "Owner Ready Check booking" switch and the `spot_saved_waiting` status removed | `office-page-safety`, `ready-check-chase`, `office-status` |
 | 6 Installer intake review panel, facts card, InstallerFactsLine | Yes | components deleted |
-| 7 Owner-signs-again switch / Compliance intro | Not mine (Settings/Compliance = build B) | GAP 7 |
+| 7 Owner-signs-again switch / Compliance intro | Yes: switch already gone (build B); the separate post-install "Installer Declaration" row removed from the Activity 48 register (118a/119) | `office-page-safety` |
 | 8 Today's brief, second Quotes to check / New from installers | Yes | `/admin/today` redirects; one copy each |
 | 9 Expected install week, Partner & relationship, Invoice route select | Yes on the Job page | Team-ups / Partners overview = build B |
 | 10 Dead code + retired status words | Yes: sidebar, JobRightNow/StageTracker, ManualCommunicationActions, EscInstallPanel, Internal pricing, `job-wording.ts` words | — |
 
 ## GAPs (honest)
 
-1. A Ready-Check-kind manual time override does not exist; the kept "Set a visit time by hand" books the PIESA/assessment visit only.
-2. `cancelJobFully` (decision 227) has no PGlite or mocked-DB proof; it is type-checked and wired, not exercised by a test.
+1. ~~Ready Check manual time override~~ CLOSED (office-gaps): "Set a visit time by hand" sets the Ready Check at the Ready Check stages and the PIESA at the PIESA stages (`manualVisitKind`); admin only, reason required, `admin_booking_override` logged; a Ready Check override also starts the Mitti form. Nothing is sent (phone booking).
+2. ~~No cancelJobFully proof~~ CLOSED (office-gaps): `tests/cancel-job-fully.test.ts` (mocked DB) proves stage → cancelled with prior stage kept, future bookings incl. the held install day cancelled, day offers superseded, trade offers withdrawn, assignments ended, unsent ESC notices cancelled, expected install week released, nothing deleted, nothing sent, reopen restores the stage. Not proven: that every individual reminder sweep skips cancelled jobs (they key on stage; not re-tested here).
 3. Cancel / Hold "tell them" ticks are recorded as `cancel_notice_requested` only; nothing is sent (`CANCEL_HOLD_NOTICE_WORDING_APPROVED=false`, wording unapproved).
-4. Closed tab has no "All" chip; Reopen is offered for cancelled jobs only.
-5. `spot_saved_waiting` ("Waiting – Ready Checks not open yet") still exists in `office-status.core` / `job-wording.ts` because `ready-check-chase` asserts it; the global owner booking switch lives on Settings (build B).
-6. `PaymentsPanel` still contains the "Mark deposit request raised" admin branch (unreachable from office screens); the owner instalment card remains on the owner page.
-7. Owner-signs-again switch and Compliance intro (audit removal 7) are untouched (build B screens).
+4. ~~Closed All chip / Reopen~~ CLOSED (office-gaps): "All" chip (default) + Reopen on every closed reason except Completed. Still not reopenable (by design, shown as "Stays closed"): leads removed as duplicate/junk (the list view's `removed` flag is EXISTS `lead_removed`, permanent without a view change), second contacts (contact_rank > 1), and jobs born as TEST or marked as test before `prior_source` was recorded. Closed only by an old photo review "over R2.0" outcome (no stage/eligibility change) also stays closed.
+5. ~~spot_saved_waiting + Settings switch~~ CLOSED (office-gaps). NOTE: `workflow_settings.ready_check_booking_enabled` still gates the owner taking an installer's Ready Check time (`assertOwnerReadyCheckBooking`, which ALSO needs a per-job `ready_check_booking_offered_at` that only the removed office "Offer" button set), the 24h Ready Check offer sweep and automatic installer offers. With the switch and the offer button gone there is no office control for either flag — needs a decision (see report).
+6. ~~Deposit-request button / owner instalment card~~ CLOSED (office-gaps).
+7. ~~Owner-signs-again switch / Compliance intro~~ CLOSED (office-gaps): switch already gone; Activity 48 register no longer lists the separate post-install Installer Declaration. The `installer_declaration` compliance template key stays: it holds the PIISA Part 8 wording.
 8. "Opened" email tracking is not shown in the Waiting-on line; the usual electrician is not named on the Needs me row.
 9. The 0218 SQL (`office_enquiry_page`) was not changed; the two new piles are computed in TS. The old practice-DB one-pile test stays green, but the new piles have only the pure N4 proof.
-10. Partner coverage link points to `/admin/coverage`; Settings page grouping is build B's.
-11. No browser/E2E run of the new screens here; `bun run portal-qa` was updated (screens list) but NOT_RUN.
+10. ~~Coverage link~~ CLOSED (office-gaps): the job page's Trade coverage link opens Partners › Coverage; Settings page grouping is build B's.
+11. Browser walk (office-gaps, 24 Oct): every O1–O7 screen/tab/state was rendered in headless Chromium from the real route components with fixture-backed server functions (no live backend); 86 screenshots and an honest per-screen INDEX were handed back with the office-gaps report. Not an E2E run against data: server reads/writes are proven only by the unit / mocked-DB tests. `bun run portal-qa` remains NOT_RUN.
 12. Log a call or note, Hold, Mark as test and New enquiry (phone) have no dedicated tests (they reuse existing guarded writers).

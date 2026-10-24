@@ -19,7 +19,7 @@ import { useAction } from "@/hooks/use-me";
 import {
   confirmEvidenceUpload, createBooking, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
   getJobBlockers, overrideDepositGate, requestEvidenceUpload, respondToQuote, 
-  sendMessage, cancelBooking, markDepositRequestRaised, syncInvoice, verifyEvidence,
+  sendMessage, cancelBooking, syncInvoice, verifyEvidence,
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
@@ -455,7 +455,6 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
-  const markRaised = useAction(markDepositRequestRaised);
   const reason = useReasonDialog();
   const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
@@ -517,7 +516,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
-                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
+                  {/* The Xero deposit-request button was removed 24 Oct 2026 (audit removal 4; decisions 139–144: no Xero deposit request step). */}
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override Pre Insulation Electrical Safety Assessment (PIESA) payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override Pre Insulation Electrical Safety Assessment (PIESA) payment block</Button>}
                 </div>
               )}

@@ -73,7 +73,7 @@ Legend: route/condition → server fn → test → why. **GAP** = not built / no
 |---|---|---|---|---|
 | Tiles: VEECs lodged · Owners owe · We owe trades · Margin this month | Melbourne month; non-test | `getMoneyVeecs`, `getMoneyInvoices`, `getMoneyPayouts`, `getMoneyMargins` | T1 marginTotal | audit §6; 230 |
 | Per-job margin table (Job · Owner · Price · Installer pay · Electrician · VEEC net · Margin · %) + click → breakdown | accepted quotes, latest 200 live jobs | `moneyMargins` → **`src/lib/job-margin.core.ts` `jobMargin` (the one pure rule; Job page Money card should import the same)** | T1 decision 230 block (matches mock rows) | 230 |
-| Payouts grouped per business + Mark paid (bank reference) | jobs at ready_for_veec/complete; due = Final check + 7 days; owner-direct electricians excluded | `moneyPayouts` + existing `markPayoutPaid` per job/kind | T1 groupPayouts | 30/109 — **GAP: "Mark paid sends the remittance" (mock) — no remittance email exists; the page says "records the bank reference"** |
+| Payouts grouped per business + Mark paid (bank reference) | jobs at ready_for_veec/complete; due = Final check + 7 days; owner-direct electricians excluded | `moneyPayouts` + existing `markPayoutPaid` per job/kind | T1 groupPayouts | 30/109 — **GAP (re-checked office-gaps, 24 Oct): "Mark paid sends the remittance" (mock) — no approved remittance template exists in `docs/templates/approved/` or the decisions log, so nothing is sent; the page says "records the bank reference"** |
 | Invoices (Invoice · Owner · Job · Total · Steps · Paid · State) | latest installation invoice per live job (80 open + 20 paid) | `moneyInvoices` → existing `jobPaymentView` (payments.core thresholds) | T1 invoiceRowState / stepsLine | 139–144 |
 | Overdue → **Chase ›** → Log a call or note | `state = overdue` | existing `recordManualCommunicationFn` (phoned / followup_required; nothing sent) | T1 "no Record payment" | **240** |
 | No Record payment anywhere | — | no record fn in `office-money.functions.ts` | T1 | **240** |
@@ -135,7 +135,7 @@ Legend: route/condition → server fn → test → why. **GAP** = not built / no
 
 ## Other GAPs
 
-- No browser run of these pages was done in this build (typecheck + unit/PGlite tests only); Portal QA not run → NOT_RUN.
+- Browser walk (office-gaps): these pages were rendered from the real route components with fixture-backed server functions (no live backend) and screenshotted; that proves layout and states, not the server reads. Portal QA not run → NOT_RUN.
 - Server reads in `office-money.server.ts`, `office-partners.server.ts`, `office-comms.server.ts` are not exercised against a
   database in tests (they use embedded joins the PGlite shim doesn't support); column names were checked against
   `src/integrations/supabase/types.ts`.

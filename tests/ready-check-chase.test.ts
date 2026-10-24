@@ -96,17 +96,19 @@ describe("Stage 8: Office needs to… Mitti items", () => {
   });
 });
 
-describe("Stage 8: saved spot while Ready Check booking is OFF", () => {
+describe("Saved spot (decision 53 / audit removal 5: no \"Ready Checks not open yet\" waiting status)", () => {
   const base = { id: "j", stage: "preliminary_estimate_ready", createdAt: h(100), lastActivityAt: h(1), enteredStageAt: h(50), holdRevisitAt: null, cancelledReason: null,
     campaign: { spotSavedAt: h(10), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: h(60), queuePriority: null }, ownerContactedAt: h(20) } as never;
-  test("booking OFF: waiting, no office action", () => {
-    const s = officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, now.getTime());
-    expect(s!.label).toBe("Waiting – Ready Checks not open yet");
-    expect(s!.waitingOn).toBe("Nobody");
-    expect(s!.action).toBeNull();
+  test("a saved spot is always Spot saved (Choose installer), whatever a stale booking flag says", () => {
+    const s = officeStatus(base, now.getTime());
+    expect(s!.key).toBe("enquiry.spot_saved");
+    expect(s!.label).toBe("Spot saved");
+    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, now.getTime())!.key).toBe("enquiry.spot_saved");
   });
-  test("booking ON: unchanged Spot saved office action", () => {
-    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: true } as never, now.getTime())!.label).toBe("Spot saved");
+  test("the retired waiting status and its wording are gone", async () => {
+    const { SITUATION } = await import("../src/lib/job-wording");
+    expect(Object.keys(SITUATION)).not.toContain("enquiry.spot_saved_waiting");
+    expect(JSON.stringify(SITUATION)).not.toContain("Ready Checks not open yet");
   });
 });
 

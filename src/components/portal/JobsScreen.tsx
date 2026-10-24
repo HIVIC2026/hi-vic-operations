@@ -15,13 +15,13 @@ import { getJobListPage } from "@/lib/portal.functions";
 import { getNewInstallerJobs } from "@/lib/installer-new-jobs.functions";
 import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
 import { JOBS_STAGES, JOBS_STAGE_LABEL, closedWhy, surnameOf, type JobsStage } from "@/lib/office-jobs.core";
-import { CLOSED_VIEWS, type JobClosedView } from "@/lib/job-list-page.core";
+import { CLOSED_FILTERS, type JobClosedFilter, type JobClosedView } from "@/lib/job-list-page.core";
 import { HEARD_CHIPS, INSULATION_CHIPS, INSULATION_LABEL, LAST_HEARD_LABEL, REGION_CHIPS, REGION_LABEL, SOURCE_CHIPS, SOURCE_LABEL, type ChipFilters, type SortDir } from "@/lib/office-filters.core";
 import { NewFromInstallers } from "@/components/portal/NewFromInstallers";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { ActionsMenu, ChipGroup, FilterPanel, Pager, ReasonDialog, SortHead, heardLabel } from "@/components/portal/office-lists";
 
-const CLOSED_LABEL: Record<JobClosedView, string> = { completed: "Completed", cancelled: "Cancelled", ineligible: "Ineligible", test: "Removed / test" };
+const CLOSED_LABEL: Record<JobClosedFilter, string> = { all: "All",  completed: "Completed", cancelled: "Cancelled", ineligible: "Ineligible", test: "Removed / test" };
 
 function Tabs({ mode, active, closed }: { mode: "active" | "closed"; active: number | null; closed: number | null }) {
   const tab = "rounded-[10px] px-4 py-2 text-sm font-bold";
@@ -141,7 +141,7 @@ export function ClosedJobs() {
   const load = useServerFn(getJobListPage);
   const reopen = useAction(reopenOfficeJob);
   const bulk = useAction(bulkJobAction);
-  const [view, setView] = useState<JobClosedView>("completed");
+  const [view, setView] = useState<JobClosedFilter>("all");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<{ k: string; d: SortDir }>({ k: "last_activity_at", d: "desc" });
   const [reopening, setReopening] = useState<{ id: string; jobNumber: string } | null>(null);
@@ -149,13 +149,13 @@ export function ClosedJobs() {
   const [dialog, setDialog] = useState<string | null>(null);
   const q = useQuery({ queryKey: ["office-closed-jobs", view, page, sort], queryFn: () => load({ data: { mode: "closed", closedView: view, stage: "all", search: "", sort: sort.k, direction: sort.d, page, pageSize: 50 } }), placeholderData: keepPreviousData, staleTime: 30_000 });
   const d = q.data;
-  const tiles = d?.tiles as Record<JobClosedView, number> | undefined;
+  const tiles = d?.tiles as Record<JobClosedFilter, number> | undefined;
   const ids = [...picked];
   return (
     <div data-why="audit §3 Closed tab; decision 227 Reopen with reason">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Closed as">
-          {CLOSED_VIEWS.map((k) => <button key={k} type="button" aria-pressed={view === k} onClick={() => { setView(k); setPage(1); setPicked(new Set()); }} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", view === k ? "border-ink bg-ink text-white" : "border-line bg-paper text-sub")}>{CLOSED_LABEL[k]} {tiles ? tiles[k].toLocaleString("en-AU") : ""}</button>)}
+          {CLOSED_FILTERS.map((k) => <button key={k} type="button" aria-pressed={view === k} onClick={() => { setView(k); setPage(1); setPicked(new Set()); }} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", view === k ? "border-ink bg-ink text-white" : "border-line bg-paper text-sub")}>{CLOSED_LABEL[k]} {tiles ? tiles[k].toLocaleString("en-AU") : ""}</button>)}
         </div>
         <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "mark_test", label: "Mark as test" }, { key: "delete", label: "Delete (test jobs only)", danger: true }]} />
       </div>
@@ -172,17 +172,19 @@ export function ClosedJobs() {
             <ul>
               {d.rows.map((r) => {
                 const id = r.id ?? "";
-                const why = closedWhy({ stage: r.stage, cancelledReason: (r as { cancelled_reason?: string | null }).cancelled_reason ?? null, installedAt: null, veecSubmittedAt: null, source: r.source ?? null, removed: view === "test" && r.source !== "qa_test" });
+                const c = r as { cancelled_reason?: string | null; closed_as?: JobClosedView; removed_lead?: boolean; can_reopen?: boolean; reopen_blocker?: string | null };
+                const closedAs: JobClosedView = c.closed_as ?? (view === "all" ? "ineligible" : view);
+                const why = closedWhy({ stage: r.stage, cancelledReason: c.cancelled_reason ?? null, installedAt: null, veecSubmittedAt: null, source: r.source ?? null, removed: closedAs === "test" && r.source !== "qa_test" });
                 return (
                   <li key={id} className="grid cursor-pointer grid-cols-[28px_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-b border-line px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-mist md:grid-cols-[28px_80px_minmax(0,140px)_minmax(0,1fr)_110px_minmax(0,1.4fr)_90px_80px] md:items-center" onClick={() => void navigate({ to: "/admin/jobs/$jobId", params: { jobId: id } })}>
                     <input type="checkbox" aria-label={`Select ${r.job_number}`} checked={picked.has(id)} onClick={(e) => e.stopPropagation()} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(id); else n.delete(id); setPicked(n); }} />
                     <span className="font-semibold">{r.job_number}</span>
                     <span className="col-start-2 truncate md:col-auto">{surnameOf(r.owner_name) || r.owner_name}</span>
                     <span className="col-start-2 truncate text-sub md:col-auto">{r.property_address}</span>
-                    <span className="col-start-2 md:col-auto">{CLOSED_LABEL[view]}</span>
+                    <span className="col-start-2 md:col-auto">{CLOSED_LABEL[closedAs]}</span>
                     <span className="col-start-2 min-w-0 break-words md:col-auto">{why}</span>
                     <span className="col-start-2 text-sub md:col-auto">{r.last_activity_at ? new Date(r.last_activity_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" }) : ""}</span>
-                    <span className="col-start-2 md:col-auto">{r.stage === "cancelled" && <button type="button" className="font-semibold text-hiv-blue underline" onClick={(e) => { e.stopPropagation(); setReopening({ id, jobNumber: r.job_number ?? "" }); }}>Reopen</button>}</span>
+                    <span className="col-start-2 md:col-auto">{c.can_reopen ? <button type="button" className="font-semibold text-hiv-blue underline" onClick={(e) => { e.stopPropagation(); setReopening({ id, jobNumber: r.job_number ?? "" }); }}>Reopen</button> : closedAs !== "completed" && c.reopen_blocker ? <span className="text-[11px] text-sub" title={c.reopen_blocker}>Stays closed</span> : null}</span>
                   </li>
                 );
               })}
@@ -191,7 +193,7 @@ export function ClosedJobs() {
         </div>
       )}
       {d && <Pager page={d.page} totalPages={d.totalPages} total={d.total} shown={d.rows.length} onPage={setPage} />}
-      <ReasonDialog open={!!reopening} title={`Reopen ${reopening?.jobNumber ?? ""}`} description="Back to the stage it was at; the history is kept (decision 227). The installer or electrician it was released from is not re-offered automatically." action="Reopen" onOpenChange={(v) => !v && setReopening(null)} run={async (reason) => { const r = await reopen({ jobId: reopening!.id, reason }, "Reopened"); if (r) { void qc.invalidateQueries(); return true; } return false; }} />
+      <ReasonDialog open={!!reopening} title={`Reopen ${reopening?.jobNumber ?? ""}`} description="Undoes what closed it: back to the stage it was at, an ineligible decision back to confirm-on-site, or a test mark removed. The history is kept (decision 227). The installer or electrician it was released from is not re-offered automatically." action="Reopen" onOpenChange={(v) => !v && setReopening(null)} run={async (reason) => { const r = await reopen({ jobId: reopening!.id, reason }, "Reopened"); if (r) { void qc.invalidateQueries(); return true; } return false; }} />
       <ReasonDialog open={dialog === "mark_test"} title={`Mark ${ids.length} as test`} description="They move to Removed / test." action="Mark as test" onOpenChange={(v) => setDialog(v ? "mark_test" : null)} run={async (reason) => { const r = await bulk({ jobIds: ids, action: "mark_test", reason }, "Marked as test"); setPicked(new Set()); return !!r; }} />
       <ReasonDialog open={dialog === "delete"} title={`Delete ${ids.length}`} description="TEST jobs only — real jobs are refused and kept." action="Delete" danger onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: ids, action: "delete", reason }); if (r?.failed.length) toast.error(r.failed[0]!.error ?? "Some were not deleted"); setPicked(new Set()); void qc.invalidateQueries(); return !!r; }} />
     </div>
