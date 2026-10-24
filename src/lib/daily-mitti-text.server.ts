@@ -93,7 +93,7 @@ export async function collectDay(date: string): Promise<Group[]> {
     if (job.source !== "qa_test") g.qaOnly = false;
     const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind });
   }
   return [...groups.values()];
 }
@@ -143,7 +143,9 @@ export async function sweepDailyMittiTexts(now = new Date()) {
     const snaps = g.jobs.map(snap);
     if (!prior) {
       if (!g.jobs.some((j) => j.status !== "cancelled")) continue;
-      if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), dailyText(g.jobs, myWork(date)), snaps)) !== "already") out.daily++;
+      // Decision 266: today's installs whose safety plan is still unsigned get the job-page link on the morning text.
+      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), await unsignedSafetyPlanLinks(g.jobs));
+      if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), body, snaps)) !== "already") out.daily++;
       continue;
     }
     const changes = diffDay(prior.snapshot as Snap[], g.jobs);
@@ -194,6 +196,18 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     if ((await sendOnce(g, date, "update", `rc-booked:${b.id}`, body, g.jobs.map(snap))) !== "already") out.sent++;
   }
   await refreshDelivery(date);
+  return out;
+}
+
+/** Decision 266: secure job-page links (safety plan card) for today's installs whose safety plan is not yet signed. */
+async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
+  const { swmsStatusFor } = await import("./swms.server");
+  const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
+  const out: string[] = [];
+  for (const id of [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled").map((j) => j.jobId))]) {
+    const st = await swmsStatusFor(id).catch(() => null);
+    if (!st || !st.complete) out.push(`${SET_PASSWORD_BASE}/field/${id}`);
+  }
   return out;
 }
 
