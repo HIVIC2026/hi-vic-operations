@@ -52,6 +52,22 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" }).middleware(
     });
   });
 
+/** Jo 24 Oct: "Not for me" on the secure link — no 6-digit code (it signs nothing). Same quote/stage checks as accept. */
+export const ownerDeclineQuoteFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, quoteId: z.string().uuid(), reason: z.enum(["price", "timing", "changed_mind", "other"]).nullable(), note: z.string().trim().max(800).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    const { declineReasonText } = await import("./quote-decline.core");
+    const { respondToQuoteImpl } = await import("./portal.functions");
+    return respondToQuoteImpl({ quoteId: data.quoteId, accept: false, reason: declineReasonText(data.reason, data.note) ?? undefined }, {
+      userId: null as unknown as string, ip: context.ip, userAgent: context.userAgent,
+      authorize: async (j) => { if (j !== jobId) throw new WorkflowError("This quote isn't on your job."); },
+      isOwner: async (j) => j === jobId,
+    });
+  });
+
 export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
   .handler(async ({ data }) => {
@@ -59,7 +75,7 @@ export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware
     if (!jobId) return null;
     const [{ ownerPiesaWindowState }, { ownerInstallDayState }] = await Promise.all([import("./allocation.server"), import("./install-days.server")]);
     const [piesa, install] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId)]);
-    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })) }, install: { canPick: install.canPick, days: install.days, deadline: install.deadline, openDays: install.openDays } }));
+    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })) }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
   });
 
 export const ownerChoosePiesaFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
@@ -69,11 +85,25 @@ export const ownerChoosePiesaFn = createServerFn({ method: "POST" }).middleware(
     return (await import("./allocation.server")).submitOwnerPiesaWindows(s.jobId, s.userId, data.picks);
   });
 
-export const ownerChooseInstallDaysFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+export const ownerTakeInstallDayFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, proposalId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./install-days.server")).ownerTakeDay(s.jobId, data.proposalId, s.userId);
+  });
+
+export const ownerChangeInstallDayFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./install-days.server")).changeInstallDay(s.jobId, s.userId, "owner");
+  });
+
+export const ownerSuggestInstallDaysFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, session, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5) }).parse(d))
   .handler(async ({ data }) => {
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
-    return (await import("./install-days.server")).submitOwnerInstallDays(s.jobId, s.userId, data.days);
+    return (await import("./install-days.server")).ownerSuggestDays(s.jobId, s.userId, data.days);
   });
 
 export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

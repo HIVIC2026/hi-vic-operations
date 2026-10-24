@@ -21,7 +21,7 @@ export const PAYMENT_RULE_EXCEPTION =
 
 const cents = (n: number | string) => Math.round(Number(n) * 100);
 
-/** Route from the job's permanent source. Installer-supplied customers never inherit the Home Insulation Victoria rule. */
+/** Route from the job's permanent source. Both known routes use the same safety-check rule (Jo 24 Oct); unknown stays blocked. */
 export function paymentRouteFor(channel: string | null | undefined): PaymentRoute {
   if (channel === "hivic_sourced") return "hiv_lead";
   if (channel === "installer_sourced") return "installer_supplied";
@@ -120,7 +120,8 @@ export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
   if (i.qaSimulated && i.qaSimulated.jobSource === "qa_test" && i.currentQuote && i.qaSimulated.quoteId === i.currentQuote.id)
     return { cleared: true, option: "qa_test_simulated" };
   if (!i.enabled) return { cleared: false, blocker: PAYMENT_RULE_PENDING };
-  if (i.route !== "hiv_lead") return { cleared: false, blocker: PAYMENT_RULE_EXCEPTION };
+  // Jo 24 Oct 2026: installer-supplied customers follow the same rule — the $349 safety check payment before the PIESA.
+  if (i.route === "unknown") return { cleared: false, blocker: PAYMENT_RULE_EXCEPTION };
   if (!i.currentQuote)
     return { cleared: false, blocker: "Owner has not approved the current confirmed quote." };
   if (!i.invoice || i.invoice.quote_id !== i.currentQuote.id)

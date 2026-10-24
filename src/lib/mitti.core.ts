@@ -39,6 +39,8 @@ export function mittiApi(call: MittiCall) {
     setAuditOwner: (auditId: string, userId: string) =>
       call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
+    /** Jo 24 Oct: link that opens THIS form in the Mitti app on a phone (web app otherwise). */
+    deepLink: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/deep_link`) as Promise<Any>,
     /** List recently modified audits (Mitti/SafetyCulture listing route); template-filtered by the caller. */
     searchAudits: (modifiedAfterIso: string) =>
       call("GET", `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`) as Promise<Any>,

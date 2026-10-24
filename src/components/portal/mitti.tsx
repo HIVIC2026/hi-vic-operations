@@ -8,6 +8,8 @@ import { Pill } from "./badges";
 import { Section } from "./panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mittiFormUrl } from "@/lib/mitti-link.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export function useMittiState(jobId: string) {
   return useQuery({
@@ -49,7 +51,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   // measurement row, so show the Ready Check card — never PIESA framing.
   const mAudit = !a?.external_mitti_id && data.m?.external_source === "mitti" ? String(data.m.external_id ?? "") : null;
   if (mAudit) {
-    const mUrl = `https://app.au.mitti.com/inspections/${mAudit}`;
+    const mUrl = mittiFormUrl(mAudit);
     const mDone = data.m?.status === "complete";
     return (
       <Section title="Ready Check (Mitti)" action={<Pill t={mDone ? "good" : "warn"}>{mDone ? "Complete" : "In progress in Mitti"}</Pill>}>
@@ -59,7 +61,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
           <dt className="text-muted-foreground">Removal</dt><dd>{data.m?.removal_required == null ? "—" : data.m.removal_required ? "Required" : "Not required"}</dd>
         </dl>
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-          <a href={mUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <MittiFormLink auditId={mAudit} className="font-medium text-primary underline">Open this form in Mitti</MittiFormLink>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">The Ready Check is done in Mitti. Sync brings the answers onto this job — nothing is sent to the owner from here.</p>
@@ -69,7 +71,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       </Section>
     );
   }
-  const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
+  const mittiUrl = a?.external_mitti_id ? mittiFormUrl(a.external_mitti_id) : null;
   return (
     <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
@@ -80,7 +82,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       </dl>
       {mittiUrl && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-          <a href={mittiUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <MittiFormLink auditId={a!.external_mitti_id!} className="font-medium text-primary underline">Open this form in Mitti</MittiFormLink>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mittiUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
         </div>
       )}

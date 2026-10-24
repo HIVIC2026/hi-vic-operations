@@ -17,7 +17,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
+import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
@@ -126,7 +127,6 @@ function Home({ v, token }: { v: View; token: string }) {
     <OwnerPaperwork token={token} />
     {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
-    <BottomList />
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
@@ -199,24 +199,54 @@ function AcceptQuote({ token, quote }: { token: string; quote: { id: string; ver
   );
 }
 
+/** Jo 24 Oct: "Not for me" — no code needed (it signs nothing); an optional reason helps the office. */
+function DeclineQuote({ token, quoteId }: { token: string; quoteId: string }) {
+  const decline = useServerFn(ownerDeclineQuoteFn);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<DeclineReason | null>(null);
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!open) return <button type="button" data-decline-open className="mt-3 w-full py-2 text-center text-sm font-semibold text-estimate-navy underline" onClick={() => setOpen(true)}>Not for me</button>;
+  return (
+    <div data-decline className="mt-4 space-y-3 rounded-2xl border border-estimate-line p-4">
+      <p className="font-bold">No problem. Can you tell us why? (optional)</p>
+      <div className="space-y-2">{DECLINE_REASONS.map((r) => (
+        <label key={r.key} className="flex min-h-11 items-center gap-3 text-sm"><input type="radio" name="decline-reason" checked={reason === r.key} onChange={() => setReason(r.key)} />{r.label}</label>
+      ))}</div>
+      <textarea aria-label="Anything else you'd like to tell us" maxLength={800} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything else you'd like to tell us" className="min-h-20 w-full rounded-xl border border-estimate-line bg-card p-2 text-sm" />
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <div className="flex gap-2">
+        <button type="button" className={`${signBtn} flex-1`} disabled={busy} onClick={async () => { setErr(""); setBusy(true); try { await decline({ data: { token, quoteId, reason, note: note.trim() || null } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>{busy ? "Sending…" : "Decline this quote"}</button>
+        <button type="button" className="px-3 text-sm font-semibold underline" disabled={busy} onClick={() => setOpen(false)}>Go back</button>
+      </div>
+    </div>
+  );
+}
+
 const SLOTS = [["8-10", "8–10am"], ["10-12", "10am–12"], ["12-14", "12–2pm"], ["14-16", "2–4pm"]] as const;
 function nextDays(n: number, from = 1) { const out: string[] = []; let ymd = addYmd(melbourneToday(), from); while (out.length < n) { if (new Date(`${ymd}T12:00:00Z`).getUTCDay() !== 0) out.push(ymd); ymd = addYmd(ymd, 1); } return out; }
 
 function BookPickers({ token }: { token: string }) {
   const load = useServerFn(ownerBookingStateFn);
   const choosePiesa = useServerFn(ownerChoosePiesaFn);
-  const chooseDays = useServerFn(ownerChooseInstallDaysFn);
+  const takeDay = useServerFn(ownerTakeInstallDayFn);
+  const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
+  const changeDay = useServerFn(ownerChangeInstallDayFn);
+  const [changing, setChanging] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
   const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
   const [days, setDays] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (!data) return null;
-  const any = data.piesa.canPick || data.install.canPick;
+  const installMove = data.install.turn === "owner_to_answer";
+  const any = data.piesa.canPick || installMove || changing;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
-  const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   return <>
-    {!any && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.openDays.length ? <p className="font-bold">Your install days are with your installer.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
@@ -224,11 +254,24 @@ function BookPickers({ token }: { token: string }) {
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
       <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3} onClick={() => go(() => choosePiesa({ data: { token, session, picks } }))}>Send my {picks.length} times</button>
     </section>}
-    {any && session && data.install.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h3 className="font-display text-lg font-extrabold">Install days</h3>
-      <p className="mt-1 text-sm">Pick the days that suit you{data.install.deadline ? `, before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
-      <div className="mt-3 grid grid-cols-2 gap-2">{(data.install.days as string[]).map((d) => { const on = days.includes(d); return <button key={d} className={tile(on)} onClick={() => setDays(on ? days.filter((x) => x !== d) : days.length < 5 ? [...days, d] : days)}>{day(d + "T02:00:00Z")}</button>; })}</div>
-      <button className={`${signBtn} mt-4`} disabled={busy || !days.length} onClick={() => go(() => chooseDays({ data: { token, session, days } }))}>Send my days</button>
+    {any && session && installMove && <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <h3 className="font-display text-lg font-extrabold">Choose your install day</h3>
+      <p className="mt-1 text-sm">Your installer can do these days (8am–4pm). Tap one to book it.</p>
+      {data.install.deadline && <p className="mt-1 text-sm font-semibold">Your install must be on or before {day(data.install.deadline + "T02:00:00Z")}{data.install.daysLeft != null ? ` (${data.install.daysLeft} day${data.install.daysLeft === 1 ? "" : "s"} left)` : ""}.</p>}
+      <div className="mt-3 grid gap-2">{(data.install.open as { id: string; starts_at: string }[]).map((o) => <button key={o.id} className={tile(false)} disabled={busy} onClick={() => go(() => takeDay({ data: { token, session, proposalId: o.id } }))}>{day(o.starts_at)}</button>)}</div>
+      {!suggesting ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" disabled={busy} onClick={() => setSuggesting(true)}>None of these suit – suggest other days</button> : <>
+        <p className="mt-4 text-sm font-semibold">Pick up to 5 days that suit you. Your installer will take one or offer new days.</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">{(data.install.days as string[]).map((d) => { const on = days.includes(d); return <button key={d} className={tile(on)} onClick={() => setDays(on ? days.filter((x) => x !== d) : days.length < 5 ? [...days, d] : days)}>{day(d + "T02:00:00Z")}</button>; })}</div>
+        <button className={`${signBtn} mt-4`} disabled={busy || !days.length} onClick={() => go(() => suggestDays({ data: { token, session, days } }))}>Send my {days.length || ""} day{days.length === 1 ? "" : "s"}</button>
+      </>}
+    </section>}
+    {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
+      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${day(data.install.bookedAt)} (8am–4pm)` : ""}.</p>
+      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
+        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
+        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
+        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
+      </> : null}
     </section>}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
   </>;
@@ -265,11 +308,6 @@ function Numbers({ v }: { v: View }) {
       <p className="mt-3 text-sm">Rebate is taken off your bill. You never have to claim it.</p>
     </section>
   );
-}
-
-function BottomList() {
-  const row = (Icon: typeof FileText, label: string) => <li className="flex h-12 items-center justify-between px-4 text-sm font-semibold"><span className="flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><ChevronRight className="h-4 w-4" /></li>;
-  return <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{row(FileText, "Documents")}{row(MessageSquare, "Got a question? Message us")}{row(AlertCircle, "Something wrong? Tell us")}</ul>;
 }
 
 function CancelMyJob({ token }: { token: string }) {
@@ -342,8 +380,10 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>
         <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
         {q.status === "issued"
-          ? <AcceptQuote token={token} quote={q} />
-          : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
+          ? <><AcceptQuote token={token} quote={q} /><DeclineQuote token={token} quoteId={q.id} /></>
+          : q.status === "declined"
+            ? <p data-quote-declined className="mt-4 rounded-2xl bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
+            : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
       </section>
     </>}
   </>;
@@ -375,7 +415,6 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
     {v.stage !== "complete" && <Back token={token} />}
     <Hero v={v} level={HOUSE_LEVEL.all_done} headline={ownerHeadline("all_done", v.numbers.rebate)} />
     <Numbers v={v} />
-    <BottomList />
   </>;
 }
 

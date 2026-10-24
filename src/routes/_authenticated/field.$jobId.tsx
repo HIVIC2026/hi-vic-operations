@@ -1,7 +1,7 @@
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
-import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
+import { ElectricianChoicePanel } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -38,7 +38,7 @@ import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements }
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
-import { CheckQuoteCard } from "@/components/trade/CheckQuoteCard";
+import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
@@ -50,6 +50,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { InstallerInstallDays } from "@/components/portal/install-days";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -90,7 +92,7 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
-      {role === "installer" && <CheckQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
+      {role === "installer" && <OwnerQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
       {(role === "electrician" || (intake?.applies === false && !linkedMitti)) && <JobStatusCard jobId={jobId} />}
       {role === "installer" && intake?.applies === false && !linkedMitti && <PartnerInstallerFactsCard jobId={jobId} />}
       {role === "installer" && (linkedMitti ? <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section> : <JobElectricianCard jobId={jobId} />)}
@@ -102,7 +104,6 @@ function FieldJob() {
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
-        {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
         <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
@@ -124,7 +125,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   const invited = useMittiInvited();
   return (
     <Section title={which === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) form" : "Ready Check form"}>
-      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
+      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><MittiFormLink auditId={data}>Open form in Mitti</MittiFormLink></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
         : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}</p>}
     </Section>
   );
@@ -283,7 +284,7 @@ function InstallerFlow({ jobId, stage, linkedMitti = false }: { jobId: string; s
         </Section>
       )}
       {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section>}
-      {["installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook />}
+      {["installation_scheduling", "installation_booked"].includes(stage) && <InstallerInstallDays jobId={jobId} />}
       {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
         <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
       {["installation_booked", "evidence_outstanding", "ap_review"].includes(stage) && <EvidencePanel jobId={jobId} role="installer" gates={["installation"]} />}

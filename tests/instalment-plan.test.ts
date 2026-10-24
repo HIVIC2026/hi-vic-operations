@@ -79,8 +79,8 @@ describe("instalment plan → payment gate", () => {
     expect(planChecklist(full(), "q2").clearsGate).toBe(false);
     expect(applyPlanAction(base(), { kind: "approve" }, { ...ctx, currentQuoteId: "q2" }).ok).toBe(false);
   });
-  test("installer-supplied customer -> payment-rule exception", () => {
-    expect(gate(full(), "installer_supplied")).toEqual({ cleared: false, blocker: PAYMENT_RULE_EXCEPTION });
+  test("installer-supplied customer: gate follows the safety-check rule (Jo 24 Oct); the retired instalment plan stays refused", () => {
+    expect(gate(full(), "installer_supplied")).not.toEqual({ cleared: false, blocker: PAYMENT_RULE_EXCEPTION });
     expect(proposeBlocker({ route: "installer_supplied", currentQuoteId: "q1", invoiceQuoteId: "q1", openPlanExists: false })).toContain("Payment rule exception");
     expect(applyPlanAction(base(), { kind: "approve" }, { ...ctx, route: "installer_supplied" }).ok).toBe(false);
   });

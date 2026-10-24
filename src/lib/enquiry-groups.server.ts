@@ -322,6 +322,12 @@ export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome
     const up = await admin.from("jobs").update({ stage: "cancelled", prior_stage: job.stage, cancelled_reason: why }).eq("id", jobId).neq("stage", "cancelled");
     if (up.error) throw new Error(`Could not close the enquiry: ${up.error.message}`);
     await logEvent(jobId, by, "stage_changed", `Closed: ${why}`, { reason: plan.reason }, { from: job.stage as never, to: "cancelled", internal: true });
+    // Decision 5 (Jo 24 Oct): the close is the Office's official ineligible decision. The owner sees only the approved
+    // wording; the office's own reason stays internal on the closed job.
+    const { PHOTO_INELIGIBLE_OWNER_REASON } = await import('./office-media-review.core');
+    const el = await admin.from("jobs").update({ eligibility_outcome: "does_not_appear_eligible", eligibility_reason: PHOTO_INELIGIBLE_OWNER_REASON, eligibility_set_by: by, eligibility_set_at: now.toISOString(), eligibility_decision_source: "admin", eligibility_review_required: false }).eq("id", jobId);
+    if (el.error) throw new Error(`Closed, but the ineligible decision could not be saved: ${el.error.message}`);
+    await logEvent(jobId, by, "eligibility_set", "Eligibility: does not appear eligible (photo review)", { reason: PHOTO_INELIGIBLE_OWNER_REASON, office_reason: plan.reason }, { internal: true });
   }
   return { ok: true as const, outcome, spotSaved, closed: close };
 }

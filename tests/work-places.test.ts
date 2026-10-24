@@ -50,3 +50,10 @@ describe("My work: one place per job", () => {
     for (const k of Object.keys(c) as (keyof typeof c)[]) expect(c[k]).toBe(ps.filter((p) => p.place === k).length);
   });
 });
+
+test("Jo 23 Oct: a job with a linked Mitti form never asks Quoted?/Site check? (the form carries them)", () => {
+  const j: WorkJobInput = { jobId: "j", stage: "ready_check_ready_to_schedule", trade: "installer", installerSourced: true, quoted: null, siteCheck: null, missingPhotos: 0, pendingOffer: false, upcoming: [] };
+  expect(placeWorkJob(j).title).toBe("Quoted? answer needed");
+  expect(placeWorkJob({ ...j, mittiForm: true }).title).not.toMatch(/Quoted\?|Site check\?/);
+  expect(placeWorkJob({ ...j, stage: "measured_quote_accepted", mittiForm: true }).title).not.toMatch(/Quoted\?/);
+});

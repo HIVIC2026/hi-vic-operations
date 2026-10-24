@@ -13,7 +13,10 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
   }
   return q;
 } } }));
-mock.module("../src/lib/workflow.server", () => ({ WorkflowError: Error, logEvent: async () => {} }));
+let stageBlockers: string[] = [], moved: string[] = [];
+mock.module("../src/lib/workflow.server", () => ({ WorkflowError: Error, logEvent: async () => {}, commercialBlocker: async () => null,
+  stageEntryBlockers: async () => stageBlockers, transition: async (_j: string, to: string) => { moved.push(to); } }));
+mock.module("../src/lib/estimatelink.server", () => ({ ensureOwnerLink: async () => true }));
 mock.module("../src/lib/installer-intake.server", () => ({ intakeSendBlockers: async () => blockers }));
 mock.module("../src/lib/installer-quote.server", () => ({ quoteBillingBlocker: async () => null }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (!consent) throw Error("No contact consent"); } }));
@@ -21,7 +24,7 @@ mock.module("../src/lib/pilot.server", () => ({ applyCobrand: async () => {} }))
 mock.module("../src/lib/quote-ready-notify.server", () => ({ notifyOwnerQuoteReady: async () => { notifications++; return { email: "test accepted", sms: "test accepted" }; } }));
 const { sendOfficeReviewedQuote } = await import("../src/lib/office-quote-review.server");
 const { releaseQueuedQuotes } = await import("../src/lib/quotes.server");
-beforeEach(() => { channel = "installer_sourced"; blockers = []; notifications = 0; writes = 0; consent = true; quote = { id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "INSTALLER_A1", created_at: "2026-10-23T00:00:00Z" }; });
+beforeEach(() => { stageBlockers = []; moved = []; channel = "installer_sourced"; blockers = []; notifications = 0; writes = 0; consent = true; quote = { id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "INSTALLER_A1", created_at: "2026-10-23T00:00:00Z" }; });
 test.each(["INSTALLER_A1", "R5_BATTS"])("timer/tick never writes or sends %s", async code => {
   quote.option_code = code;
   expect(await releaseQueuedQuotes()).toEqual({ released: 0 });
@@ -47,4 +50,13 @@ test("manual action cannot bypass contact consent", async () => {
   consent = false;
   await expect(sendOfficeReviewedQuote("j", "q", "office")).rejects.toThrow("No contact consent");
   expect(writes).toBe(0); expect(notifications).toBe(0);
+});
+test("Jo 24 Oct: sending moves a Ready-Check-complete job to the quote stage first, so the owner can accept; a blocked stage sends nothing", async () => {
+  quote.option_code = "INSTALLER_A1";
+  stageBlockers = ["Verified eligibility not recorded as eligible by the office for the current Ready Check."];
+  await expect(sendOfficeReviewedQuote("j", "q", "office")).rejects.toThrow(/Verified eligibility/);
+  expect([writes, notifications, moved.length]).toEqual([0, 0, 0]);
+  stageBlockers = [];
+  await sendOfficeReviewedQuote("j", "q", "office");
+  expect(moved).toEqual(["measured_estimate_ready"]); expect(notifications).toBe(1);
 });

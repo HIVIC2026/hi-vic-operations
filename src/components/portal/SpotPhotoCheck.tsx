@@ -10,14 +10,13 @@ import { getLeadMedia, reviewLeadMediaFn, reviewedIneligibleEmailFn } from "@/li
 import { SPOT_PHOTO_CHOICES } from "@/lib/spot-saved-rank.core";
 
 /** Jo 23 Oct 08:51 UTC: the one photo review. Rank buttons only move the Spots saved order; nothing is emailed.
- *  "Not eligible – close" asks for a reason, closes the enquiry, and emails only if the office ticks the box. */
+ *  "Not eligible – close" asks for a reason, closes the enquiry and sends the approved not-eligible email (Jo 24 Oct). */
 export function PhotoRankButtons({ jobId, onDone }: { jobId: string; onDone: () => void }) {
   const review = useServerFn(reviewLeadMediaFn);
   const ineligible = useServerFn(reviewedIneligibleEmailFn);
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
-  const [emailOwner, setEmailOwner] = useState(false);
   const run = async (f: () => Promise<string>) => {
     setBusy(true);
     try { toast.success(await f()); onDone(); }
@@ -27,7 +26,6 @@ export function PhotoRankButtons({ jobId, onDone }: { jobId: string; onDone: () 
   const pick = (outcome: (typeof SPOT_PHOTO_CHOICES)[number]["outcome"], label: string) => run(async () => { await review({ data: { jobId, outcome } }); return `${label} — rank updated. No email sent.`; });
   const close = () => run(async () => {
     await review({ data: { jobId, outcome: "over_r2", reason: reason.trim(), close: true } });
-    if (!emailOwner) return "Closed — no email sent.";
     const r = await ineligible({ data: { jobId, mode: "send" } }) as { outcome?: string; detail?: string };
     return r.outcome === "sent" ? "Closed — owner emailed." : `Closed — email not sent: ${r.detail ?? r.outcome ?? "blocked"}`;
   });
@@ -40,7 +38,7 @@ export function PhotoRankButtons({ jobId, onDone }: { jobId: string; onDone: () 
         <div className="space-y-2 rounded-md border p-3">
           <label className="block text-sm font-semibold" htmlFor={`close-${jobId}`}>Reason for closing</label>
           <textarea id={`close-${jobId}`} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} className="min-h-16 w-full rounded-md border bg-background p-2 text-sm" />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={emailOwner} onChange={(e) => setEmailOwner(e.target.checked)} /> Email the owner</label>
+          <p className="text-xs text-muted-foreground">Office note only. The owner gets the standard not-eligible email.</p>
           <div className="flex gap-2"><Button type="button" size="sm" variant="destructive" disabled={busy || !reason.trim()} onClick={() => void close()}>Close enquiry</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setClosing(false)}>Cancel</Button></div>
         </div>
       )}

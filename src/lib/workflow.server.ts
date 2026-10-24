@@ -209,7 +209,10 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     const { data: booking } = await admin.from("bookings").select("id, scheduled_start, contractor_id, assignment_id, business_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push(READY_CHECK_BOOKING_RECORD_BLOCKER);
   }
-  if (to === "measured_estimate_ready" && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {
+  // Jo 24 Oct: an Add-a-job job whose Ready Check came from a Mitti form follows the measured route below (form
+  // completed + eligibility from the form), like every other Mitti Ready Check.
+  const mittiReadyCheck = to === "measured_estimate_ready" && !!(await admin.from("ceiling_measurements").select("id").eq("job_id", jobId).eq("is_current", true).eq("external_source", "mitti").maybeSingle()).data;
+  if (to === "measured_estimate_ready" && !mittiReadyCheck && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {
     // Installer-intake commercial route (Jo, 8 Oct 2026): owner quote stage on office-checked eligibility + qualifying
     // insulation + usable scope + installer quote. Ready Check evidence is deferred, never waived (ready_for_veec).
     const { installerIntakeState } = await import("./installer-intake.server");

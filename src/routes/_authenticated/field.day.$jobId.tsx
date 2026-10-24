@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,6 +10,7 @@ import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Before you start, then open the onsite form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Before you start, then open the onsite form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -50,7 +52,7 @@ function DayPage() {
         <>
           {o.kind === "all_clear" && <Result tone="mint" title="All clear. Done and dusted." body="No fixes needed, so the install's good to go." />}
           {o.kind === "fixes" && <Result tone="blush" title={`${o.items.length} fix${o.items.length === 1 ? "" : "es"} found. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
-          {o.kind === "quoted" && <Result tone="mint" title="Quote's in. Done and dusted." body="We'll send the owner your quote. When they say yes, the install comes straight back to you." />}
+          {o.kind === "quoted" && <Result tone="mint" title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
           {o.kind === "not_eligible" && <Result tone="blush" title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
           {o.kind === "wrap" && <Result tone="mint" title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />}
           {o.kind === "missing" && <Result tone="blush" title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the onsite form and this page updates itself." items={o.items} />}
@@ -65,7 +67,7 @@ function DayPage() {
                 <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
                 <h2 className="mt-1 font-display text-xl font-bold">Over to your onsite form</h2>
                 <p className="mt-1 text-sm opacity-90">Complete it onsite, in order. Your answers and required evidence come back to this job, and this page updates itself.</p>
-                <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open form in Mitti<ArrowUpRight className="h-4 w-4" /></a>
+                <MittiFormLink auditId={data.mittiId} className={`${greenBtn} mt-4`}>Open form in Mitti<ArrowUpRight className="h-4 w-4" /></MittiFormLink>
               </section>
               <aside className={card}>
                 <h3 className="font-display text-base font-bold">What comes back here</h3>
@@ -92,11 +94,11 @@ function DayPage() {
         <>
           <section className={card}>
             <h2 className="font-display text-xl font-bold">Ready when you are</h2>
-            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the Pre Insulation Electrical Safety Assessment (PIESA) form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
+            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the Pre Insulation Electrical Safety Assessment (PIESA) form. We'll pick it up from there." : data.kind === "ready_check" ? (data.channel === "hivic_sourced" ? "Tap below to open the Ready Check form. Measure and photos go in there; we price the owner's quote from your agreed rates." : "Tap below to open the Ready Check form. Measure, photos and your quote all go in there.") : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
           {data.kind !== "ready_check" && data.kind !== "safety_check" && <PiisaCrewPicker jobId={jobId} />}
-          <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") await confirmPricing({ data: { jobId } }); setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
+          <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
         </>
       )}
     </TradeShell>

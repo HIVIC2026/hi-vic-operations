@@ -27,18 +27,35 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     if (error) throw new WorkflowError("Ready Check could not be checked.");
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
-  const approval = await (await import("./installer-quote-approval.server")).installerApprovalBlocker(jobId, quote);
-  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...(approval ? [approval] : [])])];
+  // Jo 24 Oct: no installer approval on any Ready Check quote — Complete in Mitti + these checks are the gate.
+  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : [])])];
 }
 
-/** The only new delivery trigger is an authenticated Office button, never the scheduled tick. */
+/** Office "Send quote" (an authenticated button). */
 export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, actorId: string) {
+  return releaseQuoteToOwner(jobId, quoteId, actorId, "office");
+}
+
+/** One guarded release for both triggers: the Office button and (Jo 24 Oct) the installer marking the Mitti
+ *  Ready Check Complete with every check passing (auto-quote-send.server.ts). */
+export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorId: string | null, how: "office" | "auto") {
   const { data: quote, error } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   if (error || !quote || !quoteNeedsOfficeReview(quote)) throw new WorkflowError("This quote is no longer available to send.");
   const blockers = await officeQuoteBlockers(jobId, quote);
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   await assertCustomerDeliveryAllowed(jobId, "Office Send quote");
+  // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
+  const wf = await import("./workflow.server");
+  const { data: st } = await admin.from("jobs").select("stage").eq("id", jobId).single();
+  if (st?.stage === "ready_check_complete") {
+    // Sending the quote IS the move to the quote stage; its entry checks (Ready Check complete, eligibility) still apply.
+    const sb = await wf.stageEntryBlockers(jobId, "measured_estimate_ready");
+    if (sb.length) throw new WorkflowError(sb.join(" • "));
+    await wf.transition(jobId, "measured_estimate_ready", actorId, how === "office" ? "Quote stage: office sending the owner's quote" : "Quote stage: Ready Check complete", { quote_id: quoteId });
+  } else if (!["measured_estimate_ready", "awaiting_quote_acceptance"].includes(String(st?.stage))) throw new WorkflowError(`The job isn't at the quote stage yet (${st?.stage ?? "unknown"}), so the owner couldn't accept it.`);
+  { const cb = await (await import("./workflow.server")).commercialBlocker(jobId); if (cb) throw new WorkflowError(cb); }
+  if (!(await (await import("./estimatelink.server")).ensureOwnerLink(jobId))) throw new WorkflowError("The owner has no secure My job link, so they couldn't open or accept the quote.");
   const { data: source } = await admin.from("jobs").select("source").eq("id", jobId).single();
   if (source?.source === "qa_test") {
     const { data: link, error: le } = await admin.from("customer_estimate_links").select("status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
@@ -46,11 +63,22 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
   }
   if (quote.option_code === "INSTALLER_A1") await (await import("./pilot.server")).applyCobrand(jobId);
   const now = new Date().toISOString();
-  const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, office_reviewed_at: now, office_reviewed_by: actorId })
+  const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, ...(how === "office" ? { office_reviewed_at: now, office_reviewed_by: actorId } : {}) })
     .eq("id", quoteId).eq("job_id", jobId).eq("status", quote.status).eq("release_state", quote.release_state ?? "held").is("sent_at", null).select("id").maybeSingle();
   if (ce) throw new WorkflowError(ce.message);
   if (!claimed) throw new WorkflowError("The quote changed or was already sent. Reload it.");
-  await logEvent(jobId, actorId, "quote_sent_by_office", "Office checked the draft and pressed Send quote", { quote_id: quoteId }, { internal: true });
+  if (how === "office") await logEvent(jobId, actorId, "quote_sent_by_office", "Office checked the draft and pressed Send quote", { quote_id: quoteId }, { internal: true });
+  else await logEvent(jobId, null, "quote_sent_automatically", "Installer marked the Ready Check Complete and every check passed — quote sent to the owner automatically", { quote_id: quoteId }, { internal: true });
   const notification = await (await import("./quote-ready-notify.server")).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
   return { delivery: "ready_to_send" as const, notification };
+}
+/** Jo 24 Oct: a declined quote back to a draft on Quotes to check (fresh 14 days once sent again). Never sends. */
+export async function reopenDeclinedQuoteImpl(jobId: string, quoteId: string, actorId: string) {
+  const { data, error } = await admin.from("quotes").update({ status: "draft", sent_at: null, release_state: "held", release_hold_reason: "Waiting for office review before sending" })
+    .eq("id", quoteId).eq("job_id", jobId).eq("status", "declined").select("id").maybeSingle();
+  if (error) throw new WorkflowError(error.message);
+  if (!data) throw new WorkflowError("This quote isn't declined any more. Reload it.");
+  const { QUOTE_DECLINED_REOPENED } = await import("./quote-decline.core");
+  await logEvent(jobId, actorId, "quote_reopened_by_office", QUOTE_DECLINED_REOPENED, { quote_id: quoteId }, { internal: true });
+  return { reopened: true as const };
 }

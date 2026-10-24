@@ -102,14 +102,14 @@ describe("approved payment-option gate (pure)", () => {
       expect(instalmentPlanActive(plan({ status }), "q1")).toBe(false);
     expect(instalmentPlanActive(plan({ quote_id: "old" }), "q1")).toBe(false);
   });
-  test("route-aware: installer-supplied and unknown sources get the payment-rule exception", () => {
+  test("route-aware (Jo 24 Oct): installer-supplied jobs follow the same safety-check rule; unknown sources stay blocked", () => {
     expect(paymentRouteFor("hivic_sourced")).toBe("hiv_lead");
     expect(paymentRouteFor("installer_sourced")).toBe("installer_supplied");
     expect(paymentRouteFor(null)).toBe("unknown");
-    expect(gate({ route: "installer_supplied", invoice: inv(10_000, 10_000) })).toEqual({
-      cleared: false,
-      blocker: PAYMENT_RULE_EXCEPTION,
-    });
+    expect(gate({ route: "installer_supplied", invoice: inv(10_000, 10_000) })).toEqual({ cleared: true, option: "paid_in_full" });
+    expect(gate({ route: "installer_supplied", invoice: inv(10_000, 349) })).toEqual({ cleared: true, option: "safety_check_paid" });
+    expect(gate({ route: "installer_supplied", invoice: inv(10_000, 348.99) })).toMatchObject({ cleared: false });
+    expect((gate({ route: "installer_supplied", invoice: inv(10_000, 0) }) as { blocker: string }).blocker).not.toBe(PAYMENT_RULE_EXCEPTION);
     expect(gate({ route: "unknown", invoice: inv(10_000, 10_000) })).toEqual({
       cleared: false,
       blocker: PAYMENT_RULE_EXCEPTION,

@@ -170,15 +170,15 @@ test('missing Xero credentials produce unchecked routes without contacting a pro
   assert.equal(calls.length, 0);
 });
 
-test('Xero health reads connections only and distinguishes available live books from disabled routing', async () => {
+test('Xero health reads connections only and reports the live books once live calls are on (Jo 24 Oct)', async () => {
   const { fn, calls } = xero({ LOVABLE_API_KEY: 'isolated-test', XERO_API_KEY: 'isolated-test' }, [{ tenantId: 'demo', tenantName: 'Demo Company (AU)' }, { tenantId: 'real', tenantName: 'DC Construction Solutions' }]);
   const result = await fn();
   assert.equal(result.connected, true);
   assert.equal(result.routing.testOrganisation, 'Demo Company (AU)');
   assert.deepEqual(result.routing.liveCandidates, ['DC Construction Solutions']);
-  assert.equal(result.routing.liveCallsEnabled, false);
-  assert.equal(result.routing.liveOrganisation, null);
-  assert.match(result.routing.liveBlocker, /switched off/);
+  assert.equal(result.routing.liveCallsEnabled, true);
+  assert.equal(result.routing.liveOrganisation, 'DC Construction Solutions');
+  assert.equal(result.routing.liveBlocker, null);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://connector-gateway.lovable.dev/xero/connections');
   assert.equal(calls[0].options.method, 'GET');

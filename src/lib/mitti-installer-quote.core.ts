@@ -38,10 +38,10 @@ export function applyMittiRemoval(draft: { lines: { code: string | null; descrip
   return draft;
 }
 
-/** Jo 23 Oct (A1): "Difficult access charge" ticked → shown as included in the installer's total; no amount, nothing added. */
-export function applyMittiAccessFeeIncluded(draft: { lines: { code: string | null; description: string }[] }, included: boolean) {
+/** A1: a difficult access charge is INSIDE the installer's total (Jo 23 + 24 Oct) — shown on the line, never added. */
+export function applyMittiAccessFeeIncluded(draft: { lines: { code: string | null; description: string }[] }, included: boolean, amountIncGst: number | null = null) {
   if (!included) return draft;
   const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
-  if (line) line.description = `${line.description} · Includes difficult access charge`;
+  if (line) line.description = `${line.description} · Includes difficult access${amountIncGst ? ` ($${amountIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })})` : " charge"}`;
   return draft;
 }

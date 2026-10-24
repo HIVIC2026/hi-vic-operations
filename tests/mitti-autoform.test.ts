@@ -26,6 +26,12 @@ describe("autoFormDecision", () => {
     [{ lastFailureAt: "2026-10-23T08:00:00Z" }, "last attempt failed – retrying tomorrow"],
   ] as [Partial<AutoFormFacts>, string][])("skips %o", (over, reason) => expect(autoFormDecision({ ...ok, ...over }, now, true)).toEqual({ action: "skip", reason }));
   test("a failure more than a day old is retried", () => expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-22T08:00:00Z" }, now, true).action).toBe("create"));
+  // Jo 24 Oct (HV-3151/HV-3164): "I've visited" on Add a job leaves only a provisional size, which gives way to the form.
+  test("a visited job's provisional size waits two hours for the installer's own form, then gets one", () => {
+    const visited = { ...ok, hasCurrentMeasurement: true, provisionalOnly: true };
+    expect(autoFormDecision({ ...visited, createdAt: "2026-10-23T08:00:00Z" }, now, true)).toEqual({ action: "skip", reason: "waiting in case the installer started his own form" });
+    expect(autoFormDecision(visited, now, true)).toEqual({ action: "create" });
+  });
 });
 
 // ---- sweep against real rows (PGlite), Mitti mocked ----
@@ -33,7 +39,7 @@ const db = new PGlite();
 await db.exec(`
 CREATE TABLE jobs (id uuid primary key, job_number text, channel text, source text, stage text, created_at timestamptz, deleted_at timestamptz, qa_archived_at timestamptz, originating_installer_business_id uuid);
 CREATE TABLE workflow_settings (id int, auto_send_mitti boolean, mitti_ready_check_priced_template_id text);
-CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean);
+CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, provenance text, status text default 'draft', external_source text, accepted_by uuid);
 CREATE TABLE job_assignments (job_id uuid, user_id uuid, business_id uuid, role text, active boolean);
 CREATE TABLE businesses (id uuid, mitti_account_invited boolean, onboarding_notes text);
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());`);
@@ -69,6 +75,8 @@ mock.module("../src/lib/mitti.server", () => ({
     return { auditId: `audit_${jobId}`, reused: false, scope: "MEASURE_UP_ONLY" };
   },
 }));
+const holds: string[] = [];
+mock.module("../src/lib/mitti-pickup.server", () => ({ holdAtMittiReadyCheck: async (jobId: string) => { holds.push(jobId); return true; } }));
 const { sweepReadyCheckForms } = await import("../src/lib/mitti-autoform.server");
 
 describe("sweepReadyCheckForms", () => {
@@ -91,6 +99,7 @@ describe("sweepReadyCheckForms", () => {
     expect(calls.every((c) => c.opts.readyCheck === true)).toBe(true);
     expect(calls.find((c) => c.jobId === j(5))!.opts.assignee!.email).toBe("jo@actpropertyinspections.com.au");
     expect(calls.find((c) => c.jobId === j(1))!.opts.assignee).toBeUndefined();
+    expect(holds.sort()).toEqual([j(1), j(5)].sort()); // made forms wait on the installer; the failed one is untouched
     const { rows } = await db.query<{ n: number; needs: boolean }>("select count(*)::int n, bool_and((details->>'needs_office')::boolean) needs from workflow_events where event_type = 'mitti_autoform_failed' and job_id = $1", [j(2)]);
     expect(rows[0]).toEqual({ n: 1, needs: true });
   });
@@ -105,12 +114,19 @@ describe("sweepReadyCheckForms", () => {
     expect(later.wouldCreate).toEqual(["HV-3137"]);
   });
 
-  test("wired into the 15-minute tick, never sends to owners or changes stage", () => {
+  test("wired into the 15-minute tick, never sends to owners; stage only via the shared Mitti hold", () => {
     const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
     expect(tick).toContain("sweepReadyCheckForms()");
     expect(tick.indexOf("sweepReadyCheckForms()")).toBeLessThan(tick.indexOf("syncPendingMitti(null)")); // before the slower Mitti work
+    expect(tick.indexOf("sweepMittiPickupAuto()")).toBeLessThan(tick.indexOf("sweepReadyCheckForms()")); // installer's own form linked first
     expect(AUTOFORM_MAX_PER_TICK).toBe(5); // inside the tick's 55s limit
     const src = readFileSync("src/lib/mitti-autoform.server.ts", "utf8");
     expect(src).not.toMatch(/sendRealSms|sendMessage|transition\(|\.update\(/);
+    expect(src).toContain("holdAtMittiReadyCheck(j.id, null)"); // installer jobs wait on the installer once the form exists
   });
+});
+
+test("installers aren't offered a blank 'New Ready Check' form anywhere (blank forms aren't linked to a job)", () => {
+  for (const f of ["src/routes/_authenticated/field.index.tsx", "src/routes/_authenticated/partner.import.tsx", "src/routes/_authenticated/field.$jobId.tsx"]) expect(readFileSync(f, "utf8")).not.toContain("<NewReadyCheckButton");
+  expect(readFileSync("src/components/trade/new-ready-check.tsx", "utf8")).toContain("please don't start a new form in Mitti");
 });

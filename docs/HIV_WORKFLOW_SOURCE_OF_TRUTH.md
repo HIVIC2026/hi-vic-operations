@@ -58,6 +58,8 @@ Route-aware. Home Insulation Victoria lead: our confirmed-quote payment rule. In
 
 ## Commercial wording
 Jo 22 Oct 2026, Mitti installer-led Ready Check only: full installer price inc GST + $349 Home Insulation Victoria fee + electrician price − the existing VEU rebate (minimum contribution unchanged). Electrical choice: Home Insulation Victoria electrician ($349), My usual electrician (saved business-profile price), A different electrician (form price). Missing usual profile holds the quote with "Installer has no usual electrician saved". Store declared name/licence on the job, without granting verification or assignment. This supersedes own-electrician direct-billing exclusion for this new pathway only; accepted quotes and legacy intake billing remain unchanged. Preview-only, no automatic activation.
+
+Jo 24 Oct 2026: the installer does NOT approve the quote (A1 installer jobs and A2 our leads alike; no "Measurements are final" step). A1 quote = installer total (which includes any difficult access fee, shown on the line, never added twice) + electrician price + $349 fee − VEU rebate; A2 prices come from the installer's agreed rates. Pressing Complete in the Mitti Ready Check prepares everything; for the first few weeks the office presses Send (switch `AUTO_QUOTE_SEND_ENABLED` off). No price-range or access-fee limit on the installer's own jobs (Jo: he charges what he wants; our AP fee and electrician fees come from our settings). Held for the office with the reason: a difficult access fee with no usable amount, and every existing send check. A form changed after a quote was sent is flagged for the office; the sent quote is never changed. Office Adjust leaves the draft for office Send — no installer reapproval; old installer approval records stay as history only.
 Home Insulation Victoria lead: a lead fee only if separately approved in the current live installer agreement; old fee notes (e.g. $220) are not live rules unless confirmed there. Installer-supplied customer: no lead fee, no margin, approved AP fee and VEEC spread only. Never one fee model for all jobs.
 
 ## Direct-contact coordination
@@ -93,7 +95,16 @@ Xero invoice and all customer/trade/financial-facing references use "Home Insula
 - Enforced by `offerRateBlocker` / `electricianRateText` (allocation.core.ts), the retired-term scan, and tests/allocation.core.test.ts.
 
 
-## Payment rule (Jo, 7 Oct 2026) — supersedes 10%/5% deposit and the 3-instalment plan
+## Payment rule (Jo, 24 Oct 2026) — supersedes the 7 Oct rule below (BEING BUILT; Stripe card, fee absorbed)
+- Owner accepts the quote and pays the $349 safety check in one step (Stripe). Switched on straight away (Jo's call; lawyer still to confirm cooling-off and deposit limits).
+- Booking the install day: 10% of what is left on the invoice after the $349, paid when the day is booked. When the owner taps one of the installer's days they pay on the same screen; when the installer accepts a day the owner suggested, the day is held 48 hours for the 10%, then released and the installer told.
+- Remainder on install day; the owner can always pay the full balance now.
+- Electrical fixes: the office checks the fixes quote; the owner approves it, pays in full and picks one of the electrician's times in one step; if none suit, owner and electrician go back and forth (no office).
+
+## Install days (Jo, 24 Oct 2026)
+Once electrical clearance is in (PIESA pass, or fixes done + Section C), the quoted installer offers 3 days inside the 30-day window (or every day left if fewer). The owner taps one (booked) or suggests 1–5 of their own; the installer takes one (booked) or offers 3 new ones; back and forth until agreed. The office is never involved, except one alert when 10 days are left with nothing booked. Both screens show the last day and days left. Rules: `install-days.core.ts` (`installDayTurn`, `dayOfferBlockers`); server: `install-days.server.ts`.
+
+## Payment rule (Jo, 7 Oct 2026) — superseded 24 Oct (above); kept for history
 - Safety check payment (default $349, `workflow_settings.safety_check_payment_inc_gst`) is paid after Step B and before the PIESA can be booked. Kept once the check is done (even if the job can't go ahead); refunded in full if the check never happens.
 - Balance = total after VEU discount − safety check payment. Owner chooses at Step B: two instalments (half when install is booked, half on install day) or pay the full total now. If the job can't go ahead after the check, refund everything except the safety check payment.
 - Step B payment wording is DRAFT (`draft-2026-10-07`) pending lawyer; blocks real jobs until Jo approves it in Settings.

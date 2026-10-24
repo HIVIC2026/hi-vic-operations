@@ -9,6 +9,7 @@ import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } 
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
+import { provisionalGivesWayToMitti } from "./measurement.core";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
 import { shortAnswersFromEntries } from "./official-short.core";
@@ -155,8 +156,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       else if (outcome === "created") {
         // Mitti made the form but a later step (share / owner) failed: store it so every retry REUSES it.
         if (measureOnly) {
-          if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: seen.createdId }).eq("id", m.id);
-          else await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: seen.createdId });
+          await pointMeasurementAtMitti(jobId, m, seen.createdId!, actorId);
         } else if (a) await admin.from("assessments").update({ external_mitti_id: seen.createdId, mitti_template_id: templateId }).eq("id", a.id);
         else { await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, external_mitti_id: seen.createdId, mitti_template_id: templateId, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope }); throw wrap(e); }
       } else {
@@ -177,8 +177,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const now = new Date().toISOString();
   if (measureOnly) {
     if (!r.reused) {
-      if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: r.auditId }).eq("id", m.id);
-      else await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: r.auditId });
+      await pointMeasurementAtMitti(jobId, m, r.auditId, actorId);
     }
   } else {
     const fields = {
@@ -193,6 +192,21 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     r.reused ? `Mitti ${measureOnly ? "measure-up" : "assessment"} re-shared with ${r.assigneeEmail}` : `Mitti ${measureOnly ? "measure-up" : "assessment"} created and assigned to ${r.assigneeEmail} (${scope.label})`,
     { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope });
   return { auditId: r.auditId, reused: r.reused, scope: scope.scope };
+}
+
+type MeasurementPointer = { id: string; status: string | null; provenance?: string | null; external_source?: string | null; accepted_by?: string | null } | null | undefined;
+/** Point the job's current measurement at a Mitti Ready Check form. An open record is adopted; an installer's
+ *  provisional Add-job/bulk size is kept as history and replaced by a fresh record (Jo 24 Oct). */
+export async function pointMeasurementAtMitti(jobId: string, m: MeasurementPointer, auditId: string, actorId: string | null) {
+  const fresh = { job_id: jobId, status: "draft" as const, is_current: true, source_role: "installer" as const, created_by: actorId, external_source: "mitti", external_id: auditId };
+  if (m && provisionalGivesWayToMitti(m)) {
+    const { error: ue } = await admin.from("ceiling_measurements").update({ is_current: false }).eq("id", m.id).eq("is_current", true);
+    if (ue) throw new WorkflowError(`The installer's provisional size could not be moved to history: ${ue.message}`);
+    const { error: ie } = await admin.from("ceiling_measurements").insert(fresh);
+    if (ie) throw new WorkflowError(`The Mitti Ready Check record could not be saved: ${ie.message}`);
+    await logEvent(jobId, actorId, "mitti_provisional_superseded", "Installer's provisional size kept as history; the Mitti Ready Check form now supplies the measurements", { audit_id: auditId, provisional_measurement_id: m.id }, { internal: true });
+  } else if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", m.id);
+  else await admin.from("ceiling_measurements").insert(fresh);
 }
 
 /** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement). */
@@ -211,10 +225,29 @@ async function applyMeasure(jobId: string, actorId: string | null, auditId: stri
   return plan;
 }
 
+/** Jo 23 Oct (pending approval): the A1 "Homeowner agrees to be contacted by Home Insulation Victoria" answer becomes an
+ *  owner_contact_consents row, like Add job's installer tick, so a picked-up/bulk job's quote can be sent. Append-only:
+ *  a row is added only when the answer differs from the job's latest consent (a later "No" withdraws it). Never marketing
+ *  consent and never Gate A paperwork (own source, not "onsite_ready_check"). */
+export const MITTI_CONSENT_SOURCE = "mitti_ready_check_form";
+export const MITTI_CONSENT_TEXT = "Homeowner agrees to be contacted by Home Insulation Victoria";
+export async function recordMittiContactConsent(jobId: string, ownerId: string | null, actorId: string | null, granted: boolean, auditId: string) {
+  if (!ownerId) return;
+  const { data: latest, error } = await admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`Owner consent could not be checked: ${error.message}`);
+  const status = granted ? "granted" : "not_granted";
+  if ((latest?.consent_status ?? null) === status || (!granted && !latest)) return;
+  const now = new Date().toISOString();
+  const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(MITTI_CONSENT_TEXT)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const { error: ie } = await admin.from("owner_contact_consents").insert({ job_id: jobId, owner_id: ownerId, source: MITTI_CONSENT_SOURCE, consent_key: `${auditId}:${status}:${now}`, consent_status: status, contact_consent: granted, consented_at: now, snapshot: { by: "installer", text: MITTI_CONSENT_TEXT, audit_id: auditId, recorded_by: actorId } as never, sha256 });
+  if (ie) throw new Error(`Owner consent could not be saved: ${ie.message}`);
+  await logEvent(jobId, actorId, "mitti_contact_consent_recorded", granted ? "Owner contact permission recorded from the Mitti Ready Check form" : "Owner contact permission withdrawn on the Mitti Ready Check form", { audit_id: auditId, status }, { internal: true });
+}
+
 /** Stage 3 (Jo 23 Oct): new A1 contact/permission/electrician answers, absent-safe. Fills blank owner
  *  contact fields, records the electrician choice only when the job has none, and logs the details for
- *  the office. Never records marketing consent — permission is only ever a factual internal note. */
-async function applyContactAnswers(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[]) {
+ *  the office. The permission answer is recorded as contact consent (recordMittiContactConsent), never marketing consent. */
+async function applyContactAnswers(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const a = contactAnswersFromEntries(entries);
   if (!a.phone && !a.email && a.contactPermission == null && !a.electricianChoice && !a.electricianPriceIncGst && !a.electricianName && !a.electricianLicence) return;
@@ -231,6 +264,7 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   if (Object.keys(patch).length) await admin.from("owners").update(patch).eq("id", job.owner_id);
   // New choices have a separate compliance/billing snapshot; never auto-assign or verify a nominated electrician.
   if ((a.electricianChoice === "own" || a.electricianChoice === "hivic") && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
+  if (a.contactPermission != null) await recordMittiContactConsent(jobId, job.owner_id, actorId, a.contactPermission, auditId);
   const details = { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission ?? null, electrician_choice: a.electricianChoice ?? null, electrician_price_inc_gst: a.electricianPriceIncGst ?? null, electrician_name: a.electricianName ?? null, electrician_licence: a.electricianLicence ?? null };
   // Jo 23 Oct (fix): only record when the answers changed — unchanged re-syncs every 15 minutes added a row each time.
   const { data: lastAns } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_contact_answers").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -350,7 +384,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
       if (!plan.locked) {
         const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
-        await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[]);
+        await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
@@ -386,9 +420,18 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           try {
             const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
             if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-            if (d?.ready) await applyCobrand(jobId); // draft only; Office must press Send quote
+            if (d?.ready) await applyCobrand(jobId);
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
+        // Jo 24 Oct: installer marks the form Complete → measurements recorded, eligibility from the form answers, quote
+        // stage, and the owner's quote goes out when every check passes (installer jobs and our leads); otherwise held
+        // for the office with the reasons. A form changed after sending is flagged.
+        try {
+          const { finishMittiReadyCheck } = await import("./mitti-complete.server");
+          const r = await finishMittiReadyCheck(jobId, { auditId: measureAudit, completed: plan.completed, modifiedAt: plan.modifiedAt ?? null,
+            entries: (plan.snapshot ?? []) as { label: string; value: unknown }[], ourLead: readyCheckVariant(job.channel) !== "ready_check_priced" });
+          if (r.done === "sent") issues = [...issues, "Owner quote sent automatically"];
+        } catch (e) { issues = [...issues, `Ready Check completion step failed: ${e instanceof Error ? e.message : "error"}`]; }
         // Stage 7 (Jo 22 Oct): incomplete form → record what the installer must add (dormant text; office chase after 24h).
         await (await import("./ready-check-chase.server")).recordReadyCheckProgress({
           jobId, actorId, auditId: measureAudit, entries: (plan.snapshot ?? []) as { label: string; value: unknown }[],

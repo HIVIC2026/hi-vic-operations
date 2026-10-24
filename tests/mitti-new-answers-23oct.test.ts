@@ -165,3 +165,4 @@ describe("A2 uses the owner's website answers for life support / 5 years", () =>
     expect(readyCheckStopReasons([e("Life support equipment at property?", "Yes"), e("Was the ceiling or roof built or replaced in the last 5 years?", "Yes")], { ownerAnsweredOnWebsite: true })).toEqual([]);
   });
 });
+

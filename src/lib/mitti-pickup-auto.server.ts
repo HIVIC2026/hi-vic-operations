@@ -6,14 +6,17 @@
 // address already exists is linked to that job and flagged — never blocked, never duplicated. Unmatched
 // authors go to office review. Empty forms (no address, no owner) wait until they have one.
 //
+// A form the installer started himself with the job's HV number typed in (Jo 24 Oct, HV-3164) is linked to that job
+// when it is his own business's installer job before the Ready Check and has no other form; otherwise office review.
+//
 // Forms missing owner phone/email/permission are still created and keep "Needs finishing…" until complete.
 // Switch: workflow_settings.mitti_pickup_auto_enabled. Nothing is sent to anyone, no stage is completed.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import { realMittiCall } from "./mitti.server";
-import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob, type PickupScanOpts } from "./mitti-pickup.server";
-import { pickupAutoDecision, pickupAddressParts, needsFinishingText, pickupFormLabel } from "./mitti-pickup.core";
+import { READY_CHECK_STAGES, scanMittiReadyCheckPickups, linkMittiReadyCheckToJob, type PickupScanOpts } from "./mitti-pickup.server";
+import { pickupAutoDecision, pickupAddressParts, needsFinishingText, pickupFormLabel, typedJobDecision } from "./mitti-pickup.core";
 
 export type PickupAutoResult = { auditId: string; action: "created" | "linked" | "review" | "would_create" | "would_link" | "would_review" | "failed"; jobNumber?: string; reasons?: string[]; error?: string };
 
@@ -59,7 +62,8 @@ export async function keepNeedsFinishing(): Promise<number> {
     // Jo 23 Oct: once the sync has recorded the full basics check, that list (area, product, price, contact) wins.
     const { data: b } = await admin.from("workflow_events").select("details").eq("job_id", j.id).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const basicsMissing = (b?.details as { missing?: string[] } | null)?.missing;
-    const next = basicsMissing ? (await import("./ready-check-basics.core")).needsFinishingFromMissing(basicsMissing) : missing.length ? needsFinishingText(missing) : null;
+    const done = basicsMissing && !basicsMissing.length && j.next_action?.startsWith("Needs finishing") ? (await import("./ready-check-basics.server")).READY_CHECK_BASICS_DONE : null;
+    const next = basicsMissing ? (await import("./ready-check-basics.core")).needsFinishingFromMissing(basicsMissing) ?? done : missing.length ? needsFinishingText(missing) : null;
     if (!next || j.next_action === next) continue;
     await admin.from("jobs").update({ next_action: next }).eq("id", j.id);
     fixed++;
@@ -81,6 +85,25 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
   const results: PickupAutoResult[] = [];
   for (const r of rows) {
     const form = pickupFormLabel(r.templateKind);
+    if (r.typedJob !== undefined) {
+      const t = typedJobDecision(String(r.mittiRef), r.typedJob, r.business?.id ?? null, READY_CHECK_STAGES);
+      if (t.action === "office_review") {
+        if (!opts.dryRun) await recordReview(r.auditId, r.business?.name ?? null, t.reasons).catch(() => undefined);
+        results.push({ auditId: r.auditId, action: opts.dryRun ? "would_review" : "review", reasons: t.reasons });
+        continue;
+      }
+      if (opts.dryRun) { results.push({ auditId: r.auditId, action: "would_link", jobNumber: t.jobNumber }); continue; }
+      try {
+        const link = await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: t.jobId }, call);
+        await logEvent(t.jobId, null, "mitti_pickup_typed_linked", `Ready Check the installer started in Mitti with ${t.jobNumber} typed in (${form} form, ${r.business!.name}) linked automatically`, { audit_id: r.auditId, form, business_id: r.business!.id, issues: link.issues }, { internal: true });
+        results.push({ auditId: r.auditId, action: "linked", jobNumber: t.jobNumber });
+      } catch (e) {
+        const why = `Form says ${t.jobNumber} but could not link: ${e instanceof Error ? e.message : "error"}`;
+        await recordReview(r.auditId, r.business?.name ?? null, [why]).catch(() => undefined);
+        results.push({ auditId: r.auditId, action: "review", reasons: [why] });
+      }
+      continue;
+    }
     const decision = pickupAutoDecision({
       templateKind: r.templateKind, businessMatched: !!r.business,
       homeownerName: r.homeownerName, siteAddress: r.siteAddress,
@@ -127,6 +150,9 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
         address_line: parts?.addressLine ?? (r.siteAddress?.trim() || "Address to confirm"), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null,
         estimated_area_m2: null,
       } as never, source, null, { channel: "installer_sourced", businessId: r.business!.id, userId: member });
+      // Installer-led like bulk/on-site jobs: otherwise commercialBlocker (not_configured) stops owner acceptance later.
+      const { error: le } = await admin.from("jobs").update({ installer_led: true }).eq("id", created.job_id);
+      if (le) await logEvent(created.job_id, null, "mitti_pickup_installer_led_failed", `Could not mark the picked-up job installer-led: ${le.message}`, { audit_id: r.auditId, needs_office: true }, { internal: true });
       const { error: ae } = await admin.from("job_assignments").insert({ job_id: created.job_id, user_id: member, role: "installer", business_id: r.business!.id, assigned_by: null, first_response_at: new Date().toISOString() });
       if (ae) await logEvent(created.job_id, null, "mitti_pickup_assign_failed", `Installer assignment failed after auto-pickup: ${ae.message}`, { audit_id: r.auditId }, { internal: true });
       // Finish the initial checks now so their stage default cannot overwrite "Needs finishing…" afterwards.

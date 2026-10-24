@@ -24,28 +24,40 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       if (!page.data || page.data.length < 500) break;
     }
     const ids = (jobs ?? []).map((j) => j.id);
-    if (!ids.length) return { rows: [], waiting: [] };
+    if (!ids.length) return { rows: [], notDrafted: [], declined: [] };
     const batches = [];
     for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
     const parts = [];
     for (let from = 0; from < batches.length; from += 4) parts.push(...await Promise.all(batches.slice(from, from + 4).map(async batch => {
-      const [quotes, held, assigned, basics, forms] = await Promise.all([
-        admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+      const [quotes, held, assigned, basics, forms, declines] = await Promise.all([
+        admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]),
         admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
         admin.from("job_assignments").select("job_id, business_id").in("job_id", batch).eq("role", "installer").eq("active", true),
         admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
         admin.from("ceiling_measurements").select("job_id, external_id").in("job_id", batch).eq("is_current", true).eq("external_source", "mitti"),
+        admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "quote_declined").order("created_at", { ascending: false }),
       ]);
-      if (quotes.error || held.error || assigned.error || basics.error || forms.error) throw new Error("Quotes to check could not be read.");
-      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [] };
+      if (quotes.error || held.error || assigned.error || basics.error || forms.error || declines.error) throw new Error("Quotes to check could not be read.");
+      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [], declines: declines.data ?? [] };
     })));
     const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), forms = parts.flatMap(p => p.forms), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
     const { data: businesses, error: be } = await admin.from("businesses").select("id, name");
     if (be) throw new Error("Installer names could not be read.");
     const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
+    const declineEv = parts.flatMap(p => p.declines);
     const rows = [];
+    // Jo 24 Oct: quotes the owner said "Not for me" to, with their reason; the office can reopen one.
+    const declined: { jobId: string; jobNumber: string; owner: string | null; suburb: string | null; installer: string | null; quoteId: string; total: number; reason: string | null; at: string }[] = [];
     for (const j of jobs ?? []) {
-      const qs = (quotes ?? []).filter((q) => q.job_id === j.id);
+      const all = (quotes ?? []).filter((q) => q.job_id === j.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
+      if (all[0]?.status === "declined") {
+        const ev = declineEv.find((e) => e.job_id === j.id && (e.details as { quote_id?: string } | null)?.quote_id === all[0]!.id) ?? declineEv.find((e) => e.job_id === j.id);
+        const bizId = assigned?.find(a => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id;
+        declined.push({ jobId: j.id, jobNumber: j.job_number, owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null,
+          installer: (businesses ?? []).find((b) => b.id === bizId)?.name ?? null, quoteId: all[0]!.id, total: Number(all[0]!.customer_total_inc_gst), reason: (ev?.details as { reason?: string } | null)?.reason ?? null, at: ev?.created_at ?? all[0]!.created_at });
+        continue;
+      }
+      const qs = all.filter((q) => q.status !== "declined");
       if (qs.some((q) => !quoteNeedsOfficeReview(q))) continue;
       const draft = qs.filter(quoteNeedsOfficeReview).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       const h = (held ?? []).find((e) => e.job_id === j.id);
@@ -64,21 +76,28 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, notes, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
     }
     const { officeQuoteBlockers } = await import("./office-quote-review.server");
-    const { WAITING_ON_INSTALLER } = await import("./installer-quote-approval.core");
     // Bound parallel readiness reads; each row and its opened draft use the same guards.
     for (let from = 0; from < rows.length; from += 10) await Promise.all(rows.slice(from, from + 10).map(async row => {
       const draft = (quotes ?? []).find(q => q.id === row.quoteId);
       if (!draft) return;
-      const all = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
-      (row as { waitingOnInstaller?: boolean }).waitingOnInstaller = all.includes(WAITING_ON_INSTALLER);
-      row.reasons = all.filter((r) => r !== WAITING_ON_INSTALLER);
+      row.reasons = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
       row.kind = row.reasons.length ? "missing" : "ready";
       row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
     }));
     rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
-    // Jo 23 Oct: only installer-approved quotes are on the office list; the rest wait greyed under "Waiting on installer".
-    const typed = rows as (typeof rows[number] & { waitingOnInstaller?: boolean })[];
-    const { splitQuotesToCheck } = await import("./installer-quote-approval.core");
-    const split = splitQuotesToCheck(typed);
-    return { rows: split.ready, waiting: split.waiting };
+    // Jo 24 Oct 2026: installers no longer approve quotes — every draft is on the office list for Check & send;
+    // jobs with no draft yet are listed separately with what is missing.
+    const { splitQuotesToCheck } = await import("./installer-quote-status.core");
+    const split = splitQuotesToCheck(rows);
+    declined.sort((a, b) => b.at.localeCompare(a.at));
+    return { rows: split.drafts, notDrafted: split.notDrafted, declined };
+  });
+
+/** Jo 24 Oct: office reopens a quote the owner declined — it goes back to Quotes to check as a draft for Send. */
+export const reopenDeclinedQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { reopenDeclinedQuoteImpl } = await import("./office-quote-review.server");
+    return reopenDeclinedQuoteImpl(data.jobId, data.quoteId, context.userId);
   });

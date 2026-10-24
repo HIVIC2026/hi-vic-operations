@@ -7,9 +7,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { ExternalLink } from "lucide-react";
 import { getNewInstallerJobs } from "@/lib/installer-new-jobs.functions";
 import { NEW_JOB_DAYS, type NewJobItem } from "@/lib/installer-new-jobs.core";
-import { mittiAuditUrl } from "@/lib/installer-quote-approval.core";
+import { mittiAuditUrl } from "@/lib/mitti-link.core";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 function JobLine({ item }: { item: NewJobItem }) {
   const url = mittiAuditUrl(item.mittiAuditId);
@@ -21,7 +22,7 @@ function JobLine({ item }: { item: NewJobItem }) {
         </span>
         <span className="text-xs text-muted-foreground">{item.how} · {item.ageDays === 0 ? "today" : `${item.ageDays}d ago`}</span>
         <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: item.jobId }}>Open job<span className="sr-only"> {item.jobNumber}</span></Link></Button>
-        {url && <Button asChild variant="outline" size="sm"><a href={url} target="_blank" rel="noreferrer">Mitti form<ExternalLink className="h-3 w-3" /><span className="sr-only"> {item.jobNumber}</span></a></Button>}
+        {url && <Button asChild variant="outline" size="sm"><MittiFormLink auditId={item.mittiAuditId!}>Mitti form<ExternalLink className="h-3 w-3" /><span className="sr-only"> {item.jobNumber}</span></MittiFormLink></Button>}
       </div>
       {item.warnings.length > 0 && (
         <ul className="flex flex-wrap gap-1">

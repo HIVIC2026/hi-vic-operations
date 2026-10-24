@@ -11,7 +11,6 @@ import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, jobCardLine, needsFinishingTask, tradeGreeting } from "@/lib/trade-view.core";
 import { SourceBadge } from "@/components/portal/badges";
 import { INSTALLER_TABS, type InstallerTab } from "@/lib/installer-progress.core";
-import { NewReadyCheckButton } from "@/components/trade/new-ready-check";
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -50,7 +49,6 @@ function MyWork() {
           <Link to="/partner/import" className={btnClass("primary", "w-full")}><PlusCircle className="h-4 w-4" />Add a job</Link>
         </div>
       )}
-      {installer && <NewReadyCheckButton />}
       {first ? (
         <NowPanel attention eyebrow={`${data.offers.length} new job offer${data.offers.length === 1 ? "" : "s"}`} due={first.expiresAt ? goneIn(first.expiresAt) : undefined}
           status={`${installer ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"} in ${first.suburb ?? "Victoria"}`}

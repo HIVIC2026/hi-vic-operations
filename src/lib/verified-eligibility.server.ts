@@ -174,11 +174,19 @@ export async function currentVerification(jobId: string): Promise<Row | null> {
 /** True only for a current, not-stale "eligible" result. */
 export async function verifiedEligible(jobId: string): Promise<boolean> {
   const [v, e] = await Promise.all([currentVerification(jobId), gatherEvidence(jobId)]);
-  return (
-    !!v &&
-    v.outcome === "eligible" &&
-    !verificationStale(v, { ref: e.readyCheck.ref, version: e.readyCheck.version })
-  );
+  // A current office decision always wins, eligible or not (admin decisions are never overridden).
+  if (v && !verificationStale(v, { ref: e.readyCheck.ref, version: e.readyCheck.version })) return v.outcome === "eligible";
+  return formEligibleForCurrentReadyCheck(jobId);
+}
+
+/** Jo 24 Oct: eligibility decided from the answers on the job's CURRENT Mitti Ready Check form, recorded by the
+ *  completion step as an append-only `ready_check_form_eligible` event for that exact form. */
+export const FORM_ELIGIBLE_EVENT = "ready_check_form_eligible";
+export async function formEligibleForCurrentReadyCheck(jobId: string): Promise<boolean> {
+  const { data: m, error } = await admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (error || !m || m.external_source !== "mitti" || !m.external_id || m.status !== "complete") return false;
+  const { count, error: ee } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FORM_ELIGIBLE_EVENT).contains("details", { audit_id: m.external_id });
+  return !ee && (count ?? 0) > 0;
 }
 
 export async function eligibilityView(jobId: string) {

@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { automaticQuoteSendingAllowed, quoteNeedsOfficeReview, quoteReviewReasons } from "../src/lib/office-quote-review.core";
 import { confirmedQuoteDecision } from "../src/lib/quote-release.core";
-test.each(["A1", "A2"])("%s ready quotes never auto-send, even with every switch on", () => {
-  expect(automaticQuoteSendingAllowed()).toBe(false);
+test("A1 and A2 auto-send only on Complete once Jo switches it on (Jo 24 Oct)", () => {
+  expect(automaticQuoteSendingAllowed("A2")).toBe(false);
+  expect(automaticQuoteSendingAllowed("A1")).toBe(false); // switch still off
   expect(confirmedQuoteDecision({ estimateTotal: 4000, quoteTotal: 4000, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: true }).status).toBe("draft");
 });
 test("waiting for office review isn't a missing-facts hold; real holds remain", () => {

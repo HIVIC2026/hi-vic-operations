@@ -79,3 +79,12 @@ describe("compliance records gate stages", () => {
   test("Xero payment ≥ $200 satisfies co-payment", () => expect(complianceRecordBlockers("ap_review", none, { lifeSupport: false, ownerPaidIncGst: 1858 })).toHaveLength(2));
   test("ready for VEEC also needs assignment copy", () => expect(complianceRecordBlockers("ready_for_veec", new Set(["installer_safety_assessment", "completion_consumer_docs", "co_payment_paid"] as never[]), { lifeSupport: false, ownerPaidIncGst: 0 })).toEqual(["Activity 48 record missing: Copy of signed VEEC assignment form given to owner"]));
 });
+
+test("Jo 24 Oct: the 30-day PIESA window is about commencement — started in time, finished late is still done", () => {
+  const f = { ...base, piesaCompletedAt: "2026-10-01T00:00:00Z", piesaOutcome: "pass" as const, installStart: "2026-10-30T22:00:00Z", installCompletedAt: "2026-11-02T05:00:00Z" };
+  const g = buildComplianceTimeline(f).find((x) => x.key === "install_within_piesa_window")!;
+  expect(g.status).toBe("done");
+  expect(g.label).toContain("commenced");
+  const late = buildComplianceTimeline({ ...f, installStart: "2026-11-02T00:00:00Z" }).find((x) => x.key === "install_within_piesa_window")!;
+  expect(late.status).toBe("overdue");
+});

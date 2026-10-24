@@ -738,7 +738,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (!expected.includes(stage)) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
       await admin.from("quotes").update({ status: "declined" }).eq("id", q.id);
-      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
+      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined by the owner${data.reason ? ` — ${data.reason}` : ""}`, { reason: data.reason, quote_id: q.id, needs_office: true });
       return { ok: true };
     }
     // Installation acceptance is the commercial agreement only. ESC consent and VEEC assignment are later forms.
@@ -850,6 +850,9 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
  *  owner's completed acceptance into an error they cannot retry (the quote is no longer "issued"); record it for office,
  *  which recovers with Retry Xero push (local invoice row exists) or Sync. */
 async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: string) {
+  // Jo 24 Oct: tell the installer (best-effort; never affects the owner's acceptance).
+  try { await (await import("./installer-accepted-email.server")).emailInstallerQuoteAccepted(jobId, quoteId); }
+  catch (e) { console.error("installer accepted email skipped", (e as Error).message); }
   try { await createInvoiceForQuote(quoteId, actorId); }
   catch (e) {
     const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();

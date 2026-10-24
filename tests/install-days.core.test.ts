@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { allowedInstallDays, installDayBlockers, installDayOutsideWindow, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
+import { allowedInstallDays, dayOfferBlockers, installDayOutsideWindow, installDayTurn, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
 import { buildNeedsHivic } from "../src/lib/allocation.core";
 
 const now = new Date("2026-10-05T00:00:00Z"); // Mon 5 Oct, 11am Melbourne
@@ -20,11 +20,48 @@ describe("install days", () => {
   test("no capacity check: every allowed day stays", () => {
     expect(allowedInstallDays({ now, deadline: "2026-10-09" })).toEqual(["2026-10-07", "2026-10-08", "2026-10-09"]);
   });
-  test("owner must pick 3–5 allowed distinct days", () => {
-    const ok = ["2026-10-07", "2026-10-08", "2026-10-09"];
-    expect(installDayBlockers(ok, ok)).toEqual([]);
-    expect(installDayBlockers(ok.slice(0, 2), ok).length).toBeGreaterThan(0);
-    expect(installDayBlockers([...ok, "2026-12-01"], ok).length).toBeGreaterThan(0);
+  test("installer offers exactly 3 days, or every day left when fewer remain", () => {
+    const ok = ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-12"];
+    expect(dayOfferBlockers(ok.slice(0, 3), ok, "installer")).toEqual([]);
+    expect(dayOfferBlockers(ok.slice(0, 2), ok, "installer")).toEqual(["Please choose 3 days."]);
+    expect(dayOfferBlockers(ok, ok, "installer")).toEqual(["Please choose 3 days."]);
+    expect(dayOfferBlockers(["2026-10-07"], ["2026-10-07"], "installer")).toEqual([]);
+    expect(dayOfferBlockers([], [], "installer")).toEqual(["There are no days left inside the 30-day window."]);
+    expect(dayOfferBlockers(["2026-10-07", "2026-10-08", "2026-12-01"], ok, "installer").length).toBeGreaterThan(0);
+  });
+  test("owner suggests 1–5 allowed distinct days", () => {
+    const ok = ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14"];
+    expect(dayOfferBlockers(["2026-10-07"], ok, "owner")).toEqual([]);
+    expect(dayOfferBlockers([], ok, "owner").length).toBeGreaterThan(0);
+    expect(dayOfferBlockers(ok, ok, "owner")).toEqual(["Please choose no more than 5 days."]);
+    expect(dayOfferBlockers(["2026-10-07", "2026-10-07"], ok, "owner")).toEqual(["Each day can only be chosen once."]);
+  });
+  test("whose move: installer first, then back and forth until booked (Jo 24 Oct)", () => {
+    const at = (role: string, iso: string, status = "proposed") => ({ id: `${role}${iso}`, proposer_role: role, status, starts_at: iso });
+    const base = { ready: true, booked: false, expired: false, now };
+    expect(installDayTurn({ ...base, rows: [] }).turn).toBe("installer_to_offer");
+    expect(installDayTurn({ ...base, rows: [at("installer", "2026-10-08T21:00:00Z")] }).turn).toBe("owner_to_answer");
+    expect(installDayTurn({ ...base, rows: [at("installer", "2026-10-08T21:00:00Z", "superseded"), at("owner", "2026-10-09T21:00:00Z")] }).turn).toBe("installer_to_answer");
+    expect(installDayTurn({ ...base, rows: [at("owner", "2026-10-01T21:00:00Z")] }).turn).toBe("installer_to_offer"); // passed days don't count
+    expect(installDayTurn({ ...base, booked: true, rows: [] }).turn).toBe("booked");
+    expect(installDayTurn({ ...base, expired: true, rows: [] }).turn).toBe("expired");
+    expect(installDayTurn({ ...base, ready: false, rows: [] }).turn).toBe("not_ready");
+  });
+  test("either side can change a booked day; installer then offers new days (Jo 24 Oct)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const srv = readFileSync("src/lib/install-days.server.ts", "utf8");
+    expect(srv).toContain('transition(jobId, "installation_scheduling"');
+    expect(srv).toMatch(/update\(\{ status: "confirmed" \}\)/); // booking restored if the stage can't move back
+    expect(readFileSync("src/components/portal/install-days.tsx", "utf8")).toContain("Change day");
+    expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).toContain("ownerChangeInstallDayFn");
+  });
+  test("no office step: the decline/none-suit office paths are gone", async () => {
+    const { readFileSync } = await import("node:fs");
+    const srv = readFileSync("src/lib/install-days.server.ts", "utf8");
+    const ui = readFileSync("src/components/portal/install-days.tsx", "utf8");
+    expect(srv).not.toMatch(/installerDeclineDays|ownerNoInstallDays|Needs Home Insulation Victoria: installer could not/);
+    expect(ui).not.toMatch(/Home Insulation Victoria has been told|Your installer will contact you/);
+    expect(readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8")).not.toContain('<BookingPanel jobId={jobId} kind="installation"');
   });
   test("hard gate: a day after the deadline can never be booked", () => {
     expect(installDayOutsideWindow("2026-10-31T23:00:00Z", "2026-10-31")).toBe(true); // 1 Nov Melbourne

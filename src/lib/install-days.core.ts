@@ -1,10 +1,10 @@
-// Owner-picked install days (Operating Model v2, step 9 Part B). Pure rules only.
-// Owner picks 3–5 whole install days (8am–4pm Melbourne) inside the 30-day window, business days at least
-// 24h away, (trades manage their own availability). The quoted installer taking one = booked.
+// Install days (Jo 24 Oct 2026). Pure rules only.
+// Once electrical clearance is in, the quoted installer offers 3 whole install days (8am–4pm Melbourne) inside the
+// 30-day window. The owner takes one (booked) or suggests their own days; the installer takes one of those (booked) or
+// offers 3 new ones, back and forth until a day is agreed. The office is never involved, except one alert when 10 days
+// are left with nothing booked. Days are business days at least 24h away (trades manage their own diaries).
 import { isBusinessDay, melbourneAt, melbourneYmd } from "./piesa-windows.core";
 
-export const INSTALL_DAY_MIN = 3;
-export const INSTALL_DAY_MAX = 5;
 export const INSTALL_DAY_LEAD_HOURS = 24;
 export const INSTALL_WINDOW_DAYS = 30;
 export const INSTALL_TEN_DAYS_LEFT = 10;
@@ -41,16 +41,6 @@ export function allowedInstallDays(i: { now?: Date; deadline: string | null }): 
   return out;
 }
 
-export function installDayBlockers(picks: string[], allowed: string[]): string[] {
-  const b: string[] = [];
-  const uniq = new Set(picks);
-  if (uniq.size !== picks.length) b.push("Each day can only be chosen once.");
-  if (uniq.size < INSTALL_DAY_MIN) b.push(`Please choose at least ${INSTALL_DAY_MIN} days.`);
-  if (uniq.size > INSTALL_DAY_MAX) b.push(`Please choose no more than ${INSTALL_DAY_MAX} days.`);
-  if ([...uniq].some((d) => !allowed.includes(d))) b.push("One of those days is no longer available. Please choose again.");
-  return b;
-}
-
 /** Hard gate: may an install start on this instant? */
 export function installDayOutsideWindow(startIso: string, deadline: string | null): boolean {
   return !deadline || melbourneYmd(new Date(startIso)) > deadline;
@@ -67,6 +57,44 @@ export function shouldFlagTenDaysLeft(f: { deadline: string | null; booked: bool
   if (!f.deadline || f.booked || f.flaggedAt) return false;
   const left = installDaysLeft(f.deadline, f.now);
   return left >= 0 && left <= INSTALL_TEN_DAYS_LEFT;
+}
+
+/** Jo 24 Oct: the installer offers 3 days (or every day left, when fewer than 3 remain). */
+export const INSTALLER_OFFER_DAYS = 3;
+/** The owner may suggest 1–5 days of their own. */
+export const OWNER_SUGGEST_MAX = 5;
+
+export type InstallDayRow = { id: string; proposer_role: string | null; status: string; starts_at: string };
+export type InstallDayTurn = "not_ready" | "expired" | "booked" | "installer_to_offer" | "owner_to_answer" | "installer_to_answer";
+
+/** Whose move it is. Open = still proposed and not yet passed. Owner rows from before 24 Oct read as the owner's
+ *  suggestion, so the installer answers them. */
+export function installDayTurn(i: { ready: boolean; booked: boolean; expired: boolean; rows: InstallDayRow[]; now?: Date }): { turn: InstallDayTurn; open: InstallDayRow[] } {
+  const now = (i.now ?? new Date()).getTime();
+  const open = i.rows.filter((r) => r.status === "proposed" && Date.parse(r.starts_at) > now).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  if (i.booked) return { turn: "booked", open: [] };
+  if (i.expired) return { turn: "expired", open: [] };
+  if (!i.ready) return { turn: "not_ready", open: [] };
+  if (open.some((r) => r.proposer_role === "installer")) return { turn: "owner_to_answer", open: open.filter((r) => r.proposer_role === "installer") };
+  if (open.length) return { turn: "installer_to_answer", open };
+  return { turn: "installer_to_offer", open: [] };
+}
+
+/** Days offered or suggested: unique, all allowed; installer exactly 3 (or all left), owner 1–5. */
+export function dayOfferBlockers(picks: string[], allowed: string[], who: "installer" | "owner"): string[] {
+  const b: string[] = [];
+  const uniq = new Set(picks);
+  if (uniq.size !== picks.length) b.push("Each day can only be chosen once.");
+  if (who === "installer") {
+    const need = Math.min(INSTALLER_OFFER_DAYS, allowed.length);
+    if (need === 0) b.push("There are no days left inside the 30-day window.");
+    else if (uniq.size !== need) b.push(need === INSTALLER_OFFER_DAYS ? `Please choose ${INSTALLER_OFFER_DAYS} days.` : `Please choose all ${need} days that are left.`);
+  } else {
+    if (uniq.size < 1) b.push("Please choose at least 1 day.");
+    if (uniq.size > OWNER_SUGGEST_MAX) b.push(`Please choose no more than ${OWNER_SUGGEST_MAX} days.`);
+  }
+  if ([...uniq].some((d) => !allowed.includes(d))) b.push("One of those days is no longer available. Please choose again.");
+  return b;
 }
 
 export const NEW_PIESA_NEEDED = "New PIESA needed";

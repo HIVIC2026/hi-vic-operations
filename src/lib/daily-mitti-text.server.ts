@@ -6,10 +6,10 @@ import { melbourneMidnight } from "./daily-brief.core";
 import { addYmd } from "./melbourne-time.core";
 import { isTestPartner, normaliseAuMobile } from "./test-send.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
+import { mittiFormUrl } from "./mitti-link.core";
 import { TWILIO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-const MITTI = "https://app.au.mitti.com/inspections/";
 const myWork = (d: string) => `${SET_PASSWORD_BASE}/field?day=${d}`;
 
 export async function dailyTextSettings() {
@@ -57,7 +57,7 @@ export async function collectDay(date: string): Promise<Group[]> {
     const tbl = b.kind === "ready_check" ? "ready_checks" : "assessments";
     const { data: f } = await db.from(tbl).select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: f?.external_mitti_id ? `${MITTI}${f.external_mitti_id}` : null });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: f?.external_mitti_id ? mittiFormUrl(f.external_mitti_id) : null });
   }
   return [...groups.values()];
 }
@@ -145,8 +145,8 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     const street = job.properties?.address_line?.split(",")[0] ?? null;
     const where = [street, job.properties?.suburb].filter(Boolean).join(", ") || "see your portal";
     // Jo-approved wording (23 Oct): "Ready Check booked: [day, time], [address]. Open the form: [link]".
-    const body = `Ready Check booked: ${when}, ${where}.${f?.external_mitti_id ? ` Open the form: ${MITTI}${f.external_mitti_id}` : " The form link will appear in your portal."}`;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: null, street, suburb: job.properties?.suburb ?? null, status: "confirmed", link: f?.external_mitti_id ? `${MITTI}${f.external_mitti_id}` : null });
+    const body = `Ready Check booked: ${when}, ${where}.${f?.external_mitti_id ? ` Open the form: ${mittiFormUrl(f.external_mitti_id)}` : " The form link will appear in your portal."}`;
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: null, street, suburb: job.properties?.suburb ?? null, status: "confirmed", link: f?.external_mitti_id ? mittiFormUrl(f.external_mitti_id) : null });
     if ((await sendOnce(g, date, "update", `rc-booked:${b.id}`, body, g.jobs.map(snap))) !== "already") out.sent++;
   }
   await refreshDelivery(date);

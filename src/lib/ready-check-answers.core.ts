@@ -15,7 +15,6 @@ export const STOP_NO_CONTACT = "Owner hasn't agreed to be contacted – can't pr
 export const STOP_R2 = "Fails: existing insulation is R2 or above";
 export const STOP_LIFE_SUPPORT = "Life support at property – office to check";
 export const STOP_BUILT_5 = "Ceiling/roof built or replaced in last 5 years – office to check";
-
 /** Hard stops: any one means no quote, and the office list gets the exact reason. */
 /** A2 (our leads, Jo 23 Oct): life support and 5-year come from the owner's website answers, never the form. */
 export function websiteStopReasons(w: { lifeSupportStatus: string | null; overFiveYears: string | null }): string[] {
@@ -53,4 +52,11 @@ export function difficultAccessFee(entries: E[]): { amountIncGst: number | null;
 /** A1: the installer ticked "Difficult access charge" in "What's included in your quote?" (already inside their total). */
 export function a1DifficultAccessIncluded(entries: E[]): boolean {
   return vals(entries, ["What's included in your quote?", "What's included in your price (tick all that apply)"]).some((v) => v.split(/\s*,\s*/).some((x) => /^difficult access( charge)?$/i.test(x.trim())));
+}
+
+/** Jo 24 Oct: eligibility is decided from the Mitti form answers (no manual office record). Any reason holds the
+ *  quote for the office; an empty list means the form says eligible. Never decides "not eligible" on its own.
+ *  (No previous-VEU question: Jo 24 Oct — the rebate is brand new, so not asked yet.) */
+export function formEligibilityReasons(entries: E[], opts: { ownerAnsweredOnWebsite?: boolean } = {}): string[] {
+  return readyCheckStopReasons(entries, opts);
 }

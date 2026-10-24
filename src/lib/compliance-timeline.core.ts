@@ -91,12 +91,14 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   let windowStatus: GateStatus = "not_yet";
   let windowDetail: string | null = null;
   if (piesaDeadline) {
-    if (f.installCompletedAt) windowStatus = t(f.installCompletedAt) <= t(piesaDeadline) ? "done" : "overdue";
+    // The rule is that works must COMMENCE within the window (Spec / PIESA form), so a job that started in time but
+    // finished after the deadline is compliant. The booked start is the commencement record; completion is the fallback.
+    if (f.installCompletedAt) windowStatus = t(f.installStart ?? f.installCompletedAt) <= t(piesaDeadline) ? "done" : "overdue";
     else if (f.installStart && t(f.installStart) > t(piesaDeadline)) { windowStatus = "blocked"; windowDetail = "Booked install date is after the PIESA window — rebook or redo PIESA"; }
     else windowStatus = deadline(null, piesaDeadline, f.now);
     if (windowStatus === "overdue" && !f.installCompletedAt) windowDetail = "PIESA window expired — PIESA must be redone";
   }
-  push({ key: "install_within_piesa_window", label: `Installation within ${windowDays} days of PIESA`, when: "After PIESA", status: windowStatus, dueAt: piesaDeadline, detail: windowDetail, blocks: "Installation" });
+  push({ key: "install_within_piesa_window", label: `Installation commenced within ${windowDays} days of PIESA`, when: "After PIESA", status: windowStatus, dueAt: piesaDeadline, detail: windowDetail, blocks: "Installation" });
 
   const installed = !!f.installCompletedAt;
   push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person", when: "Before VEEC creation; must not be reimbursed", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });

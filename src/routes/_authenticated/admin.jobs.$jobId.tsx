@@ -59,12 +59,19 @@ import { OfficeJobProfitCard } from "@/components/portal/job-profit";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { JobDeleteControls } from "@/components/portal/JobDeleteControls";
 import { OfficeReadyCheckBooking } from '@/components/portal/ready-check-booking-access';
+import { InstallerJobSummary } from "@/components/portal/InstallerJobSummary";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s['section']); return v ? { section: v } : {}; },
   component: JobDetail,
 });
+/** Installer jobs: the website-lead checks sit in one closed "Full details" section; other jobs unchanged. */
+function Wrap({ installerJob, children }: { installerJob: boolean; children: React.ReactNode }) {
+  if (!installerJob) return <>{children}</>;
+  return <details className="my-3 rounded-md border bg-card p-3" data-installer-full-details><summary className="cursor-pointer text-sm font-semibold text-sub">Full details — stage checks, classification and website eligibility answers</summary><div className="mt-3">{children}</div></details>;
+}
+
 function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
@@ -85,12 +92,16 @@ function JobDetail() {
   if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p role="status" className="text-muted-foreground">Loading…</p></AppShell>;
   const g = (k: RecordGroup) => ({ id: k, open: open.has(k), onToggle: () => toggle(k) });
+  const installerJob = job.channel === "installer_sourced";
   return (
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
-      <Link to="/admin/enquiries" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
+      <button type="button" onClick={() => window.history.length > 1 ? window.history.back() : void (window.location.href = installerJob ? "/admin/jobs/active" : "/admin/enquiries")} className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</button>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       {job.stage === "cancelled" && <div role="status" className="mb-3 rounded-md border border-danger/40 bg-danger-soft p-3 text-sm font-semibold text-danger">{closedReasonLabel("cancelled", (job as { cancelled_reason?: string | null }).cancelled_reason)}</div>}
+      {installerJob && <InstallerJobSummary jobId={jobId} />}
+      {/* Jo 23 Oct: installer jobs keep the website-lead status, stage checks and Gate 1 table in one closed section. */}
+      <Wrap installerJob={installerJob}>
       <CompactJobStatus jobId={jobId} onOpen={openTarget} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setClassifying(!classifying)} aria-expanded={classifying} aria-controls="job-classification">Change classification</Button><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div></div>
       {classifying && <div id="job-classification"><EligibilityForm jobId={jobId} /></div>}
@@ -103,6 +114,7 @@ function JobDetail() {
         <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openTarget("ready-check")}>Ready Check controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("quotes")}>Quote controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("ap-evidence")}>AP controls</Button></div>
       </section>}
       <details className="my-3 text-sm" onToggle={(event) => setEligibilityOpen(event.currentTarget.open)}><summary className="cursor-pointer font-semibold text-sub">Eligibility evidence & verified decision</summary>{eligibilityOpen && <EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} />}</details>
+      </Wrap>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
       </div>
@@ -126,7 +138,7 @@ function JobDetail() {
       <h2 className="mb-1 text-sm font-bold">Forms & evidence</h2>
       <div className="mb-6 rounded-md border bg-card">
         <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Estimate, website intake and consent">
-          <PaperworkStrip jobId={jobId} /><AdminEstimateCard jobId={jobId} />
+          <PaperworkStrip jobId={jobId} />{installerJob ? <p className="my-2 text-sm text-muted-foreground" data-no-estimate>The website-style indicative estimate isn't used for installer jobs — the owner's quote comes from the installer's price on the Ready Check.</p> : <AdminEstimateCard jobId={jobId} />}
           <SubHeading>Contact consent and photos</SubHeading>
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
@@ -135,7 +147,7 @@ function JobDetail() {
           <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Ready Check"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
-          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
+          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} installerJob={installerJob} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>
@@ -372,7 +384,8 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
   );
 }
 
-function AdminQuotes({ jobId }: { jobId: string }) {
+/** Installer jobs: no HIV rate-card generation and no HIV margin table (installer price, no margin — the HIV quote rule refuses them). */
+function AdminQuotes({ jobId, installerJob = false }: { jobId: string; installerJob?: boolean }) {
   const gen = useAction(generateInstallerQuotes);
   const regen = useAction(regenerateRectificationQuote);
   const adjust = useAction(adjustQuote);
@@ -387,11 +400,11 @@ function AdminQuotes({ jobId }: { jobId: string }) {
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>Generate installer quotes</Button>
+        {!installerJob && <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>Generate installer quotes</Button>}
         <Button variant="outline" onClick={() => regen({ jobId }, "Electrical fixes quote regenerated")}>Regenerate electrical fixes quote</Button>
       </div>
       <QuotesPanel jobId={jobId} canRespond={false} />
-      <Section title="Internal pricing (admin only)">
+      {!installerJob && <Section title="Internal pricing (admin only)">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-muted-foreground"><tr><th className="p-2">Quote</th><th className="p-2">Status</th><th className="p-2">Cost ex GST</th><th className="p-2">AP margin</th><th className="p-2">AP fee</th><th className="p-2">Customer inc GST</th><th className="p-2" /></tr></thead>
@@ -425,7 +438,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
             </tbody>
           </table>
         </div>
-      </Section>
+      </Section>}
     </>
   );
 }

@@ -371,10 +371,10 @@ const s7: StepFn = async (ctx, r) => {
   if ((await stageOf(ctx)) !== "installation_scheduling") await act(r, "install scheduling opens after the PIESA pass", () => transition(ctx.jobId!, "installation_scheduling", ctx.actorId, "TEST journey: install scheduling"));
   const days: string[] = []; for (let d = 3; d < 20 && days.length < 3; d++) { const x = melbourneDate(d); const wd = new Date(`${x}T12:00:00Z`).getUTCDay(); if (wd > 0 && wd < 6) days.push(x); }
   const idays = await import("./install-days.server");
-  await act(r, "owner picks install days (within 30 days of the PIESA)", () => idays.submitOwnerInstallDays(ctx.jobId!, ctx.actorId, days));
-  const [p] = await idays.installerOpenDays([ctx.jobId!]);
-  check(r, "installer sees an open install day", !!p);
-  await act(r, "installer takes the install day", () => idays.installerTakeDay(ctx.jobId!, p!.id, ctx.installer.id));
+  await act(r, "installer offers 3 install days (within 30 days of the PIESA)", () => idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days));
+  const st = await idays.ownerInstallDayState(ctx.jobId!);
+  check(r, "owner sees the installer's 3 days", st.turn === "owner_to_answer" && st.open.length === 3, st.turn);
+  await act(r, "owner takes one of the installer's days", () => idays.ownerTakeDay(ctx.jobId!, st.open[0]!.id, ctx.actorId));
   check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
   for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
   // Before the install day, the same real paths the office, electrician and owner use (no check bypassed):

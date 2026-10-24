@@ -10,7 +10,7 @@ describe("trade view presentation", () => {
   test("own-rate rough install value, rounded down, never guaranteed", () => {
     expect(roughInstallValue(27.5, 121)).toBe(3327);
     expect(roughInstallValue(null, 120)).toBeNull();
-    expect(roughValueNote("owner_estimate")).toBe("Based on the owner's guess. Your quote at the Ready Check sets the real price, including any removal or extras.");
+    expect(roughValueNote("owner_estimate")).toBe("Based on the owner's guess. Your pay is set by your agreed rates and the area measured at the Ready Check, including any removal.");
     expect(roughValueNote("aerial").startsWith("Based on an aerial measurement.")).toBe(true);
     expect(roughValueNote("owner_estimate")).not.toMatch(/guarantee|yours to install|confirmed install/i);
   });

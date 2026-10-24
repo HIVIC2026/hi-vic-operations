@@ -62,6 +62,8 @@ export async function tradeHome(userId: string) {
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
   ]);
+  const { data: forms } = await admin.from("ceiling_measurements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("is_current", true).eq("external_source", "mitti").not("external_id", "is", null);
+  const withForm = new Set((forms ?? []).map((f) => f.job_id));
   const mine = c.kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
   const byId = new Map(live.map((j) => [j.id, j]));
@@ -76,7 +78,7 @@ export async function tradeHome(userId: string) {
   for (const j of live) {
     const l = label(j);
     const up = upcomingOf(j.id);
-    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: ((a) => a === "have_quote" ? "yes" : a === "not_quoted" ? "no" : (j.installer_quoted as "yes" | "no" | null))(answers.get(j.id)), siteCheck: j.installer_site_check as "yes" | "no" | null, missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
+    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: ((a) => a === "have_quote" ? "yes" : a === "not_quoted" ? "no" : (j.installer_quoted as "yes" | "no" | null))(answers.get(j.id)), siteCheck: j.installer_site_check as "yes" | "no" | null, mittiForm: withForm.has(j.id), missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
     placeOf.set(j.id, p.place);
     if (p.place === "needs_me") yourMove.push({ jobId: j.id, title: p.title, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
     if (p.place === "coming_up") { const b = up[0]!; coming.push({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...l }); }
@@ -99,16 +101,16 @@ export async function tradeHome(userId: string) {
   // Done tab: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, terminal reason) — no owner, address, contact or price, and no reopened access.
   const { installerTab, doneReason } = await import("./installer-progress.core");
-  // Jo 23 Oct: installer quote check — one plain card line and "Action needed" while it's the installer's turn.
+  // Installer quote status — one plain card line and "Action needed" while it's the installer's turn (Jo 24 Oct: no approval step).
   const quoteLine = new Map<string, string>();
   if (c.kind === "installer") {
-    const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued"]);
-    const { loadQuoteApproval } = await import("./installer-quote-approval.server");
-    const { approvalCardLine } = await import("./installer-quote-approval.core");
-    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadQuoteApproval(id).catch(() => null); if (ap?.applies) quoteLine.set(id, approvalCardLine(ap.state, ap.sent)); }
+    const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]);
+    const { loadInstallerQuote } = await import("./installer-quote-status.server");
+    const { installerQuoteLine } = await import("./installer-quote-status.core");
+    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadInstallerQuote(id).catch(() => null); if (ap?.applies) quoteLine.set(id, installerQuoteLine(ap)); }
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
-  const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, (j as { channel?: string | null }).channel === "installer_sourced" && /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
+  const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
   const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") ? "action" as const : "progress" as const : j.tab }));
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
@@ -182,6 +184,8 @@ export async function tradeTakeTime(offerId: string, windowId: string, userId: s
   await admin.from("bookings").insert({ job_id: o.job_id, kind: isRc ? "ready_check" : "assessment", scheduled_start: w.starts_at, scheduled_end: w.ends_at, status: "confirmed", booked_by: userId, contractor_id: userId, business_id: c.biz.id, notes: "TEST booking (trade view)" } as never);
   await admin.from("jobs").update({ stage: isRc ? "ready_check_scheduled" : "piesa_scheduled" } as never).eq("id", o.job_id);
   await logEvent(o.job_id, userId, "booking_confirmed", `TEST: ${isRc ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"} taken from the trade view`, { window_id: windowId }, { internal: true });
+  // Same as a real booking: the Ready Check form is created (TEST jobs use the TEST Mitti assignee).
+  if (isRc) await (await import("./mitti-create.server")).onReadyCheckBooked(o.job_id, userId).catch((e) => console.error("TEST Ready Check form not scheduled", (e as Error).message));
   return { tooSlow: false };
 }
 
@@ -302,7 +306,14 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   // Owner paid in full (Xero mirror): needed alongside AP approval before the 7-day payout clock starts.
   const { data: invs } = await admin.from("invoices").select("job_id, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none);
   // Committed contract snapshot: does the accepted HIV quote carry this electrical line?
-  const { data: accQ } = await admin.from("quotes").select("job_id, kind, quote_items(code, description)").in("job_id", ids.length ? ids : none).eq("status", "accepted");
+  const { data: accQ } = await admin.from("quotes").select("job_id, kind, quote_items(code, description), quote_internals(cost_ex_gst)").in("job_id", ids.length ? ids : none).eq("status", "accepted");
+  // Our leads: the install pay is the installer's agreed-rate cost on the accepted quote (inc GST) until the office records the payout.
+  const ratePay = (jobId: string): number | null => {
+    const q = (accQ ?? []).find((x) => x.job_id === jobId && x.kind === "installation");
+    const qi = q?.quote_internals as { cost_ex_gst: number | string | null } | { cost_ex_gst: number | string | null }[] | null | undefined;
+    const cost = Number((Array.isArray(qi) ? qi[0] : qi)?.cost_ex_gst);
+    return Number.isFinite(cost) && cost > 0 ? Math.round(cost * 1.1 * 100) / 100 : null;
+  };
   const committed = (jobId: string, kind: string): boolean | null => {
     const qs = (accQ ?? []).filter((q) => q.job_id === jobId); if (!qs.length) return null;
     const items = qs.flatMap((q) => [...((q.quote_items as { code: string | null; description: string | null }[] | null) ?? []).map((i) => ({ ...i, qk: q.kind }))]);
@@ -315,7 +326,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
-    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst) ?? 0) || null;
+    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
     const jj = b.jobs as { channel?: string | null; electrician_choice?: string | null };

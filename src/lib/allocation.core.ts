@@ -316,7 +316,7 @@ export type NeedsCode =
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
   | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades"
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
-  | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer";
+  | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -325,6 +325,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   mitti_review_pickup: { why: "Link/Review a form started in Mitti.", next: "Office needs to: open \"Ready Checks started in Mitti\" on Active jobs and link it to the right job (or create one).", tab: "overview", urgency: "today" },
   ready_check_held: { why: "Check held Ready Check: the owner quote can't be prepared yet.", next: "Office needs to: sort out each reason listed, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
   quote_held_review: { why: "Review held quote.", next: "Office needs to: check the held owner quote on the Quotes tab and release it or stop it with a reason.", tab: "quotes", urgency: "today" },
+  quote_auto_send_held: { why: "Quote not sent automatically: the Ready Check is Complete but a check failed (or the form changed after the quote was sent).", next: "Office needs to: read the reason on the Quotes tab, sort it out, then press Send quote (or ask the installer to fix the form).", tab: "quotes", urgency: "today" },
   quote_not_delivered: { why: "Quote not delivered: the owner was not emailed.", next: "Office needs to: contact the owner about their quote (it is on their job page).", tab: "communications", urgency: "today" },
   mitti_setup_installer: { why: "Set up installer in Mitti: the installer isn't in our Mitti account.", next: "Office needs to: invite the installer to Mitti with their portal email, then retry the form.", tab: "overview", urgency: "today" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },

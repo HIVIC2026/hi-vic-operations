@@ -104,3 +104,9 @@ describe("New from installers (no manual 'seen' step)", () => {
     for (const page of ["src/components/portal/JobsWorkspace.tsx", "src/routes/_authenticated/admin.today.tsx"]) expect(readFileSync(page, "utf8")).toContain("<NewFromInstallers />");
   });
 });
+
+test("Jo 24 Oct: a held quote shows on New from installers until a quote goes to the owner", () => {
+  const held = ev("quote_auto_send_held", { reasons: ["Quote held: difficult access fee $650 is over the $500 limit"] }, null, daysAgo(2));
+  expect(classifyNewInstallerJob(job({ createdAt: daysAgo(9), events: [held] }), now)!.warnings).toContain("Quote held: difficult access fee $650 is over the $500 limit");
+  expect(classifyNewInstallerJob(job({ createdAt: daysAgo(9), events: [ev("quote_sent_automatically", null, null, daysAgo(1)), held] }), now)?.warnings ?? []).not.toContainEqual(expect.stringContaining("Quote held"));
+});

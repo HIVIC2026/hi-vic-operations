@@ -91,3 +91,19 @@ export async function adminLinkPath(jobId: string) {
   const { data } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
   return data && linkUsable(data) ? `/estimate/${data.token}` : null;
 }
+
+/** Jo 24 Oct: every owner whose quote goes out needs their secure My job link. Uses the Step 3 link when Gate 1 allows
+ *  one; an installer's own job (e.g. bulk upload, no website Gate 1) gets a plain My job link. Never sends anything. */
+export async function ensureOwnerLink(jobId: string): Promise<boolean> {
+  const usable = async () => { const { data } = await admin.from("customer_estimate_links").select("status, expires_at").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle(); return !!data && linkUsable(data); };
+  if (await usable()) return true;
+  try { await syncStep3(jobId, null); } catch { /* fall through */ }
+  if (await usable()) return true;
+  const { data: j } = await admin.from("jobs").select("owner_id, channel").eq("id", jobId).single();
+  if (!j?.owner_id || j.channel !== "installer_sourced") return false;
+  await admin.from("customer_estimate_links").update({ status: "expired" }).eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active");
+  const { error } = await admin.from("customer_estimate_links").insert({ job_id: jobId, owner_id: j.owner_id, purpose: LINK_PURPOSE, token: newToken(), expires_at: expiryFrom(), current_estimate_id: null });
+  if (error && !/duplicate/i.test(error.message)) return false;
+  await logEvent(jobId, null, "owner_link_prepared", "Secure My job link prepared for the owner's quote (not sent)", {}, { internal: true });
+  return usable();
+}

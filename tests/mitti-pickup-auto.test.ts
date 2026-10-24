@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { parsePickupAudit, pickupAddressParts, pickupAutoDecision, needsFinishingText } from "../src/lib/mitti-pickup.core";
+import { parsePickupAudit, pickupAddressParts, pickupAutoDecision, needsFinishingText, typedJobDecision, type TypedPickupJob } from "../src/lib/mitti-pickup.core";
+import { provisionalGivesWayToMitti } from "../src/lib/measurement.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 
 // Stage 3/4 rules (Jo 23 Oct): new A1 answers are read absent-safely, and a Mitti-first Ready Check is
@@ -122,5 +124,50 @@ describe("installer-started A2 form (Jo 22 Oct 23:30)", () => {
   });
   test("installer A1 form has no extra flag", () => {
     expect(d({ ...base, templateKind: "installer_form" }).officeFlag).toBeUndefined();
+  });
+});
+
+test("Jo 23 Oct: a picked-up Mitti job is marked installer-led (else commercialBlocker stops owner acceptance)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/lib/mitti-pickup-auto.server.ts", "utf8");
+  const create = src.indexOf("await upsertEnquiry("), mark = src.indexOf('update({ installer_led: true })'), link = src.indexOf("await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }");
+  expect(create).toBeGreaterThan(0);
+  expect(mark).toBeGreaterThan(create);
+  expect(mark).toBeLessThan(link);
+});
+
+// Jo 24 Oct (HV-3164): Deep started the A1 himself and typed the HV number; it was skipped and never synced.
+describe("typed HV number on an installer-started form", () => {
+  const stages = ["preliminary_estimate_ready", "ready_check_scheduled"];
+  const job: TypedPickupJob = { jobId: "j1", jobNumber: "HV-3164", stage: "preliminary_estimate_ready", channel: "installer_sourced", deleted: false, businessId: "reinsulate", hasOtherMittiForm: false };
+  test("his own installer job before the Ready Check links automatically", () =>
+    expect(typedJobDecision("HV-3164", job, "reinsulate", stages)).toEqual({ action: "link", jobId: "j1", jobNumber: "HV-3164" }));
+  test.each([
+    [null, "reinsulate", "Form says HV-3164 but there is no such job"],
+    [{ ...job, deleted: true }, "reinsulate", "Form says HV-3164 but there is no such job"],
+    [job, null, "Form says HV-3164 but the Mitti user is not matched to an installer business"],
+    [job, "other", "Form says HV-3164, which is not this installer's job"],
+    [{ ...job, channel: "hivic_sourced" }, "reinsulate", "Form says HV-3164, which is not this installer's job"],
+    [{ ...job, stage: "measured_quote_accepted" }, "reinsulate", "Form says HV-3164, which is past the Ready Check (measured_quote_accepted)"],
+    [{ ...job, hasOtherMittiForm: true }, "reinsulate", "Form says HV-3164, which already has its own Mitti Ready Check form"],
+  ] as [TypedPickupJob | null, string | null, string][])("office review: %#", (j, biz, reason) =>
+    expect(typedJobDecision("HV-3164", j, biz, stages)).toEqual({ action: "office_review", reasons: [reason] }));
+  test("the scan no longer drops forms with a typed HV number", () => {
+    const src = readFileSync("src/lib/mitti-pickup.server.ts", "utf8");
+    expect(src).not.toContain(`=== "linked") continue`);
+    expect(src).toContain("typedJob: await typedPickupJob(");
+  });
+});
+
+describe("provisional Add-job size gives way to the Mitti form", () => {
+  const prov = { provenance: "installer_supplied_provisional", status: "needs_review", external_source: "installer_import", accepted_by: null };
+  test("provisional, unlinked, unaccepted → replaced (kept as history)", () => expect(provisionalGivesWayToMitti(prov)).toBe(true));
+  test.each([
+    [{ ...prov, status: "complete" }], [{ ...prov, external_source: "mitti" }], [{ ...prov, accepted_by: "office" }],
+    [{ ...prov, provenance: "onsite_measured" }], [null],
+  ])("never replaces %o", (m) => expect(provisionalGivesWayToMitti(m)).toBe(false));
+  test("link supersedes rather than relabelling the provisional row", () => {
+    const src = readFileSync("src/lib/mitti.server.ts", "utf8");
+    expect(src).toMatch(/update\(\{ is_current: false \}\)\.eq\("id", m\.id\)/);
   });
 });

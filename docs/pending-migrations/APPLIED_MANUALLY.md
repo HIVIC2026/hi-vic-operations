@@ -79,3 +79,4 @@ above), and the application code reads the live schema. The Drizzle journal inte
 
 **Follow-up (non-blocking):** the next time a Drizzle migration is generated, ensure it does not silently
 reuse the `0149`/`0202` numbers for unrelated changes; refer to this record.
+- 0224_installer_quote_visibility.sql — applied live 24 Oct 2026 at Jo's request (installers read accepted installation quotes only on installer_sourced jobs). Verified via function definition. Rollback: 0224_installer_quote_visibility.rollback.sql.
