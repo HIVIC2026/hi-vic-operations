@@ -15,7 +15,7 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
   .row{display:flex!important;flex-wrap:wrap!important;gap:4px 10px!important;padding:14px 0!important;}
   .c-job{order:1;} .c-owner{order:2;flex:1;} .c-age{order:3;}
   .c-suburb{order:4;width:100%;} .c-need{order:5;width:100%;margin-top:4px;}
-  .c-btn{order:6;width:100%;margin-top:10px;} .c-btn a{display:flex!important;width:100%;min-height:46px;}
+  .c-btn{order:6;width:100%;margin-top:10px;} .c-btn a{display:flex!important;width:100%;box-sizing:border-box;min-height:46px;}
   .phone-tabs{display:grid;}
 }
 </style>
@@ -50,14 +50,14 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;">
         <div>
           <div style="font-family:Outfit,Figtree,Arial,sans-serif;font-size:28px;font-weight:600;line-height:1.15;">Needs me</div>
-          <div style="font-size:15px;color:#5A6785;margin-top:6px;">Saturday 24 October 2026 · 12 need you. Most urgent first.</div>
+          <div style="font-size:15px;color:#5A6785;margin-top:6px;">Saturday 24 October 2026 · 14 need you. Most urgent first.</div>
         </div>
         <a href="#" style="font-size:14px;font-weight:600;color:#3C51C4;padding:8px 0;">Include TEST jobs</a>
       </div>
 
       
-    <section style="margin-top:26px;">
-      <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;padding-bottom:8px;border-bottom:1px solid #E4E9F5;">Today <span style="font-weight:500;letter-spacing:0;text-transform:none;color:#5A6785;">· 6</span></div>
+    <section data-why="due or overdue now: 220 lapsed offer, 159 held quote, 123 consent, 195 ESC window, 141 deposit hold, 213 final check, 83/SMS rule send failed" style="margin-top:26px;">
+      <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;padding-bottom:8px;border-bottom:1px solid #E4E9F5;">Today <span style="font-weight:500;letter-spacing:0;text-transform:none;color:#5A6785;">· 7</span></div>
       <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
         <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3160</span>
         <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Papadopoulos</span>
@@ -94,9 +94,9 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
         <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3082</span>
         <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">O’Connell</span>
         <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Boronia</span>
-        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">Deposit $612 not received · hold ends in 9h</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">Deposit $612 not in Xero · hold ends in 9h</span>
         <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">1d</span>
-        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Record payment</a></span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Open job</a></span>
       </div>
       <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
         <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3044</span>
@@ -106,8 +106,16 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
         <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">3d</span>
         <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Approve</a></span>
       </div>
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3150</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Szabo</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Oakleigh East</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">Send failed · text “Your installer has offered 3 days”</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">40m</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Open job</a></span>
+      </div>
     </section>
-    <section style="margin-top:26px;">
+    <section data-why="due within 7 days: 49 choose installer, 157 choose electrician, 119/121 VEEC Part A" style="margin-top:26px;">
       <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;padding-bottom:8px;border-bottom:1px solid #E4E9F5;">This week <span style="font-weight:500;letter-spacing:0;text-transform:none;color:#5A6785;">· 3</span></div>
       <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
         <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3188</span>
@@ -134,8 +142,16 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
         <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Sign</a></span>
       </div>
     </section>
-    <section style="margin-top:26px;">
-      <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;padding-bottom:8px;border-bottom:1px solid #E4E9F5;">Watch <span style="font-weight:500;letter-spacing:0;text-transform:none;color:#5A6785;">· 3</span></div>
+    <section data-why="alerts: 240 payments not in Xero, 2 ten-day clock, 215 second no-access, 120 VEEC day 10" style="margin-top:26px;">
+      <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;padding-bottom:8px;border-bottom:1px solid #E4E9F5;">Watch <span style="font-weight:500;letter-spacing:0;text-transform:none;color:#5A6785;">· 4</span></div>
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3110</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Haddad</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Wantirna</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">$349 owner says paid · not in Xero</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">2d</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Open job</a></span>
+      </div>
       <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
         <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3057</span>
         <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Fernandes</span>
@@ -162,7 +178,45 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
       </div>
     </section>
 
-      <a href="#" style="display:block;font-size:14px;font-weight:600;color:#22376B;margin-top:26px;padding:14px 0;border-top:1px solid #E4E9F5;">5 partner &amp; system items ›</a>
+      <a href="#" id="psys-toggle" data-why="application queue rule, 153 CII, 130 privacy notice, Mitti pickup rule" onclick="document.getElementById('psys').style.display='block';this.textContent='4 partner & system items ▾';return false;" style="display:block;font-size:14px;font-weight:600;color:#22376B;margin-top:26px;padding:14px 0;border-top:1px solid #E4E9F5;">4 partner &amp; system items ›</a>
+      <div id="psys" style="display:none;">
+        
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">Application</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Peninsula Ceilings</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Installer</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">New installer application · Frankston</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">1d</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Review</a></span>
+      </div>
+        
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">Person</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Marcus Bell</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Reinsulate</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">CII certificate to verify</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">2d</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Verify CII</a></span>
+      </div>
+        
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">Person</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Priya Raman</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Eastside</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">ESC privacy notice not acknowledged · 7 days</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">7d</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Send notice</a></span>
+      </div>
+        
+      <div class="row" style="display:grid;grid-template-columns:84px 136px 160px minmax(0,1fr) 56px auto;align-items:center;gap:16px;min-height:56px;padding:8px 0;border-bottom:1px solid #E4E9F5;">
+        <span class="c-job" style="font-size:13px;font-weight:700;color:#22376B;">HV-3133</span>
+        <span class="c-owner" style="font-size:15px;font-weight:600;color:#22376B;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Vuong</span>
+        <span class="c-suburb" style="font-size:14px;color:#5A6785;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Clayton South</span>
+        <span class="c-need" style="min-width:0;font-size:14px;font-weight:500;color:#22376B;line-height:1.35;">Mitti form not linked · Ready Check started</span>
+        <span class="c-age" style="font-size:13px;color:#5A6785;text-align:right;">5h</span>
+        <span class="c-btn"><a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#3C51C4;color:#fff;border-radius:10px;min-height:40px;padding:0 16px;font-size:14px;font-weight:600;white-space:nowrap;">Link form</a></span>
+      </div>
+      </div>
     </main>
   </div>
 
