@@ -1,52 +1,29 @@
-// Ready Check extras section (Jo 8 Oct 2026): the installer can report extras beyond the
-// agreed install and removal rates; the office prices them. Pure spec checks, no network.
+// Ready Check extras section (Jo 8 Oct 2026) — RETIRED by decision 222 (Jo 24 Oct 2026, lean Ready Check): the
+// installer's price covers the works and the office prices anything else from the notes; the three extras questions
+// are gone from both build sheets and the Mitti build prompt must never ask for them again. Pure spec checks, no network.
 import { describe, expect, test } from "bun:test";
-import { FORMS, validateTemplate, type FormField } from "../src/lib/mitti-forms.core";
+import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
 
 const YES_NO = "Are any extras needed beyond the standard install and removal?";
 const DESCRIBE = "Describe each extra and why it is needed";
 const PHOTOS = "Photos of each extra";
 
 for (const key of ["ready_check", "ready_check_priced"] as const) {
-  describe(`extras section on ${key}`, () => {
-    const fields = FORMS[key].fields;
-    const byLabel = (l: string) => fields.find((f: FormField) => f.label === l);
-
-    test("has the Yes/No extras question, required, before the finish section", () => {
-      const q = byLabel(YES_NO);
-      expect(q).toBeDefined();
-      expect(q!.type).toBe("choice");
-      expect(q!.required).toBe(true);
-      expect(q!.choices).toEqual(["Yes", "No"]);
-      const finish = fields.findIndex((f) => f.label === "Anything else the office should know?");
-      expect(fields.indexOf(q!)).toBeLessThan(finish);
+  describe(`extras section retired on ${key} (decision 222)`, () => {
+    const labels = FORMS[key].fields.map((f) => f.label);
+    test("none of the three extras questions is on the build sheet", () => {
+      for (const l of [YES_NO, DESCRIBE, PHOTOS]) expect(labels).not.toContain(l);
+      expect(labels.some((l) => l.toLowerCase().includes("extra"))).toBe(false);
     });
-
-    test("description and photos are required only when Yes", () => {
-      const d = byLabel(DESCRIBE);
-      const p = byLabel(PHOTOS);
-      expect(d).toBeDefined();
-      expect(p).toBeDefined();
-      expect(d!.required).toBe(true);
-      expect(p!.required).toBe(true);
-      expect(d!.when).toBe("Yes");
-      expect(p!.when).toBe("Yes");
+    test("the Mitti build prompt no longer asks for an extras section", () => {
+      const prompt = mittiAiPrompt(key);
+      expect(prompt).not.toContain(YES_NO);
+      expect(prompt).toContain("Do NOT add an extras section");
     });
-
-    test("the installer never enters a price for extras", () => {
-      const extras = fields.filter((f) => f.label.toLowerCase().includes("extra"));
-      for (const f of extras) expect(f.type).not.toBe("number");
+    test("an old template that still carries the extras questions is not failed for them", () => {
+      const items = FORMS[key].fields.map((f) => ({ label: f.label, type: f.type === "choice" || f.type === "yesno" ? "question" : f.type === "multichoice" || f.type === "tick" ? "checkbox" : f.type }));
+      const withExtras = [...items, { label: YES_NO, type: "question" }, { label: DESCRIBE, type: "textsingle" }, { label: PHOTOS, type: "media" }];
+      expect(validateTemplate(key, withExtras).ok).toBe(true);
     });
   });
 }
-
-describe("extras template validation", () => {
-  test("a template missing the extras questions fails validation", () => {
-    const items = FORMS.ready_check.fields
-      .filter((f) => ![YES_NO, DESCRIBE, PHOTOS].includes(f.label))
-      .map((f) => ({ label: f.label, type: f.type === "choice" ? "list" : f.type }));
-    const r = validateTemplate("ready_check", items);
-    expect(r.ok).toBe(false);
-    expect(r.issues.join(" ")).toContain(YES_NO);
-  });
-});

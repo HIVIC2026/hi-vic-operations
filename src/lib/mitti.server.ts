@@ -212,8 +212,11 @@ export async function pointMeasurementAtMitti(jobId: string, m: MeasurementPoint
   else await admin.from("ceiling_measurements").insert(fresh);
 }
 
-/** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement). */
-async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown) {
+/** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement).
+ *  Decision 222 / 211: the per-area record (name, length × width, m², existing, removal) travels with the measurement row
+ *  as `zones` (areas.v1 shape + install-day zone fields), read by jobUpgradeZones / rcAreasFromRecord for the A3 zone names.
+ *  Mitti jobs have no portal Ready Check draft row, so the canonical `measure.areas_v1` observation stays the office record. */
+async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown, zones: unknown[] | null = null) {
   const s = await jobScope(jobId);
   const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as MeasurementLike | null, incoming: values, source, external: { source: "mitti", id: auditId } });
   if (plan.action === "create")
@@ -225,7 +228,13 @@ async function applyMeasure(jobId: string, actorId: string | null, auditId: stri
       ...(plan.supplemented.length ? { supplemented_by: actorId, supplemented_at: new Date().toISOString(), supplemented_fields: [...new Set([...((cur.supplemented_fields as string[]) ?? []), ...plan.supplemented])] as unknown as Json } : {}),
     }).eq("id", plan.id).neq("status", "complete");
   }
-  return plan;
+  // The per-area record is a separate, fail-soft write: it never blocks the measurement sync (the caller reports it).
+  let zonesIssue: string | null = null;
+  if (zones && zones.length && plan.action !== "skip") {
+    const { error } = await admin.from("ceiling_measurements").update({ zones: zones as unknown as Json }).eq("job_id", jobId).eq("external_source", "mitti").eq("external_id", auditId).eq("is_current", true).neq("status", "complete");
+    if (error) zonesIssue = `Per-area record (names, length × width) not saved: ${error.message}`;
+  }
+  return { ...plan, zonesIssue };
 }
 
 /** Jo 23 Oct (pending approval): the A1 "Homeowner agrees to be contacted by Home Insulation Victoria" answer becomes an
@@ -274,6 +283,21 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   const prev = (lastAns?.details ?? null) as Record<string, unknown> | null;
   if (prev && (Object.keys(details) as (keyof typeof details)[]).every((k) => (prev[k] ?? null) === details[k])) return;
   await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, details, { internal: true });
+}
+
+/** Decision 222 question 10 "Who lives at the property?" (Activity Guide Appendix C premises type for the VEEC claim).
+ *  The properties.occupancy enum (owner_occupied / rental) cannot hold public or community housing, so the answer is kept
+ *  as the append-only `mitti_premises_type` workflow event (latest per job wins; a new row only when the answer changes).
+ *  Absent on older forms → nothing recorded. */
+export const PREMISES_TYPE_EVENT = "mitti_premises_type";
+async function applyPremisesType(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
+  const { premisesTypeFromEntries } = await import("./ready-check-answers.core");
+  const p = premisesTypeFromEntries(entries);
+  if (!p.answer) return;
+  const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PREMISES_TYPE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (last?.details ?? null) as { answer?: string | null; premises_type?: string | null } | null;
+  if (prev && prev.answer === p.answer && (prev.premises_type ?? null) === p.code) return;
+  await logEvent(jobId, actorId, PREMISES_TYPE_EVENT, `Ready Check: who lives at the property — ${p.answer}${p.code ? "" : " (wording not recognised – office to confirm the premises type)"}`, { audit_id: auditId, answer: p.answer, premises_type: p.code, question: "Who lives at the property?" }, { internal: true });
 }
 
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
@@ -425,13 +449,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
       const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
       if (!plan.locked) {
-        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
+        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot, plan.areas ?? null);
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
+        await applyPremisesType(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
-        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
+        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : []), ...(mp.zonesIssue ? [mp.zonesIssue] : [])];
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
         if (plan.completed) {
