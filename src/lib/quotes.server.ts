@@ -247,9 +247,9 @@ async function requireUnsentQueuedQuote(quote: { id: string; job_id: string; sen
 }
 
 /** Office approval clears an exception hold; previously queued unsent quotes return to the guarded sender. */
-/** Audit 23 Oct: owner quotes are released ONLY by Office "Send quote" (sendOfficeReviewedQuote) after installer approval. */
+/** Audit 23 Oct: owner quotes are released ONLY by Office "Send quote" (sendOfficeReviewedQuote); no installer approval since Jo 24 Oct 2026. */
 export async function approveHeldQuote(_quoteId: string, _actorId: string): Promise<never> {
-  throw new WorkflowError('Use Office "Send quote" after the installer approves the current quote. Nothing sent.');
+  throw new WorkflowError('Use Office "Send quote" on Quotes to check. Nothing sent.');
 }
 
 export async function adjustQuote(quoteId: string, actorId: string, reason: string, changes: { id: string; quantity: number; unit_price_inc_gst: number }[], veecDiscount?: number, discountOverride = false) {
@@ -269,8 +269,9 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
   const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: dr.veecs, veec_unit_value_inc_gst: dr.veecs != null ? Number(rs?.indicative_veec_value) : null } : {}) };
   await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);
-  const mittiApproval = await (await import("./installer-quote-approval.server")).loadQuoteApproval(before.job_id);
-  if (before.status === "draft") await admin.from("quotes").update({ release_state: "held", release_hold_reason: mittiApproval.applies ? "Waiting for installer reapproval after office adjustment" : "Quote held: manually priced or adjusted" }).eq("id", quoteId);
+  // Jo 24 Oct 2026: no installer reapproval — an adjusted Ready Check draft simply stays on Quotes to check for office Send.
+  const readyCheck = (await (await import("./installer-quote-status.server")).loadInstallerQuote(before.job_id)).applies;
+  if (before.status === "draft") await admin.from("quotes").update({ release_state: "held", release_hold_reason: readyCheck ? "Waiting for office review before sending" : "Quote held: manually priced or adjusted" }).eq("id", quoteId);
   // Intake jobs: an adjusted issued quote goes back to held (not visible as current) until the office re-approves it.
   else if (before.option_code === "INSTALLER_A1" && await (await import("./installer-intake.server")).isIntakeJob(before.job_id)) await admin.from("quotes").update({ status: "draft", release_state: "held", release_hold_reason: "Adjusted after sending — office must re-approve", sent_at: null }).eq("id", quoteId).eq("status", "issued");
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();

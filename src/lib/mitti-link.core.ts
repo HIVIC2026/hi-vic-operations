@@ -17,3 +17,6 @@ export function deepLinkFromResponse(res: unknown): string | null {
   }
   return null;
 }
+
+/** The "Mitti form" button's fallback web address, or null when no form is linked. */
+export const mittiAuditUrl = (id: string | null | undefined) => (id ? mittiFormUrl(id) : null);

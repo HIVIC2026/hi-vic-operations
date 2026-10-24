@@ -101,13 +101,13 @@ export async function tradeHome(userId: string) {
   // Done tab: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, terminal reason) — no owner, address, contact or price, and no reopened access.
   const { installerTab, doneReason } = await import("./installer-progress.core");
-  // Jo 23 Oct: installer quote check — one plain card line and "Action needed" while it's the installer's turn.
+  // Installer quote status — one plain card line and "Action needed" while it's the installer's turn (Jo 24 Oct: no approval step).
   const quoteLine = new Map<string, string>();
   if (c.kind === "installer") {
     const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued"]);
-    const { loadQuoteApproval } = await import("./installer-quote-approval.server");
-    const { approvalCardLine } = await import("./installer-quote-approval.core");
-    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadQuoteApproval(id).catch(() => null); if (ap?.applies) quoteLine.set(id, approvalCardLine(ap.state, ap.sent, ap.accepted === true, ap.installerJob ? { held: ap.held === true, declined: ap.declined === true } : undefined)); }
+    const { loadInstallerQuote } = await import("./installer-quote-status.server");
+    const { installerQuoteLine } = await import("./installer-quote-status.core");
+    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadInstallerQuote(id).catch(() => null); if (ap?.applies) quoteLine.set(id, installerQuoteLine(ap)); }
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, (j as { channel?: string | null }).channel === "installer_sourced" && /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));

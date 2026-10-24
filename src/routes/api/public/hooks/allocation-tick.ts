@@ -160,13 +160,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
         }
         try {
-          // Jo 23 Oct: one 48h quote-check reminder EMAIL per quote version to the installer. Switched OFF (code constant).
-          const { sweepInstallerQuoteReminders } = await import("@/lib/installer-quote-approval.server");
-          (out as Record<string, unknown>)['installerQuoteReminders'] = await sweepInstallerQuoteReminders();
-        } catch (e) {
-          console.error("allocation tick: installer quote reminders failed", (e as Error).message);
-        }
-        try {
           // T6 Outbox executor worker entry point (leased claiming, same executor as the external-actions cron hook).
           // Claim uses SKIP LOCKED + leases, so running both entry points cannot double-send. While staged migration
           // 0204 is not applied the executor reports unavailable instead of failing the tick (fail closed).
