@@ -30,4 +30,9 @@ Edit the Mitti template "A3 - PIISA + AP Evidence" again. Make ONLY these change
 
 7. In the section "After-install sign-off", DELETE "Installation finished at (date and time)".
 
+8. In the section "Zones and evidence", under the question "Will this installation run over more than one day?", DELETE these two items:
+- "SWMS — day 2 re-check: date, time and lead installer initials (and any change to the SWMS)"
+- "SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)"
+Keep the question and the checkbox "Before starting work each day, I re-checked every item on this safety assessment and they all still hold." exactly as they are.
+
 Publish.
