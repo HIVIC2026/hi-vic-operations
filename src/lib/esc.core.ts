@@ -26,44 +26,60 @@ export function bookingLeadBlocker(startIso: string, nowIso: string): string | n
 
 /** Condition under which a configured field is mandatory. Conditional fields are NEVER universally required. */
 export type FieldWhen = "always" | "rectification" | "rec_required";
-/** `optional`: shown on the copy block but a blank never stops the notice being prepared or recorded. */
-export type EscField = { key: string; label: string; when?: FieldWhen; optional?: boolean };
+/** `optional`: shown on the copy block but a blank never stops the notice being prepared or recorded.
+ *  `updatable`: the Registry lets this field change on the SAME notification ID (Activity Guide v1.2 Table 5 column 3).
+ *  `source`: where the portal reads the value — shown with a missing value so the office knows what to fix. */
+export type EscField = { key: string; label: string; when?: FieldWhen; optional?: boolean; updatable?: boolean; section?: string; source?: string };
 export type EscConfig = { version: string; required_fields: EscField[]; approved: boolean; is_active: boolean } | null;
 
-// ---- VEU Registry install notification (Jo 24 Oct 2026, decisions 118/121) ----
-// Submitted BY HAND in the VEU Registry (Activities → Install notification form); there is no API. The portal prepares
-// the details, reminds the office inside the 5-day/24h window and records the Registry reference afterwards.
+// ---- VEU Registry install notification (Jo 24 Oct 2026, decisions 118/121/195/197) ----
+// Submitted in the VEU Registry ("Activities – Submit a new install notification"); there is no ESC API. The portal
+// prepares the details, reminds the office inside the 5-day/24h window and records the notification ID afterwards.
+// Decision 195: a robot will fill the Registry form later; until then (and as its backup) the office copies this block.
 export const VEU_REGISTRY_URL = "https://veu.esc.vic.gov.au";
 export const AP_ACCREDITATION_NUMBER = "A003654";
 export const AP_TRADING_NAME = "Home Insulation Victoria (DC Construction Solutions Pty Ltd)";
-export const REGISTRY_FIELDS_VERSION = "registry-default-v1";
+/** Checklist B5 / decision 197: the field list is the Activity Guide v1.2 (1 Oct 2026) Appendix A Table 5. */
+export const REGISTRY_FIELDS_VERSION = "registry-table5-guide-v1.2";
+export const REGISTRY_FIELDS_SOURCE = "ESC Ceiling Insulation Activity Guide v1.2, Appendix A Table 5";
 
-/** Default Registry field list, used whenever no admin-approved `esc_notification_config` exists. Jo confirms the real
- *  Registry fields on first use (decision 121); an approved config then replaces this list without a code change. */
+/** The four answers the Registry offers for "Has the pre-installation electrical safety assessment … been completed?" (verbatim). */
+export const PIESA_REGISTRY_STATUS = {
+  notCompleted: "Not completed",
+  noIssues: "Completed: no electrical issues identified",
+  allRectified: "Completed: electrical issues identified and all rectified",
+  electricianAtInstall: "Completed: electrical issues identified, rectification not possible, electrician will be required at installation.",
+} as const;
+export type PiesaRegistryStatus = (typeof PIESA_REGISTRY_STATUS)[keyof typeof PIESA_REGISTRY_STATUS];
+
+const S_INSTALL = "Installation details", S_OWNER = "Owner of premises", S_PARTICIPANT = "Scheme participant details", S_ADDITIONAL = "Additional information";
+/** Default Registry field list = Activity Guide v1.2 Appendix A Table 5, in form order. Used whenever no admin-approved
+ *  `esc_notification_config` exists (decision 121: preparing the notice needs no approval). */
 export const DEFAULT_REGISTRY_FIELDS: EscField[] = [
-  { key: "ap_name", label: "Accredited Person" },
-  { key: "ap_accreditation_number", label: "AP accreditation number" },
-  { key: "premises_address", label: "Premises address (incl. postcode)" },
-  { key: "owner_name", label: "Owner name" },
-  { key: "installation_date", label: "Installation date" },
-  { key: "installation_start_time", label: "Start time (Melbourne)" },
-  { key: "expected_completion_date", label: "Expected completion date" },
-  { key: "installer_business", label: "Installer business" },
-  { key: "lead_installer", label: "Lead installer" },
-  { key: "lead_installer_cii_number", label: "Lead installer EEC CII number", optional: true },
-  { key: "electrician_name", label: "Electrician", optional: true },
-  { key: "electrician_licence", label: "Electrician licence", optional: true },
-  { key: "piesa_completed_on", label: "PIESA completion date" },
-  { key: "piisa_completed", label: "PIISA completed" },
-  { key: "owner_consent_obtained_on", label: "Owner consent obtained" },
-  { key: "job_number", label: "Job number" },
+  { key: "installation_start", label: "Installation start date and time", section: S_INSTALL, updatable: true, source: "Installation booking start (Melbourne time)" },
+  { key: "installation_end", label: "Installation end date and time", section: S_INSTALL, updatable: true, source: "Installation booking end (Melbourne time) — add an end time to the booking" },
+  { key: "premises_address", label: "Installation address", section: S_INSTALL, updatable: false, source: "Job property address" },
+  { key: "owner_first_name", label: "Owner first name", section: S_OWNER, updatable: false, source: "Owner full name (all but the last word)" },
+  { key: "owner_last_name", label: "Owner last name", section: S_OWNER, updatable: false, source: "Owner full name (last word) — record the owner's full name" },
+  { key: "owner_phone", label: "Owner phone number", section: S_OWNER, updatable: false, source: "Owner phone" },
+  { key: "owner_email", label: "Owner email", section: S_OWNER, updatable: false, source: "Owner email" },
+  { key: "owner_entity_name", label: "Entity name", section: S_OWNER, optional: true, updatable: false, source: "Not held by the portal — enter in the Registry only if the owner is an entity" },
+  { key: "lead_installer", label: "Scheme participant (lead installer)", section: S_PARTICIPANT, updatable: true, source: "Assigned installer's staff record (legal name); must be a VEU-verified scheme participant" },
+  { key: "lead_installer_phone", label: "Lead installer phone number", section: S_PARTICIPANT, updatable: true, source: "Lead installer's mobile on My business" },
+  { key: "lead_installer_cii_number", label: "EEC Certification number", section: S_PARTICIPANT, updatable: true, source: "Office-verified CII/EEC certificate number (Staff approvals)" },
+  { key: "installer_company", label: "Installer company name", section: S_PARTICIPANT, optional: true, updatable: true, source: "Installer business legal name" },
+  { key: "installer_abn_acn", label: "ABN/ACN", section: S_PARTICIPANT, updatable: true, source: "Installer business ABN (else ACN)" },
+  { key: "piesa_status", label: "Pre-installation electrical safety assessment completed?", section: S_ADDITIONAL, updatable: false, source: "Signed PIESA B1 answer + PIESA outcome + CoES" },
+  { key: "coes_number", label: "Certificate of Electrical Safety Number", section: S_ADDITIONAL, when: "rectification", updatable: false, source: "Signed PIESA Part C CoES number (or entered on Refresh details)" },
+  { key: "rec_number", label: "REC Registration Number", section: S_ADDITIONAL, when: "rec_required", updatable: false, source: "Signed PIESA Part C REC registration no. (or entered on Refresh details)" },
+  { key: "owner_consent_to_share", label: "Written owner consent to provide information to the ESC and share it with other regulators?", section: S_ADDITIONAL, updatable: false, source: "Signed ESC owner's consent (owner + AP), valid for this booking" },
 ];
 
-/** Facts the portal already holds and fills automatically when the field list names the key. */
+/** Facts the portal fills automatically when the field list names the key. */
 export const STANDARD_FACTS = [
-  "lead_installer", "installer_business", "installer_abn_acn", "piesa_outcome", "coes_number", "rec_number", "owner_consent_reference",
-  "ap_name", "ap_accreditation_number", "premises_address", "owner_name", "installation_date", "installation_start_time", "expected_completion_date",
-  "lead_installer_cii_number", "electrician_name", "electrician_licence", "piesa_completed_on", "piisa_completed", "owner_consent_obtained_on", "job_number",
+  "installation_start", "installation_end", "premises_address", "owner_first_name", "owner_last_name", "owner_phone", "owner_email", "owner_entity_name",
+  "lead_installer", "lead_installer_phone", "lead_installer_cii_number", "installer_company", "installer_abn_acn",
+  "piesa_status", "coes_number", "rec_number", "owner_consent_to_share", "owner_consent_reference", "piesa_outcome",
 ] as const;
 export type EscFacts = Partial<Record<(typeof STANDARD_FACTS)[number], string | null>>;
 
@@ -72,39 +88,122 @@ export const melbDate = (iso: string) => melb(iso, { weekday: "short", day: "num
 export const melbTime = (iso: string) => melb(iso, { hour: "numeric", minute: "2-digit" });
 export const melbDateTime = (iso: string) => `${melbDate(iso)} ${melbTime(iso)}`;
 
-/** Derives the Registry facts from job records. Blanks stay blank (never guessed); the completion date defaults to the start day. */
-export function registryFacts(i: {
-  jobNumber: string; premisesAddress: string; ownerName: string | null; scheduledStart: string; scheduledEnd: string | null;
-  installerBusiness: string | null; leadInstaller: string | null; leadInstallerCii: string | null;
-  electricianName: string | null; electricianLicence: string | null; piesaCompletedOn: string | null;
-  piisaSignedOn: string | null; consentCompletedAt: string | null;
-}): EscFacts {
-  const sameDay = i.scheduledEnd && melbDate(i.scheduledEnd) === melbDate(i.scheduledStart);
+/** Owner full name → Registry first/last name. The last word is the last name; a one-word name leaves the last name blank (never guessed). */
+export function splitOwnerName(full: string | null | undefined): { first: string | null; last: string | null } {
+  const parts = String(full ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { first: null, last: null };
+  if (parts.length === 1) return { first: parts[0]!, last: null };
+  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1]! };
+}
+
+/** Signed PIESA B1 answer as a code: not_required / required / not_possible (official B1 options 1–3). */
+export type PiesaB1Code = "not_required" | "required" | "not_possible";
+/** The Registry's four PIESA answers from the signed PIESA. Unsigned/missing PIESA = "Not completed"; rectification required
+ *  counts as "all rectified" only once the PIESA passed AND a CoES number is on file; a pass without a readable B1 answer is
+ *  null (the office must check the signed form — never guessed). */
+export function piesaRegistryStatus(i: { signed: boolean; b1: PiesaB1Code | null; outcome: string | null; coesNumber: string | null }): PiesaRegistryStatus | null {
+  if (!i.signed && i.outcome !== "pass") return PIESA_REGISTRY_STATUS.notCompleted;
+  if (i.b1 === "not_required") return PIESA_REGISTRY_STATUS.noIssues;
+  if (i.b1 === "not_possible") return PIESA_REGISTRY_STATUS.electricianAtInstall;
+  if (i.b1 === "required") return i.outcome === "pass" && !!i.coesNumber?.trim() ? PIESA_REGISTRY_STATUS.allRectified : PIESA_REGISTRY_STATUS.notCompleted;
+  return i.outcome === "pass" ? null : PIESA_REGISTRY_STATUS.notCompleted;
+}
+
+export type RegistryFactsInput = {
+  premisesAddress: string; ownerName: string | null; ownerPhone: string | null; ownerEmail: string | null;
+  scheduledStart: string; scheduledEnd: string | null;
+  leadInstaller: string | null; leadInstallerPhone: string | null; leadInstallerCii: string | null; installerCompany: string | null; installerAbnAcn: string | null;
+  piesa: { signed: boolean; b1: PiesaB1Code | null; outcome: string | null }; coesNumber: string | null; recNumber: string | null;
+  /** True only for a VALID separate owner ESC consent for this booking. */
+  consentValid: boolean;
+};
+const blank = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
+
+/** Table 5 facts from job records. Blanks stay blank (never guessed); CoES/REC only when the PIESA answer needs them. */
+export function registryFacts(i: RegistryFactsInput): EscFacts {
+  const name = splitOwnerName(i.ownerName);
+  const coes = blank(i.coesNumber);
+  const piesa = piesaRegistryStatus({ ...i.piesa, coesNumber: coes });
+  const rect = piesa === PIESA_REGISTRY_STATUS.allRectified;
   return {
-    ap_name: AP_TRADING_NAME, ap_accreditation_number: AP_ACCREDITATION_NUMBER,
-    premises_address: i.premisesAddress || null, owner_name: i.ownerName || null,
-    installation_date: melbDate(i.scheduledStart), installation_start_time: melbTime(i.scheduledStart),
-    expected_completion_date: i.scheduledEnd && !sameDay ? melbDate(i.scheduledEnd) : `${melbDate(i.scheduledStart)} (same day)`,
-    installer_business: i.installerBusiness || null, lead_installer: i.leadInstaller || null, lead_installer_cii_number: i.leadInstallerCii || null,
-    electrician_name: i.electricianName || null, electrician_licence: i.electricianLicence || null,
-    piesa_completed_on: i.piesaCompletedOn ? melbDate(i.piesaCompletedOn.length === 10 ? `${i.piesaCompletedOn}T12:00:00+10:00` : i.piesaCompletedOn) : null,
-    piisa_completed: i.piisaSignedOn ? `Yes (${melbDate(i.piisaSignedOn.length === 10 ? `${i.piisaSignedOn}T12:00:00+10:00` : i.piisaSignedOn)})` : "Not yet",
-    owner_consent_obtained_on: i.consentCompletedAt ? melbDateTime(i.consentCompletedAt) : null,
-    job_number: i.jobNumber || null,
+    installation_start: melbDateTime(i.scheduledStart),
+    installation_end: i.scheduledEnd ? melbDateTime(i.scheduledEnd) : null,
+    premises_address: blank(i.premisesAddress), owner_first_name: name.first, owner_last_name: name.last,
+    owner_phone: blank(i.ownerPhone), owner_email: blank(i.ownerEmail), owner_entity_name: null,
+    lead_installer: blank(i.leadInstaller), lead_installer_phone: blank(i.leadInstallerPhone), lead_installer_cii_number: blank(i.leadInstallerCii),
+    installer_company: blank(i.installerCompany), installer_abn_acn: blank(i.installerAbnAcn),
+    piesa_status: piesa, coes_number: rect ? coes : null, rec_number: rect ? blank(i.recNumber) : null,
+    owner_consent_to_share: i.consentValid ? "Yes" : null,
   };
 }
 
-export type RegistryRow = { key: string; label: string; value: string | null; optional: boolean };
-/** Copy-ready block for the Registry form, from a prepared payload. Missing values are listed, never invented. */
-export function registryBlock(payload: Record<string, unknown>, fields: EscField[] = DEFAULT_REGISTRY_FIELDS): { rows: RegistryRow[]; text: string; missing: string[] } {
+/** Field conditions from the facts: CoES needed for "all rectified"; REC needed whenever a CoES is given (Table 5). */
+export function registryConditions(f: EscFacts): { rectification: boolean; recRequired: boolean } {
+  const rectification = f.piesa_status === PIESA_REGISTRY_STATUS.allRectified;
+  return { rectification, recRequired: rectification || !!f.coes_number };
+}
+
+export type RegistryRow = { key: string; label: string; value: string | null; optional: boolean; section: string | null; updatable: boolean; source: string | null };
+/** Copy-ready block for the Registry form, from a prepared payload. Conditional fields appear only when they apply.
+ *  Missing values are listed with where to fix them, never invented. */
+export function registryBlock(payload: Record<string, unknown>, fields: EscField[] = DEFAULT_REGISTRY_FIELDS): { rows: RegistryRow[]; text: string; missing: string[]; missingFacts: { label: string; source: string | null }[] } {
   const additional = (payload["additional"] ?? {}) as Record<string, unknown>;
-  const rows: RegistryRow[] = fields.map((f) => {
+  const cond = (payload["conditions"] ?? { rectification: false, recRequired: false }) as { rectification: boolean; recRequired: boolean };
+  const rows: RegistryRow[] = fields.filter((f) => fieldApplies(f, cond) || additional[f.key] != null).map((f) => {
     const raw = additional[f.key] ?? payload[f.key];
     const value = raw == null || raw === "" ? null : String(raw);
-    return { key: f.key, label: f.label, value, optional: !!f.optional };
+    return { key: f.key, label: f.label, value, optional: !!f.optional, section: f.section ?? null, updatable: !!f.updatable, source: f.source ?? null };
   });
-  const text = ["VEU Registry – Install notification (Activity 48: ceiling insulation)", ...rows.map((r) => `${r.label}: ${r.value ?? "—"}`)].join("\n");
-  return { rows, text, missing: rows.filter((r) => !r.value && !r.optional).map((r) => r.label) };
+  const text = ["VEU Registry – Activities – Submit a new install notification (Activity 48: ceiling insulation)", ...rows.map((r) => `${r.label}: ${r.value ?? "—"}`)].join("\n");
+  const gaps = rows.filter((r) => !r.value && !r.optional);
+  return { rows, text, missing: gaps.map((r) => r.label), missingFacts: gaps.map((r) => ({ label: r.label, source: r.source })) };
+}
+
+// ---- Update on the SAME notification ID vs withdraw + resubmit (Activity Guide v1.2 §3.3.3 + Table 5) ----
+/** Keys the Registry lets change on the same notification ID. */
+export const REGISTRY_UPDATABLE_KEYS = DEFAULT_REGISTRY_FIELDS.filter((f) => f.updatable).map((f) => f.key);
+export type RegistryChange = { action: "none" | "update_same_id" | "withdraw_and_resubmit"; changed: string[]; reasons: string[] };
+type SentNotice = { scheduled_start: string; sent_at: string | null; submission_reference: string | null; payload_json: unknown };
+
+/** Timing for an update on the same notification ID: the original start must not have passed, and the new start must be
+ *  within the next 5 days and at least 24h away (Activity Guide v1.2 §3.3.3 + Table 5). Empty = update allowed. */
+export function registryUpdateTimingReasons(prevStartIso: string, newStartIso: string, nowIso: string): string[] {
+  const now = Date.parse(nowIso), oldStart = Date.parse(prevStartIso), newStart = Date.parse(newStartIso);
+  const r: string[] = [];
+  if (now >= oldStart) r.push("The original installation date and time has passed.");
+  if (newStart > now + EARLIEST_MS) r.push("The new start is more than 5 days away.");
+  if (newStart < now + LEAD_MS) r.push("The new start is less than 24 hours away.");
+  return r;
+}
+
+/** What the office must do in the Registry when a SENT notice no longer matches the current one. Update (same ID) only when
+ *  every changed field is updatable, the original start has not passed, and the new start is within the next 5 days and
+ *  at least 24h away; anything else = withdraw and resubmit (new ID). A notice prepared under an older field list can't be
+ *  compared field by field, so it is always withdraw + resubmit. */
+export function registryChange(prev: SentNotice, next: { scheduled_start: string; payload_json: unknown }, nowIso: string): RegistryChange {
+  const pp = (prev.payload_json ?? {}) as Record<string, unknown>, np = (next.payload_json ?? {}) as Record<string, unknown>;
+  if (!prev.sent_at || !prev.submission_reference) return { action: "none", changed: [], reasons: ["The earlier notification was never recorded as sent."] };
+  if (pp["fields_version"] !== REGISTRY_FIELDS_VERSION || np["fields_version"] !== REGISTRY_FIELDS_VERSION)
+    return { action: "withdraw_and_resubmit", changed: [], reasons: ["The earlier notification was prepared with an older field list, so it cannot be checked field by field."] };
+  const pa = (pp["additional"] ?? {}) as Record<string, unknown>, na = (np["additional"] ?? {}) as Record<string, unknown>;
+  const keys = DEFAULT_REGISTRY_FIELDS.map((f) => f.key);
+  const changed = keys.filter((k) => String(pa[k] ?? "") !== String(na[k] ?? ""));
+  if (!changed.length) return { action: "none", changed, reasons: [] };
+  const label = (k: string) => DEFAULT_REGISTRY_FIELDS.find((f) => f.key === k)?.label ?? k;
+  const reasons: string[] = [];
+  const fixed = changed.filter((k) => !REGISTRY_UPDATABLE_KEYS.includes(k));
+  if (fixed.length) reasons.push(`These can't be updated in the Registry: ${fixed.map(label).join(", ")}.`);
+  reasons.push(...registryUpdateTimingReasons(prev.scheduled_start, next.scheduled_start, nowIso));
+  return { action: reasons.length ? "withdraw_and_resubmit" : "update_same_id", changed, reasons };
+}
+
+/** Office records that it UPDATED the earlier notification in the Registry (same notification ID). The current notice is
+ *  then recorded as sent under the SAME reference, with the update kept on the row. */
+export function registryUpdatePatch(p: { prev: SentNotice; change: RegistryChange; reference: string; updatedAt: string; confirmed: boolean; actorId: string }, nowIso: string) {
+  if (p.change.action !== "update_same_id") throw new Error(p.change.reasons.join(" ") || "Nothing changed that needs a Registry update.");
+  if (p.reference.trim() !== String(p.prev.submission_reference ?? "").trim()) throw new Error(`An update keeps the same notification ID (${p.prev.submission_reference}). A different ID means a new notification — record it as a new submission after withdrawing the old one.`);
+  const base = submissionPatch({ reference: p.reference, sentAt: p.updatedAt, method: "manual_portal", confirmed: p.confirmed, actorId: p.actorId }, nowIso);
+  return { ...base, response: { registry_update: { same_id: base.submission_reference, updated_at: p.updatedAt, changed: p.change.changed, updated_by: p.actorId } } };
 }
 
 /** "Sent to ESC on … ref …" — the one line every screen uses for a recorded submission. */
@@ -148,13 +247,14 @@ export function fieldApplies(f: EscField, c: { rectification: boolean; recRequir
  *  the DEFAULT_REGISTRY_FIELDS list applies (decision 121: no admin approval is needed to PREPARE the notice); a config
  *  row that exists but is unapproved/inactive still reports configuration_required. */
 export function buildEscPayload(cfg: EscConfig, i: PayloadInput): { status: "ready" | "configuration_required" | "not_ready"; payload: Record<string, unknown>; missing: string[] } {
-  const cond = i.conditions ?? { rectification: false, recRequired: false };
   const facts = i.facts ?? {};
+  const cond = i.conditions ?? registryConditions(facts);
   const base = { payload_version: PAYLOAD_VERSION, job_reference: i.jobNumber, installation_days: i.installationDays, scheduled_start: i.scheduledStart, scheduled_end: i.scheduledEnd, premises_address: i.premisesAddress, owner_contact: i.owner, owner_consent_reference: i.consentReference ?? null, ...facts };
   const missing: string[] = [];
   if (cfg && (!cfg.approved || !cfg.is_active)) missing.push("Admin-approved ESC notification field configuration (current Ceiling Insulation Activity Guide)");
-  if (!i.owner.name) missing.push("Owner name");
-  if (!i.owner.email && !i.owner.phone) missing.push("Owner contact (email or phone)");
+  // An approved custom list may not name the owner fields; the Table 5 default list carries them field by field.
+  if (cfg && !i.owner.name) missing.push("Owner name");
+  if (cfg && !i.owner.email && !i.owner.phone) missing.push("Owner contact (email or phone)");
   const fields = cfg ? cfg.required_fields : DEFAULT_REGISTRY_FIELDS;
   const extra: Record<string, unknown> = {};
   for (const f of fields) {

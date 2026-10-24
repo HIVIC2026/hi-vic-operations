@@ -36,9 +36,10 @@ describe("Stage 7: incomplete Ready Check form", () => {
   test("same gaps in any order share one signature (one text, not one per sync)", () => {
     expect(missingSignature(["b", "a"])).toBe(missingSignature(["a", "b"]));
   });
-  test("draft text names the job and the gaps", () => {
+  test("decision 83 'Nearly there' text verbatim (brand prefix added by the sender); no address → no brackets", () => {
     expect(readyCheckIncompleteText("HV-1", "1 Test St, Testville", ["a photo showing the insulation depth"]))
-      .toBe("Ready Check HV-1 (1 Test St, Testville) is missing: a photo showing the insulation depth. Please update it in Mitti. – Home Insulation Victoria");
+      .toBe("Nearly there! HV-1 (1 Test St, Testville) still needs: a photo showing the insulation depth. Add them in Mitti and we'll prepare the owner's quote.");
+    expect(readyCheckIncompleteText("HV-1", null, ["a", "b"])).toBe("Nearly there! HV-1 still needs: a; b. Add them in Mitti and we'll prepare the owner's quote.");
   });
 });
 
@@ -72,6 +73,11 @@ describe("Stage 8: Office needs to… Mitti items", () => {
     ]);
     expect(out).toEqual(["mitti_fix_form:j1", "mitti_review_pickup:mitti_review_pickup:audit_x", "mitti_setup_installer:j5", "quote_held_review:j3", "quote_not_delivered:j4", "ready_check_chase_installer:j6", "ready_check_held:j2"]);
   });
+  test("decision 209: Xero invoice product/m² flag is raised and cleared by the office confirmation", () => {
+    const raised = ev("j9", "xero_invoice_product_unconfirmed", 2, { details: { reasons: ["insulation product not recorded on the job"] }, summary: "Office needs to: confirm the installed product and m² on the Xero invoice" });
+    expect(mittiOfficeItems([raised], now)).toEqual([{ code: "xero_invoice_product_unconfirmed", jobId: "j9", since: raised.created_at, detail: "insulation product not recorded on the job", key: "xero_invoice_product_unconfirmed:j9" }]);
+    expect(codes([raised, ev("j9", "xero_invoice_product_confirmed", 1)])).toEqual([]);
+  });
   test("chase waits 24 hours", () => {
     expect(codes([ev("j6", "ready_check_incomplete", 23)])).toEqual([]);
   });
@@ -90,25 +96,27 @@ describe("Stage 8: Office needs to… Mitti items", () => {
   });
 });
 
-describe("Stage 8: saved spot while Ready Check booking is OFF", () => {
+describe("Saved spot (decision 53 / audit removal 5: no \"Ready Checks not open yet\" waiting status)", () => {
   const base = { id: "j", stage: "preliminary_estimate_ready", createdAt: h(100), lastActivityAt: h(1), enteredStageAt: h(50), holdRevisitAt: null, cancelledReason: null,
     campaign: { spotSavedAt: h(10), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: h(60), queuePriority: null }, ownerContactedAt: h(20) } as never;
-  test("booking OFF: waiting, no office action", () => {
-    const s = officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, now.getTime());
-    expect(s!.label).toBe("Waiting – Ready Checks not open yet");
-    expect(s!.waitingOn).toBe("Nobody");
-    expect(s!.action).toBeNull();
+  test("a saved spot is always Spot saved (Choose installer), whatever a stale booking flag says", () => {
+    const s = officeStatus(base, now.getTime());
+    expect(s!.key).toBe("enquiry.spot_saved");
+    expect(s!.label).toBe("Spot saved");
+    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, now.getTime())!.key).toBe("enquiry.spot_saved");
   });
-  test("booking ON: unchanged Spot saved office action", () => {
-    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: true } as never, now.getTime())!.label).toBe("Spot saved");
+  test("the retired waiting status and its wording are gone", async () => {
+    const { SITUATION } = await import("../src/lib/job-wording");
+    expect(Object.keys(SITUATION)).not.toContain("enquiry.spot_saved_waiting");
+    expect(JSON.stringify(SITUATION)).not.toContain("Ready Checks not open yet");
   });
 });
 
 import { SMS_MESSAGE_TYPES as __T } from "../src/lib/sms.core";
 import { readyCheckIncompleteText as __txt } from "../src/lib/ready-check-chase.core";
-describe("Jo 22 Oct approvals", () => {
-  test("installer 'form incomplete' text is approved with Jo's exact wording", () => {
+describe("Jo 22 Oct approval, wording superseded by decision 83 (24 Oct)", () => {
+  test("installer 'form incomplete' text is approved with Jo's exact 24 Oct wording", () => {
     expect((__T as Record<string, { wordingApproved: boolean }>)["ready_check_incomplete"]!.wordingApproved).toBe(true);
-    expect(__txt("HV-1234", "2A Chatfield St, Kingsville", ["a photo showing the insulation depth"])).toBe("Ready Check HV-1234 (2A Chatfield St, Kingsville) is missing: a photo showing the insulation depth. Please update it in Mitti. – Home Insulation Victoria");
+    expect(__txt("HV-1234", "2A Chatfield St, Kingsville", ["a photo showing the insulation depth"])).toBe("Nearly there! HV-1234 (2A Chatfield St, Kingsville) still needs: a photo showing the insulation depth. Add them in Mitti and we'll prepare the owner's quote.");
   });
 });

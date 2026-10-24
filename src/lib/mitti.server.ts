@@ -212,8 +212,11 @@ export async function pointMeasurementAtMitti(jobId: string, m: MeasurementPoint
   else await admin.from("ceiling_measurements").insert(fresh);
 }
 
-/** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement). */
-async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown) {
+/** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement).
+ *  Decision 222 / 211: the per-area record (name, length × width, m², existing, removal) travels with the measurement row
+ *  as `zones` (areas.v1 shape + install-day zone fields), read by jobUpgradeZones / rcAreasFromRecord for the A3 zone names.
+ *  Mitti jobs have no portal Ready Check draft row, so the canonical `measure.areas_v1` observation stays the office record. */
+async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown, zones: unknown[] | null = null) {
   const s = await jobScope(jobId);
   const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as MeasurementLike | null, incoming: values, source, external: { source: "mitti", id: auditId } });
   if (plan.action === "create")
@@ -225,7 +228,13 @@ async function applyMeasure(jobId: string, actorId: string | null, auditId: stri
       ...(plan.supplemented.length ? { supplemented_by: actorId, supplemented_at: new Date().toISOString(), supplemented_fields: [...new Set([...((cur.supplemented_fields as string[]) ?? []), ...plan.supplemented])] as unknown as Json } : {}),
     }).eq("id", plan.id).neq("status", "complete");
   }
-  return plan;
+  // The per-area record is a separate, fail-soft write: it never blocks the measurement sync (the caller reports it).
+  let zonesIssue: string | null = null;
+  if (zones && zones.length && plan.action !== "skip") {
+    const { error } = await admin.from("ceiling_measurements").update({ zones: zones as unknown as Json }).eq("job_id", jobId).eq("external_source", "mitti").eq("external_id", auditId).eq("is_current", true).neq("status", "complete");
+    if (error) zonesIssue = `Per-area record (names, length × width) not saved: ${error.message}`;
+  }
+  return { ...plan, zonesIssue };
 }
 
 /** Jo 23 Oct (pending approval): the A1 "Homeowner agrees to be contacted by Home Insulation Victoria" answer becomes an
@@ -274,6 +283,21 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   const prev = (lastAns?.details ?? null) as Record<string, unknown> | null;
   if (prev && (Object.keys(details) as (keyof typeof details)[]).every((k) => (prev[k] ?? null) === details[k])) return;
   await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, details, { internal: true });
+}
+
+/** Decision 222 question 10 "Who lives at the property?" (Activity Guide Appendix C premises type for the VEEC claim).
+ *  The properties.occupancy enum (owner_occupied / rental) cannot hold public or community housing, so the answer is kept
+ *  as the append-only `mitti_premises_type` workflow event (latest per job wins; a new row only when the answer changes).
+ *  Absent on older forms → nothing recorded. */
+export const PREMISES_TYPE_EVENT = "mitti_premises_type";
+async function applyPremisesType(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
+  const { premisesTypeFromEntries } = await import("./ready-check-answers.core");
+  const p = premisesTypeFromEntries(entries);
+  if (!p.answer) return;
+  const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PREMISES_TYPE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (last?.details ?? null) as { answer?: string | null; premises_type?: string | null } | null;
+  if (prev && prev.answer === p.answer && (prev.premises_type ?? null) === p.code) return;
+  await logEvent(jobId, actorId, PREMISES_TYPE_EVENT, `Ready Check: who lives at the property — ${p.answer}${p.code ? "" : " (wording not recognised – office to confirm the premises type)"}`, { audit_id: auditId, answer: p.answer, premises_type: p.code, question: "Who lives at the property?" }, { internal: true });
 }
 
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
@@ -425,13 +449,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
       const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
       if (!plan.locked) {
-        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
+        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot, plan.areas ?? null);
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
+        await applyPremisesType(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
-        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
+        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : []), ...(mp.zonesIssue ? [mp.zonesIssue] : [])];
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
         if (plan.completed) {
@@ -603,6 +628,39 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
   if (!sameMittiTemplateId(mittiTemplateIdentity(template).id, MITTI_PIISA_TEMPLATE_ID))
     throw new WorkflowError("Mitti returned an unexpected or unidentifiable PIISA template; office review is required.");
+  // Decision 262: the "A3 – Install day" template (connected as the PIISA form) is prefilled by wording from job facts.
+  {
+    const id = await import("./install-day.core");
+    if (id.isInstallDayDoc(template)) {
+      const missingQs = id.installDayMissingQuestions(template);
+      if (missingQs.length) throw new WorkflowError(`The Install day form is missing questions (exact wording), so it was not created: ${missingQs.join("; ")}`);
+      const { loadCrew } = await import("./piisa-a3.server");
+      const { staff, selection } = await loadCrew(jobId);
+      if (!selection) throw new WorkflowError("Choose the install crew (lead installer and any additional installers) before sending the install day form.");
+      const cp = a3.crewSelectionProblems(selection, staff);
+      if (cp.problems.length) throw new WorkflowError(cp.problems.join(" • "));
+      if (cp.needsVerification.length) throw new WorkflowError(`Verify before work: ${cp.needsVerification.join("; ")}`);
+      const lead = staff.find((x) => x.workerId === a3.leadWorkerId(selection)) ?? null;
+      const hv = (itemId: string) => hints.find((h) => h.itemId === itemId)?.value ?? null;
+      const yes = (v: string | null) => (v == null ? null : /^\s*yes\b/i.test(v) ? true : /^\s*no\b/i.test(v) ? false : null);
+      const { a3Ctx } = await import("./piisa-prestart.server");
+      const facts = {
+        jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
+        leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
+        lifeSupport: yes(hv("lifeSupport")), solarPresent: yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
+      };
+      const prefill = id.installDayPrefillItems(template, facts, (await import("./mitti.core")).choiceOption);
+      const headerIds = new Set((await import("./mitti.core")).flatten(template).filter((e) => e.header).map((e) => String(e.id)));
+      const header_items = prefill.filter((x) => headerIds.has(x.item_id)), items = prefill.filter((x) => !headerIds.has(x.item_id));
+      const created = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items, items } as never)) as { audit_id?: string; id?: string };
+      const newId = created?.audit_id ?? created?.id;
+      if (!newId) throw new WorkflowError("Mitti did not return an audit ID.");
+      await logEvent(jobId, actorId, "mitti_piisa_audit_created", "Install day form created; prefill verification pending", { audit_id: String(newId), template: MITTI_PIISA_TEMPLATE_ID, native_version: id.INSTALL_DAY_RULE });
+      await api.shareAudit(String(newId), String(userId)); await api.setAuditOwner(String(newId), String(userId));
+      await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Install day form sent to ${email} with ${prefill.length} pre-filled answers`, { audit_id: String(newId), prefill_count: prefill.length, template: MITTI_PIISA_TEMPLATE_ID, native_version: id.INSTALL_DAY_RULE });
+      return { auditId: String(newId), reused: false, skipped: [] as string[] };
+    }
+  }
   const native = await import("./piisa-native-version.core");
   const resolved = isA3 ? native.resolvePiisaNativeVersion(template) : null;
   if (resolved && (!resolved.active || !resolved.mapping)) throw new WorkflowError(`The PIISA mapping needs review: ${resolved.problems.join("; ")}`);
@@ -626,6 +684,14 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
     if (crew.problems.length) throw new WorkflowError(`Crew could not be filled in on the Mitti form: ${crew.problems.join("; ")}`);
     p.items.push(...crew.items); p.count += crew.items.length;
     prefillNotes.push(...crew.notes);
+    // Decision 210 e: zone names from the Ready Check ("Area N – name") — text items matched by exact wording; a
+    // template without the question simply gets nothing for it. Decision 256: the SWMS has no prefilled items.
+    {
+      const ie = await import("./install-evidence.server");
+      const ctx = await ie.installPrefillContext(jobId);
+      const extra = (await import("./install-evidence.core")).installEvidencePrefillItems(template, ctx).filter((x) => !p.items.some((i: { item_id: string }) => i.item_id === x.item_id));
+      p.items.push(...extra); p.count += extra.length;
+    }
     const roster = direct ? { alert: null, missingOptions: [], staleOptions: [] } : a3.a3RosterStatus(template, staff, bname);
     if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_shared_names", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
   }

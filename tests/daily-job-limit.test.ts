@@ -23,7 +23,7 @@ describe("trades run their own diaries: no capacity limits", () => {
     const s = read("src/lib/install-holds.server.ts");
     expect(s).not.toContain("daily_capacity_m2");
     expect(s).toContain("_over: false");
-    expect(read("src/components/portal/install-hold.tsx")).not.toContain("over_capacity");
+    // The office "expected install week" card was removed from the Job page (audit removal 9).
   });
   test("both fields hidden and never saved", () => {
     const form = read("src/components/portal/business.tsx");

@@ -1,7 +1,8 @@
+// Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
+// Who's doing this, Messages, More. The electrician's visit flow shares this route unchanged.
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
-import { ElectricianChoicePanel } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -10,12 +11,9 @@ import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { NowPanel, btnClass } from "@/components/portal/kit";
-import { JobElectricianCard } from "@/components/trade/job-intake";
-import { MyIntakeDetailsCard } from "@/components/trade/intake-details-editor";
 
 /** Heading: street and suburb only (no state/postcode). */
 const streetAndSuburb = (a?: string | null) => (a ?? "").replace(/,?\s*(VIC|Victoria)\b.*$/i, "").replace(/\s+\d{4}\s*$/, "").trim();
-import { PartnerInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { tradeTurn } from "@/lib/trade-work.core";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
@@ -26,36 +24,35 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited, getMittiJobPresentation, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { getMyMittiInvited, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
 import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
-import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
 
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
 function useMittiInvited() {
   const load = useServerFn(getMyMittiInvited);
   return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
 }
-import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MeasurementReadOnly, useJobScope } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
-import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
-import { SourceBadge } from "@/components/portal/badges";
-import { InstallerProgressCard } from "@/components/trade/intake-progress";
-import { ReadyCheckInMitti } from "@/components/trade/new-ready-check";
-import { InstallerReadyCheckTimesCard } from "@/components/portal/ready-check-times-installer";
+import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
+import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
-import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
-import { aud } from "@/lib/workflow";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, sendMessage } from "@/lib/portal.functions";
+import { aud, fmtDateTime } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
-import { InstallerInstallDays } from "@/components/portal/install-days";
+import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
+import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
+import { completeView, electricianRow, firstName, installRow, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { QUICK_ACTIONS } from "@/lib/messaging.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -66,31 +63,22 @@ function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
-  const loadProgress = useServerFn(getMyIntakeProgress);
-  const { data: intake } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => loadProgress({ data: { jobId } }), enabled: role === "installer", retry: false });
-  const loadMitti = useServerFn(getMittiJobPresentation);
-  const { data: mitti } = useQuery({ queryKey: ["mitti-job-presentation", jobId], queryFn: () => loadMitti({ data: { jobId } }), enabled: role === "installer" });
-  const linkedMitti = mitti?.applies === true;
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
+  if (role === "installer") return <TradeShell installer><InstallerFlow jobId={jobId} job={job} /></TradeShell>;
   const step = nextStep(job);
-  const turn = tradeTurn({ trade: role === "installer" || role === "electrician" ? role : null, stage: job.stage ?? "", waitingOn: step.waitingOn });
+  const turn = tradeTurn({ trade: role === "electrician" ? role : null, stage: job.stage ?? "", waitingOn: step.waitingOn });
   const task = turn.task;
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
-  const yourTurn = turn.yourTurn;
-  // Jo 24 Oct: an installer's own job at the Ready Check waits on its Mitti form, never on "Check eligibility" (the form decides it).
-  const formComing = role === "installer" && !linkedMitti && job.channel === "installer_sourced" && ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready"].includes(job.stage ?? "");
-  const installStage = ["installation_booked", "evidence_outstanding", "ap_review"].includes(job.stage ?? "");
   return (
-    <TradeShell installer={role !== "electrician"}>
+    <TradeShell installer={false}>
       <div className="space-y-4">
       <Link to="/field" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ArrowLeft className="h-4 w-4" />My work</Link>
       <div className="min-w-0">
         <h1 className="font-display text-[24px] font-bold leading-tight">{streetAndSuburb(job.property_address) || "Your job"}</h1>
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
-        <div className="mt-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /></div>
       </div>
-      <NowPanel attention={linkedMitti ? mitti.next.startsWith("You:") : formComing ? false : yourTurn} eyebrow={linkedMitti || formComing ? "Next step" : turn.eyebrow} status={linkedMitti ? mitti.next : formComing ? "Your Ready Check form is being set up in Mitti. It appears within about 15 minutes." : task.label}
+      <NowPanel attention={turn.yourTurn} eyebrow={turn.eyebrow} status={task.label}
         due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}
         next={job.install_deadline ? `Install must start by ${new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : undefined}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
@@ -99,24 +87,13 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
-      {role === "installer" && <OwnerQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
       {role === "electrician" && <JobStatusCard jobId={jobId} />}
-      {role === "installer" && linkedMitti && <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section>}
-      {(role !== "installer" || installStage) && <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>}
+      <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
-        {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
-        {role === "installer" && <WhosDoingThis jobId={jobId} />}
-        {role === "installer" && job.channel === "hivic_sourced" && (job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled") && <InstallerReadyCheckTimesCard jobId={jobId} />}
-        {role === "installer" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
-        {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
-        {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
-        {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
+        {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
-        {role === "installer" ? <>
-          <MessagesPanel jobId={jobId} isAdmin={false} role="installer" />
-          <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">More</summary><div className="mt-3 space-y-4"><WorkerLinksPanel jobId={jobId} /></div></details>
-        </> : <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" ? { role } : {})} /></div></details>}
+        <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" ? { role } : {})} /></div></details>
       </div>
       </div>
     </TradeShell>
@@ -134,9 +111,9 @@ function A1ReadyCheckTimeCard({ jobId }: { jobId: string }) {
   const blockers = a1ReadyCheckTimeBlockers({ day, time });
   const times = allowedReadyCheckTimes(day);
   return (
-    <Section title="Ready Check day and time (optional)">
-      <p className="text-sm text-sub">You arrange the visit with the owner. Enter the day and time here and it goes on your day list, with the Mitti form link in the 6:30am text. No time entered = no reminder for this job. The owner isn't messaged.</p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="mt-3" data-a1-ready-check-time>
+      <p className="text-[13px] text-sub">Ready Check day and time (optional). It goes on your day list with the Mitti form link in the 6:30am text. The owner isn't messaged.</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <div><Label htmlFor="a1-rc-day">Day</Label><Input id="a1-rc-day" type="date" value={day} min={days[0]} max={days[days.length - 1]} onChange={(e) => { setDay(e.target.value); setTime(""); }} /></div>
         <div><Label htmlFor="a1-rc-time">Arrival time</Label>
           <select id="a1-rc-time" aria-label="Arrival time" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={time} onChange={(e) => setTime(e.target.value)}>
@@ -145,10 +122,10 @@ function A1ReadyCheckTimeCard({ jobId }: { jobId: string }) {
           </select></div>
       </div>
       {time && blockers.length > 0 && <p className="mt-2 text-sm text-rose" data-a1-rc-blocker>{blockers.join(" ")}</p>}
-      <Button size="field" className="mt-3 w-full" disabled={busy || !time || blockers.length > 0} onClick={async () => { setBusy(true); try { await save({ jobId, day, time }, "Ready Check time saved"); } finally { setBusy(false); } }}>
+      <PrimaryButton className="mt-3" disabled={busy || !time || blockers.length > 0} onClick={async () => { setBusy(true); try { await save({ jobId, day, time }, "Ready Check time saved"); } finally { setBusy(false); } }}>
         {busy ? "Saving…" : "Save Ready Check time"}
-      </Button>
-    </Section>
+      </PrimaryButton>
+    </div>
   );
 }
 
@@ -163,10 +140,10 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   } });
   const invited = useMittiInvited();
   return (
-    <Section title={which === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) form" : "Ready Check form"}>
-      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><MittiFormLink auditId={data}>Open form in Mitti</MittiFormLink></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
-        : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}</p>}
-    </Section>
+    <>
+      {data && invited ? <><Row label="Mitti form" value="Linked" /><MittiFormLink auditId={data} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink></>
+        : <Row label="Mitti form" value={!invited ? "Your Mitti account isn't invited yet" : "Not linked yet — Home Insulation Victoria links it"} tone="sub" last />}
+    </>
   );
 }
 
@@ -297,44 +274,140 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
   );
 }
 
-// ---------- Installer ----------
-function InstallerFlow({ jobId, stage, linkedMitti = false }: { jobId: string; stage: string; linkedMitti?: boolean }) {
+
+// ---------- Installer (mock-up M2) ----------
+type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
+
+function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
+  const load = useServerFn(getTradeJobPage);
+  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000 });
+  const { data: days } = useInstallerInstallDays(jobId);
+  const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);
-  const submit = useAction(submitForApReview);
-  const { data: ms } = useMeasurements(jobId);
-  const { data: scope } = useJobScope(jobId);
-  const { data: el } = useQuery({ queryKey: ["assessment-trade", jobId], queryFn: async () => (await supabase.from("assessments").select("hazards, downlights_qty").eq("job_id", jobId).maybeSingle()).data });
-  const m = ms?.current;
-  const a = m?.status === "complete" ? { ...m, hazards: el?.hazards ?? null, downlights_qty: el?.downlights_qty ?? null } : null;
-  const measuring = ["ready_check_scheduled", "assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
+  const owner = firstName(job.owner_name);
+  const rcTurn: ReadyCheckTurn = rc && rc.applies ? (rc.turn as ReadyCheckTurn) : null;
+  const next = page ? jobNext({
+    channel: page.channel, stage: page.stage, ownerFirstName: owner, formLinked: page.form.linked, formCompleted: page.form.completed, quoteLine: page.quote?.line ?? null,
+    needsFinishing: page.form.needsFinishing, needsFinishingItems: page.form.needsFinishingItems, readyCheckTurn: rcTurn, readyCheckBookedAt: page.readyCheck.bookedAt,
+    installTurn: (days?.turn as never) ?? null, installBookedAt: page.install.bookedAt, installDeadline: days?.deadline ?? null, installDaysLeft: days?.daysLeft ?? null, clearedOn: page.clearance.clearedOn,
+    installFormComplete: page.install.form.complete, installationRecorded: !!page.install.recordedAt, rebateSigned: page.install.rebateSigned,
+    quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
+    piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
+    installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
+  }) : null;
+  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length }) : null;
+  const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
+  const atReadyCheck = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(job.stage ?? "");
+  const elecRow = page ? electricianRow({ name: page.piesa.electrician ?? (page.form.electrician?.startsWith("Home Insulation Victoria") ? "Home Insulation Victoria electrician" : page.form.electrician), piesaBookedAt: page.piesa.bookedAt, piesaPassedOn: page.piesa.passedOn, fixesNote: page.piesa.fixesNote }) : null;
+  const installLine = page ? installRow({ doneAt: page.install.recordedAt, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 }) : null;
+
+  // Approved state M2-complete: read-only summary; owner contact is no longer shown (contactVisible rule).
+  if (page && job.stage === "complete") {
+    const v = completeView({ jobNumber: job.job_number ?? null, suburb: (job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null, channel: page.channel, completedAt: page.install.recordedAt,
+      product: page.complete.product, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2, crew: page.install.crew, pay: page.complete.pay,
+      piisaSignedAt: page.complete.piisaSignedAt, installerSignedAt: page.complete.installerSignedAt, ownerSignedAt: page.complete.ownerSignedAt, apSignedAt: page.complete.apSignedAt });
+    return (
+      <Screen>
+        <ScreenHead title={v.heading} line2={v.sub} />
+        <NextPanel eyebrow="Done" title={v.done.title} sub={v.done.body} />
+        <Group title="Summary">{v.summary.map(([k, val], i) => <Row key={k} label={k} value={val} last={i === v.summary.length - 1} />)}</Group>
+        <Group title="Paperwork">{v.paperwork.map(([k, val], i) => <Row key={k} label={k} value={val} tone={/^Signed/.test(val) ? "green" : "sub"} last={i === v.paperwork.length - 1} />)}</Group>
+        {page.complete.pay && <LinkRow to="/field/money/$jobId" params={{ jobId }}>See it in Money</LinkRow>}
+      </Screen>
+    );
+  }
   return (
-    <>
-      {measuring && !linkedMitti && <MittiOnly jobId={jobId} which="ready_check" />}
-      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your Ready Check"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-sub">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
-      {a && (
-        <Section title="Site summary">
-          <dl className="grid grid-cols-2 gap-1 text-sm">
-            <dt className="text-sub">Area</dt><dd>{Number(a.measured_area_m2)} m²</dd>
-            <dt className="text-sub">Removal</dt><dd>{a.removal_required ? `${a.removal_m2} m²` : "No"}</dd>
-            <dt className="text-sub">Access</dt><dd className="capitalize">{a.access_difficulty}</dd>
-            <dt className="text-sub">Downlights</dt><dd>{a.downlights_qty ?? "—"}</dd>
-            <dt className="text-sub">Hazards</dt><dd>{a.hazards ?? "None noted"}</dd>
-          </dl>
-        </Section>
+    <Screen>
+      <ScreenHead title={streetAndSuburb(job.property_address) || "Your job"} line1={job.owner_name ?? undefined} line2={[job.job_number, sourceLabel(job.channel)].filter(Boolean).join(" · ")}>
+        {job.life_support && <p className="mt-1 inline-flex items-center gap-1 text-[13px] font-semibold text-rose"><HeartPulse className="h-3.5 w-3.5" /> Life support at this property</p>}
+        <ContactButtons phone={job.owner_phone} address={job.owner_name ? job.property_address : null} />
+      </ScreenHead>
+
+      {page && next && (
+        <NextPanel title={next.title} sub={next.sub}>
+          {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
+          {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
+          {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
+          {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
+          {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
+          {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
+          {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
+          {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
+          {next.panel === "sign_rebate" && (
+            <div className="mt-3 space-y-3" data-sign-rebate>
+              {!page.install.recordedAt
+                ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={() => done({ jobId }, "Install recorded")} />
+                : <InstallerFinalDeclaration jobId={jobId} />}
+            </div>
+          )}
+          {next.note && <Note className="mt-3">{next.note}</Note>}
+        </NextPanel>
       )}
-      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section>}
-      {["installation_scheduling", "installation_booked"].includes(stage) && <InstallerInstallDays jobId={jobId} />}
-      {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
-        <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
-      {["installation_booked", "evidence_outstanding", "ap_review"].includes(stage) && <EvidencePanel jobId={jobId} role="installer" gates={["installation"]} />}
-      {stage === "installation_booked" && <OneTapAction label={<><Check /> Installation complete</>} busyLabel="Recording…" confirm="Mark this installation as complete? Only do this once the work is finished on site." confirmLabel="Yes, it's complete" run={() => done({ jobId }, "Installation complete")} />}
-      {["evidence_outstanding", "ap_review"].includes(stage) && (
-        <Section title="Rebate form (your part) & submit">
-          <div className="mb-3"><InstallerFinalDeclaration jobId={jobId} /></div>
-          <OneTapAction label="Submit for Home Insulation Victoria review" busyLabel="Submitting…" run={() => submit({ jobId }, "Submitted for review")} />
-          <p className="mt-2 text-xs text-sub">If anything is still missing, you'll see exactly which item when you submit.</p>
-        </Section>
+
+      {page && (
+        <Group title="Quote">
+          <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />
+          {/* Approved M2-quote-declined: the pay line is hidden when there is no install. */}
+          {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
+          {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
+          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add the $349 Accredited Provider fee and send the owner their quote.</Note>}
+          <OwnerQuoteCard jobId={jobId} hideStatus />
+          {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
+          {installLine && <Row label="Install" value={installLine} last />}
+        </Group>
       )}
-    </>
+
+      {/* Decision 261: the safety plan (SWMS) the crew signs before install day. */}
+      <SafetyPlanCard jobId={jobId} />
+
+      {page && readyCheck && (atReadyCheck || page.form.linked) && (
+        <Group title="Ready Check">
+          {(readyCheck.visit !== "Not booked yet" || page.channel === "hivic_sourced") && <Row label="Visit" value={readyCheck.visit} />}
+          {readyCheck.form && <Row label="Mitti form" value={page.form.linked && !page.form.completed && page.form.missing.length === 0 && page.form.stops.length === 0 && !page.readyCheck.done ? "Ready · nothing filled in yet" : readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
+          {page.form.linked && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
+          {!page.form.linked && page.channel === "hivic_sourced" && <MittiOnly jobId={jobId} which="ready_check" />}
+        </Group>
+      )}
+
+      <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
+
+      <InstallerMessages jobId={jobId} />
+
+      <details>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>More · staff job links</span><span className="text-xl">›</span></summary>
+        <div className="py-3"><WorkerLinksPanel jobId={jobId} /></div>
+      </details>
+    </Screen>
+  );
+}
+
+/** Messages (decisions 36/40): the latest message, the three quick replies, and "Write a message". Direct contact is
+ *  by Call/Text above — this is the shared job conversation the office can also see. */
+function InstallerMessages({ jobId }: { jobId: string }) {
+  const [writing, setWriting] = useState(false);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = useAction(sendMessage);
+  const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
+  const { data, refetch } = useQuery({ queryKey: ["messages", jobId], refetchInterval: 60_000, queryFn: async () => (await supabase.from("messages").select("*, profiles(full_name)").eq("job_id", jobId).eq("internal", false).order("created_at")).data ?? [] });
+  const submit = async (text: string) => { if (!text.trim() || busy) return; setBusy(true); try { await send({ jobId, body: text, internal: false }); setBody(""); setWriting(false); await refetch(); } finally { setBusy(false); } };
+  const shown = writing ? (data ?? []).slice(-5) : (data ?? []).slice(-1);
+  return (
+    <Group title="Messages">
+      {shown.length === 0 && <p className="py-2.5 text-[15px] text-sub">No messages yet.</p>}
+      {shown.map((m) => { const mine = me && m.sender_id === me; return (
+        <div key={m.id} className="border-b border-line py-2.5">
+          <p className="text-[13px] text-sub">{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria"} · {fmtDateTime(m.created_at)}</p>
+          <p className="mt-0.5 whitespace-pre-wrap text-[15px] leading-[1.45]">{m.body}</p>
+        </div>
+      ); })}
+      <div className="mt-2.5 flex flex-wrap gap-2">{QUICK_ACTIONS.installer.map((q) => <button key={q} type="button" disabled={busy} className="inline-flex min-h-10 items-center rounded-full border border-line px-3.5 text-sm disabled:opacity-50" onClick={() => void submit(q)}>{q}</button>)}</div>
+      {!writing ? <div className="mt-1.5"><LinkRow onClick={() => setWriting(true)}>Write a message</LinkRow></div> : (
+        <div className="mt-3 space-y-2">
+          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={4000} placeholder="Your message to the owner" />
+          <div className="flex gap-2"><button type="button" disabled={busy || !body.trim()} className="min-h-11 flex-1 rounded-xl border border-hiv-blue text-[15px] font-semibold text-hiv-blue disabled:opacity-45" onClick={() => void submit(body)}>{busy ? "Sending…" : "Send"}</button><button type="button" className="min-h-11 px-4 text-[15px] font-semibold text-sub" onClick={() => setWriting(false)}>Cancel</button></div>
+        </div>
+      )}
+    </Group>
   );
 }

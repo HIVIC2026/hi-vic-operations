@@ -27,9 +27,28 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (p.templateId !== expectedTpl) return { status: "error", message: "This Mitti audit is not the PIISA form." };
   if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) return { status: "error", message: `Mitti Job Reference ID (${p.jobNumber ?? "missing"}) does not match ${job.job_number}.` };
   const { PIISA_A3_TEMPLATE_ID: A3_TPL } = await import("./piisa-a3.core");
-  const isA3 = expectedTpl === A3_TPL;
+  // Decision 262: the "A3 – Install day" template (connected as the PIISA form) is read like the native A3, by wording.
+  const { isInstallDayDoc } = await import("./install-day.core");
+  const installDay = isInstallDayDoc(audit);
+  const isA3 = expectedTpl === A3_TPL || installDay;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
   const finalPostworkVersion = "a3-final-postwork-2026-10-08";
+  // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A3 sync,
+  // signed or not — the gate reads the latest record; a failed read leaves the gate closed, never open.
+  let installEvidence: import("./install-evidence.core").InstallEvidenceSummary | null = null;
+  if (isA3) {
+    try {
+      const ie = await import("./install-evidence.server");
+      installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit);
+    } catch (e) { try { await logEvent(jobId, actorId, "install_evidence_sync_failed", "Install-day evidence (Table 4 / sign-off) could not be read — sync again", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
+  }
+  // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
+  // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
+  const finishInstall = async (declarationSaved: boolean) => {
+    if (!isA3 || !p.completed) return;
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence }); }
+    catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
+  };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));
   if (existing) {
     if (auditOwnedFinalPostwork) {
@@ -44,6 +63,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       const reviewed = await products.verifiedInstalledProductAnswers(jobId);
       if (problems.length || reviewed.blockers.length || JSON.stringify(reviewed.answers) !== JSON.stringify(saved.official.a3_evidence.actual_product_answers)) return { status: "error", message: "Product label evidence changed or needs review; the historical signed PIISA was not altered." };
     }
+    await finishInstall(true);
     return { status: "already", message: "Declaration already saved." };
   }
   // A3: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
@@ -58,15 +78,23 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   }
   if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
   const native = await import("./piisa-native-version.core");
-  const direct = isA3 && native.isDirectPiisaAudit(audit);
+  const direct = isA3 && !installDay && native.isDirectPiisaAudit(audit);
+  /** Typed crew + product review + declaration from the form's own tick and signature: the direct A3 and the install day form. */
+  const directLike = direct || installDay;
   const finalPostwork = direct && auditOwnedFinalPostwork;
   let actualProducts: Awaited<ReturnType<typeof import("./piisa-products.server").verifiedInstalledProductAnswers>> | null = null;
   let directCrew: ReturnType<typeof native.resolveDirectCrew> | null = null;
   let r = declarationFromPiisa(p.snapshot);
-  if (direct) {
+  if (directLike) {
     const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl);
-    const version = native.resolvePiisaNativeVersion(tplDef);
-    if (!version.active || version.version !== native.PIISA_DIRECT_VERSION) return { status: "error", message: `PIISA mapping needs review: ${version.problems.join(" • ")}` };
+    if (installDay) {
+      const { installDayMissingQuestions } = await import("./install-day.core");
+      const missingQs = installDayMissingQuestions(tplDef);
+      if (missingQs.length) return { status: "error", message: `The Install day form is missing questions (exact wording): ${missingQs.join(" • ")}` };
+    } else {
+      const version = native.resolvePiisaNativeVersion(tplDef);
+      if (!version.active || version.version !== native.PIISA_DIRECT_VERSION) return { status: "error", message: `PIISA mapping needs review: ${version.problems.join(" • ")}` };
+    }
     if (finalPostwork) {
       const postwork = await import("./piisa-postwork.server");
       if (!fetchMedia) return { status: "error", message: "The original after-work evidence could not be read." };
@@ -77,7 +105,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       if (completionProblems.length) return { status: "pending", message: completionProblems.join(" • ") };
     }
     const { loadCrew } = await import("./piisa-a3.server");
-    directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff);
+    directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff, installDay ? (await import("./piisa-a3.core")).a3CrewChoices(audit) : undefined);
     if (directCrew.blockers.length) return { status: "missing", message: directCrew.blockers.join(" • ") };
     const { directLeadSignatureProblem } = await import("./piisa-a3.core");
     const signerProblem = directLeadSignatureProblem(audit, directCrew.answers["p2.lead"] ?? null);
@@ -91,7 +119,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { flatten } = await import("./mitti.core");
     const { a3Signature, A3_NATIVE_IDS } = await import("./piisa-a3.core");
     const sig = a3Signature(audit);
-    const tick = flatten(audit).find((e) => e.id === A3_NATIVE_IDS["p8.declaration"]?.[0])?.value;
+    const tick = installDay ? ((await import("./install-day.core")).readInstallDay(audit).ticked((await import("./install-day.core")).INSTALL_DAY_Q.declaration) ? "Yes" : null) : flatten(audit).find((e) => e.id === A3_NATIVE_IDS["p8.declaration"]?.[0])?.value;
     const { declarationFromDirectPiisa } = await import("./piisa-declaration.core");
     r = declarationFromDirectPiisa({ tick, product: actualProducts.answers["p7.products"] ?? null, areaM2: actualProducts.installedAreaM2, name: directCrew.answers["p2.lead"] ?? null, signature: sig.mediaId, signedAt: sig.signedAt });
   }
@@ -119,8 +147,16 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
   let crewBlockers: string[] = [];
   let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown; a3_evidence?: unknown } | null = null;
-  if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
+  if (expectedTpl === PIISA_A3_TEMPLATE_ID || installDay) {
     const { answers, crew } = parseA3Answers(audit);
+    // Decision 262: Part 5 lights / cables from the PIESA and Part 6 from the Ready Check (never asked on the form).
+    let portalConductive: boolean | null = null;
+    if (installDay) {
+      const portal = await (await import("./piisa-prestart.server")).installDayPortalAnswers(jobId);
+      if (portal.missing.length) return { status: "missing", message: `Official PIISA can't be completed from the job records: ${portal.missing.join(" • ")}` };
+      Object.assign(answers, { ...portal.answers, ...answers });
+      portalConductive = portal.conductive;
+    }
     void crew;
     // Part 2 crew from the native choice list, resolved against CURRENT verified staff of the assigned company.
     const coreC = await import("./piisa-a3.core");
@@ -134,7 +170,11 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     if (mappingProblems.length) return { status: "error", message: `The PIISA field structure has changed and needs confirmed mapping: ${mappingProblems.join(" • ")}. No signed official copy saved.` };
     const crewRes = directCrew ?? coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), audit, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
     Object.assign(answers, crewRes.answers, actualProducts?.answers ?? {});
-    if (direct) {
+    // Decision 210 c: the form's foil / conductive answer (+ facing photo) feeds the official P6 foil rule as the
+    // portal-side conductivity record, so P6-FOIL-UNKNOWN no longer holds every existing-insulation job.
+    if (installDay && portalConductive != null) answers["supp.conductive"] = portalConductive ? "Yes" : "No";
+    else if (installEvidence?.foil != null) { answers["supp.conductive"] = installEvidence.foil ? "Yes" : "No"; if (installEvidence.foilPhotoMediaId) answers["supp.conductiveEvidence"] = `mitti:${auditId}:${installEvidence.foilPhotoMediaId}`; }
+    if (directLike) {
       const assessmentDay = piisaAssessmentDay(signedAt);
       if (!assessmentDay) return { status: "missing", message: "The captured PIISA assessment/signing timestamp is missing or invalid; no expected completion date was invented." };
       answers["completionDate"] = assessmentDay;
@@ -150,17 +190,17 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { storeSignedCopy, currentCopy, materialFacts } = await import("./official-forms.server");
     const piesa = (await currentCopy(jobId, "piesa")).copy;
     const { facts } = await materialFacts(jobId, piesa);
-    const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: direct ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
+    const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
     const r = renderOfficialDocx("piisa", answers as never);
-    if (direct && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
+    if (directLike && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
     if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
     // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
     const { createHash } = await import("node:crypto");
     const docSha = createHash("sha256").update(r.bytes).digest("hex");
-    const base = signatureAttachment(auditId, { ...sig, name: direct ? String(answers["p2.lead"] ?? "") : sig.name, signedAt }, { path, sha256: docSha });
+    const base = signatureAttachment(auditId, { ...sig, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name, signedAt }, { path, sha256: docSha });
     const att = base && prestart ? { ...base, image_path: prestart.signature_image.image_path, image_sha256: prestart.signature_image.image_sha256, image_content_type: prestart.signature_image.content_type } : null;
     if (!att) return { status: "missing", message: "The PIISA signature image or its time is missing, so it can't be used." };
     const sidecar = `jobs/${jobId}/official/piisa-${auditId}.signature.json`;
@@ -177,7 +217,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       prestart_captured_from: prestart!.snapshot.captured_from,
       completion_blockers: core.a3CompletionBlockers(answers as never, ctx, media),
       crew_blockers: crewBlockers,
-      native_version: direct ? native.PIISA_DIRECT_VERSION : "a3-published-choice",
+      native_version: installDay ? "install-day-2026-10-24" : direct ? native.PIISA_DIRECT_VERSION : "a3-published-choice",
       actual_product_answers: actualProducts?.answers ?? null,
     };
     official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar }, a3_evidence };
@@ -194,5 +234,6 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (error || !row) return { status: "error", message: error?.message ?? "Could not save the declaration." };
   await admin.from("declarations").upsert({ job_id: jobId, kind: "installer_declaration", declared_by: a?.user_id ?? null, statement: `${tpl.version}: ${tpl.body}`, declared_at: signedAt }, { onConflict: "job_id,kind" });
   await logEvent(jobId, actorId, "INSTALLER_DECLARATION_SIGNED", `Installer declaration signed in the Mitti PIISA (${tpl.version}) – ${d.product}, ${d.areaM2} m²`, { declaration_id: row.id, sha256: hash, audit_id: auditId });
+  await finishInstall(true);
   return { status: "saved", message: "Declaration saved from the Mitti PIISA." };
 }

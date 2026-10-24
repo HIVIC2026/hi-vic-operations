@@ -22,26 +22,9 @@ describe("admin pipeline visibility", () => {
     expect(implementation).toContain("if (error) throw new Error");
   });
 
-  it("uses the admin-only read instead of silently turning a browser RLS error into zero jobs", () => {
-    expect(pipeline).toContain("useServerFn(getAdminPipeline)");
-    expect(pipeline).toContain("queryFn: () => loadPipeline()");
-    expect(pipeline).not.toContain('supabase.from("job_overview").select("*")');
-    expect(pipeline).toContain("error: pipelineError");
-    expect(pipeline).toContain("The Pipeline could not be loaded");
-  });
-
-  it("never delays the enquiry read behind maintenance work", () => {
-    expect(pipeline).toContain("Promise.allSettled([sweep(), advance()])");
-    expect(pipeline).not.toMatch(/queryFn:\s*async[\s\S]*await sweep\(\)[\s\S]*return loadPipeline\(\)/);
-    expect(pipeline).toContain("Loading enquiries…");
-    expect(pipeline).toContain("Your enquiries have not been deleted.");
-  });
-
-  it("uses the same phase-filtered jobs for rows, select-all and the empty state", () => {
-    expect(pipeline).toContain("const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, (_s, j) => phaseOf(j))");
-    expect(pipeline).toContain("visibleJobs.map((j: JobRow)");
-    expect(pipeline).toContain("visibleJobs.every((j) => selected.has(j.id!))");
-    expect(pipeline).toContain("visibleJobs.length === 0 && shownInterests.length === 0");
+  it("the Pipeline board is retired (decision 218, audit removal 1): it only redirects and never runs maintenance on open", () => {
+    expect(pipeline).toContain('redirect({ to: "/admin/jobs/active"');
+    expect(pipeline).not.toMatch(/import[^\n]*(sweepAuthorities|autoAdvancePipeline|getAdminPipeline)|useServerFn/);
   });
 
   it("keeps unrelated jobs hidden from non-admins at the RLS boundary", () => {

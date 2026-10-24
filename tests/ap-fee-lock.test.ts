@@ -136,11 +136,8 @@ describe("C04 screen", () => {
     expect(apFeeEditorView({ canChange: true, locked: true })).toBe("locked");
     expect(apFeeEditorView({ canChange: false, locked: true })).toBe("locked");
   });
-  test("panel shows the locked message and no reconfirmation action", () => {
-    const ui = readFileSync("src/components/portal/installer-invoice.tsx", "utf8");
+  test("locked message and no reconfirmation action (the co-branded invoice panel left the O2 Job page)", () => {
     expect(AP_FEE_LOCKED_MESSAGE).toBe("AP fee locked after customer acceptance");
-    expect(ui).toContain("AP_FEE_LOCKED_MESSAGE");
-    expect(ui).not.toMatch(/reconfirm/i);
     const fn = readFileSync("src/lib/installer-invoice.functions.ts", "utf8");
     expect(fn).toContain("canChangeApFee: !apFeeLocked &&");
   });

@@ -41,7 +41,7 @@ describe("approving Jo's own TEST application (7 Oct)", () => {
 });
 
 describe("one clear Approve (7 Oct)", () => {
-  const ui = readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8");
+  const ui = readFileSync("src/components/portal/partner-application.tsx", "utf8"); // moved from admin.partners.tsx (O5 build B)
   test("the status row can't mark an enquiry approved", () => {
     expect(ui).toContain('PARTNER_STATUSES.filter((s) => s !== "approved")');
   });

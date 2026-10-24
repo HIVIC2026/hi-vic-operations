@@ -221,7 +221,10 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
 }
 
 /** Admin: the four separate records in sequence. */
-export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
+/** Office signing. The Job page shows each part on its own stage card (decision 223): 1 acceptance on Quote, 2 ESC owner
+ *  consent on Install, 4 the official VEEC form on Final check. The separate installer declaration (old section 3) was
+ *  dropped by decision 118a — the PIISA from Mitti shows under Install. */
+export function AdminAssignmentPanel({ jobId, sections = [1, 2, 4] }: { jobId: string; sections?: (1 | 2 | 4)[] }) {
   const { data } = useAssignment(jobId);
   const raise = useAction(raiseAssignmentVariation);
   const prepare = useAction(prepareFinalAssignmentFn);
@@ -241,7 +244,7 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
   const apRepOk = apRep.first_name.trim().length > 0 && apRep.last_name.trim().length > 0 && apRep.role.trim().length >= 2;
   return (
     <div className="space-y-4">
-      <Section title="1. Customer Agreement / Quote Acceptance (commercial)">
+      {sections.includes(1) && <Section title="Customer agreement (quote acceptance)">
         {!ag ? <p className="text-sm text-muted-foreground">Not signed – the customer signs when accepting the installation quote. Unlocks invoice/deposit only.</p> : (
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Signed</dt><dd>{ag.signatory_name} ({ag.signatory_authority_type}) · {fmtDateTime(ag.signed_at)} · IP {ag.ip ?? "—"} {ag.copy_path && <CopyLink id={ag.id} which="agreement" label="Copy" />}</dd>
@@ -249,8 +252,8 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
             <dt className="text-muted-foreground">Prices</dt><dd>Before {aud(Number(ag.price_before_benefit_inc_gst))} · VEU {aud(Number(ag.veu_benefit_inc_gst))} · Final {aud(Number(ag.final_customer_price_inc_gst))}</dd>
             <dt className="text-muted-foreground">Wording</dt><dd>Rights {ag.consumer_rights_version} · Agreement {ag.agreement_wording_version ?? "not configured"} · origin {ag.record_origin}</dd>
           </dl>)}
-      </Section>
-      <Section title="2. ESC owner consent (after booking, ≥24h before work)">
+      </Section>}
+      {sections.includes(2) && <Section title="ESC owner consent (after booking, ≥24h before work)">
         {!c ? <p className="text-sm text-muted-foreground">Generated automatically once an exact installation date is booked.</p> : (
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /> v{c.version} · {(c.installation_days as string[]).join(", ")} {c.copy_path && <CopyLink id={c.id} which="consent" label="Signed copy" />}</div>
@@ -277,11 +280,8 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
             </div>}
             {c.status === "valid" && <p>AP: {c.ap_rep_name} · {fmtDateTime(c.ap_signed_at)} · delivery {String(c.delivery_status).replace(/_/g, " ")}</p>}
           </div>)}
-      </Section>
-      <Section title="3. Installer declaration (Mitti PIISA before work)">
-        {data.declaration ? <p className="text-sm">{data.declaration.installed_product} {data.declaration.installed_r_value ?? ""} · {data.declaration.installed_area_m2} m² · signed {fmtDateTime(data.declaration.signed_at)}</p> : <p className="text-sm text-muted-foreground">{INSTALLER_DECLARATION_SUPERSEDED}</p>}
-      </Section>
-      <Section title="4. Official ESC VEEC assignment form v1.1 (post-install: installer → AP → owner)">
+      </Section>}
+      {sections.includes(4) && <Section title="Official ESC VEEC assignment form v1.1 (post-install: installer → AP → owner)">
         {data.finalBlockers.length > 0 && <div className="mb-3 flex gap-2 rounded border border-warning bg-warning-soft p-3 text-sm"><ShieldAlert className="h-4 w-4 shrink-0" /><div>{data.finalBlockers.map((b) => <div key={b}>{b}</div>)}<a className="underline" href="/admin/compliance">Open Compliance Setup</a></div></div>}
         <VeecPreparation jobId={jobId} prep={data.veecPrep as Any} prepare={(fieldValues) => prepare({ jobId, fieldValues }, "Form details saved")} canPrepare={data.installationCompleted && a?.status !== "effective_complete"} />
         <ApPrerequisites jobId={jobId} items={data.apPrerequisites ?? []} signed={!!a?.ap_signed_at} />
@@ -306,7 +306,7 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
               <Button variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await raise({ jobId, reason }, "Variation raised – customer must reconfirm"); setReason(""); }}>Raise variation</Button></div>}
           </div>
         )}
-      </Section>
+      </Section>}
     </div>
   );
 }

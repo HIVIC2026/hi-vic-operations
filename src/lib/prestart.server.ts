@@ -3,7 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import { escTask, prestartFailures, prestartLocked, prestartRunAt, type EscNotice, type LeadCert } from "./prestart.core";
-import { escSentLine, isWithdrawn, registryBlock, type EscField } from "./esc.core";
+import { escSentLine, isWithdrawn, registryBlock, registryChange, REGISTRY_FIELDS_SOURCE, type EscField, type RegistryChange } from "./esc.core";
 
 async function upcomingBooking(jobId: string) {
   const { data } = await admin.from("bookings").select("id, scheduled_start, assignment_id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -11,20 +11,20 @@ async function upcomingBooking(jobId: string) {
 }
 
 /** The job's lead installer = the active assigned installer person, matched to their worker record. */
-export async function leadInstallerCert(jobId: string): Promise<LeadCert & { email: string | null; certificateNumber: string | null }> {
-  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null };
+export async function leadInstallerCert(jobId: string): Promise<LeadCert & { email: string | null; certificateNumber: string | null; mobile?: string | null }> {
+  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null, mobile: null };
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!a) return none;
-  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, business_id, trade_role, removed_at").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
+  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
   if (!w) return none;
   const email = w.email.trim().toLowerCase();
   // Decision 130: the lead must have acknowledged the ESC collection notice (own secure link / My business).
   const noticeAcknowledged = (await (await import("./esc-collection-notice.server")).noticeAckMap([w as never])).get(w.id) ?? null;
   const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
   const c = certs?.[0];
-  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, noticeAcknowledged };
+  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged };
   const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, noticeAcknowledged };
+  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, mobile: w.mobile ?? null, noticeAcknowledged };
 }
 
 /** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
@@ -34,6 +34,15 @@ export async function latestNotices(jobId: string) {
   const current = rows.find((r) => r.status !== "stale") ?? null;
   const previousSent = rows.find((r) => r !== current && !!r.sent_at && !isWithdrawn(r)) ?? null;
   return { current, previousSent };
+}
+
+/** H3 (24 Oct 2026): the assigned installer business's public liability insurance must not have lapsed before the install starts. */
+async function installerPublicLiabilityBlocker(jobId: string): Promise<string | null> {
+  const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (!a?.business_id) return null;
+  const { publicLiabilityExpiryFor } = await import("./business-insurance.server");
+  const { publicLiabilityBlocker, melbourneToday } = await import("./worker-compliance.core");
+  return publicLiabilityBlocker((await publicLiabilityExpiryFor([a.business_id])).get(a.business_id) ?? null, melbourneToday());
 }
 
 export async function prestartFacts(jobId: string, start: string) {
@@ -53,6 +62,9 @@ export async function prestartFacts(jobId: string, start: string) {
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
     siteHoldBlockers: await siteHoldBlockers(jobId),
+    publicLiabilityBlocker: await installerPublicLiabilityBlocker(jobId),
+    // Decision 261: the portal's safety plan (SWMS) must be signed by the lead and every listed installer.
+    swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
   };
 }
 
@@ -146,11 +158,18 @@ export async function prestartSummary(jobId: string) {
   const fields: EscField[] | undefined = cfg?.required_fields.length ? cfg.required_fields : undefined;
   const registry = cur ? registryBlock((cur.payload_json ?? {}) as Record<string, unknown>, fields) : null;
   const prev = n.previousSent;
+  // Same-ID update vs withdraw + resubmit (Activity Guide v1.2 §3.3.3): only when an earlier notice was sent and the current one is not.
+  let change: RegistryChange | null = null;
+  if (prev && cur && !escSentLine(cur)) {
+    const { data: pp } = await admin.from("esc_notifications").select("scheduled_start, sent_at, submission_reference, payload_json").eq("id", prev.id).maybeSingle();
+    if (pp) change = registryChange(pp, { scheduled_start: b.scheduled_start, payload_json: cur.payload_json }, new Date().toISOString());
+  }
   return {
+    change,
     start: b.scheduled_start, runAt: prestartRunAt(b.scheduled_start),
     task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, now: new Date() }),
     notification: cur ? { id: cur.id, version: cur.version, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at, sent_at: cur.sent_at, reference: cur.submission_reference, method: cur.submission_method, last_error: cur.last_error, canRecord: ["ready", "pending_submission", "error"].includes(cur.status) } : null,
-    registry, sentLine: escSentLine(cur ?? null), fieldsSource: cfg ? `approved config ${cfg.version}` : "default Registry list (Jo confirms on first use)",
+    registry, sentLine: escSentLine(cur ?? null), fieldsSource: cfg ? `approved config ${cfg.version}` : REGISTRY_FIELDS_SOURCE,
     previousSent: prev ? { id: prev.id, sent_at: prev.sent_at, reference: prev.submission_reference, scheduled_start: prev.scheduled_start, sentLine: escSentLine(prev) } : null,
     check: await latestCheck(jobId), gate: await prestartGate(jobId),
   };

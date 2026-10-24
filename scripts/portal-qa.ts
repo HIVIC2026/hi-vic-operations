@@ -203,10 +203,12 @@ try {
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
     type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string; verifyContent?: boolean; discoverTestJob?: boolean; widths?: number[] };
     let screens: Screen[] = [
-      { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
+      { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Fix details", "Waiting on owner"] },
+      { step: "office-needs-me", persona: "office", path: "/admin", expectedPath: "/admin/needs-me", mustSee: ["Needs me", "Today", "This week", "Watch"] },
+      { step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/active", mustSee: ["Jobs", "Active", "Closed", "Choose installer", "Ready Check", "Final check"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
       { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "email" }, mustSee: ["Templates", "Viewing here never sends, saves or connects anything."] },
-      { step: "office-partners", persona: "office", path: "/admin/partners-overview" },
+      { step: "office-partners", persona: "office", path: "/admin/partners?tab=approved", expectedPath: "/admin/partners" }, // O5: Partners overview removed (office audit); Approved shows stored names
       { step: "office-templates", persona: "office", path: "/admin/templates" },
       { step: "rec-home", persona: "rec", path: "/field", noPrices: false },
       { step: "rec-business", persona: "rec", path: "/field/business" },
@@ -227,23 +229,23 @@ try {
       const existing = new Map(screens.map(s => [s.path, s]));
       screens = [...new Set(READ_ONLY_PATHS)].map((path, i) => ({ ...(existing.get(path) ?? { step: `read-only-${i}`, path }), persona: path.startsWith('/admin') || path.endsWith('email-preview') ? 'office' : path.startsWith('/field') || path.startsWith('/partner') || ['/portal', '/home'].includes(path) ? 'installer' : 'public' }));
       screens = screens.map(s => ({ ...s, safeTabs: ['/admin/communications', '/admin/templates'].includes(s.path) }));
-      for (const status of ['all', 'new', 'spot_saved', 'offered_spot', 'insulation_requested', 'ineligible', 'needs_attention', 'photos', 'removed']) screens.push({ step: `enquiry-view-${status}`, path: `/admin/enquiries?status=${status}`, persona: 'office', readinessSelector: 'input[aria-label="Search enquiries"]' });
-      for (const path of ['/admin/board?tab=quotes', '/admin/money?tab=payouts']) screens.push({ step: `additional-${screens.length}`, path, persona: 'office' });
+      for (const status of ['all', 'new', 'offered_spot', 'insulation_requested', 'needs_attention', 'photos']) screens.push({ step: `enquiry-view-${status}`, path: `/admin/enquiries?status=${status}`, persona: 'office', readinessSelector: '[role="tablist"][aria-label="Enquiry piles"]' });
+      for (const path of ['/admin/jobs/active?stage=quote', '/admin/jobs/closed', '/admin/money?tab=payouts']) screens.push({ step: `additional-${screens.length}`, path, persona: 'office' });
       const fixtureId = '518271f4-90b5-4d16-8ccc-2d2a5a0a12c1'; // existing Office QA fixture, never changed in read-only mode
       const { data: fixture, error: fixtureError } = await admin.from('jobs').select('id,source').eq('id', fixtureId).single();
-      if (!fixtureError && fixture?.source === 'qa_test') screens.push({ step: 'office-test-history', path: `/admin/jobs/${fixtureId}`, persona: 'office', safeButtons: ['Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] });
+      if (!fixtureError && fixture?.source === 'qa_test') screens.push({ step: 'office-test-history', path: `/admin/jobs/${fixtureId}`, persona: 'office', mustSee: ['Next', 'Enquiry', 'Ready Check', 'Quote', 'PIESA', 'Install', 'Final check', 'Money', 'Contact history'] });
       else notRun('screens', '/admin/jobs/$jobId', 'existing isolated TEST Office fixture unavailable');
       if (REVIEW_GAPS) {
         screens = [
-          { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Recent send log'], safeTabs: true },
+          { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Held & queued'], safeTabs: true },
           { step: 'gap-list', path: '/admin/list?test=true', persona: 'office', expectedPath: '/admin/list', readinessSelector: 'table', mustSee: ['Jobs'] },
           { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/enquiries', mustSee: ['Enquiries'] },
-          { step: 'gap-pricing', path: '/admin/pricing', persona: 'office', expectedPath: '/admin/pricing', mustSee: ['Prices & margins', 'Owner prices', 'Price history'] },
+          { step: 'gap-pricing', path: '/admin/money?tab=prices', persona: 'office', expectedPath: '/admin/money', mustSee: ['Money', 'Owner price list', 'Fixed rule'] },
           { step: 'gap-job-queue', path: '/admin/job-queue', persona: 'office', expectedPath: '/admin/job-queue', mustSee: ['Job queue'] },
-          { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-upload-actions]', discoverTestJob: true },
+          { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-my-work]', discoverTestJob: true },
           { step: 'gap-installer-money', path: '/field/money', persona: 'installer', expectedPath: '/field/money', mustSee: ['Money'] },
           { step: 'gap-installer-business', path: '/field/business', persona: 'installer', expectedPath: '/field/business', mustSee: ['My business', 'Approved partner', 'TEST'] },
-          ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111'], safeButtons: ['Contacts, source & exceptions', 'Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] }] : []),
+          ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111', 'Last heard from us', 'File · '] }] : []),
         ].map(s => ({ ...s, verifyContent: true }));
         if (REVIEW_RETRY) screens = screens.filter(s => ['gap-communications'].includes(s.step));
         if (REVIEW_RETRY && installerJobIds[0]) screens.push({ step: 'gap-installer-job', path: `/field/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' }, { step: 'gap-installer-day', path: `/field/day/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/day/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' });

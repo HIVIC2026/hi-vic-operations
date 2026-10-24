@@ -95,6 +95,25 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installClearance'] = "failed";
         }
         try {
+          // Decisions 79/82/99 (built per 193): "Install tomorrow" to the installer from the afternoon before, and a 24h
+          // catch-up for the owner-suggested-days and Ready-Check-booked installer texts whose live trigger was missed.
+          // One `installer_text_prepared` event per text before sending; TEST → test-send; real → sendRealSms.
+          const { sweepInstallerTexts } = await import("@/lib/installer-texts.server");
+          (out as Record<string, unknown>)['installerTexts'] = await sweepInstallerTexts();
+        } catch (e) {
+          console.error("allocation tick: installer texts sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installerTexts'] = "failed";
+        }
+        try {
+          // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
+          // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
+          const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");
+          (out as Record<string, unknown>)['estimateFollowups'] = await sweepEstimateFollowups();
+        } catch (e) {
+          console.error("allocation tick: estimate follow-up sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['estimateFollowups'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");
@@ -127,6 +146,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: ready check sweep failed", (e as Error).message);
           out['ok'] = false;
           (out as Record<string, unknown>)['readyCheck'] = "failed";
+        }
+        try {
+          // Decision 246: automatic offers by coverage (installer Ready Check / PIESA electrician). Both switches OFF
+          // by default and read fail-closed; runs AFTER the offer expiry sweeps so a lapsed offer goes to the next match
+          // (or back to the office after 2 misses) in the same tick. Sends only through the existing guarded senders.
+          const { sweepAutoOffers } = await import("@/lib/auto-offer.server");
+          (out as Record<string, unknown>)['autoOffers'] = await sweepAutoOffers();
+        } catch (e) {
+          console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['autoOffers'] = "failed";
         }
         try {
           const { sweepPrestart } = await import("@/lib/prestart.server");

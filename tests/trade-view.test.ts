@@ -44,8 +44,10 @@ describe("trade view presentation", () => {
     expect(expiryPill("2027-10-20", now).label).toBe("Current");
     expect(expiryPill("2026-10-01", now).label).toBe("Expired");
   });
-  test("day tiles use the four 2-hour windows", () => {
-    expect(dayTile("2026-10-13T21:00:00Z")).toEqual({ day: "WED 14", window: "8–10am" });
-    expect(dayTile("2026-10-14T03:00:00Z").window).toBe("2–4pm");
+  test("day tiles show the exact arrival time, never a window (decision 43)", () => {
+    expect(dayTile("2026-10-13T21:00:00Z")).toEqual({ day: "WED 14", time: "8:00am" });
+    expect(dayTile("2026-10-13T20:30:00Z").time).toBe("7:30am");
+    expect(dayTile("2026-10-14T03:00:00Z").time).toBe("2:00pm");
+    expect(JSON.stringify(dayTile("2026-10-14T03:00:00Z"))).not.toMatch(/–|window/);
   });
 });

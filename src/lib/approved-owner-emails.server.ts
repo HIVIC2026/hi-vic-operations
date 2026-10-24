@@ -59,16 +59,26 @@ export async function emailOwnerInstallComplete(jobId: string, i: Omit<import(".
     render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
 }
 
-export async function emailOwnerFinalInvoice(jobId: string, i: Omit<import("./completion-emails.core").FinalInvoiceInput, "firstName" | "ownerName" | "address" | "installer" | "test">) {
-  const { COMPLETION_EMAILS_APPROVED, renderFinalInvoiceEmail } = await import("./completion-emails.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "final_invoice", key: `final-invoice:v1:${i.invoiceNumber}`, approved: COMPLETION_EMAILS_APPROVED, label: "Final invoice email", notSentEvent: "final_invoice_email_not_sent",
-    render: (f) => renderFinalInvoiceEmail({ ...i, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
+/** Decision 209: the installed product line (brand, model, R-value, m², ESC model codes when known) read from the job; null when unknown. */
+async function installedLineFor(jobId: string, given: import("./completion-emails.core").InstalledLine | null | undefined) {
+  if (given !== undefined) return given;
+  const { installedProductLine } = await import("./invoice-itemisation.server");
+  const line = await installedProductLine(jobId);
+  return line ? { description: line.description, escModelCodes: line.escModelCodes } : null;
 }
 
-export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"]) {
+export async function emailOwnerFinalInvoice(jobId: string, i: Omit<import("./completion-emails.core").FinalInvoiceInput, "firstName" | "ownerName" | "address" | "installer" | "test">) {
+  const { COMPLETION_EMAILS_APPROVED, renderFinalInvoiceEmail } = await import("./completion-emails.core");
+  const installed = await installedLineFor(jobId, i.installed);
+  return sendOwnerTemplateEmail({ jobId, purpose: "final_invoice", key: `final-invoice:v1:${i.invoiceNumber}`, approved: COMPLETION_EMAILS_APPROVED, label: "Final invoice email", notSentEvent: "final_invoice_email_not_sent",
+    render: (f) => renderFinalInvoiceEmail({ ...i, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
+}
+
+export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null) {
   const { COMPLETION_EMAILS_APPROVED, renderCompletionPackEmail } = await import("./completion-emails.core");
+  const installed = await installedLineFor(jobId, installedGiven);
   return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: `completion-pack:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent",
-    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, test: f.test }) });
+    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, test: f.test }) });
 }
 
 export async function emailOwnerReviewRequest(jobId: string, i: { googleReviewUrl: string; referralUrl: string }) {

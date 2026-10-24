@@ -1,52 +1,31 @@
-// Shared "before you start" section for all three trade days (Jo-approved 5 Oct). Ticks remembered per job.
+// The three phone checks before the Mitti form opens (mock-up M4, decision 199; geotagged photos decision 178).
+// Ticks are remembered per job on the phone. The third check depends on the visit (pure `dayChecks`): install day →
+// power off; our-lead Ready Check → "I will not discuss pricing with the owner" (decision 28, approved state
+// M4-ready-check-day) — that tick IS the pricing confirmation the server records on Start.
 import { useEffect, useState } from "react";
-import { Check, Zap } from "lucide-react";
-import { PRESTART_CHECKS, START_LABEL, prestartReady, type DayKind } from "@/lib/trade-view.core";
-import { greenBtn } from "./TradeShell";
-import { Checkbox } from "@/components/ui/checkbox";
+import { prestartReady, type DayKind } from "@/lib/trade-view.core";
+import { dayChecks } from "@/lib/installer-screens.core";
+import { CheckLine, PrimaryButton } from "@/components/trade/installer-kit";
 import { HIVIC_READY_CHECK_PRICING_TICK } from "@/lib/owner-confirm.core";
 
-export function TradePrestart({ jobId, kind, channel, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; onStart: () => void | Promise<void>; disabledReason?: string | null }) {
+export function TradePrestart({ jobId, kind, channel, label, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; label: string; onStart: () => void | Promise<void>; disabledReason?: string | null }) {
   const key = `hiv-prestart-${jobId}`;
   const [ticks, setTicks] = useState<boolean[]>([false, false, false]);
-  const [pricingConfirmed, setPricingConfirmed] = useState(false);
-  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); if (Array.isArray(v)) setTicks(v); } catch { /* ignore */ } }, [key]);
-  const flip = (i: number) => { const n = ticks.map((t, j) => (j === i ? !t : t)); setTicks(n); localStorage.setItem(key, JSON.stringify(n)); };
+  const checks = dayChecks({ kind, channel: channel ?? null });
+  // The pricing tick (our-lead Ready Check) is never remembered across visits: it is re-ticked each day, and the server
+  // records the exact HIVIC_READY_CHECK_PRICING_TICK sentence (shown in full under the short line) on Start.
+  const pricingTick = kind === "ready_check" && channel === "hivic_sourced";
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); if (Array.isArray(v)) setTicks(pricingTick ? [!!v[0], !!v[1], false] : v); } catch { /* ignore */ } }, [key, pricingTick]);
+  const flip = (i: number) => { const n = ticks.map((t, j) => (j === i ? !t : t)); setTicks(n); try { localStorage.setItem(key, JSON.stringify(pricingTick ? [n[0], n[1], false] : n)); } catch { /* ignore */ } };
   const ready = prestartReady(ticks);
-  const needsPricingConfirmation = kind === "ready_check" && channel === "hivic_sourced";
-  const canStart = ready && (!needsPricingConfirmation || pricingConfirmed);
-  const n = ticks.filter(Boolean).length;
-  const tips = ["Wipe the lens", "Torch on, not flash", "Hold still, tap to focus", "Move slowly in videos"];
   return (
     <>
-      <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
-        <h2 className="font-display text-xl font-bold">Sharp photos and videos, every time</h2>
-        <p className="mt-1 text-sm text-sub">The onsite form tells you exactly what to shoot. We just need every one crystal clear.</p>
-        <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).</p>
-        <div className="mt-3 grid grid-cols-2 gap-2">{tips.map((t) => <div key={t} className="rounded-2xl bg-paper border border-line p-3 text-sm font-bold">{t}</div>)}</div>
-        <p className="mt-3 text-sm font-bold text-owner-house-pink">Check each one before you move on. Blurry? Retake it on the spot.</p>
-      </section>
-      {needsPricingConfirmation && <label className="flex min-h-14 items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-hivic-pricing-confirmation><Checkbox className="mt-0.5" checked={pricingConfirmed} onCheckedChange={(c) => setPricingConfirmed(c === true)} aria-label={HIVIC_READY_CHECK_PRICING_TICK} /><span>{HIVIC_READY_CHECK_PRICING_TICK}</span></label>}
-      <section className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">
-        <h2 className="font-display text-lg font-bold">Phone check ({n}/3)</h2>
-        <div className="mt-3 space-y-2">{PRESTART_CHECKS.map((c, i) => (
-          <button key={c.title} type="button" onClick={() => flip(i)} aria-pressed={!!ticks[i]} className="flex min-h-14 w-full items-center gap-3 rounded-[10px] bg-estimate-mist px-3 text-left">
-            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${ticks[i] ? "border-estimate-green bg-estimate-green text-white" : "border-estimate-line bg-paper"}`}>{ticks[i] && <Check className="h-4 w-4" />}</span>
-            <span><span className="block text-sm font-bold">{c.title}</span>{c.sub && <span className="block text-xs text-sub">{c.sub}</span>}</span>
-          </button>))}</div>
-      </section>
-      <section className="space-y-3">
-        <h2 className="font-display text-lg font-bold">How to turn on location for your camera</h2>
-        {[{ t: "iPhone", s: ["Open Settings", "Tap Privacy & Security", "Tap Location Services and make sure it's on", "Scroll down and tap Camera", "Choose While Using the App", "Turn Precise Location on"] },
-          { t: "Android", s: ["Open Settings", "Tap Apps, then Camera", "Tap Permissions, then Location", "Choose Allow only while using the app", "Turn Use precise location on"] }].map((x) => (
-          <div key={x.t} className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><p className="font-bold">{x.t}</p><ol className="mt-2 space-y-1 text-sm">{x.s.map((s, i) => <li key={s}><span className="font-bold text-estimate-blue">{i + 1}</span>&nbsp; {s}</li>)}</ol></div>
-        ))}
-        <p className="text-center text-xs text-sub">You only need to do this once per phone.</p>
-      </section>
-      <div className="fixed inset-x-0 bottom-16 z-30 px-4 pb-[env(safe-area-inset-bottom)]"><div className="mx-auto max-w-md">
-        <button type="button" className={greenBtn} disabled={!canStart || !!disabledReason} onClick={onStart}><Zap className="h-5 w-5" />{!ready ? "Tick all 3 to start" : needsPricingConfirmation && !pricingConfirmed ? "Confirm pricing rule to start" : START_LABEL[kind]}</button>
-        {canStart && disabledReason && <p className="mt-1 rounded-xl bg-paper p-2 text-center text-xs shadow-sm">{disabledReason}</p>}
-      </div></div>
+      <div className="mt-3" data-prestart-checks>
+        {checks.map((c, i) => <CheckLine key={c} on={!!ticks[i]} onClick={() => flip(i)}>{c}</CheckLine>)}
+        {pricingTick && <p className="pl-8 text-[13px] leading-[1.45] text-sub" data-hivic-pricing-confirmation>{HIVIC_READY_CHECK_PRICING_TICK}</p>}
+      </div>
+      <PrimaryButton className="mt-2.5" disabled={!ready || !!disabledReason} onClick={onStart}>{!ready ? "Tick all 3 to start" : label}</PrimaryButton>
+      {ready && disabledReason && <p className="mt-2 text-center text-[13px] text-sub">{disabledReason}</p>}
     </>
   );
 }

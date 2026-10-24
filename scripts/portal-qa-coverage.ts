@@ -21,7 +21,7 @@ export const READ_ONLY_PATHS = [
   '/admin/deleted', '/admin/electrician-rates', '/admin/hot-leads', '/admin/interests', '/admin/jobs',
   '/admin/launch-campaign', '/admin/list', '/admin/needs-me', '/admin/partners', '/admin/pricing',
   '/admin/ready-check', '/admin/save-my-spot-rules', '/admin/team-ups', '/admin/test-centre',
-  '/admin/today', '/admin/todo', '/admin/users', '/field/setup', '/field/welcome', '/home', '/portal',
+  '/admin/today', '/admin/todo', '/admin/users', '/admin/settings', '/field/setup', '/field/welcome', '/home', '/portal',
   '/partner/profile', '/campaign-preview', '/electrician-onboarding', '/installer-onboarding',
   '/installer-preview', '/reset-password', '/step3-email-preview',
 ];

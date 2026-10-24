@@ -16,10 +16,13 @@ describe("ESC AP task", () => {
   test("submitted for this date clears it", () => {
     expect(escTask({ start: START, current: sent(at(3 * D).toISOString()), previousSent: null, now: at(2 * D) })).toBeNull();
   });
-  test("date moved: within window → update; beyond 5 days → withdraw and resubmit", () => {
+  test("date moved (Activity Guide v1.2 §3.3.3): new start within 5 days and original not passed → update; otherwise withdraw and resubmit", () => {
     const old = "2026-10-14T21:00:00Z";
     expect(escTask({ start: START, current: { status: "ready", sent_at: null, submission_reference: null, scheduled_start: START }, previousSent: sent(at(3 * D).toISOString(), old), now: at(2 * D) })!.code).toBe("esc_update_registry");
-    expect(escTask({ start: START, current: null, previousSent: sent(at(7 * D).toISOString(), old), now: at(4 * D) })!.code).toBe("esc_withdraw_resubmit");
+    // New start more than 5 days away → withdraw.
+    expect(escTask({ start: START, current: null, previousSent: sent(at(7 * D).toISOString(), old), now: at(6 * D) })!.code).toBe("esc_withdraw_resubmit");
+    // Original start already passed → withdraw (an update needs the original date not to have passed).
+    expect(escTask({ start: START, current: null, previousSent: sent(at(5 * D).toISOString(), "2026-10-12T21:00:00Z"), now: at(2 * D) })!.code).toBe("esc_withdraw_resubmit");
   });
 });
 

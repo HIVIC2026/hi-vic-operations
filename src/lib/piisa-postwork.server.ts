@@ -4,11 +4,14 @@ import type { MittiMediaFetch } from "./mitti.server";
 
 /** Copy current-audit originals to private review storage; never grant approval or advance a stage. */
 export async function syncVerifiedPiisaPostwork(jobId: string, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<string[]> {
-  const parsed = currentPostworkMedia(audit);
+  const generatedFinalPlan = await (await import("./area-diagram.server")).hasGeneratedFinalPlan(jobId);
+  const parsed = currentPostworkMedia(audit, { generatedFinalPlan });
   if (parsed.blockers.length) return parsed.blockers;
   const { createHash } = await import("node:crypto");
   const blockers: string[] = [];
   for (const spec of PIISA_POSTWORK) {
+    // Decision 211: the generated final plan stands as the plan evidence (area-diagram.server files it on the checklist row).
+    if (spec.key === "final_plan" && generatedFinalPlan && !(parsed.files.find((f) => f.key === spec.key)?.media ?? []).some((m) => m.mediaId)) continue;
     let { data: req, error } = await admin.from("evidence_requirements").select("id,status,verified_by,verified_at").eq("job_id", jobId).eq("category", spec.category).order("sort").limit(1).maybeSingle();
     if (error) throw new Error(error.message);
     if (!req) {

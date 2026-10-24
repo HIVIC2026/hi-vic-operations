@@ -9,6 +9,7 @@ import {
   installDueDatePatch, paymentPatch, splitTotal, xeroDueDate, type InvoiceRow, type InvoiceStore,
 } from "../src/lib/invoice.lifecycle";
 import { installationDateBlocker } from "../src/lib/workflow";
+import { itemiseInvoiceLines } from "../src/lib/invoice-itemisation.core";
 
 // ---------- in-memory store with UNIQUE(quote_id) ----------
 function memStore() {
@@ -150,18 +151,41 @@ describe("full detailed invoice payload", () => {
     { description: "Electrical rectification: Install RCD", quantity: 1, unit_price_inc_gst: 216, line_total_inc_gst: 216 },
   ];
   const tracking = { categoryName: "Business Unit", optionName: "Home Insulation Victoria" };
-  test("every line once + VEEC discount negative, inclusive GST, totals exact, tracking and reference", () => {
-    const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecDiscount: 1180, tracking }).Invoices[0]!;
+  test("every line once + VEEC incentive negative, inclusive GST, totals exact, tracking and reference", () => {
+    const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecIncentive: 1180, tracking }).Invoices[0]!;
     expect(inv.Reference).toBe("Home Insulation Victoria HV-1007");
     expect(inv.LineAmountTypes).toBe("Inclusive");
     expect(inv.LineItems.length).toBe(4);
     expect(inv.LineItems.at(-1)).toMatchObject({ UnitAmount: -1180, Quantity: 1 });
-    expect(inv.LineItems.at(-1)!.Description).toContain("VEEC discount");
+    expect(inv.LineItems.at(-1)!.Description).toBe("Home Insulation Victoria HV-1007 – VEEC incentive"); // decision 209: never "discount"
     expect(inv.LineItems.reduce((s, l) => s + l.Quantity * l.UnitAmount, 0)).toBe(3330);
     for (const l of inv.LineItems) expect(l.Tracking).toEqual([{ Name: "Business Unit", Option: "Home Insulation Victoria" }]);
   });
+  test("decision 209: first line carries the installation address; the locked reference is unchanged; totals still exact", () => {
+    const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecIncentive: 1180, tracking, installationAddress: "824 High Street Road, Glen Waverley VIC 3150" }).Invoices[0]!;
+    expect(inv.Reference).toBe("Home Insulation Victoria HV-1007");
+    expect(inv.LineItems[0]!.Description).toBe("Home Insulation Victoria HV-1007 – Installation address: 824 High Street Road, Glen Waverley VIC 3150 – R4.0 ceiling batts");
+    expect(inv.LineItems[1]!.Description).toBe("Home Insulation Victoria HV-1007 – Electrical rectification: Downlight upgrade to IC-4 LED");
+    expect(inv.LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0)).toBe(333000);
+    // Unknown address is never invented.
+    const none = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecIncentive: 1180, tracking, installationAddress: "  " }).Invoices[0]!;
+    expect(none.LineItems[0]!.Description).toBe("Home Insulation Victoria HV-1007 – R4.0 ceiling batts");
+  });
+  test("decision 209: itemised insulation line flows into the payload unchanged in amount", () => {
+    const quoteItems = [{ code: "R5_BATTS", description: "Supply and install of Bradford Gold R5 ceiling insulation", quantity: 137.6, unit_price_inc_gst: 20, line_total_inc_gst: 2752 }, { code: "AP_FEE", description: "Accredited Provider fee (Home Insulation Victoria)", quantity: 1, unit_price_inc_gst: 349, line_total_inc_gst: 349 }];
+    const it = itemiseInvoiceLines(quoteItems, { product: { option: "Bradford Gold R5", rValue: "R5.0" }, areaM2: 137.6 });
+    expect(it.officeFlag).toBeNull();
+    const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-3117", dueDate: "2026-11-11", total: 1251, items: it.items, veecIncentive: 1850, tracking, installationAddress: "824 High Street Road, Glen Waverley VIC 3150" }).Invoices[0]!;
+    expect(inv.LineItems.map((l) => l.Description)).toEqual([
+      "Home Insulation Victoria HV-3117 – Installation address: 824 High Street Road, Glen Waverley VIC 3150 – Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m²",
+      "Home Insulation Victoria HV-3117 – Accredited Provider fee (Home Insulation Victoria)",
+      "Home Insulation Victoria HV-3117 – VEEC incentive",
+    ]);
+    expect(inv.LineItems[0]).toMatchObject({ Quantity: 137.6, UnitAmount: 20 });
+    expect(inv.LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0)).toBe(125100);
+  });
   test("lines that don't match the accepted total are refused", () => {
-    expect(() => buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "d", total: 3331, items, veecDiscount: 1180, tracking })).toThrow("don't add up");
+    expect(() => buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "d", total: 3331, items, veecIncentive: 1180, tracking })).toThrow("don't add up");
   });
   test("accepted-quote guard", () => {
     expect(quoteGuard({ status: "issued", customer_total_inc_gst: 100 }, 100)).toMatch("not accepted");
@@ -212,7 +236,7 @@ async function push(call: XeroCall, invoiceId: string, jobNumber: string) {
   let x = await findInvoiceByReference(call, xeroReference(jobNumber));
   if (!x) {
     const { contactId } = await findOrCreateContact(call, owner);
-    const payload = buildInvoicePayload({ contactId, jobNumber, dueDate: "2026-09-28", total: 2000, items: [{ description: "Batts", quantity: 100, unit_price_inc_gst: 25, line_total_inc_gst: 2500 }], veecDiscount: 500, tracking: t });
+    const payload = buildInvoicePayload({ contactId, jobNumber, dueDate: "2026-09-28", total: 2000, items: [{ description: "Batts", quantity: 100, unit_price_inc_gst: 25, line_total_inc_gst: 2500 }], veecIncentive: 500, tracking: t });
     x = (await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload })).Invoices[0];
   }
   return x;
@@ -280,7 +304,7 @@ describe("HI VIC business-unit barrier", () => {
   });
   const tr = [{ Name: "Business Unit", Option: "Home Insulation Victoria" }];
   test("payload guard: good HI VIC payload passes", () => {
-    const p = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1", dueDate: "d", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecDiscount: 0, tracking: { categoryName: "Business Unit", optionName: "Home Insulation Victoria" } });
+    const p = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1", dueDate: "d", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecIncentive: 0, tracking: { categoryName: "Business Unit", optionName: "Home Insulation Victoria" } });
     expect(() => assertHivicPayload(p)).not.toThrow();
   });
   test("payload guard fails closed on wrong reference or tracking", () => {

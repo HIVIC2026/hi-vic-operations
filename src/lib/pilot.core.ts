@@ -346,12 +346,13 @@ export function appointmentSla(a: SlaInput, now = new Date()) {
 
 /**
  * Assessment visits have ONE normal scheduling path: proposals accepted in AppointmentPanel.
- * A direct assessment booking is an admin-only override and needs a reason (audited).
+ * A direct assessment (PIESA) or Ready Check booking is an admin-only override and needs a reason (audited;
+ * decision 220: one hidden office override for phone bookings).
  * Rectification/installation direct bookings keep their existing rules.
  */
-export function directBookingBlocker(kind: "assessment" | "rectification" | "installation", role: string, overrideReason?: string | null): string | null {
-  if (kind !== "assessment") return null;
-  if (role !== "admin") return "Assessment visits are arranged by proposing a time and having the other party accept it.";
+export function directBookingBlocker(kind: "assessment" | "ready_check" | "rectification" | "installation", role: string, overrideReason?: string | null): string | null {
+  if (kind !== "assessment" && kind !== "ready_check") return null;
+  if (role !== "admin") return kind === "ready_check" ? "Ready Check times are agreed between the owner and the installer." : "Assessment visits are arranged by proposing a time and having the other party accept it.";
   if (!overrideReason || overrideReason.trim().length < 5) return "An admin override needs a reason (at least 5 characters).";
   return null;
 }
@@ -466,4 +467,11 @@ export function recBucketFor(label: string): (typeof REC_BUCKETS)[number] {
  *  (their status line already says what to do). Only warnings/exceptions are shown to them. */
 export function recSlaForAssigned<T extends { state: string } | null>(sla: T): T | null {
   return sla && (sla.state === "attention" || sla.state === "exception") ? sla : null;
+}
+
+/** Decision 220: which visit the office's "Set a visit time by hand" sets at this job stage (null = none can be set). */
+export function manualVisitKind(stage: string): "ready_check" | "assessment" | null {
+  if (stage === "ready_check_ready_to_schedule" || stage === "ready_check_scheduled") return "ready_check";
+  if (stage === "piesa_and_install_window_pending" || stage === "piesa_scheduled") return "assessment";
+  return null;
 }

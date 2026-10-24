@@ -11,6 +11,8 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { crewClearance, melbourneToday } from "./worker-compliance.core";
+import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
+import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -124,7 +126,8 @@ const A3_PREVIOUS_MEDIA_LABELS: Record<A3EvidenceKey, string> = {
   final_plan: "Final installation plan — actual installed area (m²) and products",
 };
 export function a3AcceptedMediaLabels(key: A3EvidenceKey): string[] {
-  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
+  const long = (INSTALL_EVIDENCE_RELABELS_LONG as Partial<Record<A3EvidenceKey, string>>)[key];
+  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_INSTRUCTION_LABELS_2026_10_09[key], A3_EVIDENCE_LABELS[key], ...(long ? [long] : []), ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
 }
 
 /** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
@@ -183,6 +186,8 @@ export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | unde
 
 /** Every mapped field must exist on the native template, including all three crew rows. Visible failure list. */
 export function a3MissingFields(template: unknown): string[] {
+  // Decision 262: the "A3 – Install day" template is read by wording (install-day.core), not by the old stable IDs.
+  if (isInstallDayDoc(template)) return installDayMissingQuestions(template);
   const entries = flatten(template);
   const out: string[] = [];
   const ids = new Set([...Object.keys(A3_NATIVE_IDS), ...Object.keys(A3_ALIASES)]);
@@ -201,6 +206,10 @@ export function a3MissingFields(template: unknown): string[] {
   out.push(...a3CrewSchemaProblems(template));
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
+    // Decision 211: the final roof-space plan upload is retired (the portal draws the diagram); its absence is fine.
+    // Fix prompt (24 Oct 2026): the whole-job before / completed videos are deleted — each zone's own before / after
+    // video in "Zones and evidence" stands in (A3_ZONE_VIDEO_KEYS), so their absence is fine too.
+    if (!e && (k === "final_plan" || A3_ZONE_VIDEO_KEYS.includes(k as A3EvidenceKey))) continue;
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
     else if (!a3AcceptedMediaLabels(k as A3EvidenceKey).includes(e.norm)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
   }
@@ -219,12 +228,27 @@ function itemsById(audit: unknown): Map<string, Any> {
   walk(audit);
   return byId;
 }
-/** Every A3 media item on an audit (in-progress or completed) with per-file metadata. */
+/** Fix prompt (24 Oct 2026): A3 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
+export const A3_ZONE_VIDEO_KEYS: A3EvidenceKey[] = ["before_video", "completed_video"];
+/**
+ * Every A3 media item on an audit (in-progress or completed) with per-file metadata. before_video / completed_video
+ * = the old whole-job video (older forms) PLUS every zone's before / after 360° video when EVERY zone the form counts
+ * has one (zoneVideoFiles); a partly filmed set adds nothing, so the item stays missing. The before-work timing rule
+ * and the after-work copy (piisa-postwork) therefore apply to the zone videos too.
+ */
 export function a3MediaFiles(audit: unknown): Record<A3EvidenceKey, A3MediaFile[]> {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: the photo items by wording; the before / completed videos are the areas' own videos.
+    const m = installDayMedia(audit), zones = zoneVideoFiles(audit);
+    return { installer_photos: m.installer_photos, electrician_photo: m.electrician_photo, isolation_photo: m.isolation_photo, product_photos: m.product_photos, before_video: zones.before ?? [], completed_video: zones.after ?? [], final_plan: [] };
+  }
   const byId = itemsById(audit);
+  const zones = zoneVideoFiles(audit);
+  const zoneFor: Partial<Record<A3EvidenceKey, A3MediaFile[] | null>> = { before_video: zones.before, completed_video: zones.after };
   return Object.fromEntries((Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
     const o = byId.get(nid); const media = o?.media ?? o?.responses?.media ?? o?.responses?.attachments ?? [];
-    return [key, Array.isArray(media) ? media.map(mediaFile) : []];
+    const own = Array.isArray(media) ? media.map(mediaFile) : [];
+    return [key, [...own, ...(zoneFor[key] ?? [])]];
   })) as Record<A3EvidenceKey, A3MediaFile[]>;
 }
 /** Files -> A3Media summary. Geotagged/timestamped only when actually recorded; anything missing is counted for review. */
@@ -255,6 +279,13 @@ const YN_IDS = new Set(["p1.powerInformed", "lifeSupport", "p3.swms", "p3.table1
 
 /** Completed native audit -> official PIISA answers (keyed by official IDs). Only answered fields are returned. */
 export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew: { name: string; eec: string | null }[] } {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: every asked answer mapped to its official item (install-day.core); Part 5 lights / cables come from
+    // the stored PIESA (piesaPart5Answers), never from this form. Crew rows as typed (resolved against verified staff later).
+    const r = installDayOfficialAnswers(audit);
+    const crew = r.crew.slice(1).filter((c): c is { name: string | null; cii: string | null } => !!c?.name).map((c) => ({ name: c.name!, eec: c.cii }));
+    return { answers: r.answers as OfficialAnswers, crew };
+  }
   const entries = flatten(audit);
   const answers: OfficialAnswers = {};
   for (const id of Object.keys(A3_ALIASES)) {
@@ -278,6 +309,11 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
 
 /** The installer's signature must carry its OWN timestamp. The audit's modified/completed time is never used. */
 export function a3Signature(audit: unknown): { name: string | null; signedAt: string | null; present: boolean; mediaId: string | null; itemId: string | null } {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: the before-work "Lead installer's signature" (the FIRST of the two) is the official Part 8 signature.
+    const sig = readInstallDay(audit).declarationSignature;
+    return { ...sig, itemId: allWithLabel(labelledItems(audit), INSTALL_DAY_Q.signature)[0]?.id ?? null };
+  }
   const root = (audit as { template?: unknown })?.template ?? audit;
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
@@ -360,6 +396,36 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
   const dl = areas.map((a) => a.downlights);
   if (dl.every((x) => x != null && Number.isFinite(x))) { const sum = (dl as number[]).reduce((a, b) => a + b, 0); values["p5.recessed"] = sum > 0 ? "Yes" : "No"; if (sum > 0) values["p5.count"] = String(sum); }
   return { values, notes };
+}
+
+/**
+ * Decision 262: official PIISA Part 6 (existing insulation) filled by the portal from the job's Ready Check record — the
+ * install day form no longer asks it. `extra` carries facts the Ready Check record may hold beyond the area columns
+ * (condition / suitability, reason for retaining, foil or conductive). Every fact the record does not establish is listed
+ * in `missing` (a pre-start blocker), never guessed.
+ */
+export function readyCheckPart6Answers(areas: RcArea[], extra: { suitable: boolean | null; conductive: boolean | null; reason: string | null }): { answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null } {
+  const answers: Record<string, string | string[]> = {}, missing: string[] = [];
+  if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], conductive: null };
+  const pres = areas.map((a) => a.present);
+  if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, conductive: null }; }
+  const present = pres.some(Boolean);
+  answers["p6.present"] = present ? "Yes" : "No";
+  if (!present) return { answers, missing, conductive: null };
+  const withIns = areas.filter((a) => a.present === true);
+  const depths = [...new Set(withIns.map((a) => a.depthMm).filter((x): x is number => x != null && Number.isFinite(x)))];
+  if (depths.length === 1 && withIns.every((a) => a.depthMm != null)) answers["p6.height"] = String(depths[0]);
+  else missing.push(depths.length > 1 ? `Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average` : "Ready Check: existing insulation depth (mm) not recorded");
+  const rs = [...new Set(withIns.map((a) => a.rValue).filter((x): x is number => x != null && Number.isFinite(x)))];
+  if (rs.length === 1) answers["p6.rValue"] = String(rs[0]);
+  if (withIns.every((a) => a.removal != null)) {
+    const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
+    answers["p6.treatment"] = [...(rem ? ["Removed"] : []), ...(top ? ["Topped Up"] : [])];
+    if (top) { if (extra.reason?.trim()) answers["p6.reason"] = extra.reason.trim(); else missing.push("Ready Check: reason the existing insulation is being kept not recorded"); }
+  } else missing.push("Ready Check: removal or top-up not recorded for every area with existing insulation");
+  if (extra.suitable != null) answers["p6.suitable"] = extra.suitable ? "Yes" : "No"; else missing.push("Ready Check: condition of the existing insulation (suitable to lay over) not recorded");
+  if (extra.conductive == null) missing.push("Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded");
+  return { answers, missing, conductive: extra.conductive };
 }
 
 // ---------- crew ----------
@@ -476,7 +542,8 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
 export const A3_EVIDENCE_QUALITY = "Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
-export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
+/** Jo's 9 Oct 2026 full instructions — still accepted on the same stable IDs (a3AcceptedMediaLabels). */
+export const A3_INSTRUCTION_LABELS_2026_10_09: Record<A3EvidenceKey, string> = {
   installer_photos: `Please take a clear, geotagged photo of every installer at this property. ${A3_EVIDENCE_QUALITY}`,
   electrician_photo: `Please take a clear, geotagged photo of the electrician attending this property. ${A3_EVIDENCE_QUALITY}`,
   isolation_photo: `Before work starts, please take a clear, geotagged photo showing the power isolated, locked out and tagged. ${A3_EVIDENCE_QUALITY}`,
@@ -484,6 +551,30 @@ export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   product_photos: `Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. ${A3_EVIDENCE_QUALITY}`,
   completed_video: `After installation, please record a clear video showing all insulated areas, coverage, depth and removal of waste. ${A3_EVIDENCE_QUALITY}`,
   final_plan: `Please upload a clear final roof-space plan showing the installed area in m² and the products used. ${A3_EVIDENCE_QUALITY}`,
+};
+/** Current labels. Decision 205 (Activity Guide v1.2 Table 4): the four photo items are reworded on the SAME Mitti items
+ * (front of premises + photo ID; lock-out tag + solar/battery isolators off; packaging brand/model/R-value). The per-zone
+ * videos, ruler photos and daily re-check are NEW label-read items in install-evidence.core.ts. */
+export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
+  ...A3_INSTRUCTION_LABELS_2026_10_09,
+  installer_photos: INSTALL_EVIDENCE_RELABELS.installer_photos,
+  electrician_photo: INSTALL_EVIDENCE_RELABELS.electrician_photo,
+  isolation_photo: INSTALL_EVIDENCE_RELABELS.isolation_photo,
+  product_photos: INSTALL_EVIDENCE_RELABELS.product_photos,
+};
+/** What the installer/office is told when a requirement is short. The whole-job videos are gone from the current form
+ *  (fix prompt), so their requirement names the per-zone videos that now satisfy it. */
+export const A3_REQUIREMENT_LABELS: Record<A3EvidenceKey, string> = {
+  ...A3_EVIDENCE_LABELS,
+  before_video: "Before-work video — the before 360° video of every zone (Zones and evidence page)",
+  completed_video: "Completed-work video — the after 360° video of every zone (Zones and evidence page)",
+};
+/** What the office checks on each photo before AP sign-off (Table 4 wording), shown beside the checklist row. */
+export const A3_EVIDENCE_VERIFICATION: Partial<Record<A3EvidenceKey, string>> = {
+  installer_photos: "Each installer is at the front of the premises and their photo ID is clearly readable; location and time recorded.",
+  electrician_photo: "The electrician is at the front of the premises with photo ID clearly readable, taken before work started; location and time recorded.",
+  isolation_photo: "The switchboard is tagged and locked out; where the home has solar or a battery, each isolator is visibly switched off.",
+  product_photos: "Brand, model and R-value are readable on the packaging label of every product installed.",
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
 
@@ -496,7 +587,17 @@ export type A3EvidenceCtx = {
   mandatoryCurrentPostwork?: boolean;
   /** Life-support consent/plan already on file (reused, never uploaded twice). */
   lifeSupportConsentOnFile: boolean;
+  /** Decision 211: the portal's generated final installation plan (kind `final_area_diagram`) is on the job file. */
+  generatedFinalPlan?: boolean;
+  /** Decision 262: the "A3 – Install day" template (before videos come from the Ready Check). */
+  installDayForm?: boolean;
 };
+/** Decision 211 (Jo 24 Oct 2026): the generated final plan replaces the install-day "final plan" upload. Old jobs keep
+ *  their uploaded plan (existingPlanMatchesInstall) as an accepted alternative. */
+export function generatedPlanSatisfiesFinalPlan(ctx: Pick<A3EvidenceCtx, "generatedFinalPlan" | "existingPlanMatchesInstall" | "mandatoryCurrentPostwork">): boolean {
+  if (ctx.generatedFinalPlan === true) return true;
+  return ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork;
+}
 /** capturedAt = LATEST recorded capture time; timed = files with a recorded time (undefined = legacy, treated as all). */
 export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; timed?: number; capturedAt?: string | null };
 /** Before-work media are checked at prestart; after-work media only at completion (never block the prestart check). */
@@ -511,12 +612,13 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "installer_photos", min: Math.max(1, ctx.crewCount) },
     ...(elec ? [{ key: "electrician_photo" as const, min: 1 }] : []),
     { key: "isolation_photo", min: 1 },
-    { key: "before_video", min: 1 },
+    // Decision 264: on the install day form the before video of each area is the Ready Check's (checked by install-evidence).
+    ...(ctx.installDayForm ? [] : [{ key: "before_video" as const, min: 1 }]),
     { key: "product_photos", min: 1 },
     { key: "completed_video", min: 1 },
-    ...(ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork ? [] : [{ key: "final_plan" as const, min: 1 }]),
+    ...(generatedPlanSatisfiesFinalPlan(ctx) ? [] : [{ key: "final_plan" as const, min: 1 }]),
   ];
-  return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
+  return req.map((r) => ({ ...r, label: A3_REQUIREMENT_LABELS[r.key] }));
 }
 
 function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
@@ -606,17 +708,25 @@ export function a3EvidenceBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx,
 }
 
 /** Checklist rows for the job page/AP: every A3 item with its real state. */
-export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met" };
+export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met"; /** Decision 205: what the office verifies on the photo (Table 4 wording). */ verification?: string };
+/** Office verification text for a photo item; with solar/battery present the isolation photo must show the isolators off. */
+export function a3VerificationNote(key: A3EvidenceKey, answers: OfficialAnswers): string | undefined {
+  const base = A3_EVIDENCE_VERIFICATION[key];
+  if (key === "isolation_photo" && answers["p4.present"] === "Yes") return `${base} Solar or battery is present at this home — the isolator switches must be visibly off.`;
+  return base;
+}
 export function a3EvidenceChecklist(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[]): A3ChecklistRow[] {
   const req = new Map(a3EvidenceRequired(answers, ctx).map((r) => [r.key, r.min]));
   const by = new Map(media.map((m) => [m.key, m]));
   return (Object.keys(A3_EVIDENCE_LABELS) as A3EvidenceKey[]).map((key) => {
     const m = by.get(key); const min = req.get(key) ?? 0; const count = m?.count ?? 0;
     const phase = A3_PRESTART_KEYS.includes(key) ? "before" as const : "after" as const;
-    if (!min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: 0, count, state: "not_required" as const };
-    if (count < min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: "missing" as const };
+    const v = a3VerificationNote(key, answers);
+    const row = (required: number, state: A3ChecklistRow["state"]): A3ChecklistRow => ({ key, label: A3_REQUIREMENT_LABELS[key], phase, required, count, state, ...(v ? { verification: v } : {}) });
+    if (!min) return row(0, "not_required");
+    if (count < min) return row(min, "missing");
     const review = (GEOTAG.includes(key) && (m?.geotagged ?? 0) < min) || (m?.timed != null && m.timed < count);
-    return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: review ? "review" as const : "met" as const };
+    return row(min, review ? "review" : "met");
   });
 }
 
@@ -627,19 +737,24 @@ export type A3PrestartSnapshot = {
   media: Record<A3EvidenceKey, A3MediaFile[]>; blockers: string[];
 };
 /** Builds the immutable prestart snapshot from the CURRENT audit. Signature time = the signature's own timestamp only. */
-export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3EvidenceCtx, opts: { completed: boolean }): { ok: true; snapshot: A3PrestartSnapshot } | { ok: false; reason: string } {
+/** `portal` = official answers the portal fills itself on the install day form (decision 262: Part 5 lights / cables from the
+ *  PIESA, Part 6 existing insulation from the Ready Check) with the facts it could not establish (each one a blocker). */
+export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3EvidenceCtx, opts: { completed: boolean; portal?: { answers: Record<string, string | string[]>; missing: string[] } }): { ok: true; snapshot: A3PrestartSnapshot } | { ok: false; reason: string } {
   const sig = a3Signature(audit);
   if (!sig.present || !sig.mediaId) return { ok: false, reason: "The installer has not signed the PIISA yet (no signature image)." };
   if (!sig.signedAt) return { ok: false, reason: "The PIISA signature has no time recorded, so it can't be used." };
-  if (a3AuditUsesDirectCrew(audit)) {
-    const lead = flatten(audit).find((e) => e.id === A3_CREW_OTHER_FIELDS[0]?.name)?.value ?? null;
+  const installDay = isInstallDayDoc(audit);
+  if (a3AuditUsesDirectCrew(audit) || installDay) {
+    const lead = installDay ? installDayOfficialAnswers(audit).crew[0]?.name ?? null : flatten(audit).find((e) => e.id === A3_CREW_OTHER_FIELDS[0]?.name)?.value ?? null;
     const problem = directLeadSignatureProblem(audit, lead);
     if (problem) return { ok: false, reason: problem };
   }
-  const { answers, crew } = parseA3Answers(audit);
+  const parsed = parseA3Answers(audit);
+  const answers: OfficialAnswers = { ...(opts.portal?.answers ?? {}), ...parsed.answers } as OfficialAnswers;
+  const crew = parsed.crew;
   const files = a3MediaFiles(audit);
   const prestartFiles = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, A3_PRESTART_KEYS.includes(k as A3EvidenceKey) ? v : []])) as Record<A3EvidenceKey, A3MediaFile[]>;
-  const blockers = a3PrestartBlockers(answers, { ...ctx, crewCount: Math.max(ctx.crewCount, 1 + crew.length) }, a3MediaSummary(prestartFiles), sig.signedAt);
+  const blockers = [...a3PrestartBlockers(answers, { ...ctx, crewCount: Math.max(ctx.crewCount, 1 + crew.length) }, a3MediaSummary(prestartFiles), sig.signedAt), ...(opts.portal?.missing ?? [])];
   return { ok: true, snapshot: { audit_id: auditId, captured_from: opts.completed ? "completed_audit" : "in_progress_audit", answers, crew, signature: { media_id: sig.mediaId, item_id: sig.itemId, signer_name: sig.name, signed_at: sig.signedAt }, media: prestartFiles, blockers } };
 }
 
@@ -713,6 +828,11 @@ export function a3AuditUsesDirectCrew(audit: unknown): boolean {
   return items.has(A3_DIRECT_SIGNATURE_ID) && !A3_CREW_NAME_IDS.some((id) => items.has(id));
 }
 export function a3CrewChoices(audit: unknown): CrewChoice[] {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: typed names + CII numbers (lead, second, third); a fourth row never exists on this form.
+    const rows = installDayOfficialAnswers(audit).crew;
+    return [0, 1, 2, 3].map((row): CrewChoice => { const c = rows[row]; return c ? { row, kind: "other", name: c.name, eec: c.cii } : { row, kind: "none" }; });
+  }
   const items = allItems(audit);
   const txt = (id: string) => { const r = items.get(id)?.responses ?? {}; const v = r.text ?? r.value; return typeof v === "string" && v.trim() ? v.trim() : null; };
   if (a3AuditUsesDirectCrew(audit)) return A3_CREW_OTHER_FIELDS.map((pair, row): CrewChoice => {
@@ -809,3 +929,4 @@ export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | 
   }
   return { answers, blockers, needsVerification: nv };
 }
+

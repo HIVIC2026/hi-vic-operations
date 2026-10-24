@@ -62,6 +62,9 @@ export function categoriseDocument(kind: string, title: string): { category: Doc
   const trusted = k === "mitti_report" ? k + " " + t : k;
   if (/piesa|coes|piisa|electrical/.test(trusted)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(trusted) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
   if (/piesa|coes|piisa|electrical/.test(t)) return { category: "Electrical / PIESA", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
+  // Decision 211: portal-generated Table 4 diagrams — Ready Check folder (also Installation / ESC pack) and the final plan with the installation evidence.
+  if (k === "area_diagram") return { category: "Ready Check", alsoIn: ["Installation", "ESC / VEEC"], sub: "Upgrade area diagram (generated)", audience: ["installer"], status: "current", immutable: true };
+  if (k === "final_area_diagram") return { category: "Installation", alsoIn: ["ESC / VEEC", "Evidence"], sub: "Final installation plan (generated)", audience: ["installer"], status: "final", immutable: true };
   if (/floor|plan|property|imagery|outline/.test(k + " " + t)) return { category: "Property", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/measure|sketch/.test(k)) return { category: "Ready Check", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
   if (/measure|sketch/.test(t)) return { category: "Ready Check", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };

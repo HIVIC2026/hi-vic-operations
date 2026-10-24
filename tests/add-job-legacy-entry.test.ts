@@ -22,7 +22,9 @@ test("installer business owner/admin could open batch upload if the switch is tu
 test("server refuses installer batch create/review/confirm while switched off; links are hidden", () => {
   const fns = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
   expect(fns.match(/requireBulkUploadOpen\(!!isAdmin\)/g)?.length).toBe(3);
-  for (const f of ["src/routes/_authenticated/partner.import.tsx", "src/routes/_authenticated/field.business.tsx"]) expect(readFileSync(f, "utf8")).toContain("INSTALLER_BULK_UPLOAD_ENABLED && ");
+  // Decision 42 / mock-ups M3 and M7 (decisions 192, 204): neither Add a job nor My business carries a bulk-upload link any more
+  // (installer audit 24 Oct: "Upload multiple jobs" link removed); the server switch alone keeps installers out.
+  for (const f of ["src/routes/_authenticated/partner.import.tsx", "src/routes/_authenticated/field.business.tsx"]) expect(readFileSync(f, "utf8")).not.toContain("bulk-import");
 });
 test("office retains batch tools", () => {
   expect(legacyBulkImportRedirect({ ...base, admin: true })).toBeNull();

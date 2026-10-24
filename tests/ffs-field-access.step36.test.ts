@@ -56,7 +56,7 @@ describe("STEP36 no cross-role privilege escalation", () => {
 
 describe("STEP36 existing five-role routing regression", () => {
   test("Office/admin", () => {
-    expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/enquiries");
+    expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/needs-me");
     expect(portalDestination({ roles: ["admin", "installer"], hasBusiness: true })).toBe("choose");
   });
   test("Installer & Electrician", () => {

@@ -20,9 +20,11 @@ export const bulkJobAction = createServerFn({ method: "POST" }).middleware([requ
         // Hold/cancel use the same reviewed disposition as the single-job action (transition() never allows these targets).
         if (data.action === "cancel" || data.action === "hold") await (await import("./job-disposition.server")).applyHoldOrCancel(jobId, data.action, `${data.reason} (bulk)`, context.userId, { bulk: true, reason: data.reason });
         else if (data.action === "mark_test") {
+          const { data: before } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
           const { error } = await admin.from("jobs").update({ source: "qa_test" }).eq("id", jobId);
           if (error) throw new Error(error.message);
-          await logEvent(jobId, context.userId, "marked_test", `Marked as test record: ${data.reason}`, { bulk: true }, { internal: true });
+          // prior_source lets Reopen put it back (office gaps A4).
+          await logEvent(jobId, context.userId, "marked_test", `Marked as test record: ${data.reason}`, { bulk: true, prior_source: before?.source ?? null }, { internal: true });
         } else {
           const { data: j, error: je } = await admin.from("jobs").select("source").eq("id", jobId).single();
           if (je) throw new Error(je.message);

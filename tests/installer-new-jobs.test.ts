@@ -101,7 +101,9 @@ describe("New from installers (no manual 'seen' step)", () => {
     expect(fns).not.toMatch(/\.insert\(|\.update\(|\.delete\(|sendMessage|logEvent\(/);
     const panel = readFileSync("src/components/portal/NewFromInstallers.tsx", "utf8");
     expect(panel).not.toMatch(/Mark seen|markInstallerJobsSeen/);
-    for (const page of ["src/components/portal/JobsWorkspace.tsx", "src/routes/_authenticated/admin.today.tsx"]) expect(readFileSync(page, "utf8")).toContain("<NewFromInstallers />");
+    // One pile (0218): New from installers lives only on Jobs › Active (Today's brief retired, decision 218).
+    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain("<NewFromInstallers />");
+    expect(readFileSync("src/routes/_authenticated/admin.today.tsx", "utf8")).not.toContain("<NewFromInstallers />");
   });
 });
 

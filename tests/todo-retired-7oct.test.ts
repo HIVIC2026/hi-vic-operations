@@ -10,8 +10,8 @@ describe("old To action list retired (Jo 7 Oct)", () => {
     expect(nav).not.toContain("To action (old list)");
     expect(nav).not.toMatch(/to: "\/admin\/todo"/);
   });
-  test("/admin/todo redirects to /admin/jobs/active", () => {
-    expect(route).toContain('redirect({ to: "/admin/jobs/active"');
+  test("/admin/todo redirects to /admin/needs-me (the office home)", () => {
+    expect(route).toContain('redirect({ to: "/admin/needs-me"');
   });
   test("Needs me now shows unconnected Mitti forms", () => {
     const rows = movedFromTodo({ formIds: { mitti_ready_check_template_id: "a", mitti_ready_check_priced_template_id: "b", mitti_piesa_template_id: null, mitti_piisa_template_id: "" }, pendingWorkers: [] });

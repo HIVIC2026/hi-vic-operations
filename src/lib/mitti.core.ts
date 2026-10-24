@@ -4,6 +4,7 @@
 // completeAssessment remains the authoritative gate.
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
+import { isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -169,9 +170,9 @@ export function num(v: string | null): number | null {
 }
 type Parsed = { value: number | null; issue: string | null };
 /** Nonnegative finite physical value; malformed/negative → issue, never coerced. */
-/** Jo 23 Oct: the R-value is now a pick list. "Below R2.0" = OK to proceed; "Above R2.0" = the R2-or-above stop
- *  (readyCheckStopReasons). Neither is a number, so neither raises "not a valid number". */
-export const isRValueBand = (v: string | null) => v != null && /^(below|above)\s*r?\s*2(\.0)?$/i.test(v.trim());
+/** Jo 23 Oct: the R-value is a pick list. "Below R2.0" = OK to proceed; "R2.0 or above" (decision 222; "Above R2.0" on
+ *  22–24 Oct forms) = the R2-or-above stop (readyCheckStopReasons). Neither is a number, so neither raises "not a valid number". */
+export const isRValueBand = (v: string | null) => v != null && isRValueBandAnswer(v);
 function rValue(v: string | null, what: string): Parsed {
   return isRValueBand(v) ? { value: null, issue: null } : physical(v, what);
 }
@@ -222,7 +223,8 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"] },
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
-  { key: "occupancy", aliases: ["Occupancy"] },
+  // Decision 222: lean forms ask "Who lives at the property?" as a tap choice; the office occupancy record prefills it.
+  { key: "occupancy", aliases: ["Occupancy", LEAN_Q.premisesType] },
   { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?"] },
   { key: "propertyType", aliases: ["Property type"] },
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
@@ -246,7 +248,7 @@ export function propertyTypeOption(v: string | null | undefined): string | null 
 }
 
 /** Find the Mitti option ID for a choice answer (v1 definitions keep options in template.response_sets). */
-function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
+export function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
   const root = template?.template ?? template;
   let rsId: string | null = null;
   const walk = (x: Any) => { if (!x || typeof x !== "object" || rsId) return; if (x.id === itemId && x.question?.response_set_id) { rsId = x.question.response_set_id; return; } for (const v of Object.values(x)) walk(v); };
@@ -273,6 +275,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     // Jo 23 Oct: A2 Property type / 5-year are tap choices now. Map the owner's declared answer; unknown → blank.
     if (f.key === "propertyType" && /choice|question|switch|list/i.test(e.type)) { const o = propertyTypeOption(vStr); if (!o) continue; vStr = o; }
     if (f.key === "builtLast5Years" && /choice|question|switch|list/i.test(e.type)) { const o = /^y/i.test(vStr) ? "Yes" : /^n/i.test(vStr) ? "No" : null; if (!o) continue; vStr = o; }
+    if (f.key === "occupancy" && /choice|question|switch|list/i.test(e.type)) { const o = premisesTypeOption(vStr); if (!o) continue; vStr = o; }
     const choiceLike = /choice|question|switch|list/i.test(e.type);
     let type = e.type, responses: Any;
     if (f.datetime) responses = { datetime: vStr };
@@ -350,6 +353,20 @@ export type AssessmentPatch = Partial<{
   exhaust_fans_qty: number; exhaust_fans_clearance_qty: number; hazards: string; switchboard_condition: "ok" | "upgrade_required";
   rcds_present: boolean; rcds_required_qty: number; life_support_confirmed: boolean; piesa_outcome: "pass" | "fail"; assessed_on: string; notes: string;
 }>;
+/** One Ready Check ceiling area as read from the form (decision 222): areas.v1 fields + install-day zone fields. */
+export type MittiArea = {
+  key: string; label: string; name: string | null;
+  areaM2: number | null; lengthM: number | null; widthM: number | null;
+  existing: "none" | "present" | null; present: boolean | null;
+  rValue: number | null; rValueBand: "below_r2" | "at_or_above_r2" | null;
+  removal: "yes" | "no" | null; removalM2: number | null; downlights: number | null;
+  hazardFlag: boolean | null; hazardEvidence: boolean;
+  /** The installer's note: what the issue is and where it is in this area (null when not given). */
+  hazardNote: string | null;
+  /** Decision 264: this area's before video was attached at the Ready Check (the install's before-work video). */
+  beforeVideo: boolean;
+  product: string | null; scope: string | null; sources: Record<string, never>;
+};
 export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
 
 const UNSUPPORTED_WORK: [string, string][] = [
@@ -376,7 +393,8 @@ export function parseAudit(audit: Any) {
   // Group per-area fields by their repeat-instance parent so each area's m2/removal/insulation stay together.
   // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
   // measured m² directly. Legacy forms used "Measured area m2".
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)"), norm("Enter the measured ceiling area (m²)")].includes(e.norm) && e.value != null;
+  // Decision 222: the lean repeating group asks "Length (m)" + "Width (m)" per area (the m² entry is the old-form fallback).
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2)].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
@@ -392,14 +410,16 @@ export function parseAudit(audit: Any) {
     const kids = areaKids(p);
     const m2e = areaM2Label(kids);
     let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    const len = physical(val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
+    const wid = physical(val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
     if (m2.value == null) {
-      const len = physical(val(kids, ["Length (m)"]), "Length (m)");
-      const wid = physical(val(kids, ["Width (m)"]), "Width (m)");
       if (len.issue) issues.push(len.issue);
       if (wid.issue) issues.push(wid.issue);
       if (len.value != null && len.value > 0 && wid.value != null && wid.value > 0) m2 = { value: r2(len.value * wid.value), issue: null } as typeof m2;
     }
     if (m2.issue) issues.push(m2.issue);
+    // Decision 222 / 211: the area NAME is kept (diagram box label, install-day zone name). Help text after a line break is not part of it.
+    const name = val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])])?.split("\n")[0]?.trim() || null;
     const present = yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
     const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
     const action = norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));
@@ -409,14 +429,23 @@ export function parseAudit(audit: Any) {
     const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
     const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
     const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
-    const rv = rValue(val(kids, ["What is the determined R value of the existing ceiling insulation?", "Existing R-value", "Measured R-value"]), "R value").value;
+    const rvRaw = val(kids, [LEAN_Q.rValue, "Existing R-value", "Measured R-value"]);
+    const rv = rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
-    const photos = { depth: has(["Upload a photo clearly showing the measured insulation depth", "Photo with tape measure showing depth"]), overview: has(["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"]) };
-    const remAnswer = physical(val(kids, ["How much existing insulation needs to be removed? (m²)", "Area to remove (m2)"]), "How much existing insulation needs to be removed? (m²)");
+    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]) };
+    const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
-    return { parent: p, m2: m2.value, state, removal, removalType, rv, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value };
+    // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
+    // text "Please explain") and its photo ("Describe the issue and add a photo", or the 7 Oct spec photo) are read per area.
+    // The note is kept as the hazard description; only the photo is evidence. A flag without a photo is an office item.
+    const hazardFlag = yesNo(val(kids, [LEAN_Q.issues, ...(LEAN_ALIASES.issues ?? [])]));
+    const hazardNote = val(kids, [LEAN_Q.issueNote, ...(LEAN_ALIASES.issueNote ?? [])])?.trim().slice(0, 2000) || null;
+    const hazardEvidence = has([LEAN_Q.issuePhoto, ...(LEAN_ALIASES.issuePhoto ?? [])]);
+    const downlights = count(val(kids, [LEAN_Q.downlightsCount, ...(LEAN_ALIASES.downlightsCount ?? [])]), LEAN_Q.downlightsCount).value;
+    return { parent: p, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
+  for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo was added${r.hazardNote ? ` (installer note: ${r.hazardNote})` : ""} – office review required.`);
   if (rooms.length > 0) {
     if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
     else patch.measured_area_m2 = r2(rooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
@@ -473,7 +502,9 @@ export function parseAudit(audit: Any) {
   else if (rooms.length > 0) issues.push("Measurement method not captured – how the ceiling was measured must be documented.");
 
   const acc = norm(val(entries, ["How easy is the ceiling access?", "How would you rate the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
-  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium|standard/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised – office review required."); }
+  // Decision 222: "No safe access" = difficult for the record AND a hard stop (readyCheckStopReasons STOP_NO_SAFE_ACCESS).
+  if (acc) { const a = isNoSafeAccess(acc) || /difficult|hard|restricted|unsafe/.test(acc) ? "difficult" : /moderate|medium|standard/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised – office review required."); }
+  if (isNoSafeAccess(acc)) issues.push("Installer answered 'No safe access' to the ceiling – Ready Check cannot proceed; office review required.");
 
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
@@ -488,7 +519,8 @@ export function parseAudit(audit: Any) {
   // Installer-flagged hazards per ceiling area (both A1 and A2 per-area questions) — flagged jobs go to office review.
   if (rooms.length && patch.hazards == null) {
     const flagged = rooms.filter((r) => { const kids = areaKids(r.parent); const a = val(kids, ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"]); return a != null && /^(yes|y|true)\b/.test(norm(a)); });
-    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s) – confirm details and evidence in office.`; issues.push("Installer flagged hazards in a ceiling area – office review required."); }
+    const notes = flagged.map((r) => r.hazardNote ? `${r.name ?? "Area"}: ${r.hazardNote}` : null).filter(Boolean).join("; ");
+    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s)${notes ? ` – ${notes}` : ""} – confirm details and evidence in office.`.slice(0, 4000); issues.push("Installer flagged hazards in a ceiling area – office review required."); }
   }
   const roof = val(entries, ["Roof type", "What type of roof does the home have?"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
   const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (Ready Check answer, pre-filled from owner's declared enquiry answer): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
@@ -553,13 +585,24 @@ export function parseAudit(audit: Any) {
     access: !!find(entries, ["Upload a clear photo of the ceiling access point"], { withValue: true }),
     areas: rooms.map((r, i) => ({ area: i + 1, insulated: r.insulated, depth: r.photos.depth, overview: r.photos.overview })),
   };
+  // Decision 222 / 211: per-area record in the areas.v1 shape (ready-check-areas.core readAreas) plus the install-day
+  // zone fields (piisa-a3.core rcAreasFromRecord: name / present / removal). Stored on ceiling_measurements.zones by the sync.
+  const areas: MittiArea[] = rooms.map((r, i) => ({
+    key: `mitti-${i + 1}`, label: r.name ?? (rooms.length === 1 ? "Main ceiling" : `Area ${i + 1}`), name: r.name,
+    areaM2: r.m2, lengthM: r.lengthM, widthM: r.widthM,
+    existing: r.present === true ? "present" : r.present === false ? "none" : null, present: r.present,
+    rValue: r.rv, rValueBand: r.rvBand,
+    removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
+    removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
+    product: null, scope: null, sources: {},
+  }));
   // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.
   const noPricing = val(entries, ["I confirm I have not discussed or agreed pricing with the homeowner"]);
   if (noPricing) patch.notes = [patch.notes, `Installer confirmed pricing not discussed or agreed with the homeowner: ${noPricing}`].filter(Boolean).join(". ").slice(0, 4000);
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));
   const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
   return {
-    auditId, patch, issues, others, completed,
+    auditId, patch, issues, others, completed, areas,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
     failReasons,

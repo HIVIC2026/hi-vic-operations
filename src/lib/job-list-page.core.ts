@@ -5,6 +5,8 @@
 
 export type JobMode = "active" | "closed";
 export type JobClosedView = "completed" | "cancelled" | "ineligible" | "test";
+/** Closed tab chips: "all" (the approved O3 default) plus the four one-per-job piles. */
+export type JobClosedFilter = JobClosedView | "all";
 
 /** Exact complement of archived rows without putting every archived TEST UUID in one URL. */
 export function jobArchiveFilter(rows: Array<{ id: string; source: string | null; qa_archived_at: string | null }>) {
@@ -16,6 +18,9 @@ export function jobArchiveFilter(rows: Array<{ id: string; source: string | null
 }
 
 export const CLOSED_VIEWS: JobClosedView[] = ["completed", "cancelled", "ineligible", "test"];
+export const CLOSED_FILTERS: JobClosedFilter[] = ["all", ...CLOSED_VIEWS];
+/** "All" = every closed job once: the four piles are mutually exclusive, so the total is their sum. */
+export const closedAllCount = (t: Record<JobClosedView, number>) => t.completed + t.cancelled + t.ineligible + t.test;
 
 /** Whitelisted search columns. The office searches exactly what it can see on the card. */
 export const JOB_SEARCH_COLUMNS = [
@@ -64,7 +69,7 @@ export type JobStage = (typeof JOB_STAGES)[number];
 
 export type JobListParams = {
   mode: JobMode;
-  closedView: JobClosedView;
+  closedView: JobClosedFilter;
   stage: string;
   search: string;
   sort: string;

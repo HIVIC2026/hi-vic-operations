@@ -44,8 +44,9 @@ describe("wiring", () => {
     expect(page).toContain("OWNER_DECLINED_SCREEN");
     expect(OWNER_DECLINED_SCREEN).toContain("reply to our email");
   });
-  test("office: declined section on Quotes to check with Reopen", () => {
-    expect(readFileSync("src/components/portal/QuotesToCheck.tsx", "utf8")).toContain("Declined by the owner");
+  test("office: a declined quote is a Needs me row and the Job page offers Reopen", () => {
+    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("owner declined");
+    expect(readFileSync("src/components/portal/office-job.tsx", "utf8")).toContain("useAction(reopenDeclinedQuote)");
     expect(readFileSync("src/lib/installer-quote-review.functions.ts", "utf8")).toContain("export const reopenDeclinedQuote = createServerFn");
   });
 });

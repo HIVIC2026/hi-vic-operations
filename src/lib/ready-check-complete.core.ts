@@ -2,7 +2,8 @@
 // prepares the owner quote. Pure: no database, no network. Every failure is an "Office needs to…" reason
 // that goes on the job for the office — the portal never guesses its way past one.
 import { contactAnswersFromEntries } from "./mitti.core";
-import { readyCheckStopReasons, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "./ready-check-answers.core";
+import { readyCheckStopReasons, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_NO_SAFE_ACCESS, STOP_R2 } from "./ready-check-answers.core";
+import { isBelowR2, LEAN_Q } from "./ready-check-lean.core";
 
 /** A Mitti answer is "given" when it carries anything at all — a blank, "null" or <nil> never counts. */
 const answered = (v: unknown): boolean => {
@@ -27,10 +28,10 @@ export function readyCheckFactsFromEntries(
   const present = find(entries, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]);
   const depthPhoto = answered(find(entries, ["Photo with tape measure showing depth", "Upload a photo clearly showing the measured insulation depth"]));
   const belowR2Tick = answered(find(entries, ["No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate"]));
-  const overviewPhoto = answered(find(entries, ["Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));
+  const overviewPhoto = answered(find(entries, ["Slow 360° video of this ceiling area, lit, saying its name", "Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));
   const stops = readyCheckStopReasons(entries);
-  const rAnswers = entries.filter((e) => String(e.label ?? "").trim().toLowerCase() === "what is the determined r value of the existing ceiling insulation?").map((e) => String(e.value ?? ""));
-  const rBelow = rAnswers.length > 0 && rAnswers.every((v) => /^below/i.test(v.trim()));
+  const rAnswers = entries.filter((e) => String(e.label ?? "").trim().toLowerCase() === LEAN_Q.rValue.toLowerCase()).map((e) => String(e.value ?? ""));
+  const rBelow = rAnswers.length > 0 && rAnswers.every((v) => isBelowR2(v));
   const insulationYes = /^y/i.test(String(present ?? ""));
   const insulationNo = /^n/i.test(String(present ?? ""));
   return {
@@ -38,6 +39,7 @@ export function readyCheckFactsFromEntries(
     belowR2: stops.includes(STOP_R2) ? false : insulationNo || belowR2Tick || rBelow ? true : null,
     lifeSupportReviewed: !stops.includes(STOP_LIFE_SUPPORT) && !/^y/i.test(String(find(entries, ["Office life support result"]) ?? "")),
     builtLast5Years: stops.includes(STOP_BUILT_5),
+    noSafeAccess: stops.includes(STOP_NO_SAFE_ACCESS),
     // Photos are optional in Mitti (Jo 23 Oct): missing ones move to the install-day lock, never block the quote.
     depthPhoto: depthPhoto || belowR2Tick || insulationNo,
     overviewPhoto: overviewPhoto || insulationYes,
@@ -56,6 +58,8 @@ export type ReadyCheckFacts = {
   lifeSupportReviewed: boolean;
   /** Ceiling/roof built or replaced in the last 5 years (A1/A2 Yes). */
   builtLast5Years?: boolean;
+  /** Decision 222: the installer answered "No safe access" to the ceiling access question. */
+  noSafeAccess?: boolean;
   /** A depth photo (or the installer's below-R2 confirmation tick) is on file. */
   depthPhoto: boolean;
   /** An overview photo of the ceiling space is on file. */
@@ -80,6 +84,7 @@ export function readyCheckCompletionChecks(f: ReadyCheckFacts): ReadyCheckComple
   if (f.belowR2 === false) reasons.push(STOP_R2);
   if (!f.lifeSupportReviewed) reasons.push(STOP_LIFE_SUPPORT);
   if (f.builtLast5Years) reasons.push(STOP_BUILT_5);
+  if (f.noSafeAccess) reasons.push(STOP_NO_SAFE_ACCESS);
   if (f.belowR2 === null) reasons.push("Office needs to: the existing insulation level isn't established — get the R-value answer or the installer's below-R2 confirmation");
   if (f.contactPermission === null) reasons.push("Office needs to: the owner's contact permission is not on the form — record it before anything is sent");
   return { ready: reasons.length === 0, reasons };

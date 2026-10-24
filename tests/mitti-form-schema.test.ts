@@ -33,7 +33,9 @@ describe("Mitti definition reading (repair)", () => {
     const live = JSON.parse(readFileSync("tests/fixtures/piisa-a3-live-audit-shape.json", "utf8"));
     const r = validateSavedDefinition("piisa", live);
     expect(r.basis).toMatch(/native A3/);
-    expect(r.issues).toEqual(a3MissingFields(live).map((m) => `Native A3: ${m}`));
+    // Decisions 205/206/210: the new label-read items are listed as advisory "not on the form yet" lines after the A3 contract.
+    expect(r.issues.filter((i) => i.startsWith("Native A3:"))).toEqual(a3MissingFields(live).map((m) => `Native A3: ${m}`));
+    expect(r.issues.filter((i) => !i.startsWith("Native A3:")).every((i) => i.includes("not on the form yet"))).toBe(true);
   });
 });
 

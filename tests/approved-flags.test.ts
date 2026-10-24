@@ -67,6 +67,8 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   ready_check_incomplete: "83 (missing answers)", job_offer: "76/154", daily_mitti: "83 (morning text)", daily_mitti_update: "83",
   esc_notice_link: "146/154", install_window_reminder: "99/167", install_window_reminder_installer: "99/167",
   install_clearance: "186",
+  ready_check_days_suggested: "79 (A)", ready_check_booked_installer: "82 (installer booked, A)", install_tomorrow: "99 (installer day before)",
+  team_member_invite: "251 (draft) / 252 (approved as written)",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {

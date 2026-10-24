@@ -463,7 +463,9 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       .eq("job_id", jobId)
       .eq("required", true);
     const { evidenceStageBlockers } = await import("./ap-review-evidence.core");
-    blockers.push(...evidenceStageBlockers(to, reqs ?? null, !!reqErr));
+    // Decision 205: Activity Guide v1.2 Table 4 install evidence + Activity 48 product check, in plain words per item.
+    const { installEvidenceStageExtras } = await import("./install-evidence.server");
+    blockers.push(...evidenceStageBlockers(to, reqs ?? null, !!reqErr, await installEvidenceStageExtras(jobId)));
   }
   if (to === "ready_for_veec") {
     const { data: checks } = await admin

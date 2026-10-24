@@ -1,13 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ADD_JOB_STEPS, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_LABEL, formLabel, nextStep, outcomeFor, prevStep, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_LEAD, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
 describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () => {
-  test("two steps in order, back from customer exits", () => {
-    expect(ADD_JOB_STEPS.map((s) => s.label)).toEqual(["Customer", "Review & save"]);
-    expect(nextStep("customer")).toBe("review");
-    expect(prevStep("review")).toBe("customer"); expect(prevStep("customer")).toBeNull();
+  test("mock-up M3 (decision 198): one screen, the approved words", () => {
+    expect(ADD_JOB_LEAD).toBe("Just the owner's details. Everything else goes in the Ready Check form in Mitti.");
+    expect(VISIT_FIELD_HINT).toBe("Skip it or fill it. A time puts the visit in your 6:30am text. No time = no reminder.");
+    expect(WHAT_HAPPENS_NEXT).toContain("within about 15 minutes");
+    expect(dayOptionLabel("2026-10-26")).toBe("Mon 26 Oct");
+    const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
+    for (const gone of ["Review & save", "data-step-review", "Next</Button>", "Upload multiple jobs"]) expect(ui).not.toContain(gone);
   });
   test("restored phone draft keeps typed values but never the consent tick", () => {
     const r = restoreCustomer({ full_name: "TEST Owner", postcode: "3000", contact_permission: true, consent_by: "installer" });
@@ -44,16 +47,16 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
   });
   test("page: basics + permission tick + one optional visit field; no mode choice, measurements, price, files or electrician (decision 34)", () => {
     const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
-    for (const h of ["startOnsiteReadyCheck", "READY_CHECK_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form"]) expect(ui).toContain(h);
+    for (const h of ["startOnsiteReadyCheck", "OWNER_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form"]) expect(ui).toContain(h);
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later"]) expect(ui).not.toContain(gone);
     expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={businessId}");
   });
   test("old /partner/add still redirects", () => expect(readFileSync("src/routes/_authenticated/partner.add.tsx", "utf8")).toContain('redirect({ to: "/partner/import"'));
 });
 
-import { READY_CHECK_CONTACT_PERMISSION } from "../src/lib/job-electrician.core";
+import { OWNER_CONTACT_PERMISSION } from "../src/lib/job-electrician.core";
 test("consent wording is Jo's exact text and an unticked box blocks progress", () => {
-  expect(READY_CHECK_CONTACT_PERMISSION).toBe("The owner has given Home Insulation Victoria permission to contact them for the eligibility assessment.");
+  expect(OWNER_CONTACT_PERMISSION).toBe("The owner has given Home Insulation Victoria permission to contact them.");
   const c = { ...restoreCustomer({ full_name: "TEST Owner", address_line: "1 Test St", suburb: "Melbourne", postcode: "3000", phone: "0400000000", email: "t@example.test", contact_permission: true, consent_by: "installer" }) };
   expect(c.contact_permission).toBe(false);
   expect(onsiteProblems(c).some((m) => /permission/.test(m))).toBe(true);

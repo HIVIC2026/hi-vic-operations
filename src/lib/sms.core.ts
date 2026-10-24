@@ -27,9 +27,25 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder: { audience: "owner", label: "30-day install window reminder (20/10 days left) to the owner", wordingApproved: true, quietHours: true },
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
+  install_no_access: { audience: "owner", label: "We couldn't get in today – install day no access (decision 215, install-no-access-notice.core.ts). approved by Jo 24 Oct 2026 (decision 217)", wordingApproved: true, quietHours: true },
   install_clearance: { audience: "partner", label: "Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: true, quietHours: true },
+  // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
+  ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
+  ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
+  install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
+  // Decision 251: a business owner adds a team member → text that person their single-use /join login link. Wording
+  // approved by Jo 24 Oct 2026 (decision 252, relayed by the coordinator): teamMemberInviteText in installer-texts.core.ts.
+  team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
+
+/** Decision 266: while an install's safety plan (SWMS) is unsigned, two EXISTING installer texts (install tomorrow, and the
+ *  6:30am daily visits text on the install day) carry the secure job-page link to it. No new type, no new switch. */
+export const safetyPlanLine = (links: readonly string[]) => `Sign the safety plan first: ${links.join(" ")}`;
+export function withSafetyPlanLinks(body: string, links: readonly (string | null | undefined)[]): string {
+  const real = [...new Set(links.filter((l): l is string => !!l && l.trim().length > 0))];
+  return real.length ? `${body} ${safetyPlanLine(real)}` : body;
+}
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
 export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 
@@ -59,7 +75,12 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   install_window_reminder: { kind: "window" }, // 20/10-day steps recorded once as workflow events before any send (thirty-day-rule.server)
   install_window_reminder_installer: { kind: "window" }, // same steps, installer side
   deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
+  install_no_access: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the installer's "couldn't get in" report on the install day (recorded once per booking before any send)
   install_clearance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = electrical clearance becoming valid (recorded once per job + timing date before any send)
+  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
+  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
+  install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
+  team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
 };
 
 export type SmsEventInput = {

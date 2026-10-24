@@ -31,6 +31,19 @@ function requireOurLead(c: Ctx) {
   if (c.job.channel !== "hivic_sourced") throw new WorkflowError("Installers arrange the Ready Check directly with their own customers.");
 }
 
+/** Read-only: whose move it is now (installer-texts.server uses it to hold a stale decision-79 text). */
+export const readyCheckTurnFor = async (jobId: string) => (await context(jobId)).turn;
+
+/** Decision 79: the owner suggested other days → one text to the installer (best-effort, never blocks the save). */
+async function tellInstallerDaysSuggested(jobId: string, triggerEventId: string | null, suggestedAt: string) {
+  if (!triggerEventId) return;
+  await (await import("./installer-texts.server")).textInstallerOwnerSuggestedDays(jobId, triggerEventId, suggestedAt).catch((e) => console.error("owner suggested days text skipped", (e as Error).message));
+}
+/** Decision 82 (installer text A): Ready Check booked → one text to the installer per booked start (best-effort). */
+async function tellInstallerBooked(jobId: string, startsAt: string) {
+  await (await import("./installer-texts.server")).textInstallerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked installer text skipped", (e as Error).message));
+}
+
 const view = (c: Ctx) => ({
   turn: c.turn, booked: c.booked, bookedAt: c.bookedAt,
   open: c.open.map((p) => ({ id: p.id, starts_at: p.starts_at, by: p.proposer_role === "installer" ? "installer" as const : "owner" as const })),
@@ -69,7 +82,8 @@ async function tellOwnerBooked(jobId: string, startsAt: string) {
 
 /** Office picks ONE installer (decisions 49–51): one offer, open 24 hours, text + in-app to that installer only.
  *  Same eligibility list the office sees (installerCandidatesFor), TEST/real pairing and own-customer guards before writing. */
-export async function officePickReadyCheckInstaller(jobId: string, actorId: string | null, businessIds: string[]) {
+export type AutoOfferMeta = { attempt: number; basis: string; activeJobs: number; distanceKm: number | null };
+export async function officePickReadyCheckInstaller(jobId: string, actorId: string | null, businessIds: string[], opts: { auto?: AutoOfferMeta } = {}) {
   await (await import("./ready-check-booking-access.server")).assertOwnerReadyCheckBooking(jobId);
   const picks = [...new Set(businessIds)];
   const [{ data: job }, { count: inst }, { count: open }] = await Promise.all([
@@ -90,10 +104,12 @@ export async function officePickReadyCheckInstaller(jobId: string, actorId: stri
   ]);
   const { READY_CHECK_UNPAID_NOTE } = await import("./readycheck-booking.core");
   const expires = readyCheckOfferExpiry();
-  const summary = { job_number: job!.job_number ?? "", suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, office_choice: true, [READY_CHECK_TIMES_FLAG]: true };
+  // Decision 246: an automatic offer is the same one-installer offer, flagged so a miss counts towards the 2-miss hand-back.
+  const summary = { job_number: job!.job_number ?? "", suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, office_choice: true, [READY_CHECK_TIMES_FLAG]: true, ...(opts.auto ? { auto_offer: true } : {}) };
   const { data: row, error } = await admin.from("partner_offers").insert({ job_id: jobId, business_id: c.business_id, kind: "ready_check", batch: Math.max(0, ...(prior ?? []).map((o) => Number(o.batch))) + 1, summary: summary as never, offered_by: actorId, expires_at: expires }).select("id").single();
   if (error || !row) throw new Error(error?.message ?? "The offer could not be saved.");
-  await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the Ready Check — offer sent only to them (open 24 hours)`, { kind: "ready_check", business_ids: [c.business_id], business_names: [c.name], business_id: c.business_id, business_name: c.name, expires_at: expires, offer_id: row.id }, { internal: true });
+  if (opts.auto) await logEvent(jobId, actorId, "auto_offer_sent", `Automatic installer offer: ${c.name} for the Ready Check (offer ${opts.auto.attempt} of 2, open 24 hours)`, { kind: "ready_check", business_id: c.business_id, business_name: c.name, offer_id: row.id, attempt: opts.auto.attempt, basis: opts.auto.basis, active_jobs: opts.auto.activeJobs, distance_km: opts.auto.distanceKm, expires_at: expires }, { internal: true });
+  else await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the Ready Check — offer sent only to them (open 24 hours)`, { kind: "ready_check", business_ids: [c.business_id], business_names: [c.name], business_id: c.business_id, business_name: c.name, expires_at: expires, offer_id: row.id }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to offer the owner Ready Check times" }).eq("id", jobId);
   await (await import("./ready-check-offer-text.server")).textInstallerAboutOffer(row.id).catch((e) => console.error("job offer text skipped", (e as Error).message));
   // Decision 106: the offer email alongside the text (same wording + the offer link).
@@ -116,6 +132,8 @@ export async function declineReadyCheckOffer(offerId: string, userId: string, re
   if (!d) throw new WorkflowError("This offer is no longer open.");
   await logEvent(o.job_id, userId, "partner_offer_declined", "Installer declined the Ready Check offer", { reason, business_id: o.business_id }, { internal: true });
   await offerReturned(o.job_id, userId, "declined", o.business_id);
+  // Decision 246: with Automatic installer offers on, the next match gets it straight away (or the job goes back to the office).
+  await (await import("./auto-offer.server")).autoOfferForJob(o.job_id, "ready_check").catch((e) => console.error("automatic installer offer skipped", (e as Error).message));
   return { ok: true };
 }
 
@@ -196,6 +214,7 @@ async function bookAgreedTime(jobId: string, proposalId: string, startsAt: strin
     // Confirmed booking starts the Mitti form in the background (never undoes the booking if it can't).
     await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, actorId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
     await tellOwnerBooked(jobId, startsAt);
+    await tellInstallerBooked(jobId, startsAt);
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
@@ -267,6 +286,9 @@ export async function ownerSuggestReadyCheckDays(jobId: string, userId: string, 
   await insertTimes(jobId, userId, "owner", c.asg?.id ?? null, days.map((d) => melbourneAt(d, 7).toISOString()));
   await logEvent(jobId, userId, "ready_check_days_suggested", `Owner suggested ${days.length} other Ready Check day${days.length === 1 ? "" : "s"}`, { days }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new times" }).eq("id", jobId);
+  // Decision 79: the installer is told once per suggestion (the event just written is the trigger and the key).
+  const { data: ev } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "ready_check_days_suggested").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  await tellInstallerDaysSuggested(jobId, ev?.id ?? null, ev?.created_at ?? new Date().toISOString());
   return { ok: true };
 }
 
@@ -310,6 +332,7 @@ export async function installerChangeReadyCheck(jobId: string, userId: string, p
   await logEvent(jobId, userId, "ready_check_changed", "Installer changed the booked Ready Check to a new time", { by: "installer", was: c.bookedAt, starts_at: start }, { internal: true });
   await admin.from("jobs").update({ next_action: "Ready Check booked" }).eq("id", jobId);
   await tellOwnerBooked(jobId, start);
+  await tellInstallerBooked(jobId, start);
   return { ok: true, booked: true };
 }
 

@@ -1,60 +1,78 @@
-// "Who's doing this" (decision 161): the business owner picks the staff member for each visit on the installer job screen.
-// Presentation only — eligibility, the event and the Mitti hand-over all happen on the server.
+// "Who's doing this" (decision 161; mock-up M2 + approved state M2-change-allocation): the business owner picks the
+// staff member for each visit on the installer job screen. Presentation only — eligibility, the event and the Mitti
+// hand-over all happen on the server; the sheet's words come from the pure `allocationSheet`.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Section } from "@/components/trade/trade-ui";
 import { allocateVisitFn, getVisitAllocation } from "@/lib/visit-allocation.functions";
+import { allocationSheet } from "@/lib/installer-screens.core";
+import { Group, Note, PrimaryButton } from "@/components/trade/installer-kit";
 
-export function WhosDoingThis({ jobId }: { jobId: string }) {
+export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, suburb = null }: { jobId: string; readyCheckDone?: boolean; visitAt?: string | null; suburb?: string | null }) {
   const load = useServerFn(getVisitAllocation);
   const allocate = useServerFn(allocateVisitFn);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["visit-allocation", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
-  const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Record<string, string>>({});
   if (!data || !data.visits.length) return null;
+  const hasInstall = data.visits.some((v) => v.kind === "install");
   return (
-    <>
-      {data.visits.map((v) => (
-        <Section key={v.kind} title={`Who's doing this · ${v.label}`}>
-          <p className="text-sm">{v.current ? <>Allocated to <span className="font-bold">{v.current.name}</span>.</> : "Not allocated yet – it's on the business owner."}</p>
-          {!v.hasForm && <p className="mt-1 text-xs text-sub">No Mitti form for this visit yet. The allocation is saved; the form is handed over in Mitti when you allocate once it exists.</p>}
-          {data.canAllocate && (
-            <ul className="mt-3 divide-y divide-line rounded-[12px] border border-line">
-              {v.options.map((o) => {
-                const picked = v.current?.workerId === o.workerId;
-                return (
-                  <li key={o.workerId} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                    <span className="min-w-0">
-                      <span className={o.allowed ? "block font-semibold" : "block font-semibold text-sub"}>{o.name}{picked ? " · allocated" : ""}</span>
-                      {o.reason && <span className="block text-xs text-sub">{o.reason}</span>}
-                      {o.note && <span className="block text-xs text-sub">{o.note}</span>}
-                    </span>
-                    <button type="button" disabled={!o.allowed || picked || busy === `${v.kind}:${o.workerId}`}
-                      className="h-10 shrink-0 rounded-[10px] border-2 border-estimate-blue px-3 text-sm font-bold text-estimate-blue disabled:opacity-40"
-                      onClick={async () => {
-                        const key = `${v.kind}:${o.workerId}`;
-                        setBusy(key);
-                        try {
-                          const r = await allocate({ data: { jobId, kind: v.kind, workerId: o.workerId } });
-                          setMsg((m) => ({ ...m, [v.kind]: r.form === "reassigned" ? `${r.name} now has the Mitti form.` : `${r.name} allocated. The Mitti form isn't created yet.` }));
-                          await qc.invalidateQueries({ queryKey: ["visit-allocation", jobId] });
-                        } catch (e) { setMsg((m) => ({ ...m, [v.kind]: (e as Error).message })); }
-                        finally { setBusy(null); }
-                      }}>
-                      {busy === `${v.kind}:${o.workerId}` ? "Saving…" : picked ? "Allocated" : "Allocate"}
-                    </button>
-                  </li>
-                );
-              })}
-              {!v.options.length && <li className="p-3 text-sm text-sub">No staff on your list yet. Add them under My business → Team.</li>}
-            </ul>
-          )}
-          {msg[v.kind] && <p role="status" className="mt-2 text-sm font-semibold">{msg[v.kind]}</p>}
-          {data.canAllocate && <p className="mt-2 text-xs text-sub">Ready Checks can go to anyone on your staff list; install days only to CII-cleared installers. The 6:30am text goes to the allocated person's mobile.</p>}
-        </Section>
-      ))}
-    </>
+    <Group title="Who's doing this">
+      {data.visits.map((v, i) => {
+        const sheet = open === v.kind ? allocationSheet({ kind: v.kind, visitAt, suburb, chosen, options: v.options.map((o) => ({ workerId: o.workerId, name: o.name, mobile: o.mobile, allowed: o.allowed, reason: o.reason, picked: v.current?.workerId === o.workerId })) }) : null;
+        return (
+          <div key={v.kind} className={i < data.visits.length - 1 ? "border-b border-line" : ""}>
+            <div className="flex min-h-12 items-center justify-between gap-3 text-[15px]">
+              <span className="text-sub">{v.label}</span>
+              <span className="text-right font-medium">
+                {v.current ? v.current.name : <span className="text-sub">Not yet</span>}
+                {v.kind === "ready_check" && v.current && readyCheckDone && <span className="text-[13px] text-sub"> · done</span>}
+                {v.kind === "install" && v.current && <span className="text-[13px] text-hiv-green"> · CII cleared</span>}
+                {data.canAllocate && !(v.kind === "ready_check" && readyCheckDone) && <button type="button" className="ml-1.5 min-h-10 font-semibold text-hiv-blue" aria-expanded={open === v.kind} onClick={() => { setOpen(open === v.kind ? null : v.kind); setChosen(null); }}>{v.current ? "Change" : "Choose"}</button>}
+              </span>
+            </div>
+            {!v.current && v.kind === "install" && open !== v.kind && <p className="pb-2 text-[13px] text-sub">Choose who does the install once a day is booked.</p>}
+            {sheet && data.canAllocate && (
+              <section className="mb-3 rounded-[18px] border border-line p-4" data-allocation-sheet role="dialog" aria-label={sheet.title}>
+                <h3 className="text-[17px] font-semibold">{sheet.title}</h3>
+                <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.sub}</p>
+                <ul className="mt-3 divide-y divide-line">
+                  {sheet.rows.map((r) => (
+                    <li key={r.workerId}>
+                      <button type="button" disabled={!r.allowed || busy} aria-pressed={chosen === r.workerId || r.picked} onClick={() => setChosen(r.workerId)} className="flex min-h-14 w-full items-center justify-between gap-3 py-2 text-left disabled:opacity-60">
+                        <span className="min-w-0">
+                          <span className="block text-[15px] font-semibold">{r.name}{r.picked ? " · allocated" : ""}</span>
+                          <span className="block text-[13px] text-sub">{r.line}</span>
+                          <span className={`block text-[13px] font-semibold ${r.tone === "green" ? "text-hiv-green" : "text-[#8A3B4A]"}`}>{r.status}</span>
+                        </span>
+                        <span aria-hidden className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${chosen === r.workerId || r.picked ? "border-hiv-blue bg-hiv-blue text-white" : "border-line"}`}>{chosen === r.workerId || r.picked ? "✓" : ""}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {!sheet.rows.length && <li className="py-3 text-sm text-sub">No staff on your list yet. Add them under My business → Team.</li>}
+                </ul>
+                {sheet.button && <PrimaryButton className="mt-3" disabled={busy} onClick={async () => {
+                  if (!chosen) return;
+                  setBusy(true);
+                  try {
+                    const r = await allocate({ data: { jobId, kind: v.kind, workerId: chosen } });
+                    setMsg((m) => ({ ...m, [v.kind]: r.form === "reassigned" ? `${r.name} now has the Mitti form.` : `${r.name} allocated. The Mitti form isn't created yet.` }));
+                    setOpen(null); setChosen(null);
+                    await qc.invalidateQueries({ queryKey: ["visit-allocation", jobId] });
+                  } catch (e) { setMsg((m) => ({ ...m, [v.kind]: (e as Error).message })); }
+                  finally { setBusy(false); }
+                }}>{busy ? "Saving…" : sheet.button}</PrimaryButton>}
+                <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub" onClick={() => { setOpen(null); setChosen(null); }}>Cancel</button>
+              </section>
+            )}
+            {msg[v.kind] && <p role="status" className="pb-2 text-sm font-semibold">{msg[v.kind]}</p>}
+          </div>
+        );
+      })}
+      {data.canAllocate && <Note>{hasInstall ? `The Mitti install form and the 6:30am text go to ${data.visits.find((v) => v.kind === "install")?.current?.name ?? "the person you choose"}. Only CII-cleared staff can do install days.` : "The Mitti form and the 6:30am text go to the person you choose."}</Note>}
+    </Group>
   );
 }

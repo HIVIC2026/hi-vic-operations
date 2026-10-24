@@ -965,29 +965,37 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
 
 // ---------- Gate 4: bookings ----------
 export const createBooking = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional(), overrideReason: z.string().trim().max(1000).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "ready_check", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional(), overrideReason: z.string().trim().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    const need = data.kind === "installation" ? "installer" : "electrician";
+    const need = data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician";
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", need]);
     const { directBookingBlocker } = await import("./pilot.core");
     const blocked = directBookingBlocker(data.kind, role, data.overrideReason);
     if (blocked) throw new WorkflowError(blocked);
     const { confirmBooking } = await import("./booking.server");
-    // D-12: an assessment booking here is always an admin override (directBookingBlocker refuses everyone else).
-    // confirmBooking checks every gate before it writes, so the override's own writes (superseding open proposals,
-    // the homeowner-visible override event) happen only AFTER it succeeds. A refused override changes nothing
-    // and leaves only an internal (office-only) diagnostic event.
-    const override = data.kind === "assessment";
+    // D-12 / decision 220: an assessment (PIESA) or Ready Check booking here is always an admin override
+    // (directBookingBlocker refuses everyone else). confirmBooking checks every gate before it writes, so the override's
+    // own writes (superseding open proposals, the override event) happen only AFTER it succeeds. A refused override
+    // changes nothing and leaves only an internal (office-only) diagnostic event.
+    const override = data.kind === "assessment" || data.kind === "ready_check";
+    const visit = data.kind === "ready_check" ? "Ready Check" : "assessment";
     try {
       await confirmBooking(data.jobId, data.kind, data.start, context.userId, role === "admin" && override ? "admin (override)" : role, data.notes);
     } catch (e) {
-      if (override) await logEvent(data.jobId, context.userId, "admin_booking_override_refused", `Admin override refused: ${(e as Error).message}`, { reason: data.overrideReason, start: data.start }, { internal: true })
+      if (override) await logEvent(data.jobId, context.userId, "admin_booking_override_refused", `Admin override refused: ${(e as Error).message}`, { reason: data.overrideReason, start: data.start, kind: data.kind }, { internal: true })
         .catch((le) => console.error("override refusal log skipped", (le as Error).message));
       throw e;
     }
     if (override) {
-      await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "proposed");
-      await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: assessment booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start });
+      await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", data.kind).eq("status", "proposed");
+      await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: ${visit} booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start, kind: data.kind });
+    }
+    if (data.kind === "ready_check") {
+      // Same follow-on as an agreed time (ready-check-times bookAgreedTime) minus the owner/installer sends: the time
+      // was agreed by phone. The booked Ready Check starts the Mitti form (never undoes the booking if it can't).
+      const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
+      await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", data.jobId);
+      await (await import("./mitti-create.server")).onReadyCheckBooked(data.jobId, context.userId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
     }
     return { ok: true };
   });
@@ -1024,30 +1032,11 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
 export const completeInstallation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    // P0: no confirmed installation booking = no completion (checked BEFORE any stage change; fails closed).
-    const { confirmedInstallBooking } = await import("./workflow.server");
-    const { booking: unlockBooking, blocker } = await confirmedInstallBooking(data.jobId);
-    if (blocker || !unlockBooking) throw new WorkflowError(blocker ?? "No confirmed installation booking.");
-    // Stage 7 (Jo 22 Oct): install-day photos carried from the Ready Check lock completion until they're in. Fails closed.
-    {
-      const { data: reqs, error: re } = await admin.from("evidence_requirements").select("category, label, gate, required, status").eq("job_id", data.jobId).eq("gate", "installation");
-      if (re) throw new WorkflowError("The install-day photo checklist could not be checked — please try again.");
-      const { installDayPhotoBlocker } = await import("./ready-check-chase.core");
-      const photo = installDayPhotoBlocker((reqs ?? []) as never);
-      if (photo) throw new WorkflowError(photo);
-    }
-    await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
-    await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
-    await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
-    // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
-    await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
-    await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
-    await autoAdvanceJob(data.jobId, context.userId, "installation completed");
-    // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
-    // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.
-    try { await (await import("./veec-reminders.server")).sendVeecSignStep(data.jobId, "request"); } catch (e) { console.error("VEEC sign request failed", (e as Error).message); }
-    return { ok: true };
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
+    // Decision 213: the one guarded, idempotent completion path (also used when the Mitti Install day form is Complete
+    // and every evidence check passes); the button stays as the fallback.
+    const { recordInstallationComplete } = await import("./install-complete.server");
+    return recordInstallationComplete(data.jobId, context.userId, role === "admin" ? "office_button" : "installer_button");
   });
 
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -1422,7 +1411,7 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
 export const getJobListPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     mode: z.enum(["active", "closed"]),
-    closedView: z.enum(["completed", "cancelled", "ineligible", "test"]).default("completed"),
+    closedView: z.enum(["all", "completed", "cancelled", "ineligible", "test"]).default("all"),
     stage: z.string().max(40).default("all"),
     search: z.string().max(120).default(""),
     sort: z.string().max(40).default("last_activity_at"),
@@ -1841,6 +1830,16 @@ export const recordEscSubmissionFn = createServerFn({ method: "POST" }).middlewa
     await requireAdmin(context.supabase);
     const { recordEscSubmission } = await import("./esc.server");
     await recordEscSubmission({ ...data, actorId: context.userId });
+    return { ok: true };
+  });
+
+/** Office: the earlier notification was UPDATED in the VEU Registry (same notification ID; date/lead-installer fields only). */
+export const recordEscRegistryUpdateFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid, reference: z.string().trim().min(3).max(200), updatedAt: z.string().datetime({ offset: true }), confirmed: z.literal(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordEscRegistryUpdate } = await import("./esc.server");
+    await recordEscRegistryUpdate({ ...data, actorId: context.userId });
     return { ok: true };
   });
 

@@ -150,3 +150,33 @@ export const askTradeReminder = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./job-status.server")).tradeAskReminder(context.userId, data.jobId));
 
+/** Installer Job page (M2), Today's job extras (M4) and Money extras (M6) — decisions 196–203. Business-scoped reads. */
+export const getTradeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeJobPage(data.jobId, context.userId)));
+
+export const getTradeDayExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDayExtras(data.jobId, context.userId)));
+
+export const getTradeMoneyExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeMoneyExtras(context.userId)));
+
+/** M6 per-job pay detail (approved state M6-job-detail): business owner only, own pay only. */
+export const getTradeMoneyJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeMoneyJob(data.jobId, context.userId)));
+
+
+/** Decision 261: the safety plan (SWMS) on the installer's job page. */
+export const getTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSwms(data.jobId, context.userId)));
+
+export const saveTradeSwmsNote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, note: z.string().max(2000) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsNote(data.jobId, context.userId, data.note));
+
+export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));

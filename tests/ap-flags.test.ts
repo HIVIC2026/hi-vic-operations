@@ -50,5 +50,9 @@ describe("AP approval only through the queue (static)", () => {
     expect(readFileSync(new URL("../src/lib/autoadvance.core.ts", import.meta.url), "utf8")).toContain('stop("Final check: approve in AP queue")');
   });
   test("old Ready for VEEC action refuses AP review jobs", () => expect(pf).toContain("Final AP approval happens only in the AP approval queue"));
-  test("job page links to the AP queue", () => expect(readFileSync(new URL("../src/routes/_authenticated/admin.jobs.$jobId.tsx", import.meta.url), "utf8")).toContain("Approve in AP queue"));
+  test("Final check card approves one job through approveApJob (no bulk, no AP queue detour)", () => {
+    const parts = readFileSync(new URL("../src/components/portal/office-job-parts.tsx", import.meta.url), "utf8");
+    expect(parts).toContain("useAction(approveApJob)");
+    expect(parts).toContain("approve({ jobId,");
+  });
 });

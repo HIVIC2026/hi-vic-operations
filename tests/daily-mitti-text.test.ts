@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { dailySendDue, dailyText, diffDay, melbourneHm, mittiFormSource, skipReason, snap, timeWindow, updateText, type DayJob } from "../src/lib/daily-mitti-text.core";
+import { DAILY_TEXT_WORDING_VERSION, arrivalTime, dailySendDue, dailyText, diffDay, melbourneHm, mittiFormSource, skipReason, snap, timeWindow, updateText, type DayJob } from "../src/lib/daily-mitti-text.core";
+import { brandSmsBody } from "../src/lib/sms.core";
 
 describe("which Mitti form each booking links (Jo 24 Oct 2026)", () => {
   test("install days link the installer's PIISA form; electrician visits keep the PIESA audit; Ready Checks their form", () => {
@@ -46,14 +47,20 @@ describe("who gets it", () => {
 describe("wording", () => {
   const a = job("1", "2026-10-07T21:00:00Z", "2026-10-07T23:00:00Z", "12 Smith St", "Frankston");
   const b = job("2", "2026-10-08T00:00:00Z", "2026-10-08T02:00:00Z", "5 Hill Rd", "Werribee");
-  test("time order, window, short address, link", () => {
+  test("decision 83 morning text verbatim: time order, arrival time (no window), short address, link; brand prefix from the sender", () => {
     const t = dailyText([b, a], "https://x/field");
-    expect(t).toBe("HIV: Your jobs today – 1) 8–10am, 12 Smith St Frankston: https://app.au.mitti.com/inspections/1 2) 11am–1pm, 5 Hill Rd Werribee: https://app.au.mitti.com/inspections/2. Tap each link to open its form in Mitti.");
+    expect(t).toBe("Good morning! Your jobs today: 1) 8am, 12 Smith St Frankston: https://app.au.mitti.com/inspections/1 2) 11am, 5 Hill Rd Werribee: https://app.au.mitti.com/inspections/2 Tap a link to open its Mitti form.");
+    expect(brandSmsBody(t).startsWith("Home Insulation Victoria: Good morning! Your jobs today: 1) 8am, ")).toBe(true);
+    expect(t).not.toMatch(/\bHIV\b/);
+    expect(arrivalTime("2026-10-08T03:30:00Z")).toBe("2:30pm");
     expect(timeWindow("2026-10-08T03:00:00Z", "2026-10-08T05:00:00Z")).toBe("2–4pm");
+    expect(DAILY_TEXT_WORDING_VERSION).toBe("APPROVED-2026-10-24-decision-83");
   });
-  test("too many jobs -> My work link", () => {
+  test("too many jobs -> My work link (fallback allowed by decision 83)", () => {
     const many = Array.from({ length: 8 }, (_, i) => job(String(i), `2026-10-07T2${i % 3}:00:00Z`, `2026-10-07T23:00:00Z`, `${i} Long Street Name`, "Frankston South"));
-    expect(dailyText(many, "https://x/field")).toContain("https://x/field");
+    const t = dailyText(many, "https://x/field");
+    expect(t).toContain("https://x/field");
+    expect(t.startsWith("Good morning! You have 8 jobs today.")).toBe(true);
   });
   test("update text: added, moved, cancelled", () => {
     const prev = [snap(a), snap(b)];

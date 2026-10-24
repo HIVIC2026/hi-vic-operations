@@ -40,8 +40,9 @@ const screens=screenRules();
 test('legacy operations screenshot checks the actual current Enquiries destination',()=>{
   const spec=screens.find(s=>s.step==='office-operations');
   assert.throws(()=>route('admin.operations').beforeLoad({search:{}}),e=>e.redirect.to===spec.expectedPath&&e.redirect.replace===true);
-  assert.equal(spec.expectedPath,'/admin/enquiries');assert.deepEqual(spec.mustSee,['Enquiries','Active','Closed']);
-  assert.match(read('src/components/portal/EnquiriesWorkspace.tsx'),/<h1[^>]*>Enquiries<\/h1>/);
+  assert.equal(spec.expectedPath,'/admin/enquiries');assert.deepEqual(spec.mustSee,['Enquiries','Fix details','Waiting on owner']);
+  assert.match(read('src/components/portal/EnquiriesScreen.tsx'),/<h1[^>]*>Enquiries<\/h1>/);
+  assert.match(read('src/lib/office-jobs.core.ts'),/Fix details/);assert.match(read('src/lib/office-jobs.core.ts'),/Waiting on owner/);
 });
 test('legacy campaign screenshot checks the actual Templates email redirect and current read-only wording',()=>{
   const spec=screens.find(s=>s.step==='office-campaign-emails');
@@ -56,11 +57,13 @@ test('only the partner stored-name branding check is scoped; every other forbidd
   assert.deepEqual(partners.mustNotSeeExact,['undefined','NaN','[object','50% deposit','Lorem ipsum','TODO']);
   for(const spec of screens.filter(s=>s.step!=='office-partners'))assert.ok(spec.mustNotSeeExact.includes('HI VIC'));
 });
-test('the actual partner card keeps the original name verbatim inside its narrow record marker',()=>{
-  const tree=route('admin.partners-overview',{applications:0,cards:[{id:'fixture',name:'HI VIC Fixture Business',kind:'Installer',status:'Active',liveJobs:0,onTime:null,avgHrs:null}]}).component();
-  const names=all(tree,n=>n.props['data-partner-record-name']!==undefined);
-  assert.equal(names.length,1);assert.equal(names[0].type,'h2');assert.equal(text(names[0]),'HI VIC Fixture Business');
-  assert.equal(text(all(tree,n=>n.type==='h1')[0]),'Partners');
+test('partner stored names keep their narrow record marker on Partners › Approved (O5; overview cards removed)',()=>{
+  const spec=screens.find(s=>s.step==='office-partners');
+  assert.equal(spec.path,'/admin/partners?tab=approved');assert.equal(spec.expectedPath,'/admin/partners');
+  assert.throws(()=>route('admin.partners-overview').beforeLoad(),e=>e.redirect.to==='/admin/partners'&&e.redirect.replace===true);
+  const page=read('src/routes/_authenticated/admin.partners.tsx');
+  assert.match(page,/data-partner-record-name[^>]*>\{b\.name\}<\/Link>/);
+  assert.match(page,/<PageHeader title="Partners"/);
 });
 function outside(records) {
   const match=read('e2e/journey/shoot.py').match(/TEXT_OUTSIDE_RECORDS = """([\s\S]*?)"""/);assert.ok(match);

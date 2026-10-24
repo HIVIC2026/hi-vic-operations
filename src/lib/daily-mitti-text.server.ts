@@ -93,7 +93,7 @@ export async function collectDay(date: string): Promise<Group[]> {
     if (job.source !== "qa_test") g.qaOnly = false;
     const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind });
   }
   return [...groups.values()];
 }
@@ -143,7 +143,9 @@ export async function sweepDailyMittiTexts(now = new Date()) {
     const snaps = g.jobs.map(snap);
     if (!prior) {
       if (!g.jobs.some((j) => j.status !== "cancelled")) continue;
-      if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), dailyText(g.jobs, myWork(date)), snaps)) !== "already") out.daily++;
+      // Decision 266: today's installs whose safety plan is still unsigned get the job-page link on the morning text.
+      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), await unsignedSafetyPlanLinks(g.jobs));
+      if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), body, snaps)) !== "already") out.daily++;
       continue;
     }
     const changes = diffDay(prior.snapshot as Snap[], g.jobs);
@@ -165,12 +167,14 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
   if (s.missing.length) return { skipped: "form_ids_missing" };
   const since = new Date(now.getTime() - 36 * 3_600_000).toISOString();
   const { data: bks } = await db.from("bookings")
-    .select("id, job_id, scheduled_start, business_id, assignment_id, jobs!inner(source, properties(address_line, suburb))")
+    .select("id, job_id, scheduled_start, business_id, assignment_id, jobs!inner(source, channel, properties(address_line, suburb))")
     .eq("kind", "ready_check").eq("status", "confirmed").gte("scheduled_start", since).order("scheduled_start");
   const date = melbourneDate(now);
   const out = { sent: 0, skipped: 0 };
   for (const b of bks ?? []) {
-    const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
+    const job = b.jobs as { source: string | null; channel: string | null; properties: { address_line: string | null; suburb: string | null } | null };
+    // Our leads get the approved decision-82 installer text from installer-texts.server instead (never both).
+    if (job.channel === "hivic_sourced") { out.skipped++; continue; }
     let biz: string | null = b.business_id;
     if (!biz && b.assignment_id) {
       const { data: a } = await db.from("job_assignments").select("business_id").eq("id", b.assignment_id).maybeSingle();
@@ -192,6 +196,18 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     if ((await sendOnce(g, date, "update", `rc-booked:${b.id}`, body, g.jobs.map(snap))) !== "already") out.sent++;
   }
   await refreshDelivery(date);
+  return out;
+}
+
+/** Decision 266: secure job-page links (safety plan card) for today's installs whose safety plan is not yet signed. */
+async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
+  const { swmsStatusFor } = await import("./swms.server");
+  const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
+  const out: string[] = [];
+  for (const id of [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled").map((j) => j.jobId))]) {
+    const st = await swmsStatusFor(id).catch(() => null);
+    if (!st || !st.complete) out.push(`${SET_PASSWORD_BASE}/field/${id}`);
+  }
   return out;
 }
 

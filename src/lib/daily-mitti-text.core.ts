@@ -1,7 +1,10 @@
-// Daily Mitti links text (Jo, 7 Oct). Pure: timing, eligibility and wording. Wording is DRAFT until Jo approves.
+// Daily Mitti links text (Jo, 7 Oct). Pure: timing, eligibility and wording.
+// Morning wording approved by Jo 24 Oct 2026 (decision 83): "Good morning! Your jobs today: 1) {time}, {short address}:
+// {Mitti link} 2) … Tap a link to open its Mitti form." — exact arrival time (decision 43: no two-hour windows); when the
+// list is too long for 3 segments it falls back to the My work link, as the decision allows. The sender adds the brand prefix.
 import { melbourneYmd } from "./piesa-windows.core";
 
-export const DAILY_TEXT_WORDING_VERSION = "DRAFT-2026-10-07";
+export const DAILY_TEXT_WORDING_VERSION = "APPROVED-2026-10-24-decision-83";
 export const MAX_SMS_CHARS = 459; // 3 SMS segments; longer lists send the My work link instead.
 
 /** Melbourne wall-clock HH:MM for an instant (handles daylight saving). */
@@ -24,7 +27,9 @@ function fmt({ h, m }: { h: number; m: number }, withAmPm: boolean) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}${m ? `:${String(m).padStart(2, "0")}` : ""}${withAmPm ? (h < 12 ? "am" : "pm") : ""}`;
 }
-/** "8–10am", "11am–1pm", "2pm". */
+/** "8am", "9:30am", "2pm" — the arrival time only (decision 43: exact arrival times, no window). */
+export function arrivalTime(startIso: string): string { return fmt(hm(startIso), true); }
+/** "8–10am", "11am–1pm", "2pm" (kept for the change-list text). */
 export function timeWindow(startIso: string, endIso: string | null): string {
   const s = hm(startIso);
   if (!endIso) return fmt(s, true);
@@ -45,7 +50,7 @@ export function mittiFormSource(kind: string): MittiFormSource {
   return "assessments";
 }
 
-export type DayJob = { jobId: string; bookingId: string; start: string; end: string | null; street: string | null; suburb: string | null; link: string | null; status: string };
+export type DayJob = { jobId: string; bookingId: string; start: string; end: string | null; street: string | null; suburb: string | null; link: string | null; status: string; /** Booking kind (installation / ready_check …); undefined on older snapshots. */ kind?: string };
 export type Trade = { businessId: string; approved: boolean; linked: boolean; mittiInvited: boolean; phone: string | null };
 
 /** Why a trade gets no text (null = send). Shown to the office. */
@@ -58,13 +63,15 @@ export function skipReason(t: Trade): string | null {
 }
 
 function line(j: DayJob, i: number) {
-  return `${i + 1}) ${timeWindow(j.start, j.end)}, ${shortAddress(j.street, j.suburb)}: ${j.link ?? "form not ready yet"}`;
+  return `${i + 1}) ${arrivalTime(j.start)}, ${shortAddress(j.street, j.suburb)}: ${j.link ?? "form not ready yet"}`;
 }
+/** Decision 83 morning text (the sender adds "Home Insulation Victoria: "). */
 export function dailyText(jobs: DayJob[], myWorkLink: string): string {
   const live = [...jobs].filter((j) => j.status !== "cancelled").sort((a, b) => a.start.localeCompare(b.start));
-  const full = `HIV: Your jobs today – ${live.map(line).join(" ")}. Tap each link to open its form in Mitti.`;
+  const full = `Good morning! Your jobs today: ${live.map(line).join(" ")} Tap a link to open its Mitti form.`;
   if (full.length <= MAX_SMS_CHARS) return full;
-  return `HIV: You have ${live.length} jobs today. See them in time order with each Mitti form link: ${myWorkLink}`;
+  // Fallback allowed by decision 83 ("falls back to the My work link when too long"); its sentence is not recorded verbatim.
+  return `Good morning! You have ${live.length} jobs today. See them in time order with each Mitti form link: ${myWorkLink}`;
 }
 
 export type Snap = { bookingId: string; jobId: string; start: string; end: string | null; status: string };
