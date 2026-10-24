@@ -26,6 +26,7 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 158: 20/10 days left in the 30-day install window, to the owner and the installer. Wording approved by Jo 24 Oct (decision 167; thirty-day-rule.core.ts).
   install_window_reminder: { audience: "owner", label: "30-day install window reminder (20/10 days left) to the owner", wordingApproved: true, quietHours: true },
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
+  deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
@@ -56,6 +57,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   esc_notice_link: { kind: "window" }, // attempts 1/2/3 planned from the recorded send history; manual re-send has its own key
   install_window_reminder: { kind: "window" }, // 20/10-day steps recorded once as workflow events before any send (thirty-day-rule.server)
   install_window_reminder_installer: { kind: "window" }, // same steps, installer side
+  deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
 };
 
 export type SmsEventInput = {

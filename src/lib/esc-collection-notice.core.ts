@@ -71,10 +71,9 @@ export const COLLECTION_NOTICE_EVENT = "esc_collection_notice_acknowledged";
 export const COLLECTION_NOTICE_LINK_EVENT = "esc_collection_notice_link_issued";
 export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
 /** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
- *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. The emailed COPY of the notice on
- *  acknowledgement was approved by decision 170. TEST partners use the test senders. */
+ *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. TEST partners use the test senders. */
 export const COLLECTION_NOTICE_SEND_APPROVED = true;
-/** Jo 24 Oct 2026, decision 170: the emailed copy of the notice (verbatim) is approved; delivery still through sendOfficeEmail. */
+/** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/approved/I62-notice-copy.html). */
 export const COLLECTION_NOTICE_EMAIL_APPROVED = true;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;
 /** Reminder schedule (decision 130): first send, then 3 and 7 days after the first send while not acknowledged. */
@@ -250,14 +249,25 @@ export function noticeSendPlan(history: readonly { attempt: number; at: string }
   return null;
 }
 
-/** Emailed copy of the notice on acknowledgement (sent only when `COLLECTION_NOTICE_EMAIL_APPROVED`, or to TEST partners via the test sender). */
+/** Emailed copy of the notice on acknowledgement (decision 170 wording; rendered by partnerEmailLayout like I60/I54; sent only when
+ *  `COLLECTION_NOTICE_EMAIL_APPROVED`, or to TEST partners via the test sender). The notice itself is verbatim. */
+export const COLLECTION_NOTICE_COPY_SUBJECT = "Your copy of the ESC privacy collection notice";
 export function collectionNoticeEmail(i: { firstName: string | null; acknowledgedAt: string }): { subject: string; heading: string; blocks: PartnerBlock[] } {
   const when = new Date(i.acknowledgedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", dateStyle: "long", timeStyle: "short" });
+  const notice: PartnerBlock[] = [];
+  for (const p of COLLECTION_NOTICE_PARAGRAPHS) {
+    if (p.kind === "heading" || p.kind === "version") continue;
+    if (p.kind === "p") { notice.push({ kind: "p", text: p.text }); continue; }
+    const text = p.kind === "li2" ? `– ${p.text}` : p.text;
+    const last = notice[notice.length - 1];
+    if (last && last.kind === "list") last.items.push(text); else notice.push({ kind: "list", items: [text] });
+  }
   const blocks: PartnerBlock[] = [
     { kind: "p", text: `Hi ${i.firstName?.trim() || "there"},` },
-    { kind: "p", text: `Here is your copy of the Essential Services Commission's ${COLLECTION_NOTICE_TITLE} (${COLLECTION_NOTICE_VERSION_LINE}), which you acknowledged on ${when}. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.` },
-    ...COLLECTION_NOTICE_PARAGRAPHS.filter((p) => p.kind !== "heading").map<PartnerBlock>((p) => (p.kind === "li" || p.kind === "li2" ? { kind: "list", items: [p.text] } : { kind: "p", text: p.text })),
+    { kind: "p", text: `Here is your copy of the Essential Services Commission's ${COLLECTION_NOTICE_TITLE}, which you acknowledged on ${when}. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.` },
+    { kind: "sign", lines: [COLLECTION_NOTICE_TITLE, COLLECTION_NOTICE_VERSION_LINE] },
+    ...notice,
     { kind: "p", text: "Just reply to this email if you have any questions." },
   ];
-  return { subject: `Your copy of the ESC ${COLLECTION_NOTICE_TITLE}`, heading: COLLECTION_NOTICE_TITLE, blocks };
+  return { subject: COLLECTION_NOTICE_COPY_SUBJECT, heading: COLLECTION_NOTICE_COPY_SUBJECT, blocks };
 }

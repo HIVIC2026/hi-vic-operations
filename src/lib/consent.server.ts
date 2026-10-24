@@ -116,7 +116,7 @@ export async function confirmApConsent(p: { jobId: string; actorId: string; apRe
   // The ESC recommends providing the owner a copy of the executed form: best-effort through the guarded owner path.
   try {
     const { emailOwnerConsentCopy } = await import("./consent-copy-email.server");
-    const r = await emailOwnerConsentCopy({ jobId: p.jobId, consentId: c.id, sha256: sha, templateVersion: c.template_version ?? "", installationDays: c.installation_days as string[], address: c.premises_address, formText: form });
+    const r = await emailOwnerConsentCopy({ jobId: p.jobId, consentId: c.id, sha256: sha, templateVersion: c.template_version ?? "", installationDays: c.installation_days as string[], address: c.premises_address, formText: form, copyPath: path });
     await logEvent(p.jobId, p.actorId, "esc_consent_copy_email", `Owner ESC consent copy email: ${r}`, { consent_id: c.id }, { internal: true });
   } catch (e) {
     await logEvent(p.jobId, p.actorId, "esc_consent_copy_email", `Owner ESC consent copy email failed: ${(e as Error).message}`, { consent_id: c.id }, { internal: true });

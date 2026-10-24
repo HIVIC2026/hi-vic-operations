@@ -20,7 +20,11 @@ import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPa
 import { renderVeecReminderEmail, renderVeecCopyEmail, VEEC_SIGN_EMAIL_APPROVED, VEEC_COPY_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail, INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
 import { renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
-import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
+import { partnerWelcomeEmail, partnerEmailLayout } from "../src/lib/partner-email.core";
+import { renderConsentCopyEmail, CONSENT_COPY_EMAIL_APPROVED } from "../src/lib/consent-copy-email.core";
+import { renderDepositReleasedEmail, PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "../src/lib/deposit-release-notice.core";
+import { collectionNoticeEmail, COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_PARAGRAPHS } from "../src/lib/esc-collection-notice.core";
+import { bankDetailLines, HIV_BANK_DETAILS } from "../src/lib/payments.core";
 
 const JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const EST = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
@@ -196,6 +200,24 @@ describe("approved owner email designs", () => {
     has(m.html, ["Helen, how's your home feeling?", "It's been a week since Reinsulate installed", "Tap a star", `href="${JOB}?stars=5"`, "&#9733;", "Leave a Google review", "Know someone with a cold house?", "Send to a friend", "Contact Reinsulate first on 0400 000 000"]);
     expect((m.html.match(/&#9733;/g) ?? []).length).toBe(5);
   });
+  // Decision 170 (Jo 24 Oct 2026): the samples in docs/templates/approved are written by scripts/render-decision-170-samples.ts from this data.
+  test("O63 Consent copy", () => {
+    const form = ["Section 1: Information to be shared", "First Name: Helen", "Last Name: Yang", "Address of premises: 824 High Street Road, Glen Waverley VIC 3150", "Installation day(s): Tuesday 11 November 2026", "", "Section 2: Owner declarations", "☑ I consent to the Accredited Person sharing this information with the Essential Services Commission", "☑ I understand the information is used to verify the installation and the VEEC claim", "☑ I am the owner or authorised representative of the premises", "☑ I have read and understood this form", "", "Owner signature: Helen Yang  Date: 24 October 2026", "AP representative: Jo Carter (Director)  Date: 24 October 2026"].join("\n");
+    const m = renderConsentCopyEmail({ firstName: "Helen", installationDays: ["2026-11-11"], address: "824 High Street Road, Glen Waverley VIC 3150", templateVersion: "esc-2026-10-v1", formText: form, sha256: "e6458b32666a01a5a3d06718cf0ee33b601077761c6f14f77d20bee5d7753151", myJobUrl: JOB, attached: true });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("Your signed consent form");
+    has(m.html, ["Your signed consent form", "Hi Helen, here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. It's also on your job page.", ">See my job<", `href="${JOB}"`, "The signed form is attached as a PDF.", "Your signed form", "First Name: Helen", "AP representative: Jo Carter (Director)", "Record reference e6458b32666a"]);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/O63-consent-copy.html", "utf8"));
+    expect(CONSENT_COPY_EMAIL_APPROVED).toBe(true);
+  });
+  test("O64 Deposit released", () => {
+    const m = renderDepositReleasedEmail({ firstName: "Helen", day: "Tuesday 11 November", link: JOB, depositAmount: "$185.10", bankLines: bankDetailLines(HIV_BANK_DETAILS, "Home Insulation Victoria HV-3117") });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("Helen, your install day was released");
+    has(m.html, ["Helen, your install day was released", "Hi Helen, we didn't receive your install deposit in time, so Tuesday 11 November has been released. Your installer will offer new days once it's paid.", "Pay your $185.10 deposit by bank transfer or PayID", "Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: Home Insulation Victoria HV-3117", ">See my job<"]);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/O64-deposit-released.html", "utf8"));
+    expect(PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED).toBe(true);
+  });
 });
 
 describe("approved installer email designs", () => {
@@ -224,6 +246,16 @@ describe("approved installer email designs", () => {
     const m = partnerWelcomeEmail({ firstName: "Sam", businessName: "Reinsulate", trade: "installer", email: "sam@reinsulate.test", link: "https://estimate.homeinsulationvictoria.com.au/reset-password?token_hash=t&type=recovery&next=%2Ffield%2Fwelcome", test: false });
     shell(m.html, m.text, false);
     has(m.html, ["Welcome aboard, Sam. You're approved!", "Reinsulate can now take VEU ceiling insulation jobs", "<strong>Jobs sent to you</strong>, plus add your own customers", "We only add our $349 AP fee", "<strong>Quotes, electrician, compliance and rebate paperwork</strong> handled by us", ">Set your password<", "New to how we work?", "Read the 2-minute guide", 'href="https://estimate.homeinsulationvictoria.com.au/field/guide"']);
+  });
+  test("I62 Privacy notice copy (decision 170): partner kit, notice verbatim, acknowledged date, reply line", () => {
+    const n = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });
+    expect(n.subject).toBe("Your copy of the ESC privacy collection notice");
+    const m = partnerEmailLayout({ subject: n.subject, heading: n.heading, blocks: n.blocks, test: false });
+    shell(m.html, m.text, false);
+    has(m.html, ["Your copy of the ESC privacy collection notice", "Hi Sam,", "which you acknowledged on 24 October 2026 at 12:00 pm", "VEU Scheme Participant Privacy Collection Notice<br>Version 1.0 – 1 October 2026", "Just reply to this email if you have any questions."]);
+    for (const p of COLLECTION_NOTICE_PARAGRAPHS) if (p.kind === "p" || p.kind === "li" || p.kind === "li2") expect(m.text).toContain(p.text);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/I62-notice-copy.html", "utf8"));
+    expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(true);
   });
 });
 
