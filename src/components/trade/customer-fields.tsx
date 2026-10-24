@@ -32,7 +32,7 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false 
             onChange({ ...value, address_line: street, suburb: (d.suburb ?? "").trim(), postcode: (d.postcode ?? "").trim(), address_verified: true });
           }} />
         {value.address_verified
-          ? <div className="rounded-[12px] bg-mist px-3 py-2 text-sm" data-address-confirmed><span className="break-words">{value.address_line}, {value.suburb} {value.postcode}</span></div>
+          ? <div className="rounded-[12px] bg-mist px-3 py-2 text-sm" data-address-confirmed><span className="font-bold text-estimate-green">✓ Address found</span> <span className="break-words">{resolved?.label ?? `${value.address_line}, ${value.suburb} VIC ${value.postcode}`}</span></div>
           : <p className="text-xs text-sub">Start typing, then choose the address from the list. Include the unit number if there is one.</p>}
       </>}
     {field("full_name", "Owner's full name (first and last)", { autoComplete: "name", maxLength: 200 })}
