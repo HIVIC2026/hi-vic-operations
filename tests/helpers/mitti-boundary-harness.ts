@@ -62,7 +62,8 @@ export function createMittiBoundaryHarness(options: {
     ...options.dependencies,
   };
   const cache = new Map<string, Any>();
-  const actual = new Set(["mitti.core", "mitti-identity.core", "mitti-form-health.core", "mitti-form-health.server", "mitti.server", "mitti-forms.functions", "mitti-form-schema.core", "measurement.core"]);
+  // ready-check-lean.core / insulation-product.core: pure wording constants mitti.core reads (decision 222), no I/O.
+  const actual = new Set(["mitti.core", "mitti-identity.core", "mitti-form-health.core", "mitti-form-health.server", "mitti.server", "mitti-forms.functions", "mitti-form-schema.core", "measurement.core", "ready-check-lean.core", "insulation-product.core"]);
   const load = (name: string): Any => {
     if (cache.has(name)) return cache.get(name);
     if (!actual.has(name)) throw new Error(`Unexpected source module ${name}`);

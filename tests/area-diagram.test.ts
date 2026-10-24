@@ -146,14 +146,12 @@ describe("the generated final plan satisfies the A3 final_plan evidence", () => 
 
 describe("Ready Check form: the diagram upload is retired (decision 211)", () => {
   const items = (key: "ready_check" | "ready_check_priced", drop: (l: string) => boolean) => FORMS[key].fields.filter((f) => !drop(f.label)).map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type === "tick" ? "checkbox" : f.type }));
-  test("optional, portal-only, legacy aliases kept", () => {
+  test("gone from the lean build sheet (decision 222); old forms that still carry the upload pass; the prompt forbids it", () => {
     for (const key of ["ready_check", "ready_check_priced"] as const) {
-      const f = FORMS[key].fields.find((x) => x.label === "Upgrade area diagram or floor plan");
-      expect(f?.required).toBe(false);
-      expect(f?.portalOnly).toBe(true);
-      expect(f?.aliases).toContain("Upload your area sketch or floor plan.");
-      expect(validateTemplate(key, items(key, (l) => l === "Upgrade area diagram or floor plan")).ok).toBe(true);
-      expect(validateTemplate(key, items(key, () => false)).ok).toBe(true); // old forms with the upload still pass
+      expect(FORMS[key].fields.some((x) => /diagram|sketch|floor plan/i.test(x.label))).toBe(false);
+      expect(validateTemplate(key, items(key, () => false)).ok).toBe(true);
+      // Old forms with the retired upload (either live wording) are not failed for carrying it.
+      expect(validateTemplate(key, [...items(key, () => false), { label: "Upload your area sketch or floor plan.", type: "media" }, { label: "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.", type: "media" }]).ok).toBe(true);
       expect(mittiAiPrompt(key)).not.toContain('"Upgrade area diagram or floor plan"');
       expect(mittiAiPrompt(key)).toContain("Do NOT add a diagram, sketch or floor plan question");
     }
