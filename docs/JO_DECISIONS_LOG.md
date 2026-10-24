@@ -145,3 +145,7 @@ Newest first. Each line is settled; anything still open is under "Open".
 86. **Quote email approved (24 Oct).** Short: "Hi {Name}, your quote is ready." / "You save {rebate} on ceiling insulation"; price box (green rebate, big price, full price crossed out, address, "Measured at your Ready Check"); View and accept button; "Your quote" itemised breakdown (product m² × rate with standards and installer, removal m² × $15, electrical safety check (PIESA), Accredited Provider fee, full price, VEU rebate, You pay); "Not included: electrical fixes…"; one-line Next; held-until line. Design: `docs/templates/approved/O18-quote-ready.html`.
 87. **Quote ready text approved (24 Oct), B:** "Home Insulation Victoria: Your ceiling insulation quote is ready, {FirstName}. See it here: {link} Reply STOP to opt out."
 88. **Quote reminders (24 Oct):** a short email + text 3 days after the quote is sent, and again 2 days before the price expires, only if not accepted or declined.
+89. **Quote reminder wording approved (24 Oct):**
+    - 3-day text (B): "Home Insulation Victoria: Hi {FirstName}, your quote with {rebate} off is waiting: {link} Reply STOP to opt out."
+    - Expiry text (A): "Home Insulation Victoria: Hi {FirstName}, your quote price is held until {Day Date}. Accept by then to keep your {rebate} rebate price: {link} Reply STOP to opt out."
+    - Reminder emails: the quote email's price box + button with a reminder line at the top; no breakdown.
