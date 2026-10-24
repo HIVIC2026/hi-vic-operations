@@ -54,7 +54,7 @@ async function idemKey(to: string, subject: string, html: string) {
   return `hiv-test-${Array.from(new Uint8Array(b)).slice(0, 16).map((x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string): Promise<SendResult> {
+export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string, opts: { attachments?: import("./email-kit.core").EmailAttachment[] } = {}): Promise<SendResult> {
   const norm = normaliseEmail(to);
   const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
@@ -66,7 +66,7 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
       const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json", "Idempotency-Key": await idemKey(norm, subject, html) },
-        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text }),
+        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text, ...(opts.attachments?.length ? { attachments: opts.attachments.map((a) => ({ filename: a.filename, content: a.content, content_type: a.contentType })) } : {}) }),
         signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
       });
       const t = await res.text();

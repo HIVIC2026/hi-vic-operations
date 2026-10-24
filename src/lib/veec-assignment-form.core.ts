@@ -262,9 +262,8 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
 }
 
 // ---------- Consumer signing request + reminders (decision 120) ----------
-/** Flags: real sends to owners stay off until Jo approves the wording. TEST jobs use test-send only. */
-export const VEEC_COPY_EMAIL_APPROVED = false;
-export const VEEC_SIGN_EMAIL_APPROVED = false;
+/** Email flags/renderers live in veec-emails.core.ts (decision 169: O44 day 0, O61 reminders, O62 copy — all approved).
+ *  Texts go through `sendRealSms` types veec_sign_request / veec_sign_reminder (sms.core.ts, approved 24 Oct, decisions 166/168). */
 export const VEEC_SIGN_SMS_APPROVED = false;
 
 export type VeecReminderStep = "request" | "reminder_1" | "reminder_3" | "reminder_7" | "office_alert_10";
@@ -287,7 +286,7 @@ export function nextVeecReminderStep(x: { installCompletedAt: string | null; con
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-/** DRAFT texts (Jo to approve). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody. */
+/** Approved texts (decisions 166/168). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody. */
 export function veecSignRequestText(rebate: number, link: string): string {
   return `Your install is done! One last thing: please sign your rebate form so we can claim your ${money(rebate)} rebate: ${link} Reply STOP to opt out.`;
 }
@@ -295,26 +294,6 @@ export function veecSignReminderText(rebate: number, link: string): string {
   return `Your rebate form still needs your signature so we can claim your ${money(rebate)} rebate. It takes a minute: ${link} Reply STOP to opt out.`;
 }
 export const SMS_SEGMENT_LIMIT = 2 * 153;
-
-/** DRAFT email (Jo to approve). */
-export function veecSignEmail(x: { firstName: string | null; rebate: number; link: string; step: VeecReminderStep; test: boolean }): { subject: string; html: string; text: string } {
-  const hi = x.firstName ? `Hi ${x.firstName},` : "Hi,";
-  const first = x.step === "request";
-  const subject = `${x.test ? "[TEST] " : ""}${first ? "All done! One last thing: sign your rebate form" : "Your rebate form still needs your signature"}`;
-  const lines = first
-    ? [hi, "Your ceiling insulation is in. Thank you for choosing Home Insulation Victoria.", `One last thing: please sign your VEEC assignment (rebate) form so we can claim your ${money(x.rebate)} Victorian Energy Upgrades rebate. It takes about a minute.`, `Sign here: ${x.link}`, "The form shows your installer, what was installed and the price. If anything looks wrong, reply to this email before signing.", "You'll get a copy of the signed form within 10 business days."]
-    : [hi, `Your VEEC assignment (rebate) form still needs your signature so we can claim your ${money(x.rebate)} rebate.`, `Sign here: ${x.link}`, "It takes about a minute. If anything on the form looks wrong, reply to this email before signing."];
-  const text = [...lines, "", "Home Insulation Victoria"].join("\n");
-  const html = `<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:#1b2a41">${lines.map((l) => `<p>${l.replace(x.link, `<a href="${x.link}">${x.link}</a>`)}</p>`).join("")}<p>Home Insulation Victoria</p></div>`;
-  return { subject, html, text };
-}
-
-/** DRAFT copy-to-consumer email (template instruction: copy within 10 business days of electronic signing). */
-export function veecCopyEmail(x: { firstName: string | null; jobNumber: string; signedAt: string; link: string; test: boolean }): { subject: string; html: string; text: string } {
-  const hi = x.firstName ? `Hi ${x.firstName},` : "Hi,";
-  const lines = [hi, `Here is your copy of the signed VEEC assignment form for job ${x.jobNumber}. Keep it with your home records.`, `Open it from your My job page: ${x.link}`, "Signed on " + new Date(x.signedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" }) + ".", "Questions? Reply to this email or contact veu@esc.vic.gov.au for anything we can't resolve."];
-  return { subject: `${x.test ? "[TEST] " : ""}Your signed rebate form (copy)`, text: [...lines, "", "Home Insulation Victoria"].join("\n"), html: `<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:#1b2a41">${lines.map((l) => `<p>${l.replace(x.link, `<a href="${x.link}">${x.link}</a>`)}</p>`).join("")}<p>Home Insulation Victoria</p></div>` };
-}
 
 /** Electronic assignment: the executed copy is due to the consumer within 10 business days of the consumer's signature. */
 export const veecCopyDueAt = (consumerSignedAt: string) => addMelbourneBusinessDays(consumerSignedAt, 10);

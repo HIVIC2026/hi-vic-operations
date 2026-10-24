@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-  AP_DECLARATION, AP_NAME_ON_FORM, CONSUMER_DECLARATION, INSTALLER_DECLARATION, SECTION_1_CONSUMER_RIGHTS, SMS_SEGMENT_LIMIT, VEEC_COPY_EMAIL_APPROVED, VEEC_FORM_BODY, VEEC_FORM_FIELDS, VEEC_SIGN_EMAIL_APPROVED, VEEC_SIGN_SMS_APPROVED,
+  AP_DECLARATION, AP_NAME_ON_FORM, CONSUMER_DECLARATION, INSTALLER_DECLARATION, SECTION_1_CONSUMER_RIGHTS, SMS_SEGMENT_LIMIT, VEEC_FORM_BODY, VEEC_FORM_FIELDS, VEEC_SIGN_SMS_APPROVED,
   apPrerequisiteBlockers, nextVeecReminderStep, veecCopyDueAt, veecPrefill, veecSignReminderText, veecSignRequestText, type VeecFacts,
 } from "../src/lib/veec-assignment-form.core";
+import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { ASSIGNMENT_VEEC_BLOCKER, finalAssignmentAvailability, parseFormFields, type Template } from "../src/lib/assignment.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 
@@ -81,11 +82,11 @@ describe("decision 120: request + reminders", () => {
     // a missed earlier step is sent before a later one (one per sweep, in order)
     expect(nextVeecReminderStep({ installCompletedAt: done, consumerSignedAt: null, done: [], now: "2026-10-30T05:00:00Z" })).toBe("request");
   });
-  test("texts: under two segments, secure link, STOP line; everything held behind unapproved flags", () => {
+  test("texts: under two segments, secure link, STOP line; emails approved (decision 169), legacy SMS flag unused", () => {
     const link = "https://estimate.homeinsulationvictoria.com.au/my-job/abcdefghijklmnopqrstuvwxyz0123456789ABCD?screen=done";
     for (const t of [veecSignRequestText(1800, link), veecSignReminderText(1800, link)]) { expect(t.length).toBeLessThan(SMS_SEGMENT_LIMIT); expect(t).toContain(link); expect(t).toContain("Reply STOP to opt out"); expect(t).toContain("$1,800"); }
     expect(veecSignReminderText(1800, link)).toMatch(/still needs your signature/);
-    expect(VEEC_COPY_EMAIL_APPROVED).toBe(false); expect(VEEC_SIGN_EMAIL_APPROVED).toBe(false); expect(VEEC_SIGN_SMS_APPROVED).toBe(false);
+    expect(VEEC_COPY_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_SMS_APPROVED).toBe(false); // decision 169
     expect(SMS_MESSAGE_TYPES.veec_sign_request.wordingApproved).toBe(true); // decision 166
     expect(SMS_MESSAGE_TYPES.veec_sign_reminder.wordingApproved).toBe(true); // decision 168
   });

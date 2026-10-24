@@ -523,7 +523,7 @@ export function resendDeliveryAdapter(): import("./delivery.core").DeliveryAdapt
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 /** One provider call. Never throws: a timeout or dropped connection is an UNKNOWN outcome (the request may already have
  *  been accepted), and the HTTP status is classified by classifyProviderStatus (save-spot-delivery.core.ts). */
-export async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<ResendAttempt> {
+export async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null, attachments?: import("./email-kit.core").EmailAttachment[]): Promise<ResendAttempt> {
   const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
   if (!key || !gw) return { outcome: "not_attempted", detail: "Email is not connected" };
   let res: Response;
@@ -531,7 +531,7 @@ export async function resendSend(to: string, subject: string, html: string, text
     res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
-      body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
+      body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}), ...(attachments?.length ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, content_type: a.contentType })) } : {}) }),
       signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
     });
   } catch (e) {

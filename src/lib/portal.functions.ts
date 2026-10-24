@@ -1032,7 +1032,8 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
-    // Decision 120: the owner is asked to sign the VEEC assignment form (email + text) at completion. Best-effort, never blocks.
+    // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
+    // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.
     try { await (await import("./veec-reminders.server")).sendVeecSignStep(data.jobId, "request"); } catch (e) { console.error("VEEC sign request failed", (e as Error).message); }
     return { ok: true };
   });
