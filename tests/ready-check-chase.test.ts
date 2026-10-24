@@ -72,6 +72,11 @@ describe("Stage 8: Office needs to… Mitti items", () => {
     ]);
     expect(out).toEqual(["mitti_fix_form:j1", "mitti_review_pickup:mitti_review_pickup:audit_x", "mitti_setup_installer:j5", "quote_held_review:j3", "quote_not_delivered:j4", "ready_check_chase_installer:j6", "ready_check_held:j2"]);
   });
+  test("decision 209: Xero invoice product/m² flag is raised and cleared by the office confirmation", () => {
+    const raised = ev("j9", "xero_invoice_product_unconfirmed", 2, { details: { reasons: ["insulation product not recorded on the job"] }, summary: "Office needs to: confirm the installed product and m² on the Xero invoice" });
+    expect(mittiOfficeItems([raised], now)).toEqual([{ code: "xero_invoice_product_unconfirmed", jobId: "j9", since: raised.created_at, detail: "insulation product not recorded on the job", key: "xero_invoice_product_unconfirmed:j9" }]);
+    expect(codes([raised, ev("j9", "xero_invoice_product_confirmed", 1)])).toEqual([]);
+  });
   test("chase waits 24 hours", () => {
     expect(codes([ev("j6", "ready_check_incomplete", 23)])).toEqual([]);
   });
