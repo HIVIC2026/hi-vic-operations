@@ -27,7 +27,7 @@ editable items so the installer can correct them.
 
 Answer-type key: Text = single line text; Number = numeric; Date = date; Yes/No = two choices `Yes` and `No`; Pick one =
 single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice; Photo = photo with
-location on; Video = video attachment with location on; Checkbox = single checkbox that must be ticked; Signature =
+location on; Video = video attachment with location on ("several files allowed" = let the installer attach more than one); Checkbox = single checkbox that must be ticked; Signature =
 signature capture.
 
 ## Group 1: Job
@@ -81,25 +81,19 @@ Q33: `Everything on this form is true and complete` — Checkbox — Required
 Q34: `Lead installer's signature` — Signature — Required
 Q35: Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
 
-## Group 8: Each ceiling area (after the install)
-Q36: `How many ceiling areas did you insulate?` — Pick one: `1` / `2` / `3` — Required — help text: `Use the same areas as the Ready Check.`
-Q37: `Area 1: which part of the home?` — Text — Required — portal fills this in
-Q38: `Area 1: video before you start` — Video — Required — help text: `Slow 360°, lit, say the area name.`
-Q39: `Area 1: product installed` — Pick one — Required — the same product list as the Ready Check — portal fills this in
-Q40: `Area 1: m² installed` — Number — Required — portal fills this in
-Q41: `Area 1: video when it's done` — Video — Required — help text: `Slow 360°, lit, say the area name. Show full coverage and no rubbish left.`
-Q42: `Area 1: photo of the new insulation with a ruler showing its depth` — Photo — Required — help text: `Ruler standing up, insulation not squashed.`
-Q43–Q48: Same six questions for `Area 2:` — only show when Q36 = `2` or `3`
-Q49–Q54: Same six questions for `Area 3:` — only show when Q36 = `3`
-Q55: `Did the install take more than one day?` — Yes/No — Required
-Q56: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q55 = `Yes`
+## Group 8: Videos and photos (after the install)
+Q36: `Before videos: one slow 360° of each ceiling area, lit, saying the area's name` — Video, several files allowed — Required
+Q37: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
+Q38: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
+Q39: `Did the install take more than one day?` — Yes/No — Required
+Q40: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q39 = `Yes`
 
 ## Group 9: Finishing up
-Q57: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
-Q58: `Who turned it back on?` — Text — Required — only show when Q57 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
-Q59: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q57 = `Yes`
-Q60: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
-Q61: `I was here the whole time and supervised everyone` — Checkbox — Required
-Q62: `Lead installer's signature` — Signature — Required
+Q41: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
+Q42: `Who turned it back on?` — Text — Required — only show when Q41 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
+Q43: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q41 = `Yes`
+Q44: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
+Q45: `I was here the whole time and supervised everyone` — Checkbox — Required
+Q46: `Lead installer's signature` — Signature — Required
 
 Publish.
