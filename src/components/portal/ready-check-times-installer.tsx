@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Section } from "./panels";
-import { getTradeReadyCheckTimes, offerTradeReadyCheckNewTimes, takeTradeReadyCheckDay } from "@/lib/trade-view.functions";
+import { changeTradeReadyCheckTime, getTradeReadyCheckTimes, offerTradeReadyCheckNewTimes, takeTradeReadyCheckDay } from "@/lib/trade-view.functions";
 import { READY_CHECK_INSTALLER_TIMES, allowedReadyCheckTimes, formatReadyCheckTime, installerTimesBlockers } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 
@@ -36,19 +36,46 @@ export function ReadyCheckTimesForm({ days, busy, sendLabel, onSend }: { days: s
   </div>;
 }
 
+/** Decision 80: change a booked Ready Check — one new day and arrival time, booked straight away. */
+function ChangeReadyCheckTime({ days, busy, onSend, onCancel }: { days: string[]; busy: boolean; onSend: (pick: { day: string; time: string }) => Promise<unknown>; onCancel: () => void }) {
+  const [day, setDay] = useState("");
+  const [time, setTime] = useState("");
+  if (!days.length) return <p className="mt-2 text-sm text-muted-foreground">There are no days available right now.</p>;
+  return <div data-ready-check-change-form>
+    <p className="mt-2 text-sm">Choose the new day and the time you'll arrive. It's booked straight away and the owner is told.</p>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">{days.map((d) => <Button key={d} type="button" size="field" variant={day === d ? "default" : "outline"} aria-pressed={day === d} className="h-auto min-h-12 whitespace-normal" onClick={() => { setDay(d); setTime(""); }}>{dayLabel(d)}</Button>)}</div>
+    {day && <div className="mt-3 flex items-center justify-between gap-2 text-sm"><span>{dayLabel(day)}</span><TimeSelect day={day} label={`Arrival time ${dayLabel(day)}`} value={time} onChange={setTime} /></div>}
+    <Button type="button" size="field" className="mt-3 w-full" disabled={busy || !day || !time} onClick={() => void onSend({ day, time })}>{busy ? "Saving…" : "Book the new time"}</Button>
+    <Button type="button" size="field" variant="ghost" className="mt-2 w-full" disabled={busy} onClick={onCancel}>Keep the booked time</Button>
+  </div>;
+}
+
 /** Assigned installer on an our-lead job: whose move it is, the owner's suggested days, or offer new times. */
 export function InstallerReadyCheckTimesCard({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const getState = useServerFn(getTradeReadyCheckTimes);
   const offer = useServerFn(offerTradeReadyCheckNewTimes);
   const take = useServerFn(takeTradeReadyCheckDay);
+  const change = useServerFn(changeTradeReadyCheckTime);
+  const [changing, setChanging] = useState(false);
   const { data } = useQuery({ queryKey: ["installer-rc-times", jobId], queryFn: () => getState({ data: { jobId } }) });
   const [takeTime, setTakeTime] = useState<Record<string, string>>({});
   const [offering, setOffering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); await qc.invalidateQueries(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
-  if (!data || !data.applies || data.turn === "booked" || data.turn === "no_installer") return null;
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); setChanging(false); await qc.invalidateQueries(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  if (!data || !data.applies || data.turn === "no_installer") return null;
+  if (data.turn === "booked") {
+    if (!data.canChange) return null;
+    return (
+      <Section title="Ready Check time">
+        <p className="text-sm">Booked{data.bookedAt ? ` for ${formatReadyCheckTime(data.bookedAt)}` : ""}.</p>
+        {!changing ? <Button size="field" variant="outline" className="mt-3 h-auto min-h-12 w-full whitespace-normal" onClick={() => setChanging(true)}>Change time</Button>
+          : <ChangeReadyCheckTime days={data.days} busy={busy} onSend={(pick) => run(() => change({ data: { jobId, ...pick } }))} onCancel={() => setChanging(false)} />}
+        {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
+      </Section>
+    );
+  }
   const form = <ReadyCheckTimesForm days={data.days} busy={busy} sendLabel="Send these times to the owner" onSend={(picks) => run(() => offer({ data: { jobId, picks } }))} />;
   return (
     <Section title="Ready Check time">

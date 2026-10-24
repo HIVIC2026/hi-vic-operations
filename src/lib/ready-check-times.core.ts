@@ -95,6 +95,25 @@ export function readyCheckTurn(i: { booked: boolean; hasInstaller: boolean; rows
   return { turn: "installer_to_offer", open: [] };
 }
 
+/** Decision 80 (Jo 24 Oct 2026): a booked Ready Check on our leads can be changed by either side until it starts.
+ *  Owner → back to the installer to offer 3 new times; installer → sets a new day + time directly. */
+export function readyCheckChangeBlockers(f: { channel: string | null; stage: string | null; deleted: boolean; bookedAt: string | null }, now: Date = new Date()): string[] {
+  if (f.deleted) return ["This job is no longer available."];
+  if (f.channel !== "hivic_sourced") return ["Installers arrange the Ready Check directly with their own customers."];
+  if (f.stage !== "ready_check_scheduled" || !f.bookedAt) return ["There is no booked Ready Check to change."];
+  if (Date.parse(f.bookedAt) <= now.getTime()) return ["The Ready Check has already started."];
+  return [];
+}
+
+/** Installer's new time: one allowed day + allowed time (same rules as offers: 7am–5pm, 24h+ away, within 21 days), not the booked one. */
+export function installerRebookBlockers(pick: ReadyCheckPick, bookedAt: string | null, now: Date = new Date()): string[] {
+  if (!isReadyCheckTime(pick.time)) return ["Please choose a time."];
+  if (!allowedReadyCheckDays(now).includes(pick.day)) return ["That day is not available. Please choose again."];
+  if (!allowedReadyCheckTimes(pick.day, now).includes(pick.time)) return ["The time must be at least 24 hours away."];
+  if (bookedAt && readyCheckStartAt(pick.day, pick.time).getTime() === Date.parse(bookedAt)) return ["That is already the booked time."];
+  return [];
+}
+
 /** When an office-picked offer closes by itself. */
 export function readyCheckOfferExpiry(offeredAt: Date = new Date()): string {
   return new Date(offeredAt.getTime() + READY_CHECK_OFFER_OPEN_HOURS * 3_600_000).toISOString();
