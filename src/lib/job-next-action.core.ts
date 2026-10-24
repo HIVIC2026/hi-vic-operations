@@ -11,7 +11,7 @@ export type NextAction = { who: NextWho; sentence: string; button: { label: stri
 
 export type NextInput = {
   facts: NeedsFacts | null;
-  status: { label: string; waitingOn: string; detail: string | null; dueAt: string | null } | null;
+  status: { key?: string; label: string; waitingOn: string; detail: string | null; dueAt: string | null } | null;
   stage: JobsStage | null;
   closed: { kind: "cancelled" | "complete" | "ineligible"; reason: string | null } | null;
   onHold: { reason: string | null; until: string | null } | null;
@@ -50,6 +50,8 @@ export function nextAction(i: NextInput, now: number): NextAction {
     };
   }
   if (!i.status) return { who: "us", sentence: "This job's status could not be worked out — check its records.", button: null, blocked: null };
+  // Installer's own customer at the Ready Check (decision 54): the installer arranges and does it; the office only watches.
+  if (i.status.key === "ready_check.installer_own") return { who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
   const who = WHO_FROM_STATUS[i.status.waitingOn] ?? "us";
   const tail = i.status.detail ? ` · ${i.status.detail}` : "";
   const sentence = who === "nobody" ? `${i.status.label}${tail}. Nothing for the office to do — it happens automatically.` : who === "us" ? `${i.status.label}${tail}.` : `Waiting for the ${who}: ${i.status.label.charAt(0).toLowerCase()}${i.status.label.slice(1)}${tail}.`;

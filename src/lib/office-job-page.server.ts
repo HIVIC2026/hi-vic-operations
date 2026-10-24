@@ -75,7 +75,7 @@ export async function loadJobPage(jobId: string) {
   const closed = job.stage === "complete" ? "complete" as const : job.stage === "cancelled" ? "cancelled" as const : null;
   const stage = jobsStage({ stage: job.stage, priorStage: job.prior_stage, hasInstaller: !!installer });
   const next = nextAction({
-    facts, status: status ? { label: status.label, waitingOn: status.waitingOn, detail: status.detail, dueAt: status.dueAt } : null, stage,
+    facts, status: status ? { key: status.key, label: status.label, waitingOn: status.waitingOn, detail: status.detail, dueAt: status.dueAt } : null, stage,
     closed: closed ? { kind: closed, reason: job.cancelled_reason } : job.eligibility_outcome === "does_not_appear_eligible" && !stage ? { kind: "ineligible", reason: null } : null,
     onHold: job.stage === "on_hold" ? { reason: job.hold_reason, until: job.hold_revisit_at } : null,
   }, now);
@@ -130,7 +130,7 @@ export async function loadJobPage(jobId: string) {
       canDelete: job.source === "qa_test", canReopen: job.stage !== "complete" && (job.stage === "cancelled" || job.eligibility_outcome === "does_not_appear_eligible" || job.source === "qa_test"),
     },
     next, cards: buildStageCards(cardFacts), stage,
-    waitingFor: next.who === "nobody" ? "nothing — it happens automatically" : next.who === "us" ? `us — ${next.sentence.charAt(0).toLowerCase()}${next.sentence.slice(1)}` : `the ${next.who} — ${next.sentence.replace(/^Waiting for the [a-z]+: /, "")}`,
+    waitingFor: next.who === "nobody" ? "nothing — it happens automatically" : next.who === "us" ? `us — ${next.sentence.charAt(0).toLowerCase()}${next.sentence.slice(1)}` : `the ${next.who} — ${next.sentence.replace(/^Waiting for the [a-z]+: /, "").replace(/^Installer is /, "")}`,
     contacts,
   };
 }

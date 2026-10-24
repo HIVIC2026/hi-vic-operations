@@ -133,7 +133,7 @@ export function classifyOperation(input: OperationInput, now: number): Operation
   } else {
     const operationalFacts = PRE_HANDOFF.has(f.stage) && active ? { ...f, stage: f.installedAt ? "evidence_outstanding" : f.installBookingAt ? "installation_booked" : f.elecBookingAt ? "piesa_scheduled" : f.elecOfferAt ? "piesa_and_install_window_pending" : operationalQuote(f.quote) && f.quote?.status === "accepted" ? "measured_quote_accepted" : operationalQuote(f.quote) ? "awaiting_quote_acceptance" : f.rcSubmittedAt ? "ready_check_complete" : f.rcBookingAt ? "ready_check_scheduled" : "ready_check_ready_to_schedule", campaign: null } : f;
     const currentEvidence = input.evidence.filter(e => evidenceApplicability(e.gate, operationalFacts, now) === "current");
-    const status = officeStatus({ ...operationalFacts, evidenceMissing: currentEvidence.filter(e => ["outstanding", "rejected"].includes(e.status)).length }, now);
+    const status = officeStatus({ ...operationalFacts, ownJob: input.channel === "installer_sourced", evidenceMissing: currentEvidence.filter(e => ["outstanding", "rejected"].includes(e.status)).length }, now);
     const stage = status?.stage;
     process = stage === "quote" ? "Quote & payment" : stage === "safety" ? "Electrical safety & fixes" : stage === "install" ? "Installation" : stage === "signoff" ? (f.stage === "ready_for_veec" ? "VEEC lodgement" : "Evidence & AP review") : "Ready Check";
     const who = status?.waitingOn;

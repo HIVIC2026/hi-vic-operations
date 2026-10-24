@@ -31,6 +31,8 @@ export const OFFICE_STATUSES = {
   "enquiry.spot_saved": {stage: "enquiry", label: SITUATION["enquiry.spot_saved"]!.tag, waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: SITUATION["enquiry.spot_saved"]!.next! },
   "enquiry.spot_saved_video": {stage: "enquiry", label: SITUATION["enquiry.spot_saved_video"]!.tag, waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: SITUATION["enquiry.spot_saved_video"]!.next! },
   // Jo 22 Oct: while Ready Check booking is OFF, a saved spot waits on nobody — no office action.
+  // Installers' own customers (A1): the installer arranges and does the Ready Check directly (decision 54); no estimate, no offer, no time limit.
+  "ready_check.installer_own": {stage: "ready_check", label: SITUATION["ready_check.installer_own"]!.tag, waiting: "Installer", limit: null },
   "ready_check.pick_times": {stage: "ready_check", label: SITUATION["ready_check.pick_times"]!.tag, waiting: "Owner", limit: { d: 3 }, limitKey: "owner_times_days", action: SITUATION["ready_check.pick_times"]!.next! },
   "ready_check.offered": {stage: "ready_check", label: SITUATION["ready_check.offered"]!.tag, waiting: "Installer", limit: { bh: 4 }, limitKey: "offer_business_hours", action: SITUATION["ready_check.offered"]!.next! },
   "ready_check.booked": {stage: "ready_check", label: SITUATION["ready_check.booked"]!.tag, waiting: "Installer", limit: null },
@@ -101,6 +103,8 @@ export function addBusinessHours(startMs: number, hours: number): number {
 export type JobFacts = {
   id: string; stage: string; createdAt: string; lastActivityAt: string | null; enteredStageAt: string | null;
   holdRevisitAt?: string | null; cancelledReason?: string | null;
+  /** jobs.channel = installer_sourced (an installer's own customer): never an estimate/waiting-list lead — the installer does the Ready Check directly. */
+  ownJob?: boolean;
   campaign?: { spotSavedAt: string | null; optedOutAt: string | null; videoRequested: boolean; mediaReceivedAt: string | null; deskCheckStatus: string | null; createdAt: string; queuePriority?: string | null } | null;
   /** Estimate link created (NOT proof of sending). */
   estimateSentAt?: string | null;
@@ -163,11 +167,15 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     case "on_hold": return pick("ended.on_hold", f.lastActivityAt, { due: f.holdRevisitAt ?? null, detail: f.holdRevisitAt ? `Revisit ${f.holdRevisitAt}` : null });
     case "new_enquiry": case "eligibility_review": return pick("enquiry.checking", f.enteredStageAt ?? f.createdAt);
     case "preliminary_estimate_ready": case "ready_check_awaiting_acceptance": case "ready_check_awaiting_payment": {
+      // Estimate / waiting-list wording is only for website, email and phone enquiries before a spot is saved (decision 54).
+      if (f.ownJob) return pick("ready_check.installer_own", f.enteredStageAt);
       const s = saved(); if (s) return s;
       if (!f.ownerContactedAt) return pick(f.estimateSentAt ? "waiting_list.ready_to_send" : "waiting_list.needs_estimate", f.enteredStageAt);
       return pick("enquiry.estimate_sent", f.ownerContactedAt);
     }
     case "ready_check_ready_to_schedule": {
+      // An installer's own customer has no offer, owner times or estimate: the installer is doing the Ready Check.
+      if (f.ownJob) return pick("ready_check.installer_own", f.enteredStageAt);
       if (f.proposalPending && f.proposalPending.kind === "ready_check") return pick("ready_check.arranging", f.proposalPending.since);
       if (f.rcOfferAt) return pick("ready_check.offered", f.rcOfferAt);
       if ((f.rcWindowsOpen ?? 0) > 0) return pick("enquiry.spot_saved", c?.spotSavedAt ?? f.enteredStageAt, { detail: "Owner picked times — offer it to installers" });
@@ -183,7 +191,8 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       const q = f.quote;
       if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: q.holdReason });
       if (q?.sentAt && q.status === "issued") return pick("quote.waiting_sign", q.sentAt);
-      // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled.
+      // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled
+      // (an installer's own customer then reads "Ready Check" — the installer arranges it directly, never "needs estimate").
       if (!f.rcBookingAt) return officeStatus({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
       if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${f.rcBookingAt.slice(0, 10)}` });
       return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });

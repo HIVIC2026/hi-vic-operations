@@ -199,3 +199,16 @@ export function evidenceRowLabel(status: string, when: "current" | "future" | st
   const s = evidenceStatusLabel(status);
   return when === "future" ? (status === "outstanding" ? "Later stage" : `${s} · later stage`) : s;
 }
+
+/**
+ * Dropdown menu placement (More ▾ / Actions ▾): the menu's left offset from its button. Start-aligned on the button,
+ * flipped to the button's end edge when it would run past the right of the viewport, then clamped so it keeps an
+ * 8px gutter on both sides. A button at the left of a 390px phone screen and one at the right both show the whole menu.
+ */
+export function menuOffset(i: { anchorLeft: number; anchorWidth: number; menuWidth: number; viewportWidth: number }, gutter = 8): number {
+  const w = Math.min(i.menuWidth, i.viewportWidth - 2 * gutter);
+  let left = 0;
+  if (i.anchorLeft + w > i.viewportWidth - gutter) left = i.anchorWidth - w;
+  if (i.anchorLeft + left < gutter) left = gutter - i.anchorLeft;
+  return Math.round(left);
+}
