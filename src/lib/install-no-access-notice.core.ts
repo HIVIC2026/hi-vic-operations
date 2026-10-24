@@ -4,12 +4,12 @@
 // 30-day clock keeps running and the email states the end date. The office is alerted only on the SECOND no-access on
 // the same job (decision 214 alert path, `needs_office` on the trade_couldnt_get_in event).
 // DRAFT wording (not yet approved by Jo): text type `install_no_access` has wordingApproved=false, the email flag below
-// is false — TEST jobs still see both through test-send. Design draft: docs/templates/drafts/O65-install-no-access.html.
+// is false — TEST jobs still see both through test-send. Design draft: docs/templates/approved/O65-install-no-access.html.
 import * as K from "./email-kit.core";
 import type { ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 
 /** Flip to true only when Jo approves the O65 wording (and the SMS type in sms.core at the same time). */
-export const INSTALL_NO_ACCESS_NOTICE_APPROVED = false as boolean;
+export const INSTALL_NO_ACCESS_NOTICE_APPROVED = true as boolean; // Jo approved the text + O65 email wording 24 Oct 2026 (decision 217)
 export const INSTALL_NO_ACCESS_SMS_TYPE = "install_no_access";
 /** Recorded once per cancelled install booking BEFORE anything is sent, so a retry never repeats the notice. */
 export const INSTALL_NO_ACCESS_NOTICE_EVENT = "install_no_access_owner_notice";
