@@ -3,11 +3,12 @@
 // without an office step. Pure rules + wording only. Persistence and sending: piesa-delivery.server.ts.
 // Design approved (decision 131): docs/templates/approved/O28-piesa-copy.html — "your electrical safety check: all clear"
 // (or "repairs completed"), result card (date, electrician, repairs, install day), PDF button, "don't let anyone into the
-// ceiling before the install". Delivery stays behind PIESA_COPY_EMAIL_APPROVED until the sending switch is turned on.
+// ceiling before the install". PIESA_COPY_EMAIL_APPROVED is on (decision 131); real delivery still needs customer_comms_enabled.
 import { escDueBy } from "./esc.core";
 import * as K from "./email-kit.core";
 
-export const PIESA_COPY_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 131 (O28 PIESA copy): approved. Owner copy still behind customer_comms_enabled, installer copy through sendOfficeEmail. */
+export const PIESA_COPY_EMAIL_APPROVED = true as boolean;
 export const PIESA_COPY_EMAIL_VERSION = "piesa-copy-v2-approved-design";
 export const PIESA_COPY_DELIVERED_EVENT = "piesa_copy_delivered";
 export const PIESA_COPY_NOT_SENT_EVENT = "piesa_copy_email_not_sent";

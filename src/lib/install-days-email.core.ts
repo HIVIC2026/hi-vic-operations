@@ -4,11 +4,13 @@
 // 10% deposit (held 48 hours), rest on install day or pay in full now, install-by date.
 // "Install day changed" design approved: O42-install-day-changed.html — new day card with the old day crossed out,
 // deposit still holds, Change day, See my job. Neither has a live sender yet (the consent + Stripe deposit steps are
-// being built): INSTALL_DAYS_EMAIL_APPROVED stays false, TEST only through approved-owner-emails.server.ts. Pure.
+// being built): both go through approved-owner-emails.server.ts; INSTALL_DAYS_EMAIL_APPROVED is on (decisions 96/135) and
+// real delivery still needs customer_comms_enabled. Pure.
 import * as K from "./email-kit.core";
 import { splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 
-export const INSTALL_DAYS_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decisions 96 (O33 pick your install day) and 135 (O42 install day changed): approved. Delivery still behind customer_comms_enabled. */
+export const INSTALL_DAYS_EMAIL_APPROVED = true as boolean;
 
 export type InstallDaysEmailInput = {
   firstName: string | null; installerName: string | null; days: Array<string | ReadyCheckTimeSlot>; myJobUrl: string;

@@ -37,8 +37,8 @@ test("deposit and balance rows appear only with a payment record (decision 132)"
   expect(renderInstallBookedEmail(base).html).not.toContain("Deposit paid");
 });
 
-test("held until Jo approves; sent after booking, best-effort, one per booked time", () => {
-  expect(INSTALL_BOOKED_EMAIL_APPROVED).toBe(false);
+test("approved (decisions 98/151); sent after booking behind customer comms, best-effort, one per booked time", () => {
+  expect(INSTALL_BOOKED_EMAIL_APPROVED).toBe(true); // decisions 98/151
   const srv = readFileSync("src/lib/install-booked-email.server.ts", "utf8");
   expect(srv).toContain("assertCustomerDeliveryAllowed");
   expect(srv).toContain("install-booked:v1:${jobId}:${startIso}");

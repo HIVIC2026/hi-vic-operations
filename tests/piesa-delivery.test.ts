@@ -9,7 +9,7 @@ const base: PiesaDeliveryFacts = {
 };
 
 describe("PIESA copy auto-delivery (Jo 24 Oct 2026, decision 111)", () => {
-  test("real sending is not approved yet", () => { expect(PIESA_COPY_EMAIL_APPROVED).toBe(false); });
+  test("approved (decision 131); real delivery still behind customer comms", () => { expect(PIESA_COPY_EMAIL_APPROVED).toBe(true); });
   test("sends to both once a signed copy and an install day exist", () => {
     const p = piesaDeliveryPlan(base, now);
     expect(p.hold).toBeNull(); expect(p.send).toEqual(["owner", "installer"]); expect(p.late).toBe(false);

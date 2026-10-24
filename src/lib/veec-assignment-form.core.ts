@@ -264,7 +264,8 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
 // ---------- Consumer signing request + reminders (decision 120) ----------
 /** Email flags/renderers live in veec-emails.core.ts (decision 169: O44 day 0, O61 reminders, O62 copy — all approved).
  *  Texts go through `sendRealSms` types veec_sign_request / veec_sign_reminder (sms.core.ts, approved 24 Oct, decisions 166/168). */
-export const VEEC_SIGN_SMS_APPROVED = false;
+/** Jo 24 Oct 2026, decisions 166/168: texts approved (aligned with the sms.core types; no sender reads this flag). */
+export const VEEC_SIGN_SMS_APPROVED = true;
 
 export type VeecReminderStep = "request" | "reminder_1" | "reminder_3" | "reminder_7" | "office_alert_10";
 export const VEEC_REMINDER_SCHEDULE: { step: VeecReminderStep; afterDays: number }[] = [

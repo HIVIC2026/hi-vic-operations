@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         }
         try {
           // Jo 24 Oct (decision 111): signed PIESA copy to the owner and installer once the install day is booked.
-          // Held behind PIESA_COPY_EMAIL_APPROVED (false) for real jobs; TEST jobs use the allowlisted test sender.
+          // Real jobs: PIESA_COPY_EMAIL_APPROVED (on, decision 131) + customer_comms_enabled; TEST jobs use the allowlisted test sender.
           const { sweepPiesaCopyDeliveries } = await import("@/lib/piesa-delivery.server");
           (out as Record<string, unknown>)['piesaCopies'] = await sweepPiesaCopyDeliveries();
         } catch (e) {

@@ -4,11 +4,12 @@
 //   O47 Completion pack        docs/templates/approved/O47-completion-pack.html   (downloads, who to contact, care tips)
 //   O51 Review request         docs/templates/approved/O51-review.html           (tap a star, Google review, refer a friend)
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
-// through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 have no live sender yet:
-// COMPLETION_EMAILS_APPROVED stays false so only TEST jobs could receive them. Pure.
+// through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 are approved too
+// (COMPLETION_EMAILS_APPROVED, decisions 133/103/105) and go through the same guarded sender. Pure.
 import * as K from "./email-kit.core";
 
-export const COMPLETION_EMAILS_APPROVED = false as boolean;
+/** Jo 24 Oct 2026: O45 final invoice (decision 133), O47 completion pack (decision 103), O51 review request (decision 105) approved. Delivery still behind customer_comms_enabled. */
+export const COMPLETION_EMAILS_APPROVED = true as boolean;
 /** Decision 169: the All done email carries the rebate-form signing request, so it goes to real owners (behind customer_comms_enabled). */
 export const INSTALL_COMPLETE_EMAIL_APPROVED = true as boolean;
 

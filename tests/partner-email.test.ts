@@ -30,11 +30,11 @@ describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () =
       expect(m.html).toContain("Arial,Helvetica,sans-serif");
     }
   });
-  test("application received (I53): three steps, not sent to real applicants yet", () => {
+  test("application received (I53): three steps, approved (decision 136)", () => {
     const m = renderApplicationReceivedEmail({ contactName: "Sam Lee", businessName: "Reinsulate" });
     expect(m.subject).toBe("We've got your application");
     expect(m.html).toContain("Thanks Sam, we've got your application");
     for (const t of ["We check your details", "CII certification, public liability insurance (min $5 million) and PIISA training.", "You're approved", "invite to Mitti", "Start adding jobs", "If anything's missing from your application we'll email you exactly what we need."]) expect(m.text).toContain(t);
-    expect(APPLICATION_RECEIVED_EMAIL_APPROVED).toBe(false);
+    expect(APPLICATION_RECEIVED_EMAIL_APPROVED).toBe(true); // decision 136
   });
 });

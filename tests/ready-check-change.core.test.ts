@@ -55,9 +55,9 @@ describe("You're booked email (our leads)", () => {
     expect(m.subject).toBe("Your Ready Check time has changed – Thursday 29 October at 9:00am");
     expect(m.text).toContain("has a new time");
   });
-  test("held until Jo approves; real jobs only log not-sent; TEST via test-send; no new sender", () => {
-    expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(false);
-    expect(READY_CHECK_BOOKED_TEXT_APPROVED).toBe(false);
+  test("approved (decisions 81/82); real jobs still need customer comms on; TEST via test-send; no new sender", () => {
+    expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(true); // decision 81
+    expect(READY_CHECK_BOOKED_TEXT_APPROVED).toBe(true); // decision 82
     const srv = readFileSync("src/lib/ready-check-booked-email.server.ts", "utf8");
     expect(srv).toContain("ready_check_booked_email_not_sent");
     expect(srv).toContain("sendTestEmail");

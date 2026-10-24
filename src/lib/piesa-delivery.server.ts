@@ -1,7 +1,7 @@
 // Jo 24 Oct 2026 (decision 111): automatic delivery of the signed PIESA copy to the owner and the installer once the
 // install day is booked. Rules + wording: piesa-delivery.core.ts. Runs from the 15-minute allocation tick.
-// Sending: TEST jobs / TEST partners go through sendTestEmail (allowlist); real jobs are held behind
-// PIESA_COPY_EMAIL_APPROVED (false) and log one "not sent" event per recipient and signed copy. A delivery row
+// Sending: TEST jobs / TEST partners go through sendTestEmail (allowlist); real jobs need PIESA_COPY_EMAIL_APPROVED
+// (on since decision 131) plus customer_comms_enabled for the owner, else log one "not sent" event per recipient and copy. A delivery row
 // (piesa_deliveries + official_form_deliveries, which readyToInstall and PIISA Part 8(a) read) is written ONLY after
 // a provider accepted the email — never on a hold. recordPiesaCopyDelivery (job-records.server.ts) stays for hand
 // deliveries. Nothing here changes stage.

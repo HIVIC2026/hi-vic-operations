@@ -1,12 +1,13 @@
 // Pure rules + emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
 // Both wordings APPROVED by Jo 8 Oct 2026 7:44am: real sends go to the partner's real address. Since 24 Oct 2026
 // (decision 137) they render in the approved kit shell. "We've got your application" (decision 136,
-// docs/templates/approved/I53-application-received.html) has no sender yet: APPLICATION_RECEIVED_EMAIL_APPROVED stays false.
+// docs/templates/approved/I53-application-received.html) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
 import { partnerEmailLayout } from "./partner-email.core";
 import * as K from "./email-kit.core";
 
 export const APPLICATION_REVIEW_WORDING_APPROVED = true as const;
-export const APPLICATION_RECEIVED_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 136 (I53 "We've got your application"): approved. */
+export const APPLICATION_RECEIVED_EMAIL_APPROVED = true as boolean;
 
 /** Decision 136: "Thanks {First}, we've got your application" — what we check, approval + Mitti invite, start adding jobs. */
 export function renderApplicationReceivedEmail(i: { contactName?: string | null; businessName: string; test?: boolean }) {

@@ -30,9 +30,9 @@ describe("ESC collection notice text (v1.0, 1 Oct 2026)", () => {
     if (!existsSync(COLLECTION_NOTICE_SOURCE_FILE)) return;
     expect(createHash("sha256").update(readFileSync(COLLECTION_NOTICE_SOURCE_FILE)).digest("hex")).toBe(COLLECTION_NOTICE_SOURCE_SHA256);
   });
-  test("the one tick (decision 130 wording), link sends on (decision 154) / copy email still off, emails carry the notice", () => {
+  test("the one tick (decision 130 wording), link sends on (decision 154) / copy email on (decision 170), emails carry the notice", () => {
     expect(COLLECTION_NOTICE_ACK_TEXT).toBe("I have read the Essential Services Commission's VEU Scheme Participant Privacy Collection Notice and understand my details may be disclosed to the commission and shared with the Energy Efficiency Council.");
-    expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(false);
+    expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(true); // decision 170
     expect(COLLECTION_NOTICE_SEND_APPROVED).toBe(true);
     const m = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });
     expect(m.blocks.flatMap((b) => (b.kind === "p" ? [b.text] : b.kind === "list" ? b.items : [])).join("\n")).toContain(COLLECTION_NOTICE_PARAGRAPHS[2]!.text);

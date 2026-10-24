@@ -2,13 +2,14 @@
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
 // Design approved (decision 81): docs/templates/approved/O12-ready-check-booked.html — green date/time card with address
 // and installer name + phone; "Before they arrive"; Change time line; See my job; price box; included / not included.
-// Delivery stays behind READY_CHECK_BOOKED_EMAIL_APPROVED until the texts/switches are approved; TEST jobs only. Pure.
+// Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { splitDayTime } from "./ready-check-times-email.core";
 
-export const READY_CHECK_BOOKED_EMAIL_APPROVED = false as boolean;
-/** The matching "You're booked" text has no approved SMS type yet: never sent. */
-export const READY_CHECK_BOOKED_TEXT_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 81 (O12 "You're booked"): approved. Delivery still behind customer_comms_enabled. */
+export const READY_CHECK_BOOKED_EMAIL_APPROVED = true as boolean;
+/** Jo 24 Oct 2026, decision 82: the "Booked!" owner text wording (B) is approved. No sender uses this flag yet; any text still goes only through sendRealSms. */
+export const READY_CHECK_BOOKED_TEXT_APPROVED = true as boolean;
 
 export type ReadyCheckBookedInput = {
   firstName: string | null;
