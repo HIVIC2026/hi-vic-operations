@@ -42,8 +42,23 @@ export function installEvidenceApplies(installDate: string | null | undefined, t
 // Exact Mitti question wording (character for character)
 // ======================================================================================================
 
-/** Part B — zones and Table 4 evidence (decision 205) + per-zone product and m² (decision 210 d). */
+/** Part B — zones and Table 4 evidence (decision 205) + per-zone product and m² (decision 210 d). Decision 260: the short
+ *  labels of docs/MITTI_INSTALL_FORM_FIX_PROMPT.md are primary; every earlier wording stays readable (LABEL_ALIASES). */
 export const INSTALL_EVIDENCE_QUESTIONS = {
+  zoneCount: "How many zones?",
+  zoneName: (z: number) => `Zone ${z} name (same as the Ready Check)`,
+  zoneUnderInsulated: (z: number) => `Zone ${z}: existing insulation here?`,
+  zoneExistingPhoto: (z: number) => `Zone ${z}: photo with ruler showing depth`,
+  zoneBeforeVideo: (z: number) => `Zone ${z}: before video`,
+  zoneAfterVideo: (z: number) => `Zone ${z}: after video`,
+  zoneDepthPhoto: (z: number) => `Zone ${z}: after photo with ruler showing depth`,
+  zoneProduct: (z: number) => `Zone ${z}: product installed`,
+  zoneAreaM2: (z: number) => `Zone ${z}: m² installed`,
+  multiDay: "More than one day?",
+  dailyRecheck: "I re-checked every item before starting each day",
+} as const;
+/** The 24 Oct 2026 long wordings (decision 205), still read on forms built before decision 260. */
+export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
   zoneCount: "How many upgrade zones are you insulating on this job?",
   zoneName: (z: number) => `Zone ${z} — name of this ceiling area (use the same name as the Ready Check and floor plan)`,
   zoneUnderInsulated: (z: number) => `Zone ${z} — is there existing insulation in this area (under-insulated)?`,
@@ -57,8 +72,15 @@ export const INSTALL_EVIDENCE_QUESTIONS = {
   dailyRecheck: "Before starting work each day, I re-checked every item on this safety assessment and they all still hold.",
 } as const;
 
-/** Part A — reworded labels for the four EXISTING A3 photo items (same Mitti items, same position; wording only). */
+/** The four A3 photo items (same Mitti items, wording only). Decision 260 short labels; help text carries the detail. */
 export const INSTALL_EVIDENCE_RELABELS = {
+  installer_photos: "Photo: each installer at the front door with ID",
+  electrician_photo: "Photo: electrician at the front door with ID",
+  isolation_photo: "Photo: power isolated, lock-out tag on switchboard",
+  product_photos: "Photo: product packaging showing brand, model, R-value",
+} as const;
+/** Decision 205 wordings of the same four items (still accepted on the same stable IDs). */
+export const INSTALL_EVIDENCE_RELABELS_LONG = {
   installer_photos: "Photo of each installer at the front of the premises with photo ID clearly visible — one photo per installer (geotagged)",
   electrician_photo: "Photo of the electrician at the front of the premises with photo ID clearly visible (geotagged)",
   isolation_photo: "Before work starts: photo of the power isolated — lock-out tag on the switchboard, and the solar and battery isolators switched off where the home has them (geotagged)",
@@ -67,25 +89,27 @@ export const INSTALL_EVIDENCE_RELABELS = {
 /** Alias used by the Mitti build prompt. */
 export const A3_RELABELS = INSTALL_EVIDENCE_RELABELS;
 
-/** Part C — SWMS section, the legal minimum (decisions 256 + 258, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md).
- *  End state = docs/MITTI_INSTALL_FORM_FIX_PROMPT.md (the one end-state prompt): high-risk work, one
- *  standard-controls instruction covering all nine ESC hazards with a tick, an optional specific/changes box, and each named
- *  additional installer's signature inside their own crew block. The lead's SWMS sign-off is the Part 8 signature (and its
- *  time); prepared by / for / work / date come from job facts on the filed PDF. */
+/** Part C — SWMS ("safety plan"), the legal minimum (decisions 256/258/260, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md;
+ *  end state docs/MITTI_INSTALL_FORM_FIX_PROMPT.md): high-risk work, one required tick that the standard controls (shown on
+ *  the installer's job page and printed on the filed SWMS — SWMS_STANDARD_CONTROLS_TEXT) are in place, an optional box for
+ *  anything specific to the house, and each named installer 2–4 signing inside their own crew block. The lead's sign-off is
+ *  the declaration signature; prepared by / for / work / date come from job facts on the filed PDF. */
 export const SWMS_QUESTIONS = {
-  hrcw: "SWMS — which high-risk construction work applies to this job? (tick all)",
-  hrcwNone: "SWMS — if none of the high-risk work types apply, explain why",
-  standardControls: "SWMS — the standard controls above are in place on this job",
-  /** Optional (decision 258). */
-  changes: "SWMS — anything specific to this house, or any change during the job (optional)",
-  /** Inside "Additional Installer N" (N = 1..3), shown only when that installer's name is filled in. */
-  installerSignature: (n: number) => `SWMS — additional installer ${n}: signature (I have read this SWMS, understand the hazards and controls, and will follow it)`,
+  hrcw: "High-risk work on this job (tick all)",
+  hrcwNone: "None apply: why?",
+  standardControls: "Standard controls are in place (they're on your job page)",
+  /** Optional. */
+  changes: "Anything specific to this house (optional)",
+  /** Additional installer n (1..3) = the form's "Installer n+1", shown only when that name is filled in. */
+  installerSignature: (n: number) => `Installer ${n + 1} signature: I have read the safety plan and will follow it`,
 } as const;
-/** Earlier wordings still read on forms built before the follow-up prompt (decision 256 interim form). */
+/** Earlier wordings still read on forms built before decision 260. */
 export const SWMS_LEGACY_LABELS = {
-  standardControls: ["SWMS — the standard controls above are in place for every ticked hazard"],
-  changes: ["SWMS — anything specific to this house, or any change to hazards or controls during the job (write 'None' if none)", "SWMS — changes to hazards or controls during this job (write 'None' if none)"],
-  installerSignature: (n: number) => [`SWMS — additional installer ${n}: signature`],
+  hrcw: ["SWMS — which high-risk construction work applies to this job? (tick all)"],
+  hrcwNone: ["SWMS — if none of the high-risk work types apply, explain why"],
+  standardControls: ["SWMS — the standard controls above are in place on this job", "SWMS — the standard controls above are in place for every ticked hazard"],
+  changes: ["SWMS — anything specific to this house, or any change during the job (optional)", "SWMS — anything specific to this house, or any change to hazards or controls during the job (write 'None' if none)", "SWMS — changes to hazards or controls during this job (write 'None' if none)"],
+  installerSignature: (n: number) => [`SWMS — additional installer ${n}: signature (I have read this SWMS, understand the hazards and controls, and will follow it)`, `SWMS — additional installer ${n}: signature`],
 } as const;
 export const SWMS_HRCW_OPTIONS = [
   "Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists)",
@@ -117,8 +141,17 @@ export const SWMS_STANDARD_CONTROLS_TEXT = ["Standard controls for the hazards o
 export const SWMS_PREPARED_FOR = "Home Insulation Victoria (DC Construction Solutions Pty Ltd)";
 export const SWMS_WORK_DEFAULT = "Ceiling insulation removal (if required) and installation of bulk ceiling insulation – VEU Activity 48";
 
-/** Part D — after-install sign-off (decision 210 a, b; audit A3-1…A3-7). */
+/** Part D — after-install sign-off (decision 210 a, b; audit A3-1…A3-7), decision 260 short labels. The completion
+ *  signature shares the label "Signature" with the declaration signature: it is the SECOND "Signature" on the form. */
 export const AFTER_INSTALL_QUESTIONS = {
+  lockoutRemoved: "Lock-out removed, power back on?",
+  lockoutRemovedBy: "Who did it?",
+  switchboardAfterPhoto: "Photo: switchboard, main switch on",
+  solarRestarted: "Solar, battery or generator restarted?",
+  leadPresent: "I was on site the whole time and supervised every installer",
+  completionSignature: "Signature",
+} as const;
+export const AFTER_INSTALL_QUESTIONS_LONG = {
   lockoutRemoved: "After installation: have all lock-out devices been removed and the premises safely re-energised?",
   lockoutRemovedBy: "Who removed the lock-out and re-energised the premises? (name and role — the person who applied the lock, or the attending electrician)",
   switchboardAfterPhoto: "Photo of the switchboard after re-energising — lock-out tag removed, main switch on (geotagged)",
@@ -128,13 +161,34 @@ export const AFTER_INSTALL_QUESTIONS = {
 } as const;
 /** Decision 258: deleted from the form; still read on older forms. Otherwise the completion signature's time is the finish time. */
 export const LEGACY_FINISHED_AT_LABEL = "Installation finished at (date and time)";
-export const SOLAR_RESTARTED_OPTIONS = ["Yes", "No", "N/A – none at this property"] as const;
+export const SOLAR_RESTARTED_OPTIONS = ["Yes", "No", "None here"] as const;
+/** "None here" (decision 260) or the earlier "N/A – none at this property". */
+export const solarNoneAnswer = (v: string) => /^(n\/?a\b|none\b)/i.test(v.trim());
 
 /** Part E — foil / conductive existing insulation (decision 210 c; audit A3-10), feeding the official P6 foil rule. */
 export const FOIL_QUESTIONS = {
+  foil: "Foil, metallic or conductive?",
+  foilPhoto: "Photo of the facing",
+} as const;
+export const FOIL_QUESTIONS_LONG = {
   foil: "Is any of the existing insulation foil-backed, metallic or electrically conductive?",
   foilPhoto: "Photo of the existing insulation showing the facing (geotagged)",
 } as const;
+
+/** Every earlier wording of each current label (exact, first line), so forms built before decision 260 still read. */
+export const LABEL_ALIASES: Readonly<Record<string, readonly string[]>> = (() => {
+  const out: Record<string, string[]> = {};
+  const add = (cur: string, ...old: readonly string[]) => { out[cur] = [...(out[cur] ?? []), ...old]; };
+  const Q = INSTALL_EVIDENCE_QUESTIONS, QL = INSTALL_EVIDENCE_QUESTIONS_LONG;
+  add(Q.zoneCount, QL.zoneCount); add(Q.multiDay, QL.multiDay); add(Q.dailyRecheck, QL.dailyRecheck);
+  for (let z = 1; z <= MAX_FORM_ZONES; z++) for (const k of ["zoneName", "zoneUnderInsulated", "zoneExistingPhoto", "zoneBeforeVideo", "zoneAfterVideo", "zoneDepthPhoto", "zoneProduct", "zoneAreaM2"] as const) add(Q[k](z), QL[k](z));
+  for (const k of Object.keys(AFTER_INSTALL_QUESTIONS) as (keyof typeof AFTER_INSTALL_QUESTIONS)[]) add(AFTER_INSTALL_QUESTIONS[k], AFTER_INSTALL_QUESTIONS_LONG[k]);
+  add(FOIL_QUESTIONS.foil, FOIL_QUESTIONS_LONG.foil); add(FOIL_QUESTIONS.foilPhoto, FOIL_QUESTIONS_LONG.foilPhoto);
+  const S = SWMS_QUESTIONS, L = SWMS_LEGACY_LABELS;
+  add(S.hrcw, ...L.hrcw); add(S.hrcwNone, ...L.hrcwNone); add(S.standardControls, ...L.standardControls); add(S.changes, ...L.changes);
+  for (let n = 1; n <= SWMS_ADDITIONAL_INSTALLERS; n++) add(S.installerSignature(n), ...L.installerSignature(n));
+  return out;
+})();
 
 /** Decision 211: the old upload item to DELETE from the Install day form — the portal draws the final diagram instead. */
 export const RETIRED_FINAL_PLAN_UPLOAD_LABEL = "Please upload a clear final roof-space plan showing the installed area in m² and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
@@ -243,7 +297,15 @@ function labelledItems(doc: unknown): Labelled[] {
   walk((doc as any)?.template ?? doc);
   return out;
 }
-const find = (items: Labelled[], label: string) => items.find((i) => key(i.label) === key(label));
+/** One exact label. "Signature" is shared by the declaration and the sign-off: the sign-off one is the SECOND on the form
+ *  (a form with a single "Signature" has no sign-off signature yet — never the declaration's). */
+const findExact = (items: Labelled[], label: string) => {
+  const k = key(label);
+  if (k === key(AFTER_INSTALL_QUESTIONS.completionSignature)) return items.filter((i) => key(i.label) === k)[1];
+  return items.find((i) => key(i.label) === k);
+};
+/** Current wording first, then every earlier wording of it (LABEL_ALIASES). */
+const find = (items: Labelled[], label: string) => [label, ...(LABEL_ALIASES[label] ?? [])].map((l) => findExact(items, l)).find((x) => !!x);
 /** First item carrying any of the labels (current wording first, then older wordings). */
 const findAny = (items: Labelled[], labels: readonly string[]) => labels.map((l) => find(items, l)).find((x) => !!x);
 const yn = (v: string | null): boolean | null => (v == null ? null : /^yes\b/i.test(v.trim()) ? true : /^no\b/i.test(v.trim()) ? false : null);
@@ -418,7 +480,7 @@ export function afterInstallBlockers(a: AfterInstallRead, ctx: Pick<InstallEvide
   }
   if (!a.solarRestarted) b.push(`${A.solarRestarted}: not answered`);
   else if (/^no\b/i.test(a.solarRestarted)) b.push("Solar, battery or generator not restarted — restart it per the instructions (or have the electrician do it) before leaving site");
-  else if (/^n\/?a/i.test(a.solarRestarted) && ctx.solarPresent === true) b.push("Solar/battery restart answered N/A but the safety form says the home has solar, a battery or another supply — office review");
+  else if (solarNoneAnswer(a.solarRestarted) && ctx.solarPresent === true) b.push("Solar/battery restart answered \"None here\" but the safety form says the home has solar, a battery or another supply — office review");
   if (a.finishedAt && Number.isNaN(Date.parse(a.finishedAt))) b.push(`${LEGACY_FINISHED_AT_LABEL}: not a readable date and time`);
   if (!a.leadPresent) b.push("Lead installer has not confirmed being on site for the whole installation");
   if (!a.completionSignature.present) b.push(`${A.completionSignature}: missing`);
@@ -515,7 +577,7 @@ export type InstallPrefillCtx = { zoneNames: (string | null)[] };
 export function installEvidencePrefillItems(template: unknown, ctx: InstallPrefillCtx): { item_id: string; type: "text"; responses: { text: string } }[] {
   const items = labelledItemsWithIds(template);
   const out: { item_id: string; type: "text"; responses: { text: string } }[] = [];
-  const put = (label: string, value: string | null) => { if (!value) return; const it = items.find((i) => key(i.label) === key(label)); if (it) out.push({ item_id: it.id, type: "text", responses: { text: value } }); };
+  const put = (label: string, value: string | null) => { if (!value) return; const it = [label, ...(LABEL_ALIASES[label] ?? [])].map((l) => items.find((i) => key(i.label) === key(l))).find((x) => !!x); if (it) out.push({ item_id: it.id, type: "text", responses: { text: value } }); };
   const zones = ctx.zoneNames.length ? ctx.zoneNames : [null];
   zones.slice(0, MAX_FORM_ZONES).forEach((n, i) => put(INSTALL_EVIDENCE_QUESTIONS.zoneName(i + 1), zoneNameValue(i + 1, n)));
   return out;
