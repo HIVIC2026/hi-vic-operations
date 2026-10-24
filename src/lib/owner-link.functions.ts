@@ -129,6 +129,14 @@ export const ownerSuggestReadyCheckDaysFn = createServerFn({ method: "POST" }).m
     return (await import("./ready-check-times.server")).ownerSuggestReadyCheckDays(s.jobId, s.userId, data.days);
   });
 
+/** Decision 80: owner "Change time" on a booked our-lead Ready Check → back to the installer to offer new times. */
+export const ownerChangeReadyCheckFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./ready-check-times.server")).ownerChangeReadyCheck(s.jobId, s.userId);
+  });
+
 export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, session, ...signer, accept: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {

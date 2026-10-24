@@ -103,7 +103,7 @@ function FieldJob() {
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
-        {role === "installer" && job.channel === "hivic_sourced" && job.stage === "ready_check_ready_to_schedule" && <InstallerReadyCheckTimesCard jobId={jobId} />}
+        {role === "installer" && job.channel === "hivic_sourced" && (job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled") && <InstallerReadyCheckTimesCard jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}

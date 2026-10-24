@@ -8,8 +8,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { ACCEPT_OUTCOME_MESSAGE } from "./allocation.core";
 import {
-  READY_CHECK_TIMES_FLAG, READY_CHECK_TIME_NOTE, allowedReadyCheckDays, installerTimesBlockers, isReadyCheckTime, ownerDaysBlockers, readyCheckOfferExpiry,
-  readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckStartAt, readyCheckTurn, type ReadyCheckPick,
+  READY_CHECK_TIMES_FLAG, READY_CHECK_TIME_NOTE, allowedReadyCheckDays, installerRebookBlockers, installerTimesBlockers, isReadyCheckTime, ownerDaysBlockers, readyCheckChangeBlockers,
+  readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckStartAt, readyCheckTurn, type ReadyCheckPick,
 } from "./ready-check-times.core";
 import { melbourneYmd } from "./piesa-windows.core";
 
@@ -36,6 +36,9 @@ const view = (c: Ctx) => ({
   open: c.open.map((p) => ({ id: p.id, starts_at: p.starts_at, by: p.proposer_role === "installer" ? "installer" as const : "owner" as const })),
 });
 
+/** Decision 80: whether the booked Ready Check can be changed (our lead, booked, not started). */
+const changeBlockers = (c: Ctx, now = new Date()) => readyCheckChangeBlockers({ channel: c.job?.channel ?? null, stage: c.job?.stage ?? null, deleted: !c.job || !!c.job.deleted_at, bookedAt: c.booked ? c.bookedAt : null }, now);
+
 async function requireInstaller(jobId: string, userId: string) {
   const { data: a } = await admin.from("job_assignments").select("id, user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!a) throw new WorkflowError("This job has no installer yet.");
@@ -57,6 +60,11 @@ const startsOf = (picks: ReadyCheckPick[]) => picks.map((p) => readyCheckStartAt
 
 async function tellOwner(jobId: string, starts: string[]) {
   await (await import("./ready-check-times-email.server")).emailOwnerReadyCheckTimes(jobId, starts).catch((e) => console.error("ready check times email skipped", (e as Error).message));
+}
+
+/** Owner "You're booked" (decision 80; best-effort, held until the wording is approved and messages are on). */
+async function tellOwnerBooked(jobId: string, startsAt: string) {
+  await (await import("./ready-check-booked-email.server")).emailOwnerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked email skipped", (e as Error).message));
 }
 
 /** Office picks ONE installer (decisions 49–51): one offer, open 24 hours, text + in-app to that installer only.
@@ -158,7 +166,8 @@ export async function installerReadyCheckState(jobId: string, userId: string) {
   await requireInstaller(jobId, userId);
   const c = await context(jobId);
   const canOffer = c.job?.channel === "hivic_sourced" && c.job.stage === "ready_check_ready_to_schedule" && (c.turn === "installer_to_offer" || c.turn === "installer_to_answer");
-  return { ...view(c), applies: c.job?.channel === "hivic_sourced", days: canOffer ? allowedReadyCheckDays() : [] };
+  const canChange = c.turn === "booked" && changeBlockers(c).length === 0;
+  return { ...view(c), applies: c.job?.channel === "hivic_sourced", canChange, days: canOffer || canChange ? allowedReadyCheckDays() : [] };
 }
 
 /** Installer offers 3 new times (instead of the owner's days, or after their own times all passed). */
@@ -184,6 +193,7 @@ async function bookAgreedTime(jobId: string, proposalId: string, startsAt: strin
     await confirmBooking(jobId, "ready_check", startsAt, actorId, roleLabel);
     // Confirmed booking starts the Mitti form in the background (never undoes the booking if it can't).
     await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, actorId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
+    await tellOwnerBooked(jobId, startsAt);
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
@@ -224,7 +234,7 @@ export async function ownerReadyCheckTimesState(jobId: string) {
   if (!c.job || c.job.channel !== "hivic_sourced") return { applies: false as const };
   const access = await (await import("./ready-check-booking-access.server")).readyCheckBookingAccess(jobId);
   const waiting = c.job.stage === "ready_check_ready_to_schedule" || c.job.stage === "ready_check_scheduled";
-  return { applies: waiting, allowed: access.allowed, ...view(c), days: c.turn === "owner_to_answer" ? allowedReadyCheckDays() : [] };
+  return { applies: waiting, allowed: access.allowed, ...view(c), canChange: access.allowed && c.turn === "booked" && changeBlockers(c).length === 0, days: c.turn === "owner_to_answer" ? allowedReadyCheckDays() : [] };
 }
 
 async function ownerGuard(jobId: string) {
@@ -256,6 +266,49 @@ export async function ownerSuggestReadyCheckDays(jobId: string, userId: string, 
   await logEvent(jobId, userId, "ready_check_days_suggested", `Owner suggested ${days.length} other Ready Check day${days.length === 1 ? "" : "s"}`, { days }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new times" }).eq("id", jobId);
   return { ok: true };
+}
+
+/** Decision 80 (Jo 24 Oct 2026), owner side: "Change time" cancels the booked Ready Check and hands it back to the same
+ *  installer to offer 3 new times (back and forth as before; the installer's job list shows it as their move). Mirrors
+ *  changeInstallDay: the booking is restored if the stage can't move back. No office step, nothing sent. */
+export async function ownerChangeReadyCheck(jobId: string, userId: string) {
+  await (await import("./ready-check-booking-access.server")).assertOwnerReadyCheckBooking(jobId);
+  const c = await context(jobId);
+  const b = changeBlockers(c);
+  if (b.length) throw new WorkflowError(b.join(" "));
+  if (!c.asg) throw new WorkflowError("This job has no installer yet.");
+  const { data: rows, error } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").select("id");
+  if (error) throw new Error(error.message);
+  if (!rows?.length) throw new WorkflowError("There is no booked Ready Check to change.");
+  const { transition } = await import("./workflow.server");
+  try {
+    await transition(jobId, "ready_check_ready_to_schedule", userId, "Ready Check time changed by the owner – the installer offers new times", { booking_ids: rows.map((r) => r.id) });
+  } catch (e) {
+    await admin.from("bookings").update({ status: "confirmed" }).in("id", rows.map((r) => r.id));
+    throw e;
+  }
+  await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed");
+  await logEvent(jobId, userId, "ready_check_changed", "Owner changed the booked Ready Check time — back to the installer to offer 3 new times", { by: "owner", booking_ids: rows.map((r) => r.id), was: c.bookedAt, business_id: c.asg.business_id }, { internal: true });
+  await admin.from("jobs").update({ next_action: "Waiting for the installer to offer the owner new Ready Check times" }).eq("id", jobId);
+  return { ok: true };
+}
+
+/** Decision 80, installer side: "Change time" = the installer sets a new day + time directly (same rules as offers) and it
+ *  rebooks through confirmBooking (reschedule at ready_check_scheduled: old booking cancelled, new one confirmed). */
+export async function installerChangeReadyCheck(jobId: string, userId: string, pick: ReadyCheckPick, now = new Date()) {
+  await requireInstaller(jobId, userId);
+  const c = await context(jobId);
+  const b = [...changeBlockers(c, now)];
+  if (!b.length) b.push(...installerRebookBlockers(pick, c.bookedAt, now));
+  if (b.length) throw new WorkflowError(b.join(" "));
+  const start = readyCheckStartAt(pick.day, pick.time).toISOString();
+  const { confirmBooking } = await import("./booking.server");
+  await confirmBooking(jobId, "ready_check", start, userId, "installer (changed time)");
+  await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed");
+  await logEvent(jobId, userId, "ready_check_changed", "Installer changed the booked Ready Check to a new time", { by: "installer", was: c.bookedAt, starts_at: start }, { internal: true });
+  await admin.from("jobs").update({ next_action: "Ready Check booked" }).eq("id", jobId);
+  await tellOwnerBooked(jobId, start);
+  return { ok: true, booked: true };
 }
 
 /** Installer dashboard: owner-suggested days waiting on this installer (no owner details). */

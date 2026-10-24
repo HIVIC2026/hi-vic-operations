@@ -39,6 +39,11 @@ export const takeTradeReadyCheckDay = createServerFn({ method: "POST" }).middlew
   .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid, time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckTakeDay(data.jobId, data.proposalId, data.time, context.userId));
 
+/** Decision 80: installer "Change time" on a booked our-lead Ready Check — new day + time, rebooked directly. */
+export const changeTradeReadyCheckTime = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckChange(data.jobId, { day: data.day, time: data.time }, context.userId));
+
 export const getTradeDayView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDay(data.jobId, context.userId)));

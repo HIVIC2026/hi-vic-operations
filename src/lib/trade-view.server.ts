@@ -240,6 +240,12 @@ export async function tradeReadyCheckTakeDay(jobId: string, proposalId: string, 
   return (await import("./ready-check-times.server")).installerTakeOwnerDay(jobId, proposalId, userId, time);
 }
 
+/** Decision 80: the installer changes a booked our-lead Ready Check to a new day + time. */
+export async function tradeReadyCheckChange(jobId: string, pick: { day: string; time: string }, userId: string) {
+  await requireTradeJob(userId, jobId);
+  return (await import("./ready-check-times.server")).installerChangeReadyCheck(jobId, userId, pick);
+}
+
 /** Day page for any of the three visit kinds. */
 /** The one server check for every trade job read: active assignment for this job AND this business (staff: assigned to them). */
 export async function requireTradeJob(userId: string, jobId: string) {
