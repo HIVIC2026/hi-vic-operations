@@ -85,6 +85,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          // Decision 186: installer told once when electrical clearance is in (text + email, offer 3 install days).
+          // Catch-up only: jobs cleared in the last 7 days with nothing booked and no notice yet; the live trigger is
+          // the PIESA completion / Section C sign-off itself.
+          const { sweepInstallClearance } = await import("@/lib/install-clearance.server");
+          (out as Record<string, unknown>)['installClearance'] = await sweepInstallClearance();
+        } catch (e) {
+          console.error("allocation tick: install clearance sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installClearance'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");

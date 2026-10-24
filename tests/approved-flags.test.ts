@@ -20,6 +20,7 @@ import { PIESA_COPY_EMAIL_APPROVED } from "../src/lib/piesa-delivery.core";
 import { VEEC_SIGN_SMS_APPROVED } from "../src/lib/veec-assignment-form.core";
 import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { THIRTY_DAY_REMINDER_APPROVED } from "../src/lib/thirty-day-rule.core";
+import { INSTALL_CLEARANCE_EMAIL_APPROVED } from "../src/lib/install-clearance.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
@@ -54,6 +55,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   VEEC_COPY_EMAIL_APPROVED: { value: VEEC_COPY_EMAIL_APPROVED, decisions: "169 (O62)" },
   VEEC_SIGN_SMS_APPROVED: { value: VEEC_SIGN_SMS_APPROVED, decisions: "166/168" },
   THIRTY_DAY_REMINDER_APPROVED: { value: THIRTY_DAY_REMINDER_APPROVED, decisions: "167/168" },
+  INSTALL_CLEARANCE_EMAIL_APPROVED: { value: INSTALL_CLEARANCE_EMAIL_APPROVED, decisions: "186 (I65)" },
 };
 
 /** SMS type → decision. */
@@ -62,6 +64,7 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   veec_sign_request: "166", veec_sign_reminder: "168", usual_electrician_missing: "83 (kept by 113)",
   ready_check_incomplete: "83 (missing answers)", job_offer: "76/154", daily_mitti: "83 (morning text)", daily_mitti_update: "83",
   esc_notice_link: "146/154", install_window_reminder: "99/167", install_window_reminder_installer: "99/167",
+  install_clearance: "186",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {
