@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { installerJobOfferBlocker, installerReadyCheckAction, ownBookingBlocker, renderRcTimesEmail, RC_TIMES_EMAIL_APPROVED } from "../src/lib/installer-ready-check.core";
+import { existsSync, readFileSync } from "node:fs";
+import { installerJobOfferBlocker, installerReadyCheckAction, ownBookingBlocker } from "../src/lib/installer-ready-check.core";
 import { planQuotedAnswer } from "../src/lib/bulk-import.core";
 
-const base = { channel: "installer_sourced", stage: "ready_check_ready_to_schedule", quoted: "no" as const, attended: "no" as "yes" | "no" | null, timesRequested: false, openWindows: 0, booked: false };
+const base = { channel: "installer_sourced", stage: "ready_check_ready_to_schedule", quoted: "no" as const, attended: "no" as "yes" | "no" | null, booked: false };
 describe("Ready Check for unquoted installer customers (Jo, 7 Oct 6pm)", () => {
   test("Not attended + waiting for a Ready Check = Book a Ready Check", () => {
     expect(installerReadyCheckAction(base)).toBe("book");
-    expect(installerReadyCheckAction({ ...base, timesRequested: true })).toBe("waiting_for_owner");
-    expect(installerReadyCheckAction({ ...base, timesRequested: true, openWindows: 3 })).toBe("pick_owner_time");
     expect(installerReadyCheckAction({ ...base, stage: "ready_check_scheduled" })).toBe("booked");
   });
   test("not shown for quoted/blank answers, HIV jobs, or jobs already visited", () => {
@@ -33,12 +32,14 @@ describe("Ready Check for unquoted installer customers (Jo, 7 Oct 6pm)", () => {
     expect(ownBookingBlocker("nope", now)).toMatch(/Enter/);
     expect(ownBookingBlocker("2026-10-09T23:00:00Z", now)).toBeNull();
   });
-  test("owner email names the installer's business; wording stays DRAFT", () => {
-    const m = renderRcTimesEmail({ ownerName: "Mary Smith", installerBusiness: "Reinsulate", link: "https://x/times/t" });
-    expect(m.subject).toContain("Reinsulate");
-    expect(m.text).toContain("Hi Mary,");
-    expect(m.text).toContain("Reinsulate has asked Home Insulation Victoria");
-    expect(RC_TIMES_EMAIL_APPROVED).toBe(false);
+  test("decision 180: the owner 'choose 3-5 times' email, its link and the waiting/pick states are gone", () => {
+    const core = readFileSync("src/lib/installer-ready-check.core.ts", "utf8");
+    const server = readFileSync("src/lib/installer-ready-check.server.ts", "utf8");
+    for (const gone of ["renderRcTimesEmail", "RC_TIMES_EMAIL_APPROVED", "WAITING_FOR_OWNER_TIMES", "OWNER_TIMES_READY", "ready_check_times", "choose 3 to 5 times", "waiting_for_owner", "pick_owner_time"]) {
+      expect(core).not.toContain(gone); expect(server).not.toContain(gone);
+    }
+    expect(server).not.toMatch(/sendTestEmail|customer_estimate_links|\/times\//);
+    expect(existsSync("src/routes/times.$token.tsx")).toBe(false);
   });
   test("No can become Yes with an exact price after the Ready Check; Yes is final", () => {
     expect(planQuotedAnswer("no", "yes", 3187.55, "Ready Check booked")).toEqual({ patch: { installer_quoted: "yes", installer_quoted_price_inc_gst: 3187.55, next_action: "Ready Check booked" } });

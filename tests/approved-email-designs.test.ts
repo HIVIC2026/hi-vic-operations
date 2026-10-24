@@ -20,6 +20,7 @@ import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPa
 import { renderVeecReminderEmail, renderVeecCopyEmail, VEEC_SIGN_EMAIL_APPROVED, VEEC_COPY_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail, INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
 import { renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
+import { renderInstallClearanceEmail, INSTALL_CLEARANCE_EMAIL_APPROVED } from "../src/lib/install-clearance.core";
 import { partnerWelcomeEmail, partnerEmailLayout } from "../src/lib/partner-email.core";
 import { renderConsentCopyEmail, CONSENT_COPY_EMAIL_APPROVED } from "../src/lib/consent-copy-email.core";
 import { renderDepositReleasedEmail, PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "../src/lib/deposit-release-notice.core";
@@ -256,6 +257,20 @@ describe("approved installer email designs", () => {
     for (const p of COLLECTION_NOTICE_PARAGRAPHS) if (p.kind === "p" || p.kind === "li" || p.kind === "li2") expect(m.text).toContain(p.text);
     expect(m.html).toBe(readFileSync("docs/templates/approved/I62-notice-copy.html", "utf8"));
     expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(true);
+  });
+  test("I65 Cleared for install (decision 186): headline, one line, 30-day box, Offer install days; matches the approved file line for line", () => {
+    const m = renderInstallClearanceEmail({ jobNumber: "HV-3117", ownerFirstName: "Helen", fixesSignedOff: false, deadlineLabel: "23 November 2026", jobUrl: job.jobUrl });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("HV-3117 is cleared for install – offer 3 install days by 23 November 2026");
+    has(m.html, [">HV-3117 is cleared for install</h1>", "The electrical safety check is done. Offer Helen three install days with arrival times from your job page.", "&#9200; The 30-day clock", "<strong>Your install must happen within 30 days of this safety check.</strong>", ">Offer install days<", `href="${job.jobUrl}"`]);
+    expect(m.html).not.toMatch(/\$\d/);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/I65-install-clearance.html", "utf8"));
+    const lines = readFileSync("docs/templates/approved/I65-install-clearance.html", "utf8").split("\n");
+    m.html.split("\n").forEach((l, n) => expect(l).toBe(lines[n]));
+    has(m.text, ["HV-3117 is cleared for install", "The 30-day clock: your install must happen within 30 days of this safety check.", `Offer install days: ${job.jobUrl}`]);
+    const fixed = renderInstallClearanceEmail({ jobNumber: "HV-3117", ownerFirstName: null, fixesSignedOff: true, deadlineLabel: "23 November 2026", jobUrl: job.jobUrl });
+    expect(fixed.html).toContain("The electrical safety check is done, and the fixes are signed off. Offer the owner three install days with arrival times from your job page.");
+    expect(INSTALL_CLEARANCE_EMAIL_APPROVED).toBe(true);
   });
 });
 
