@@ -2,7 +2,7 @@
 // version of each homeowner enquiry email. The send, the Office copy, the Jo TEST copy and the Templates preview all
 // render through renderJoOutcomeEmail(); the Step 3 preview page and the campaign copy editor are retired.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 
@@ -20,13 +20,16 @@ describe("Jo's template is the only Save my spot email", () => {
     const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
     expect(send).toContain("jo.renderJoOutcomeEmail(");
     expect(send).not.toMatch(/renderStep3SaveSpot|renderSaveSpotOfferEmail|renderLaunchCampaignEmail/);
-    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain("sendSaveMySpot([job.id]");
+    // The old Step 3 preview "Send test" action was removed with that page (24 Oct 2026); Jo's TEST copy remains.
+    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).not.toContain("sendSaveSpotPreviewTest");
+    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain('mode: "test_to_jo"');
     expect(readFileSync("src/lib/manual-communication.server.ts", "utf8")).toContain("joFactsForSaveSpotVariant(");
   });
   test("the Step 3 preview page and the campaign copy editor are retired to Templates", () => {
     expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
     expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
-    expect(readFileSync("src/lib/campaign-emails.functions.ts", "utf8")).toMatch(/if \(RETIRED\) throw new Error/);
+    expect(existsSync("src/lib/campaign-emails.functions.ts")).toBe(false);
+    expect(existsSync("src/lib/step3-emails.ts")).toBe(false);
   });
 });
 

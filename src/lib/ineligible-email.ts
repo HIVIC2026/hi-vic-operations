@@ -1,8 +1,5 @@
-/** Pure preliminary-ineligible outcome email adapter. No data access or delivery. */
-import { renderIneligibleOutcomeEmail, type EstimateEmail } from "./estimate-email";
-
-export type IneligibleEmailInput = { referralUrl: string; resultUrl?: string | null; reason?: string | null; reasons?: string[] | null; reference?: string | null; apCount?: number | null };
-export const INELIGIBLE_SUBJECT = "Your Home Insulation Victoria eligibility result";
+/** Pure helpers shared by the ineligible outcome email path. No data access or delivery. The old preliminary
+ *  ineligible renderer was removed on 24 Oct 2026 (replaced by the approved O6 Not eligible email). */
 
 /** Keeps only a short, plain customer-safe reason (no markup or internal review codes). */
 export function safeReason(r: string | null | undefined): string | null {
@@ -10,9 +7,4 @@ export function safeReason(r: string | null | undefined): string | null {
   const t = r.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
   if (!t || /[_]{1}[a-z]+_/.test(t) || /review required/i.test(t)) return null;
   return t.slice(0, 400);
-}
-
-export function renderIneligibleEmail(input: IneligibleEmailInput): EstimateEmail {
-  const reasons = (input.reasons ?? [input.reason]).map(safeReason).filter((reason): reason is string => Boolean(reason));
-  return renderIneligibleOutcomeEmail({ referralUrl: input.referralUrl, reasons, reference: input.reference, apCount: input.apCount, ...(input.resultUrl !== undefined ? { resultUrl: input.resultUrl } : {}) });
 }

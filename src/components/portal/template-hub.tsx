@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { renderJoOutcomeEmail, renderJoReadyCheckInvitationEmail } from "@/lib/jo-outcome-email.core";
+import { renderJoOutcomeEmail } from "@/lib/jo-outcome-email.core";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 
 /** P1-S77: Jo samples get the same footer/opt-out wrapping as a real send (sample opt-out link only). */
@@ -94,14 +94,11 @@ function JoSample({ templateId }: { templateId: JoTemplateId }) {
       const ceilingSizeKnown = templateId.endsWith("size_known");
       const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: ceilingSizeKnown ? 210 : 150, areaEstimated: !ceilingSizeKnown };
       const links = { saveMySpotUrl: SAMPLE_LINK, uploadMediaUrl: SAMPLE_LINK, reviewResultUrl: SAMPLE_LINK, calculatorUrl: SAMPLE_LINK };
-      // Preview-only artwork: draws the SAME campaign art as a real send, with no customer token.
-      const previewArtSrc = templateId === "ineligible" ? null : `/api/public/email-art-preview/${templateId === "ready_check_invitation" ? "spot" : "headline"}.png`;
-      if (templateId === "ready_check_invitation") return renderJoReadyCheckInvitationEmail(recipient, { ...figures, savedAt: "2026-10-19T00:00:00Z", personalEstimateUrl: SAMPLE_LINK, readyCheckBookingUrl: SAMPLE_LINK }, previewArtSrc);
       if (templateId === "ineligible") return renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient, reason: "[The official ineligibility reason appears here]", links });
       const outcome = templateId.startsWith("eligible") ? "likely_eligible" : templateId.startsWith("potentially") ? "needs_onsite_confirmation" : "likely_eligible";
       const insulation = templateId.startsWith("eligible_no_insulation") ? "none" : templateId.startsWith("eligible_below_r2") ? "present" : "unknown";
       const deskCheckStatus = templateId.startsWith("eligible_below_r2") ? "looks_eligible" : null;
-      return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links, previewArtSrc });
+      return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links });
     } catch { return null; } })();
     return raw ? withUnsubscribe(raw, SAMPLE_UNSUBSCRIBE) : null;
   }, [templateId]);

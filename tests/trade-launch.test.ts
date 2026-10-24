@@ -42,7 +42,7 @@ describe("My work task wording", () => {
     for (const bad of ["StageBadge", "SlaPill", "UrgencyBadge", "Deposit cleared", "Mitti record ID"]) expect(page).not.toContain(bad);
   });
   test("worker link page uses the approved contact rule, not portal-only wording", () => {
-    const w = readFileSync("src/routes/w.$token.tsx", "utf8") + readFileSync("src/lib/partner-howitworks.ts", "utf8");
+    const w = readFileSync("src/routes/w.$token.tsx", "utf8");
     expect(w).not.toContain("no calls or outside texts");
     expect(w).not.toContain("hidden automatically");
     expect(w).toContain("Use these contact details only to arrange and complete this Home Insulation Victoria job.");

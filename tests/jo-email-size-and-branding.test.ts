@@ -1,5 +1,5 @@
 /**
- * Jo's T1–T8: size wording, area-source truthfulness and the approved email designs (decision 137).
+ * Jo's T1–T7 (T8 retired 24 Oct 2026): size wording, area-source truthfulness and the approved email designs (decision 137).
  *
  * PURE: renders through the same functions every send uses. No database, no provider, no sending.
  */
@@ -8,7 +8,6 @@ import { readFileSync } from "node:fs";
 import {
   basisLine,
   renderJoOutcomeEmail,
-  renderJoReadyCheckInvitationEmail,
   type JoOutcomeEmailInput,
 } from "../src/lib/jo-outcome-email.core";
 import { joAreaBasis } from "../src/lib/jo-area-basis.core";
@@ -173,21 +172,6 @@ describe("E. T1–T7 use the approved email kit shell", () => {
       expect(m.html).not.toContain("Don’t want these emails?");
       expect(m.plainText).toContain(`Unsubscribe: ${UNSUB}`);
     }
-  });
-  test("T8 (retired office invitation) keeps its earlier presentation", () => {
-    const t8 = withUnsubscribe(
-      renderJoReadyCheckInvitationEmail(RECIPIENT, {
-        ...figures(150, true),
-        savedAt: "2026-10-19T00:00:00Z",
-        personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
-        readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
-      }),
-      UNSUB,
-    );
-    expect(t8.html).toContain("Book your free Ready Check");
-    expect(t8.html).not.toContain("Save my spot");
-    expect(t8.plainText).toContain("You saved your spot. Now it’s your turn!");
-    expect(t8.plainText).toContain("We’ve retained the pricing from your saved preliminary quote.");
   });
   test("T7 keeps no estimate section", () => {
     const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });

@@ -5,22 +5,13 @@ import piesaPdf from "@/assets/veu-piesa-form.pdf.asset.json";
 import piisaPdf from "@/assets/veu-piisa-form.pdf.asset.json";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
-/** P1-S77: enquiry emails replaced by Jo's approved templates (15 Oct 2026). Their stored review versions stay as
- *  history, but they are no longer listed, editable or approvable anywhere; Jo's templates live in /admin/templates. */
-export const RETIRED_COMMUNICATION_KEYS: readonly string[] = ["likely_estimate", "onsite_estimate", "ineligible_result"];
-export const isRetiredCommunicationKey = (key: string) => RETIRED_COMMUNICATION_KEYS.includes(key);
-
+/** The two pre-15-Oct customer emails that are still sent and have no newer approved design. The superseded
+ *  enquiry emails (likely/onsite/ineligible, P1-S77) and the five lifecycle placeholders (measured quote, booking +
+ *  consent, pre-install pack, assignment signing, completion pack — replaced by the approved O18, O35, O28, P4 and
+ *  O47 designs on 24 Oct 2026) were removed; their stored review versions stay in the database as history. */
 export const CUSTOMER_COMMUNICATION_CATALOG = [
-  ["likely_estimate", "Likely eligible estimate", "After the official Gate 1 result; includes estimate and free Ready Check action.", "1 · Enquiry", "None – preliminary estimate only", true],
-  ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check.", "1 · Enquiry", "None – preliminary estimate only", true],
-  ["ineligible_result", "Ineligible result", "No quote or Ready Check action; offers result review only.", "1 · Enquiry", "None", true],
   ["estimate_unopened_3d", "Estimate not opened reminder", "Manual-first follow-up after three days.", "1 · Enquiry", "None", false],
   ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked.", "1 · Enquiry", "None", false],
-  ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & Home Insulation Victoria terms · Code of Conduct / dispute information", true],
-  ["booking_consent", "Booking confirmation + ESC consent", "Confirms the install date and requests electronic Reg 23A consent.", "3 · Booked", "ESC Owner Consent (Reg 23A) – signed ≥24h before work", false],
-  ["pre_install_pack", "Pre-installation pack", "Delivers PIESA copy and consumer documents before work.", "4 · Before install", "PIESA copy (≥24h before) · Certificate of Electrical Safety if rectified · Life-support plan if applicable", false],
-  ["assignment_signing", "Final VEEC assignment signing", "Electronic signature after installer and AP have signed verified final facts.", "5 · After install", "Final Activity 48 VEEC Assignment (installer → AP → owner)", false],
-  ["completion_pack", "Completion email + certificate pack", "Final email after installation and sign-off.", "6 · Complete", "Tax invoice & $200+ co-payment receipt · Certificate of installation / Installer Declaration · Signed assignment copy · Warranties & product info · Dispute and contact information", false],
 ] as const;
 
 export const MITTI_FORM_ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [

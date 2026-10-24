@@ -1,12 +1,13 @@
 /**
- * P1-R3-COM-08 — Jo Lowe's eight approved email templates (pure renderers + deterministic routing).
+ * P1-R3-COM-08 — Jo Lowe's approved enquiry email templates 1–7 (pure renderers + deterministic routing).
+ * Template 8 (the Office "Ready Check invitation") was retired on 24 Oct 2026: owners of our leads now wait for the
+ * installer's offered times (decisions 49–53, 77); old sends stay in each job's communication history.
  *
  * Source of truth for copy (verbatim):
  *   docs/phase1/communications/P1-JO-EMAIL-TEMPLATES-2026-10-15.md  (Jo Lowe, 15 Oct 2026)
  * Owner decisions resolved in P1-R3-COM-08 brief:
  *   - $15/m² removal allowance is INFORMATIONAL only; it is NEVER silently added to the quoted total.
  *   - Below-R2 templates (3/4) REQUIRE a verified desk-check review outcome; unknown insulation is never treated as below R2.
- *   - Template 8 uses the SAVED pricing snapshot and a PERSONAL estimate link — never the public calculator / current rates.
  *
  * This module is PURE: no network, no database, no email sending. It only renders strings and selects a template.
  * Real sending remains gated elsewhere by customer_comms_enabled && save_my_spot_real_send_enabled (COM-04 fail-closed).
@@ -26,10 +27,9 @@ export type JoTemplateId =
   | "eligible_below_r2_reviewed_size_known"    // 4
   | "potentially_eligible_unknown_size_unknown"// 5
   | "potentially_eligible_unknown_size_known"  // 6
-  | "ineligible"                               // 7
-  | "ready_check_invitation";                  // 8
+  | "ineligible";                              // 7
 
-export type JoCta = "save_my_spot" | "upload_media" | "review_result" | "book_ready_check";
+export type JoCta = "save_my_spot" | "upload_media" | "review_result";
 
 export const DEFAULT_ASSUMED_AREA_M2 = 150;
 
@@ -46,10 +46,6 @@ export type JoRoutingInput = {
    * uploaded photos/video) unlocks templates 3/4. null/undefined/anything else => NOT reviewed.
    */
   deskCheckStatus?: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null;
-  /** true when this homeowner previously saved their spot and is now being invited to Ready Check */
-  readyCheckInvitation?: boolean;
-  /** true when a readable saved-pricing snapshot exists (required for template 8; fail closed otherwise) */
-  savedSnapshotAvailable?: boolean;
   /**
    * Jo 22 Oct 2026: the owner's website answers said their existing insulation is thin or only patchy
    * (declared, never photo-reviewed). Uses the eligible Save my spot email (templates 1/2) with the
@@ -59,7 +55,7 @@ export type JoRoutingInput = {
   declaredExisting?: boolean;
 };
 
-/** Money/line-item inputs. For templates 1–6 these are live calculated values; for template 8 they are the saved snapshot. */
+/** Money/line-item inputs. For templates 1–6 these are live calculated values. */
 export type JoEstimateFigures = {
   veuRebate: number;
   customerTotal: number;     // after rebate, inc GST
@@ -79,19 +75,6 @@ export type JoRecipient = {
   enquiryReference: string;
 };
 
-/** Immutable, read-only saved-pricing snapshot used by Template 8. No field here is ever written back. */
-export type SavedPricingSnapshot = Readonly<JoEstimateFigures> & {
-  readonly savedAt: string;
-  readonly personalEstimateUrl: string; // customer-specific link, saved pricing preserved
-  /**
-   * COM-09 (DEP-2): customer-specific URL for the EXISTING Ready Check booking workflow.
-   * Optional so COM-08 snapshots (which predate the binding) still render; when present the
-   * "Book my Ready Check" CTA becomes a real link. Opening it never auto-books — the customer
-   * must still view the estimate and explicitly accept + pick times.
-   */
-  readonly readyCheckBookingUrl?: string;
-};
-
 export type JoRenderResult = { templateId: JoTemplateId; subject: string; body: string; ctas: JoCta[] };
 
 // ---------------------------------------------------------------------------
@@ -99,15 +82,10 @@ export type JoRenderResult = { templateId: JoTemplateId; subject: string; body: 
 // ---------------------------------------------------------------------------
 
 /**
- * Pick exactly one of the eight templates. Returns null when no customer email applies
- * (e.g. required review gate not satisfied, or a Ready Check invitation with no readable snapshot — fail closed).
+ * Pick exactly one of the seven templates. Returns null when no customer email applies
+ * (e.g. required review gate not satisfied — fail closed).
  */
 export function selectJoTemplate(input: JoRoutingInput): JoTemplateId | null {
-  // Template 8 — Ready Check invitation takes precedence, but only with a readable saved snapshot.
-  if (input.readyCheckInvitation) {
-    return input.savedSnapshotAvailable ? "ready_check_invitation" : null;
-  }
-
   if (input.outcome === "ineligible") return "ineligible";
 
   const eligible = input.outcome === "likely_eligible";
@@ -162,8 +140,6 @@ export function ctasForTemplate(id: JoTemplateId): JoCta[] {
       return ["upload_media"];
     case "ineligible":
       return ["review_result"];
-    case "ready_check_invitation":
-      return ["book_ready_check"];
   }
 }
 
@@ -204,7 +180,7 @@ function includesTable(withExistingAssessment: boolean, f: JoEstimateFigures): s
 }
 
 // ---------------------------------------------------------------------------
-// The eight renderers (Jo's verbatim copy; placeholders filled from verified data)
+// The seven renderers (Jo's verbatim copy; placeholders filled from verified data)
 // ---------------------------------------------------------------------------
 
 /** Jo's approved thin/patchy sentence (22 Oct 2026), verbatim. Replaces the "no existing insulation" price
@@ -358,43 +334,6 @@ function renderIneligible(r: JoRecipient, reason: string): string {
   ].join("\n");
 }
 
-function renderReadyCheckInvitation(r: JoRecipient, snap: SavedPricingSnapshot): string {
-  const sizeLine = snap.areaEstimated
-    ? `Ceiling size used in your quote: ${snap.ceilingAreaM2} m² — estimated`
-    : `Ceiling size used in your quote: ${snap.ceilingAreaM2} m²`;
-  // COM-09 (DEP-2): bind the "Book my Ready Check" CTA to the customer's own existing booking workflow when a
-  // URL is supplied. Opening the link does not book; the customer still confirms on that page.
-  const bookCta = snap.readyCheckBookingUrl
-    ? `[Book my Ready Check →](${snap.readyCheckBookingUrl})`
-    : `[Book my Ready Check →]`;
-  return [
-    `Hi ${r.firstName},`, "",
-    "You saved your spot. Now it’s your turn!", "",
-    "Thank you for your patience. We now have availability for a free Ready Check in your area and would love to get yours organised.", "",
-    "We’ve included your saved preliminary quote below so you can review it before taking the next step.", "",
-    "### Your saved preliminary quote", "",
-    `**You could save ${money(snap.veuRebate)}**`, "",
-    `Your estimated cost after rebate: ${money(snap.customerTotal)} including GST`,
-    `Before rebate: ${money(snap.totalBeforeRebate)} including GST`, "",
-    `Property: ${r.propertyAddress}`,
-    sizeLine, "",
-    "We’ve retained the pricing from your saved preliminary quote. Your Ready Check will confirm the measurements and work required.", "",
-    // Personal estimate link preserving saved pricing — never the public calculator.
-    `Want to explore a different ceiling size? [Open the calculator →](${snap.personalEstimateUrl})`, "",
-    includesTable(true, snap), "",
-    "### Book your free Ready Check", "",
-    "Your installer will measure the ceiling, assess any existing insulation, check access and confirm the job scope so we can finalise your quote.", "",
-    bookCta, "",
-    "Confirm your request on the next page. An installer from our panel will then contact you to arrange a suitable time.", "",
-    "No payment required. No obligation to proceed with installation.", "",
-    "### What could change this price?", "",
-    "The final total will depend on the measured ceiling area and confirmed scope. If existing insulation is present, some may be able to stay. Where removal is required, allow $15 per m² including GST for the affected areas only.", "",
-    "Removal and electrical fixes are excluded unless expressly included in your saved quote. Any additional work will be explained and quoted for your approval before it proceeds.", "",
-    "We look forward to helping you take the next step towards a more comfortable home.", "",
-    "Home Insulation Victoria", "", footer(r.enquiryReference),
-  ].join("\n");
-}
-
 // ---------------------------------------------------------------------------
 // Public render entry points
 // ---------------------------------------------------------------------------
@@ -417,8 +356,6 @@ export function subjectForTemplate(id: JoTemplateId, firstName: string, veuRebat
       return `${firstName}, your preliminary quote is ready—let’s check your insulation`;
     case "ineligible":
       return "Your ceiling insulation eligibility result";
-    case "ready_check_invitation":
-      return `Great news, ${firstName}—it’s your turn to book your free Ready Check!`;
   }
 }
 
@@ -427,7 +364,7 @@ export function subjectForTemplate(id: JoTemplateId, firstName: string, veuRebat
  * The caller must have already resolved the template id via selectJoTemplate().
  */
 export function renderJoEstimateEmail(
-  id: Exclude<JoTemplateId, "ineligible" | "ready_check_invitation">,
+  id: Exclude<JoTemplateId, "ineligible">,
   recipient: JoRecipient,
   figures: JoEstimateFigures,
   opts: { declaredThinPatchy?: boolean; declaredExisting?: boolean; insulationQuestions?: boolean } = {},
@@ -457,22 +394,6 @@ export function renderJoIneligibleEmail(recipient: JoRecipient, reason: string):
     subject: subjectForTemplate("ineligible", recipient.firstName),
     body: renderIneligible(recipient, reason),
     ctas: ctasForTemplate("ineligible"),
-  };
-}
-
-/**
- * Render Template 8 from an immutable saved snapshot. This function NEVER recalculates with current rates;
- * it reads only the frozen snapshot and the customer-specific personal estimate link.
- */
-export function renderJoReadyCheckInvitation(recipient: JoRecipient, snapshot: SavedPricingSnapshot): JoRenderResult {
-  if (!snapshot || snapshot.personalEstimateUrl.length === 0) {
-    throw new Error("Ready Check invitation requires a readable saved snapshot with a personal estimate link.");
-  }
-  return {
-    templateId: "ready_check_invitation",
-    subject: subjectForTemplate("ready_check_invitation", recipient.firstName),
-    body: renderReadyCheckInvitation(recipient, snapshot),
-    ctas: ctasForTemplate("ready_check_invitation"),
   };
 }
 

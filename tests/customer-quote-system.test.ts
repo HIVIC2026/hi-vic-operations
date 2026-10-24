@@ -28,7 +28,7 @@ describe("customer quote system", () => {
     const files = ["src/components/portal/estimate.tsx", "src/components/portal/EstimateHeader.tsx", "src/lib/estimate-email.ts", "src/lib/ineligible-email.ts", "src/lib/followup-email.ts", "src/lib/estimatelink.core.ts", "src/routes/estimate.$token.tsx", "src/routes/step3-email-preview.tsx"];
     const source = files.map((file) => readFileSync(file, "utf8")).join("\n");
     expect(source).not.toMatch(/\bHI VIC\b/);
-    for (const file of ["src/components/portal/estimate.tsx", "src/lib/estimate-email.ts", "src/components/portal/EstimateHeader.tsx", "src/routes/step3-email-preview.tsx"]) expect(readFileSync(file, "utf8")).toContain("customer-quote-system");
+    for (const file of ["src/components/portal/estimate.tsx", "src/lib/estimate-email.ts", "src/components/portal/EstimateHeader.tsx"]) expect(readFileSync(file, "utf8")).toContain("customer-quote-system");
   });
 
   test("customer delivery locks retain false defaults", () => {

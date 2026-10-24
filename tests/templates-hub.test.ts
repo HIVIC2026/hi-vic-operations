@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { OFFICE_HEADINGS, sectionFor } from "../src/lib/office-nav";
 import { TEMPLATE_ENTRIES, TEMPLATE_STANDING, entriesFor, parseTemplateSearch, selectTemplate, templateStanding } from "../src/lib/template-hub.core";
-import { samples } from "../src/lib/step3-email-samples";
-import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, STEP3_SAVESPOT_SAMPLE } from "../src/lib/step3-emails";
 import { PARTNER_TEMPLATES, renderPartnerTemplate } from "../src/lib/partner-templates";
 import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 
@@ -52,7 +50,7 @@ describe("Template selection", () => {
   test("no metadata invents approval for unknown records", () => {
     const rec = TEMPLATE_ENTRIES.find((e) => e.id === "email:rec_invitation")!;
     expect(rec.approval).toBe("Not recorded");
-    // P1-S77: superseded entries are removed, not relabelled; Jo's eight carry her recorded approval.
+    // P1-S77: superseded entries are removed, not relabelled; Jo's seven carry her recorded approval.
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:save_my_spot_no_size")).toBeUndefined();
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:insulation_details")).toBeUndefined();
     for (const e of TEMPLATE_ENTRIES.filter((x) => x.id.startsWith("email:jo:"))) expect(e.approval).toBe("Approved by Jo Lowe, 15 Oct 2026");
@@ -60,23 +58,24 @@ describe("Template selection", () => {
   });
   test("email inventory distinguishes exact builders, stored reviews and original tool", () => {
     const emails = entriesFor("email");
-    // P1-S77: Jo's 8 homeowner enquiry emails + 2 customer emails outside her set (3-day reminder, area unavailable)
-    // + 5 later-stage review-only entries + 6 partner emails = 21. Nothing links to a legacy tool any more.
-    expect(emails.length).toBe(21);
-    expect(emails.filter((e) => e.view.kind === "jo_sample").length).toBe(8);
-    expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.reviewKey).sort()).toEqual(["area_unavailable", "estimate_unopened_3d"]);
-    expect(emails.filter((e) => e.view.kind === "review_only").map((e) => e.reviewKey).sort()).toEqual(["assignment_signing", "booking_consent", "completion_pack", "measured_quote", "pre_install_pack"]);
+    // Jo's 7 homeowner enquiry emails (T8 retired 24 Oct 2026) + 2 customer emails outside her set (3-day reminder,
+    // area unavailable) + 6 partner emails = 15. The five later-stage review-only placeholders were removed on 24 Oct
+    // 2026 (replaced by approved designs O18, O35, O28, P4, O47). Nothing links to a legacy tool any more.
+    expect(emails.length).toBe(15);
+    expect(emails.filter((e) => e.view.kind === "jo_sample").length).toBe(7);
+    expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.id).sort()).toEqual(["email:area_unavailable", "email:estimate_unopened_3d"]);
+    expect(emails.some((e) => (e.view.kind as string) === "review_only")).toBe(false);
     expect(emails.filter((e) => ["partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(6);
     expect(emails.some((e) => (e.view.kind as string) === "open_original")).toBe(false);
   });
 });
 
 describe("Render parity — hub shows the exact existing HTML", () => {
-  test("Jo's eight preview through the SAME renderers every real send uses; no superseded sample is mounted", () => {
+  test("Jo's seven preview through the SAME renderers every real send uses; no superseded sample is mounted", () => {
     const ui = readFileSync("src/components/portal/template-hub.tsx", "utf8");
     expect(ui).toContain('from "@/lib/jo-outcome-email.core"');
     expect(ui).toMatch(/renderJoOutcomeEmail\(/);
-    expect(ui).toMatch(/renderJoReadyCheckInvitationEmail\(/);
+    expect(ui).not.toMatch(/renderJoReadyCheckInvitationEmail/);
     // The only remaining sample_email entries are the two customer emails outside Jo's set.
     const samplesUsed = entriesFor("email").flatMap((e) => (e.view.kind === "sample_email" ? [e.view.sample] : [])).sort();
     expect(samplesUsed).toEqual(["coverage", "reminder3"]);
@@ -100,7 +99,6 @@ describe("Render parity — hub shows the exact existing HTML", () => {
   });
   test("hub read endpoints check admin access before reading stored content", () => {
     for (const [file, name] of [
-      ["src/lib/customer-communications.functions.ts", "listCustomerCommunicationTemplates"],
       ["src/lib/mitti-forms.functions.ts", "getMittiForms"],
       ["src/lib/portal.functions.ts", "listComplianceTemplates"],
       ["src/lib/owner-gates.functions.ts", "paperworkCatalogueFn"],

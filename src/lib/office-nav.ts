@@ -87,7 +87,6 @@ export const OFFICE_TOOLS: OfficeTab[] = [
   { label: "Today's brief", to: "/admin/today" },
   { label: "Quote approvals", to: "/admin/board", search: { tab: "quotes" } },
   { label: "Final check", to: "/admin/ap-queue" },
-  { label: "Ready Check invitations", to: "/admin/ready-check" },
   { label: "Registered interest", to: "/admin/interests" },
   { label: "Deleted jobs", to: "/admin/deleted" },
   { label: "Test centre & system health", to: "/admin/test-centre" },
