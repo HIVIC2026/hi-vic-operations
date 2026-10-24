@@ -5,17 +5,21 @@
 // docs/pending-migrations/auto-offer-switches.sql) and are read defensively: a missing column, unreadable row or
 // anything but `true` is OFF, and with a switch off this file never sends or writes anything.
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
+// TEST jobs (source qa_test) ARE offered automatically, but only to [TEST PARTNER] businesses (`isTestPartner`), and a
+// live job never reaches a TEST partner: the pure parity rule filters candidates here, the candidate readers already
+// apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Offer
+// texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { logEvent } from "./workflow.server";
+import { logEvent, stageEntryBlockers } from "./workflow.server";
+import { isTestPartner } from "./test-send.core";
 import {
-  AUTO_OFFER_FLAG, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferReturnedSummary, autoOfferStep, autoOfferSwitchOn,
+  AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
 } from "./auto-offer.core";
 
 const loose = admin as unknown as SupabaseClient;
 const NONE = ["00000000-0000-0000-0000-000000000000"];
-const READY_STAGE: Record<AutoOfferKind, string> = { ready_check: "ready_check_ready_to_schedule", piesa: "piesa_and_install_window_pending" };
 
 /** Both switches, fail-closed (missing columns before the pending migration = off). */
 export async function readAutoOfferSwitches(): Promise<{ ready_check: boolean; piesa: boolean; readyCheckBooking: boolean }> {
@@ -36,25 +40,33 @@ async function activeJobCounts(businessIds: string[], role: "installer" | "elect
   return out;
 }
 
-async function distances(businessIds: string[], postcode: string | null): Promise<Map<string, number | null>> {
-  const out = new Map<string, number | null>();
-  if (!businessIds.length) return out;
+/** Per business: straight-line km to the job postcode (null = unknown) and the canonical TEST-partner mark. */
+async function businessFacts(businessIds: string[], postcode: string | null): Promise<{ km: Map<string, number | null>; test: Map<string, boolean> }> {
+  const km = new Map<string, number | null>();
+  const test = new Map<string, boolean>();
+  if (!businessIds.length) return { km, test };
   const [{ default: centroids }, { distanceKm }, { data: bizs }] = await Promise.all([
     import("@/data/vic-postcode-centroids.json"), import("./offer-dispatch.core"),
-    admin.from("businesses").select("id, coverage_lat, coverage_lng").in("id", businessIds),
+    admin.from("businesses").select("id, coverage_lat, coverage_lng, onboarding_notes").in("id", businessIds),
   ]);
   const c = postcode ? (centroids as unknown as Record<string, [number, number]>)[postcode] ?? null : null;
-  for (const b of bizs ?? []) out.set(b.id, c ? distanceKm({ lat: c[0], lng: c[1] }, { lat: b.coverage_lat ?? null, lng: b.coverage_lng ?? null }) : null);
-  return out;
+  for (const b of bizs ?? []) {
+    km.set(b.id, c ? distanceKm({ lat: c[0], lng: c[1] }, { lat: b.coverage_lat ?? null, lng: b.coverage_lng ?? null }) : null);
+    test.set(b.id, isTestPartner(b));
+  }
+  return { km, test };
 }
+/** Unknown business → treated as a TEST partner, so a live job can never reach it (and a TEST job's parity check still fails closed in the senders). */
+const testFlag = (test: Map<string, boolean>, id: string) => test.get(id) ?? true;
 
 async function installerCandidates(jobId: string): Promise<AutoOfferCandidate[]> {
   const { postcode, candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const ids = candidates.map((c) => c.business_id);
-  const [jobs, km] = await Promise.all([activeJobCounts(ids, "installer"), distances(ids, postcode)]);
+  const [jobs, { km, test }] = await Promise.all([activeJobCounts(ids, "installer"), businessFacts(ids, postcode)]);
   return candidates.map((c) => ({
     business_id: c.business_id, name: c.name, coversPostcode: c.coverage_verified && c.covers_postcode, paused: c.accepting_new_jobs === false,
     credentialsOk: c.has_valid_licence, workersCleared: c.approved_workers > 0, blocker: c.blocker, activeJobs: jobs.get(c.business_id) ?? 0, distanceKm: km.get(c.business_id) ?? null,
+    testPartner: testFlag(test, c.business_id),
   }));
 }
 
@@ -62,8 +74,8 @@ async function electricianCandidates(jobId: string, channel: string | null): Pro
   const alloc = await import("./allocation.server");
   const { postcode, candidates } = await alloc.recCandidatesFor(jobId);
   const ids = candidates.map((c) => c.business_id);
-  const [jobs, km, rates, sel] = await Promise.all([
-    activeJobCounts(ids, "electrician"), distances(ids, postcode), alloc.agreedElectricianRates(ids, "piesa"),
+  const [jobs, { km, test }, rates, sel] = await Promise.all([
+    activeJobCounts(ids, "electrician"), businessFacts(ids, postcode), alloc.agreedElectricianRates(ids, "piesa"),
     (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates),
   ]);
   // Our leads: the quoted installer's usual electrician (decisions 157/173, matched to an approved REC). The
@@ -74,6 +86,7 @@ async function electricianCandidates(jobId: string, channel: string | null): Pro
     candidates: candidates.map((c) => ({
       business_id: c.business_id, name: c.name, coversPostcode: c.coverage_verified && c.covers_postcode, paused: c.accepting_new_jobs === false,
       credentialsOk: c.has_valid_licence, workersCleared: c.approved_workers > 0, activeJobs: jobs.get(c.business_id) ?? 0, distanceKm: km.get(c.business_id) ?? null,
+      testPartner: testFlag(test, c.business_id),
       // The guarded sender refuses an electrician without an agreed rate (the usual electrician's onboarding rate counts).
       blocker: c.blocker ?? (rates.has(c.business_id) || c.business_id === (sel.mode === "usual" ? sel.businessId : null) ? null : "No agreed electrician rate recorded."),
     })),
@@ -96,10 +109,17 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   ]);
   if (!job) return { jobId, kind, step: "none", reason: "job_not_found" };
   const mode = kind === "piesa" ? await (await import("./offer-dispatch.server")).dispatchMode() : null;
-  const jobReady = !job.deleted_at && job.source !== "qa_test" && job.stage === READY_STAGE[kind]
+  let jobReady = !job.deleted_at && autoOfferStageReady(kind, job.stage)
     && (kind === "ready_check" ? job.channel === "hivic_sourced" : mode !== "automatic" && job.offer_dispatch_override !== "office_picks");
+  // PIESA: a job still in measured_quote_accepted is ready only once it may ENTER the PIESA stage (decisions 139–141:
+  // $349 safety check recorded, quote approved, verified eligible …) — the same entry check startPiesaAllocation makes,
+  // so an unpaid acceptance is "not ready" rather than a refused send every tick.
+  if (jobReady && kind === "piesa" && job.stage === "measured_quote_accepted") {
+    const entry = await stageEntryBlockers(jobId, "piesa_and_install_window_pending", null).catch(() => ["unreadable"]);
+    if (entry.length) jobReady = false;
+  }
   const rows: AutoOfferRow[] = (offers ?? []).map((o) => ({ business_id: o.business_id, status: o.status, offered_at: o.offered_at, auto: !!o.summary && (o.summary as Record<string, unknown>)[AUTO_OFFER_FLAG] === true }));
-  const facts = { kind, switchOn: true, jobReady, hasTrade: (trades ?? 0) > 0, returned: (returned ?? []).length > 0, rows };
+  const facts = { kind, switchOn: true, jobReady, jobIsTest: job.source === "qa_test", hasTrade: (trades ?? 0) > 0, returned: (returned ?? []).length > 0, rows };
   const pre = autoOfferBlocked(facts);
   let step: AutoOfferStep;
   if (pre) step = pre;
@@ -109,7 +129,7 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   if (step.action === "none") return { jobId, kind, step: "none", reason: step.reason };
   if (step.action === "return_to_office") {
     await logEvent(jobId, null, AUTO_OFFER_RETURNED_EVENT, autoOfferReturnedSummary(kind, step.reason, step.misses), { kind, reason: step.reason, misses: step.misses, tried_business_ids: step.tried }, { internal: true });
-    await admin.from("jobs").update({ next_action: kind === "ready_check" ? "Needs Home Insulation Victoria: choose an installer for the Ready Check" : "Needs Home Insulation Victoria: choose an electrician for the PIESA" }).eq("id", jobId).eq("stage", READY_STAGE[kind] as never);
+    await admin.from("jobs").update({ next_action: kind === "ready_check" ? "Needs Home Insulation Victoria: choose an installer for the Ready Check" : "Needs Home Insulation Victoria: choose an electrician for the PIESA" }).eq("id", jobId).in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]);
     return { jobId, kind, step: "return_to_office", reason: step.reason };
   }
   const meta = { attempt: step.attempt, basis: step.basis, activeJobs: step.activeJobs, distanceKm: step.distanceKm };
@@ -123,13 +143,14 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   }
 }
 
-/** 15-minute tick: every job waiting for an installer (our leads' Ready Check) or a PIESA electrician. Counts only. */
+/** 15-minute tick: every job waiting for an installer (our leads' Ready Check) or a PIESA electrician, TEST jobs
+ *  included (they can only be matched with TEST partners). Counts only. */
 export async function sweepAutoOffers(): Promise<{ enabled: { installer: boolean; electrician: boolean }; offered: number; returned: number; refused: number }> {
   const sw = await readAutoOfferSwitches();
   const out = { enabled: { installer: sw.ready_check, electrician: sw.piesa }, offered: 0, returned: 0, refused: 0 };
   const kinds = (["ready_check", "piesa"] as const).filter((k) => sw[k] && (k !== "ready_check" || sw.readyCheckBooking));
   for (const kind of kinds) {
-    let q = admin.from("jobs").select("id").eq("stage", READY_STAGE[kind] as never).is("deleted_at", null).neq("source", "qa_test");
+    let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null);
     if (kind === "ready_check") q = q.eq("channel", "hivic_sourced");
     const { data: jobs } = await q.order("created_at").limit(200);
     for (const j of jobs ?? []) {

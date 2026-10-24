@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
-  autoOfferExclusion, autoOfferMisses, autoOfferReturnedSummary, autoOfferStep, autoOfferSwitchOn, rankAutoElectricians, rankAutoInstallers,
-  type AutoOfferCandidate, type AutoOfferFacts, type AutoOfferRow,
+  AUTO_OFFER_READY_STAGES, autoOfferExclusion, autoOfferMisses, autoOfferParityBlocker, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
+  rankAutoElectricians, rankAutoInstallers, type AutoOfferCandidate, type AutoOfferFacts, type AutoOfferRow,
 } from "../src/lib/auto-offer.core";
+import { TEST_PARTNER_MARK, isTestPartner, partnerAllowedForJob } from "../src/lib/test-send.core";
 
 // Decision 246: automatic offers by coverage.
 const cand = (id: string, o: Partial<AutoOfferCandidate> = {}): AutoOfferCandidate => ({
-  business_id: id, name: id.toUpperCase(), coversPostcode: true, paused: false, credentialsOk: true, workersCleared: true, blocker: null, activeJobs: 0, distanceKm: 10, ...o,
+  business_id: id, name: id.toUpperCase(), coversPostcode: true, paused: false, credentialsOk: true, workersCleared: true, blocker: null, activeJobs: 0, distanceKm: 10, testPartner: false, ...o,
 });
 const base = (kind: "ready_check" | "piesa", rows: AutoOfferRow[] = []): AutoOfferFacts => ({ kind, switchOn: true, jobReady: true, hasTrade: false, returned: false, rows });
 const miss = (id: string, status = "declined"): AutoOfferRow => ({ business_id: id, status, offered_at: "2026-10-24T00:00:00Z", auto: true });
@@ -64,6 +65,56 @@ describe("nothing happens when", () => {
   test("an offer is open, or the office made its own offer", () => {
     expect(autoOfferStep({ ...base("piesa", [{ ...miss("a"), status: "pending" }]), candidates: cs })).toEqual({ action: "none", reason: "offer_open" });
     expect(autoOfferStep({ ...base("piesa", [{ ...miss("b"), auto: false }]), candidates: cs })).toEqual({ action: "none", reason: "office_in_charge" });
+  });
+});
+
+describe("TEST / live parity (qa_test jobs are offered too, but only to TEST partners)", () => {
+  const live = cand("live", { distanceKm: 1 });
+  const testBiz = cand("test", { distanceKm: 2, testPartner: true });
+  test("a TEST job skips every live partner and a live job skips every TEST partner, both ways fail closed", () => {
+    expect(autoOfferParityBlocker(testBiz, true)).toBeNull();
+    expect(autoOfferParityBlocker(live, true)).toContain("TEST job");
+    expect(autoOfferParityBlocker(live, false)).toBeNull();
+    expect(autoOfferParityBlocker(testBiz, false)).toContain("never");
+    // An unknown flag is never treated as a TEST partner for a TEST job.
+    expect(autoOfferParityBlocker({ testPartner: undefined as unknown as boolean }, true)).not.toBeNull();
+    expect(autoOfferExclusion(live, new Set(), true)).toContain("TEST");
+    expect(autoOfferExclusion(testBiz, new Set(), false)).toContain("TEST");
+  });
+  test("ranking honours parity for installers and electricians", () => {
+    expect(rankAutoInstallers([live, testBiz], new Set(), true).map((c) => c.business_id)).toEqual(["test"]);
+    expect(rankAutoInstallers([live, testBiz], new Set(), false).map((c) => c.business_id)).toEqual(["live"]);
+    expect(rankAutoInstallers([live, testBiz]).map((c) => c.business_id)).toEqual(["live"]); // default = live job
+    expect(rankAutoElectricians([live, testBiz], new Set(), "test", true).map((c) => c.business_id)).toEqual(["test"]);
+    expect(rankAutoElectricians([live, testBiz], new Set(), "test", false).map((c) => c.business_id)).toEqual(["live"]);
+  });
+  test("a TEST job gets the automatic offer, to the TEST partner only; with no TEST partner it goes back to the office", () => {
+    expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live, testBiz] })).toMatchObject({ action: "offer", businessId: "test" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz], usualBusinessId: "live" })).toMatchObject({ action: "offer", businessId: "test", basis: "coverage" });
+    expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
+    // Live job: the TEST partner is never the pick, even when it is the nearest or the usual electrician.
+    expect(autoOfferStep({ ...base("ready_check"), candidates: [testBiz, live] })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live], usualBusinessId: "test" })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), candidates: [testBiz] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
+  });
+  test("the parity rule is the same one the candidate readers and offer guard use (test-send.core)", () => {
+    const marked = { onboarding_notes: `${TEST_PARTNER_MARK} Reinsulate` };
+    const plain = { onboarding_notes: "TEST Sparkies" }; // a name/notes prefix alone is NOT the TEST-partner mark
+    for (const [biz, source] of [[marked, "qa_test"], [marked, "website"], [plain, "qa_test"], [plain, "website"]] as const) {
+      const c = { testPartner: isTestPartner(biz) };
+      expect(autoOfferParityBlocker(c, source === "qa_test") === null).toBe(partnerAllowedForJob(biz, source));
+    }
+  });
+});
+
+describe("ready stages", () => {
+  test("PIESA waits in measured_quote_accepted (after acceptance + $349) or back in piesa_and_install_window_pending", () => {
+    expect(AUTO_OFFER_READY_STAGES.piesa).toEqual(["measured_quote_accepted", "piesa_and_install_window_pending"]);
+    expect(autoOfferStageReady("piesa", "measured_quote_accepted")).toBe(true);
+    expect(autoOfferStageReady("piesa", "piesa_scheduled")).toBe(false);
+    expect(autoOfferStageReady("ready_check", "ready_check_ready_to_schedule")).toBe(true);
+    expect(autoOfferStageReady("ready_check", "measured_quote_accepted")).toBe(false);
+    expect(autoOfferStageReady("ready_check", null)).toBe(false);
   });
 });
 
