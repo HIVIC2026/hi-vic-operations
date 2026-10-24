@@ -6583,6 +6583,33 @@ export type Database = {
           },
         ]
       }
+      mitti_template_dumps: {
+        Row: {
+          definition: Json | null
+          error: string | null
+          fetched_at: string | null
+          id: number
+          name: string | null
+          template_id: string | null
+        }
+        Insert: {
+          definition?: Json | null
+          error?: string | null
+          fetched_at?: string | null
+          id?: number
+          name?: string | null
+          template_id?: string | null
+        }
+        Update: {
+          definition?: Json | null
+          error?: string | null
+          fetched_at?: string | null
+          id?: number
+          name?: string | null
+          template_id?: string | null
+        }
+        Relationships: []
+      }
       office_snoozes: {
         Row: {
           created_at: string
