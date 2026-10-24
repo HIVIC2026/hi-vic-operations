@@ -176,6 +176,7 @@ export function jobCardLine(n: { who: string | null; text: string }): string {
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the installer's own task wording. */
 export function needsFinishingTask(nextAction: string | null | undefined): string | null {
+  if (isPriceNextAction(nextAction)) return null; // decision 278: the price is the boss's job-page card, never a Mitti task
   const m = /^Needs finishing:\s*(.+?)\s*(on the Mitti form)?\.?$/i.exec(nextAction ?? "");
   if (!m) return null;
   const captured = m[1];
@@ -190,6 +191,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 }
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
+import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON } from "./worker-compliance.core";
 
 const MEL = "Australia/Melbourne";

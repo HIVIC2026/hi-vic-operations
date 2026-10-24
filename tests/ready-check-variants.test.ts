@@ -22,13 +22,15 @@ describe("Ready Check variants", () => {
     expect(readyCheckVariant(null)).toBe("ready_check");
   });
 
-  test("both variants share identical evidence fields; A2 adds the no-pricing tick, A1 adds the quote page (decision 222)", () => {
+  test("both variants share identical evidence fields; A2 adds the no-pricing tick, A1 has NO quote page (decision 278)", () => {
     const base = FORMS.ready_check.fields.map((f) => f.label);
     const priced = FORMS.ready_check_priced.fields.map((f) => f.label);
     const shared = base.slice(0, -2);
     expect(base.slice(-2)).toEqual([A2_TICK, SIGN_A2]);
     expect(priced.slice(0, shared.length)).toEqual(shared);
-    expect(priced.slice(shared.length)).toEqual([...PRICING_FIELDS.map((f) => f.label), ...ELECTRICIAN_FIELDS, SIGN_A1]);
+    expect(priced.slice(shared.length)).toEqual([SIGN_A1]);
+    // Decision 278: the price is the business owner's portal entry; the old quote-page specs survive only as readers.
+    for (const gone of [...PRICING_FIELDS.map((f) => f.label), ...ELECTRICIAN_FIELDS]) expect(priced).not.toContain(gone);
     // Evidence-only form must never ask for a customer price (our leads are quoted at our set price); the A2 access
     // fee is the installer's charge to Home Insulation Victoria and the A2 tick says pricing was not discussed.
     expect(base.filter((l) => /pric/i.test(l))).toEqual([A2_TICK]);
@@ -48,20 +50,20 @@ describe("Ready Check variants", () => {
     expect(m2?.portalOnly).toBe(true);
   });
 
-  test("priced variant validates against a matching template; evidence-only template fails it", () => {
-    const items = FORMS.ready_check_priced.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type === "tick" ? "checkbox" : f.type }));
-    expect(validateTemplate("ready_check_priced", items).ok).toBe(true);
-    const missingPricing = FORMS.ready_check.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
-    const result = validateTemplate("ready_check_priced", missingPricing);
-    expect(result.ok).toBe(false);
-    expect(result.issues.some((i) => i.includes("Total quoted price (inc GST)"))).toBe(true);
+  test("A1 validates clean WITHOUT the quote section (decision 278) and still with it (old published template)", () => {
+    const toItem = (f: { label: string; type: string }) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type === "tick" ? "checkbox" : f.type });
+    const items = FORMS.ready_check_priced.fields.map(toItem);
+    expect(validateTemplate("ready_check_priced", items)).toEqual({ ok: true, issues: [] });
+    const oldA1 = [...items, ...PRICING_FIELDS.map(toItem), ...ELECTRICIAN_FIELDS.map((label) => ({ label, type: label.startsWith("Who") ? "question" : /price/.test(label) ? "number" : "textsingle" }))];
+    expect(validateTemplate("ready_check_priced", oldA1)).toEqual({ ok: true, issues: [] });
+    expect(validateTemplate("ready_check_priced", items).issues.some((i) => /quote|Total quoted|electric/i.test(i))).toBe(false);
   });
 
-  test("AI prompt for the priced form uses tick-what's-included + one total; no diagram question (decision 211)", () => {
+  test("AI prompt for the A1 form asks for NO price/quote/electrician section (decision 278); no diagram question (decision 211)", () => {
     const prompt = mittiAiPrompt("ready_check_priced");
-    expect(prompt).toContain("What's included in your quote?");
-    expect(prompt).toContain('"Total quoted price (inc GST)"');
-    expect(prompt).toContain("Do NOT add a price box per item");
+    expect(prompt).toContain("Do NOT add a price, quote or electrician section");
+    expect(prompt).not.toContain("Do NOT add a price box per item");
+    expect(prompt).not.toMatch(/^\d+\. "Total quoted price \(inc GST\)"/m);
     // Decision 211: the portal draws the diagram; the build prompt must not ask for one.
     expect(prompt).toContain("Do NOT add a diagram, sketch or floor plan question");
     expect(prompt).not.toContain("DRAW the diagram inside the form");
@@ -128,11 +130,13 @@ describe("the real Mitti templates", () => {
     const r = validateTemplate("ready_check_priced", A1);
     // Jo 8 Oct 2026 made the extras section required; this fixture was downloaded before it existed, so the ONLY gaps are the extras questions.
     // Decision 222: this 2 Oct fixture predates the owner-contact, premises-type, access-charge, product and electrician questions.
-    expect(r.issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING, ...OUTCOME_MISSING, ...ELECTRICIAN_MISSING]);
+    // Decision 278: the electrician questions are no longer required on A1 either.
+    expect(r.issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING, ...OUTCOME_MISSING]);
+    void ELECTRICIAN_MISSING;
   });
-  test("the evidence-only form without pricing still fails the priced validator", () => {
+  test("the A1 form without its old pricing questions reports no price/quote/electrician gap (decision 278)", () => {
     const r = validateTemplate("ready_check_priced", A1.filter((i) => !/quote|included/i.test(i.label)));
-    expect(r.ok).toBe(false);
+    expect(r.issues.some((i) => /^Missing: (What[’']s included|What else is included|Total quoted|Who is doing|Electrician)/.test(i))).toBe(false);
   });
   test("the real installer A1 answer labels feed the quote price reader", () => {
     const d = buildInstallerQuoteDraft({
@@ -182,12 +186,11 @@ describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)"
     // Decision 222: the historical fixture predates the owner-contact, premises-type, access-charge, product and A2 tick questions.
     expect(validateTemplate("ready_check", A2).issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING, `Missing: ${A2_TICK}`]);
   });
-  test("own-leads form has no pricing section and fails the priced validator with exactly the pricing issues", () => {
+  test("own-leads form against the A1 validator: no pricing issues any more (decision 278), only the lean additions", () => {
     const r = validateTemplate("ready_check_priced", A2);
     expect(r.ok).toBe(false);
     expect(r.issues).toEqual([
       "Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING,
-      "Missing: What’s included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)", ...ELECTRICIAN_MISSING,
     ]);
   });
   test("A2 wording parses: per-area hazards flag, failed outcome and installer reasons", () => {

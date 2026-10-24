@@ -111,6 +111,22 @@ export async function tradeHome(userId: string) {
     const { installerQuoteLine } = await import("./installer-quote-status.core");
     for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadInstallerQuote(id).catch(() => null); if (ap?.applies) quoteLine.set(id, installerQuoteLine(ap)); }
   }
+  // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
+  // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
+  const formFacts = new Map<string, { linked: boolean; completed: boolean; hasAnswers: boolean | null }>();
+  const priced = new Set<string>();
+  if (c.kind === "installer" && live.length) {
+    const ids = live.map((j) => j.id);
+    const [{ data: ms }, { data: basics }, prices] = await Promise.all([
+      admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
+      admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+      (await import("./installer-price.server")).readInstallerPrices(ids),
+    ]);
+    const latest = new Map<string, { completed?: boolean; answered?: boolean }>();
+    for (const b of basics ?? []) if (b.job_id && !latest.has(b.job_id)) latest.set(b.job_id, (b.details ?? {}) as { completed?: boolean; answered?: boolean });
+    for (const m of ms ?? []) if (m.external_source === "mitti" && m.external_id) { const d = latest.get(m.job_id); formFacts.set(m.job_id, { linked: true, completed: d?.completed === true, hasAnswers: typeof d?.answered === "boolean" ? d.answered : null }); }
+    for (const id of prices.keys()) priced.add(id);
+  }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
   const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") ? "action" as const : "progress" as const : j.tab }));
@@ -131,6 +147,8 @@ export async function tradeHome(userId: string) {
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null,
+    formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
+    priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
   }))) : null;
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, home, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
@@ -776,8 +794,12 @@ export async function tradeJobPage(jobId: string, userId: string) {
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
-      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null }
-      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null },
+      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null, hasAnswers: mitti.hasAnswers as boolean | null }
+      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null, hasAnswers: null as boolean | null },
+    // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
+    // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
+    price: { entered: j?.channel === "installer_sourced" ? !!(await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null)) : null },
+    boss: c.boss,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },

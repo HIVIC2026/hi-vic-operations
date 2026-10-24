@@ -70,10 +70,16 @@ export type JobNextFacts = {
   crew?: string[];
   /** Decision 251: the owner's side of an install booking (consent + 10% deposit), read-only facts; null = not read. */
   ownerReady?: OwnerReadyFacts | null;
+  /** Decision 279: the installer has answered something on the Mitti form beyond the pre-fill (null = not known yet). */
+  formHasAnswers?: boolean | null;
+  /** Decision 278 (A1): the business owner has entered the price in the portal (null = not an A1 job / not read). */
+  priceEntered?: boolean | null;
+  /** The viewer is the business owner (business_admin). Staff never see or set the price. */
+  boss?: boolean;
 };
 export type JobNextPanel =
   | "sign_rebate" | "install_done" | "offer_install_days" | "install_answer_owner" | "install_waiting_owner" | "install_booked" | "install_expired"
-  | "ready_check_offer_times" | "ready_check_answer_owner" | "ready_check_waiting_owner" | "ready_check_set_time" | "form_coming" | "mitti_form" | "quote_status" | "waiting";
+  | "ready_check_offer_times" | "ready_check_answer_owner" | "ready_check_waiting_owner" | "ready_check_set_time" | "form_coming" | "mitti_form" | "enter_price" | "quote_status" | "waiting";
 export type JobNext = { panel: JobNextPanel; title: string; sub: string | null; yours: boolean; /** Bulleted lines under the sub (needs-finishing items). */ items?: string[]; /** Green ticks (sign the rebate form). */ checks?: string[]; /** Quiet line under the button. */ note?: string | null; /** Install booked: the owner's consent + deposit line (decision 251). */ ownerReady?: OwnerReadyLine | null };
 
 /** Decision 251 (Jo 24 Oct 2026): the owner's side of an install booking, as recorded facts only — never amounts or prices.
@@ -99,9 +105,11 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
+import { isPriceNextAction } from "./ready-check-basics.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
+  if (isPriceNextAction(nextAction)) return []; // decision 278: the price is entered on the job page, never in Mitti
   const m = /^Needs finishing:\s*(.+?)\s*(on the Mitti form)?\.?$/i.exec(nextAction ?? "");
   if (!m?.[1]) return [];
   const out: string[] = [];
@@ -138,6 +146,25 @@ export function quoteNextWords(f: Pick<JobNextFacts, "quoteLine" | "quoteSentAt"
   return null;
 }
 
+// ---------- Decision 279 (Jo 25 Oct 2026): ONE status line per job, on the job page and My work ----------
+/** The order Jo fixed: no answers on the Mitti form → only "do the Ready Check" (no quote wording at all); answers but no
+ *  boss price (A1) → "enter your price" (staff: waiting on the business owner, nothing about price); both in → the quote
+ *  status. `formHasAnswers`/`priceEntered` null = not known, so older callers fall through to the quote line as before. */
+export type StatusLineFacts = { channel: string | null; formLinked: boolean; formCompleted: boolean; formHasAnswers: boolean | null | undefined; priceEntered: boolean | null | undefined; boss: boolean; quoteLine: string | null };
+export type StatusLine = { kind: "ready_check" | "price" | "waiting_boss" | "quote" | "none"; title: string; home: string; yours: boolean };
+export const DO_READY_CHECK_TITLE = "Do the Ready Check";
+export const ENTER_PRICE_TITLE = "Enter your price";
+export const WAITING_BOSS_TITLE = "Nothing for you — waiting on your business owner";
+export function installerStatusLine(f: StatusLineFacts): StatusLine {
+  if (f.formLinked && !f.formCompleted && f.formHasAnswers === false) return { kind: "ready_check", title: DO_READY_CHECK_TITLE, home: "Next: do the Ready Check", yours: true };
+  if (f.channel === "installer_sourced" && f.priceEntered === false && (f.formHasAnswers === true || f.formCompleted)) {
+    if (f.boss) return { kind: "price", title: ENTER_PRICE_TITLE, home: "Next: enter your price", yours: true };
+    return { kind: "waiting_boss", title: WAITING_BOSS_TITLE, home: "Next: nothing yet — waiting on your business owner", yours: false };
+  }
+  if (f.quoteLine) return { kind: "quote", title: f.quoteLine.replace(/^You:\s*/, ""), home: f.quoteLine, yours: f.quoteLine.startsWith("You:") };
+  return { kind: "none", title: "", home: "", yours: false };
+}
+
 /** The one thing on the job page (decisions 36/41/196). Nothing about the install shows until the install is cleared;
  *  nothing about the rebate form until the Mitti install form is Complete. */
 export function jobNext(f: JobNextFacts): JobNext {
@@ -166,6 +193,9 @@ export function jobNext(f: JobNextFacts): JobNext {
   const quoteState = quoteNextWords(f, owner);
   if (quoteState) return quoteState;
   if (f.formLinked) {
+    const status = installerStatusLine({ channel: f.channel, formLinked: f.formLinked, formCompleted: f.formCompleted, formHasAnswers: f.formHasAnswers, priceEntered: f.priceEntered, boss: f.boss === true, quoteLine: f.quoteLine });
+    // Decision 279: an empty form says only "do the Ready Check" — never a quote line and never a list of missing things.
+    if (status.kind === "ready_check") return { panel: "mitti_form", title: status.title, sub: f.readyCheckBookedAt ? `Ready Check ${dayAndTime(f.readyCheckBookedAt)}. Fill in the Mitti form on site and press Complete when it's finished.` : "Fill in the Mitti form on site and press Complete when it's finished.", yours: true };
     const items = f.needsFinishingItems ?? [];
     if (items.length) {
       // Approved state M2-needs-finishing: "Add 4 things in Mitti" + the list from ready-check-basics, one button Open Mitti form.
@@ -173,13 +203,16 @@ export function jobNext(f: JobNextFacts): JobNext {
       return { panel: "mitti_form", title: `Add ${items.length} thing${items.length === 1 ? "" : "s"} in Mitti`, sub: `${visit}The form is still missing:`, yours: true, items, note: `Press Complete only when it's fully finished — that sends ${owner} their quote.` };
     }
     if (f.needsFinishing) return { panel: "mitti_form", title: f.needsFinishing, sub: "Add it on the Mitti form, then press Complete.", yours: true };
+    // Decision 278: the boss enters the price in the portal once the form has answers; staff see nothing about price.
+    if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: "Your price, what it includes and who does the electrical safety check. We add the $349 fee, take off the rebate and prepare the owner's quote.", yours: true };
+    if (status.kind === "waiting_boss") return { panel: "waiting", title: status.title, sub: "Nothing else is needed from you on this job right now.", yours: false };
     if (f.quoteLine) {
       const yours = f.quoteLine.startsWith("You:");
       return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, "").replace(/^Waiting on (owner|office):\s*/i, (_, w) => `Waiting on ${w}: `), sub: null, yours };
     }
     if (!f.formCompleted && f.readyCheckTurn === "booked" && f.readyCheckBookedAt) return { panel: "mitti_form", title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`, sub: "Fill in the Mitti form on site and press Complete when it's finished — we then send the owner their quote.", yours: true };
     // Approved state M2-own-before-ready-check: the installer arranges the visit with the owner directly (decisions 110/116).
-    if (!f.formCompleted && f.channel === "installer_sourced") return { panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: `You arrange the visit with ${owner} directly. Measurements, photos, product and your price all go in the form.`, yours: true };
+    if (!f.formCompleted && f.channel === "installer_sourced") return { panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: `You arrange the visit with ${owner} directly. Measurements, photos and product all go in the form.`, yours: true };
     if (!f.formCompleted) return { panel: "mitti_form", title: "Do the Ready Check in Mitti", sub: "Press Complete when it's fully finished — we then send the owner their quote.", yours: true };
     return { panel: "waiting", title: "Waiting on office: checking the quote", sub: null, yours: false };
   }
@@ -359,9 +392,9 @@ export function payNote(f: { channel: string | null; areaM2: number | null; remo
 }
 
 /** Ready Check group rows. */
-export function readyCheckRows(f: { bookedAt: string | null; done: boolean; formLinked: boolean; formCompleted: boolean; missing: number }): { visit: string; form: { label: string; tone: "green" | "plain" | "sub" } | null } {
+export function readyCheckRows(f: { bookedAt: string | null; done: boolean; formLinked: boolean; formCompleted: boolean; missing: number; /** Decision 279: false = nothing answered yet → "Not started" (never "nothing filled in" beside a quote line). */ hasAnswers?: boolean | null }): { visit: string; form: { label: string; tone: "green" | "plain" | "sub" } | null } {
   const visit = f.bookedAt ? `${f.done ? "Done" : "Booked"} ${dayAndTime(f.bookedAt)}` : f.done ? "Done" : "Not booked yet";
-  const form = !f.formLinked ? null : f.formCompleted && f.missing === 0 ? { label: "Complete · nothing missing", tone: "green" as const } : f.formCompleted ? { label: `Complete · ${f.missing} thing${f.missing === 1 ? "" : "s"} missing`, tone: "plain" as const } : f.missing ? { label: `${f.missing} thing${f.missing === 1 ? "" : "s"} still missing`, tone: "plain" as const } : { label: "In progress", tone: "sub" as const };
+  const form = !f.formLinked ? null : f.formCompleted && f.missing === 0 ? { label: "Complete · nothing missing", tone: "green" as const } : f.formCompleted ? { label: `Complete · ${f.missing} thing${f.missing === 1 ? "" : "s"} missing`, tone: "plain" as const } : f.hasAnswers === false ? { label: "Not started", tone: "sub" as const } : f.missing ? { label: `${f.missing} thing${f.missing === 1 ? "" : "s"} still missing`, tone: "plain" as const } : { label: "In progress", tone: "sub" as const };
   return { visit, form };
 }
 
@@ -385,7 +418,7 @@ export function dayNext(f: { kind: DayKind; channel: string | null; installFormC
   if (f.kind === "install" && f.installFormComplete) return { title: "Sign the rebate form", sub: "That's a wrap. One last step: your part of the VEEC assignment form (Part B).", button: "Sign the rebate form", signRebate: true };
   if (f.kind === "install") return { title: "Start the install in Mitti", sub: "PIISA, before and after photos and bag labels all go in the install form. Press Complete when it's fully finished.", button: "Open install form", signRebate: false };
   // Approved state M4-ready-check-day: "Do the Ready Check in Mitti" — our lead: we price the owner's quote from the agreed rates.
-  if (f.kind === "ready_check") return { title: "Do the Ready Check in Mitti", sub: f.channel === "hivic_sourced" ? `Measure every ceiling area (length × width), photos, existing insulation, access and hazards. We price ${owner === "the owner" ? "the owner's" : `${owner}'s`} quote from your agreed rates.` : "Measure every ceiling area (length × width), photos, existing insulation, access and hazards, plus your price. Press Complete when it's fully finished.", button: "Open Mitti form", signRebate: false };
+  if (f.kind === "ready_check") return { title: "Do the Ready Check in Mitti", sub: f.channel === "hivic_sourced" ? `Measure every ceiling area (length × width), photos, existing insulation, access and hazards. We price ${owner === "the owner" ? "the owner's" : `${owner}'s`} quote from your agreed rates.` : "Measure every ceiling area (length × width), photos, existing insulation, access and hazards. Press Complete when it's fully finished.", button: "Open Mitti form", signRebate: false };
   return { title: "Start the safety check in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
 }
 

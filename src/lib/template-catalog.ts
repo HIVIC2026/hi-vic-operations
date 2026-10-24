@@ -16,7 +16,7 @@ export const CUSTOMER_COMMUNICATION_CATALOG = [
 
 export const MITTI_FORM_ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [
   { key: "ready_check", letter: "A2", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
-  { key: "ready_check_priced", letter: "A1", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
+  { key: "ready_check_priced", letter: "A1", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (price entered by the business owner in the portal)" },
   { key: "piesa", letter: "B", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
   { key: "piisa", letter: "C", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
 ];

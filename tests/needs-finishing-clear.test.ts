@@ -14,7 +14,7 @@ const next = async () => (await db.query<{ next_action: string }>("select next_a
 test("missing basics write Needs finishing; once all are in it is replaced, and other next steps are left alone", async () => {
   await db.query("insert into jobs values ($1, 'Attend booked Ready Check', 'ready_check_scheduled')", [J]);
   expect(await keepNeedsFinishingFor(J, "ready_check_scheduled", ["price"])).toBe(true);
-  expect(await next()).toBe("Needs finishing: price on the Mitti form");
+  expect(await next()).toBe("Needs finishing: your price on the job page"); // decision 278: the price is entered in the portal
   expect(await keepNeedsFinishingFor(J, "ready_check_scheduled", [])).toBe(true);
   expect(await next()).toBe(READY_CHECK_BASICS_DONE);
   expect(READY_CHECK_BASICS_DONE.startsWith("Needs finishing")).toBe(false);

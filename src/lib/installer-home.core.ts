@@ -3,6 +3,8 @@
 // per job from facts the server has already decided (place, stage, quote status, Mitti basics, bookings).
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
+import { isPriceNextAction } from "./ready-check-basics.core";
+import { installerStatusLine } from "./installer-screens.core";
 
 export type HomeGroup = "action" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
@@ -29,6 +31,14 @@ export type InstallerHomeJob = {
   installDeadline: string | null;
   /** When the job reached its final stage (Done rows). */
   endedAt: string | null;
+  /** Decision 279: the Mitti Ready Check form is linked / marked Complete / has installer answers (null = not known). */
+  formLinked?: boolean;
+  formCompleted?: boolean;
+  formHasAnswers?: boolean | null;
+  /** Decision 278 (A1): the business owner has entered the price in the portal (null = not applicable / not read). */
+  priceEntered?: boolean | null;
+  /** The viewer is the business owner. */
+  boss?: boolean;
 };
 export type InstallerHomeRow = InstallerHomeJob & { group: HomeGroup; next: string };
 
@@ -49,6 +59,7 @@ export function sourceLabel(channel: string | null | undefined): string | null {
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → "price and owner details". */
 export function needsFinishingItems(nextAction: string | null | undefined): string | null {
+  if (isPriceNextAction(nextAction)) return null; // decision 278: the price is entered on the job page, not in Mitti
   const m = /^Needs finishing:\s*(.+?)\s*(on the Mitti form)?\.?$/i.exec(nextAction ?? "");
   if (!m?.[1]) return null;
   const items = m[1].replace(/^add\s+/i, "").split(/,\s*/).map((p) => p.trim()).filter(Boolean).map((p) =>
@@ -64,8 +75,13 @@ const ELECTRICIAN_STAGES = new Set(["piesa_and_install_window_pending", "awaitin
 export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: string } {
   if (j.stage === "complete" || j.stage === "cancelled") return { group: "done", next: doneLine(j.stage, j.endedAt) };
   if (j.place === "offers") return { group: "offer", next: "Next: reply to the job offer" };
+  // Decision 279: ONE line. Empty form → only "do the Ready Check"; answers but no boss price (A1) → "enter your price".
+  const status = installerStatusLine({ channel: j.channel, formLinked: j.formLinked === true, formCompleted: j.formCompleted === true, formHasAnswers: j.formHasAnswers, priceEntered: j.priceEntered, boss: j.boss === true, quoteLine: j.quoteLine });
+  if (status.kind === "ready_check") return { group: "action", next: status.home };
   const missing = needsFinishingItems(j.nextAction);
   if (missing) return { group: "action", next: `Next: finish the Mitti form (${missing} missing)` };
+  if (status.kind === "price") return { group: "action", next: status.home };
+  if (status.kind === "waiting_boss") return { group: "progress", next: status.home };
   if (j.quoteLine === PRESS_COMPLETE_LINE) return { group: "action", next: "Next: press Complete in Mitti when the Ready Check is finished" };
   if (j.quoteLine === QUOTE_HELD_LINE) return { group: "progress", next: "Next: nothing yet — office is checking the quote" };
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };

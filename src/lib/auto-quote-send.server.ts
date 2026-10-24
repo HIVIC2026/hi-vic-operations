@@ -11,7 +11,17 @@ const AUTO_CODES = [INSTALLER_QUOTE_CODE, "R5_BATTS", "R6_BATTS", "R7_BATTS"];
 
 export type AutoSendResult = { sent: boolean; reasons: string[] };
 
-export async function maybeAutoSendInstallerQuote(jobId: string, opts: { formCompleted: boolean; formModifiedAt: string | null; enabled?: boolean }): Promise<AutoSendResult> {
+/** Decision 278: no draft can exist on an A1 job until the business owner enters the price (or an old form carries one). */
+async function priceMissing(jobId: string, entries: { label: string; value: unknown }[]): Promise<boolean> {
+  const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
+  if (error || !job) return false;
+  const { installerPriceState } = await import("./installer-price.core");
+  const stored = await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null);
+  const s = installerPriceState({ channel: job.channel, record: stored?.record ?? null, entries });
+  return s.required && !s.present;
+}
+
+export async function maybeAutoSendInstallerQuote(jobId: string, opts: { formCompleted: boolean; formModifiedAt: string | null; enabled?: boolean; /** The form snapshot (old A1 forms may still carry a price). */ entries?: { label: string; value: unknown }[] | undefined }): Promise<AutoSendResult> {
   const enabled = opts.enabled ?? AUTO_QUOTE_SEND_ENABLED;
   const { data: quotes, error } = await admin.from("quotes").select("id, status, sent_at, release_state, release_hold_reason, created_at, option_code")
     .eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false });
@@ -23,7 +33,15 @@ export async function maybeAutoSendInstallerQuote(jobId: string, opts: { formCom
   if (lastSentAt && opts.formModifiedAt && opts.formModifiedAt > lastSentAt) await held(jobId, `changed:${opts.formModifiedAt}`, [CHANGED_AFTER_SEND]);
 
   const draft = (quotes ?? []).find((q) => q.status === "draft" && !q.sent_at && AUTO_CODES.includes(String(q.option_code)));
-  if (!draft) return { sent: false, reasons: [] };
+  if (!draft) {
+    // Decision 278: a completed A1 Ready Check with no price anywhere waits on the business owner — told to the office once.
+    if (opts.formCompleted && !lastSentAt && opts.entries && await priceMissing(jobId, opts.entries)) {
+      const { PRICE_NOT_ENTERED } = await import("./installer-price.core");
+      await held(jobId, `price:${jobId}`, [PRICE_NOT_ENTERED]);
+      return { sent: false, reasons: [PRICE_NOT_ENTERED] };
+    }
+    return { sent: false, reasons: [] };
+  }
   const { officeQuoteBlockers, releaseQuoteToOwner } = await import("./office-quote-review.server");
   const blockers = await officeQuoteBlockers(jobId, draft);
   const d = autoSendDecision({ enabled, formCompleted: opts.formCompleted, quoteReady: true, blockers, sentBefore: !!lastSentAt });

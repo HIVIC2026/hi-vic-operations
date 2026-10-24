@@ -12,7 +12,7 @@ import { ELECTRICIAN_FIELDS, FORMS, PRICING_FIELDS, flattenDefinition, leanQuest
 import {
   ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_HELP, LEAN_Q,
   LEAN_REMOVE, LEAN_REMOVE_COPIES, MEASURED_HOW_OPTIONS, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_VALUE_OPTIONS, ROOF_OPTIONS,
-  isR2OrAbove, premisesTypeCode, premisesTypeOption,
+  A1_QUOTE_PAGE, A1_QUOTE_QUESTIONS, isR2OrAbove, premisesTypeCode, premisesTypeOption,
 } from "../src/lib/ready-check-lean.core";
 import { APPROVED_PRODUCTS } from "../src/lib/insulation-product.core";
 
@@ -217,7 +217,8 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
   test("A1 (ready_check_priced) and A2 (ready_check) lean templates pass with no issues; counts match the prompt", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
-    expect(leanQuestionCount("ready_check_priced")).toBe(43);
+    // Decision 278: A1 lost its quote page (7 questions) — 36 questions; A2 keeps the no-pricing tick — 37.
+    expect(leanQuestionCount("ready_check_priced")).toBe(36);
     expect(leanQuestionCount("ready_check")).toBe(37);
   });
   test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
@@ -253,8 +254,11 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(by(LEAN_Q.access).choices).toEqual(["Easy", "Standard", "Difficult", "No safe access"]);
     expect(by(LEAN_Q.premisesType).choices).toEqual([...PREMISES_TYPE_OPTIONS]);
     expect(by(LEAN_Q.failReasons).choices).toEqual([...FAIL_REASON_OPTIONS]);
-    expect(by(LEAN_Q.electrician).choices).toEqual([...ELECTRICIAN_OPTIONS]);
+    // Decision 278: the electrician/price questions are old-A1 readers only — never on the A1 build sheet.
+    expect(FORMS.ready_check_priced.fields.find((f) => f.label === LEAN_Q.electrician)).toBeUndefined();
+    expect(ELECTRICIAN_FIELDS[0]!.choices).toEqual([...ELECTRICIAN_OPTIONS]);
     expect(ELECTRICIAN_FIELDS.map((f) => f.label)).toEqual([LEAN_Q.electrician, LEAN_Q.electricianName, LEAN_Q.electricianLicence, LEAN_Q.electricianPrice]);
+    for (const q of A1_QUOTE_QUESTIONS) expect(FORMS.ready_check_priced.fields.map((f) => f.label)).not.toContain(q);
   });
   test("the mittiAiPrompt build sheet asks for one repeating group and no retired sections", () => {
     for (const key of ["ready_check", "ready_check_priced"] as const) {
@@ -334,6 +338,20 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
 });
 
 // ---------- the ChatGPT build prompt must carry every reader wording verbatim (pattern: install-evidence-prompt.test.ts) ----------
+describe("docs/MITTI_READY_CHECK_PRICE_PROMPT.md (decision 278): delete the A1 quote page, nothing else", () => {
+  const prompt = readFileSync("docs/MITTI_READY_CHECK_PRICE_PROMPT.md", "utf8");
+  const body = prompt.slice(prompt.indexOf("\n---\n"));
+  test("names A1 only, the page and its seven questions verbatim, the A1 access-fee help text, and adds nothing", () => {
+    expect(body).toContain("Edit ONLY the Mitti template `A1 – Ready Check | Installer-Supplied Customer`");
+    expect(body).toContain("Do NOT touch\n`A2 – Ready Check | HIVIC Sourced Customer`");
+    expect(body).toContain(`DELETE the whole page/section \`${A1_QUOTE_PAGE}\``);
+    for (const q of A1_QUOTE_QUESTIONS) expect(body, q).toContain(`- \`${q}\``);
+    expect(body).toContain(`\`${LEAN_HELP.accessFeeA1}\``);
+    expect(body).toContain("Do NOT add anything in its place");
+    expect(body).toContain(`${leanQuestionCount("ready_check_priced")} questions`);
+  });
+});
+
 describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbatim", () => {
   const prompt = readFileSync("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md", "utf8");
   const body = prompt.slice(prompt.indexOf("\n---\n"));
@@ -341,8 +359,8 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
     let last = -1;
     const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessCharge", "accessFee", "accessPhoto",
       "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
-      "product", "outcome", "failReasons", "noPricingTick", "included", "includedOther", "totalPrice", "electrician", "electricianName", "electricianLicence", "electricianPrice", "signatureA1", "signatureA2"];
-    expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1); // every LEAN_Q key but the legacy m² entry
+      "product", "outcome", "failReasons", "noPricingTick", "signatureA1", "signatureA2"];
+    expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length); // every LEAN_Q key but the legacy m² entry and the deleted A1 quote page (decision 278)
     for (const k of order) {
       const at = body.indexOf(`\`${LEAN_Q[k]}\` —`);
       expect(at, LEAN_Q[k]).toBeGreaterThan(-1);
@@ -352,9 +370,15 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
     // The legacy m² entry is named only in the REMOVE list.
     expect(body.indexOf(`\`${LEAN_Q.measuredM2}\``)).toBeGreaterThan(-1);
     expect(body).not.toContain(`\`${LEAN_Q.measuredM2}\` —`);
+    // Decision 278: the A1 quote page is named as deleted and none of its questions is asked for.
+    expect(body).toContain(`\`${A1_QUOTE_PAGE}\` is DELETED`);
+    for (const q of A1_QUOTE_QUESTIONS) { expect(body, q).toContain(`\`${q}\``); expect(body).not.toContain(`\`${q}\` —`); }
   });
   test("every option list, help text and the template names", () => {
-    for (const o of [...PROPERTY_TYPE_OPTIONS, ...PREMISES_TYPE_OPTIONS, ...ROOF_OPTIONS, ...ACCESS_OPTIONS, ...MEASURED_HOW_OPTIONS, ...EXISTING_TYPE_OPTIONS, ...R_VALUE_OPTIONS, ...EXISTING_ACTION_OPTIONS, ...PRODUCT_OPTIONS, ...OUTCOME_OPTIONS, ...FAIL_REASON_OPTIONS, ...INCLUDED_OPTIONS, ...ELECTRICIAN_OPTIONS]) expect(body, o).toContain(`\`${o}\``);
+    for (const o of [...PROPERTY_TYPE_OPTIONS, ...PREMISES_TYPE_OPTIONS, ...ROOF_OPTIONS, ...ACCESS_OPTIONS, ...MEASURED_HOW_OPTIONS, ...EXISTING_TYPE_OPTIONS, ...R_VALUE_OPTIONS, ...EXISTING_ACTION_OPTIONS, ...PRODUCT_OPTIONS, ...OUTCOME_OPTIONS, ...FAIL_REASON_OPTIONS]) expect(body, o).toContain(`\`${o}\``);
+    // Decision 278: the quote-page option lists live on the portal card now, not on either template.
+    expect(body).not.toContain(`Tick all: \`${INCLUDED_OPTIONS[0]}\``);
+    expect(body).not.toContain(`Pick one: \`${ELECTRICIAN_OPTIONS[0]}\``);
     expect(body).toContain(PRODUCT_OPTIONS.map((o) => `\`${o}\``).join(" / "));
     for (const h of Object.values(LEAN_HELP)) expect(body, h).toContain(`\`${h}\``);
     expect(body).toContain("**Template 1 name:** `A1 – Ready Check | Installer-Supplied Customer`");
