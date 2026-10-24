@@ -381,3 +381,37 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     expect(await q("select id from customer_agreements where job_id=$1", [A])).toHaveLength(1);
   });
 });
+
+// HV-3151 (live, 23 Oct): Reinsulate added a job; the website-lead checks parked it at "Estimate sent – waiting for the owner
+// to save their spot"; the 15-minute tick's form attempt was refused ("assessments can only be created once the job is
+// waiting on or has booked its PIESA") and then waited a day. Jo 24 Oct: the form is made in any pre-Ready-Check stage and
+// a stage refusal is retried on the next tick.
+describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its form on the next tick", () => {
+  test("stage preliminary_estimate_ready + a stage refusal 10 minutes ago → the sweep makes ONE form and the job waits on the installer", async () => {
+    await q("update workflow_settings set auto_send_mitti=false where id=1"); // keep Add a job from making the form so the sweep is what's tested
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call);
+    expect(r.formCreation).toBe("skipped");
+    await settle();
+    await q("update workflow_settings set auto_send_mitti=true where id=1");
+    await q("update jobs set stage='preliminary_estimate_ready' where id=$1", [r.jobId]); // what the website-lead checks did live
+    const { MITTI_STAGE_GUARD_MESSAGE } = await import("../src/lib/mitti.core");
+    await q("insert into workflow_events (job_id, event_type, summary, details, internal, created_at) values ($1,'mitti_autoform_failed','Mitti Ready Check form could not be created automatically',$2,true, now() - interval '10 minutes')", [r.jobId, JSON.stringify({ needs_office: true, reason: MITTI_STAGE_GUARD_MESSAGE })]);
+    const creates = () => mitti.calls.filter((c) => c === "POST /audits").length;
+    const before = creates();
+    const { sweepReadyCheckForms } = await import("../src/lib/mitti-autoform.server");
+    const sweep = await sweepReadyCheckForms({ call, enabled: true });
+    expect(sweep.results.find((x) => x.jobId === r.jobId)).toMatchObject({ outcome: "created" });
+    expect(creates()).toBe(before + 1);
+    const auditId = await auditOf(r.jobId);
+    expect(auditId).not.toBeNull();
+    expect(mitti.audits.get(auditId!)!["template_id"]).toBe(TPL); // the installer's A1 Ready Check form, prefilled
+    expect((await job(r.jobId))["stage"]).toBe("ready_check_scheduled"); // waits on the installer, never "No reply"
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='mitti_autoform_failed' and created_at > now() - interval '1 minute'", [r.jobId])).toHaveLength(0);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='mitti_audit_create_started'", [r.jobId])).toHaveLength(1);
+    // The next tick leaves it alone: the form exists.
+    const again = await sweepReadyCheckForms({ call, enabled: true });
+    expect(again.results.find((x) => x.jobId === r.jobId)).toBeUndefined();
+    expect(creates()).toBe(before + 1);
+    expect(await os.onsiteFormFor(r.jobId, INST, undefined, false)).toEqual({ kind: "open", url: expect.stringContaining(auditId!) });
+  });
+});

@@ -9,6 +9,9 @@ export type AdvanceFacts = {
   eligibilityConfirmed: boolean; // admin-set (eligibility_set_by) and not "does not appear eligible"
   /** Home Insulation Victoria has explicitly approved (accepted_by set) the current measure-up, e.g. an installer's own – only then is the Ready Check skipped. */
   measureUpAccepted?: boolean;
+  /** jobs.channel = installer_sourced: the installer's own customer. Jo 24 Oct 2026 (HV-3151): such a job never waits for
+   *  the owner to "save their spot" — the installer does the Ready Check (Mitti form), so it goes straight to Ready Check ready to schedule. */
+  installerSourced?: boolean;
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
   openRectItems: number;
@@ -33,6 +36,7 @@ export type Step =
   | { kind: "stop"; reason: string };
 
 export const TERMINAL: Stage[] = ["complete", "on_hold", "cancelled"];
+export const INSTALLER_OWN_CUSTOMER_SUMMARY = "Installer's own customer – the installer does the Ready Check (Mitti form); no spot to save";
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
 export function planStep(stage: Stage, f: AdvanceFacts): Step {
@@ -41,11 +45,17 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
+      if (f.measureUpAccepted && (f.eligibilityConfirmed || f.installerSourced)) return t("ready_check_complete", "Eligibility confirmed – accepted Ready Check already on file, no Ready Check needed");
+      // Jo 24 Oct (HV-3151): an installer's own customer has no spot to save — the installer's Mitti Ready Check is next.
+      if (f.installerSourced) return t("ready_check_ready_to_schedule", INSTALLER_OWN_CUSTOMER_SUMMARY);
       if (!f.eligibilityConfirmed) return stop("Home Insulation Victoria must confirm Gate 1 eligibility");
       // Jo, 8 Oct: the Ready Check comes only AFTER the owner saves their spot.
-      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted Ready Check already on file, no Ready Check needed") : t("preliminary_estimate_ready", "Eligibility passed – waiting for the owner to save their spot");
+      return t("preliminary_estimate_ready", "Eligibility passed – waiting for the owner to save their spot");
     case "preliminary_estimate_ready":
-      return f.measureUpAccepted ? t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed") : stop("Waiting for the owner to save their spot");
+      if (f.measureUpAccepted) return t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed");
+      // Jo 24 Oct (HV-3151): a job the website checks parked here is an installer's customer — move it on, never wait for a spot.
+      if (f.installerSourced) return t("ready_check_ready_to_schedule", INSTALLER_OWN_CUSTOMER_SUMMARY);
+      return stop("Waiting for the owner to save their spot");
     case "ready_check_ready_to_schedule":
       return f.measureUpAccepted ? t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
     case "awaiting_electrician":

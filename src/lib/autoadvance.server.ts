@@ -12,7 +12,7 @@ async function count(q: PromiseLike<{ count: number | null }>) { return (await q
 export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const head = { count: "exact" as const, head: true };
   const [{ data: job }, st] = await Promise.all([
-    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, eligibility_review_required, eligibility_flags, installation_completed_at").eq("id", jobId).single(),
+    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, eligibility_review_required, eligibility_flags, installation_completed_at, channel").eq("id", jobId).single(),
     agreementSigned(jobId),
   ]);
   const declared = (await count(admin.from("installer_declarations").select("id", head).eq("job_id", jobId).eq("status", "signed"))) > 0;
@@ -30,6 +30,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   return {
     eligibilityConfirmed: !!job && eligibilityConfirmedFor(job, todayMelbourne()),
     measureUpAccepted: measAccepted > 0,
+    installerSourced: job?.channel === "installer_sourced",
     electricianAssigned: elec > 0,
     assessmentBookingConfirmed: ab > 0,
     openRectItems: rect,

@@ -4,7 +4,7 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, readyCheckFormStageAllowed, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
@@ -84,7 +84,9 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
   // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.
-  const readyCheckStage = job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled";
+  // Jo 24 Oct (HV-3151): an installer's own customer gets the Ready Check form in every pre-Ready-Check stage, so the
+  // office button and the automatic sweep agree with each other whatever stage the website checks left the job in.
+  const readyCheckStage = readyCheckFormStageAllowed(job.stage, job.channel);
   const measureOnly = !!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
@@ -134,7 +136,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   } };
   try {
     r = await createOrReuseAudit(api, {
-      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId,
+      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId, channel: job.channel,
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
         jobNumber: job.job_number, address, titleAddress: address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,

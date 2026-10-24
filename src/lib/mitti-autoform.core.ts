@@ -1,6 +1,7 @@
 // Jo 23 Oct 2026: every installer job gets its Mitti Ready Check form automatically (no office "Create & assign"
 // click). Pure decision only; creation reuses createAssignMittiAudit and its atomic per-job claim.
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
+import { MITTI_STAGE_GUARD_MESSAGE } from "./mitti.core";
 
 /** Jo 23 Oct: ON once A1/A2 were republished (photos optional on A1, one plain-text Site address in the title).
  *  Set false to pause while a template is being changed — a Mitti form keeps the version it was created from. */
@@ -19,7 +20,14 @@ export type AutoFormFacts = {
   /** That row is only the installer's provisional Add-job/bulk size, which gives way to the Mitti form. */ provisionalOnly?: boolean;
   installerUserId: string | null; mittiInvited: boolean; templateSet: boolean; autoSendMitti: boolean;
   /** When the last automatic attempt failed, if any. */ lastFailureAt: string | null;
+  /** Why it failed (the recorded reason), so a stage refusal is retried next tick instead of tomorrow. */ lastFailureReason?: string | null;
 };
+
+/** A refusal by the Mitti stage guard: nothing reached Mitti, so the next tick may try again once the stage is right
+ *  (Jo 24 Oct, HV-3151: the office moved the job by hand and then waited a day for nothing). */
+export function isStageFailure(reason: string | null | undefined): boolean {
+  return !!reason && (reason.includes(MITTI_STAGE_GUARD_MESSAGE) || /can only be created once the job is waiting on/i.test(reason));
+}
 
 export type AutoFormDecision = { action: "create" } | { action: "skip"; reason: string };
 
@@ -38,6 +46,7 @@ export function autoFormDecision(f: AutoFormFacts, now: Date, enabled = AUTOFORM
   if (!f.templateSet) return skip("Ready Check form not set up");
   if (!f.mittiInvited) return skip("installer not set up in Mitti");
   if (!f.installerUserId) return skip("no installer assigned");
-  if (f.lastFailureAt && now.getTime() - Date.parse(f.lastFailureAt) < AUTOFORM_RETRY_AFTER_HOURS * 3_600_000) return skip("last attempt failed – retrying tomorrow");
+  // Mitti errors back off for a day; a stage refusal never touched Mitti and is retried on the next tick.
+  if (f.lastFailureAt && !isStageFailure(f.lastFailureReason) && now.getTime() - Date.parse(f.lastFailureAt) < AUTOFORM_RETRY_AFTER_HOURS * 3_600_000) return skip("last attempt failed – retrying tomorrow");
   return { action: "create" };
 }

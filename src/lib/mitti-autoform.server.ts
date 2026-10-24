@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
-import { AUTOFORM_FAILED_EVENT, AUTOFORM_MAX_PER_TICK, AUTOFORM_WINDOW_DAYS, autoFormDecision } from "./mitti-autoform.core";
+import { AUTOFORM_FAILED_EVENT, AUTOFORM_MAX_PER_TICK, AUTOFORM_WINDOW_DAYS, autoFormDecision, isStageFailure } from "./mitti-autoform.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 
 export type AutoFormResult = { jobId: string; jobNumber: string; outcome: "created" | "held" | "uncertain" | "failed"; message?: string };
@@ -26,7 +26,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     admin.from("workflow_settings").select("auto_send_mitti, mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle(),
     admin.from("ceiling_measurements").select("job_id, provenance, status, external_source, accepted_by").in("job_id", ids).eq("is_current", true),
     admin.from("job_assignments").select("job_id, user_id, business_id").in("job_id", ids).eq("role", "installer").eq("active", true),
-    admin.from("workflow_events").select("job_id, created_at").in("job_id", ids).eq("event_type", AUTOFORM_FAILED_EVENT).order("created_at", { ascending: false }),
+    admin.from("workflow_events").select("job_id, created_at, details").in("job_id", ids).eq("event_type", AUTOFORM_FAILED_EVENT).order("created_at", { ascending: false }),
   ]);
   if (ws.error || measurements.error || assignments.error || failures.error) throw new Error("Ready Check form sweep could not read job facts.");
   const bizIds = [...new Set(jobs.map((j) => assignments.data?.find((a) => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id).filter(Boolean) as string[])];
@@ -43,12 +43,14 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     if (results.length >= AUTOFORM_MAX_PER_TICK) break;
     const asg = assignments.data?.find((a) => a.job_id === j.id) ?? null;
     const biz = businesses?.find((b) => b.id === (asg?.business_id ?? j.originating_installer_business_id)) ?? null;
+    const lastFailure = failures.data?.find((f) => f.job_id === j.id) ?? null;
     const d = autoFormDecision({
       channel: j.channel, stage: j.stage, createdAt: j.created_at, deleted: !!j.deleted_at, archived: !!j.qa_archived_at,
       hasCurrentMeasurement: measured.has(j.id), provisionalOnly: provisional.has(j.id), installerUserId: asg?.user_id ?? null,
       mittiInvited: biz?.mitti_account_invited === true, templateSet: !!ws.data?.mitti_ready_check_priced_template_id?.trim(),
       autoSendMitti: ws.data?.auto_send_mitti === true,
-      lastFailureAt: failures.data?.find((f) => f.job_id === j.id)?.created_at ?? null,
+      lastFailureAt: lastFailure?.created_at ?? null,
+      lastFailureReason: (lastFailure?.details as { reason?: string } | null)?.reason ?? null,
     }, now, true);
     if (d.action !== "create") continue;
     if (opts.dryRun) { wouldCreate.push(j.job_number); continue; }
@@ -71,7 +73,8 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
       // Uncertain: createAssignMittiAudit already recorded an office flag and keeps the claim, so it never retries.
       if (e instanceof MittiOutcomeUncertain) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "uncertain" }); continue; }
       const message = e instanceof Error ? e.message : "Mitti error";
-      await logEvent(j.id, null, AUTOFORM_FAILED_EVENT, `Mitti Ready Check form could not be created automatically: ${message}`.slice(0, 500), { needs_office: true, reason: message.slice(0, 300) }, { internal: true }).catch(() => undefined);
+      // kind "stage": nothing reached Mitti, so the next tick retries once the stage is right; "mitti": a day's back-off.
+      await logEvent(j.id, null, AUTOFORM_FAILED_EVENT, `Mitti Ready Check form could not be created automatically: ${message}`.slice(0, 500), { needs_office: true, reason: message.slice(0, 300), kind: isStageFailure(message) ? "stage" : "mitti" }, { internal: true }).catch(() => undefined);
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "failed", message });
     }
   }
