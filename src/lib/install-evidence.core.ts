@@ -68,7 +68,7 @@ export const INSTALL_EVIDENCE_RELABELS = {
 export const A3_RELABELS = INSTALL_EVIDENCE_RELABELS;
 
 /** Part C — SWMS section, the legal minimum (decisions 256 + 258, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md).
- *  End state = docs/MITTI_INSTALL_FORM_FIX_PROMPT.md §1 + docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md: high-risk work, one
+ *  End state = docs/MITTI_INSTALL_FORM_FIX_PROMPT.md (the one end-state prompt): high-risk work, one
  *  standard-controls instruction covering all nine ESC hazards with a tick, an optional specific/changes box, and each named
  *  additional installer's signature inside their own crew block. The lead's SWMS sign-off is the Part 8 signature (and its
  *  time); prepared by / for / work / date come from job facts on the filed PDF. */
@@ -301,7 +301,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
 }
 
 /**
- * Fix prompt §2 (24 Oct 2026): the whole-job before / completed videos are deleted from the A3 form — each zone's own
+ * Fix prompt (24 Oct 2026): the whole-job before / completed videos are deleted from the A3 form — each zone's own
  * before / after 360° video now stands as that evidence. Returns every zone's files for a phase ONLY when the form's zone
  * count is answered and every zone 1..n carries at least one file; otherwise null (never a partial set).
  */
@@ -375,7 +375,7 @@ const sameName = (a: string | null | undefined, b: string | null | undefined) =>
  *  sign-off is the PIISA Part 8 signature, checked by the PIISA gate; the specific/changes box is optional. */
 export function swmsBlockers(s: SwmsRead, ctx: Pick<InstallEvidenceCtx, "additionalInstallers">): string[] {
   const S = SWMS_QUESTIONS;
-  if (!s.onForm) return [`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md and docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md to the template.`];
+  if (!s.onForm) return [`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md to the template.`];
   const b: string[] = [];
   if (!s.hrcw.length) b.push(`${S.hrcw}: nothing ticked`);
   else if (s.hrcw.includes(SWMS_HRCW_NONE)) { if (s.hrcw.length > 1) b.push("SWMS — high-risk work: \"None of these apply\" cannot be ticked with another type"); if (!s.hrcwNone) b.push(`${S.hrcwNone}: not entered`); }

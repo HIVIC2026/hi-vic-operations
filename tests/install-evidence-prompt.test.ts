@@ -1,6 +1,6 @@
 // The Mitti build prompts and the readers must never drift: every exact wording constant appears verbatim in the prompt.
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { A3_RELABELS, AFTER_INSTALL_QUESTIONS, FOIL_QUESTIONS, RETIRED_FINAL_PLAN_UPLOAD_LABEL, SOLAR_RESTARTED_OPTIONS, SWMS_ADDITIONAL_INSTALLERS, SWMS_HAZARDS, SWMS_HOW_IN_PLACE, SWMS_HRCW_OPTIONS, SWMS_QUESTIONS, SWMS_STANDARD_CONTROLS_TEXT, ZONE_PRODUCT_OPTIONS, installEvidenceQuestionList } from "../src/lib/install-evidence.core";
 import { A3_INSTRUCTION_LABELS_2026_10_09 } from "../src/lib/piisa-a3.core";
 import { PIESA_EFFECTIVE_QUESTION } from "../src/lib/official-short.core";
@@ -41,11 +41,9 @@ describe("PIESA prompt addendum", () => {
   });
 });
 
-/** Decisions 256/258/259: the end-state prompt(s) Jo pastes into ChatGPT are the spec for the SWMS — the code must equal them.
- *  The end state lives in docs/MITTI_INSTALL_FORM_FIX_PROMPT.md (plus the follow-up file while it exists). */
+/** Decisions 256–259: docs/MITTI_INSTALL_FORM_FIX_PROMPT.md is the one end-state prompt Jo pastes into ChatGPT — the code must equal it. */
 describe("Install day end-state prompt (SWMS, finish time, re-check lines) equals the code", () => {
-  const files = ["docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md"].filter((f) => existsSync(f));
-  const spec = files.map((f) => readFileSync(f, "utf8")).join("\n");
+  const spec = readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8");
   const S = SWMS_QUESTIONS;
   const quoted = (v: string) => expect(spec, v).toContain(`"${v}"`);
   test("every current SWMS label is quoted verbatim (crew signature written once with N = 1, 2, 3)", () => {

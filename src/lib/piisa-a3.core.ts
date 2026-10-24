@@ -203,7 +203,7 @@ export function a3MissingFields(template: unknown): string[] {
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
     // Decision 211: the final roof-space plan upload is retired (the portal draws the diagram); its absence is fine.
-    // Fix prompt §2 (24 Oct 2026): the whole-job before / completed videos are deleted — each zone's own before / after
+    // Fix prompt (24 Oct 2026): the whole-job before / completed videos are deleted — each zone's own before / after
     // video in "Zones and evidence" stands in (A3_ZONE_VIDEO_KEYS), so their absence is fine too.
     if (!e && (k === "final_plan" || A3_ZONE_VIDEO_KEYS.includes(k as A3EvidenceKey))) continue;
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
@@ -224,7 +224,7 @@ function itemsById(audit: unknown): Map<string, Any> {
   walk(audit);
   return byId;
 }
-/** Fix prompt §2 (24 Oct 2026): A3 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
+/** Fix prompt (24 Oct 2026): A3 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
 export const A3_ZONE_VIDEO_KEYS: A3EvidenceKey[] = ["before_video", "completed_video"];
 /**
  * Every A3 media item on an audit (in-progress or completed) with per-file metadata. before_video / completed_video
@@ -512,7 +512,7 @@ export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   product_photos: INSTALL_EVIDENCE_RELABELS.product_photos,
 };
 /** What the installer/office is told when a requirement is short. The whole-job videos are gone from the current form
- *  (fix prompt §2), so their requirement names the per-zone videos that now satisfy it. */
+ *  (fix prompt), so their requirement names the per-zone videos that now satisfy it. */
 export const A3_REQUIREMENT_LABELS: Record<A3EvidenceKey, string> = {
   ...A3_EVIDENCE_LABELS,
   before_video: "Before-work video — the before 360° video of every zone (Zones and evidence page)",
@@ -866,6 +866,6 @@ export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | 
   return { answers, blockers, needsVerification: nv };
 }
 
-/** Fix prompt §3 (24 Oct 2026): the last Part 8 text on the A3 form (replaces the old "…completed-work video and final
+/** Fix prompt (24 Oct 2026): the last Part 8 text on the A3 form (replaces the old "…completed-work video and final
  *  roof-space plan" wording; older published snapshots keep theirs as history). Display text only — never read as an answer. */
 export const A3_PART8_CLOSING_TEXT = "Signing does not finish this form. After installation, complete the Zones and evidence page and the After-install sign-off.";

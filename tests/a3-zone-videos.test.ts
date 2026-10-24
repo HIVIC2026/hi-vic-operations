@@ -1,4 +1,4 @@
-// Fix prompt (24 Oct 2026) §2–4: whole-job A3 videos deleted (zone videos stand in), Part 8 closing text, day-3 optional.
+// Fix prompt (24 Oct 2026, decisions 256–259): whole-job A3 videos deleted (zone videos stand in), Part 8 closing text, no typed day lines.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { INSTALL_EVIDENCE_QUESTIONS as Q, SWMS_QUESTIONS as S, readInstallEvidence, swmsBlockers, zoneVideoFiles } from "../src/lib/install-evidence.core";

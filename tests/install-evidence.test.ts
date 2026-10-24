@@ -211,7 +211,7 @@ describe("SWMS section (decisions 206/256/258)", () => {
   });
   test("a form still on an older SWMS (no standard-controls tick) fails closed with a pointer to the prompt", () => {
     const old = readInstallEvidence({ items: [text("SWMS — prepared by (installer business name)", "X")] });
-    expect(swmsBlockers(old.swms, {})).toEqual([`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md and docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md to the template.`]);
+    expect(swmsBlockers(old.swms, {})).toEqual([`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md to the template.`]);
   });
   test("official Part 3 ticks are cross-checked, never removed: Yes on a half-done SWMS contradicts; No on a complete one must be corrected", () => {
     const done = readInstallEvidence({ items: swmsItems() }).swms;

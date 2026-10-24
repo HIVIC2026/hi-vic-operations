@@ -101,7 +101,7 @@ The SWMS is the legal minimum (decisions 256 and 258, `docs/SWMS_REQUIREMENTS_VI
 42. `Lead installer signature at completion` — Signature — Required
 
 
-Note: the two whole-job video questions (`Before installation, please record a clear video …` and `After installation, please record a clear video …`) are deleted by `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` §2 — the per-zone before / after videos in Part B satisfy the before-work and completed-work video evidence. Older forms that still carry them keep working (a whole-job video still counts).
+Note: the two whole-job video questions (`Before installation, please record a clear video …` and `After installation, please record a clear video …`) are deleted by `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` — the per-zone before / after videos in Part B satisfy the before-work and completed-work video evidence. Older forms that still carry them keep working (a whole-job video still counts).
 
 ## Part F: remove the old final-plan upload (decision 211)
 
