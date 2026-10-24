@@ -5,12 +5,14 @@ export const PIISA_POSTWORK = [
   { key: "final_plan", category: "final_zone_plan", label: "Final roof-space plan", accept: (type: string) => type.startsWith("image/") || type === "application/pdf" },
 ] as const;
 
-export function currentPostworkMedia(audit: unknown): { files: { key: typeof PIISA_POSTWORK[number]["key"]; media: A3MediaFile[] }[]; blockers: string[] } {
+/** Decision 211: when the portal's generated final plan is on file, the PIISA "final plan" attachment is not required (an upload is still copied when present). */
+export function currentPostworkMedia(audit: unknown, opts: { generatedFinalPlan?: boolean } = {}): { files: { key: typeof PIISA_POSTWORK[number]["key"]; media: A3MediaFile[] }[]; blockers: string[] } {
   const media = a3MediaFiles(audit);
   const blockers: string[] = [];
   const files = PIISA_POSTWORK.map((r) => {
     const actual = media[r.key];
-    if (!actual.length || actual.some((f) => !f.mediaId)) blockers.push(`${r.label}: attach the actual after-installation evidence to this PIISA; signing does not finish the form.`);
+    const waived = r.key === "final_plan" && opts.generatedFinalPlan === true;
+    if (!waived && (!actual.length || actual.some((f) => !f.mediaId))) blockers.push(`${r.label}: attach the actual after-installation evidence to this PIISA; signing does not finish the form.`);
     return { key: r.key, media: actual };
   });
   return { files, blockers };

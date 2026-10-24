@@ -40,6 +40,12 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
     }
   }
 
+  // 1b. Decision 211: the Table 4 upgrade area diagram, drawn from the completed form's areas (idempotent per facts; never blocks).
+  if (plan.kind === "complete" || plan.kind === "already") {
+    const { fileReadyCheckAreaDiagram } = await import("./area-diagram.server");
+    await fileReadyCheckAreaDiagram(jobId, null, { entries: i.entries, auditId: i.auditId });
+  }
+
   // 2. Stage: Ready Check → complete → quote stage (guarded; a refusal is held with its reasons).
   if ((job.channel === "installer_sourced")) { const { holdAtMittiReadyCheck } = await import("./mitti-pickup.server"); await holdAtMittiReadyCheck(jobId, null).catch(() => false); }
   for (const to of ["ready_check_complete", "measured_estimate_ready"] as const) {

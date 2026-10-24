@@ -30,7 +30,8 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
   const { answersFromDocument, B1_OPTIONS } = await import("./official-forms.core");
   const pe = await currentCopy(jobId, "piesa");
   const b1 = pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] : null;
-  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), lifeSupportConsentOnFile: !!ls?.value || (lsDoc ?? []).length > 0 };
+  const generatedFinalPlan = await (await import("./area-diagram.server")).hasGeneratedFinalPlan(jobId);
+  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), generatedFinalPlan, lifeSupportConsentOnFile: !!ls?.value || (lsDoc ?? []).length > 0 };
 }
 
 export async function storeSignatureImage(jobId: string, auditId: string, sig: A3PrestartSnapshot["signature"], fetchMedia: MittiMediaFetch): Promise<StoredSignature> {
