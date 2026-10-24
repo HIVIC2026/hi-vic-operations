@@ -188,8 +188,6 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     }
   }
 
-  const { data: rcGate } = await admin.from("workflow_settings").select("ready_check_booking_enabled").eq("id", 1).maybeSingle();
-  const rcBookingOpen = rcGate?.ready_check_booking_enabled === true;
   const out: OfficeJob[] = live.map((j) => {
     const id = String(j["id"]), stage = String(j["stage"]);
     const c = campaign.get(id); const q = instQ.get(id); const rq = rectQ.get(id); const p = pie.get(id);
@@ -199,7 +197,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       id, stage, createdAt: String(j["created_at"]), lastActivityAt: s(j["last_activity_at"]), enteredStageAt: entered.get(`${id}:${stage}`) ?? null,
       holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]),
       campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]), queuePriority: s(c["queue_priority"]) } : null,
-      estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, readyCheckBookingOpen: rcBookingOpen, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null, measurementStartedAt: measAt.get(id) ?? null,
+      estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null, measurementStartedAt: measAt.get(id) ?? null,
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]) } : null,
       rectQuote: rq ? { releaseState: s(rq["release_state"]), sentAt: s(rq["sent_at"]), status: String(rq["status"]) } : null,

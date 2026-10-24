@@ -127,7 +127,7 @@ export async function loadJobPage(jobId: string) {
       lastHeard: lastHeard ? { at: lastHeard.at, channel: lastHeard.channel } : null, lifeSupport: !!job.life_support,
       statusPill: closed === "cancelled" ? "Cancelled" : closed === "complete" ? "Complete" : job.stage === "on_hold" ? "On hold" : status?.label ?? null,
       installBy: deadline && !job.installation_completed_at ? deadline : null, escDue: escNotice.data && !escNotice.data.sent_at ? escNotice.data.due_by : null,
-      canDelete: job.source === "qa_test", canReopen: closed === "cancelled",
+      canDelete: job.source === "qa_test", canReopen: job.stage !== "complete" && (job.stage === "cancelled" || job.eligibility_outcome === "does_not_appear_eligible" || job.source === "qa_test"),
     },
     next, cards: buildStageCards(cardFacts), stage,
     waitingFor: next.who === "nobody" ? "nothing — it happens automatically" : next.who === "us" ? `us — ${next.sentence.charAt(0).toLowerCase()}${next.sentence.slice(1)}` : `the ${next.who} — ${next.sentence.replace(/^Waiting for the [a-z]+: /, "")}`,

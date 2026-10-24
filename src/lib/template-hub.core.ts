@@ -78,7 +78,7 @@ const MITTI: TemplateEntry[] = MITTI_FORM_ORDER.map((o) => ({
   approval: "Not recorded", view: { kind: "mitti" as const, formKey: o.key },
 }));
 
-const REGISTER_FOR_TEMPLATE: Record<string, string> = { esc_consent: "ESC Owner Consent (Reg 23A)", installer_declaration: "Installer Declaration", consumer_declaration: "Final Activity 48 VEEC Assignment" };
+const REGISTER_FOR_TEMPLATE: Record<string, string> = { esc_consent: "ESC Owner Consent (Reg 23A)", consumer_declaration: "Final Activity 48 VEEC Assignment" };
 const MERGED = new Set(Object.values(REGISTER_FOR_TEMPLATE));
 const MITTI_FOR_REGISTER: Record<string, FormKey[]> = {
   "Ready Check (Home Insulation Victoria checklist)": ["ready_check_priced", "ready_check"],

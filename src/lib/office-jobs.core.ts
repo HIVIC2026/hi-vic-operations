@@ -91,6 +91,49 @@ export function reopenBlocker(j: { stage: string | null; priorStage: string | nu
   return r ? `It was at a retired step (${j.priorStage.replaceAll("_", " ")}): ${r}` : null;
 }
 
+export type ReopenFacts = {
+  stage: string | null;
+  priorStage: string | null;
+  eligibilityOutcome: string | null;
+  source: string | null;
+  /** Source recorded on the latest "marked_test" event (null = born a TEST job or marked before it was recorded). */
+  testPriorSource: string | null;
+  /** A "lead_removed" event exists: the list view keeps it in Removed for good. */
+  removedLead: boolean;
+  /** Second contact for the same owner/property (contact_rank > 1): it is the other job's duplicate. */
+  duplicateContact: boolean;
+  retired: (s: string) => string | null;
+};
+export type ReopenPlan =
+  | { ok: false; blocker: string }
+  | { ok: true; stage: string | null; clearIneligible: boolean; source: string | null };
+
+/**
+ * Reopen from Closed (decision 227; office gaps A4): every closed reason except Completed, always with a reason.
+ * Undoes exactly what closed it: a cancelled stage goes back to the stage it was at; an ineligible decision goes back
+ * to "confirm on site" (decision 238: eligibility is decided at the Ready Check); a job marked as test gets its recorded
+ * source back. Born-TEST jobs, removed leads and duplicate contacts cannot be reopened (they stay where they are).
+ */
+export function reopenPlan(f: ReopenFacts): ReopenPlan {
+  if (f.stage === "complete") return { ok: false, blocker: "Completed jobs stay closed. Their record is final." };
+  if (f.removedLead) return { ok: false, blocker: "Removed leads (duplicates / junk) stay in Removed. Add a new enquiry if the owner comes back." };
+  if (f.duplicateContact) return { ok: false, blocker: "This is a second contact for the same owner and property — open the other job instead." };
+  let source: string | null = null;
+  if (f.source === "qa_test") {
+    if (!f.testPriorSource || f.testPriorSource === "qa_test") return { ok: false, blocker: "This was created as a TEST job (or its earlier source was not recorded), so it stays a test record." };
+    source = f.testPriorSource;
+  }
+  let stage: string | null = null;
+  if (f.stage === "cancelled") {
+    const b = reopenBlocker({ stage: f.stage, priorStage: f.priorStage, retired: f.retired });
+    if (b) return { ok: false, blocker: b };
+    stage = f.priorStage;
+  }
+  const clearIneligible = f.eligibilityOutcome === "does_not_appear_eligible";
+  if (!stage && !clearIneligible && !source) return { ok: false, blocker: "Nothing recorded on this job can be undone by reopening it." };
+  return { ok: true, stage, clearIneligible, source };
+}
+
 /** Surname for one-line rows ("Papadopoulos"); full name when only one word. */
 export function surnameOf(full: string | null | undefined): string {
   const w = (full ?? "").trim().split(/\s+/).filter(Boolean);

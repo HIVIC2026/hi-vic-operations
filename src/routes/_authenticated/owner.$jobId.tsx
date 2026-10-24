@@ -1,5 +1,4 @@
 import { VisitContactsCard } from "@/components/portal/allocation";
-import { OwnerInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { PiesaTimesCard } from "@/components/portal/piesa-times";
 import { OwnerVisitChangeCard } from "@/components/portal/visit-changes";
 import { OwnerInstallDaysCard } from "@/components/portal/install-days";
@@ -50,7 +49,7 @@ function OwnerJob() {
         {(s === "new_enquiry" || s === "eligibility_review" || s === "awaiting_electrician" || s === "assessment_booking") && <OwnerEstimateCard jobId={jobId} />}
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
-        <PaymentsPanel jobId={jobId} isAdmin={false} /><OwnerInstalmentPlanCard jobId={jobId} />
+        <PaymentsPanel jobId={jobId} isAdmin={false} />
         {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && <PiesaTimesCard jobId={jobId} />}
         {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && <OwnerVisitChangeCard jobId={jobId} />}
         {s === "installation_scheduling" && <OwnerInstallDaysCard jobId={jobId} />}

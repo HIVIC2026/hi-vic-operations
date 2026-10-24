@@ -41,6 +41,7 @@ import { OfficeFixesQuoteReview } from "@/components/portal/allocation";
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { AdminBookingOverride } from "@/components/portal/partner";
+import { manualVisitKind } from "@/lib/pilot.core";
 import { AssessmentView, Compliance, ComplianceRecords, EligibilityForm, JobCoverage, Veec } from "@/components/portal/office-job-parts";
 
 export type JobPage = Awaited<ReturnType<typeof import("@/lib/office-job-page.server").loadJobPage>>;
@@ -466,6 +467,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
   const reopen = useAction(reopenOfficeJob);
   const bulk = useAction(bulkJobAction);
   const closed = h.stage === "cancelled" || h.stage === "complete";
+  const visitKind = manualVisitKind(h.stage);
   const item = "block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist";
   return (
     <div className="relative">
@@ -478,7 +480,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
           {!closed && <button role="menuitem" type="button" className={cn(item, "text-rose")} onClick={() => setCancelOpen(true)}>Cancel job…</button>}
           {h.canReopen && <button role="menuitem" type="button" className={item} onClick={() => setDialog("reopen")}>Reopen…</button>}
           {h.canDelete && <button role="menuitem" type="button" className={cn(item, "text-rose")} onClick={() => setDialog("delete")}>Delete (test jobs only)</button>}
-          {!closed && <button role="menuitem" type="button" className={item} onClick={() => setDialog("override")}>Set a visit time by hand…</button>}
+          {!closed && visitKind && <button role="menuitem" type="button" className={item} onClick={() => setDialog("override")}>Set a visit time by hand…</button>}
         </div>
       )}
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
@@ -488,8 +490,8 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
       <ReasonDialog title={`Delete ${h.jobNumber}`} description="TEST jobs only. Signed or sent records linked to it stop the delete and are kept." action="Delete" tone="rose" open={dialog === "delete"} onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: [h.jobId], action: "delete", reason }); if (r?.failed.length) { toast.error(r.failed[0]!.error ?? "Could not delete"); return false; } if (r) { toast.success("Deleted"); onDeleted(); } return !!r; }} />
       <Dialog open={dialog === "override"} onOpenChange={(v) => setDialog(v ? "override" : null)}>
         <DialogContent data-why="decision 220: one hidden office override for phone bookings, reason required, logged">
-          <DialogHeader><DialogTitle>Set a visit time by hand</DialogTitle><DialogDescription>For phone bookings only. Recorded permanently with your reason.</DialogDescription></DialogHeader>
-          <AdminBookingOverride jobId={h.jobId} />
+          <DialogHeader><DialogTitle>Set a visit time by hand · {visitKind === "ready_check" ? "Ready Check" : "PIESA"}</DialogTitle><DialogDescription>For phone bookings only. Recorded permanently with your reason.</DialogDescription></DialogHeader>
+          {visitKind && <AdminBookingOverride jobId={h.jobId} kind={visitKind} />}
         </DialogContent>
       </Dialog>
     </div>

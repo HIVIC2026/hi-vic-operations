@@ -44,7 +44,9 @@ describe("staff portal presentation helpers", () => {
   test("exact targets stay on real controls (the old job fold-outs and list row were replaced by the O2/O3 screens)", () => {
     const panels = readFileSync("src/components/portal/panels.tsx", "utf8");
     const intake = readFileSync("src/components/portal/intake.tsx", "utf8");
-    expect(panels).toContain('id="target-deposit-request" data-portal-focus="target"');
+    // The Xero deposit-request button is gone (audit removal 4; decisions 139–144): the only path to it was the retired
+    // awaiting_deposit_payment stage, so the target no longer has a control.
+    expect(panels).not.toContain('id="target-deposit-request"');
     expect(intake).toContain('id="target-intake-consent" data-portal-focus="target"');
   });
 });

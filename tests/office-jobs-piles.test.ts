@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { closedWhy, enquiryPile, ENQUIRY_PILES, jobsStage, JOBS_STAGES, reopenBlocker, waitingOnLine } from "../src/lib/office-jobs.core";
-import { JOB_STAGES } from "../src/lib/job-list-page.core";
+import { closedWhy, enquiryPile, ENQUIRY_PILES, jobsStage, JOBS_STAGES, reopenBlocker, reopenPlan, waitingOnLine } from "../src/lib/office-jobs.core";
+import { CLOSED_FILTERS, JOB_STAGES, closedAllCount } from "../src/lib/job-list-page.core";
+import { readFileSync } from "node:fs";
 
 // Decision 239 + Jo's firm rule (21 Oct): one pile per job.
 test("Jobs: every open stage maps to exactly one of the six stages; spot saved without installer is Choose installer", () => {
@@ -53,4 +54,32 @@ test("Closed: why + reopen rules (decision 227)", () => {
   expect(reopenBlocker({ stage: "cancelled", priorStage: null, retired })).toMatch(/no earlier stage/);
   expect(reopenBlocker({ stage: "cancelled", priorStage: "assessment_booking", retired })).toMatch(/retired/);
   expect(reopenBlocker({ stage: "complete", priorStage: "ready_for_veec", retired })).toMatch(/final/);
+});
+
+test("Closed: All chip first (approved O3), its count is the sum of the four exclusive piles", () => {
+  expect(CLOSED_FILTERS).toEqual(["all", "completed", "cancelled", "ineligible", "test"]);
+  expect(closedAllCount({ completed: 1180, cancelled: 84, ineligible: 41, test: 7 })).toBe(1312);
+  const ui = readFileSync("src/components/portal/JobsScreen.tsx", "utf8");
+  expect(ui).toContain('useState<JobClosedFilter>("all")');
+  expect(ui).toContain("CLOSED_FILTERS.map(");
+  const loader = readFileSync("src/lib/job-list-page.server.ts", "utf8");
+  expect(loader).toContain('mode === "closed" && closedView !== "all"');
+});
+
+test("Closed: Reopen for every closed reason except Completed (office gaps A4)", () => {
+  const retired = (s: string) => (s === "assessment_booking" ? "retired" : null);
+  const base = { stage: "cancelled", priorStage: "pending_quote", eligibilityOutcome: null, source: "base44", testPriorSource: null, removedLead: false, duplicateContact: false, retired };
+  expect(reopenPlan(base)).toEqual({ ok: true, stage: "pending_quote", clearIneligible: false, source: null });
+  expect(reopenPlan({ ...base, stage: "complete" })).toMatchObject({ ok: false, blocker: expect.stringMatching(/final/) });
+  // Ineligible: decision back to confirm on site; a cancelled ineligible job also gets its stage back.
+  expect(reopenPlan({ ...base, stage: "new_enquiry", eligibilityOutcome: "does_not_appear_eligible" })).toEqual({ ok: true, stage: null, clearIneligible: true, source: null });
+  expect(reopenPlan({ ...base, eligibilityOutcome: "does_not_appear_eligible" })).toEqual({ ok: true, stage: "pending_quote", clearIneligible: true, source: null });
+  // Marked as test: the recorded source comes back; born-TEST jobs stay test records.
+  expect(reopenPlan({ ...base, stage: "new_enquiry", source: "qa_test", testPriorSource: "base44" })).toEqual({ ok: true, stage: null, clearIneligible: false, source: "base44" });
+  expect(reopenPlan({ ...base, stage: "new_enquiry", source: "qa_test", testPriorSource: null })).toMatchObject({ ok: false, blocker: expect.stringMatching(/TEST job/) });
+  // Removed leads and duplicate contacts stay where they are.
+  expect(reopenPlan({ ...base, removedLead: true })).toMatchObject({ ok: false, blocker: expect.stringMatching(/Removed/) });
+  expect(reopenPlan({ ...base, duplicateContact: true })).toMatchObject({ ok: false, blocker: expect.stringMatching(/other job/) });
+  expect(reopenPlan({ ...base, priorStage: "assessment_booking" })).toMatchObject({ ok: false, blocker: expect.stringMatching(/retired/) });
+  expect(reopenPlan({ ...base, stage: "new_enquiry" })).toMatchObject({ ok: false });
 });

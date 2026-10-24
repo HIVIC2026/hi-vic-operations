@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { appointmentSla, directBookingBlocker, electricianReassignmentRoute, proposalResponse } from "../src/lib/pilot.core";
+import { appointmentSla, directBookingBlocker, electricianReassignmentRoute, manualVisitKind, proposalResponse } from "../src/lib/pilot.core";
 
 const now = new Date("2026-09-28T12:00:00Z");
 const at = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
@@ -32,6 +32,25 @@ describe("assessment scheduling has one normal path", () => {
     expect(b).toContain("directBookingBlocker(");
     expect(b).toContain('"admin_booking_override"');
     expect(b).toContain("confirmBooking(");
+  });
+  test("decision 220: the hidden by-hand visit time also covers the Ready Check (admin only, reason required, logged)", () => {
+    expect(directBookingBlocker("ready_check", "installer", "x".repeat(10))).toMatch(/agreed between the owner and the installer/);
+    expect(directBookingBlocker("ready_check", "owner", "x".repeat(10))).toMatch(/agreed/);
+    expect(directBookingBlocker("ready_check", "admin")).toMatch(/reason/);
+    expect(directBookingBlocker("ready_check", "admin", "Owner phoned, installer agreed Tue 9am")).toBeNull();
+    expect(manualVisitKind("ready_check_ready_to_schedule")).toBe("ready_check");
+    expect(manualVisitKind("ready_check_scheduled")).toBe("ready_check");
+    expect(manualVisitKind("piesa_and_install_window_pending")).toBe("assessment");
+    expect(manualVisitKind("piesa_scheduled")).toBe("assessment");
+    expect(manualVisitKind("quote_ready")).toBeNull();
+    expect(manualVisitKind("cancelled")).toBeNull();
+    const b = fnBody("src/lib/portal.functions.ts", "createBooking");
+    expect(b).toContain('"ready_check"');
+    expect(b).toMatch(/override = data\.kind === "assessment" \|\| data\.kind === "ready_check"/);
+    expect(b).toContain("onReadyCheckBooked(");
+    const ui = src("src/components/portal/office-job.tsx");
+    expect(ui).toContain("manualVisitKind(h.stage)");
+    expect(ui).toContain("<AdminBookingOverride jobId={h.jobId} kind={visitKind} />");
   });
   test("accepting a proposal goes through central confirmBooking (which sets booking_confirmed_at)", () => {
     expect(fnBody("src/lib/pilot.functions.ts", "respondToProposal")).toContain("confirmBooking(");
