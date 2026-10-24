@@ -36,9 +36,10 @@ describe("Stage 7: incomplete Ready Check form", () => {
   test("same gaps in any order share one signature (one text, not one per sync)", () => {
     expect(missingSignature(["b", "a"])).toBe(missingSignature(["a", "b"]));
   });
-  test("draft text names the job and the gaps", () => {
+  test("decision 83 'Nearly there' text verbatim (brand prefix added by the sender); no address → no brackets", () => {
     expect(readyCheckIncompleteText("HV-1", "1 Test St, Testville", ["a photo showing the insulation depth"]))
-      .toBe("Ready Check HV-1 (1 Test St, Testville) is missing: a photo showing the insulation depth. Please update it in Mitti. – Home Insulation Victoria");
+      .toBe("Nearly there! HV-1 (1 Test St, Testville) still needs: a photo showing the insulation depth. Add them in Mitti and we'll prepare the owner's quote.");
+    expect(readyCheckIncompleteText("HV-1", null, ["a", "b"])).toBe("Nearly there! HV-1 still needs: a; b. Add them in Mitti and we'll prepare the owner's quote.");
   });
 });
 
@@ -106,9 +107,9 @@ describe("Stage 8: saved spot while Ready Check booking is OFF", () => {
 
 import { SMS_MESSAGE_TYPES as __T } from "../src/lib/sms.core";
 import { readyCheckIncompleteText as __txt } from "../src/lib/ready-check-chase.core";
-describe("Jo 22 Oct approvals", () => {
-  test("installer 'form incomplete' text is approved with Jo's exact wording", () => {
+describe("Jo 22 Oct approval, wording superseded by decision 83 (24 Oct)", () => {
+  test("installer 'form incomplete' text is approved with Jo's exact 24 Oct wording", () => {
     expect((__T as Record<string, { wordingApproved: boolean }>)["ready_check_incomplete"]!.wordingApproved).toBe(true);
-    expect(__txt("HV-1234", "2A Chatfield St, Kingsville", ["a photo showing the insulation depth"])).toBe("Ready Check HV-1234 (2A Chatfield St, Kingsville) is missing: a photo showing the insulation depth. Please update it in Mitti. – Home Insulation Victoria");
+    expect(__txt("HV-1234", "2A Chatfield St, Kingsville", ["a photo showing the insulation depth"])).toBe("Nearly there! HV-1234 (2A Chatfield St, Kingsville) still needs: a photo showing the insulation depth. Add them in Mitti and we'll prepare the owner's quote.");
   });
 });

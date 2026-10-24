@@ -28,6 +28,10 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
   install_clearance: { audience: "partner", label: "Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: true, quietHours: true },
+  // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
+  ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
+  ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
+  install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
@@ -60,6 +64,9 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   install_window_reminder_installer: { kind: "window" }, // same steps, installer side
   deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
   install_clearance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = electrical clearance becoming valid (recorded once per job + timing date before any send)
+  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
+  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
+  install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
 };
 
 export type SmsEventInput = {

@@ -95,6 +95,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installClearance'] = "failed";
         }
         try {
+          // Decisions 79/82/99 (built per 193): "Install tomorrow" to the installer from the afternoon before, and a 24h
+          // catch-up for the owner-suggested-days and Ready-Check-booked installer texts whose live trigger was missed.
+          // One `installer_text_prepared` event per text before sending; TEST → test-send; real → sendRealSms.
+          const { sweepInstallerTexts } = await import("@/lib/installer-texts.server");
+          (out as Record<string, unknown>)['installerTexts'] = await sweepInstallerTexts();
+        } catch (e) {
+          console.error("allocation tick: installer texts sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installerTexts'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");

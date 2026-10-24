@@ -43,7 +43,7 @@ describe("decision 165: outcome classes, non-claiming held keys and freshness (p
     expect(smsStaleReason("quote_ready", { at: "2026-10-21T02:00:00Z" }, now)).toContain("Too late");
   });
   test("window types (scheduled/recomputed) are never stale here: their key names the window", () => {
-    for (const t of ["daily_mitti", "daily_mitti_update", "esc_notice_link", "veec_sign_request", "veec_sign_reminder", "save_spot_reminder"]) {
+    for (const t of ["daily_mitti", "daily_mitti_update", "esc_notice_link", "veec_sign_request", "veec_sign_reminder", "save_spot_reminder", "install_tomorrow"]) {
       expect(SMS_FRESHNESS[t as keyof typeof SMS_FRESHNESS].kind).toBe("window");
       expect(smsStaleReason(t, undefined, now)).toBeNull();
     }
