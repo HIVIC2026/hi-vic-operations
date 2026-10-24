@@ -103,6 +103,9 @@ export const submitInstallerJob = createServerFn({ method: "POST" }).middleware(
     const res = await upsertEnquiry(data, await intakeSourceFor(context.userId, prof.business_id, "installer_portal"), context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: prof.business_id, assigned_by: context.userId });
     await logEvent(res.job_id, context.userId, "contractor_assigned", `Installer assigned (originating installer): ${prof.full_name ?? "installer"} – ${biz.name}`);
+    // Jo 24 Oct (HV-3151, decision 115): the installer's Mitti Ready Check form is prepared straight away (same switches
+    // and atomic claim as Add a job); otherwise the 15-minute sweep makes it. Best effort, never blocks the save.
+    if (res.created) await (await import("./mitti-create.server")).onReadyCheckJobAdded(res.job_id, context.userId).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
     return res;
   });
 
@@ -479,7 +482,11 @@ export const createMittiAssessment = createServerFn({ method: "POST" }).middlewa
     await requireAdmin(context.supabase);
     const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
     // T3: the office's explicit action may supersede an earlier attempt whose result is unknown (>= 10 min old, recorded).
-    return createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
+    const r = await createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
+    // Jo 24 Oct (HV-3151): an installer's own customer with its Ready Check form made waits on the installer (same hold
+    // as the automatic sweep and Mitti pickup); the hold itself refuses our leads and later stages, and sends nothing.
+    await (await import("./mitti-pickup.server")).holdAtMittiReadyCheck(data.jobId, context.userId).catch(() => false);
+    return r;
   });
 
 export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

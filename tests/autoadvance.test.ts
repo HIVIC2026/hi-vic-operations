@@ -145,4 +145,14 @@ describe("Gate 1 auto-decision", () => {
     const x = fake("new_enquiry", { eligibilityConfirmed: true, electricianAssigned: false });
     expect((await runAutoAdvance(x.deps)).to).toBe("preliminary_estimate_ready");
   });
+  test("an installer's own customer never waits for a spot: Ready Check ready to schedule, then stop (Jo 24 Oct, HV-3151)", async () => {
+    for (const start of ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"] as const) {
+      const x = fake(start, { installerSourced: true });
+      const r = await runAutoAdvance(x.deps);
+      expect(r.to).toBe("ready_check_ready_to_schedule");
+      expect(x.log).toHaveLength(1);
+    }
+    const accepted = fake("new_enquiry", { installerSourced: true, measureUpAccepted: true });
+    expect((await runAutoAdvance(accepted.deps)).to).toBe("ready_check_complete"); // an office-accepted measure-up still skips the Ready Check
+  });
 });

@@ -3,6 +3,7 @@
 // Mitti sync NEVER completes an assessment, writes PIESA records, moves stages or issues quotes —
 // completeAssessment remains the authoritative gate.
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
+import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -11,6 +12,16 @@ export const STANDARD_RATE_CODES = ["CALLOUT", "DOWNLIGHT_UPGRADE", "EXHAUST_CLE
 export const MITTI_ASSIGN_STAGES = ["piesa_and_install_window_pending", "piesa_scheduled"] as const;
 /** The installer's Ready Check form (never PIESA) may be sent while the Ready Check is being arranged. */
 export const MITTI_READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"] as const;
+export const MITTI_STAGE_GUARD_MESSAGE = "Mitti assessments can only be created once the job is waiting on or has booked its PIESA.";
+/**
+ * Jo 24 Oct 2026 (HV-3151): an installer's own customer (channel installer_sourced) gets the Ready Check form in
+ * EVERY pre-Ready-Check stage — the automatic sweep (mitti-autoform) and the office button read the same rule, so a
+ * job that the website checks parked at "estimate sent" is never refused. Our leads keep the two scheduling stages.
+ */
+export function readyCheckFormStageAllowed(stage: string, channel: string | null | undefined): boolean {
+  if ((MITTI_READY_CHECK_STAGES as readonly string[]).includes(stage)) return true;
+  return channel === "installer_sourced" && (PRE_READY_CHECK_STAGES as readonly string[]).includes(stage);
+}
 
 export class MittiError extends Error {
   readonly status?: number;
@@ -284,6 +295,8 @@ export type CreateCtx = {
   electricianEmail: string | null; prefill: PrefillCtx;
   /** Defaults to the electrician PIESA template. Installer measure-up passes the configured measure-up template (never invented). */
   templateId?: string; assigneeRole?: "electrician" | "installer";
+  /** jobs.channel — installer-sourced jobs may receive the Ready Check form in any pre-Ready-Check stage. */
+  channel?: string | null;
 };
 export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };
 
@@ -294,8 +307,8 @@ export function pickUser(res: Any, email: string): Any | null {
 
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
   if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for Home Insulation Victoria jobs.");
-  const readyCheckSend = ctx.assigneeRole === "installer" && (MITTI_READY_CHECK_STAGES as readonly string[]).includes(ctx.stage);
-  if (!readyCheckSend && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created once the job is waiting on or has booked its PIESA.");
+  const readyCheckSend = ctx.assigneeRole === "installer" && readyCheckFormStageAllowed(ctx.stage, ctx.channel);
+  if (!readyCheckSend && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError(MITTI_STAGE_GUARD_MESSAGE);
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
   if (!canonicalMittiTemplateId(templateId)) throw new MittiError("The Mitti template for this scope is not configured with a valid form ID.");

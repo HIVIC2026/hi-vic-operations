@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
-import { AUTOFORM_ENABLED, AUTOFORM_MAX_PER_TICK, autoFormDecision, type AutoFormFacts } from "../src/lib/mitti-autoform.core";
+import { AUTOFORM_ENABLED, AUTOFORM_MAX_PER_TICK, autoFormDecision, isStageFailure, type AutoFormFacts } from "../src/lib/mitti-autoform.core";
 
 const now = new Date("2026-10-23T09:00:00Z");
 const ok: AutoFormFacts = {
@@ -26,6 +26,19 @@ describe("autoFormDecision", () => {
     [{ lastFailureAt: "2026-10-23T08:00:00Z" }, "last attempt failed – retrying tomorrow"],
   ] as [Partial<AutoFormFacts>, string][])("skips %o", (over, reason) => expect(autoFormDecision({ ...ok, ...over }, now, true)).toEqual({ action: "skip", reason }));
   test("a failure more than a day old is retried", () => expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-22T08:00:00Z" }, now, true).action).toBe("create"));
+  // Jo 24 Oct (HV-3151): Add a job / Add one job / Upload jobs can leave an installer job in any pre-Ready-Check stage
+  // (the website checks parked HV-3151 at "estimate sent"); the form is made there, and a stage refusal never waits a day.
+  test("an installer job in any pre-Ready-Check stage gets its form (HV-3151 sat at 'estimate sent')", () => {
+    for (const stage of ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled"])
+      expect(autoFormDecision({ ...ok, stage }, now, true)).toEqual({ action: "create" });
+  });
+  test("a stage refusal an hour ago is retried on the next tick; a Mitti error an hour ago still waits a day", () => {
+    const stageReason = "Mitti assessments can only be created once the job is waiting on or has booked its PIESA.";
+    expect(isStageFailure(stageReason)).toBe(true);
+    expect(isStageFailure("Mitti user not found for info@example.test")).toBe(false);
+    expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-23T08:00:00Z", lastFailureReason: stageReason }, now, true)).toEqual({ action: "create" });
+    expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-23T08:00:00Z", lastFailureReason: "Mitti user not found for info@example.test" }, now, true)).toEqual({ action: "skip", reason: "last attempt failed – retrying tomorrow" });
+  });
   // Jo 24 Oct (HV-3151/HV-3164): "I've visited" on Add a job leaves only a provisional size, which gives way to the form.
   test("a visited job's provisional size waits two hours for the installer's own form, then gets one", () => {
     const visited = { ...ok, hasCurrentMeasurement: true, provisionalOnly: true };
@@ -53,9 +66,12 @@ INSERT INTO jobs VALUES
  ('${j(3)}','HV-3116','installer_sourced','installer_mitti','ready_check_scheduled','2026-10-23T03:00:00Z',null,null,'${REAL}'),
  ('${j(4)}','HV-0001','hivic_sourced','base44','ready_check_ready_to_schedule','2026-10-23T03:00:00Z',null,null,null),
  ('${j(5)}','HV-3121','installer_sourced','installer_mitti','ready_check_ready_to_schedule','2026-10-23T03:12:00Z',null,null,'${TESTB}'),
- ('${j(6)}','HV-3099','installer_sourced','bulk_import','ready_check_ready_to_schedule','2026-10-23T03:00:00Z','2026-10-23T04:00:00Z',null,'${REAL}');
+ ('${j(6)}','HV-3099','installer_sourced','bulk_import','ready_check_ready_to_schedule','2026-10-23T03:00:00Z','2026-10-23T04:00:00Z',null,'${REAL}'),
+ ('${j(7)}','HV-3151','installer_sourced','installer_import','preliminary_estimate_ready','2026-10-23T05:00:00Z',null,null,'${REAL}');
 INSERT INTO ceiling_measurements (job_id, is_current) VALUES ('${j(3)}', true);
-INSERT INTO job_assignments VALUES ('${j(1)}','${U}','${REAL}','installer',true), ('${j(2)}','${U}','${REAL}','installer',true), ('${j(3)}','${U}','${REAL}','installer',true), ('${j(5)}','${U}','${TESTB}','installer',true), ('${j(6)}','${U}','${REAL}','installer',true);`);
+INSERT INTO job_assignments VALUES ('${j(1)}','${U}','${REAL}','installer',true), ('${j(2)}','${U}','${REAL}','installer',true), ('${j(3)}','${U}','${REAL}','installer',true), ('${j(5)}','${U}','${TESTB}','installer',true), ('${j(6)}','${U}','${REAL}','installer',true), ('${j(7)}','${U}','${REAL}','installer',true);
+-- HV-3151 as it was live on 23 Oct: the website checks parked it at "estimate sent" and the tick's attempt was refused by the stage guard 10 minutes ago.
+INSERT INTO workflow_events (job_id, event_type, summary, details, created_at) VALUES ('${j(7)}', 'mitti_autoform_failed', 'Mitti Ready Check form could not be created automatically', '{"needs_office": true, "reason": "Mitti assessments can only be created once the job is waiting on or has booked its PIESA."}', '2026-10-23T08:50:00Z');`);
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 mock.module("../src/lib/workflow.server", () => ({
@@ -89,19 +105,19 @@ describe("sweepReadyCheckForms", () => {
 
   test("dry run lists exactly the installer jobs that still need a form", async () => {
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
-    expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137"]);
+    expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137", "HV-3151"]); // HV-3151: stage refusal 10 min ago is no reason to wait a day
     expect(calls).toHaveLength(0);
   });
 
   test("creates forms through the guarded create path; TEST partner jobs go only to the TEST Mitti account; failures flag the office once", async () => {
     const r = await sweepReadyCheckForms({ now, enabled: true });
-    expect(Object.fromEntries(r.results.map((x) => [x.jobNumber, x.outcome]))).toEqual({ "HV-3121": "created", "HV-3136": "created", "HV-3137": "failed" });
+    expect(Object.fromEntries(r.results.map((x) => [x.jobNumber, x.outcome]))).toEqual({ "HV-3121": "created", "HV-3136": "created", "HV-3137": "failed", "HV-3151": "created" });
     expect(calls.every((c) => c.opts.readyCheck === true)).toBe(true);
     expect(calls.find((c) => c.jobId === j(5))!.opts.assignee!.email).toBe("jo@actpropertyinspections.com.au");
     expect(calls.find((c) => c.jobId === j(1))!.opts.assignee).toBeUndefined();
-    expect(holds.sort()).toEqual([j(1), j(5)].sort()); // made forms wait on the installer; the failed one is untouched
-    const { rows } = await db.query<{ n: number; needs: boolean }>("select count(*)::int n, bool_and((details->>'needs_office')::boolean) needs from workflow_events where event_type = 'mitti_autoform_failed' and job_id = $1", [j(2)]);
-    expect(rows[0]).toEqual({ n: 1, needs: true });
+    expect(holds.sort()).toEqual([j(1), j(5), j(7)].sort()); // made forms wait on the installer (HV-3151 leaves "estimate sent"); the failed one is untouched
+    const { rows } = await db.query<{ n: number; needs: boolean; kind: string }>("select count(*)::int n, bool_and((details->>'needs_office')::boolean) needs, min(details->>'kind') kind from workflow_events where event_type = 'mitti_autoform_failed' and job_id = $1", [j(2)]);
+    expect(rows[0]).toEqual({ n: 1, needs: true, kind: "mitti" }); // a Mitti error: backs off for a day
   });
 
   test("the next tick creates nothing new and does not retry the failure for a day", async () => {
