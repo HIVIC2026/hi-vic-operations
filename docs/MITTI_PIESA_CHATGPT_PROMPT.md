@@ -88,11 +88,11 @@ Finish with a checklist I can use to verify the published template: 45 questions
 
 ---
 
-## Second prompt: add the two product options (Ready Check and Install forms)
+## Second prompt: add the two product options (the two Ready Check forms)
 
 ---
 
-In Mitti, I have two existing templates: the **Ready Check** form and the **Install day** form. Each has a multiple-choice question `Insulation product` with six options. Give me click-by-click steps to add two more options to that question on BOTH templates, spelled exactly as below, keeping the existing six unchanged and in their current order, and then re-publish each template. The final list must read, in this order:
+In Mitti, I have two existing **Ready Check** templates (one for installers' own customers, one for Home Insulation Victoria leads). Each has a single-select multiple-choice question `Insulation product` with six options. The Install day form does NOT have this question and must not be changed. Give me click-by-click steps to add two more options to that question on BOTH Ready Check templates, spelled exactly as below, keeping the existing six unchanged and in their current order, and then re-publish each template. The final list must read, in this order:
 
 1. `Bradford Gold R5`
 2. `Bradford Gold R6`
@@ -103,6 +103,6 @@ In Mitti, I have two existing templates: the **Ready Check** form and the **Inst
 7. `Earthwool R5`
 8. `ECOWOOL R5`
 
-Finish with a check: open each template, confirm eight options spelled exactly as above, and confirm a form already in progress still opens.
+Finish with a check: open each Ready Check template, confirm eight options spelled exactly as above, and confirm a form already in progress still opens.
 
 ---
