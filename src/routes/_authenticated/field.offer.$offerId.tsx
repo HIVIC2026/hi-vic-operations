@@ -28,7 +28,7 @@ function OfferPage() {
   const take = useServerFn(takeTradeTime);
   const reply = useServerFn(replyTradeOffer);
   const offerTimes = useServerFn(offerTradeReadyCheckTimes);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-offer", offerId], queryFn: () => load({ data: { offerId } }) });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-offer", offerId], queryFn: () => load({ data: { offerId } }), staleTime: 15_000 });
   const [busy, setBusy] = useState<string | null>(null);
   const [took, setTook] = useState<string | null>(null);
   const [tooSlow, setTooSlow] = useState(false);

@@ -20,7 +20,7 @@ function Business() {
   const setTaking = useServerFn(setTradeTaking);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: () => load() });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: () => load(), staleTime: 30_000 });
   const [busy, setBusy] = useState(false);
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;

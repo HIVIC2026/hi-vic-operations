@@ -524,11 +524,11 @@ export async function nextStepBlockers(jobId: string) {
   let next = TRANSITIONS[stage]?.[0] ?? null;
   if (stage === "awaiting_deposit_payment") next = (await openRectCount(jobId)) > 0 ? "rectification_scheduling" : "installation_scheduling";
   if (stage === "rectification_booked") next = "installation_scheduling";
-  const blockers = next ? await stageEntryBlockers(jobId, next) : [];
-  const piesa = await piesaStatus(jobId);
+  // Speed (decision 280): the entry blockers, PIESA status and assignment status are independent reads — one round trip.
+  const [blockers, piesa, asgStatus] = await Promise.all([next ? stageEntryBlockers(jobId, next) : Promise.resolve([] as string[]), piesaStatus(jobId), assignmentStatus(jobId)]);
   if (piesa?.piesa_expired && !blockers.some((b) => b.startsWith("PIESA")))
     blockers.unshift(`PIESA 30-day window expired on ${piesa.install_deadline}. Reassessment required.`);
-  if ((await assignmentStatus(jobId)) === "variation_required" && !blockers.some((b) => b.startsWith("Assignment variation")))
+  if (asgStatus === "variation_required" && !blockers.some((b) => b.startsWith("Assignment variation")))
     blockers.unshift("Assignment variation must be reconfirmed by the customer.");
   // A stage move can be unblocked while the work that move implies is still outstanding. The Ready Check is the
   // clearest case: "ready_check_complete" has no entry guard, so Office needs the actual submission state to

@@ -35,3 +35,46 @@ export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote>
     formCompleted: (basics?.details as { completed?: boolean } | null)?.completed === true,
   };
 }
+
+const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined"] as const;
+
+/** Speed (decision 280): the same facts as `loadInstallerQuote`, for many jobs in five reads instead of five per job.
+ *  Per job the result is identical: latest Ready Check installation quote, its plain status, hold and form completion. */
+export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string, InstallerQuote>> {
+  const out = new Map<string, InstallerQuote>();
+  const ids = [...new Set(jobIds)];
+  if (!ids.length) return out;
+  const [{ data: jobs }, { data: qs, error }, { data: ms }, { data: basicsRows, error: be }] = await Promise.all([
+    admin.from("jobs").select("id, channel").in("id", ids),
+    admin.from("quotes").select(QUOTE_COLS).in("job_id", ids).eq("kind", "installation").in("status", QUOTE_STATUSES).order("created_at", { ascending: false }),
+    admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
+    admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+  ]);
+  if (error || be) throw new WorkflowError("Quote could not be read.");
+  const channelOf = new Map((jobs ?? []).map((j) => [j.id, j.channel ?? null]));
+  const latestQuote = new Map<string, NonNullable<typeof qs>[number]>();
+  for (const q of qs ?? []) if (q.job_id && !latestQuote.has(q.job_id)) latestQuote.set(q.job_id, q); // ordered newest first
+  const measurement = new Map((ms ?? []).map((m) => [m.job_id, m]));
+  const latestBasics = new Map<string, { completed?: boolean } | null>();
+  for (const b of basicsRows ?? []) if (b.job_id && !latestBasics.has(b.job_id)) latestBasics.set(b.job_id, (b.details as { completed?: boolean } | null) ?? null);
+  // Hold events only for unsent Ready Check quotes (the single loader checks `details @> {quote_id}`; same test here).
+  const unsent = [...latestQuote.values()].filter((q) => !q.sent_at && q.job_id && isReadyCheckQuote(q.option_code, measurement.get(q.job_id) ?? null));
+  const unsentJobIds = [...new Set(unsent.map((q) => q.job_id as string))];
+  const { data: holds, error: he } = unsentJobIds.length
+    ? await admin.from("workflow_events").select("job_id, details").in("job_id", unsentJobIds).eq("event_type", "quote_auto_send_held")
+    : { data: [] as { job_id: string | null; details: unknown }[], error: null };
+  if (he) throw new WorkflowError("Quote hold could not be checked.");
+  const heldQuoteIds = new Set((holds ?? []).map((h) => String((h.details as { quote_id?: unknown } | null)?.quote_id ?? "")));
+  for (const id of ids) {
+    const channel = channelOf.get(id) ?? null;
+    const q = latestQuote.get(id) ?? null;
+    if (!q || !isReadyCheckQuote(q.option_code, measurement.get(id) ?? null)) { out.set(id, NONE(channel)); continue; }
+    const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
+    out.set(id, {
+      applies: true, quote: { ...q, quote_items: lines }, channel,
+      sent: !!q.sent_at, accepted: q.status === "accepted", declined: q.status === "declined", held: !q.sent_at && heldQuoteIds.has(q.id),
+      formCompleted: latestBasics.get(id)?.completed === true,
+    });
+  }
+  return out;
+}

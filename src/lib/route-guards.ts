@@ -6,7 +6,40 @@ export { INSTALLER_BULK_UPLOAD_ENABLED };
 
 export type Access = { admin: boolean; installer: boolean; electrician: boolean; owner: boolean; businessAdmin: boolean; installerBusinessAdmin: boolean };
 
-export async function loadAccess(userId: string): Promise<Access> {
+// Speed (decision 280): the signed-in area's `beforeLoad` runs on EVERY navigation and used to make three network
+// round trips (auth user, roles, memberships) before any page data was asked for. These page guards are UI only —
+// every server function still checks access itself — so the answers are remembered for a short while per tab and
+// forgotten the moment the auth state changes (sign-in, sign-out, token refresh, user update).
+const GUARD_MEMO_MS = 60_000;
+type Memo<T> = { key: string; at: number; value: Promise<T> };
+let userMemo: Memo<Awaited<ReturnType<typeof supabase.auth.getUser>>> | null = null;
+let accessMemo: Memo<Access> | null = null;
+export function forgetGuardMemo() { userMemo = null; accessMemo = null; }
+if (typeof window !== "undefined") supabase.auth.onAuthStateChange(() => forgetGuardMemo());
+
+function remember<T>(slot: Memo<T> | null, key: string, make: () => Promise<T>, store: (m: Memo<T> | null) => void): Promise<T> {
+  if (slot && slot.key === key && Date.now() - slot.at < GUARD_MEMO_MS) return slot.value;
+  const value = make();
+  const m: Memo<T> = { key, at: Date.now(), value };
+  store(m);
+  value.catch(() => store(null)); // a failed read is never remembered
+  return value;
+}
+
+/** The signed-in user for page guards (same answer as `supabase.auth.getUser()`, remembered briefly per tab). */
+export function currentUser() {
+  return remember(userMemo, "me", async () => {
+    const r = await supabase.auth.getUser();
+    if (r.error || !r.data.user) userMemo = null; // only a signed-in answer is remembered
+    return r;
+  }, (m) => { userMemo = m; });
+}
+
+export function loadAccess(userId: string): Promise<Access> {
+  return remember(accessMemo, userId, () => loadAccessFresh(userId), (m) => { accessMemo = m; });
+}
+
+async function loadAccessFresh(userId: string): Promise<Access> {
   const [{ data: roles }, { data: members }] = await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id", userId),
     supabase.from("business_members").select("business_id").eq("user_id", userId).eq("member_role", "business_admin"),

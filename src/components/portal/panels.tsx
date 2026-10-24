@@ -60,7 +60,7 @@ export function useJob(jobId: string) {
 
 export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }: { jobId: string; quietWhenClear?: boolean; partner?: boolean }) {
   const fn = useServerFn(getJobBlockers);
-  const { data } = useQuery({ queryKey: ["blockers", jobId], queryFn: () => fn({ data: { jobId } }) });
+  const { data } = useQuery({ queryKey: ["blockers", jobId], queryFn: () => fn({ data: { jobId } }), staleTime: 15_000 });
   if (!data) return null;
   return <BlockersContent data={data} quietWhenClear={quietWhenClear} partner={partner} />;
 }

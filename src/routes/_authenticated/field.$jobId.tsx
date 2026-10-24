@@ -32,7 +32,7 @@ import { installTimeLabel } from "@/lib/install-days.core";
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
 function useMittiInvited() {
   const load = useServerFn(getMyMittiInvited);
-  return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
+  return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load(), staleTime: 300_000 }).data?.invited === true;
 }
 import { MeasurementReadOnly, useJobScope } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
 function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
-  const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
+  const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   if (role === "installer") return <TradeShell installer><InstallerFlow jobId={jobId} job={job} /></TradeShell>;
@@ -281,7 +281,7 @@ type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
 
 function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const load = useServerFn(getTradeJobPage);
-  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000 });
+  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);
