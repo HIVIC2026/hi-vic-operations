@@ -87,14 +87,19 @@ export async function loadNeedsHivic() {
   const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
   const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
   const seen = new Set<string>();
-  const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id))
-    .map((e) => ({ job_id: e.job_id, created_at: e.created_at, detail: (e.details as { reason?: string } | null)?.reason === "owner_times" ? "No electrician could take the owner's times." : undefined }));
+  const coverage = ok(exh, "allocation events").flatMap((e) => {
+    if (!e.job_id || withElec.has(e.job_id) || seen.has(e.job_id)) return [];
+    seen.add(e.job_id);
+    return [{ job_id: e.job_id, created_at: e.created_at, detail: (e.details as { reason?: string } | null)?.reason === "owner_times" ? "No electrician could take the owner's times." : undefined }];
+  });
   // Still-relevant "no longer approved" events: the flagged business is still the active electrician.
   const { data: activeElec } = await admin.from("job_assignments").select("job_id, business_id").eq("role", "electrician").eq("active", true);
   const activeKey = new Set((activeElec ?? []).map((a) => `${a.job_id}:${a.business_id}`));
   const recNoLongerApproved = ok(unappr, "electrician approval events")
-    .filter((e) => activeKey.has(`${e.job_id}:${(e.details as { business_id?: string } | null)?.business_id}`))
-    .map((e) => ({ job_id: e.job_id, since: e.created_at }));
+    .flatMap((e) => {
+      if (!e.job_id || !activeKey.has(`${e.job_id}:${(e.details as { business_id?: string } | null)?.business_id}`)) return [];
+      return [{ job_id: e.job_id, since: e.created_at }];
+    });
   const now = new Date();
   // Our-lead Ready Check times going back and forth between owner and installer: no office step (decision 52).
   const { READY_CHECK_TIME_NOTE } = await import("./ready-check-times.core");

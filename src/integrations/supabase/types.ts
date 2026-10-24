@@ -12614,7 +12614,7 @@ export type Database = {
           from_stage: Database["public"]["Enums"]["job_stage"] | null
           id: string
           internal: boolean
-          job_id: string
+          job_id: string | null
           summary: string
           to_stage: Database["public"]["Enums"]["job_stage"] | null
         }
@@ -12626,7 +12626,7 @@ export type Database = {
           from_stage?: Database["public"]["Enums"]["job_stage"] | null
           id?: string
           internal?: boolean
-          job_id: string
+          job_id?: string | null
           summary: string
           to_stage?: Database["public"]["Enums"]["job_stage"] | null
         }
@@ -12638,7 +12638,7 @@ export type Database = {
           from_stage?: Database["public"]["Enums"]["job_stage"] | null
           id?: string
           internal?: boolean
-          job_id?: string
+          job_id?: string | null
           summary?: string
           to_stage?: Database["public"]["Enums"]["job_stage"] | null
         }
@@ -12690,6 +12690,8 @@ export type Database = {
       workflow_settings: {
         Row: {
           authority_validity_months: number
+          auto_electrician_offers: boolean
+          auto_installer_offers: boolean
           auto_send_installer: boolean
           auto_send_mitti: boolean
           auto_send_quote: boolean
@@ -12711,6 +12713,7 @@ export type Database = {
           measurement_standard_version: string | null
           measurement_variance_tolerance_pct: number | null
           min_building_age_years: number
+          mitti_auto_quote_enabled: boolean
           mitti_measureup_template_id: string | null
           mitti_pickup_auto_enabled: boolean
           mitti_piesa_template_id: string | null
@@ -12740,6 +12743,8 @@ export type Database = {
         }
         Insert: {
           authority_validity_months?: number
+          auto_electrician_offers?: boolean
+          auto_installer_offers?: boolean
           auto_send_installer?: boolean
           auto_send_mitti?: boolean
           auto_send_quote?: boolean
@@ -12761,6 +12766,7 @@ export type Database = {
           measurement_standard_version?: string | null
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
+          mitti_auto_quote_enabled?: boolean
           mitti_measureup_template_id?: string | null
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
@@ -12790,6 +12796,8 @@ export type Database = {
         }
         Update: {
           authority_validity_months?: number
+          auto_electrician_offers?: boolean
+          auto_installer_offers?: boolean
           auto_send_installer?: boolean
           auto_send_mitti?: boolean
           auto_send_quote?: boolean
@@ -12811,6 +12819,7 @@ export type Database = {
           measurement_standard_version?: string | null
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
+          mitti_auto_quote_enabled?: boolean
           mitti_measureup_template_id?: string | null
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
