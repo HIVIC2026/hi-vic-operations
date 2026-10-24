@@ -82,6 +82,7 @@ import { Route as AuthenticatedFieldBusinessRouteImport } from './routes/_authen
 import { Route as AuthenticatedFieldMoneyRouteImport } from './routes/_authenticated/field.money'
 import { Route as AuthenticatedFieldSetupRouteImport } from './routes/_authenticated/field.setup'
 import { Route as AuthenticatedFieldWelcomeRouteImport } from './routes/_authenticated/field.welcome'
+import { Route as AuthenticatedFieldGuideRouteImport } from './routes/_authenticated/field.guide'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
@@ -522,6 +523,11 @@ const AuthenticatedFieldWelcomeRoute =
     path: '/welcome',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldGuideRoute = AuthenticatedFieldGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AuthenticatedFieldRoute,
+} as any)
 const AuthenticatedOwnerIndexRoute = AuthenticatedOwnerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -837,6 +843,7 @@ export interface FileRoutesByFullPath {
   '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/field/guide': typeof AuthenticatedFieldGuideRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -950,6 +957,7 @@ export interface FileRoutesByTo {
   '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/field/guide': typeof AuthenticatedFieldGuideRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -1069,6 +1077,7 @@ export interface FileRoutesById {
   '/_authenticated/field/money': typeof AuthenticatedFieldMoneyRoute
   '/_authenticated/field/setup': typeof AuthenticatedFieldSetupRoute
   '/_authenticated/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/_authenticated/field/guide': typeof AuthenticatedFieldGuideRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -1188,6 +1197,7 @@ export interface FileRouteTypes {
     | '/field/money'
     | '/field/setup'
     | '/field/welcome'
+    | '/field/guide'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -1301,6 +1311,7 @@ export interface FileRouteTypes {
     | '/field/money'
     | '/field/setup'
     | '/field/welcome'
+    | '/field/guide'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -1419,6 +1430,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/money'
     | '/_authenticated/field/setup'
     | '/_authenticated/field/welcome'
+    | '/_authenticated/field/guide'
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/add'
     | '/_authenticated/partner/bulk-import'
@@ -2028,6 +2040,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldWelcomeRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/guide': {
+      id: '/_authenticated/field/guide'
+      path: '/guide'
+      fullPath: '/field/guide'
+      preLoaderRoute: typeof AuthenticatedFieldGuideRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/owner/': {
       id: '/_authenticated/owner/'
       path: '/'
@@ -2446,6 +2465,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldMoneyRoute: typeof AuthenticatedFieldMoneyRoute
   AuthenticatedFieldSetupRoute: typeof AuthenticatedFieldSetupRoute
   AuthenticatedFieldWelcomeRoute: typeof AuthenticatedFieldWelcomeRoute
+  AuthenticatedFieldGuideRoute: typeof AuthenticatedFieldGuideRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
   AuthenticatedFieldBusinessAgreementRoute: typeof AuthenticatedFieldBusinessAgreementRoute
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
@@ -2464,6 +2484,7 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldMoneyRoute: AuthenticatedFieldMoneyRoute,
   AuthenticatedFieldSetupRoute: AuthenticatedFieldSetupRoute,
   AuthenticatedFieldWelcomeRoute: AuthenticatedFieldWelcomeRoute,
+  AuthenticatedFieldGuideRoute: AuthenticatedFieldGuideRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
   AuthenticatedFieldBusinessAgreementRoute:
     AuthenticatedFieldBusinessAgreementRoute,

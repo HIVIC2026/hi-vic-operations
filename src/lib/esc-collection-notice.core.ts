@@ -210,19 +210,19 @@ export function noticeAckSubmissionErrors(i: { ticked: boolean; typedName: strin
   return e;
 }
 
-/** Text and email wording for the link (unapproved: real sends are blocked by the senders' own flags). */
+/** Text (decision 146) and email (decision 147) wording approved by Jo 24 Oct 2026. Real sends stay behind the senders' own flags. */
 export const noticeLinkSmsBody = (firstName: string | null, url: string) =>
-  `${firstName ? `Hi ${firstName}, ` : ""}before we can register you as a VEU installer, please read the Essential Services Commission's privacy collection notice and acknowledge it here: ${url}. Reply STOP to opt out.`;
+  `Home Insulation Victoria: Hi ${firstName?.trim() || "there"}, one quick step: read and tick the ESC privacy notice so we can register you as a VEU installer: ${url} Reply STOP to opt out.`;
 export function noticeLinkEmail(i: { firstName: string | null; businessName: string; url: string; reminder: boolean }): { subject: string; heading: string; blocks: PartnerBlock[] } {
+  // Approved by Jo 24 Oct 2026 (decision 147; docs/templates/approved/I60-privacy-notice-link.html).
   return {
-    subject: i.reminder ? "Reminder: please acknowledge the ESC privacy collection notice" : "Please read and acknowledge the ESC privacy collection notice",
-    heading: "ESC privacy collection notice",
+    subject: `${i.reminder ? "Reminder: " : ""}One quick step: the ESC privacy notice`,
+    heading: `One quick step, ${i.firstName?.trim() || "there"}`,
     blocks: [
-      { kind: "p", text: `Hi ${i.firstName?.trim() || "there"},` },
-      { kind: "p", text: `${i.reminder ? "A quick reminder: " : ""}Home Insulation Victoria must give every installer the Essential Services Commission's ${COLLECTION_NOTICE_TITLE} before registering them as a VEU scheme participant. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.` },
-      { kind: "p", text: `Please open your personal link, read the notice and tick that you've read it. It takes a minute and no sign-in is needed. You can't be listed on an installation for ${i.businessName} until it's done.` },
-      { kind: "button", label: "Read and acknowledge the notice", url: i.url },
-      { kind: "p", text: "Just reply to this email if you have any questions." },
+      { kind: "p", text: "Before we can register you as a VEU installer, the Essential Services Commission requires us to give you their privacy notice." },
+      { kind: "p", text: "Read it and tick. It takes a minute and you don't need to sign in." },
+      { kind: "button", label: "Read and tick the notice", url: i.url },
+      { kind: "p", text: `Until it's done, you can't be put on a job for ${i.businessName}.` },
     ],
   };
 }
