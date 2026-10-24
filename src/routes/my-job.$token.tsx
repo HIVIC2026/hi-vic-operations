@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Phone } from "lucide-react";
-import { z } from "zod";
 import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
@@ -27,9 +26,18 @@ import { OFFICE_EMAIL, P2, P3, P4, centsAud, dayMonth, declarationBullets, longD
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
+const SCREENS = ["home", "spot", "quote", "book", "done"] as const satisfies readonly OwnerScreen[];
+
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
-  validateSearch: (s) => z.object({ screen: z.enum(["home", "spot", "quote", "book", "done"]).optional() }).parse(s),
+  // Same rule as the former zod schema (optional enum, anything else rejected) without pulling zod into every page's first load (decision 280).
+  // SCREENS mirrors the OwnerScreen union in owner-myjob.core.
+  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen } => {
+    const screen = s["screen"];
+    if (screen === undefined) return {};
+    if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) return { screen: screen as OwnerScreen };
+    throw new Error("Invalid screen");
+  },
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({
     meta: [

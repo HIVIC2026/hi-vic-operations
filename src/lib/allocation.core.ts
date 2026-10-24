@@ -370,10 +370,8 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
 export const NEEDS_TAB_SECTION: Record<string, "people" | "quote" | "piesa" | "installation" | "ap_veec" | "history"> = {
   overview: "people", piesa: "piesa", quotes: "quote", communications: "history", compliance: "installation", evidence: "ap_veec", veec: "ap_veec",
 };
-export const JOB_SECTIONS = ["enquiry", "ready_check", "quote", "piesa", "installation", "ap_veec", "history", "people"] as const;
-export function parseJobSection(v: unknown): (typeof JOB_SECTIONS)[number] | undefined {
-  return typeof v === "string" && (JOB_SECTIONS as readonly string[]).includes(v) ? (v as (typeof JOB_SECTIONS)[number]) : undefined;
-}
+// Moved to job-section.core (dependency-free) so the office job route's validateSearch does not pull this module into every page; same values.
+export { JOB_SECTIONS, parseJobSection } from "./job-section.core";
 
 /** Trade-facing electrical status wording (source-of-truth labels). Presentation only. */
 export function electricalStatusLabel(i: { offerPending?: boolean; stage: string; hasBooking?: boolean; proposalPending?: boolean }): string {

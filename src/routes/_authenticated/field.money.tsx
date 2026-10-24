@@ -25,8 +25,8 @@ function Money() {
   const { all } = Route.useSearch();
   const [showAll, setShowAll] = useState(!!all);
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
-  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load(), retry: false }); // a refusal (staff) shows at once, not after retries
-  const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false });
+  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load(), retry: false, staleTime: 30_000 }); // a refusal (staff) shows at once, not after retries
+  const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false, staleTime: 30_000 });
   if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const business = data.business.replace(/^\[TEST PARTNER\]\s*/, "");

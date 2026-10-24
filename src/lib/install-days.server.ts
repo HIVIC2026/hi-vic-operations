@@ -52,8 +52,8 @@ async function requireInstaller(jobId: string, userId: string) {
 
 /** Installer view. `days` = days the installer may offer when it's their move. */
 export async function installerInstallDayState(jobId: string, userId: string) {
-  await requireInstaller(jobId, userId);
-  const c = await context(jobId);
+  // Speed (decision 280): the access check and the read-only context run together; a refused check still throws first.
+  const [, c] = await Promise.all([requireInstaller(jobId, userId), context(jobId)]);
   const canOffer = c.turn === "installer_to_offer" || c.turn === "installer_to_answer";
   return { ...view(c), days: canOffer ? allowedInstallDays({ deadline: c.deadline }) : [] };
 }

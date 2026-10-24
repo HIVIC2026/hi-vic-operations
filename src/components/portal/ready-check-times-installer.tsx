@@ -50,7 +50,7 @@ function ChangeReadyCheckTime({ days, busy, onSend, onCancel }: { days: string[]
 
 export function useInstallerReadyCheckTimes(jobId: string) {
   const getState = useServerFn(getTradeReadyCheckTimes);
-  return useQuery({ queryKey: ["installer-rc-times", jobId], queryFn: () => getState({ data: { jobId } }) });
+  return useQuery({ queryKey: ["installer-rc-times", jobId], queryFn: () => getState({ data: { jobId } }), staleTime: 20_000 });
 }
 
 /** Assigned installer on an our-lead job: the owner's suggested days, offer new times, or Change time once booked.

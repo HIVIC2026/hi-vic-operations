@@ -13,10 +13,12 @@ export async function mittiJobPresentation(jobId: string, userId: string) {
   ]);
   if (me || je || ee || be) throw new Error("Ready Check details could not load.");
   if (m?.external_source !== "mitti" || !m.external_id) return { applies: false as const };
-  const a = await (await import("./installer-quote-status.server")).loadInstallerQuote(jobId);
-  const f = (await (await import("./job-status.server")).statusFactsFor(c, [jobId])).get(jobId);
+  // Speed (decision 280): the quote facts and the status facts are independent reads — one round trip, not two.
+  const [{ loadInstallerQuote }, { statusFactsFor, statusView }] = await Promise.all([import("./installer-quote-status.server"), import("./job-status.server")]);
+  const [a, facts] = await Promise.all([loadInstallerQuote(jobId), statusFactsFor(c, [jobId])]);
+  const f = facts.get(jobId);
   const next = a.applies ? installerQuoteLine(a)
-    : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine((await import("./job-status.server")).statusView(c, f)) : "You: finish the Ready Check in Mitti");
+    : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");
   const electrical = e?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
   const electrician = electrical?.choice === "hivic" ? "Home Insulation Victoria electrician"
     : electrical?.name ? `${electrical.choice === "usual" ? "My usual electrician" : "A different electrician"} · ${electrical.name}${electrical.licence ? ` · ${electrical.licence}` : ""}${electrical.priceIncGst != null ? ` · $${electrical.priceIncGst.toFixed(2)} inc GST` : ""}` : j?.channel === "hivic_sourced" ? "To be arranged (your usual electrician, or ours)" : "Not answered in Mitti yet";
