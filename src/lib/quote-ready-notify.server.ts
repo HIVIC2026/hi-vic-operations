@@ -109,30 +109,12 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   const wording = OWNER_QUOTE_EMAIL_APPROVED ? (facts?.input ? "rendered" : null) : tpl ? "template" : null;
   let email = OWNER_QUOTE_EMAIL_APPROVED ? `not sent — ${facts?.missing ?? "quote details unavailable"}` : "no approved wording — not sent";
   if (wording && owner?.email) {
-    const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
-      admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
-      admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
-      admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("event_type", (await import("./emailsafety.core")).SUPPRESSING_EVENTS),
-    ]);
-    const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(owner.email, job.source);
-    if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") email = "blocked — not sent";
-    else {
-      const key = `quote-ready-email:v1:${quoteId}`;
-      const { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: "quote_ready", idempotency_key: key }).select("id").single();
-      if (error || !reserved) email = "already attempted — not resent";
-      else {
-        const { unsubscribeUrlForJob } = await import("./emailsafety.server");
-        const unsubscribe = await unsubscribeUrlForJob(jobId);
-        const mail = wording === "rendered" && facts?.input
-          ? renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false })
-          : { subject: tpl!.subject, html: tpl!.body_markdown, text: tpl!.body_markdown };
-        const { resendSend } = await import("./hot-leads-send.server");
-        const d = await resendSend(owner.email, mail.subject, mail.html, mail.text, key, unsubscribe).catch(() => null);
-        const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
-        await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
-        email = status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
-      }
-    }
+    email = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
+      jobId, jobSource: job.source, to: owner.email, purpose: "quote_ready", key: `quote-ready-email:v1:${quoteId}`,
+      build: (unsubscribe) => wording === "rendered" && facts?.input
+        ? renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false })
+        : { subject: tpl!.subject, html: tpl!.body_markdown, text: tpl!.body_markdown },
+    });
   }
   if (OWNER_QUOTE_EMAIL_APPROVED && !facts?.input) {
     const linkMissing = facts?.missing === "owner secure link missing";

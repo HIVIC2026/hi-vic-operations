@@ -102,6 +102,8 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(jobId, "installation", startsAt, userId, roleLabel);
     await releaseInstallationContacts(jobId, userId);
+    // Owner "Your install is booked" email (best-effort; held until Jo approves the wording and messages are on).
+    await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
     return { ok: true, booked: true };
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
