@@ -6,8 +6,9 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment } from "./trade-view.core";
-import { eecState } from "./worker-compliance.core";
+import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
+import type { UsualElectrician } from "./usual-electrician.core";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
 
@@ -400,30 +401,86 @@ export async function tradeMoney(userId: string) {
   return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect };
 }
 
+/**
+ * My business (approved mock-up M7, decision 204). Business-scoped: every row is the signed-in owner's own business.
+ * Team facts per person: mobile (staff row), Mitti login (the stored Mitti user link on their profile, decision 161 —
+ * never a live claim), ESC privacy notice (decision 130), CII clearance facts for `crewClearance` (decision 153).
+ * Business file: usual electrician (config events, decisions 157/173), details, rates agreed date, masked bank line,
+ * insurance expiries, agreement, notice summary. The NEXT panel is derived by pure `businessNext`. Never quotes,
+ * prices or other partners.
+ */
 export async function tradeBusiness(userId: string) {
   const c = await ctxOrThrow(userId);
+  const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
-  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean; eec: string }[] };
+  const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
+    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: "Add where we pay you", credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
+  if (!c.boss) return staffOnly;
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
+  const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
-    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, certification_status, certification").eq("business_id", c.biz.id).is("removed_at", null),
+    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification").eq("business_id", c.biz.id).is("removed_at", null),
     c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
-    admin.from("partner_agreements").select("signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("business_bank_details").select("business_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
+    admin.from("partner_agreements").select("version, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("business_bank_details").select("account_name, bsb, account_number").eq("business_id", c.biz.id).limit(1).maybeSingle(),
+    admin.from("businesses").select("legal_name, trading_name, abn, approved_at").eq("id", c.biz.id).maybeSingle(),
+    admin.from("rate_cards").select("effective_from, created_at").eq("business_id", c.biz.id).eq("is_active", true),
+    admin.from("business_members").select("user_id, member_role").eq("business_id", c.biz.id).eq("active", true),
   ]);
-  const { data: boss } = await admin.from("business_members").select("user_id, member_role, profiles!business_members_user_id_fkey(full_name)").eq("business_id", c.biz.id).eq("active", true);
+  const ownerIds = (members ?? []).filter((m) => m.member_role === "business_admin").map((m) => m.user_id);
+  const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
+  const { data: profs } = profileIds.length ? await admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : { data: [] as never[] };
+  const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
+  const { mittiAccessOf } = await import("./mitti-membership.core");
+  const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
+  // CII clearance facts (decision 153) and privacy notice acknowledgements (decision 130) for installer staff rows.
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string; mobile: string | null }[];
+  const [cii, notice] = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer")
+    ? await Promise.all([
+      (await import("./piisa-a3.server")).crewStaff(c.biz.id).catch(() => [] as { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null }[]),
+      (await import("./esc-collection-notice.server")).businessNoticeStatuses(c.biz.id).catch(() => [] as { workerId: string | null; name: string; state: string }[]),
+    ])
+    : [[], []];
+  const ciiFacts = (workerId: string, role: string): TeamMemberView["cii"] => {
+    if (role !== "installer") return null;
+    const s = cii.find((x) => x.workerId === workerId);
+    if (!s) return { certStatus: null, level: null, expiresOn: null };
+    return { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null };
+  };
+  const noticeOf = (workerId: string, role: string) => role !== "installer" ? null : notice.find((n) => n.workerId === workerId)?.state === "acknowledged";
+  const ownerEmails = new Set(ownerIds.map((id) => (profile(id)?.email ?? "").trim().toLowerCase()).filter(Boolean));
+  const ownerRow = (uid: string) => staffRows.find((w) => w.profile_id === uid) ?? staffRows.find((w) => w.email.trim().toLowerCase() === (profile(uid)?.email ?? "").trim().toLowerCase()) ?? null;
+  const team: TeamMemberView[] = [
+    ...ownerIds.map((uid) => {
+      const p = profile(uid), w = ownerRow(uid);
+      return { id: w?.id ?? null, name: (p?.full_name ?? w?.full_legal_name ?? "Business owner").trim(), role: "owner" as const, mobile: w?.mobile ?? p?.phone ?? null, email: p?.email ?? w?.email ?? null, hasLogin: true,
+        mittiLogin: mittiLogin(uid), noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null };
+    }),
+    ...staffRows.filter((w) => !ownerIds.includes(w.profile_id ?? "") && !ownerEmails.has(w.email.trim().toLowerCase())).map((w) => ({
+      id: w.id as string | null, name: w.full_legal_name.trim(), role: (w.trade_role === "installer" ? "installer" : "electrician") as TeamMemberView["role"], mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
+      mittiLogin: mittiLogin(w.profile_id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role),
+    })),
+  ];
+  const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
+  const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
-  const liability = (creds ?? []).find((x) => /liab/i.test(x.kind) || /liab/i.test(x.label))?.expires_at ?? null;
+  const usual = c.kind === "installer" ? (await (await import("./usual-electrician.server")).readUsualElectrician(c.biz.id)).electrician : null;
+  const hasRates = c.kind === "installer" ? (cards ?? []).length > 0 : !!rate;
+  const ratesAgreedAt = (cards ?? []).map((k) => k.effective_from ?? k.created_at).filter(Boolean).sort().at(-1) ?? agr?.signed_at ?? null;
+  const details = { legal: biz?.legal_name ?? null, name: biz?.trading_name ?? c.biz.name, abn: biz?.abn ?? null, baseSuburb: c.biz.base_suburb ?? null, allVictoria: c.biz.covers_all_victoria === true };
+  const noticeStatuses = notice.map((n) => ({ name: n.name, state: n.state }));
+  const next = businessNext({
+    installer: c.kind === "installer", publicLiabilityExpires: liability, bankSaved: !!bank, agreementSigned: !!agr?.signed_at,
+    noticeOutstanding: noticeStatuses.filter((n) => n.state !== "acknowledged").map((n) => ({ name: n.name })), usualElectrician: !!usual,
+    ciiBlocked: team.filter((m) => m.cii && !crewClearance(m.cii, today).cleared).map((m) => ({ name: m.name })),
+  }, today);
   return {
-    kind: c.kind, boss: c.boss, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false,
+    ...staffOnly, boss: true, approvedSince: biz?.approved_at ?? agr?.signed_at ?? null,
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
-    team: [
-      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true, eec: "not_applicable" })),
-      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id, eec: eecState({ trade_role: w.trade_role, certification_status: w.certification_status, certification: w.certification } as never) })),
-    ],
+    team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
+    agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
   };
 }
 
@@ -480,6 +537,8 @@ export async function tradeBusinessFile(userId: string) {
     credentials: (creds ?? []).map((x) => ({ id: x.id, label: x.label, expires: x.expires_at, verified: x.verification === "verified", hasFile: !!x.document_path, path: x.document_path })),
     agreement: agr ? { version: agr.version, signer: agr.signer_name, signedAt: agr.signed_at } : null,
     rates, openRequests: (open ?? []) as { kind: string; message: string; created_at: string }[],
+    // Rates agreed date: the active rate card's effective date (installer), else the signed agreement date.
+    ratesAgreedAt: ((cards ?? []) as { effective_from?: string | null }[]).map((k) => k.effective_from).filter((x): x is string => !!x).sort().at(-1) ?? agr?.signed_at ?? null,
   };
 }
 

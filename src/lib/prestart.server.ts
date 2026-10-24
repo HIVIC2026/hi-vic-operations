@@ -36,6 +36,15 @@ export async function latestNotices(jobId: string) {
   return { current, previousSent };
 }
 
+/** H3 (24 Oct 2026): the assigned installer business's public liability insurance must not have lapsed before the install starts. */
+async function installerPublicLiabilityBlocker(jobId: string): Promise<string | null> {
+  const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (!a?.business_id) return null;
+  const { publicLiabilityExpiryFor } = await import("./business-insurance.server");
+  const { publicLiabilityBlocker, melbourneToday } = await import("./worker-compliance.core");
+  return publicLiabilityBlocker((await publicLiabilityExpiryFor([a.business_id])).get(a.business_id) ?? null, melbourneToday());
+}
+
 export async function prestartFacts(jobId: string, start: string) {
   const { clearanceFacts } = await import("./allocation.server");
   const { electricalClearance } = await import("./allocation.core");
@@ -53,6 +62,7 @@ export async function prestartFacts(jobId: string, start: string) {
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
     siteHoldBlockers: await siteHoldBlockers(jobId),
+    publicLiabilityBlocker: await installerPublicLiabilityBlocker(jobId),
   };
 }
 

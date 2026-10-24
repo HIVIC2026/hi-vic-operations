@@ -135,6 +135,18 @@ export function crewClearance(f: CrewClearanceFacts, today: string): CrewClearan
   if (f.expiresOn < today) return { cleared: false, reason: CREW_CLEARANCE_REASON.expired };
   return { cleared: true, reason: null };
 }
+// ---------- Business public liability insurance (compliance checklist H3, 24 Oct 2026) ----------
+/**
+ * Like the CII expiry: once the business's public liability insurance has lapsed (`expiresOn < today`), the business
+ * gets no new offers and no install may start until a renewed certificate is uploaded. No date on file (older partners
+ * never asked) is shown as missing on My business but is NOT a block here, exactly like the licence-expiry convention.
+ */
+export function publicLiabilityBlocker(expiresOn: string | null | undefined, today: string): string | null {
+  if (!expiresOn) return null;
+  if (expiresOn.slice(0, 10) < today) return `Public liability insurance expired on ${expiresOn.slice(0, 10)}. Upload the renewed certificate under My business.`;
+  return null;
+}
+
 /** Melbourne calendar date, for callers that have no explicit "today". */
 export const melbourneToday = (now = new Date()) => now.toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 
