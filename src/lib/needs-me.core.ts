@@ -64,11 +64,15 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
     const reasons: { rule: NeedsRule; why: string; urgency: number; action?: string }[] = [];
     if (!isMappedStage(j.stage) || !s || j.statusCount !== 1) reasons.push({ rule: "i_nothing_lost", why: !s ? `Stage "${j.stage}" has no status rule` : `Matched ${j.statusCount} statuses`, urgency: 100, action: "Fix status" });
     for (const f of j.failures) reasons.push({ rule: "e_failure", why: f, urgency: 95, action: "Fix it" });
-    if (j.tradeChoice) reasons.push({ rule: "a_waiting_on_us", why: `${j.tradeChoice.name ?? "The trade you chose"} ${j.tradeChoice.status === "declined" ? "said no" : "didn't answer in time"}`, urgency: 88, action: "Pick another" });
+    if (j.tradeChoice) reasons.push(j.tradeChoice.kind === "ready_check"
+      ? { rule: "a_waiting_on_us", why: `${j.tradeChoice.name ?? "The installer you chose"} ${j.tradeChoice.status === "declined" ? "said Not for me" : "didn't offer times within 24 hours"} — choose another installer for the Ready Check`, urgency: 88, action: "Choose installer" }
+      : { rule: "a_waiting_on_us", why: `${j.tradeChoice.name ?? "The trade you chose"} ${j.tradeChoice.status === "declined" ? "said no" : "didn't answer in time"}`, urgency: 88, action: "Pick another" });
     if (j.reassignment) reasons.push({ rule: "a_waiting_on_us", why: `Owner asked for a different ${j.reassignment.role} — review and reassign`, urgency: 87, action: "Review request" });
     const oc = j.offerChoice;
     const ocWhat = oc?.kind === "piesa" ? "PIESA" : "Ready Check";
-    if (oc?.state === "choose") reasons.push({ rule: "a_waiting_on_us", why: `Choose trades for this job — the ${ocWhat} offer hasn't gone out (Office picks first)`, urgency: 89, action: "Choose trades" });
+    if (oc?.state === "choose") reasons.push(oc.kind === "ready_check"
+      ? { rule: "a_waiting_on_us", why: "Choose an installer for the Ready Check — the offer goes to that installer only", urgency: 89, action: "Choose installer" }
+      : { rule: "a_waiting_on_us", why: `Choose trades for this job — the ${ocWhat} offer hasn't gone out (Office picks first)`, urgency: 89, action: "Choose trades" });
     if (oc?.state === "no_taker") reasons.push({ rule: "a_waiting_on_us", why: `${oc.hours}h and no one has taken the ${ocWhat} — add more trades (those already offered keep theirs)`, urgency: 89, action: "Add more trades" });
     const ended = s?.stage === "ended";
     if (s && !ended) {

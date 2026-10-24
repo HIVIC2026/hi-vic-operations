@@ -3,47 +3,12 @@
 // Victor-style: owner described "synthetic fluff", no safe photos, declared 100 m².
 import { describe, expect, test } from "bun:test";
 import {
-  PRELIMINARY_BUTTON, PRELIMINARY_INTRO, PRELIMINARY_NEXT_STEP, PRELIMINARY_READY_CHECK,
-  assertNoPricingContent, preliminaryConsentKey, preliminaryConsentSnapshot, preliminaryReviewMetadata,
-  preliminarySendBlocker, renderPreliminarySaveSpotEmail, preliminarySavedEstimateSnapshot,
+  preliminaryConsentKey, preliminaryConsentSnapshot, preliminaryReviewMetadata,
+  preliminarySendBlocker, preliminarySavedEstimateSnapshot,
 } from "../src/lib/preliminary-save-spot.core";
 import { intakeJobFacts } from "../src/lib/enquiry.server";
 import { enquirySchema } from "../src/lib/enquiry.server";
 
-const SAVE_URL = "https://estimate.homeinsulationvictoria.com.au/save-spot-preliminary/token-abc";
-
-describe("preliminary invitation rendering (Jo's approved short copy)", () => {
-  const mail = renderPreliminarySaveSpotEmail({ firstName: "Anna", saveUrl: SAVE_URL, unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrst" });
-  test("subject is the approved first-name form", () => {
-    expect(mail.subject).toBe("Anna, save your spot");
-  });
-  test("exact approved wording is present", () => {
-    for (const line of [PRELIMINARY_INTRO, PRELIMINARY_NEXT_STEP, PRELIMINARY_READY_CHECK, PRELIMINARY_BUTTON, "Thanks,", "Jo", "Home Insulation Victoria"]) {
-      expect(mail.plainText).toContain(line);
-    }
-    for (const frag of ["No worries at all", "Save my spot", "free Ready Check", "no payment or obligation"]) {
-      expect(mail.html).toContain(frag);
-    }
-  });
-  test("no price, area, rebate or '$0' anywhere (Anna-style: unknown everything)", () => {
-    const all = mail.html + mail.plainText + mail.subject;
-    expect(all).not.toContain("$");
-    expect(all).not.toMatch(/rebate/i);
-    expect(all).not.toMatch(/m²|\bm2\b/);
-    expect(all).not.toMatch(/\d+\s*m/);
-  });
-  test("falls back to a plain greeting when no first name (Victor-style)", () => {
-    const v = renderPreliminarySaveSpotEmail({ firstName: null, saveUrl: SAVE_URL, unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrst" });
-    expect(v.subject).toBe("There, save your spot");
-    expect(v.html).toContain("Hi there,");
-  });
-  test("guard rejects priced content", () => {
-    expect(() => assertNoPricingContent("Your $0 rebate is waiting")).toThrow();
-    expect(() => assertNoPricingContent("Installation $3,300 inc GST")).toThrow();
-    expect(() => assertNoPricingContent("about 110 m²")).toThrow();
-    expect(() => assertNoPricingContent(PRELIMINARY_READY_CHECK)).not.toThrow();
-  });
-});
 
 describe("preliminary save uses the normal priced snapshot", () => {
   test("entered area, price and rebate are preserved", () => {

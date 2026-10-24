@@ -1,16 +1,14 @@
-// Installer Add job: one phone-first flow Customer -> Job details -> Review & save (Jo, 8 Oct 2026).
+// Installer Add a job: Customer -> Review & save (Jo, 8 Oct 2026; basics only since decision 34, 24 Oct 2026).
 // Pure presentation/state rules only. Validation comes from the existing validators; no new lifecycle.
 import { PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
-import { laterReadyCheckProblems, type LaterReadyCheck } from "./later-ready-check.core";
-import { quotedIntakeProblems } from "./installer-quote-intake.core";
+import { installTimeLabel } from "./install-days.core";
 
-export type AddJobMode = "onsite" | "later" | "existing";
-export type AddJobStep = "customer" | "details" | "review";
+export type AddJobStep = "customer" | "review";
 export const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
-  { key: "customer", label: "Customer" }, { key: "details", label: "Job details" }, { key: "review", label: "Review & save" },
+  { key: "customer", label: "Customer" }, { key: "review", label: "Review & save" },
 ];
-export const nextStep = (s: AddJobStep): AddJobStep => (s === "customer" ? "details" : "review");
-export const prevStep = (s: AddJobStep): AddJobStep | null => (s === "review" ? "details" : s === "details" ? "customer" : null);
+export const nextStep = (s: AddJobStep): AddJobStep => (s === "customer" ? "review" : "review");
+export const prevStep = (s: AddJobStep): AddJobStep | null => (s === "review" ? "customer" : null);
 
 export const blankCustomer = (): OnsiteInput => ({ full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false, consent_by: null });
 
@@ -25,38 +23,8 @@ export const restoreCustomer = (raw: unknown): OnsiteInput => {
 export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean } = {}) =>
   opts.requirePicked === false || c.address_verified === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
 
-export type ExistingDetails = { area: string; method: string; amount: string; includes: string };
-export const parseAmount = (s: string): number | null => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\s]/g, "")); return Number.isFinite(n) ? n : NaN; };
-
-export function existingDetailsProblems(d: ExistingDetails): string[] {
-  const out: string[] = [];
-  const amount = parseAmount(d.amount);
-  out.push(...quotedIntakeProblems({ quoted: "yes", area: d.area, method: d.method, amount: amount != null && Number.isNaN(amount) ? 0 : amount, includes: d.includes }));
-  return out;
-}
-
-export type ExistingTicks = { feeAwareness: boolean; belowR2: boolean; ownerAgreed: boolean };
-export function existingReviewProblems(t: ExistingTicks): string[] {
-  const out: string[] = [];
-  if (!t.feeAwareness) out.push("Tick that the owner knows about the fees");
-  if (!t.belowR2) out.push("Tick that any existing insulation is below R2.0");
-  return out;
-}
-
-export type LaterDetails = { date: string; manual: boolean; area: string; method: string; notes: string };
-export const laterPayload = (d: LaterDetails): LaterReadyCheck => ({
-  startsAt: d.date && Number.isFinite(Date.parse(d.date)) ? new Date(d.date).toISOString() : "",
-  ...(d.manual && d.area.trim() ? { area: Number(d.area) } : {}),
-  ...(d.manual ? { method: d.method, notes: d.notes } : {}),
-});
-export const laterDetailsProblems = (d: LaterDetails) => laterReadyCheckProblems(laterPayload(d));
-
 /** Save button wording: says what the tap really does — saving is not booking and not an open form. */
-export function submitLabel(mode: AddJobMode): string {
-  if (mode === "onsite") return "Save job and prepare Ready Check form";
-  if (mode === "later") return "Save job for later";
-  return "Add job";
-}
+export const SAVE_LABEL = "Add job";
 export const BUSY_LABEL = "Saving…";
 
 /** Duplicate/collision errors become one neutral line; never reveals another owner or business. */
@@ -77,34 +45,25 @@ export function formLabel(s: OnsiteState): FormLabel {
   return { label: "Form unavailable", detail: s.message };
 }
 
-export type BookingOutcome = "confirmed" | "blocked" | "waiting_paperwork" | undefined;
-export function bookingLabel(b: BookingOutcome): string | null {
-  if (b === "confirmed") return "Appointment confirmed";
-  if (b === "blocked") return "Appointment saved but not confirmed — the office will check it";
-  if (b === "waiting_paperwork") return "Appointment not confirmed yet — the owner signs the first paperwork first";
-  return null;
+// ---- Decision 116 (Jo 24 Oct): ONE optional field at the end — "Ready Check visit day and time (optional)". ----
+export const VISIT_FIELD_LABEL = "Ready Check visit day and time (optional)";
+export const VISIT_FIELD_NOTE = "You arrange the visit with the owner. Enter the day and time here and it goes on your day list, with the Mitti form link in the 6:30am text. Leave it blank and nothing is booked — you can add it on the job later. The owner isn't messaged.";
+export type VisitPick = { day: string; time: string };
+/** Blank = nothing booked. A day without a time (or vice versa) is incomplete, never guessed. */
+export function visitPayload(v: VisitPick): VisitPick | null {
+  return v.day && v.time ? { day: v.day, time: v.time } : null;
 }
-
-/** Entry choices and their next-step promise (Jo, 8 Oct 10:14 UTC). Shown on the choice, the review and the outcome. */
-export const MODE_CHOICES: { mode: AddJobMode; title: string; next: string }[] = [
-  { mode: "onsite", title: "I'm at the property now", next: "Add the customer and we’ll prepare your Mitti Ready Check form. It usually takes about 90 seconds and opens automatically when ready." },
-  { mode: "later", title: "A job for later", next: "Enter your visit date and time. Once confirmed, it appears in Upcoming visits under My work. On the day, open the job and complete the Ready Check form." },
-  { mode: "existing", title: "A job I’ve already visited", next: "Send us the job details and your quote. We’ll contact the owner for the eligibility check and quote approval, then let you know when they accept." },
-];
-export const nextStepText = (m: AddJobMode) => MODE_CHOICES.find((c) => c.mode === m)!.next;
-
-export type Outcome = { tone: "success" | "waiting" | "blocked"; heading: string; body: string; waitingOn: string | null };
-/** The real outcome after saving, from the server's own answer. Saving alone is never shown as the goal. */
-export function outcomeFor(mode: AddJobMode, r: { booking?: BookingOutcome; state?: OnsiteState | undefined }): Outcome {
-  if (mode === "existing") return { tone: "waiting", heading: "Sent to Home Insulation Victoria", body: "Nobody has been contacted yet. Next, Home Insulation Victoria contacts the owner for the eligibility check and quote approval, then lets you know when they accept.", waitingOn: "Home Insulation Victoria" };
-  if (mode === "later") {
-    if (r.booking === "confirmed") return { tone: "success", heading: "Visit booked", body: "It's in Upcoming visits under My work. On the day, open the job and complete the Ready Check form.", waitingOn: null };
-    return { tone: "blocked", heading: "Job saved — visit not confirmed yet", body: r.booking === "waiting_paperwork" ? "The owner needs to sign the first paperwork before the visit can be confirmed. It won't show in Upcoming visits until then." : "The visit time couldn't be confirmed yet. It won't show in Upcoming visits until Home Insulation Victoria checks it.", waitingOn: r.booking === "waiting_paperwork" ? "The owner" : "Home Insulation Victoria" };
-  }
-  const s = r.state;
-  if (s?.kind === "open") return { tone: "success", heading: "Your Ready Check form is ready", body: "Opening it now. Complete it while you're onsite.", waitingOn: null };
-  if (s?.kind === "preparing") return { tone: "waiting", heading: "Job saved — preparing your Ready Check form…", body: "It usually takes about 90 seconds and opens automatically when ready. You can stay on this screen.", waitingOn: null };
-  return { tone: "blocked", heading: "Job saved — form not ready yet", body: `${s?.message ?? "The form couldn't be prepared."} You don't need to add the job again.`, waitingOn: s?.kind === "owner_paperwork" ? "The owner" : s?.kind === "retry" && /signal|answering/i.test(s.message) ? null : "Home Insulation Victoria" };
+export function visitProblems(v: VisitPick): string[] {
+  if (!v.day && !v.time) return [];
+  if (!v.day || !v.time) return ["Choose both the visit day and the arrival time, or leave both blank"];
+  return [];
+}
+export function visitSummary(v: VisitPick): string {
+  const p = visitPayload(v);
+  if (!p) return "Visit day and time: not entered (you can add it on the job)";
+  const d = new Date(`${p.day}T00:00:00`);
+  const day = Number.isNaN(d.getTime()) ? p.day : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  return `Ready Check visit: ${day}, ${installTimeLabel(p.time)}`;
 }
 
 /** Review-summary wording: positive only when the same rule final validation uses is satisfied (restored drafts reset these on purpose). */
@@ -114,3 +73,16 @@ export const organiseSummary = (coord: "hivic_managed" | "self_managed" | string
   coord === "self_managed"
     ? selfAck ? "I’ll manage the job myself (responsibility acknowledged)" : "I’ll manage the job myself — responsibility still needs to be ticked"
     : coord ? "Home Insulation Victoria manages the process" : "Who organises the job still needs to be chosen";
+
+// ---- What the installer sees after saving (decisions 115/116): the real outcome from the server's own answer. ----
+export type AddJobBooking = "none" | "confirmed" | "blocked";
+export type Outcome = { tone: "success" | "waiting" | "blocked"; heading: string; body: string; waitingOn: string | null; visit: string | null };
+export const FORM_WITHIN_15 = "Your Ready Check form is being set up in Mitti, with the owner's details filled in. It appears within about 15 minutes.";
+export function outcomeFor(r: { booking: AddJobBooking; state: OnsiteState | undefined }): Outcome {
+  const visit = r.booking === "confirmed" ? "Visit day and time saved — it's in your 6:30am text with the form link."
+    : r.booking === "blocked" ? "The visit day and time couldn't be saved. The job is saved; enter the time on the job." : null;
+  const s = r.state;
+  if (s?.kind === "open") return { tone: "success", heading: "Job saved — your Ready Check form is ready", body: "Open it in Mitti when you're at the home.", waitingOn: null, visit };
+  if (s?.kind === "preparing") return { tone: "waiting", heading: "Job saved", body: FORM_WITHIN_15, waitingOn: null, visit };
+  return { tone: "blocked", heading: "Job saved — form not ready yet", body: `${s?.message ?? "The form couldn't be prepared."} You don't need to add the job again.`, waitingOn: s?.kind === "owner_paperwork" ? "The owner" : s?.kind === "retry" && /signal|answering/i.test(s.message) ? null : "Home Insulation Victoria", visit };
+}

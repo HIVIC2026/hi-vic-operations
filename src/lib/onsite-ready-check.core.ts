@@ -1,10 +1,9 @@
-// "I'm at the property now – start a Ready Check" (Jo, 7 Oct 2026). Pure wording + rules only.
+// Installer "Add a job" (Jo, 7 Oct 2026; basics only since decision 34, 24 Oct 2026). Pure wording + rules only.
 // Persistence: onsite-ready-check.server.ts. The Mitti form is created by the existing createAssignMittiAudit.
 
-export const ONSITE_CHOICE = "I'm at the property now – start a Ready Check";
-export const LATER_CHOICE = "Add a job for later";
-export const START_BUTTON = "Start Ready Check";
 export const PREPARING = "Getting your form ready…";
+/** Stored next action while the job's Mitti Ready Check form is being created (decision 115). */
+export const READY_CHECK_FORM_COMING = "Ready Check form being set up in Mitti";
 
 export type OnsiteInput = {
   full_name: string; address_line: string; suburb: string; postcode: string; phone: string; email: string;
@@ -72,7 +71,9 @@ export { mittiFormUrl } from "./mitti-link.core";
 import { mittiFormUrl } from "./mitti-link.core";
 
 export type OnsiteFacts = {
-  mittiInvited: boolean; templateSet: boolean; autoSend?: boolean; gateADone: boolean; booked: boolean;
+  mittiInvited: boolean; templateSet: boolean; autoSend?: boolean; gateADone: boolean;
+  /** Kept for callers that still report it; a booking is no longer needed for the form (decision 115). */
+  booked?: boolean;
   auditId: string | null; lastError: string | null;
 };
 export type OnsiteState =
@@ -85,10 +86,11 @@ export type OnsiteState =
 export const OFFICE_SETUP = "Your onsite form isn't switched on yet. Home Insulation Victoria will finish setting it up — the job is saved and the office can see it.";
 export const OWNER_PAPERWORK_FIRST = "The job is saved. Before the Ready Check can start, the owner needs to sign the first paperwork (contact, privacy and home details). Home Insulation Victoria has been told.";
 
-/** What the installer sees after tapping Start. Never a dead screen: every state says what happens next. */
+/** What the installer sees after saving. Never a dead screen: every state says what happens next.
+ *  Decision 115 (Jo 24 Oct): the form is created as soon as the job exists — no visit booking is needed first. */
 export function onsiteState(f: OnsiteFacts): OnsiteState {
   if (f.auditId && f.mittiInvited) return { kind: "open", url: mittiFormUrl(f.auditId) };
-  if (!f.gateADone || !f.booked) return { kind: "owner_paperwork", message: OWNER_PAPERWORK_FIRST };
+  if (!f.gateADone) return { kind: "owner_paperwork", message: OWNER_PAPERWORK_FIRST };
   if (!f.mittiInvited || !f.templateSet || f.autoSend === false) return { kind: "office", message: OFFICE_SETUP };
   if (f.lastError) return { kind: "retry", message: plainMittiError(f.lastError) };
   return { kind: "preparing", message: PREPARING };

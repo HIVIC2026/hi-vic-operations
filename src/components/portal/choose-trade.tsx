@@ -1,5 +1,6 @@
-// Office job page: "Choose trades for this job" (Jo, 7 Oct 2026). Tick who gets the Ready Check / safety-check offer.
+// Office job page: "Choose trades for this job" (Jo, 7 Oct 2026). Tick who gets the safety-check (PIESA) offer.
 // Only ticked trades get it; then the 24-hour rule and first-in-best-dressed apply as normal.
+// Ready Check offers go to ONE installer from "Choose installer" (choose-installer.tsx, Jo 24 Oct 2026).
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,7 +17,7 @@ const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigi
 
 export function ChooseTradePanel({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
-  const [kind, setKind] = useState<Kind>("ready_check");
+  const [kind, setKind] = useState<Kind>("piesa");
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
@@ -44,7 +45,8 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
         <Checkbox className="mt-1 h-5 w-5" checked={ticked.has(t.id)} disabled={!!t.alreadyOffered || !!t.blocker} onCheckedChange={() => toggle(t.id)} aria-label={`Choose ${t.business}`} />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{t.business}</span>{t.contact && <span className="text-xs text-muted-foreground">{t.contact}</span>}
-            {t.alreadyOffered && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">Already offered · {t.alreadyOffered}</span>}</div>
+            {t.alreadyOffered && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">Already offered · {t.alreadyOffered}</span>}
+            {t.usualElectrician && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">Installer's usual electrician · onboarding rate</span>}</div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-3">
             <span>Distance: {t.distanceKm != null ? `${t.distanceKm} km` : t.areaNote}</span>
             <span>Rate: {t.rate != null ? `${money(t.rate)} ${t.rateUnit}` : "not recorded"}</span>
@@ -63,7 +65,7 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
       <Section title="Choose trades for this job">
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Which offer">
-            {(Object.keys(KIND_LABEL) as Kind[]).map((k) => <Button key={k} size="sm" variant={k === kind ? "default" : "outline"} onClick={() => { setKind(k); setTicked(new Set()); setExtra([]); }}>{KIND_LABEL[k]}</Button>)}
+            {(["piesa"] as Kind[]).map((k) => <Button key={k} size="sm" variant={k === kind ? "default" : "outline"} onClick={() => { setKind(k); setTicked(new Set()); setExtra([]); }}>{KIND_LABEL[k]}</Button>)}
           </div>
           {d && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/50 p-3 text-xs">
@@ -71,6 +73,7 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
               <label className="flex items-center gap-2 font-semibold"><Checkbox checked={d.jobOverride} onCheckedChange={async (v) => { await override({ data: { jobId, on: !!v } }); void qc.invalidateQueries(); }} />Office picks for this job</label>
             </div>
           )}
+          {d?.usualElectricianNote && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">{d.usualElectricianNote}</p>}
           {q.isLoading && <p className="text-muted-foreground">Finding matching trades…</p>}
           {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
           {d && (

@@ -95,11 +95,11 @@ describe("ESC notification", () => {
 
 describe("final assignment availability + snapshot", () => {
   const tpls = [T("consumer_declaration")];
-  test("unavailable before install / declaration / AP review", () => {
-    expect(finalAssignmentAvailability({ stage: "installation_booked", installationCompleted: false, installerDeclared: false, evidenceMissing: [], agreementSigned: true, templates: tpls }).length).toBe(3);
-    expect(finalAssignmentAvailability({ stage: "ap_review", installationCompleted: true, installerDeclared: true, evidenceMissing: ["Completed installation"], agreementSigned: true, templates: tpls })).toEqual(["Evidence missing: Completed installation"]);
-    expect(finalAssignmentAvailability({ stage: "ap_review", installationCompleted: true, installerDeclared: true, evidenceMissing: [], agreementSigned: true, templates: [] })[0]).toMatch(/official Activity 48/);
-    expect(finalAssignmentAvailability({ stage: "ap_review", installationCompleted: true, installerDeclared: true, evidenceMissing: [], agreementSigned: true, templates: tpls })).toEqual([]);
+  test("unavailable before install or agreement; no AP-review / separate declaration prerequisite (decision 119)", () => {
+    expect(finalAssignmentAvailability({ installationCompleted: false, agreementSigned: false, templates: tpls }).length).toBe(2);
+    expect(finalAssignmentAvailability({ installationCompleted: false, agreementSigned: true, templates: tpls })).toEqual(["Installation not yet recorded as complete"]);
+    expect(finalAssignmentAvailability({ installationCompleted: true, agreementSigned: true, templates: [] })[0]).toMatch(/official ESC VEEC assignment form v1\.1/);
+    expect(finalAssignmentAvailability({ installationCompleted: true, agreementSigned: true, templates: tpls })).toEqual([]);
   });
   test("snapshot carries final product / R-value / area / price / payment", () => {
     const f = buildFinalFacts({ job_number: "HV-1", ap_legal_entity: "AP", property_address: "A", completed_date: "2026-10-10", installed: [{ product: "Batts", r_value: "R5.0", area_m2: 80 }, { product: "Batts", r_value: "R4.0", area_m2: 20.5 }], zones: [],

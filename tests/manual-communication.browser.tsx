@@ -4,7 +4,8 @@
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ManualCommunicationActions, ManualLeadNote } from "../src/components/portal/manual-communication";
-import { renderStep3SaveSpot } from "../src/lib/step3-emails";
+import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
+import { withUnsubscribe } from "../src/lib/emailsafety.core";
 import { GROUP_B_MANUAL_BLOCKED, TYPICAL_SIZE_MANUAL_BLOCKED, assumedSizeEstimate } from "../src/lib/manual-communication.core";
 import { V25_LOCATIONS } from "../src/lib/activity48.core";
 import type { RetailSettings } from "../src/lib/estimate.core";
@@ -12,15 +13,16 @@ import "../src/styles.css";
 
 const g = globalThis as Record<string, unknown>;
 const TOKEN = "T".repeat(43);
-const facts = (unsub: string) => ({
-  estimateUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}`, campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/campaign`,
-  unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${unsub}`,
-  estimatedTotal: 1890, veuDiscount: 2100, grossTotal: 3990, areaM2: 120, firstName: "Testy", address: "1 TEST Street, Testville VIC 3000", reference: "HV-TEST-1",
-  existingInsulationPresent: false, referralUrl: null, installation: 3292,
-});
+// The old Step 3 Save your spot renderer was removed on 24 Oct 2026; the Office copy uses Jo's approved T2 email.
+const joMail = (unsub: string) => withUnsubscribe(renderJoOutcomeEmail({
+  outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true,
+  recipient: { firstName: "Testy", propertyAddress: "1 TEST Street, Testville VIC 3000", enquiryReference: "HV-TEST-1" },
+  figures: { veuRebate: 2100, customerTotal: 1890, totalBeforeRebate: 3990, installation: 3292, piesaFee: 349, apFee: 349, ceilingAreaM2: 120, areaEstimated: false },
+  links: { saveMySpotUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/campaign`, uploadMediaUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/video`, reviewResultUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}`, calculatorUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}#calculator` },
+})!, `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${unsub}`);
 // Preview (no links yet): placeholder unsubscribe link. After "Create sending links": the lead's real link.
-const previewMail = renderStep3SaveSpot(facts("PREVIEW_ONLY_link_issued_before_sending".padEnd(43, "X")));
-const mail = renderStep3SaveSpot(facts("U".repeat(43)));
+const previewMail = joMail("PREVIEW_ONLY_link_issued_before_sending".padEnd(43, "X"));
+const mail = joMail("U".repeat(43));
 const settings = { id: "s", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1, access_difficult_multiplier: 1, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as unknown as RetailSettings;
 const internal = assumedSizeEstimate(V25_LOCATIONS.get("3000")!, settings);
 type Hist = { id: string; at: string; recordedAt: string; direction: string; channel: string; subject: string | null; manual: boolean; originLabel: string; outcomeLabel: string | null; by: string | null; note: string | null };

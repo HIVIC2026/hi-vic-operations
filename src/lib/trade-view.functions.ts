@@ -20,6 +20,30 @@ export const replyTradeOffer = createServerFn({ method: "POST" }).middleware([re
   .inputValidator((d) => z.object({ offerId: uuid, reply: z.enum(["not_for_me", "cant_make"]), note: z.string().max(300).nullable() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeOfferReply(data.offerId, context.userId, data.reply, data.note));
 
+const rcPicks = z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) })).length(3);
+
+/** Jo 24 Oct 2026: accept a Ready Check offer by offering the owner 3 times. */
+export const offerTradeReadyCheckTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ offerId: uuid, picks: rcPicks }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeOfferReadyCheckTimes(data.offerId, context.userId, data.picks));
+
+export const getTradeReadyCheckTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeReadyCheckTimes(data.jobId, context.userId)));
+
+export const offerTradeReadyCheckNewTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, picks: rcPicks }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckOfferNew(data.jobId, context.userId, data.picks));
+
+export const takeTradeReadyCheckDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid, time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckTakeDay(data.jobId, data.proposalId, data.time, context.userId));
+
+/** Decision 80: installer "Change time" on a booked our-lead Ready Check — new day + time, rebooked directly. */
+export const changeTradeReadyCheckTime = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckChange(data.jobId, { day: data.day, time: data.time }, context.userId));
+
 export const getTradeDayView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDay(data.jobId, context.userId)));
@@ -57,6 +81,22 @@ export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).midd
   .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), priceIncGst: z.number().finite().min(0).max(1_000_000) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));
 
+/** ESC collection notice: the business's installers and their acknowledgement state (boss sees all; a worker only their own row). */
+export const getTradeCollectionNotice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./esc-collection-notice-send.server")).tradeNoticeView(context.userId)));
+
+/** The signed-in installer acknowledges the current notice for themself (append-only; never on someone's behalf). */
+export const acknowledgeTradeCollectionNotice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./esc-collection-notice-send.server")).tradeAcknowledgeNotice(context.userId)));
+
+/** Business owner (own business) or office: send / re-send one installer person's secure notice link by text + email (guarded senders). */
+export const sendCollectionNoticeLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("is_admin");
+    return plain(await (await import("./esc-collection-notice-send.server")).sendNoticeLinkFor(context.userId, data.workerId, isAdmin === true));
+  });
+
 export const getTradeAgreementPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeAgreementPdf(context.userId));
 
@@ -71,6 +111,11 @@ export const testSetPasswordLink = createServerFn({ method: "POST" }).middleware
 export const requestTeamLoginInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ workerId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeRequestLoginInvite(context.userId, data.workerId));
+
+/** Jo 24 Oct 2026 (decision 110): A1 installer enters the Ready Check day + time (same slots as the owner's times link). */
+export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetReadyCheckTime(context.userId, data.jobId, { day: data.day, time: data.time }));
 
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));

@@ -170,6 +170,8 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     if (linkErr) throw new Error(`Xero invoice ${x.InvoiceNumber} exists but could not be linked locally: ${linkErr.message}`);
     await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID });
     await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the deposit request in Xero`, { invoice_id: invoiceId });
+    // Decision 139: the owner's "Pay now" link is Xero's online invoice. Best-effort; Sync fetches it again if missing.
+    await storeOnlineInvoiceUrl(invoiceId, x.InvoiceID, call).catch((e) => console.error("xero online invoice url skipped", (e as Error).message));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ status: "xero_sync_error", last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
@@ -209,6 +211,12 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
     await applyPaidAmount(invoiceId, ev.paid, actorId, ev.depositPaidAt);
     await admin.from("invoices").update({ xero_invoice_status: x.Status ?? null, xero_online_url: x.OnlineInvoiceUrl ?? inv.xero_online_url, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
     await syncLog(invoiceId, true, { amount_paid: ev.paid }, undefined, "inbound");
+    // Decision 139: append-only payment ledger (one record per Xero PaymentID) + payment-step effects. Never fails the sync.
+    try {
+      const { recordXeroPayments } = await import("./payments.server");
+      await recordXeroPayments(invoiceId, inv.job_id, (x.Payments ?? []) as { PaymentID?: string; Amount?: number; Date?: string; Status?: string }[], actorId);
+    } catch (e) { console.error("xero payment ledger skipped", (e as Error).message); }
+    if (!x.OnlineInvoiceUrl && !inv.xero_online_url) await storeOnlineInvoiceUrl(invoiceId, inv.xero_invoice_id, call).catch((e) => console.error("xero online invoice url skipped", (e as Error).message));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
@@ -219,12 +227,58 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   }
 }
 
+/** Decision 139: Xero's online invoice page is the owner's "Pay now" (card) link. GET /Invoices/{id}/OnlineInvoice, stored on the
+ *  ONE invoice. Read-only in Xero; behind the same tenant routing and business-unit barrier as every other Xero call. */
+export async function fetchOnlineInvoiceUrl(call: XeroCall, xeroInvoiceId: string): Promise<string | null> {
+  const r = await call(`/api.xro/2.0/Invoices/${xeroInvoiceId}/OnlineInvoice`);
+  const url = r?.OnlineInvoices?.[0]?.OnlineInvoiceUrl;
+  return typeof url === "string" && /^https:\/\//.test(url) ? url : null;
+}
+async function storeOnlineInvoiceUrl(invoiceId: string, xeroInvoiceId: string, call: XeroCall) {
+  const url = await fetchOnlineInvoiceUrl(call, xeroInvoiceId);
+  if (url) await admin.from("invoices").update({ xero_online_url: url }).eq("id", invoiceId);
+  return url;
+}
+/** Office "Refresh Pay now link": same barrier; read + one column write, no lock needed. */
+export async function refreshOnlineInvoiceUrl(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
+  await requireHivicInvoice(invoiceId);
+  const { data: inv } = await admin.from("invoices").select("job_id, xero_invoice_id").eq("id", invoiceId).single();
+  if (!inv?.xero_invoice_id) throw new Error("The Xero invoice has not been created yet.");
+  const call = callOverride ?? (await tenantCall(await modeForInvoice(invoiceId)));
+  const url = await storeOnlineInvoiceUrl(invoiceId, inv.xero_invoice_id, call);
+  await logEvent(inv.job_id, actorId, url ? "xero_online_invoice_linked" : "xero_online_invoice_missing", url ? "Xero online invoice (Pay now) link stored" : "Xero returned no online invoice link – check the invoice is approved and online payments are switched on in Xero", { invoice_id: invoiceId }, { internal: true });
+  return url;
+}
+
+/** Decision 139 poll fallback (15-min tick, env XERO_PAYMENT_POLL_ENABLED=true): re-sync every linked, not fully paid invoice. */
+export async function pollXeroPayments(limit = 40) {
+  if (process.env["XERO_PAYMENT_POLL_ENABLED"] !== "true") return { enabled: false, checked: 0, failed: 0 };
+  const { data: rows } = await admin.from("invoices").select("id, total_inc_gst, total_paid, jobs!inner(business_unit, stage)")
+    .not("xero_invoice_id", "is", null).eq("jobs.business_unit", "hivic").order("last_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+  let checked = 0, failed = 0;
+  for (const r of rows ?? []) {
+    const stage = (r.jobs as unknown as { stage: string } | null)?.stage ?? "";
+    if (Number(r.total_paid) >= Number(r.total_inc_gst) || stage === "cancelled" || stage === "complete") continue;
+    checked++;
+    try { await syncInvoiceFromXero(r.id, null); } catch (e) { failed++; console.error("xero payment poll failed", r.id, (e as Error).message); }
+  }
+  return { enabled: true, checked, failed };
+}
+
 /** Single place that turns Xero's cumulative AmountPaid into deposit/balance state + audit events. */
 export async function applyPaidAmount(invoiceId: string, paid: number, actorId: string | null, depositReachedAt?: string | null) {
   await requireHivicInvoice(invoiceId);
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) return;
-  const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, paid, depositReachedAt ?? null, new Date().toISOString());
+  // Decision 144: card (Stripe) and office-recorded bank payments are real money that Xero may not show until the payout is
+  // reconciled, so the mirrored total never drops below the append-only ledger (which also holds every Xero payment).
+  let effective = paid;
+  try {
+    const { paymentLedger } = await import("./payments.server");
+    const { cumulativePaidCents } = await import("./payments.core");
+    effective = Math.max(paid, cumulativePaidCents(await paymentLedger(inv.job_id, invoiceId)) / 100);
+  } catch (e) { console.error("payment ledger read skipped", (e as Error).message); }
+  const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, effective, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
   if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Minimum deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });

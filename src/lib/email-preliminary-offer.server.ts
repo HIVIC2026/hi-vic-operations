@@ -18,7 +18,7 @@ import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   EMAIL_PRELIMINARY_CONSENT_SOURCE, EMAIL_PRELIMINARY_REVIEW_EVENT, PRELIMINARY_LINK_PURPOSE, PRELIMINARY_SEND_PURPOSE,
   preliminaryConsentKey, preliminaryConsentSnapshot, preliminaryReviewMetadata, preliminarySendBlocker, preliminarySendKey,
-  renderPreliminarySaveSpotEmail, preliminarySavedEstimateSnapshot,
+  preliminarySavedEstimateSnapshot,
 } from "./preliminary-save-spot.core";
 
 export type PreliminarySendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed" | "uncertain"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; linksReady: boolean }; reviewId?: string; linkToken?: string };

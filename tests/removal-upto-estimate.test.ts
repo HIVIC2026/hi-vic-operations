@@ -18,12 +18,16 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
   test("email shows the line for existing insulation without changing the price; 'none' email unchanged", () => {
     const a = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, deskCheckStatus: "looks_eligible", recipient, links, figures: { ...fig, removalUpTo: 1800 } } as never)!;
     const plain = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, deskCheckStatus: "looks_eligible", recipient, links, figures: fig } as never)!;
-    expect(a.html).toContain(removalUpToLine(1800));
+    // Decision 67 design: the "Your existing insulation" card shows the up-to figure; the price box is unchanged.
+    expect(a.html).toContain("Up to $1,800 for your 120 m² ceiling.");
+    expect(a.html).toContain("$15/m²");
     expect(a.html).toContain("$3,948");
-    expect(a.html.replace(/<table[^>]*FDF2F6[^]*?<\/table>/, "")).not.toContain("up to $1,800");
+    expect(a.html.replace(/Your existing insulation[^]*?Prices incl\. GST/, "")).not.toContain("$1,800");
+    expect(removalUpToLine(1800)).toBe("Removal of old insulation, only if needed: $0 – $1,800");
     const none = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, deskCheckStatus: null, recipient, links, figures: fig } as never)!;
-    expect(none.html).not.toContain("only if needed");
-    expect(plain.html).not.toContain("only if needed");
+    expect(none.html).not.toContain("Your existing insulation");
+    // Without the informational figure the approved $15/m² rate still applies (never part of the total).
+    expect(plain.html).toContain("Up to $1,800 for your 120 m² ceiling.");
     expect(REMOVAL_UPTO_NOTE).toBe("We charge $15 per m² (inc GST) for any area that needs removing. It may not need to come out at all — your free Ready Check confirms this, and you'll see the final price before you agree to anything.");
   });
   test("reminder SMS adds '(plus removal if needed)' only for existing insulation", () => {

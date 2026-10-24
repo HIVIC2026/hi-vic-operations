@@ -31,6 +31,7 @@ import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticate
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
 import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
@@ -81,6 +82,7 @@ import { Route as AuthenticatedFieldBusinessRouteImport } from './routes/_authen
 import { Route as AuthenticatedFieldMoneyRouteImport } from './routes/_authenticated/field.money'
 import { Route as AuthenticatedFieldSetupRouteImport } from './routes/_authenticated/field.setup'
 import { Route as AuthenticatedFieldWelcomeRouteImport } from './routes/_authenticated/field.welcome'
+import { Route as AuthenticatedFieldGuideRouteImport } from './routes/_authenticated/field.guide'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
@@ -110,12 +112,14 @@ import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
 import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_authenticated/field.business_.team'
+import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
-import { Route as ApiPublicEmailArtPreviewKindRouteImport } from './routes/api/public/email-art-preview.$kind'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
+import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
@@ -231,6 +235,11 @@ const EstimateTokenRoute = EstimateTokenRouteImport.update({
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NoticeTokenRoute = NoticeTokenRouteImport.update({
+  id: '/notice/$token',
+  path: '/notice/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyEstimateTokenRoute = MyEstimateTokenRouteImport.update({
@@ -515,6 +524,11 @@ const AuthenticatedFieldWelcomeRoute =
     path: '/welcome',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldGuideRoute = AuthenticatedFieldGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AuthenticatedFieldRoute,
+} as any)
 const AuthenticatedOwnerIndexRoute = AuthenticatedOwnerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -676,6 +690,12 @@ const AuthenticatedFieldBusinessTeamRoute =
     path: '/business/team',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldBusinessEscNoticeRoute =
+  AuthenticatedFieldBusinessEscNoticeRouteImport.update({
+    id: '/business_/esc-notice',
+    path: '/business/esc-notice',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedFieldDayJobIdRoute =
   AuthenticatedFieldDayJobIdRouteImport.update({
     id: '/day/$jobId',
@@ -687,12 +707,6 @@ const AuthenticatedFieldOfferOfferIdRoute =
     id: '/offer/$offerId',
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
-  } as any)
-const ApiPublicEmailArtPreviewKindRoute =
-  ApiPublicEmailArtPreviewKindRouteImport.update({
-    id: '/api/public/email-art-preview/$kind',
-    path: '/api/public/email-art-preview/$kind',
-    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
@@ -710,6 +724,18 @@ const ApiPublicHooksExternalActionsRoute =
   ApiPublicHooksExternalActionsRouteImport.update({
     id: '/api/public/hooks/external-actions',
     path: '/api/public/hooks/external-actions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksXeroPaymentsRoute =
+  ApiPublicHooksXeroPaymentsRouteImport.update({
+    id: '/api/public/hooks/xero-payments',
+    path: '/api/public/hooks/xero-payments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksStripePaymentsRoute =
+  ApiPublicHooksStripePaymentsRouteImport.update({
+    id: '/api/public/hooks/stripe-payments',
+    path: '/api/public/hooks/stripe-payments',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksOutlookSyncRoute =
@@ -775,6 +801,7 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -823,6 +850,7 @@ export interface FileRoutesByFullPath {
   '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/field/guide': typeof AuthenticatedFieldGuideRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -854,13 +882,15 @@ export interface FileRoutesByFullPath {
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -886,6 +916,7 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -934,6 +965,7 @@ export interface FileRoutesByTo {
   '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/field/guide': typeof AuthenticatedFieldGuideRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -965,13 +997,15 @@ export interface FileRoutesByTo {
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1003,6 +1037,7 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/notice/$token': typeof NoticeTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
@@ -1051,6 +1086,7 @@ export interface FileRoutesById {
   '/_authenticated/field/money': typeof AuthenticatedFieldMoneyRoute
   '/_authenticated/field/setup': typeof AuthenticatedFieldSetupRoute
   '/_authenticated/field/welcome': typeof AuthenticatedFieldWelcomeRoute
+  '/_authenticated/field/guide': typeof AuthenticatedFieldGuideRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -1082,13 +1118,15 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
   '/_authenticated/field/business_/team': typeof AuthenticatedFieldBusinessTeamRoute
+  '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
+  '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1120,6 +1158,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1168,6 +1207,7 @@ export interface FileRouteTypes {
     | '/field/money'
     | '/field/setup'
     | '/field/welcome'
+    | '/field/guide'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -1199,9 +1239,9 @@ export interface FileRouteTypes {
     | '/field/business/insurance'
     | '/field/business/rates'
     | '/field/business/team'
+    | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1231,6 +1271,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1279,6 +1320,7 @@ export interface FileRouteTypes {
     | '/field/money'
     | '/field/setup'
     | '/field/welcome'
+    | '/field/guide'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -1310,9 +1352,9 @@ export interface FileRouteTypes {
     | '/field/business/insurance'
     | '/field/business/rates'
     | '/field/business/team'
+    | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1347,6 +1389,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/notice/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
@@ -1395,6 +1438,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/money'
     | '/_authenticated/field/setup'
     | '/_authenticated/field/welcome'
+    | '/_authenticated/field/guide'
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/add'
     | '/_authenticated/partner/bulk-import'
@@ -1426,9 +1470,9 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
     | '/_authenticated/field/business_/team'
+    | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1459,6 +1503,7 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
+  NoticeTokenRoute: typeof NoticeTokenRoute
   MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
@@ -1476,11 +1521,12 @@ export interface RootRouteChildren {
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
-  ApiPublicEmailArtPreviewKindRoute: typeof ApiPublicEmailArtPreviewKindRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
+  ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
+  ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
@@ -1643,6 +1689,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notice/$token': {
+      id: '/notice/$token'
+      path: '/notice/$token'
+      fullPath: '/notice/$token'
+      preLoaderRoute: typeof NoticeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-estimate/$token': {
@@ -1995,6 +2048,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldWelcomeRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/guide': {
+      id: '/_authenticated/field/guide'
+      path: '/guide'
+      fullPath: '/field/guide'
+      preLoaderRoute: typeof AuthenticatedFieldGuideRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/owner/': {
       id: '/_authenticated/owner/'
       path: '/'
@@ -2198,6 +2258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessTeamRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/business_/esc-notice': {
+      id: '/_authenticated/field/business_/esc-notice'
+      path: '/business/esc-notice'
+      fullPath: '/field/business/esc-notice'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessEscNoticeRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/day/$jobId': {
       id: '/_authenticated/field/day/$jobId'
       path: '/day/$jobId'
@@ -2211,13 +2278,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/field/offer/$offerId'
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
-    }
-    '/api/public/email-art-preview/$kind': {
-      id: '/api/public/email-art-preview/$kind'
-      path: '/api/public/email-art-preview/$kind'
-      fullPath: '/api/public/email-art-preview/$kind'
-      preLoaderRoute: typeof ApiPublicEmailArtPreviewKindRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
@@ -2245,6 +2305,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/outlook-sync'
       fullPath: '/api/public/hooks/outlook-sync'
       preLoaderRoute: typeof ApiPublicHooksOutlookSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/xero-payments': {
+      id: '/api/public/hooks/xero-payments'
+      path: '/api/public/hooks/xero-payments'
+      fullPath: '/api/public/hooks/xero-payments'
+      preLoaderRoute: typeof ApiPublicHooksXeroPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/stripe-payments': {
+      id: '/api/public/hooks/stripe-payments'
+      path: '/api/public/hooks/stripe-payments'
+      fullPath: '/api/public/hooks/stripe-payments'
+      preLoaderRoute: typeof ApiPublicHooksStripePaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/post-intake': {
@@ -2406,6 +2480,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldMoneyRoute: typeof AuthenticatedFieldMoneyRoute
   AuthenticatedFieldSetupRoute: typeof AuthenticatedFieldSetupRoute
   AuthenticatedFieldWelcomeRoute: typeof AuthenticatedFieldWelcomeRoute
+  AuthenticatedFieldGuideRoute: typeof AuthenticatedFieldGuideRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
   AuthenticatedFieldBusinessAgreementRoute: typeof AuthenticatedFieldBusinessAgreementRoute
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
@@ -2413,6 +2488,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
   AuthenticatedFieldBusinessTeamRoute: typeof AuthenticatedFieldBusinessTeamRoute
+  AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
 }
@@ -2423,6 +2499,7 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldMoneyRoute: AuthenticatedFieldMoneyRoute,
   AuthenticatedFieldSetupRoute: AuthenticatedFieldSetupRoute,
   AuthenticatedFieldWelcomeRoute: AuthenticatedFieldWelcomeRoute,
+  AuthenticatedFieldGuideRoute: AuthenticatedFieldGuideRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
   AuthenticatedFieldBusinessAgreementRoute:
     AuthenticatedFieldBusinessAgreementRoute,
@@ -2433,6 +2510,8 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
     AuthenticatedFieldBusinessInsuranceRoute,
   AuthenticatedFieldBusinessRatesRoute: AuthenticatedFieldBusinessRatesRoute,
   AuthenticatedFieldBusinessTeamRoute: AuthenticatedFieldBusinessTeamRoute,
+  AuthenticatedFieldBusinessEscNoticeRoute:
+    AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
 }
@@ -2513,6 +2592,7 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
+  NoticeTokenRoute: NoticeTokenRoute,
   MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
@@ -2530,11 +2610,12 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
-  ApiPublicEmailArtPreviewKindRoute: ApiPublicEmailArtPreviewKindRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
+  ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
+  ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,

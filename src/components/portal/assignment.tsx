@@ -4,10 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileText, ShieldAlert } from "lucide-react";
 import { useAction } from "@/hooks/use-me";
 import {
-  confirmApConsentFn, getAcceptancePackage, getAssignment, getAssignmentDocUrl, prepareFinalAssignmentFn, raiseAssignmentVariation, reconfirmAssignmentVariation,
-  respondToQuote, sendMessage, signFinalAssignmentFn, signInstallerDeclaration, signOwnerConsentFn,
+  confirmApConsentFn, getAcceptancePackage, getAssignment, getAssignmentDocUrl, prepareFinalAssignmentFn, raiseAssignmentVariation, reconfirmAssignmentVariation, recordVeecPrerequisiteFn,
+  respondToQuote, sendMessage, signFinalAssignmentFn, signOwnerConsentFn,
 } from "@/lib/portal.functions";
-import { ASSIGNMENT_LABEL, formFieldBlockers, type AssignmentStatus, type FieldValue, type FormField } from "@/lib/assignment.core";
+import { ASSIGNMENT_LABEL, INSTALLER_DECLARATION_SUPERSEDED, formFieldBlockers, type AssignmentStatus, type FieldValue, type FormField } from "@/lib/assignment.core";
+import { AP_DECLARATION, INSTALLER_DECLARATION, SECTION_1_CONSUMER_RIGHTS } from "@/lib/veec-assignment-form.core";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
 import { aud, fmtDateTime } from "@/lib/workflow";
 import { Button } from "@/components/ui/button";
@@ -148,12 +149,17 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
   const [sig, setSig] = useState("");
   const [cSig, setCSig] = useState("");
   const [cOk, setCOk] = useState(false);
+  const [decl, setDecl] = useState<Record<string, boolean>>({});
   const [fSig, setFSig] = useState("");
   const [f18, setF18] = useState(false);
   if (!data) return null;
   const ag = data.agreement as Any, c = data.consent as Any, a = data.current as Any;
   if (!ag && !c && !a) return null;
   const pending = (data.variations ?? []).find((v) => v.status === "pending");
+  const form = data.consentForm;
+  const escForm = !!form?.esc;
+  const allDecl = escForm && (form?.declarations ?? []).every((d) => decl[d.key] === true);
+  const consentReady = escForm ? allDecl : cOk;
   return (
     <Section title="Your agreement & forms">
       <div className="space-y-4 text-sm">
@@ -162,7 +168,22 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2"><b>Information-sharing consent (ESC)</b><StatusPill s={c.status} /></div>
             <p className="text-muted-foreground">Installation: {(c.installation_days as string[]).join(", ")} · {c.premises_address}</p>
-            {c.status === "awaiting_owner" && data.escConsentTemplate && <>
+            {c.status === "awaiting_owner" && data.escConsentTemplate && escForm && form && <>
+              {/* ESC Owner's Consent Form Template v1 (decision 123): Section 1 prefilled, Section 2 = four ticks, then sign. */}
+              <div className="rounded-lg border p-3">
+                <div className="font-medium">Section 1: Information to be shared</div>
+                <div className="text-muted-foreground">Owner details</div>
+                <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">{form.section1.map((r) => <Fragment key={r.label}><dt className="text-muted-foreground">{r.label}:</dt><dd>{r.value}</dd></Fragment>)}</dl>
+              </div>
+              <div className="font-medium">Section 2: Declaration by owner</div>
+              <p>I declare that:</p>
+              {form.declarations.map((d) => <Tick key={d.key} v={decl[d.key] === true} set={(v) => setDecl({ ...decl, [d.key]: v })}>{d.text}</Tick>)}
+              <Input className="h-12" placeholder="Owner signature: type your full name" value={cSig} onChange={(e) => setCSig(e.target.value)} />
+              <Button size="field" className="w-full" disabled={!consentReady || cSig.trim().length < 2}
+                onClick={() => signConsent({ jobId, signatoryName: cSig, authorityType: "owner", accept: allDecl, signatureName: cSig, declarations: { owner_or_authorised: decl["owner_or_authorised"] === true, details_accurate: decl["details_accurate"] === true, consent_ap_sends: decl["consent_ap_sends"] === true, consent_commission_shares: decl["consent_commission_shares"] === true } }, "Consent signed")}>Sign consent</Button>
+              <Official title={`Full form (${form.version})`} body={data.escConsentTemplate.body} />
+            </>}
+            {c.status === "awaiting_owner" && data.escConsentTemplate && !escForm && <>
               <Official title={`Consent (${data.escConsentTemplate.version})`} body={data.escConsentTemplate.body} />
               <Tick v={cOk} set={setCOk}>I consent to {c.ap_legal_entity} sharing the information described above with the Essential Services Commission.</Tick>
               <Input className="h-12" placeholder="Type your full name to sign" value={cSig} onChange={(e) => setCSig(e.target.value)} />
@@ -210,8 +231,14 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
   const [apName, setApName] = useState("");
   const [explained, setExplained] = useState(false);
   const [apSig, setApSig] = useState("");
+  const [apRepEdit, setApRepEdit] = useState<{ first_name: string; last_name: string; role: string; phone: string | null; email: string | null } | null>(null);
   if (!data) return null;
   const ag = data.agreement as Any, c = data.consent as Any, a = data.current as Any;
+  const form = data.consentForm;
+  // Section 3 Part A: prefilled from the signing office user's profile, editable before signing.
+  const apRep = apRepEdit ?? form?.apPrefill ?? { first_name: "", last_name: "", role: "", phone: null, email: null };
+  const apRepName = `${apRep.first_name.trim()} ${apRep.last_name.trim()}`.trim();
+  const apRepOk = apRep.first_name.trim().length > 0 && apRep.last_name.trim().length > 0 && apRep.role.trim().length >= 2;
   return (
     <div className="space-y-4">
       <Section title="1. Customer Agreement / Quote Acceptance (commercial)">
@@ -228,7 +255,22 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /> v{c.version} · {(c.installation_days as string[]).join(", ")} {c.copy_path && <CopyLink id={c.id} which="consent" label="Signed copy" />}</div>
             {c.blockers.length > 0 && <ul className="list-disc pl-5 text-warning">{c.blockers.map((b: string) => <li key={b}>{b}</li>)}</ul>}
-            {c.status === "awaiting_ap" && <div className="space-y-2 rounded border p-2">
+            {c.status === "awaiting_ap" && form?.esc && <div className="space-y-2 rounded border p-2">
+              {/* ESC template Section 3 (decision 123): Part A details prefilled from your profile, Part B declaration tick, then sign. */}
+              <div className="font-medium">Section 3 – Accredited person details and declaration</div>
+              <div className="text-muted-foreground">Part A: Accredited person name: DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654)</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input placeholder="First name" value={apRep.first_name} onChange={(e) => setApRepEdit({ ...apRep, first_name: e.target.value })} />
+                <Input placeholder="Last name" value={apRep.last_name} onChange={(e) => setApRepEdit({ ...apRep, last_name: e.target.value })} />
+                <Input placeholder="Role (e.g. Office manager)" value={apRep.role} onChange={(e) => setApRepEdit({ ...apRep, role: e.target.value })} />
+                <Input placeholder="Phone number" value={apRep.phone ?? ""} onChange={(e) => setApRepEdit({ ...apRep, phone: e.target.value || null })} />
+                <Input placeholder="Email address" value={apRep.email ?? ""} onChange={(e) => setApRepEdit({ ...apRep, email: e.target.value || null })} />
+              </div>
+              <div className="font-medium">Part B: Declaration by accredited person</div>
+              <label className="flex items-start gap-2"><Checkbox checked={explained} onCheckedChange={(v) => setExplained(!!v)} /> <span>I {apRepName || "<insert name>"}, am the authorised representative of DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654) and declare that I have explained to the property owner the purpose for which this written consent is being obtained.</span></label>
+              <Button disabled={!explained || !apRepOk} onClick={() => confirm({ jobId, apRep, purposeExplained: explained }, "Consent confirmed")}>Sign as accredited person representative</Button>
+            </div>}
+            {c.status === "awaiting_ap" && !form?.esc && <div className="space-y-2 rounded border p-2">
               <Input placeholder="AP representative full name" value={apName} onChange={(e) => setApName(e.target.value)} />
               <label className="flex items-start gap-2"><Checkbox checked={explained} onCheckedChange={(v) => setExplained(!!v)} /> I explained the purpose of the information sharing to the owner.</label>
               <Button disabled={!explained || apName.trim().length < 2} onClick={() => confirm({ jobId, apRepName: apName, purposeExplained: explained }, "Consent confirmed")}>Confirm as AP representative</Button>
@@ -236,24 +278,29 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
             {c.status === "valid" && <p>AP: {c.ap_rep_name} · {fmtDateTime(c.ap_signed_at)} · delivery {String(c.delivery_status).replace(/_/g, " ")}</p>}
           </div>)}
       </Section>
-      <Section title="3. Installer declaration (post-install)">
-        {data.declaration ? <p className="text-sm">{data.declaration.installed_product} {data.declaration.installed_r_value ?? ""} · {data.declaration.installed_area_m2} m² · signed {fmtDateTime(data.declaration.signed_at)}</p> : <p className="text-sm text-muted-foreground">{data.installerBlockers[0] ?? "The installer signs after installation is recorded complete."}</p>}
+      <Section title="3. Installer declaration (Mitti PIISA before work)">
+        {data.declaration ? <p className="text-sm">{data.declaration.installed_product} {data.declaration.installed_r_value ?? ""} · {data.declaration.installed_area_m2} m² · signed {fmtDateTime(data.declaration.signed_at)}</p> : <p className="text-sm text-muted-foreground">{INSTALLER_DECLARATION_SUPERSEDED}</p>}
       </Section>
-      <Section title="4. Final Activity 48 VEEC assignment (post-install)">
+      <Section title="4. Official ESC VEEC assignment form v1.1 (post-install: installer → AP → owner)">
         {data.finalBlockers.length > 0 && <div className="mb-3 flex gap-2 rounded border border-warning bg-warning-soft p-3 text-sm"><ShieldAlert className="h-4 w-4 shrink-0" /><div>{data.finalBlockers.map((b) => <div key={b}>{b}</div>)}<a className="underline" href="/admin/compliance">Open Compliance Setup</a></div></div>}
+        <VeecPreparation jobId={jobId} prep={data.veecPrep as Any} prepare={(fieldValues) => prepare({ jobId, fieldValues }, "Form details saved")} canPrepare={data.installationCompleted && a?.status !== "effective_complete"} />
+        <ApPrerequisites jobId={jobId} items={data.apPrerequisites ?? []} signed={!!a?.ap_signed_at} />
         {!a ? (
-          <div className="space-y-2 text-sm"><p className="text-muted-foreground">Prepared during Final check, after installation, installer declaration and evidence.</p>
-            <Button disabled={data.stage !== "ap_review"} onClick={() => prepare({ jobId, fieldValues: {} }, "Final assignment prepared")}>Prepare final assignment</Button></div>
+          <div className="space-y-2 text-sm"><p className="text-muted-foreground">Prepared from job facts once the install is recorded complete. The lead installer's signature from their job screen prepares it too.</p>
+            <Button disabled={!data.installationCompleted} onClick={() => prepare({ jobId, fieldValues: {} }, "VEEC assignment form prepared")}>Prepare the form</Button></div>
         ) : (
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2"><StatusPill s={a.status} />{a.final_copy_path && <CopyLink id={a.id} which="final" label="Final copy" />}{a.delivery_status === "pending_comms_lock" && <Pill t="warn">Delivery pending – communications locked</Pill>}</div>
             <ol className="list-decimal pl-5">
-              <li>Lead installer: {a.installer_signed_at ? `${a.installer_signature_name} · ${fmtDateTime(a.installer_signed_at)}` : "pending"}</li>
-              <li>AP representative: {a.ap_signed_at ? `${a.ap_signature_name} · ${fmtDateTime(a.ap_signed_at)}` : "pending"}</li>
-              <li>Customer: {a.consumer_signed_at ? `${a.consumer_signature_name} · ${fmtDateTime(a.consumer_signed_at)}` : "pending"}</li>
+              <li>Lead installer (Section 3 Part B, from their job screen): {a.installer_signed_at ? `${a.installer_signature_name} · ${fmtDateTime(a.installer_signed_at)}` : "pending"}</li>
+              <li>AP representative (Section 3 Part A, after the prerequisites above): {a.ap_signed_at ? `${a.ap_signature_name} · ${fmtDateTime(a.ap_signed_at)}` : "pending"}</li>
+              <li>Owner (Section 4 Part B, via their secure My job link; asked by email + text, reminders days 1/3/7, office alert day 10): {a.consumer_signed_at ? `${a.consumer_signature_name} · ${fmtDateTime(a.consumer_signed_at)}` : "pending"}</li>
             </ol>
-            {a.status === "awaiting_ap_signature" && <div className="flex gap-2"><Input placeholder="Type your full name to sign as AP representative" value={apSig} onChange={(e) => setApSig(e.target.value)} /><Button disabled={apSig.trim().length < 2} onClick={() => signFinal({ jobId, party: "ap", signatureName: apSig }, "Signed")}>Sign</Button></div>}
-            <Button variant="outline" size="sm" disabled={data.stage !== "ap_review" || a.status === "effective_complete"} onClick={() => prepare({ jobId, fieldValues: {} }, "Rechecked final facts")}>Recheck final facts</Button>
+            {a.status === "awaiting_ap_signature" && <div className="space-y-2 rounded border p-2">
+              <Official title="Section 3 Part A – Accredited person declaration (signing this asserts every line)" body={AP_DECLARATION} />
+              <div className="flex gap-2"><Input placeholder="Type your full name to sign as AP representative" value={apSig} onChange={(e) => setApSig(e.target.value)} /><Button disabled={apSig.trim().length < 2 || (data.apPrerequisites ?? []).length > 0} onClick={() => signFinal({ jobId, party: "ap", signatureName: apSig }, "Signed")}>Sign</Button></div>
+            </div>}
+            <Button variant="outline" size="sm" disabled={a.status === "effective_complete"} onClick={() => prepare({ jobId, fieldValues: {} }, "Rechecked final facts")}>Recheck final facts</Button>
             {(data.variations ?? []).length > 0 && <ul className="space-y-1">{data.variations.map((v) => <li key={v.id} className="rounded border p-2">{(v.reasons as string[]).join(", ")} · <b>{v.status}</b> · {fmtDateTime(v.raised_at)}</li>)}</ul>}
             {a.status !== "effective_complete" && <div className="space-y-2 border-t pt-3"><Textarea placeholder="Describe another material change (scope, price…)" value={reason} onChange={(e) => setReason(e.target.value)} />
               <Button variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await raise({ jobId, reason }, "Variation raised – customer must reconfirm"); setReason(""); }}>Raise variation</Button></div>}
@@ -264,32 +311,71 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
   );
 }
 
-/** Installer: post-install declaration, then lead-installer signature on the final assignment. */
+/** Installer (decision 119): after "Installation complete", the lead installer signs Section 3 Part B of the official
+ *  VEEC assignment form from this screen. The first signature prepares the form from job facts; missing facts block it. */
 export function InstallerFinalDeclaration({ jobId }: { jobId: string }) {
   const { data } = useAssignment(jobId);
-  const sign = useAction(signInstallerDeclaration);
   const signFinal = useAction(signFinalAssignmentFn);
-  const [asQuoted, setAsQuoted] = useState(true);
-  const [product, setProduct] = useState("");
-  const [rValue, setRValue] = useState("");
-  const [area, setArea] = useState<string | null>(null);
-  const [vals, setVals] = useState<Record<string, FieldValue>>({});
   const [sig, setSig] = useState("");
   const [ok, setOk] = useState(false);
   if (!data) return null;
   const a = data.current as Any;
-  if (a?.status === "awaiting_installer_signature") return (
+  if (a?.installer_signed_at) return <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Your part of the rebate form is signed · {ASSIGNMENT_LABEL[a.status as AssignmentStatus] ?? a.status}</p>;
+  if (!data.installationCompleted) return <p className="text-sm text-muted-foreground">Once you mark the installation complete, sign your part of the rebate form (Section 3 Part B) here.</p>;
+  const prep = data.veecPrep as { blockers: string[] } | null;
+  const notReady = a ? null : prep?.blockers?.length ? prep.blockers : data.finalBlockers.length ? data.finalBlockers : null;
+  return (
     <div className="space-y-3 text-sm">
-      <p className="font-medium">Sign the Activity 48 VEEC assignment as lead installer</p>
-      {data.officialForm && <Official title={`Official form (${data.officialForm.version})`} body={data.officialForm.body} />}
-      <p>Installed: {a.installed_product} · {a.installed_area_m2} m²</p>
-      <Input className="h-12" placeholder="Type your full name to sign" value={sig} onChange={(e) => setSig(e.target.value)} />
-      <Button size="field" className="w-full" disabled={sig.trim().length < 2} onClick={() => signFinal({ jobId, party: "installer", signatureName: sig }, "Signed")}>Sign as lead installer</Button>
+      <p className="font-medium">Sign your part of the rebate form (Section 3 Part B – declaration by lead installer)</p>
+      <Official title="Part B: Declaration by lead installer" body={INSTALLER_DECLARATION} />
+      {a && <p>Installed: {a.installed_product} · {a.installed_area_m2} m²</p>}
+      {notReady ? <div className="rounded border border-warning bg-warning-soft p-3"><p className="font-medium">Home Insulation Victoria is finishing the form details first:</p><ul className="list-disc pl-5">{notReady.map((b) => <li key={b}>{b}</li>)}</ul></div> : <>
+        <label className="flex min-h-12 items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={ok} onCheckedChange={(x) => setOk(!!x)} /> I make the declaration above.</label>
+        <Input className="h-12" placeholder="Type your full name to sign" value={sig} onChange={(e) => setSig(e.target.value)} />
+        <Button size="field" className="w-full" disabled={!ok || sig.trim().length < 2} onClick={() => signFinal({ jobId, party: "installer", signatureName: sig }, "Signed")}>Sign as lead installer</Button>
+      </>}
     </div>
   );
-  if (data.declaration) return <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Declaration signed – {data.declaration.installed_product}, {data.declaration.installed_area_m2} m²{a ? ` · assignment: ${ASSIGNMENT_LABEL[a.status as AssignmentStatus] ?? a.status}` : ""}</p>;
-  // Installer declaration is signed in the Mitti installer safety form (PIISA) onsite — no portal step.
-  return <p className="text-sm text-muted-foreground">Your installer declaration is part of the installer safety form (PIISA) in Mitti. Sign it there on install day — nothing to sign here.</p>;
+}
+
+/** Office: the prefilled Section 2, what is still missing, and an editor for the gaps (saved by re-preparing the form). */
+function VeecPreparation({ jobId, prep, prepare, canPrepare }: { jobId: string; prep: { blockers: string[]; missing: string[]; values: Record<string, FieldValue>; fields: FormField[] } | null; prepare: (v: Record<string, FieldValue>) => Promise<unknown>; canPrepare: boolean }) {
+  const [vals, setVals] = useState<Record<string, FieldValue>>({});
+  if (!prep) return null;
+  const gaps = prep.fields.filter((f) => prep.missing.includes(f.label));
+  const filled = prep.fields.filter((f) => prep.values[f.key] != null && String(prep.values[f.key]).trim() !== "");
+  return (
+    <div className="mb-3 space-y-2 text-sm" data-job={jobId}>
+      <details className="rounded border p-2"><summary className="cursor-pointer font-medium">Section 2 from the job record ({filled.length} of {prep.fields.length} fields)</summary>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">{filled.map((f) => <Fragment key={f.key}><dt className="text-muted-foreground">{f.label}</dt><dd>{f.type === "checkbox" ? (prep.values[f.key] === true ? "Confirmed" : "—") : String(prep.values[f.key])}</dd></Fragment>)}</dl></details>
+      {gaps.length > 0 && <div className="space-y-2 rounded border border-warning bg-warning-soft p-3">
+        <p className="font-medium">Still missing (not found in the job record – enter from the paperwork):</p>
+        {gaps.map((f) => <FieldInput key={f.key} f={f} v={vals[f.key] ?? null} set={(v) => setVals({ ...vals, [f.key]: v })} />)}
+        <Button disabled={!canPrepare || formFieldBlockers(gaps, vals).length > 0} onClick={async () => { await prepare(vals); setVals({}); }}>Save and prepare the form</Button>
+      </div>}
+      {prep.blockers.length > 0 && gaps.length === 0 && <ul className="list-disc pl-5 text-warning">{prep.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
+    </div>
+  );
+}
+
+/** Office: the four AP-declaration prerequisites. Two are read from existing records (PIESA copies, ESC notice);
+ *  two are recorded here (warranty copy to the consumer; ESC collection notice to each installer). */
+function ApPrerequisites({ jobId, items, signed }: { jobId: string; items: string[]; signed: boolean }) {
+  const record = useAction(recordVeecPrerequisiteFn);
+  const [note, setNote] = useState("");
+  if (signed) return null;
+  return (
+    <div className="mb-3 space-y-2 rounded border p-3 text-sm">
+      <p className="font-medium">Before the AP signs Part A (decision 119) {items.length === 0 ? <span className="text-success">— all four prerequisites recorded</span> : null}</p>
+      {items.length > 0 && <ul className="list-disc pl-5 text-warning">{items.map((b) => <li key={b}>{b}</li>)}</ul>}
+      <Input placeholder="Note (how / when it was given)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={() => record({ jobId, kind: "warranty_copy_provided", note, workerId: null }, "Warranty copy recorded")}>Record: warranty copy given to the consumer</Button>
+        <Button variant="outline" size="sm" onClick={() => record({ jobId, kind: "esc_collection_notice_provided", note, workerId: null }, "Collection notice recorded")}>Record: ESC collection notice given to the installer business</Button>
+      </div>
+      <details><summary className="cursor-pointer text-muted-foreground">Section 1 wording the owner sees</summary><Official title="Section 1: Consumer rights information" body={SECTION_1_CONSUMER_RIGHTS} /></details>
+    </div>
+  );
 }
 
 function FieldInput({ f, v, set }: { f: FormField; v: FieldValue; set: (v: FieldValue) => void }) {

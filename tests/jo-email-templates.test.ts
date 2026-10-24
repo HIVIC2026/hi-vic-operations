@@ -7,12 +7,10 @@ import {
   subjectForTemplate,
   renderJoEstimateEmail,
   renderJoIneligibleEmail,
-  renderJoReadyCheckInvitation,
   DEFAULT_ASSUMED_AREA_M2,
   type JoRoutingInput,
   type JoEstimateFigures,
   type JoRecipient,
-  type SavedPricingSnapshot,
 } from "../src/lib/jo-email-templates.core";
 
 const recipient: JoRecipient = {
@@ -67,10 +65,6 @@ describe("selectJoTemplate routing", () => {
     expect(selectJoTemplate({ outcome: "ineligible", insulation: null, ceilingSizeKnown: false }))
       .toBe("ineligible");
   });
-  test("T8 ready check invitation with saved snapshot", () => {
-    expect(selectJoTemplate({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, readyCheckInvitation: true, savedSnapshotAvailable: true }))
-      .toBe("ready_check_invitation");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -92,20 +86,6 @@ describe("below-R2 review gate", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Ready Check invitation — fail closed without snapshot (Group-B style restriction)
-// ---------------------------------------------------------------------------
-describe("ready check invitation safety", () => {
-  test("no readable snapshot => null (fail closed, no public-calculator fallback)", () => {
-    expect(selectJoTemplate({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, readyCheckInvitation: true, savedSnapshotAvailable: false }))
-      .toBeNull();
-  });
-  test("renderer throws if personal estimate link is missing", () => {
-    const badSnap = { ...snapshot, personalEstimateUrl: "" } as SavedPricingSnapshot;
-    expect(() => renderJoReadyCheckInvitation(recipient, badSnap)).toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 4. CTA mapping
 // ---------------------------------------------------------------------------
 describe("CTA selection", () => {
@@ -121,8 +101,9 @@ describe("CTA selection", () => {
     expect(ctasForTemplate("ineligible")).toEqual(["review_result"]);
     expect(ctasForTemplate("ineligible")).not.toContain("save_my_spot");
   });
-  test("ready check invitation uses Book my Ready Check", () => {
-    expect(ctasForTemplate("ready_check_invitation")).toEqual(["book_ready_check"]);
+  test("the retired Template 8 (office Ready Check invitation) is no longer a template", () => {
+    expect(() => ctasForTemplate("ready_check_invitation" as never)).not.toThrow();
+    expect(ctasForTemplate("ready_check_invitation" as never)).toBeUndefined();
   });
 });
 
@@ -165,59 +146,16 @@ describe("removal allowance", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. Saved pricing immutability (Template 8)
-// ---------------------------------------------------------------------------
-const snapshot: SavedPricingSnapshot = Object.freeze({
-  veuRebate: 1100,
-  customerTotal: 3600,
-  totalBeforeRebate: 4700,
-  installation: 4000,
-  piesaFee: 349,
-  apFee: 451,
-  ceilingAreaM2: 150,
-  areaEstimated: true,
-  savedAt: "2026-10-01T00:00:00.000Z",
-  personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/e/TOKEN123",
-});
-
-describe("ready check invitation uses saved snapshot immutably", () => {
-  test("renders SAVED figures, not current rates", () => {
-    const out = renderJoReadyCheckInvitation(recipient, snapshot);
-    expect(out.body).toContain("Your estimated cost after rebate: $3,600 including GST");
-    expect(out.body).toContain("Before rebate: $4,700 including GST");
-    expect(out.body).toContain("You could save $1,100");
-  });
-  test("calculator button links to the PERSONAL estimate URL (no public calculator)", () => {
-    const out = renderJoReadyCheckInvitation(recipient, snapshot);
-    expect(out.body).toContain(snapshot.personalEstimateUrl);
-  });
-  test("pricing changes after save do not affect a snapshot object", () => {
-    // Simulate 'current rates' changing: snapshot is frozen and rendering reads only the snapshot.
-    const before = renderJoReadyCheckInvitation(recipient, snapshot).body;
-    // Attempt a mutation (should be a no-op because the object is frozen).
-    try { (snapshot as any).customerTotal = 9999; } catch { /* frozen in strict mode */ }
-    const after = renderJoReadyCheckInvitation(recipient, snapshot).body;
-    expect(after).toBe(before);
-    expect(after).toContain("$3,600 including GST");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 8. Subjects + footer (shared, verbatim) + no obligation language
 // ---------------------------------------------------------------------------
 describe("subjects and footer", () => {
   test("ineligible subject", () => {
     expect(subjectForTemplate("ineligible", "Alex")).toBe("Your ceiling insulation eligibility result");
   });
-  test("ready check subject personalised", () => {
-    expect(subjectForTemplate("ready_check_invitation", "Alex"))
-      .toBe("Great news, Alex—it’s your turn to book your free Ready Check!");
-  });
   test("shared footer present on every template", () => {
     const bodies = [
       renderJoEstimateEmail("eligible_no_insulation_size_unknown", recipient, liveFigures()).body,
       renderJoIneligibleEmail(recipient, "Your property already has compliant insulation.").body,
-      renderJoReadyCheckInvitation(recipient, snapshot).body,
     ];
     for (const b of bodies) {
       expect(b).toContain("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria");

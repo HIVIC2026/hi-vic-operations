@@ -24,6 +24,10 @@ describe("on-site Ready Check (Jo, 7 Oct)", () => {
     expect(onsiteState({ ...facts, lastError: "Mitti could not be reached. Try again shortly." }).kind).toBe("retry");
   });
   test("Mitti stays hidden until the business is invited, even if a form exists", () => expect(onsiteState({ ...facts, mittiInvited: false, auditId: "a1" }).kind).toBe("office"));
+  test("decision 115 (Jo 24 Oct): no booking needed — the form is prepared as soon as the job exists", () => {
+    expect(onsiteState({ ...facts, booked: false })).toEqual({ kind: "preparing", message: PREPARING });
+    expect(onsiteState({ mittiInvited: true, templateSet: true, gateADone: true, auditId: "a1", lastError: null }).kind).toBe("open");
+  });
   test("Mitti errors in installer words; only network errors auto-retry", () => {
     expect(plainMittiError("The assigned installer (x) was not found in Mitti.")).toContain("Mitti login isn't linked");
     expect(retryable("Mitti could not be reached.")).toBe(true);

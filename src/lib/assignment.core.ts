@@ -1,10 +1,14 @@
 import { melbourneToday } from "./melbourne-time.core";
-// Pure rules (no I/O) for the Activity 48 signing sequence. Four SEPARATE events:
-//   1. Quote stage: Customer Agreement / Quote Acceptance (commercial) – unlocks invoice/deposit.
+// Pure rules (no I/O) for the Activity 48 signing sequence. Separate events:
+//   1. Quote stage: Customer Agreement / Quote Acceptance (commercial) – unlocks invoice/deposit. The owner's Gate B
+//      `veec_assignment_consent` is their consent-to-assign at acceptance; it is NOT the official form.
 //   2. Owner ESC consent (after an exact installation date exists) – see consent.core.ts.
-//   3. Installer declaration (after installation).
-//   4. Activity 48 VEEC assignment (after installation + AP QA) – final facts are completed before
-//      lead installer -> AP -> consumer sign the official form.
+//   3. Installer safety declaration = the Mitti PIISA before work (decision 118a). The separate portal "installer
+//      declaration" draft (DEECA-PIISA-March-2026-DRAFT) is superseded: its path is kept for history only.
+//   4. Official ESC VEEC assignment form v1.1 (decisions 119/120, 24 Oct 2026), completed from job facts AFTER the
+//      installation is recorded complete and signed lead installer (Section 3 Part B) → AP (Section 3 Part A, only once the
+//      four AP prerequisites are recorded – veec-assignment-form.core.ts) → consumer (Section 4 Part B) via the owner's
+//      secure link. Copy to the consumer within 10 business days. No signature is applied from the acceptance consent.
 // Official wording is NEVER defined here: it comes from versioned, admin-approved compliance_templates rows.
 
 import type { Json } from "@/integrations/supabase/types";
@@ -26,7 +30,7 @@ export const NOT_READY: Record<TemplateKey, string> = {
   consumer_rights: "Customer agreement is not ready: add the current VEU consumer information and consumer rights.",
   esc_consent: "ESC owner consent is not ready: add the current ESC information-sharing consent form.",
   installer_declaration: "Installer declaration is not ready: add the current Activity 48 installer declaration.",
-  consumer_declaration: "VEEC assignment is not ready: add the current official Activity 48 VEEC assignment form.",
+  consumer_declaration: "VEEC assignment is not ready: approve the official ESC VEEC assignment form v1.1 (1 Oct 2026) in Compliance Setup.",
   ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
   partner_agreement: "Partner onboarding is not ready: approve the current Home Insulation Victoria partner participation agreement.",
 };
@@ -48,8 +52,8 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   customer_agreement: "Customer agreement – AP commercial terms (quote acceptance, pre-install)",
   consumer_rights: "VEU consumer information & consumer rights (quote acceptance, pre-install)",
   esc_consent: "ESC owner consent – information sharing (after booking, ≥24h before work)",
-  installer_declaration: "Installer declaration (post-install)",
-  consumer_declaration: "Activity 48 VEEC assignment – official form (post-install)",
+  installer_declaration: "Installer declaration (superseded – the installer signs the PIISA before work and Part B of the assignment form after)",
+  consumer_declaration: "Activity 48 VEEC assignment – official ESC form v1.1 (post-install: installer → AP → consumer)",
   ap_declaration: "Accredited Person declaration (if required)",
   partner_agreement: "Home Insulation Victoria partner participation agreement (installer / electrician onboarding)",
 };
@@ -131,14 +135,15 @@ export function apDeclarationRequired(templates: Template[]) {
   return !!ap && ap.required;
 }
 
-/** Final assignment can only be prepared after installation, installer declaration, required evidence and during AP review. */
-export function finalAssignmentAvailability(i: { stage: string; installationCompleted: boolean; installerDeclared: boolean; evidenceMissing: string[]; agreementSigned: boolean; templates: Template[] }): string[] {
+/** Decision 118a: the separate portal installer declaration is superseded by the PIISA (before work) + Part B (after). */
+export const INSTALLER_DECLARATION_SUPERSEDED = "Superseded: the installer signs the Mitti PIISA before work and Section 3 Part B of the official VEEC assignment form after the install. Nothing is signed here.";
+
+/** The official form is prepared from job facts as soon as the installation is recorded complete (decision 119):
+ *  the lead installer signs Part B from their job screen, so no AP-review stage or evidence pack is required first. */
+export function finalAssignmentAvailability(i: { installationCompleted: boolean; agreementSigned: boolean; templates: Template[] }): string[] {
   const b: string[] = [];
   if (!i.agreementSigned) b.push("Customer agreement / quote acceptance not signed");
-  if (!i.installationCompleted) b.push("Installation not yet completed");
-  if (!i.installerDeclared) b.push("Missing evidence: installer declaration");
-  if (!["ap_review", "ready_for_veec"].includes(i.stage)) b.push("Final VEEC assignment is prepared during Final check (after evidence is uploaded)");
-  for (const e of i.evidenceMissing) b.push(`Evidence missing: ${e}`);
+  if (!i.installationCompleted) b.push("Installation not yet recorded as complete");
   b.push(...templateBlockers(i.templates, "final"));
   return b;
 }
@@ -178,7 +183,7 @@ export function finalConsumerSignatureRequired(templates: Template[]): boolean {
 export function signingOrderBlocker(s: Pick<FinalState, "status" | "installerSigned" | "apSigned" | "consumerSigned" | "openVariation" | "consumerFinalRequired" | "consumerFinalSigned">, party: Party): string | null {
   if (s.status === "effective_complete" || s.status === "cancelled") return "This assignment is closed.";
   if (s.openVariation || s.status === "variation_required") return "A variation must be reconfirmed by the customer first.";
-  if (s.status === "consumer_signed_pending_install" || s.status === "draft") return "Final assignment details are completed after installation and Final check.";
+  if (s.status === "consumer_signed_pending_install" || s.status === "draft") return "Final assignment details are completed after installation.";
   const consumerDone = s.consumerSigned && (!s.consumerFinalRequired || !!s.consumerFinalSigned);
   const done = { installer: s.installerSigned, ap: s.apSigned, consumer: consumerDone };
   if (done[party]) return "Already signed.";
@@ -204,7 +209,8 @@ export function evaluateAssignment(s: FinalState): { status: AssignmentStatus; m
   return { status: "effective_complete", missing: [] };
 }
 
-export const ASSIGNMENT_VEEC_BLOCKER = "Final Activity 48 VEEC assignment not yet effective.";
+/** Decision 120: no job reaches Ready for VEEC without the consumer-signed official form. */
+export const ASSIGNMENT_VEEC_BLOCKER = "The owner has not signed the VEEC assignment form yet (Section 4 Part B via their secure link) – the job cannot go to Ready for VEEC until the signed form is in.";
 
 export function retainUntil(from: Date): string {
   const d = new Date(from); d.setFullYear(d.getFullYear() + RETENTION_YEARS + 1);
@@ -284,9 +290,10 @@ export function setupStatus(templates: Template[], escConfigReady: boolean): Set
   return [
     card("agreement", "Customer agreement / consumer rights (pre-install)", "agreement", activeTemplate(templates, "customer_agreement") ? "Customers can accept quotes electronically (commercial agreement only)." : "Customers can accept quotes electronically. Optional Home Insulation Victoria commercial agreement wording not configured."),
     card("esc_consent", "ESC owner consent (after booking)", "consent", "Owner consent is generated once an exact installation date is booked."),
-    card("installer", "Installer declaration (post-install)", "installer", "Installers can sign their declaration electronically after installation."),
-    card("final_assignment", "Final Activity 48 VEEC assignment (post-install)", "final", "Final assignment can be prepared in Final check and signed installer → AP → customer."),
+    { key: "installer", label: "Installer declaration (superseded)", ready: true, message: INSTALLER_DECLARATION_SUPERSEDED },
+    card("final_assignment", "Official ESC VEEC assignment form v1.1 (post-install)", "final", "The form is completed from job facts once the install is recorded complete and signed lead installer → AP (after the four prerequisites) → owner via their secure link."),
     { key: "ap", label: "AP declaration (if required)", ready: !(apActive && apActive.required && !apActive.approved), message: activeTemplate(templates, "ap_declaration") ? "AP declaration wording approved." : "No separate AP declaration configured – AP representative signs the final assignment form." },
-    { key: "esc_config", label: "ESC notification fields", ready: escConfigReady, message: escConfigReady ? "ESC notice fields are approved." : "ESC notices are not ready: approve the current ESC notification field list." },
+    // Jo 24 Oct 2026 (decision 121): no approval is needed to PREPARE the Registry notice — the default field list applies until Jo confirms the real fields.
+    { key: "esc_config", label: "ESC notification fields", ready: true, message: escConfigReady ? "ESC notice fields are approved." : "Default VEU Registry field list in use; approve a field list here once Jo confirms the real Registry fields." },
   ];
 }

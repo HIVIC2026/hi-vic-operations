@@ -36,5 +36,6 @@ export function resolveMittiElectrician(input: {
 }
 
 export type MittiElectricianResolution = ReturnType<typeof resolveMittiElectrician>;
+/** Approved by Jo 24 Oct 2026 (decision 83; kept unchanged by decision 113). The brand prefix is added by brandSmsBody. */
 export const usualElectricianReminderBody = (jobNumber: string, url: string) =>
-  `Please add your usual electrician's name, licence number and price (inc GST) in My business so we can prepare the quote for job ${jobNumber}: ${url}. Reply STOP to opt out.`;
+  `To send the quote for ${jobNumber}, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: ${url}`;

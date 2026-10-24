@@ -29,11 +29,13 @@ export async function recordReadyCheckProgress(p: {
   const sig = missingSignature(d.missing);
   if (last?.event_type === "ready_check_incomplete" && (last.details as { signature?: string } | null)?.signature === sig) return { status: "unchanged", missing: d.missing };
   await logEvent(p.jobId, p.actorId, "ready_check_incomplete", `Ready Check form is missing: ${d.missing.join("; ")}`, { audit_id: p.auditId, missing: d.missing, signature: sig }, { internal: true });
-  await textInstaller(p.jobId, p.auditId, d.missing, sig).catch(() => undefined);
+  await textInstaller(p.jobId, p.auditId, d.missing, sig, (p.now ?? new Date()).toISOString()).catch(() => undefined);
   return { status: "recorded", missing: d.missing };
 }
 
-async function textInstaller(jobId: string, auditId: string, missing: string[], sig: string) {
+/** Decision 165: `foundAt` is when this gap list was recorded; the sender holds the text as "too late" after 24h, and a
+ *  held attempt no longer uses up the audit's key (a new gap list gets a new signature and key anyway). */
+async function textInstaller(jobId: string, auditId: string, missing: string[], sig: string, foundAt: string) {
   const { data: settings } = await admin.from("workflow_settings").select("mitti_auto_quote_enabled").eq("id", 1).maybeSingle();
   if ((settings as { mitti_auto_quote_enabled?: boolean } | null)?.mitti_auto_quote_enabled !== true) return { status: "off" };
   const { data: j } = await admin.from("jobs").select("source, job_number, properties(address_line, suburb)").eq("id", jobId).maybeSingle();
@@ -44,5 +46,6 @@ async function textInstaller(jobId: string, auditId: string, missing: string[], 
   const prop = j.properties as { address_line: string | null; suburb: string | null } | null;
   return (await import("./sms.server")).sendRealSms({ type: "ready_check_incomplete", jobId, businessId: asg.business_id,
     idempotencyKey: `ready-check-incomplete:v1:${jobId}:${auditId}:${sig}`, to: b?.signer_mobile ?? b?.phone,
-    body: readyCheckIncompleteText(j.job_number, [prop?.address_line, prop?.suburb].filter(Boolean).join(", ") || null, missing) });
+    body: readyCheckIncompleteText(j.job_number, [prop?.address_line, prop?.suburb].filter(Boolean).join(", ") || null, missing),
+    event: { at: foundAt } });
 }

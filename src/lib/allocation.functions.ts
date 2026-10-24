@@ -198,7 +198,7 @@ export const getInstallerInstallDays = createServerFn({ method: "POST" }).middle
   });
 
 export const installerOfferInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, days: ymdList(3) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, days: z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) })).min(1).max(3) }).parse(d))
   .handler(async ({ data, context }) => {
     const { installerOfferDays } = await import("./install-days.server");
     return installerOfferDays(data.jobId, context.userId, data.days);
@@ -220,10 +220,10 @@ export const installerChangeInstallDay = createServerFn({ method: "POST" }).midd
   });
 
 export const installerTakeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid, time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
   .handler(async ({ data, context }) => {
     const { installerTakeDay } = await import("./install-days.server");
-    return installerTakeDay(data.jobId, data.proposalId, context.userId);
+    return installerTakeDay(data.jobId, data.proposalId, context.userId, data.time);
   });
 
 // ---------- Step 10: ESC AP task + pre-start check ----------

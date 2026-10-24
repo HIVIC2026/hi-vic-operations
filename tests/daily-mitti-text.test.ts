@@ -1,7 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { dailySendDue, dailyText, diffDay, melbourneHm, skipReason, snap, timeWindow, updateText, type DayJob } from "../src/lib/daily-mitti-text.core";
+import { dailySendDue, dailyText, diffDay, melbourneHm, mittiFormSource, skipReason, snap, timeWindow, updateText, type DayJob } from "../src/lib/daily-mitti-text.core";
+
+describe("which Mitti form each booking links (Jo 24 Oct 2026)", () => {
+  test("install days link the installer's PIISA form; electrician visits keep the PIESA audit; Ready Checks their form", () => {
+    expect(mittiFormSource("installation")).toBe("piisa_event");
+    expect(mittiFormSource("assessment")).toBe("assessments");
+    expect(mittiFormSource("rectification")).toBe("assessments");
+    expect(mittiFormSource("ready_check")).toBe("ready_checks");
+  });
+  test("server reads the latest mitti_piisa_audit_created audit_id; none = form not ready yet", () => {
+    const src = readFileSync(new URL("../src/lib/daily-mitti-text.server.ts", import.meta.url), "utf8");
+    expect(src).toContain('.eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1)');
+    expect(src).toContain("return id ? String(id) : null;");
+    expect(src).toContain("bookingFormAuditId(b.job_id, b.kind)");
+  });
+});
 
 const job = (id: string, start: string, end: string, street: string, suburb: string, status = "confirmed"): DayJob => ({ jobId: id, bookingId: `b${id}`, start, end, street, suburb, status, link: `https://app.au.mitti.com/inspections/${id}` });
 

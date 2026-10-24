@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { chooseReadyCheckWindowsFn, getReadyCheckWindowsFn } from "@/lib/estimate.functions";
-import { SPOT_HELD_MESSAGE } from '@/lib/ready-check-booking-access.core';
+// Owner Ready Check window picker — used only by the installer-supplied "times" link (/times/$token).
+// Jo 24 Oct 2026 (decision 53): owners of our leads no longer pick Ready Check times; the installer offers them.
 import {
-  PIESA_SLOTS, PIESA_WINDOW_MAX, PIESA_WINDOW_MIN, PIESA_WINDOW_MIN_DAYS, allowedPiesaDays, formatPiesaWindow, piesaWindowBlockers,
+  PIESA_SLOTS, PIESA_WINDOW_MAX, PIESA_WINDOW_MIN, PIESA_WINDOW_MIN_DAYS, allowedPiesaDays, piesaWindowBlockers,
   type PiesaSlot, type PiesaWindowPick,
 } from "@/lib/piesa-windows.core";
 
@@ -34,38 +31,6 @@ export function ReadyCheckTimesPicker({ value, onChange, disabled = false }: { v
         ))}
       </div>
       <p className="mt-2 text-xs">{value.length} of {PIESA_WINDOW_MAX} chosen.{value.length > 0 && blockers.length ? ` ${blockers[0]}` : ""}</p>
-    </div>
-  );
-}
-
-/** After the request: shows the chosen times, or asks for more times once if no installer could take them. */
-export function ReadyCheckTimesStatus({ token }: { token: string }) {
-  const get = useServerFn(getReadyCheckWindowsFn);
-  const choose = useServerFn(chooseReadyCheckWindowsFn);
-  const { data, refetch } = useQuery({ queryKey: ["rc-windows", token], queryFn: () => get({ data: { token } }), retry: false });
-  const [picks, setPicks] = useState<PiesaWindowPick[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  if (!data) return null;
-  if (!data.bookingAllowed) return <p role="status" className="mt-4 text-sm font-bold">{SPOT_HELD_MESSAGE}</p>;
-  if (data.canPick) return (
-    <div className="mt-4 rounded-[20px] bg-estimate-white px-5 py-6">
-      {data.round >= 1 && <p className="mb-3 text-sm font-bold">None of our installers could make your earlier times. Please choose some new times.</p>}
-      <ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />
-      {error && <p className="mt-2 text-sm font-bold text-danger" role="alert">{error}</p>}
-      <button type="button" disabled={busy || piesaWindowBlockers(picks).length > 0} className="mt-3 min-h-12 w-full rounded-xl bg-estimate-green px-5 py-3 font-extrabold text-estimate-white disabled:opacity-50"
-        onClick={async () => { setBusy(true); setError(null); try { await choose({ data: { token, picks } }); setPicks([]); await refetch(); } catch (e) { setError(e instanceof Error ? e.message : "Your times could not be sent."); } finally { setBusy(false); } }}>
-        Send my times
-      </button>
-    </div>
-  );
-  const open = data.windows.filter((w) => w.status === "open");
-  if (!open.length) return null;
-  return (
-    <div className="mt-4 rounded-[20px] bg-estimate-white px-5 py-5 text-sm">
-      <p className="font-bold">Your Ready Check times</p>
-      <ul className="mt-2 space-y-1">{open.map((w) => <li key={w.starts_at}>{formatPiesaWindow(w.starts_at, w.ends_at)}</li>)}</ul>
-      <p className="mt-2 text-[13px]">We've shared these with approved installers. You'll hear as soon as one is booked.</p>
     </div>
   );
 }

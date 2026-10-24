@@ -5,6 +5,7 @@ import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
 import { OfficeAllocationPanel } from "@/components/portal/allocation";
 import { ChooseTradePanel } from "@/components/portal/choose-trade";
+import { ChooseInstallerPanel } from "@/components/portal/choose-installer";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { VerifiedEligibilityCard } from "@/components/portal/verified-eligibility";
 import { AdminEstimateCard } from "@/components/portal/estimate";
@@ -144,7 +145,7 @@ function JobDetail() {
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and Ready Check">
           <OfficeReadyCheckBooking jobId={jobId} />
-          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Ready Check"]} />
+          <ChooseInstallerPanel jobId={jobId} /><ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Ready Check"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} installerJob={installerJob} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />

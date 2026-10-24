@@ -217,6 +217,10 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     chk(await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", res.job_id), "Measurement");
   }
   await once("job_imported", async () => logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null }));
+  // Jo 24 Oct (HV-3151, decision 115): a not-yet-visited customer added here gets the installer's Mitti Ready Check form
+  // straight away (same switches and atomic claim as Add a job); otherwise the 15-minute sweep makes it. Best effort,
+  // never blocks the save, never sends anything.
+  if (!resumeJobId && !m) await (await import("./mitti-create.server")).onReadyCheckJobAdded(res.job_id, context.userId).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
   if (data.installer?.owner_agreed && data.installer.quoted === "yes") await logEvent(res.job_id, context.userId, "installer_owner_agreed_price", `Installer says the owner agreed to their price ($${data.installer.quoted_price_inc_gst} inc GST); goes through office review as normal`, { import_id: imp.id, price_inc_gst: data.installer.quoted_price_inc_gst }, { internal: true });
   if (pilotInvoice && !resumeJobId) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
   await once("installer_contact_permission", async () => logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true }));

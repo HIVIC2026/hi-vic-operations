@@ -4,7 +4,7 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, parseAudit, pickUser, planSync, propertyTypeOption, readyCheckFormStageAllowed, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
@@ -17,6 +17,7 @@ import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
 import { refuseFuturePiesaDate } from "./piesa-date.core";
+import { PIESA_EVIDENCE_ISSUE_PREFIX, attachPiesaMedia, piesaEvidenceBlockers, piesaEvidenceFilesToStore, piesaMediaFromSnapshot, type PiesaSnapshotEntry } from "./piesa-evidence.core";
 import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
@@ -84,7 +85,9 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
   // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.
-  const readyCheckStage = job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled";
+  // Jo 24 Oct (HV-3151): an installer's own customer gets the Ready Check form in every pre-Ready-Check stage, so the
+  // office button and the automatic sweep agree with each other whatever stage the website checks left the job in.
+  const readyCheckStage = readyCheckFormStageAllowed(job.stage, job.channel);
   const measureOnly = !!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
@@ -134,7 +137,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   } };
   try {
     r = await createOrReuseAudit(api, {
-      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId,
+      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId, channel: job.channel,
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
         jobNumber: job.job_number, address, titleAddress: address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
@@ -302,8 +305,34 @@ async function saveMittiReport(jobId: string, actorId: string | null, auditId: s
   }
 }
 
+/** Decision 178: keep the four PIESA evidence files (switchboard, on-site ID, hazards, CES) with the job file for the
+ *  AP record (6 years). One private copy per Mitti media id; a retry never duplicates. Never throws. */
+async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, auditId: string, snapshot: PiesaSnapshotEntry[], fetchMedia: MittiMediaFetch) {
+  const files = piesaEvidenceFilesToStore(piesaMediaFromSnapshot(snapshot));
+  if (!files.length) return;
+  const saved: string[] = [];
+  for (const { id, label, file } of files) {
+    const key = `${auditId}:${file.mediaId}`;
+    try {
+      const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+      if (ex) continue;
+      const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
+      if (!bytes.length) throw new Error("empty media");
+      const ext = contentType.includes("pdf") ? "pdf" : contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "bin";
+      const path = `${jobId}/mitti/piesa-evidence/${auditId}-${id}-${file.mediaId}.${ext}`;
+      const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
+      if (up.error && !/exists/i.test(up.error.message)) throw new Error("storage upload failed");
+      await admin.from("documents").insert({ job_id: jobId, kind: "piesa_evidence", title: `PIESA evidence – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `${id}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
+      saved.push(path);
+    } catch (e) {
+      await logEvent(jobId, actorId, "piesa_evidence_file_failed", `PIESA evidence (${label}) could not be saved – sync again to retry`, { audit_id: auditId, media_id: file.mediaId, reason: e instanceof Error ? e.message : "error" }, { internal: true });
+    }
+  }
+  if (saved.length) await logEvent(jobId, actorId, "piesa_evidence_saved", `${saved.length} PIESA evidence file(s) saved to job files (decision 178)`, { audit_id: auditId, paths: saved, captured: files.map((f) => ({ item: f.id, media_id: f.file.mediaId, captured_at: f.file.capturedAt, geotagged: f.file.lat != null && f.file.lng != null })) });
+}
+
 /** Sync the STORED audit(s) only. Never completes a requirement. */
-export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) {
+export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, fetchMedia: MittiMediaFetch = realMittiMedia) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
@@ -323,8 +352,10 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
     if (a.status === "complete") locked = true;
     else {
       let plan;
+      let audit: unknown = null;
       try {
-        plan = planSync(await api.getAudit(a.external_mitti_id), { storedAuditId: a.external_mitti_id, jobNumber: job.job_number, assessmentStatus: a.status, templateId: a.mitti_template_id ?? MITTI_TEMPLATE_ID });
+        audit = await api.getAudit(a.external_mitti_id);
+        plan = planSync(audit, { storedAuditId: a.external_mitti_id, jobNumber: job.job_number, assessmentStatus: a.status, templateId: a.mitti_template_id ?? MITTI_TEMPLATE_ID });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Mitti error";
         await admin.from("assessments").update({ mitti_last_error: msg, ...(e instanceof MittiError && /match|template|different/.test(msg) ? { mitti_sync_status: "error" as const } : {}) }).eq("id", a.id);
@@ -339,18 +370,24 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const refused = refuseFuturePiesaDate(electrical as Record<string, unknown>);
         const safeElectrical = refused.patch as typeof electrical;
         const now = new Date().toISOString();
+        // Decision 178: the stored snapshot carries the evidence media metadata (id, capture time, lat/lng as Mitti
+        // recorded them) so the completion gates re-run the same evidence rule from the stored facts.
+        const snapshot = attachPiesaMedia(audit, (plan.snapshot ?? []) as PiesaSnapshotEntry[]);
+        const shortAnswers = shortAnswersFromEntries("piesa", snapshot);
+        const evidenceBlockers = piesaEvidenceBlockers(shortAnswers, piesaMediaFromSnapshot(snapshot));
+        // A PIESA marked complete in Mitti without its evidence is NOT complete here (stays pending, re-synced next tick).
+        completed = plan.completed && evidenceBlockers.length === 0;
         await admin.from("assessments").update({
-          ...safeElectrical, mitti_sync_status: plan.syncStatus, mitti_completed: plan.completed, mitti_modified_at: plan.modifiedAt,
-          mitti_raw_snapshot: plan.snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues] as unknown as Json, mitti_last_error: null,
-          ...(plan.completed ? { mitti_synced_at: now } : {}),
+          ...safeElectrical, mitti_sync_status: completed ? "synced" : "pending", mitti_completed: completed, mitti_modified_at: plan.modifiedAt,
+          mitti_raw_snapshot: snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`)] as unknown as Json, mitti_last_error: null,
+          ...(completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.
         const prefillCtx = await officialPrefillContext(jobId, todayMelbourne(), null);
-        const expanded = expandPiesa(shortAnswersFromEntries("piesa", (plan.snapshot ?? []) as { label: string; value: string | null }[]), { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne() });
+        const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne() });
         const ev = evaluatePiesa(expanded.answers);
-        issues = [...plan.issues, ...refused.issues, ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
-        completed = plan.completed;
+        issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();
           const base = { description: o.description, quantity: o.quantity, explanation: o.explanation };
@@ -361,12 +398,17 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
             await admin.from("rectification_items").insert({ ...base, job_id: jobId, assessment_id: a.id, is_other: true, source: "mitti", external_key: o.external_key, other_unit_price_inc_gst: o.unit_price_inc_gst, needs_office_pricing: o.needs_office_pricing, added_by: actorId });
           }
         }
-        if (plan.completed) await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
+        if (plan.completed) {
+          await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
+          // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
+          await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
+        }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
         // same status) adds no new event row.
-        const changed = plan.syncStatus !== a.mitti_sync_status || plan.completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
-        if (changed) await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
-          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null });
+        const syncStatus = completed ? "synced" : "pending";
+        const changed = syncStatus !== a.mitti_sync_status || completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
+        if (changed) await logEvent(jobId, actorId, "mitti_synced", completed ? "Mitti assessment synced (completed in Mitti)" : plan.completed ? `Mitti PIESA marked complete but evidence is missing: ${evidenceBlockers.join("; ")}` : "Mitti partial data synced (audit not yet completed)",
+          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null, evidence_blockers: evidenceBlockers });
       }
     }
   }
@@ -489,7 +531,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
-export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
+export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
   const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
@@ -613,4 +655,43 @@ async function ensureInstallDayPhotos(jobId: string, gaps: import("./ready-check
   const labels = new Set((have ?? []).map((r) => r.label));
   const rows = needs.filter((n) => !labels.has(n.label)).map((n) => ({ job_id: jobId, category: n.category, label: n.label, gate: "installation", required: true, status: "outstanding" as const, responsible_role: "installer" as const }));
   if (rows.length) { const { error: ie } = await admin.from("evidence_requirements").insert(rows as never); if (ie) throw new Error(ie.message); }
+}
+
+// ---------- visit allocation (decision 161, Jo 24 Oct 2026) ----------
+/** Resolve the Mitti user a staff member's email belongs to (null = not in Mitti under the business → "Add them in Mitti first"). */
+export async function findMittiUserByEmail(email: string, call: MittiCall = realMittiCall): Promise<string | null> {
+  const e = email.trim();
+  if (!e) return null;
+  const u = pickUser(await mittiApi(call).searchUsers(e), e);
+  const id = u?.id ?? u?.user_id;
+  return id == null || id === "" ? null : String(id);
+}
+
+/**
+ * Hand an EXISTING Mitti form to the allocated person: preflight the stored audit (same id, a configured template for
+ * this visit kind), then the same share + set-owner calls every creation path uses. Never creates a form, never
+ * touches the create claim (nothing non-idempotent happens here); repeating it is harmless.
+ */
+export async function reassignMittiFormTo(p: { jobId: string; auditId: string; kind: "ready_check" | "install"; mittiUserId: string; email: string; actorId: string | null }, call: MittiCall = realMittiCall) {
+  const [{ data: job }, { data: ws }] = await Promise.all([
+    admin.from("jobs").select("job_number").eq("id", p.jobId).single(),
+    admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle(),
+  ]);
+  if (!job) throw new WorkflowError("Job not found.");
+  const allowed = (p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
+  if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
+  const api = mittiApi(call);
+  let audit: Any;
+  try { audit = await api.getAudit(p.auditId); } catch (e) { throw wrap(e); }
+  const parsed = parseAudit(audit);
+  const templateId = allowed.find((t) => sameMittiTemplateId(parsed.templateId, t));
+  if (!templateId) throw new WorkflowError("This job's Mitti form is not one of the configured Home Insulation Victoria forms, so it was not handed over.");
+  try {
+    validateStoredMittiAudit(audit, { storedAuditId: p.auditId, jobNumber: job.job_number, templateId });
+    await api.shareAudit(p.auditId, p.mittiUserId);
+    await api.setAuditOwner(p.auditId, p.mittiUserId);
+  } catch (e) { throw wrap(e); }
+  await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
+    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated" });
+  return { auditId: p.auditId };
 }

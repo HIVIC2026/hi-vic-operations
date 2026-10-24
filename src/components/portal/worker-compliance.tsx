@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { addLicenceExpiry, myTeamCompliance, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
 import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
+import { sendCollectionNoticeLink } from "@/lib/trade-view.functions";
 import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
 
-type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa")[]; warning: string | null; piisa: string; eec: string; licenceExpiry: string | null };
+type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa" | "esc_notice")[]; warning: string | null; piisa: string; eec: string; licenceExpiry: string | null; selfProfile?: boolean };
 
 /** Trade My business: "missing" items with a one-tap Add it, plus licence lapse warnings. */
 export function TeamCompliancePrompts() {
@@ -34,6 +35,7 @@ function PromptCard({ r }: { r: Row }) {
       {r.warning && <p className="mt-1 flex items-start gap-2 text-sm text-destructive"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{r.warning}</p>}
       {r.missing.includes("licence_expiry") && <MissingLine label="Electrical licence expiry date: missing" onAdd={() => setOpen("licence_expiry")} />}
       {r.missing.includes("piisa") && <MissingLine label={r.piisa === "not_done" ? "PIISA training: not done yet" : "PIISA training: missing"} onAdd={() => setOpen("piisa")} />}
+      {r.missing.includes("esc_notice") && <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm"><span>ESC privacy collection notice: not acknowledged — can't be lead or crew until it is.</span>{r.selfProfile ? <a href="/field/business/esc-notice" className="font-bold text-estimate-blue">Read and acknowledge</a> : <SendNoticeLinkInline workerId={r.id} />}</div>}
       {r.piisa === "awaiting_check" && <p className="mt-2 text-sm text-muted-foreground">PIISA certificate uploaded. Our office is checking it.</p>}
       {r.eec === "awaiting_check" && <p className="mt-2 text-sm text-muted-foreground">{EEC_TEAM_LABEL.awaiting_check}</p>}
       {r.eec === "verified" && <p className="mt-2 text-sm font-bold text-estimate-green">{EEC_TEAM_LABEL.verified}</p>}
@@ -43,6 +45,15 @@ function PromptCard({ r }: { r: Row }) {
       {open === "piisa" && <PiisaForm workerId={r.id} onDone={done} />}
     </div>
   );
+}
+
+/** Business owner / office: text + email the person their own ESC notice link again (guarded senders; never ticks for them). */
+export function SendNoticeLinkInline({ workerId }: { workerId: string }) {
+  const send = useServerFn(sendCollectionNoticeLink);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (msg) return <span className="text-xs font-semibold">{msg}</span>;
+  return <Button size="sm" variant="outline" className="h-10" disabled={busy} onClick={async () => { setBusy(true); try { const r = await send({ data: { workerId } }); setMsg(`Link sent: text ${r.sms.status}, email ${r.email.status}`); } catch (e) { setMsg(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); } }}>{busy ? "Sending…" : "Send notice link"}</Button>;
 }
 
 function MissingLine({ label, onAdd }: { label: string; onAdd: () => void }) {
@@ -90,7 +101,7 @@ function PiisaForm({ workerId, onDone }: { workerId: string; onDone: () => void 
 /** Office: licence and PIISA flags across all trades, with Verify for uploaded PIISA certificates. */
 export function OfficeWorkerCompliance() {
   const load = useServerFn(officeWorkerCompliance); const verify = useServerFn(officeVerifyPiisa); const file = useServerFn(officePiisaFileUrl);
-  const eecFile = useServerFn(officeEecFileUrl); const verifyEec = useServerFn(officeVerifyEec);
+  const eecFile = useServerFn(officeEecFileUrl);
   const { data, refetch } = useQuery({ queryKey: ["office-worker-compliance"], queryFn: () => load() });
   const [err, setErr] = useState("");
   if (!data?.length) return null;
@@ -105,13 +116,33 @@ export function OfficeWorkerCompliance() {
             <Button size="sm" variant="outline" onClick={async () => { const u = await file({ data: { workerId: r.id } }); if (u.url) window.open(u.url, "_blank", "noopener"); }}>View certificate</Button>
             <Button size="sm" onClick={async () => { setErr(""); try { await verify({ data: { workerId: r.id } }); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } }}><Check className="mr-1 h-4 w-4" />Verify PIISA</Button>
           </div>}
-          {r.eec === "awaiting_check" && <div className="flex gap-2">
+          {(r as { escNotice?: boolean | null }).escNotice === false && <SendNoticeLinkInline workerId={r.id} />}
+          {(r.eec === "awaiting_check" || (r.eec === "verified" && r.cii && !r.cii.cleared)) && <div className="flex flex-wrap items-end gap-2">
             <Button size="sm" variant="outline" onClick={async () => { const u = await eecFile({ data: { workerId: r.id } }); if (u.url) window.open(u.url, "_blank", "noopener"); }}>View certificate</Button>
-            <Button size="sm" onClick={async () => { setErr(""); try { await verifyEec({ data: { workerId: r.id } }); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } }}><Check className="mr-1 h-4 w-4" />Verify certificate</Button>
+            <VerifyEecInline workerId={r.id} certNumber={r.certNumber} renewal={r.eec === "verified"} onDone={async () => { setErr(""); await refetch(); }} onError={setErr} />
           </div>}
         </li>))}</ul>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
     </section>
+  );
+}
+
+/** Decision 153: the office verifies the CII certificate AND records its level + expiry from the check in one go — that recorded
+ *  check is what clears the person for crews/offers. `renewal` = already verified but no current level (record the renewed one). */
+function VerifyEecInline({ workerId, certNumber, renewal, onDone, onError }: { workerId: string; certNumber: string | null; renewal: boolean; onDone: () => Promise<void>; onError: (m: string) => void }) {
+  const verifyEec = useServerFn(officeVerifyEec);
+  const [number, setNumber] = useState(certNumber ?? "");
+  const [level, setLevel] = useState<"full" | "provisional">("full");
+  const [expiry, setExpiry] = useState("");
+  const [busy, setBusy] = useState(false);
+  const field = "h-9 rounded-md border border-input bg-background px-2 text-sm";
+  return (
+    <div className="flex flex-wrap items-end gap-2" data-testid="verify-eec-inline">
+      <label className="text-xs">Certificate no.<br /><input className={`${field} w-36`} aria-label="CII certificate number" value={number} onChange={(e) => setNumber(e.target.value)} /></label>
+      <label className="text-xs">Level<br /><select className={field} aria-label="CII level" value={level} onChange={(e) => setLevel(e.target.value as "full" | "provisional")}><option value="full">Full</option><option value="provisional">Provisional</option></select></label>
+      <label className="text-xs">Expires<br /><input type="date" className={field} aria-label="CII expiry date" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></label>
+      <Button size="sm" disabled={busy || !number.trim() || !expiry} onClick={async () => { setBusy(true); try { await verifyEec({ data: { workerId, certificateNumber: number.trim(), level, expiresOn: expiry } }); await onDone(); } catch (e) { onError(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); } }}><Check className="mr-1 h-4 w-4" />{renewal ? "Record level + expiry" : "Verify certificate"}</Button>
+    </div>
   );
 }
 

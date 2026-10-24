@@ -74,8 +74,9 @@ describe("two companies: crew strictly scoped, nothing leaks through the shared 
   const C = (id: string, worker: string, num: string) => ({ id, status: "verified", certificate_number: num, issuer: "EEC", worker_id: worker });
   const rowsA = [W("a1", "A", "Alice A", "00000000-0000-4000-8000-0000000000a1")], rowsB = [W("b1", "B", "Bob B", "00000000-0000-4000-8000-0000000000b1", "pending")];
   const certs = [C("00000000-0000-4000-8000-0000000000a1", "a1", "EEC-A1"), C("00000000-0000-4000-8000-0000000000b1", "b1", "EEC-B1")];
-  const staffA = staffFromRecords(rowsA as never, certs as never);
-  const staffB = staffFromRecords(rowsB as never, certs as never);
+  const lv = (cert: string) => ({ certification_id: cert, level: "full", expires_on: "2028-01-01", recorded_at: "2026-10-01T00:00:00Z" });
+  const staffA = staffFromRecords(rowsA as never, certs as never, [lv("00000000-0000-4000-8000-0000000000a1")], undefined, "2026-10-24");
+  const staffB = staffFromRecords(rowsB as never, certs as never, [], undefined, "2026-10-24");
   test("company A's items carry only A's own recorded facts, through Other", () => {
     const r = a3CrewNativeItems(published, { lead: "a1", additional: [] }, staffA, "A Co");
     const text = JSON.stringify(r.items);
@@ -87,9 +88,10 @@ describe("two companies: crew strictly scoped, nothing leaks through the shared 
   test("company B's worker can't be picked for A's job (not in A's roster)", () => {
     expect(crewSelectionProblems({ lead: "b1", additional: [] }, staffA).problems.length).toBeGreaterThan(0);
   });
-  test("pending approval stays pending and blocks the form; certificate stays recorded", () => {
-    expect(staffB[0]).toMatchObject({ approved: false, eec: "EEC-B1", eecVerified: true });
-    expect(crewSelectionProblems({ lead: "b1", additional: [] }, staffB).problems.join()).toMatch(/approval/i);
+  test("decision 153: verified without a recorded level/expiry blocks the form; certificate stays recorded; approval_status is not the gate", () => {
+    expect(staffB[0]).toMatchObject({ approved: false, cleared: false, eec: "EEC-B1", eecVerified: true });
+    expect(crewSelectionProblems({ lead: "b1", additional: [] }, staffB).problems.join()).toMatch(/level and expiry/i);
+    expect(crewSelectionProblems({ lead: "a1", additional: [] }, staffA).problems).toEqual([]);
   });
   test("the shared published form contains no staff names", () => {
     const s = JSON.stringify(published).toLowerCase();

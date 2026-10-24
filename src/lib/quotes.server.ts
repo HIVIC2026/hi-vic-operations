@@ -1,5 +1,6 @@
 // CENTRAL QUOTE CALCULATIONS. All customer-facing prices are stored inc GST.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { applyRectificationMargin, RECTIFICATION_MARGIN_INC_GST } from "./rectification-pricing.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
@@ -200,7 +201,9 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     const approved = rates.find((r) => r.code === it.rate_code);
     lines.push({ code: it.rate_code, description: it.description, quantity: Number(it.quantity), unit: approved?.display_unit || approved?.unit || "each", unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * Number(it.quantity)), is_other: it.is_other, explanation: it.explanation, sort: lines.length });
   }
-  const subtotal = r2(lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
+  // Decision 142: owner price = electrician price + $50 on the attendance line; trade cost below stays unmarked.
+  const priced = applyRectificationMargin(lines);
+  const subtotal = r2(priced.reduce((a, l) => a + l.line_total_inc_gst, 0));
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
   const { data: q, error } = await admin
     .from("quotes")
@@ -208,8 +211,8 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     .select("id")
     .single();
   if (error || !q) throw new Error(error?.message);
-  await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
-  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version } });
+  await admin.from("quote_items").insert(priced.map((l) => ({ ...l, quote_id: q.id })));
+  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version, rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST } });
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({
     hasNonStandardItem: items.some((item) => item.is_other),

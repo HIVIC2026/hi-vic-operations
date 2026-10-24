@@ -79,7 +79,10 @@ function parseSmsPayload(row: OutboxRow): RealSmsInput | null {
   try {
     const json = JSON.parse(Buffer.from(ref.id.slice(second + 1), "base64url").toString("utf8")) as Partial<RealSmsInput>;
     if (json.type !== type || typeof json.body !== "string") return null;
-    return { type: type as SmsMessageType, idempotencyKey: row.idempotency_key, to: json.to, body: json.body, jobId: json.jobId ?? row.job_id, businessId: json.businessId ?? null };
+    // Decision 165: a one-off (`event`) type carries its trigger time in the payload; without it the sender holds the text
+    // ("never sent late") rather than firing an old outbox row when a switch flips on. The hold is not retryable (below).
+    const event = json.event && typeof json.event === "object" && typeof json.event.at === "string" ? { at: json.event.at, ...(typeof json.event.current === "boolean" ? { current: json.event.current } : {}) } : undefined;
+    return { type: type as SmsMessageType, idempotencyKey: row.idempotency_key, to: json.to, body: json.body, jobId: json.jobId ?? row.job_id, businessId: json.businessId ?? null, ...(event ? { event } : {}) };
   } catch {
     return null;
   }

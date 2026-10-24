@@ -61,7 +61,8 @@ const PIESA_WINDOW_STAGES: Stage[] = ["installation_scheduling", "installation_b
  * ESC owner consent is a separate pre-install record; the final VEEC assignment is prepared and signed only post-install.
  */
 export const CONSUMER_SIGN_BLOCKER = "Customer Agreement / Quote Acceptance not signed by the customer.";
-export const ASSIGNMENT_VEEC_BLOCKER = "Final Activity 48 VEEC assignment not yet effective.";
+export { ASSIGNMENT_VEEC_BLOCKER } from "./assignment.core";
+import { ASSIGNMENT_VEEC_BLOCKER } from "./assignment.core";
 
 export async function agreementSigned(jobId: string): Promise<boolean> {
   const { data } = await admin.from("customer_agreements").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
@@ -437,6 +438,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const { installReadiness } = await import("./esc.server");
     const r = await installReadiness(jobId);
     for (const b of r.blockers) blockers.push(`Not ready to install: ${b}`);
+  }
+  // Decision 178: a Mitti PIESA is not complete until its evidence is on the synced form (same pure rule as the sync).
+  if (to === "piesa_complete") {
+    const { piesaEvidenceHold } = await import("./piesa-evidence.server");
+    for (const b of await piesaEvidenceHold(jobId)) blockers.push(`PIESA evidence: ${b}`);
   }
   // PIESA Part 7: an unresolved hazard blocks PIESA completion and installation (evidence_outstanding via piisaPanel).
   if (["piesa_complete", "assessment_complete", "installation_scheduling", "installation_booked"].includes(to)) {

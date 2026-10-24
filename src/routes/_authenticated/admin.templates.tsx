@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
 import { TemplatesHub } from "@/components/portal/template-hub";
-import { PartnerTemplates } from "@/components/portal/PartnerTemplates";
 import {
   TEMPLATE_CATEGORIES,
   parseTemplateSearch,
@@ -46,11 +45,6 @@ function Page() {
   return (
     <AppShell wide>
       <TemplatesHub cat={category} {...(standing ? { standing } : {})} {...(t ? { t } : {})} />
-      {category === "email" && (
-        <>
-          <PartnerTemplates />
-        </>
-      )}
     </AppShell>
   );
 }

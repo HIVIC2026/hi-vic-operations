@@ -103,6 +103,9 @@ export const submitInstallerJob = createServerFn({ method: "POST" }).middleware(
     const res = await upsertEnquiry(data, await intakeSourceFor(context.userId, prof.business_id, "installer_portal"), context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: prof.business_id, assigned_by: context.userId });
     await logEvent(res.job_id, context.userId, "contractor_assigned", `Installer assigned (originating installer): ${prof.full_name ?? "installer"} – ${biz.name}`);
+    // Jo 24 Oct (HV-3151, decision 115): the installer's Mitti Ready Check form is prepared straight away (same switches
+    // and atomic claim as Add a job); otherwise the 15-minute sweep makes it. Best effort, never blocks the save.
+    if (res.created) await (await import("./mitti-create.server")).onReadyCheckJobAdded(res.job_id, context.userId).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
     return res;
   });
 
@@ -479,7 +482,11 @@ export const createMittiAssessment = createServerFn({ method: "POST" }).middlewa
     await requireAdmin(context.supabase);
     const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
     // T3: the office's explicit action may supersede an earlier attempt whose result is unknown (>= 10 min old, recorded).
-    return createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
+    const r = await createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
+    // Jo 24 Oct (HV-3151): an installer's own customer with its Ready Check form made waits on the installer (same hold
+    // as the automatic sweep and Mitti pickup); the hold itself refuses our leads and later stages, and sends nothing.
+    await (await import("./mitti-pickup.server")).holdAtMittiReadyCheck(data.jobId, context.userId).catch(() => false);
+    return r;
   });
 
 export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -530,6 +537,14 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
+    // Decision 178: a Mitti PIESA cannot be completed until its evidence (switchboard + on-site photos geotagged,
+    // a photo per hazard, the CES after fixes) is on the synced form. Same pure rule as the sync and the stage gate.
+    if (a.external_mitti_id) {
+      const { piesaEvidenceBlockersFromSnapshot } = await import("./piesa-evidence.core");
+      const { shortAnswersFromEntries } = await import("./official-short.core");
+      const evb = piesaEvidenceBlockersFromSnapshot(a.mitti_raw_snapshot, (entries) => shortAnswersFromEntries("piesa", entries));
+      if (evb.length) throw new WorkflowError(`PIESA evidence still needed on the Mitti form: ${evb.join("; ")}`);
+    }
     // Defence in depth: even a value written before this guard existed cannot be completed with a future date.
     const dateBlockers = piesaDateBlockers(a.assessed_on);
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
@@ -1025,6 +1040,9 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
+    // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
+    // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.
+    try { await (await import("./veec-reminders.server")).sendVeecSignStep(data.jobId, "request"); } catch (e) { console.error("VEEC sign request failed", (e as Error).message); }
     return { ok: true };
   });
 
@@ -1559,9 +1577,27 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
       ["PIESA completed", ov?.piesa_date], ["Install by (PIESA +30 days)", ov?.install_deadline],
     ]);
     const consentView = consent ? { id: consent.id, status: consent.status, version: consent.version, scheduled_start: consent.scheduled_start, installation_days: consent.installation_days, premises_address: consent.premises_address, ap_legal_entity: consent.ap_legal_entity, owner_contact: consent.owner_contact, owner_signed_at: consent.owner_signed_at, ap_signed_at: consent.ap_signed_at, ap_rep_name: consent.ap_rep_name, delivery_status: consent.delivery_status, copy_path: consent.copy_path, blockers: consentValidityBlockers(consent, consent.scheduled_start) } : null;
+    // ESC template (decision 123): Section 1 prefilled from the consent snapshot; the owner never types it again.
+    const { section1FromFacts, SECTION1_LABELS, OWNER_DECLARATIONS, isEscTemplateVersion, apDeclarationText } = await import("./consent.core");
+    const escTemplate = isEscTemplateVersion(escConsentTemplate?.version);
+    const s1 = consent ? section1FromFacts({ owner: consent.owner_contact as { name: string | null; email: string | null; phone: string | null }, premises_address: consent.premises_address }) : null;
+    const consentForm = consent && escConsentTemplate ? {
+      esc: escTemplate, version: escConsentTemplate.version,
+      section1: s1 ? SECTION1_LABELS.map(([k, label]) => ({ label, value: s1[k] || "—" })) : [],
+      declarations: escTemplate ? OWNER_DECLARATIONS : [],
+      apDeclaration: escTemplate ? apDeclarationText("") : null,
+      apPrefill: role === "admin" && escTemplate ? await (await import("./consent.server")).apRepPrefill(context.userId) : null,
+    } : null;
+    // Official form v1.1 (decisions 119/120): what still blocks preparing it, and (office) what the AP must record first.
+    const { veecPreparation, apPrerequisites } = await import("./assignment.server");
+    const prep = job?.installation_completed_at && !templateBlockers(templates, "final").length ? await veecPreparation(data.jobId).catch((e: Error) => ({ blockers: [e.message], values: {}, missing: [] as string[], fields: [] as ReturnType<typeof parseFormFields> })) : null;
+    const apPrereqs = role === "admin" && job?.installation_completed_at ? await apPrerequisites(data.jobId).catch((e: Error) => [e.message]) : [];
     const common = {
+      consentForm,
       stage: job?.stage ?? null, installationCompleted: !!job?.installation_completed_at,
       installerBlockers: templateBlockers(templates, "installer"), finalBlockers: templateBlockers(templates, "final"),
+      veecPrep: prep ? { blockers: prep.blockers, missing: prep.missing, values: role === "installer" ? {} : prep.values, fields: role === "installer" ? [] : prep.fields } : null,
+      apPrerequisites: apPrereqs,
       installerDeclaration, installerFields: parseFormFields(installerDeclaration?.form_fields), officialForm, escConsentTemplate, prefill,
       declaration: decl ? { id: decl.id, installed_product: decl.installed_product, installed_r_value: decl.installed_r_value, installed_area_m2: decl.installed_area_m2, signed_at: decl.signed_at } : null,
     };
@@ -1584,6 +1620,24 @@ export const signInstallerDeclaration = createServerFn({ method: "POST" }).middl
     throw new WorkflowError("The installer declaration is signed in the Mitti installer safety form (PIISA), not in the portal.");
   });
 
+/** Office records the two AP-declaration facts that no other record holds (decision 119): the consumer's product warranty
+ *  copy (per job) and the ESC scheme participant collection notice (per installer business, optionally one worker). */
+export const recordVeecPrerequisiteFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["warranty_copy_provided", "esc_collection_notice_provided"]), note: z.string().trim().max(300).default(""), workerId: uuid.nullable().default(null) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    if (data.kind === "warranty_copy_provided") {
+      await logEvent(data.jobId, context.userId, "warranty_copy_provided", `Office recorded: consumer given the product warranty against defects (minimum 5 years)${data.note ? ` – ${data.note}` : ""}`, { note: data.note });
+      return { ok: true };
+    }
+    const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (!a?.business_id) throw new WorkflowError("No active installer business on this job.");
+    const { error } = await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "esc_collection_notice_provided", summary: `ESC VEU scheme participant collection notice given to installer business${data.workerId ? " worker" : ""}${data.note ? ` – ${data.note}` : ""}`, details: { business_id: a.business_id, worker_id: data.workerId, job_id: data.jobId, note: data.note } });
+    if (error) throw new Error(error.message);
+    await logEvent(data.jobId, context.userId, "esc_collection_notice_provided", `Office recorded: ESC scheme participant collection notice given to the installer${data.workerId ? " (one worker)" : " business"}`, { business_id: a.business_id, worker_id: data.workerId }, { internal: true });
+    return { ok: true };
+  });
+
 export const prepareFinalAssignmentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, fieldValues: z.record(z.string().max(60), z.union([z.string().max(1000), z.number(), z.boolean(), z.null()])).default({}) }).parse(d))
   .handler(async ({ data, context }) => {
@@ -1592,17 +1646,22 @@ export const prepareFinalAssignmentFn = createServerFn({ method: "POST" }).middl
   });
 
 export const signFinalAssignmentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, party: z.enum(["installer", "ap", "consumer"]), signatureName: z.string().trim().min(2).max(200), signatoryName: z.string().trim().max(200).optional(), authorityType: z.enum(["owner", "authorised_representative"]).optional(), over18: z.boolean().optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, party: z.enum(["installer", "ap", "consumer"]), signatureName: z.string().trim().min(2).max(200), signatoryName: z.string().trim().max(200).optional(), authorityType: z.enum(["owner", "authorised_representative"]).optional(), over18: z.boolean().optional(), confirmsSection2: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     if (data.party === "ap") await requireAdmin(context.supabase);
     else await requireJobRole(context.supabase, data.jobId, [data.party === "installer" ? "installer" : "owner"]);
     await signFinalAssignment({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
     await autoAdvanceJob(data.jobId, context.userId, "final assignment signed");
+    if (data.party === "consumer") { try { await (await import("./veec-copy-email.server")).sendVeecCopyEmail(data.jobId); } catch (e) { console.error("VEEC copy email failed", (e as Error).message); } }
     return { ok: true };
   });
 
 export const signOwnerConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), accept: z.boolean(), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), accept: z.boolean(), signatureName: z.string().trim().min(2).max(200),
+    // ESC template (decision 123): the four Section 2 declaration ticks; each must be true (checked in consent.core).
+    declarations: z.object({ owner_or_authorised: z.boolean(), details_accurate: z.boolean(), consent_ap_sends: z.boolean(), consent_commission_shares: z.boolean() }).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });
     if (!isOwner) throw new WorkflowError("Only the owner or their authorised representative can sign this consent.");
@@ -1613,7 +1672,11 @@ export const signOwnerConsentFn = createServerFn({ method: "POST" }).middleware(
   });
 
 export const confirmApConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, apRepName: z.string().trim().min(2).max(200), purposeExplained: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, apRepName: z.string().trim().min(2).max(200).optional(), purposeExplained: z.boolean(),
+    // ESC template Section 3 Part A (prefilled from the office user's profile, editable): first/last name, role, phone, email.
+    apRep: z.object({ first_name: z.string().trim().min(1).max(100), last_name: z.string().trim().min(1).max(100), role: z.string().trim().min(2).max(100), phone: z.string().trim().max(40).nullable(), email: z.string().trim().max(200).nullable() }).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { confirmApConsent } = await import("./consent.server");
@@ -1775,6 +1838,15 @@ export const recordEscSubmissionFn = createServerFn({ method: "POST" }).middlewa
     const { recordEscSubmission } = await import("./esc.server");
     await recordEscSubmission({ ...data, actorId: context.userId });
     return { ok: true };
+  });
+
+/** Office: a submitted notification was withdrawn in the VEU Registry (date slipped outside its window / key details changed). History kept. */
+export const withdrawEscNotificationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid, reason: z.string().trim().min(3).max(500), withdrawnAt: z.string().datetime({ offset: true }) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { withdrawEscNotification } = await import("./esc.server");
+    return withdrawEscNotification({ ...data, actorId: context.userId });
   });
 
 export const addEscConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

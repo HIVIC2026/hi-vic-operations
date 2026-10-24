@@ -5,6 +5,7 @@ import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core
 import { formatPropertyAddress, shortAddress } from "./address";
 import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
+import { section1FromFacts } from "./consent.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -15,7 +16,7 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
@@ -23,12 +24,14 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }] = await Promise.all([
+  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
     admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
+    admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
   ]);
+  const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
   const stage = j.stage as string;
   // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
   const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
@@ -66,16 +69,28 @@ export async function resolveOwnerJob(token: unknown) {
     const b = a?.businesses as { name: string; trading_name: string | null } | null;
     agreed = { agreed: true, installerName: b?.trading_name || b?.name || null };
   }
-  const owner = j.owners as { full_name: string | null } | null;
+  const owner = j.owners as { full_name: string | null; email?: string | null; phone?: string | null } | null;
   const total = quote ? n(quote.customer_total_inc_gst) : null;
+  // Decisions 139/140/141: what is due now, how to pay it (card only for the $349 / fixes), bank details + reference.
+  // Owner-safe: amounts, state, the Xero online-invoice link and the invoice reference only – never Xero IDs or errors.
+  const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null) : null;
+  const payment = pay ? {
+    steps: pay.steps.map((s) => ({ key: s.key, label: s.label, amount: s.amountCents / 100, state: s.state, card: s.methods.includes("card") })),
+    dueNow: pay.due.dueNowCents / 100, remaining: pay.due.remainingCents / 100, paid: pay.paidCents / 100,
+    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.reference,
+    provisional: pay.provisional.decision === "provisional" ? { expiresAt: pay.provisional.expiresAt, deposit: pay.plan.installDepositCents / 100 } : null,
+  } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   return {
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
-    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, ws?.safety_check_payment_inc_gst ?? null) : null } : null,
-    consent: consent ? { scheduledStart: consent.scheduled_start } : null,
+    // heldUntil: the same 14-day "price held" date the action card already uses (approved P2 page shows it in the sub line).
+    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteOpen?.expiresAt ?? null, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, ws?.safety_check_payment_inc_gst ?? null) : null } : null,
+    payment,
+    // Approved P3 page (decision 128): Section 1 is prefilled from the owner + property, never typed again by the owner.
+    consent: consent ? { scheduledStart: consent.scheduled_start, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
       cost: spot?.saved_total != null ? n(spot.saved_total) : null,
@@ -85,6 +100,8 @@ export async function resolveOwnerJob(token: unknown) {
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
     canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind)),
+    // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
+    veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
   };
 }
 

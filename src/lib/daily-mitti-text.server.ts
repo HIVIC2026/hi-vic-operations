@@ -1,15 +1,17 @@
 // Daily Mitti links text: runs on the 15-minute allocation tick. Sends nothing unless the
 // "Daily Mitti links text" switch is ON and the Mitti form IDs are set. Never retries a text.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { dailySendDue, dailyText, diffDay, melbourneDate, skipReason, snap, updateText, type DayJob, type Snap, type Trade } from "./daily-mitti-text.core";
+import { dailySendDue, dailyText, diffDay, melbourneDate, mittiFormSource, skipReason, snap, updateText, type DayJob, type Snap, type Trade } from "./daily-mitti-text.core";
 import { melbourneMidnight } from "./daily-brief.core";
 import { addYmd } from "./melbourne-time.core";
 import { isTestPartner, normaliseAuMobile } from "./test-send.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import { mittiFormUrl } from "./mitti-link.core";
 import { TWILIO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import { dailySendKey, dailyTextRecipient, visitKindOfBooking, type TextRecipient } from "./visit-allocation.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const OWNER_RECIPIENT = (name: string, phone: string | null): TextRecipient => ({ key: "owner", name, phone, who: "owner", note: null });
 const myWork = (d: string) => `${SET_PASSWORD_BASE}/field?day=${d}`;
 
 export async function dailyTextSettings() {
@@ -20,7 +22,30 @@ export async function dailyTextSettings() {
   return { enabled: data?.daily_mitti_text_enabled === true, time: String(data?.daily_mitti_text_time ?? "06:30"), missing };
 }
 
-type Group = { trade: Trade & { name: string; isTest: boolean }; jobs: DayJob[]; qaOnly: boolean };
+/** One text = one business + one recipient (decision 161: the allocated person's mobile, else the owner's as before). */
+type Group = { trade: Trade & { name: string; isTest: boolean }; jobs: DayJob[]; qaOnly: boolean; recipient: TextRecipient };
+
+/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit. */
+async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
+  const src = mittiFormSource(kind);
+  if (src === "piisa_event") {
+    const { data: ev } = await db.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const id = (ev?.details as { audit_id?: unknown } | null)?.audit_id;
+    return id ? String(id) : null; // no PIISA yet → "form not ready yet"
+  }
+  if (src === "ready_checks") return readyCheckFormAuditId(jobId);
+  const { data: f } = await db.from(src).select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return f?.external_mitti_id ? String(f.external_mitti_id) : null;
+}
+
+/** The job's Ready Check form: a portal ready_checks record that carries one, else the current Mitti measure-up record
+ *  (installer jobs made from Add a job and picked-up A1 forms keep their audit id there — decision 115). */
+async function readyCheckFormAuditId(jobId: string): Promise<string | null> {
+  const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (f?.external_mitti_id) return String(f.external_mitti_id);
+  const { data: m } = await db.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  return m?.external_source === "mitti" && m.external_id ? String(m.external_id) : null;
+}
 
 /** Every trade's bookings for one Melbourne day, with their Mitti links. */
 export async function collectDay(date: string): Promise<Group[]> {
@@ -31,6 +56,8 @@ export async function collectDay(date: string): Promise<Group[]> {
     .gte("scheduled_start", from).lt("scheduled_start", to).in("status", ["confirmed", "cancelled"]);
   if (error) throw new Error(error.message);
   const groups = new Map<string, Group>();
+  const bizRows = new Map<string, any>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { allocatedPersonFor } = await import("./visit-allocation.server");
   for (const b of bks ?? []) {
     let biz: string | null = b.business_id;
     let linked = false;
@@ -44,20 +71,29 @@ export async function collectDay(date: string): Promise<Group[]> {
       const { data: a } = await db.from("job_assignments").select("id").eq("job_id", b.job_id).eq("business_id", biz).eq("active", true).limit(1).maybeSingle();
       linked = !!a;
     }
-    let g = groups.get(biz);
-    if (!g) {
+    if (!bizRows.has(biz)) {
       const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
+      bizRows.set(biz, bz ?? null);
+    }
+    const bz = bizRows.get(biz);
+    const ownerPhone = normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? "");
+    // Decision 161: a Ready Check / install day allocated to a staff member is texted to THAT person's mobile; the owner
+    // keeps every other visit and any allocated person without a mobile (noted on the log row).
+    const vk = visitKindOfBooking(b.kind);
+    const recipient = dailyTextRecipient({ allocated: vk ? await allocatedPersonFor(b.job_id, vk) : null, owner: { name: bz?.name ?? "Trade", phone: ownerPhone } });
+    const gKey = `${biz}|${recipient.key}`;
+    let g = groups.get(gKey);
+    if (!g) {
       g = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
-        phone: normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? ""), isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: true };
-      groups.set(biz, g);
+        phone: recipient.phone ? normaliseAuMobile(recipient.phone) ?? null : null, isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: true, recipient };
+      groups.set(gKey, g);
     }
     g.trade.linked = g.trade.linked && linked;
     const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
     if (job.source !== "qa_test") g.qaOnly = false;
-    const tbl = b.kind === "ready_check" ? "ready_checks" : "assessments";
-    const { data: f } = await db.from(tbl).select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: f?.external_mitti_id ? mittiFormUrl(f.external_mitti_id) : null });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null });
   }
   return [...groups.values()];
 }
@@ -69,6 +105,9 @@ async function sendSms(g: Group, to: string, body: string, kind: "daily" | "upda
     return { status: r.status, detail: r.detail, sid: null };
   }
   // Real trades: the ONE real sender (customer_comms_enabled + this message's switch, STOP list, send-once key).
+  // Decision 165 (`window` type): the day/change signature is in the key and sendOnce claimed trade_text_log.send_key
+  // first, so a held morning text stays held for that day and the next day is recomputed — a switch flip never re-fires
+  // an old day's links; within the day it cannot double-send.
   const { sendRealSms } = await import("./sms.server");
   const r = await sendRealSms({ type: kind === "update" ? "daily_mitti_update" : "daily_mitti", idempotencyKey: `daily-mitti:${key}`, to, body, businessId: g.trade.businessId, jobId: g.jobs[0]?.jobId ?? null });
   return { status: r.status === "sent" ? "sent" : r.status === "blocked" || r.status === "already" ? "blocked" : "failed", detail: r.detail, sid: r.sid };
@@ -80,7 +119,8 @@ async function sendOnce(g: Group, date: string, kind: "daily" | "update", key: s
   const { data: row, error } = await db.from("trade_text_log").insert({ business_id: g.trade.businessId, job_ids: [...new Set(g.jobs.map((j) => j.jobId))], melbourne_date: date, kind, send_key: key, to_number: to, body, status: "sending", snapshot }).select("id").maybeSingle();
   if (error || !row) return "already";
   const r = await sendSms(g, to, body, kind, key);
-  await db.from("trade_text_log").update({ status: r.status, detail: r.detail, provider_sid: r.sid, updated_at: new Date().toISOString() }).eq("id", row.id);
+  const detail = g.recipient.who === "allocated" ? `To ${g.recipient.name} (allocated). ${r.detail}` : g.recipient.note ? `${g.recipient.note}. ${r.detail}` : r.detail;
+  await db.from("trade_text_log").update({ status: r.status, detail, provider_sid: r.sid, updated_at: new Date().toISOString() }).eq("id", row.id);
   return r.status;
 }
 
@@ -94,21 +134,22 @@ export async function sweepDailyMittiTexts(now = new Date()) {
   for (const g of await collectDay(date)) {
     const why = skipReason(g.trade);
     if (why) {
-      await db.from("trade_text_log").upsert({ business_id: g.trade.businessId, job_ids: [...new Set(g.jobs.map((j) => j.jobId))], melbourne_date: date, kind: "skipped", send_key: `skip:${g.trade.businessId}:${date}`, status: "skipped", detail: why }, { onConflict: "send_key" });
+      await db.from("trade_text_log").upsert({ business_id: g.trade.businessId, job_ids: [...new Set(g.jobs.map((j) => j.jobId))], melbourne_date: date, kind: "skipped", send_key: dailySendKey("skip", g.trade.businessId, date, g.recipient.key), status: "skipped", detail: g.recipient.who === "allocated" ? `${g.recipient.name} (allocated): ${why}` : why }, { onConflict: "send_key" });
       out.skippedTrades++;
       continue;
     }
-    const { data: prior } = await db.from("trade_text_log").select("snapshot, created_at").eq("business_id", g.trade.businessId).eq("melbourne_date", date).in("kind", ["daily", "update"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    // Per recipient (decision 161): each person's own morning text and change list, keyed by their number.
+    const { data: prior } = await db.from("trade_text_log").select("snapshot, created_at").eq("business_id", g.trade.businessId).eq("melbourne_date", date).eq("to_number", g.trade.phone).in("kind", ["daily", "update"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const snaps = g.jobs.map(snap);
     if (!prior) {
       if (!g.jobs.some((j) => j.status !== "cancelled")) continue;
-      if ((await sendOnce(g, date, "daily", `daily:${g.trade.businessId}:${date}`, dailyText(g.jobs, myWork(date)), snaps)) !== "already") out.daily++;
+      if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), dailyText(g.jobs, myWork(date)), snaps)) !== "already") out.daily++;
       continue;
     }
     const changes = diffDay(prior.snapshot as Snap[], g.jobs);
     if (!changes.length) continue;
     const sig = changes.map((c) => `${c.kind}:${c.job.bookingId}:${c.job.start}`).join("|");
-    if ((await sendOnce(g, date, "update", `update:${g.trade.businessId}:${date}:${sig}`, updateText(changes, myWork(date)), snaps)) !== "already") out.updates++;
+    if ((await sendOnce(g, date, "update", dailySendKey("update", g.trade.businessId, date, g.recipient.key, sig), updateText(changes, myWork(date)), snaps)) !== "already") out.updates++;
   }
   await refreshDelivery(date);
   return out;
@@ -137,10 +178,11 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     }
     if (!biz) { out.skipped++; continue; }
     const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
+    const ownerPhone = normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? "");
     const g: Group = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
-      phone: normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? ""), isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: job.source === "qa_test" };
+      phone: ownerPhone, isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: job.source === "qa_test", recipient: OWNER_RECIPIENT(bz?.name ?? "Trade", ownerPhone) };
     if (skipReason(g.trade)) { out.skipped++; continue; }
-    const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const f = { external_mitti_id: await readyCheckFormAuditId(b.job_id) };
     const when = new Date(b.scheduled_start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const street = job.properties?.address_line?.split(",")[0] ?? null;
     const where = [street, job.properties?.suburb].filter(Boolean).join(", ") || "see your portal";

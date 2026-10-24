@@ -1,37 +1,28 @@
 // "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
-// Wording APPROVED by Jo Lowe, 7 Oct 2026: "Smart move, {FirstName}. Your spot is saved." heading with
-// "Your {rebate} rebate is waiting." directly under it, the demand/capacity paragraphs, and the
-// "Have a friend who needs a spot saved?" referral card. Do not change without Jo's approval.
+// Email design APPROVED by Jo 24 Oct 2026 (decision 70): docs/templates/approved/O10-spot-saved.html — "Smart move,
+// {First}. Your spot is saved." + green "Your {rebate} rebate is waiting."; demand line; two-figure price box; three
+// "What happens next" steps; See my job; the Save my spot included / not included cards (+ the existing-insulation card
+// for those owners); friend card. The text keeps its earlier approved wording (task scope: emails only).
 // PURE: no I/O. No phone number or "call us" anywhere.
-import { CUSTOMER_BRAND } from "./customer-quote-system";
-import { applyCampaignFonts, campaignArtImg, campaignButton, PRIVACY_URL, V2_THEME } from "./estimate-email";
-import { emailArtUrl } from "./email-art.core";
 import { dedupeAddress, shortAddress } from "./address";
 import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
+import * as K from "./email-kit.core";
 
 /** Jo 23 Oct 2026: shown to everyone in both Spot saved confirmations. */
 export const SPOT_SAVED_NOT_INCLUDED = "Not included: if the electrical safety check finds anything that needs fixing, that work is extra and will be quoted separately.";
-
-const LOGO_GREEN = "#00BF63";
-const BLUE = "#3C51C4";
-const INK = CUSTOMER_BRAND.colors.navy;
-const SITE = "https://homeinsulationvictoria.com.au";
-const F = "font-family:'Figtree',Arial,Helvetica,sans-serif;";
-const FH = "font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif;";
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 export const wholeDollars = (n: number) => `$${Math.floor(n).toLocaleString("en-AU")}`;
 
 export type SpotSavedInput = { firstName: string | null; rebate: number; suburb: string | null; shortAddress: string | null; myJobUrl: string; optOutUrl: string;
   /** Owner's referral link to the public eligibility checker (Jo, 7 Oct): shown as a "Send to a friend" card. */
   referralUrl?: string | null;
-  /** Saved-spot snapshot: when present the email shows the same itemised breakdown as the likely-eligible email. */
+  /** Saved-spot snapshot: when present the email shows the two-figure price box and the included / not included cards. */
   estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null;
   /** Removal fact from the owner's saved estimate (removalFromScenario), same as Save my spot. Excluded = nothing shown. */
   removal?: EstimateRemoval | null };
 
-// Jo's "smart move" wording (7 Oct) replaces the old "waiting list is huge" message.
-export const SPOT_SAVED_BATCH_TEXT = "Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.";
-export const spotSavedTeamText = (suburb: string | null) => `We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free ${suburb?.trim() ? `in ${suburb.trim()}` : "near you"} to book your free Ready Check.`;
+// Decision 70 wording.
+export const SPOT_SAVED_BATCH_TEXT = "Demand is high and installer capacity is limited, so we book homes in the order spots were saved. You've locked in your place, so there's nothing more you need to do right now.";
+export const spotSavedTeamText = (suburb: string | null) => `When a certified installer is free near ${suburb?.trim() ? suburb.trim() : "you"}, we'll text and email you their times for your free Ready Check.`;
 
 /** "12 Smith St, Ballarat VIC 3350" -> { short: "12 Smith St, Ballarat", suburb: "Ballarat" } */
 export function addressBits(addressLine: string | null, suburb: string | null) {
@@ -50,42 +41,46 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const rebate = wholeDollars(i.rebate);
   const name = i.firstName?.trim() || null;
   const subject = `Spot saved. Your ${rebate} rebate is waiting`;
-  const p = (t: string, extra = "") => `<p style="margin:0 0 14px;${F}color:${INK};font-size:15px;line-height:1.6;${extra}">${t}</p>`;
-  const T = V2_THEME, { INK: NAVY } = T.colors;
-  const row = (inner: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${T.F}">${inner}</td></tr>`;
   const est = i.estimate && i.estimate.gross > 0 ? i.estimate : null;
-  const assessment = 349, apFee = 349, veecValue = 70;
-  const veecs = Math.round(i.rebate / veecValue);
   const removal = i.removal && i.removal.kind !== "excluded" ? i.removal : null;
-  const removalAmt = removal?.kind === "included" ? removal.amount : 0;
-  const savings = est ? T.savings({ address: dedupeAddress(est.address), area: est.areaM2, discount: i.rebate, customer: est.customer, gross: est.gross, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation: est.gross - assessment - apFee - removalAmt, assessment, apFee, calculatorUrl: est.calculatorUrl, ...(removal ? { removal } : {}), ...(Math.abs(veecs * veecValue - i.rebate) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html : "";
-  // v6 (Jo, 6 Oct): logo, pill, caps line and headline are one per-owner image; alt carries the headline.
-  const headlinePlain = `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`;
-  const jobUrl = new URL(i.myJobUrl); const token = jobUrl.pathname.split("/")[2] ?? "";
-  const art = campaignArtImg(emailArtUrl(jobUrl.origin, token, "spot"), headlinePlain);
-  const smartMove = `Smart move${name ? `, ${esc(name)}` : ""}. Your spot is saved.`;
+  const smartMove = `Smart move${name ? `, ${name}` : ""}. Your spot is saved.`;
   const rebateLine = `Your ${rebate} rebate is waiting.`;
-  const hero = ""
-    + p(smartMove, "font-weight:800;margin-bottom:2px;")
-    + p(rebateLine, "font-weight:700;margin-bottom:10px;")
-    + p(esc(SPOT_SAVED_BATCH_TEXT))
-    + p(esc(spotSavedTeamText(i.suburb)))
-    + campaignButton(i.myJobUrl, "See my job →")
-    + `<p style="margin:10px 0 0;${T.F}font-size:13px;line-height:1.5;text-align:center;color:${NAVY};">No payment · no obligation</p>`;
-  // Referral card (Jo, 7 Oct): near the bottom, only when the owner's tracked referral link exists. Text message stays unchanged.
-  const referral = i.referralUrl
-    ? row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFF3E8;border-radius:14px;"><tr><td style="padding:18px 20px;">`
-      + `<p style="margin:0 0 4px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">Have a friend who needs a spot saved?</p>`
-      + `<p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.5;">Send them our free eligibility checker. It takes a minute.</p>`
-      + campaignButton(i.referralUrl, "Send to a friend →")
-      + `</td></tr></table>`, "0 36px 22px")
-    : "";
-  const link = (href: string, t: string) => `<a href="${esc(href)}" style="color:${BLUE};text-decoration:underline;">${t}</a>`;
-  const footer = `<p style="margin:0 0 5px;${T.F}color:${NAVY};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0 0 9px;${T.F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0;${T.F}font-size:12px;line-height:1.5;text-align:center;">${link(`${PRIVACY_URL}`, "Privacy")}&nbsp;·&nbsp;${link(i.myJobUrl, "See my job")}&nbsp;·&nbsp;${link(i.optOutUrl, "Remove my enquiry")}</p>`;
-  const removalAlone = !est && removal ? p(esc(REMOVAL_BUDGET_EMAIL_NOTE), "font-weight:700;") : "";
-  const notIncluded = p(esc(SPOT_SAVED_NOT_INCLUDED));
-  const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${row(removalAlone + notIncluded, "0 36px 22px")}${referral}${T.footerRow(footer)}`, subject, null);
-  void LOGO_GREEN; void CUSTOMER_BRAND;
-  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), rebateLine, "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, ...(removal?.kind === "included" ? [`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; scope confirmed at your free Ready Check.)`] : []), ...(removal ? [removalNote(removal), EXISTING_PRELIMINARY] : []), `Try a different size: ${est.calculatorUrl}`] : removal ? ["", REMOVAL_BUDGET_EMAIL_NOTE] : []), "", SPOT_SAVED_NOT_INCLUDED, ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
-  return { subject, html: applyCampaignFonts(html), text };
+  const steps: K.Step[] = [
+    { title: "An installer offers you times", detail: spotSavedTeamText(i.suburb) },
+    { title: "Tap the time that suits you", detail: "Or suggest other days. No phone tag." },
+    { title: "Free Ready Check, then your exact price", detail: "They measure your ceiling and check your insulation. You get your final quote. No payment, no obligation." },
+  ];
+  const estNote = est ? `Estimate incl. GST for ${K.m2(est.areaM2)}. Confirmed at your free Ready Check.` : null;
+  // Decision 70: the Save my spot cards, plus the existing-insulation card when the saved estimate carries removal.
+  const some = !!removal;
+  const removalCard = est && removal ? K.existingInsulationCard({ areaM2: est.areaM2, ratePerM2: removal.kind === "included" && removal.areaM2 > 0 ? Math.round(removal.amount / removal.areaM2) : 15, upTo: removal.kind === "included" ? Math.round(15 * est.areaM2) : Math.round(15 * est.areaM2) }) : "";
+  const body = [
+    K.h1(smartMove, 6),
+    K.greenLead(rebateLine),
+    K.p(SPOT_SAVED_BATCH_TEXT),
+    est ? K.twoFigureBox({ rebate: i.rebate, price: est.customer, note: estNote! }) : "",
+    K.sectionTitle("What happens next", "24px 0 12px"),
+    K.numberedSteps(steps),
+    K.button(i.myJobUrl, "See my job", "6px 0 4px"),
+    K.spacer(8),
+    est ? K.includedAndNotIncluded({ price: est.customer, rebate: i.rebate, someInsulation: some }) : K.small(SPOT_SAVED_NOT_INCLUDED, "10px 0 0"),
+    removalCard,
+    removal?.kind === "unknown" ? K.small(REMOVAL_BUDGET_EMAIL_NOTE, "10px 0 0") : "",
+    removal?.kind === "included" ? K.small(`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; scope confirmed at your free Ready Check.)`, "10px 0 0") : "",
+    i.referralUrl ? K.friendCard(i.referralUrl, "spot") : "",
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: rebateLine, unsubscribe: i.optOutUrl });
+  const text = K.plainText([
+    smartMove, rebateLine, "", SPOT_SAVED_BATCH_TEXT, "",
+    ...(est ? [`VEU rebate: ${rebate}`, `You pay about: ${K.whole(est.customer)}`, estNote!, ""] : []),
+    "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",
+    `See my job: ${i.myJobUrl}`, "",
+    ...(est ? [...K.includedAndNotIncludedText({ price: est.customer, rebate: i.rebate, someInsulation: some }), ""] : []),
+    SPOT_SAVED_NOT_INCLUDED,
+    ...(removal ? ["", ...(removal.kind === "included" ? [`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; scope confirmed at your free Ready Check.)`] : []), removalNote(removal), EXISTING_PRELIMINARY, ...(removal.kind === "unknown" ? [REMOVAL_BUDGET_EMAIL_NOTE] : [])] : []),
+    ...(est ? [`Try a different size: ${est.calculatorUrl}`] : []),
+    ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []),
+  ], { unsubscribe: i.optOutUrl });
+  void dedupeAddress;
+  return { subject, html, text };
 }

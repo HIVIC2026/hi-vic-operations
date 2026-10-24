@@ -143,7 +143,7 @@ function application(tag: string): InstData {
     legal_entity_name: `TEST ${tag} Insulation Pty Ltd`, trading_name: `TEST ${tag} Insulation`, abn: "51824753556",
     business_address: ba, business_address_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"),
     insurer: `TEST Insurer ${tag}`, insurance_policy_number: `POL-${tag}`, public_liability_cover_amount: 10_000_000, public_liability_expiry: "2030-06-30",
-    installers: [{ full_legal_name: `TEST ${tag} Installer`, mobile: "0412345602", email: `qa.newinstaller.${tag.toLowerCase()}.w1@hivic-test.example`, cii_holds: "held", cii_certificate_number: `CII-${tag}`, cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full", cii_expiry: "2029-05-19", piisa_done: "no" }],
+    installers: [{ full_legal_name: `TEST ${tag} Installer`, mobile: "0412345602", email: `qa.newinstaller.${tag.toLowerCase()}.w1@hivic-test.example`, cii_holds: "held", cii_certificate_number: `CII-${tag}`, cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full", cii_expiry: "2029-05-19", piisa_done: "no", esc_notice_ticked: true }],
     self_is_installer: false, electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true, free_quotes_for_hivic_leads: true,
     service_origin: ba, service_origin_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"), travel_radius_km: 50,
     typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "1-2 weeks", accepting_jobs: true,
@@ -235,6 +235,7 @@ async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { ap
     const cases: [string, Parameters<typeof pageFieldErrors>[0], InstData, RegExp][] = [
       ["missing CII licence number", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_certificate_number: "" }] }, /CII certificate/i],
       ["expired CII certificate", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_expiry: "2020-01-01" }] }, /expired/i],
+      ["ESC collection notice not ticked", "installers", { ...f, installers: [{ ...f.installers![0]!, esc_notice_ticked: false }] }, /ESC privacy collection notice/i],
       ["expired insurance", "insurance", { ...f, insurance_uploaded: true, public_liability_expiry: "2020-01-01" } as InstData, /expiry must be today or later/i],
       ["cover under $5m", "insurance", { ...f, insurance_uploaded: true, public_liability_cover_amount: 1_000_000 } as InstData, /\$5/],
       ["bad ABN", "about", { ...f, abn: "12345678901" }, /valid 11-digit ABN/i],
@@ -621,17 +622,17 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     } catch (e) { if (e instanceof NotRun) throw e; c(`stopped at: ${where}`, false, (e as Error).message); }
   });
 
-  await step(steps, "C15", "C15 At the property now: Start Ready Check creates the job and opens (or explains) the Mitti form", async (c) => {
+  await step(steps, "C15", "C15 Add a job (basics only): creates the job, no booking, and prepares (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
     const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline);
     const { data: j } = await admin.from("jobs").select("stage, source, channel, installer_site_check, installer_site_check_date, originating_installer_business_id").eq("id", r.jobId).single();
     c("job is installer-supplied TEST work for this installer", j?.channel === "installer_sourced" && j?.source === "qa_test" && j?.originating_installer_business_id === BIZ, `${j?.channel} ${j?.source}`);
-    c("marked as visited today", j?.installer_site_check === "yes" && !!j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
+    c("no visit claimed (decision 34: the Mitti form answers the visit)", j?.installer_site_check === "no" && !j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
     const { count: asg } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", r.jobId).eq("role", "installer").eq("active", true);
     c("assigned to this installer", asg === 1, String(asg));
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
-    c("Ready Check booked now, or held until the owner signs paperwork A (existing rule)", r.state.kind === "owner_paperwork" ? j?.stage === "ready_check_ready_to_schedule" : j?.stage === "ready_check_scheduled", `${j?.stage} / ${r.state.kind}`);
+    c("nothing booked by Add a job (decision 115): job waits at Ready Check ready to schedule", r.booking === "none" && j?.stage === "ready_check_ready_to_schedule", `${j?.stage} / ${r.booking}`);
     const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline).then(() => "made", (e) => (e as Error).message);
     c("no permission / ACT postcode refused", /Victorian/.test(bad) && /permission to contact|consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);

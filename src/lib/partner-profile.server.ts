@@ -82,7 +82,8 @@ export async function applyPartnerProfile(admin: AdminDb, businessId: string, p:
   }
 }
 
-/** Approval message is queued only — wording is still with Jo and sending stays off. */
+/** Marks the approval message as queued at activation. It is delivered as the approved welcome email when the office sends the
+ *  partner login link (sendPartnerLoginLink / sendTestWelcome), which moves the status to "sent". Nothing else sends it. */
 export async function queueApprovalMessage(admin: AdminDb, businessId: string) {
   await admin.from("businesses").update({ approval_message_status: "queued", approval_message_queued_at: new Date().toISOString() }).eq("id", businessId).is("approval_message_status", null);
 }

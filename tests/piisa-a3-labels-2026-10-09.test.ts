@@ -20,9 +20,9 @@ describe("PIISA clearer labels (Jo 9 Oct 2026)", () => {
     expect(a3AcceptedLabels("p5.noAccess")).toContain(norm("Has the owner or occupier confirmed no one has accessed or worked in the ceiling since the PIESA?"));
   });
   test("banner heading exact", () => expect(STOP_BANNER).toBe("🛑 STOP —"));
-  test("crew prefill refuses a staff member still waiting for office approval", () => {
+  test("crew prefill refuses a staff member not yet cleared (decision 153: no recorded level/expiry)", () => {
     const tpl = { items: [] };
-    const r = a3CrewNativeItems(tpl, { lead: "w1", additional: [] }, [{ workerId: "w1", name: "A B", eec: "EEC1", eecVerified: true, approved: false } as never], "Co");
+    const r = a3CrewNativeItems(tpl, { lead: "w1", additional: [] }, [{ workerId: "w1", name: "A B", eec: "EEC1", eecVerified: true, approved: false, cleared: false, clearanceReason: "CII certificate verified but the level and expiry date haven't been recorded yet." } as never], "Co");
     expect(r.problems.length).toBeGreaterThan(0);
   });
 });

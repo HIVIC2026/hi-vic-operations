@@ -60,12 +60,48 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installHolds'] = "failed";
         }
         try {
+          // Jo 24 Oct (decision 111): signed PIESA copy to the owner and installer once the install day is booked.
+          // Real jobs: PIESA_COPY_EMAIL_APPROVED (on, decision 131) + customer_comms_enabled; TEST jobs use the allowlisted test sender.
+          const { sweepPiesaCopyDeliveries } = await import("@/lib/piesa-delivery.server");
+          (out as Record<string, unknown>)['piesaCopies'] = await sweepPiesaCopyDeliveries();
+        } catch (e) {
+          console.error("allocation tick: PIESA copy delivery sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['piesaCopies'] = "failed";
+        }
+        try {
+          // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
+          const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
+          (out as Record<string, unknown>)['veecReminders'] = await sweepVeecReminders();
+        } catch (e) {
+          console.error("allocation tick: VEEC reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['veecReminders'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
         } catch (e) {
           console.error("allocation tick: install day sweep failed", (e as Error).message);
           out['ok'] = false;
           (out as Record<string, unknown>)['installDays'] = "failed";
+        }
+        try {
+          // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
+          // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
+          const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");
+          (out as Record<string, unknown>)['installWindowRule'] = await sweepInstallWindowRule();
+        } catch (e) {
+          console.error("allocation tick: 30-day rule sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installWindowRule'] = "failed";
+        }
+        try {
+          // Decision 139: Xero payment poll fallback (env XERO_PAYMENT_POLL_ENABLED=true) and the 48h provisional
+          // install-booking release (deposit unpaid). Office alerts only; the owner notice is held behind approval.
+          const { sweepProvisionalBookings } = await import("@/lib/payments.server");
+          const { pollXeroPayments } = await import("@/lib/xero.server");
+          (out as Record<string, unknown>)['payments'] = { poll: await pollXeroPayments(), provisional: await sweepProvisionalBookings() };
+        } catch (e) {
+          console.error("allocation tick: payments sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
         }
         try {
           const { sweepTradeNoShows } = await import("@/lib/visit-events.server");
@@ -91,6 +127,26 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['prestart'] = "failed";
         }
         try {
+          // Jo 24 Oct (decision 121): ESC install-notification reminders — window open (5 days), urgent (48h), blocked
+          // (24h), reopened after a date change. Internal Office alerts only; nothing goes to owners or trades.
+          const { sweepEscReminders } = await import("@/lib/esc.server");
+          (out as Record<string, unknown>)['escReminders'] = await sweepEscReminders();
+        } catch (e) {
+          console.error("allocation tick: ESC reminder sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['escReminders'] = "failed";
+        }
+        try {
+          // Jo 24 Oct: the install-day PIISA Mitti form is created the day(s) before the install (same guarded path as
+          // the office button, one per job) so the 6:30am text below can link it. Runs BEFORE the daily text.
+          const { sweepPiisaAutoSend } = await import("@/lib/piisa-autosend.server");
+          const a = await sweepPiisaAutoSend();
+          (out as Record<string, unknown>)['piisaAutoSend'] = { checked: a.checked, created: a.results.filter((x) => x.outcome === "created").length, failed: a.results.filter((x) => x.outcome === "failed").length };
+        } catch (e) {
+          console.error("allocation tick: PIISA auto-send failed", (e as Error).message);
+          (out as Record<string, unknown>)['piisaAutoSend'] = "failed"; // Mitti outages must not fail the whole tick
+        }
+        try {
           // Daily Mitti links text: switch OFF by default; sends nothing unless ON and form IDs are set.
           const { sweepDailyMittiTexts } = await import("@/lib/daily-mitti-text.server");
           (out as Record<string, unknown>)['dailyMittiText'] = await sweepDailyMittiTexts();
@@ -100,6 +156,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: daily mitti text failed", (e as Error).message);
           out['ok'] = false;
+        }
+        try {
+          // Decision 130: each installer person's ESC collection notice link (first send, then 3- and 7-day reminders)
+          // through the guarded senders; real texts/emails stay held until the wording is approved. Counts only.
+          const { sweepCollectionNoticeLinks } = await import("@/lib/esc-collection-notice-send.server");
+          (out as Record<string, unknown>)['escNoticeLinks'] = await sweepCollectionNoticeLinks();
+        } catch (e) {
+          console.error("allocation tick: ESC notice link sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['escNoticeLinks'] = "failed";
         }
         try {
           const { sweepVisitReminders } = await import("@/lib/daily-brief.server");

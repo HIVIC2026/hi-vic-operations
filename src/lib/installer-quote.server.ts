@@ -108,7 +108,12 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
       await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);
     }
-    await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
+    // History only on change (Jo 23 Oct): the 15-minute sync/tick re-runs this while the quote waits (decision 113);
+    // the same hold for the same form is not written again.
+    const { data: lastHeld } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_held").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const prev = lastHeld?.details as { audit_id?: string; blockers?: string[] } | null;
+    if (!(prev?.audit_id === auditId && JSON.stringify(prev.blockers ?? []) === JSON.stringify(draft.blockers)))
+      await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
     return draft;
   }
   const installerPrice = draft.lines.find((line) => line.code === "INSTALLER_PRICE")?.line_total_inc_gst ?? null;

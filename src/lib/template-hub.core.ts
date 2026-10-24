@@ -12,11 +12,9 @@ export const TEMPLATE_CATEGORIES: { key: TemplateCategory; label: string }[] = [
 
 /** What the detail pane mounts for the selected entry (only the selected one is mounted). */
 export type TemplateView =
-  | { kind: "sample_email"; sample: "likely" | "savespot" | "savespotNoSize" | "onsite" | "ineligible" | "reminder3" | "coverage" }
-  | { kind: "partner_invitation"; templateKey: "rec_invitation" | "installer_invitation" }
+  | { kind: "sample_email"; sample: "reminder3" | "coverage" }
   | { kind: "partner_email"; email: "welcome" | "changes" | "decline" }
   | { kind: "plain_email"; email: "partner_login" }
-  | { kind: "review_only" }
   | { kind: "mitti"; formKey: FormKey }
   | { kind: "compliance_template"; templateKey: string }
   | { kind: "register"; index: number; mitti: FormKey[] }
@@ -28,18 +26,16 @@ export type TemplateEntry = {
   purpose: string; audience: string; trigger: string;
   /** Approval exactly as recorded in source; "Not recorded" when nothing records it. Stored versions are shown separately. */
   approval: string;
-  /** Stored customer review-version key (customer_communication_templates), when one exists. */
-  reviewKey?: string;
   view: TemplateView;
 };
 
 const comm = (key: string) => CUSTOMER_COMMUNICATION_CATALOG.find((c) => c[0] === key)!;
 const commEntry = (key: string, view: TemplateView, approval: string): TemplateEntry => {
   const c = comm(key);
-  return { id: `email:${key}`, category: "email", group: "Customer emails", title: c[1], purpose: c[2], audience: "Owner", trigger: `Stage ${c[3]}`, approval, reviewKey: key, view };
+  return { id: `email:${key}`, category: "email", group: "Customer emails", title: c[1], purpose: c[2], audience: "Owner", trigger: `Stage ${c[3]}`, approval, view };
 };
 
-// Jo Lowe's eight approved homeowner emails (P1-R3-COM-08, 15 Oct 2026). These are the SAME definitions
+// Jo Lowe's approved homeowner enquiry emails (P1-R3-COM-08, 15 Oct 2026). These are the SAME definitions
 // the sending workflow selects from (selectJoTemplate / renderJoOutcomeEmail), so Office shows what is sent.
 const JO_EMAIL: TemplateEntry[] = ([
   ["eligible_no_insulation_size_unknown", "Eligible — no existing insulation (size unknown)"],
@@ -49,7 +45,6 @@ const JO_EMAIL: TemplateEntry[] = ([
   ["potentially_eligible_unknown_size_unknown", "Potentially eligible — insulation to confirm (size unknown)"],
   ["potentially_eligible_unknown_size_known", "Potentially eligible — insulation to confirm (size known)"],
   ["ineligible", "Ineligible result"],
-  ["ready_check_invitation", "Ready Check invitation"],
 ] as const).map(([id, title]): TemplateEntry => ({
   id: `email:jo:${id}`, category: "email", group: "Jo's approved owner emails (15 Oct 2026)", title,
   purpose: "Jo Lowe's approved owner email. The preview is rendered by the SAME function every real send uses.",
@@ -58,7 +53,7 @@ const JO_EMAIL: TemplateEntry[] = ([
 }));
 
 /**
- * P1-S77: Jo's eight templates above are the ONLY homeowner enquiry emails. The superseded entries (Likely eligible
+ * P1-S77: Jo's templates above are the ONLY homeowner enquiry emails. The superseded entries (Likely eligible
  * estimate, Save your spot, Save your spot — no size, Onsite estimate, Insulation details (Group B), Ineligible result)
  * were removed from this register because nothing sends them any more; their history stays in each job's
  * communication record. The remaining customer entries are emails Jo's set does not cover.
@@ -69,9 +64,8 @@ const EMAIL: TemplateEntry[] = [
   ...JO_EMAIL,
   commEntry("estimate_unopened_3d", { kind: "sample_email", sample: "reminder3" }, "Not recorded"),
   commEntry("area_unavailable", { kind: "sample_email", sample: "coverage" }, "Not recorded"),
-  ...(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"] as const).map((k) => commEntry(k, { kind: "review_only" }, "Not recorded")),
-  { id: "email:rec_invitation", category: "email", group: "Partner emails", title: "REC partnership invitation", purpose: "Invites licensed electricians to apply.", audience: "Electrician / REC", trigger: "Office sends manually (download or copy)", approval: "Not recorded", view: { kind: "partner_invitation", templateKey: "rec_invitation" } },
-  { id: "email:installer_invitation", category: "email", group: "Partner emails", title: "Installer partnership invitation", purpose: "Invites insulation installers to apply.", audience: "Installer", trigger: "Office sends manually (download or copy)", approval: "Approved copy (project record)", view: { kind: "partner_invitation", templateKey: "installer_invitation" } },
+  // Decision 171 (24 Oct 2026): the copy-and-paste REC/installer invitation templates were removed; everyone onboards
+  // through the portal link the office shares.
   { id: "email:partner_welcome", category: "email", group: "Partner emails", title: "Partner welcome", purpose: "Tells an approved partner to set their password.", audience: "Approved installer / electrician", trigger: "When the office approves an application", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "welcome" } },
   { id: "email:partner_changes", category: "email", group: "Partner emails", title: "Application — send back for changes", purpose: "Asks an applicant to fix their application and sign again.", audience: "Applicant", trigger: "Office presses Send back (with typed message)", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "changes" } },
   { id: "email:partner_decline", category: "email", group: "Partner emails", title: "Application — decline", purpose: "Tells an applicant they were not approved.", audience: "Applicant", trigger: "Office presses Decline", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "decline" } },

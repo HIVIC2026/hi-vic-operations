@@ -36,6 +36,15 @@ export function shortAddress(street: string | null, suburb: string | null): stri
   return [street?.trim(), suburb?.trim()].filter(Boolean).join(" ") || "Address on job page";
 }
 
+/** Which Mitti form a booking's link comes from. Install days link the installer's PIISA form (latest
+ *  `mitti_piisa_audit_created` event), not the electrician's PIESA audit; electrician visits keep the PIESA audit. */
+export type MittiFormSource = "ready_checks" | "assessments" | "piisa_event";
+export function mittiFormSource(kind: string): MittiFormSource {
+  if (kind === "ready_check") return "ready_checks";
+  if (kind === "installation") return "piisa_event";
+  return "assessments";
+}
+
 export type DayJob = { jobId: string; bookingId: string; start: string; end: string | null; street: string | null; suburb: string | null; link: string | null; status: string };
 export type Trade = { businessId: string; approved: boolean; linked: boolean; mittiInvited: boolean; phone: string | null };
 

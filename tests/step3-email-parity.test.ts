@@ -2,7 +2,7 @@
 // version of each homeowner enquiry email. The send, the Office copy, the Jo TEST copy and the Templates preview all
 // render through renderJoOutcomeEmail(); the Step 3 preview page and the campaign copy editor are retired.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 
@@ -20,13 +20,16 @@ describe("Jo's template is the only Save my spot email", () => {
     const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
     expect(send).toContain("jo.renderJoOutcomeEmail(");
     expect(send).not.toMatch(/renderStep3SaveSpot|renderSaveSpotOfferEmail|renderLaunchCampaignEmail/);
-    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain("sendSaveMySpot([job.id]");
+    // The old Step 3 preview "Send test" action was removed with that page (24 Oct 2026); Jo's TEST copy remains.
+    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).not.toContain("sendSaveSpotPreviewTest");
+    expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain('mode: "test_to_jo"');
     expect(readFileSync("src/lib/manual-communication.server.ts", "utf8")).toContain("joFactsForSaveSpotVariant(");
   });
   test("the Step 3 preview page and the campaign copy editor are retired to Templates", () => {
     expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
     expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
-    expect(readFileSync("src/lib/campaign-emails.functions.ts", "utf8")).toMatch(/if \(RETIRED\) throw new Error/);
+    expect(existsSync("src/lib/campaign-emails.functions.ts")).toBe(false);
+    expect(existsSync("src/lib/step3-emails.ts")).toBe(false);
   });
 });
 
@@ -41,15 +44,14 @@ describe("T1 (size unknown) = T2 (size known) except the size disclosure", () =>
     expect(b.length).toBe(a.length);
     const changed = a.map((l, i) => [l, b[i]!] as const).filter(([x, y]) => x !== y);
     expect(changed.map(([x, y]) => [x, y])).toEqual([
-      ["Ceiling size: 150 m² — based on the size you provided", "Ceiling size: 150 m² — estimated, not measured"],
-      ["We’ll confirm the ceiling measurements at your free Ready Check.", "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote. Your final price will depend on the measured ceiling area."],
+      ["Based on what you told us: 150 m² ceiling, no existing insulation.", "Based on a typical 150 m² ceiling (estimated, not measured), no existing insulation."],
     ]);
   });
   test("missing-size email states the 150 m² estimate; the size-known email never does", () => {
-    const note = "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote.";
+    const note = "Based on a typical 150 m² ceiling (estimated, not measured)";
     const t1 = withUnsubscribe(renderJoOutcomeEmail(input(false))!, UNSUB), t2 = withUnsubscribe(renderJoOutcomeEmail(input(true))!, UNSUB);
     expect(t1.plainText).toContain(note);
-    expect(t1.html).toContain("Want to explore a different ceiling size?");
+    expect(t1.html).toContain("Try a different ceiling size");
     expect(t2.plainText).not.toContain(note);
   });
 });

@@ -62,9 +62,9 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       admin.from("partner_workers").select("business_id, licence_expires_on").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
       admin.from("bookings").select("business_id").eq("status", "confirmed").gte("scheduled_start", wk0.toISOString()).lt("scheduled_start", wk1.toISOString()).in("business_id", inIds),
       admin.from("partner_offers").select("business_id").eq("status", "pending").in("business_id", inIds),
-      admin.from("partner_offers").select("business_id, status, offered_at").eq("job_id", data.jobId).eq("kind", data.kind),
+      admin.from("partner_offers").select("business_id, status, offered_at, expires_at").eq("job_id", data.jobId).eq("kind", data.kind),
       admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
-      admin.from("jobs").select("job_number, source, channel, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
+      admin.from("jobs").select("job_number, source, channel, stage, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
     ]);
     // Rate for this job: electricians = agreed PIESA rate (inc GST); installers = active installer rate card R5 line (inc GST per m²).
     let rates = new Map<string, number>();
@@ -76,6 +76,9 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       const { data: items } = await admin.from("rate_card_items").select("rate_card_id, r_value, unit, unit_price_ex_gst").in("rate_card_id", cardIds.length ? cardIds : NONE);
       for (const [b, cid] of latest) { const it = (items ?? []).find((i) => i.rate_card_id === cid && Number(i.r_value) === 5) ?? (items ?? []).find((i) => i.rate_card_id === cid); if (it) rates.set(b, Math.round(Number(it.unit_price_ex_gst) * 1.1 * 100) / 100); }
     }
+    // Decision 157: our-lead PIESA → the installer's usual electrician at their onboarding rate (badge + rate shown to the office).
+    const usualSel = !isRc ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(data.jobId, r.candidates) : null;
+    if (usualSel?.mode === "usual") rates.set(usualSel.businessId, usualSel.rateIncGst);
     // HIV owner prices (and the "rate at or above owner price" warning) apply only to HIV leads (Jo 7 Oct); partner jobs aren't marked up.
     const ownerPrice = isRc ? (job?.channel === "installer_sourced" ? null : retail?.r5_install_inc_gst_per_m2 != null ? Number(retail.r5_install_inc_gst_per_m2) : null) : (retail?.piesa_assessment_inc_gst != null ? Number(retail.piesa_assessment_inc_gst) : null);
     const count = (rows: { business_id: string | null }[] | null, id: string) => (rows ?? []).filter((x) => x.business_id === id).length;
@@ -101,12 +104,24 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
           certExpiresOn: [...(creds ?? []).filter((x) => x.business_id === c.business_id && /cert|licen/.test(x.kind)).map((x) => x.expires_at), ...(workers ?? []).filter((w) => w.business_id === c.business_id).map((w) => w.licence_expires_on)],
         }),
         blocker: c.blocker, matching: !c.blocker && (c.covers_postcode || c.exact_postcode), alreadyOffered: offered.get(c.business_id) ?? null,
+        usualElectrician: usualSel?.mode === "usual" && usualSel.businessId === c.business_id,
       };
     });
+    if (isRc) { // "Choose installer": shared matching order (nearby that day → reliability → fewest recent → speed)
+      const { rankedInstallers } = await import("./readycheck-booking.core");
+      const order = rankedInstallers(r.candidates as never).map((c) => c.business_id);
+      const at = (id: string) => { const i = order.indexOf(id); return i < 0 ? order.length : i; };
+      trades.sort((a, b) => at(a.id) - at(b.id));
+    }
+    const open = (mine ?? []).find((o) => o.status === "pending") ?? null;
+    const { data: asgRc } = isRc ? await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "installer").eq("active", true).maybeSingle() : { data: null };
     return {
+      channel: job?.channel ?? null, stage: job?.stage ?? null, hasInstaller: !!asgRc,
+      openOffer: open ? { business: trades.find((t) => t.id === open.business_id)?.business ?? null, expiresAt: open.expires_at } : null,
       jobNumber: job?.job_number ?? null, suburb: [p?.suburb, p?.postcode].filter(Boolean).join(" "), ownerPrice, isTestJob: job?.source === "qa_test",
       officePicks: officePicks(await dispatchMode(), job?.offer_dispatch_override ?? null), jobOverride: job?.offer_dispatch_override === "office_picks",
-      matching: trades.filter((t) => t.matching), others: trades.filter((t) => !t.matching),
+      usualElectricianNote: usualSel?.note ?? null,
+      matching: trades.filter((t) => t.matching).sort((a, b) => Number(b.usualElectrician) - Number(a.usualElectrician)), others: trades.filter((t) => !t.matching),
     };
   });
 

@@ -11,7 +11,7 @@ export const complete: InstData = {
   works_for_business: false, primary_contact_name: "Sam Taylor", business_phone: "0412345678", business_email: "sam@samplebiz.com.au",
   legal_entity_name: "Sample Pty Ltd", abn: "51824753556", business_address: "1 Main St, Melbourne VIC 3000", business_address_details: addr("1 Main St, Melbourne VIC 3000"),
   insurance_uploaded: true, insurer: "X", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  installers: [{ full_legal_name: "A B", piisa_done: "no", qualification: "CII", mobile: "0412345679", email: "a@samplebiz.com.au", cii_holds: "held", cii_certificate_number: "CII-1", cii_issuer: "EEC", cii_issue_date: "2024-01-01", cii_level: "full", cii_expiry: "2099-01-01" }],
+  installers: [{ full_legal_name: "A B", piisa_done: "no", qualification: "CII", mobile: "0412345679", email: "a@samplebiz.com.au", cii_holds: "held", cii_certificate_number: "CII-1", cii_issuer: "EEC", cii_issue_date: "2024-01-01", cii_level: "full", cii_expiry: "2099-01-01", esc_notice_ticked: true }],
   electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true, free_quotes_for_hivic_leads: true, accepting_jobs: true,
   service_origin: "1 Main St, Melbourne VIC 3000", service_origin_details: addr("1 Main St, Melbourne VIC 3000"), travel_radius_km: 50,
   typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "4-8", gst_registered: true, r5_rate: 20, batts_removal_rate: 8, loose_fill_removal_rate: 12,
@@ -335,7 +335,7 @@ describe("certification consistency (pending 0084, PGlite)", () => {
   });
   test("forged plan status is ignored: workers get the DB's latest decision", async () => {
     const t = await installerDb();
-    const team = { ...complete, installers: [complete.installers![0]!, { piisa_done: "no", full_legal_name: "C D", email: "c@samplebiz.com.au", mobile: "0412345670", cii_holds: "in_training" as const }] } as InstData;
+    const team = { ...complete, installers: [complete.installers![0]!, { piisa_done: "no", full_legal_name: "C D", email: "c@samplebiz.com.au", mobile: "0412345670", cii_holds: "in_training" as const, esc_notice_ticked: true }] } as InstData;
     const { id, signed } = await signed2(t, team);
     await t.recordCert(id, "a@samplebiz.com.au", "verified");
     const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([vcert("a@samplebiz.com.au"), vcert("c@samplebiz.com.au")]), []);

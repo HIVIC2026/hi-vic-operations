@@ -1,9 +1,13 @@
 // The ONE real SMS sender (Twilio AU1 direct, twilio-au1.server.ts) (Jo, 7 Oct). OFF unless customer_comms_enabled AND the message type's own switch are on.
 // TEST records never come here (they use test-send.server.ts, unchanged). Sends at most once per idempotency key,
 // never retries an ambiguous send, and logs delivery status against the job or partner.
+// Decision 165 (Jo, 24 Oct 2026): a policy hold (switch, quiet hours, wording, consent, STOP, stale trigger, deleted job)
+// is RECORDED (sms_messages status "blocked" under a non-claiming key + job_communications) but never claims the
+// idempotency key, so a later allowed attempt sends exactly once; one-off `event` types carry their trigger time and are
+// held as "too late" instead of coming out as old copies when a switch flips (SMS_FRESHNESS in sms.core.ts).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
-import { SMS_MESSAGE_TYPES, brandSmsBody, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
+import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -15,6 +19,8 @@ export type RealSmsInput = {
   body: string;
   jobId?: string | null;
   businessId?: string | null;
+  /** One-off (`event`) types: when the triggering event happened and whether it is still current (decision 165). `window` types omit it. */
+  event?: SmsEventInput;
 };
 export type RealSmsResult = { status: "sent" | "blocked" | "failed" | "sent_unknown" | "already"; detail: string; sid: string | null };
 
@@ -62,12 +68,18 @@ async function logJob(input: RealSmsInput, to: string, status: string, detail: s
 
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
 export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast?: true; scheduledSpotReminder?: true }): Promise<RealSmsResult> {
-  const blastAllowed = input.type === "save_spot_reminder" && (blast?.adminSpotReminderBlast === true || blast?.scheduledSpotReminder === true) &&
-    input.idempotencyKey === `save-spot-reminder-blast:v1:${input.jobId}`;
+  // One-off blasts: the Save My Spot reminder (office page or the hourly automatic run) and the 3 questions reminder
+  // (decision 172, office page only). Each has its own key format and phone-claim space; nothing else may pass `blast`.
+  const oneOffKey = input.type === "save_spot_reminder" ? `save-spot-reminder-blast:v1:${input.jobId}`
+    : input.type === "three_questions_reminder" ? `three-questions-reminder-sms:v1:${input.jobId}` : null;
+  const blastAllowed = !!oneOffKey && input.idempotencyKey === oneOffKey &&
+    (blast?.adminSpotReminderBlast === true || (input.type === "save_spot_reminder" && blast?.scheduledSpotReminder === true));
   if (blast && !blastAllowed) throw new Error("Invalid one-off SMS authorization");
   if (blastAllowed && blast) {
-    const { blastClaimId } = await import("./save-spot-reminder-blast.core");
-    if (blast.claimId !== await blastClaimId(input.to ?? "")) throw new Error("Invalid one-off phone claim");
+    const claimFor = input.type === "save_spot_reminder"
+      ? (await import("./save-spot-reminder-blast.core")).blastClaimId
+      : (await import("./three-questions-reminder.core")).threeQuestionsClaimId;
+    if (blast.claimId !== await claimFor(input.to ?? "")) throw new Error("Invalid one-off phone claim");
   }
   const to = toAuE164(input.to);
   const from = sendingNumber();
@@ -79,25 +91,38 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
     if (oe) throw new Error("Could not verify SMS opt-outs; nothing sent");
     blastOptedOut = (opts ?? []).some((r: { phone: string }) => toAuE164(r.phone) === to);
   }
+  const nowIso = new Date().toISOString();
+  // Every policy hold is decided BEFORE the key is touched (decision 165): switches, quiet hours, wording, consent,
+  // STOP list, freshness of the triggering event, deleted job. None of these may consume the idempotency key.
   const blocked = smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
-    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true,
-  });
-  // Claim the idempotency key first (unique). An existing claim means this message was already handled.
+    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true, nowIso,
+  }) ?? smsStaleReason(input.type, input.event, nowIso)
+    ?? await (async () => { const { jobDeletedBlocker } = await import("./job-live.server"); return jobDeletedBlocker(input.jobId ?? null); })();
+  if (blocked) {
+    // A key already claimed by a real attempt stays "already" (no second held row for a text that went).
+    const { data: prior, error: pe } = await db.from("sms_messages").select("id").eq("idempotency_key", input.idempotencyKey).maybeSingle();
+    if (pe) throw new Error("Could not check SMS history safely; nothing sent");
+    if (prior) return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
+    // Held: RECORDED for the office ("held: reason") under a non-claiming key, so a later allowed attempt still goes once.
+    await db.from("sms_messages").insert({
+      message_type: input.type, idempotency_key: heldAttemptKey(input.idempotencyKey, crypto.randomUUID()), job_id: input.jobId ?? null, business_id: input.businessId ?? null,
+      to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "blocked", detail: blocked,
+    }).then(({ error: he }: { error: { message: string } | null }) => { if (he) console.error("held SMS attempt not recorded", he.message); }, (e: Error) => console.error("held SMS attempt not recorded", e.message));
+    await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked);
+    return { status: "blocked", detail: blocked, sid: null };
+  }
+  // Allowed: claim the idempotency key (unique). An existing claim means this message was already sent (or may have been).
   const { data: row, error } = await db.from("sms_messages").insert({
     ...(blastAllowed && blast ? { id: blast.claimId } : {}),
     message_type: input.type, idempotency_key: input.idempotencyKey, job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: blocked ? "blocked" : "sending", detail: blocked,
+    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "sending", detail: null,
   }).select("id").maybeSingle();
   if (error || !row) {
     if (error && error.code !== "23505") throw new Error("Could not reserve SMS safely; nothing sent");
     return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
   }
-  if (blocked) { await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked); return { status: "blocked", detail: blocked, sid: null }; }
-
-  { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(input.jobId ?? null);
-    if (del) { await db.from("sms_messages").update({ status: "blocked", detail: del }).eq("id", row.id); await logJob(input, to ?? String(input.to ?? ""), "blocked", del); return { status: "blocked", detail: del, sid: null }; } }
   const hook = process.env["SMS_WEBHOOK_TOKEN"];
   const { au1Configured, au1SendMessage } = await import("./twilio-au1.server");
   let r: RealSmsResult;

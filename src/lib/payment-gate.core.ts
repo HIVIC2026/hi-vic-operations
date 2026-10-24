@@ -228,6 +228,8 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 }
 
 /** Customer/trade wording for the payment requirement (no percentages that the gate does not use). */
+/** Jo 24 Oct 2026 (decisions 139/140/141): $349 at acceptance (card or bank, no fee), 10% of the rest to book the install (bank
+ *  transfer / PayID, day held 48h), balance on install day (bank transfer / PayID), or pay in full any time. No card fee is ever shown. */
 export const PAYMENT_OPTION_SUMMARY =
-  "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then pay the balance in two halves (install booked, install day) or in full now.";
+  "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.";
 export const PAYMENT_DECISION_STATUS = WORKFLOW_DECISIONS.payment.deposit.status;

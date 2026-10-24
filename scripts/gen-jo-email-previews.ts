@@ -1,5 +1,6 @@
 /**
- * Generate faithful local previews of Jo's T1–T8 emails for browser UAT.
+ * Generate faithful local previews of Jo's T1–T7 emails for browser UAT (T8, the office Ready Check invitation,
+ * was retired on 24 Oct 2026).
  * Renders through the EXACT production renderers, then inlines the Spot Saved header
  * art (drawn by email-hero.core) and the brand logo as data URIs so the screenshots
  * show the real artwork without a live server. No email is sent. No DB is touched.
@@ -7,7 +8,6 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import {
   renderJoOutcomeEmail,
-  renderJoReadyCheckInvitationEmail,
   type JoOutcomeEmailInput,
 } from "../src/lib/jo-outcome-email.core";
 import { emailArtUrl } from "../src/lib/email-art.core";
@@ -106,12 +106,6 @@ const specs: Spec[] = [
     outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010.",
     ceilingSizeKnown: false, recipient: RECIPIENT, links: LINKS,
   })!, UNSUB).html },
-  { id: "T8", render: () => withUnsubscribe(renderJoReadyCheckInvitationEmail(RECIPIENT, {
-    ...figures(150, true),
-    savedAt: "2026-10-19T00:00:00Z",
-    personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
-    readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
-  }), UNSUB).html },
 ];
 
 for (const s of specs) {

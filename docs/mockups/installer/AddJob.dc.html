@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add a job</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2457C5}a:hover{color:#1A3F8F}
+input{font:400 15px Inter, sans-serif}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; font-family: Inter, system-ui, sans-serif; color: #1D2433; display: flex; flex-direction: column">
+  <div style="flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="font-size: 19px; font-weight: 600">Add a job</div>
+      <div style="font-size: 14px; color: #5B6475; line-height: 1.5">Just the owner's details. Everything else goes in the Ready Check form in Mitti.</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="n" style="font-size: 13px; color: #5B6475">Owner's full name</label>
+      <input id="n" placeholder="First and last name" style="min-height: 46px; border-radius: 10px; border: 1px solid #D9DCE3; padding: 0 12px">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="a" style="font-size: 13px; color: #5B6475">Property address</label>
+      <input id="a" placeholder="Start typing, then pick from the list" style="min-height: 46px; border-radius: 10px; border: 1px solid #D9DCE3; padding: 0 12px">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="m" style="font-size: 13px; color: #5B6475">Mobile</label>
+      <input id="m" style="min-height: 46px; border-radius: 10px; border: 1px solid #D9DCE3; padding: 0 12px">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="e" style="font-size: 13px; color: #5B6475">Email</label>
+      <input id="e" style="min-height: 46px; border-radius: 10px; border: 1px solid #D9DCE3; padding: 0 12px">
+    </div>
+    <label style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5">
+      <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0 0; flex: none">
+      <span>The owner agreed to be contacted by Home Insulation Victoria</span>
+    </label>
+    <button style="min-height: 48px; border-radius: 10px; border: none; background: #2457C5; color: #FFFFFF; font: 500 15px Inter, sans-serif">Add job</button>
+    <div style="font-size: 13px; color: #5B6475; line-height: 1.5">The Ready Check form appears in your Mitti app within about 15 minutes.</div>
+  </div>
+  <nav style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #E6E8EC; padding: 6px 6px 20px 6px">
+    <a href="Main.dc.html" style="text-align: center; font-size: 13px; color: #5B6475; text-decoration: none; min-height: 44px; display: flex; align-items: center; justify-content: center">My work</a>
+    <a href="AddJob.dc.html" style="text-align: center; font-size: 13px; font-weight: 600; color: #1D2433; text-decoration: none; min-height: 44px; display: flex; align-items: center; justify-content: center">Add a job</a>
+    <a href="Money.dc.html" style="text-align: center; font-size: 13px; color: #5B6475; text-decoration: none; min-height: 44px; display: flex; align-items: center; justify-content: center">Money</a>
+    <a href="Business.dc.html" style="text-align: center; font-size: 13px; color: #5B6475; text-decoration: none; min-height: 44px; display: flex; align-items: center; justify-content: center">My business</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

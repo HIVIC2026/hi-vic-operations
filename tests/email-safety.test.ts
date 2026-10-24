@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { emailSuppression, isTestRecipient, reservationAllowed, statusAfterDelivery, UNSUBSCRIBE_LINK_SLOT, unsubscribeUrl, withUnsubscribe, type SafetyInput } from "../src/lib/emailsafety.core";
 import { renderFollowupEmail } from "../src/lib/followup-email";
-import { renderIneligibleEmail } from "../src/lib/ineligible-email";
+import { renderIneligibleOutcomeEmail } from "../src/lib/estimate-email";
 
 const NOW = Date.parse("2026-10-10T00:00:00Z");
 const base: SafetyInput = { purpose: "step3_estimate", optedOut: false, bounced: false, stage: "new_enquiry", jobSource: "base44", jobCreatedAt: "2026-10-09T00:00:00Z", recipient: "owner@gmail.com", jobsCreatedAfter: "2026-10-01T00:00:00Z", now: NOW };
@@ -73,7 +73,7 @@ describe("duplicate prevention", () => {
 describe("unsubscribe", () => {
   const url = unsubscribeUrl(TOK);
   test("every customer email gets a working link", () => {
-    for (const m of [renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOK}` }), renderIneligibleEmail({ referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${TOK}` })]) {
+    for (const m of [renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOK}` }), renderIneligibleOutcomeEmail({ referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${TOK}` })]) {
       const w = withUnsubscribe(m, url);
       expect(w.html).toContain(`href="${url}"`); expect(w.plainText).toContain(`Unsubscribe: ${url}`);
       expect(w.html.indexOf("Unsubscribe")).toBeLessThan(w.html.indexOf("</body>"));

@@ -1,6 +1,8 @@
 // Worker compliance rules: electrician licence expiry + installer PIISA training + installer EEC/CII
 // certificate. PURE: no I/O. EEC status is office-verified only; a worker-uploaded file is "awaiting_check"
 // until the office verifies it (certification_status stays 'unverified' until then).
+import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
+
 export type WorkerCompliance = {
   trade_role: "electrician" | "installer" | string;
   licence_expires_on?: string | null;
@@ -9,6 +11,11 @@ export type WorkerCompliance = {
   piisa_verified_at?: string | null;
   certification_status?: "unverified" | "verified" | "rejected" | null;
   certification?: { eec_upload?: { path?: string | null } | null } | null;
+  /** ESC collection notice (decision 130): false = this person has not acknowledged it (from esc-collection-notice statuses). Undefined = not loaded. */
+  collection_notice_acknowledged?: boolean | null;
+  /** Decision 153: latest recorded CII level/expiry for the verified certificate. Undefined = not loaded (no flag); null = none recorded. */
+  cii_level?: string | null;
+  cii_expires_on?: string | null;
 };
 
 export type EecState = "not_applicable" | "missing" | "awaiting_check" | "verified" | "rejected";
@@ -62,6 +69,12 @@ export function approvalFlags(w: WorkerCompliance, today: string): string[] {
     if (e === "missing") out.push("EEC certificate missing");
     if (e === "awaiting_check") out.push("EEC certificate to verify");
     if (e === "rejected") out.push("EEC certificate rejected");
+    if (e === "verified" && w.cii_level !== undefined) {
+      const c = crewClearance({ certStatus: "verified", level: w.cii_level ?? null, expiresOn: w.cii_expires_on ?? null }, today);
+      if (c.reason === CREW_CLEARANCE_REASON.noLevel) out.push("CII level and expiry to record");
+      if (c.reason === CREW_CLEARANCE_REASON.expired) out.push("CII certificate expired");
+    }
+    if (w.collection_notice_acknowledged === false) out.push("ESC notice not acknowledged");
   }
   return out;
 }
@@ -84,13 +97,52 @@ export function workerOfferBlocker(w: WorkerCompliance, today: string): string |
   }
   // Existing partners who were never asked show "missing" (Add it prompt) and are not blocked yet.
   if (w.trade_role === "installer" && w.piisa_status && piisaState(w) !== "verified") return "PIISA training not uploaded and verified.";
+  // Decision 130: an installer who has not acknowledged the ESC collection notice cannot be lead or crew on any installation.
+  if (w.trade_role === "installer" && w.collection_notice_acknowledged === false) return COLLECTION_NOTICE_BLOCK_MESSAGE;
   return null;
 }
 
+// ---------- Crew clearance (decision 153, Jo 24 Oct 2026) ----------
+/**
+ * Facts the clearance is DERIVED from: the latest office certification check for the person and the latest recorded
+ * level/expiry against it. `partner_workers.approval_status` plays no part (it only gates logins/links, unchanged).
+ */
+export type CrewClearanceFacts = {
+  removed_at?: string | null;
+  /** Latest certification check status: "verified" | "rejected" | null (none recorded). */
+  certStatus: string | null;
+  /** Latest recorded level ("full" | "provisional" | legacy text) and expiry (YYYY-MM-DD) for that check. */
+  level: string | null;
+  expiresOn: string | null;
+};
+export type CrewClearance = { cleared: boolean; reason: string | null };
+export const CREW_CLEARANCE_REASON = {
+  removed: "No longer on the staff list.",
+  withdrawn: "CII certificate was not accepted by the office.",
+  unverified: "CII certificate not verified by the office yet.",
+  noLevel: "CII certificate verified but the level and expiry date haven't been recorded yet.",
+  expired: "CII certificate has expired — the office needs to verify the renewed certificate.",
+} as const;
+/**
+ * Cleared for crews and offers = verified CII certificate + a recorded level + expiry on or after today, and not removed.
+ * Expired, rejected/withdrawn or unrecorded → blocked again. Pure; fails closed on anything missing.
+ */
+export function crewClearance(f: CrewClearanceFacts, today: string): CrewClearance {
+  if (f.removed_at) return { cleared: false, reason: CREW_CLEARANCE_REASON.removed };
+  if (f.certStatus === "rejected") return { cleared: false, reason: CREW_CLEARANCE_REASON.withdrawn };
+  if (f.certStatus !== "verified") return { cleared: false, reason: CREW_CLEARANCE_REASON.unverified };
+  if (!f.level?.trim() || !f.expiresOn) return { cleared: false, reason: CREW_CLEARANCE_REASON.noLevel };
+  if (f.expiresOn < today) return { cleared: false, reason: CREW_CLEARANCE_REASON.expired };
+  return { cleared: true, reason: null };
+}
+/** Melbourne calendar date, for callers that have no explicit "today". */
+export const melbourneToday = (now = new Date()) => now.toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+
 /** "Missing" items for the My business Add it prompt. */
-export function missingItems(w: WorkerCompliance): ("licence_expiry" | "piisa")[] {
-  const m: ("licence_expiry" | "piisa")[] = [];
+export function missingItems(w: WorkerCompliance): ("licence_expiry" | "piisa" | "esc_notice")[] {
+  const m: ("licence_expiry" | "piisa" | "esc_notice")[] = [];
   if (w.trade_role === "electrician" && !w.licence_expires_on) m.push("licence_expiry");
   if (w.trade_role === "installer" && (piisaState(w) === "missing" || piisaState(w) === "not_done")) m.push("piisa");
+  if (w.trade_role === "installer" && w.collection_notice_acknowledged === false) m.push("esc_notice");
   return m;
 }

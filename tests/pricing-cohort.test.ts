@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { PricingCohortUnknownError, customerBreakdown, installRateLabel, mayReprice, protectedSavedTotals, readyCheckFeeLabel, resolveCustomerPricing, scopeDifference, type CohortSnapshot, type PricingRates } from "../src/lib/pricing-cohort.core";
 import { readyCheckRemaining, effectiveReadyCheckFee } from "../src/lib/readycheck.core";
-import { applyReadyCheckFee, renderEstimateEmail, renderSaveSpotFromLikelyEmail } from "../src/lib/estimate-email";
+import { applyReadyCheckFee, renderEstimateEmail } from "../src/lib/estimate-email";
 
 const LEGACY: PricingRates = { settingsId: "l", settingsVersion: 2, r5InstallIncGstPerM2: 30, removalIncGstPerM2: 15, piesaIncGst: 349, apIncGst: 349, readyCheckFeeIncGst: 0 };
 const NEW: PricingRates = { ...LEGACY, settingsId: "n", settingsVersion: 3, r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99 };
@@ -80,12 +80,6 @@ describe("emails", () => {
     const m = renderEstimateEmail(newInput);
     expect(m.html).not.toContain("$99"); expect(m.html).toContain(">FREE<"); expect(m.html).toContain("4,950");
     expect(m.html).toContain("150 m²");
-  });
-  test("save-spot: legacy and new (stale 99) both keep the free Ready Check", () => {
-    const l = renderSaveSpotFromLikelyEmail({ ...legacyInput, campaignUrl: LINK + "/campaign" });
-    expect(l.html).toContain("your free Ready Check");
-    const n = renderSaveSpotFromLikelyEmail({ ...newInput, campaignUrl: LINK + "/campaign" });
-    expect(n.html).toContain("your free Ready Check"); expect(n.html).not.toContain("$99"); expect(n.html).toContain(LINK + "/campaign");
   });
   test("stale totals that include a $99 fee are refused, never rendered", () => {
     expect(() => renderEstimateEmail({ ...newInput, amountPayableNow: 99, estimatedRemainingBalance: 4148, grossProjectTotal: 5747, estimatedTotal: 4247 })).toThrow();

@@ -3,14 +3,13 @@
  *
  * PURE module: no network, no database, no email. It only:
  *  - builds the two customer URLs from the EXISTING personal-estimate token (no new token semantics, no TTL change),
- *  - assembles the immutable saved-pricing snapshot used by the read-only route and by COM-08 Template 8,
+ *  - assembles the immutable saved-pricing snapshot used by the read-only route,
  *  - fails CLOSED (returns null) whenever the saved snapshot is incomplete, so nothing is ever fabricated.
  *
  * The saved estimate is authoritative: it is read from lead_campaign_responses (the frozen Save-My-Spot totals) and the
  * frozen fee settings on indicative_estimates.snapshot. Nothing here recalculates with current pricing, calls the
  * public calculator, creates/updates an estimate, mutates the pricing cohort, or triggers communications.
  */
-import type { JoEstimateFigures, SavedPricingSnapshot } from "./jo-email-templates.core";
 import { isWellFormedToken, linkUsable } from "./estimatelink.core";
 
 /** Public read-only personal-estimate page (DEP-1). */
@@ -111,41 +110,4 @@ export function buildPersonalEstimateView(
     personalEstimateUrl: personalEstimateUrl(token),
     readyCheckBookingUrl: readyCheckBookingUrl(token),
   };
-}
-
-/**
- * Template 8 saved-pricing snapshot for the Ready Check invitation email. Returns null (fail closed) unless the
- * FULL saved snapshot — core totals AND frozen fee breakdown AND a readable personal-estimate link — is present.
- * No public-calculator substitute is ever used.
- */
-export function buildTemplate8Snapshot(
-  core: SavedEstimateCore | null | undefined,
-  fees: SavedFeeSettings,
-  token: string,
-): SavedPricingSnapshot | null {
-  if (!core) return null;
-  const total = num(core.savedTotal);
-  const rebate = num(core.savedVeuDiscount);
-  const gross = num(core.savedGrossTotal);
-  if (total === null || rebate === null || gross === null) return null;
-  const split = splitFromSavedFees(gross, fees);
-  if (!split) return null; // incomplete snapshot -> fail closed, do not fabricate
-  const areaM2 = num(core.savedAreaM2);
-  if (areaM2 === null) return null;
-  const figures: JoEstimateFigures = {
-    veuRebate: rebate,
-    customerTotal: total,
-    totalBeforeRebate: gross,
-    installation: split.installation,
-    piesaFee: split.piesaFee,
-    apFee: split.apFee,
-    ceilingAreaM2: areaM2,
-    areaEstimated: !!core.areaAssumed,
-  };
-  return Object.freeze({
-    ...figures,
-    savedAt: core.savedAt,
-    personalEstimateUrl: personalEstimateUrl(token),
-    readyCheckBookingUrl: readyCheckBookingUrl(token),
-  }) as SavedPricingSnapshot;
 }

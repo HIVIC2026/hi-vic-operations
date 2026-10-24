@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { EstimateHeader } from "@/components/portal/EstimateHeader";
+import { OwnerPageHeader, LockedButton, LockHint, SmallNote } from "@/components/owner/OwnerPageKit";
+import { P1, shortAud } from "@/lib/owner-pages.core";
 import { finishCaptureUpload, getCaptureStatus, startCaptureUpload } from "@/lib/owner-capture.functions";
 import { CaptureUploads } from "@/components/owner/CaptureUploads";
 import { type InsulationReviewOption } from "@/lib/insulation-review.core";
@@ -78,9 +79,9 @@ function VideoPage() {
   };
 
   return (
-    <div className="estimate-brand min-h-screen bg-estimate-canvas">
-      <EstimateHeader />
-      <main className="mx-auto max-w-[620px] px-4 pb-14 sm:px-8">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas text-estimate-navy">
+      <OwnerPageHeader />
+      <main className="mx-auto max-w-[560px] px-4 pb-10 sm:px-5">
         {isLoading ? <p role="status" className="py-16 text-center text-muted-foreground">Loading…</p>
         : isError || !data || data.state !== "ok" ? (
           <div role="alert" className="mt-8 rounded-2xl border bg-card p-6 text-center">
@@ -114,21 +115,22 @@ function VideoPage() {
         ) : closed ? (
           <section className="mt-6 space-y-3 rounded-2xl border bg-card p-6" role="status"><h1 className="font-display text-3xl font-bold">Thank you</h1><p>{NOT_INTERESTED_THANKS}</p></section>
         ) : (
-          <div className="mt-6 space-y-5">
-            <QuoteBox p={(quote.data as { pricing?: QuotePricing } | undefined)?.pricing ?? null} name={(quote.data as { owner?: { firstName: string | null } } | undefined)?.owner?.firstName ?? null} />
-            {/* Jo 23 Oct 08:36 UTC final design: quote, 3 required questions, optional photos, SAVE MY SPOT. */}
-            <h2 className="font-display text-2xl font-bold">To get your free Ready Check, we need you to answer 3 quick questions:</h2>
-            {INSULATION_DETAIL_QUESTIONS.map(q=><fieldset key={q.key} className="space-y-2"><legend className="mb-2 font-semibold">{q.label}</legend>{q.options.map(o=><Button key={o.value} className="h-auto min-h-12 w-full justify-start whitespace-normal text-left" role="radio" aria-checked={answers[q.key]===o.value} variant={answers[q.key]===o.value?"default":"outline"} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))}>{o.label}</Button>)}</fieldset>)}
-            <section className="space-y-3 rounded-2xl border bg-card p-4">
-              <h2 className="font-semibold">Got photos? Add them here — it helps</h2>
-              <p className="text-sm text-muted-foreground">Optional. Only if you can do it safely. Please don’t enter the roof space.</p>
-              <div className="flex gap-2"><Button className="h-12" variant={option==="photos"?"default":"outline"} disabled={uploading} onClick={()=>setOption("photos")}>Photos</Button><Button className="h-12" variant={option==="video"?"default":"outline"} disabled={uploading} onClick={()=>setOption("video")}>Video</Button></div>
-              {(option==="photos"||option==="video")&&<CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading}/>}
+          <div className="mt-5">
+            {/* Jo 24 Oct (decision 84 + approved P1 page): opens straight on the 3 questions; Save stays locked until all are answered. */}
+            <QuestionsIntro p={(quote.data as { pricing?: QuotePricing } | undefined)?.pricing ?? null} name={(quote.data as { owner?: { firstName: string | null } } | undefined)?.owner?.firstName ?? null} />
+            {INSULATION_DETAIL_QUESTIONS.map((q,i)=><fieldset key={q.key} className="mt-[22px]"><legend className="mb-2.5"><span className="block text-[13px] font-bold tracking-[0.07em] text-estimate-blue">{P1.question(i+1)}</span><span className="mt-1 block text-lg font-bold">{P1.labels[q.key] ?? q.label}</span></legend><div className={q.key==="house_built_period"?"grid grid-cols-2 gap-x-2":""}>{q.options.map(o=>{const on=answers[q.key]===o.value;return <button key={o.value} type="button" role="radio" aria-checked={on} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))} className={`mb-2 flex min-h-[50px] w-full items-center gap-2 rounded-[12px] px-3.5 py-3 text-left text-[15px] leading-snug ${on?"border-2 border-estimate-blue bg-estimate-selected font-bold":"border border-estimate-field-line bg-card"}`}><span aria-hidden className="shrink-0">{on?"◉":"○"}</span><span className="min-w-0">{o.label}</span></button>;})}</div></fieldset>)}
+            <section className="mt-5 rounded-[14px] border border-dashed border-estimate-field-line bg-card px-4 py-3.5">
+              <h2 className="text-[15px] font-bold">{P1.photosTitle}</h2>
+              <p className="mt-1 mb-2.5 text-[13px] leading-relaxed text-estimate-sub">{P1.photosSub}</p>
+              <div className="flex flex-wrap gap-2"><button type="button" aria-pressed={option==="photos"} disabled={uploading} onClick={()=>setOption("photos")} className={`min-h-11 rounded-[10px] border px-4 text-sm font-bold ${option==="photos"?"border-estimate-blue bg-estimate-selected text-estimate-blue":"border-estimate-blue text-estimate-blue"}`}>{P1.addPhotos}</button><button type="button" aria-pressed={option==="video"} disabled={uploading} onClick={()=>setOption("video")} className={`min-h-11 rounded-[10px] border px-4 text-sm font-bold ${option==="video"?"border-estimate-blue bg-estimate-selected text-estimate-blue":"border-estimate-blue text-estimate-blue"}`}>{P1.addVideo}</button></div>
+              {(option==="photos"||option==="video")&&<div className="mt-3"><CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading}/></div>}
             </section>
-            <Button className="h-12 w-full" disabled={uploading||declaring||declared||!answers.insulation_type||!answers.insulation_thickness||!answers.house_built_period} onClick={()=>void submitDeclaration()}>{declaring?"Saving…":"SAVE MY SPOT"}</Button>
-            {declarationError&&<p role="alert" className="text-sm text-destructive">{declarationError}</p>}
-            <div className="text-center">{!leaving ? <Button variant="link" className="h-12 text-sm text-muted-foreground" onClick={()=>setLeaving(true)}>No longer interested</Button> : (
-              <fieldset className="space-y-2 rounded-2xl border bg-card p-4 text-left"><legend className="mb-2 font-semibold">Sorry to see you go. What's the main reason?</legend>
+            <LockedButton ready={!uploading&&!declared&&!!answers.insulation_type&&!!answers.insulation_thickness&&!!answers.house_built_period} busy={declaring} busyLabel={P1.saving} onClick={()=>void submitDeclaration()}>{P1.save}</LockedButton>
+            {!declaring&&!declared&&unanswered(answers)&&<LockHint>{P1.lockHint(unanswered(answers)!)}</LockHint>}
+            <SmallNote className="mt-1"><span className="text-[13px]">{P1.noObligation}</span></SmallNote>
+            {declarationError&&<p role="alert" className="mt-2 text-sm text-destructive">{declarationError}</p>}
+            <div className="mt-[22px] text-center">{!leaving ? <button type="button" className="min-h-11 text-[13px] text-estimate-sub underline" onClick={()=>setLeaving(true)}>{P1.notInterested}</button> : (
+              <fieldset className="space-y-2 rounded-[14px] border border-estimate-line bg-card p-4 text-left"><legend className="mb-2 font-semibold">Sorry to see you go. What's the main reason?</legend>
                 {NOT_INTERESTED_REASONS.map(r=><Button key={r.value} role="radio" aria-checked={reason===r.value} variant={reason===r.value?"default":"outline"} className="h-12 w-full justify-start" onClick={()=>setReason(r.value)}>{r.label}</Button>)}
                 <textarea aria-label="Anything else? (optional)" placeholder="Anything else? (optional)" maxLength={500} value={note} onChange={e=>setNote(e.target.value)} className="min-h-20 w-full rounded-md border bg-background p-3 text-sm" />
                 <Button className="h-12 w-full" variant="secondary" disabled={!reason||declaring} onClick={async()=>{ if(!reason) return; setDeclaring(true); setDeclarationError(null); try { await notInterested({ data: { token, reason, note: note.trim()||undefined } }); setClosed(true); } catch(e){ setDeclarationError(e instanceof Error?e.message:"Please try again."); } finally { setDeclaring(false); } }}>Close my enquiry</Button>
@@ -140,26 +142,19 @@ function VideoPage() {
   );
 }
 
-type QuotePricing = { gross: number; discount: number; total: number; areaM2: number; removalUpTo?: number | null } | null;
-function QuoteBox({ p, name }: { p: QuotePricing; name: string | null }) {
-  if (!p) return null;
-  const $ = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
-  // Jo 23 Oct 08:40 UTC: lead with THEIR rebate (same hero as Save my spot), price box underneath.
+/** First unanswered question, e.g. "question 3" (null when all 3 are answered). */
+function unanswered(a: Partial<InsulationTapAnswers>): string | null {
+  const i = INSULATION_DETAIL_QUESTIONS.findIndex((q) => !a[q.key]);
+  if (i < 0) return null;
+  return INSULATION_DETAIL_QUESTIONS.every((q) => !a[q.key]) ? "all 3 questions" : `question ${i + 1}`;
+}
+function QuestionsIntro({ p, name }: { p: QuotePricing; name: string | null }) {
+  const rebate = p ? shortAud(Math.floor(Number(p.discount))) : null;
   return <div className="text-estimate-navy">
-    <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-estimate-logo-green">🎉 Your rebate is waiting</p>
-    <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{name ? `${name}, you` : "You"} could save <span className="text-estimate-logo-green">{$(p.discount)}</span> on ceiling insulation</h1>
-    <section aria-label="Your preliminary quote" className="mt-5 rounded-[22px] bg-estimate-mist p-5">
-      <div className="rounded-[18px] border-2 border-estimate-green bg-estimate-mint px-3 py-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated VEU rebate</p>
-        <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {$(p.discount)}</p>
-      </div>
-      <div className="pb-2 pt-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
-        <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{$(p.total)}</p>
-        <p className="text-sm">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
-      </div>
-      {p.removalUpTo != null && p.removalUpTo > 0 && <p className="rounded-xl bg-card p-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}<br /><span className="mt-1 block text-[13px]">{REMOVAL_UPTO_NOTE}</span><strong className="mt-2 block text-[15px]">{priceRangeLine(p.total, p.removalUpTo)}</strong></p>}
-      <p className="mt-3 text-center text-sm font-extrabold">No payment · no obligation</p>
-    </section>
+    <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P1.kicker(name)}</p>
+    <h1 className="mt-1.5 mb-2 font-display text-[26px] font-extrabold leading-[1.2]">{P1.title}</h1>
+    <p className="text-[15px] leading-[1.55] text-estimate-sub">{P1.sub(rebate)}</p>
   </div>;
 }
+
+type QuotePricing = { gross: number; discount: number; total: number; areaM2: number; removalUpTo?: number | null } | null;

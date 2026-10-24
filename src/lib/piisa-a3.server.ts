@@ -13,17 +13,19 @@ export async function assignedInstallerBusiness(jobId: string): Promise<string> 
   return data.business_id;
 }
 
-/** Approved, current installer staff of THIS business only. EEC counts only when office-verified. */
+/** Current installer staff of THIS business only. EEC counts only when office-verified; decision 153: cleared = verified + recorded level + not expired (approval_status shown, never a gate). */
 export async function crewStaff(businessId: string): Promise<StaffOption[]> {
   // All current installer workers of THIS business (approval shown, never changed), with their linked certification rows.
-  const { data, error } = await admin.from("partner_workers").select("id, full_legal_name, certification, approval_status, removed_at, trade_role, licence_expires_on").eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null);
+  const { data, error } = await admin.from("partner_workers").select("id, business_id, email, full_legal_name, certification, approval_status, removed_at, trade_role, licence_expires_on").eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null);
   if (error) throw new Error(`Couldn't load your staff: ${error.message}`);
+  // Decision 130: a person who has not acknowledged the ESC collection notice can't be lead or crew.
+  const noticeAck = await (await import("./esc-collection-notice.server")).noticeAckMap((data ?? []) as never);
   const ids = [...new Set((data ?? []).map((w) => certificationRef(w.certification)).filter((x): x is string => !!x))];
   const { data: certs, error: ce } = ids.length ? await admin.from("partner_worker_certifications").select("id, status, certificate_number, issuer, worker_id").in("id", ids) : { data: [], error: null };
   if (ce) throw new Error(`Couldn't load staff certifications: ${ce.message}`);
   const { data: lv, error: le } = ids.length ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids) : { data: [], error: null };
   if (le) throw new Error(`Couldn't load certification levels: ${le.message}`);
-  return staffFromRecords((data ?? []) as never, (certs ?? []) as never, (lv ?? []) as never);
+  return staffFromRecords((data ?? []) as never, (certs ?? []) as never, (lv ?? []) as never, noticeAck);
 }
 
 export async function loadCrew(jobId: string): Promise<{ staff: StaffOption[]; selection: CrewSelection | null }> {

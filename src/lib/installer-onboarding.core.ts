@@ -4,6 +4,7 @@ import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
 import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, validCalendarDate, isAustralianAddress, isVictorianAddress, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
+import type { OnboardingNoticeAck } from "./esc-collection-notice.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
@@ -51,7 +52,9 @@ export const EXTRA_ITEMS = [
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
-export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean; piisa_done?: "yes" | "no" | null; piisa_date?: string; piisa_uploaded?: boolean };
+export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean; piisa_done?: "yes" | "no" | null; piisa_date?: string; piisa_uploaded?: boolean;
+  /** ESC collection notice (esc-collection-notice.core.ts): the browser sends the tick; the server stamps `esc_notice_ack`. */
+  esc_notice_ticked?: boolean; esc_notice_ack?: OnboardingNoticeAck | null };
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
@@ -202,6 +205,9 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
           const uploaded = files ? !!files[(x.email ?? "").trim().toLowerCase()] : x.piisa_uploaded === true;
           if (!uploaded) add(`installer-${i}-piisa-upload`, say(i, "Upload the PIISA certificate."));
         }
+        // ESC rule (1 Oct 2026, decision 130): the applicant acknowledges the collection notice for themself here; every other
+        // installer gets their own secure link after approval — the owner cannot tick for them.
+        if (x.is_self && x.esc_notice_ticked !== true) add(`installer-${i}-esc-notice`, say(i, "Tick that you've read the ESC privacy collection notice."));
       });
       const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
       if (new Set(emails).size !== emails.length) add("add-installer", "Each installer needs a different email.");

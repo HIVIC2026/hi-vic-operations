@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import { escTask, prestartFailures, prestartLocked, prestartRunAt, type EscNotice, type LeadCert } from "./prestart.core";
+import { escSentLine, isWithdrawn, registryBlock, type EscField } from "./esc.core";
 
 async function upcomingBooking(jobId: string) {
   const { data } = await admin.from("bookings").select("id, scheduled_start, assignment_id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -10,25 +11,28 @@ async function upcomingBooking(jobId: string) {
 }
 
 /** The job's lead installer = the active assigned installer person, matched to their worker record. */
-export async function leadInstallerCert(jobId: string): Promise<LeadCert & { email: string | null }> {
-  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null };
+export async function leadInstallerCert(jobId: string): Promise<LeadCert & { email: string | null; certificateNumber: string | null }> {
+  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null };
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!a) return none;
-  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
+  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, business_id, trade_role, removed_at").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
   if (!w) return none;
   const email = w.email.trim().toLowerCase();
-  const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
+  // Decision 130: the lead must have acknowledged the ESC collection notice (own secure link / My business).
+  const noticeAcknowledged = (await (await import("./esc-collection-notice.server")).noticeAckMap([w as never])).get(w.id) ?? null;
+  const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
   const c = certs?.[0];
-  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email };
+  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, noticeAcknowledged };
   const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email };
+  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, noticeAcknowledged };
 }
 
-async function latestNotices(jobId: string) {
-  const { data } = await admin.from("esc_notifications").select("status, sent_at, submission_reference, scheduled_start, created_at").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
-  const rows = (data ?? []) as (EscNotice & { created_at: string })[];
+/** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
+export async function latestNotices(jobId: string) {
+  const { data } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, scheduled_start, created_at, response").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
+  const rows = (data ?? []) as (EscNotice & { id: string; created_at: string })[];
   const current = rows.find((r) => r.status !== "stale") ?? null;
-  const previousSent = rows.find((r) => r !== current && !!r.sent_at) ?? null;
+  const previousSent = rows.find((r) => r !== current && !!r.sent_at && !isWithdrawn(r)) ?? null;
   return { current, previousSent };
 }
 
@@ -131,16 +135,23 @@ export async function prestartNeeds(now = new Date()) {
   return { esc, failed, certs };
 }
 
-/** Office: copy-ready ESC details + pre-start status for the job page. */
+/** Office: copy-ready Registry block, AP task, recorded submission and the day-before pre-start result for the job page. */
 export async function prestartSummary(jobId: string) {
   const b = await upcomingBooking(jobId);
   if (!b) return null;
   const n = await latestNotices(jobId);
-  const { data: cur } = await admin.from("esc_notifications").select("id, status, payload_json, due_by, earliest_send_at").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: cur } = await admin.from("esc_notifications").select("id, version, status, payload_json, due_by, earliest_send_at, sent_at, submission_reference, submission_method, last_error").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { activeEscConfig } = await import("./esc.server");
+  const cfg = await activeEscConfig();
+  const fields: EscField[] | undefined = cfg?.required_fields.length ? cfg.required_fields : undefined;
+  const registry = cur ? registryBlock((cur.payload_json ?? {}) as Record<string, unknown>, fields) : null;
+  const prev = n.previousSent;
   return {
     start: b.scheduled_start, runAt: prestartRunAt(b.scheduled_start),
-    task: escTask({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, now: new Date() }),
-    notification: cur ? { id: cur.id, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at } : null,
+    task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, now: new Date() }),
+    notification: cur ? { id: cur.id, version: cur.version, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at, sent_at: cur.sent_at, reference: cur.submission_reference, method: cur.submission_method, last_error: cur.last_error, canRecord: ["ready", "pending_submission", "error"].includes(cur.status) } : null,
+    registry, sentLine: escSentLine(cur ?? null), fieldsSource: cfg ? `approved config ${cfg.version}` : "default Registry list (Jo confirms on first use)",
+    previousSent: prev ? { id: prev.id, sent_at: prev.sent_at, reference: prev.submission_reference, scheduled_start: prev.scheduled_start, sentLine: escSentLine(prev) } : null,
     check: await latestCheck(jobId), gate: await prestartGate(jobId),
   };
 }

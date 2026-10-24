@@ -7,7 +7,7 @@ export async function loadNeedsHivic() {
     return (r.data ?? []) as T;
   };
   const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr, rsent] = await Promise.all([
-    admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)").is("deleted_at", null),
+    admin.from("jobs").select("id, job_number, source, stage, channel, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)").is("deleted_at", null),
     admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
     admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
     admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null),
@@ -24,6 +24,11 @@ export async function loadNeedsHivic() {
   ]);
   const { data: instEv } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", ["install_ten_days_left", "install_days_declined"]).order("created_at", { ascending: false });
   const { data: rcEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "ready_check_no_taker").order("created_at", { ascending: false });
+  // Decision 120: day-10 VEEC assignment alerts stay open until the owner's signature is recorded.
+  const { data: veecEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "veec_assignment_unsigned_10_days").order("created_at", { ascending: false });
+  const veecJobIds = [...new Set((veecEv ?? []).map((e) => e.job_id).filter((x): x is string => !!x))];
+  const { data: veecSigned } = veecJobIds.length ? await admin.from("customer_assignments").select("job_id").in("job_id", veecJobIds).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").not("consumer_signed_at", "is", null) : { data: [] as { job_id: string }[] };
+  const veecSignedSet = new Set((veecSigned ?? []).map((r) => r.job_id));
   // Visit flags (cancellations / no-shows): open until a newer booking of that visit type exists, or the no-show is cleared.
   const { data: vEv } = await admin.from("workflow_events").select("job_id, created_at, details, summary").eq("event_type", "visit_needs_office").gte("created_at", new Date(Date.now() - 60 * 86_400_000).toISOString());
   const vJobs = [...new Set((vEv ?? []).map((e) => e.job_id).filter(Boolean))] as string[];
@@ -45,7 +50,8 @@ export async function loadNeedsHivic() {
     admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).gte("offered_at", new Date(Date.now() - 30 * 86_400_000).toISOString()),
     import("./offer-timing.core"), import("./offer-dispatch.server"),
   ]);
-  const offerNoTaker = offersWithNoTaker(tOff ?? [], await offerSuggestHours());
+  // Ready Check offers close after 24 hours and come back as "choose another installer" (below), never "no taker".
+  const offerNoTaker = offersWithNoTaker((tOff ?? []).filter((o) => o.kind !== "ready_check"), await offerSuggestHours());
   // Office picks first: jobs ready for an offer with nothing out yet.
   const { officePicks, needsChooseTrades } = await import("./offer-dispatch.core");
   const mode = await (await import("./offer-dispatch.server")).dispatchMode();
@@ -57,8 +63,19 @@ export async function loadNeedsHivic() {
     admin.from("job_assignments").select("job_id, role").eq("active", true).in("job_id", readyIds.length ? readyIds : ["00000000-0000-0000-0000-000000000000"]),
   ]);
   const ov = new Map((ovr ?? []).map((o) => [o.id, o.offer_dispatch_override]));
+  // Jo 24 Oct 2026 (decisions 49–51): our-lead Ready Checks — ONE item per job: choose an installer, or (after
+  // "Not for me" / 24 hours) choose another. Never both, and never the "no taker" item.
+  const { readyCheckOfficeItem } = await import("./ready-check-times.core");
+  const readyCheckReturned: { job_id: string; created_at: string; detail?: string }[] = [];
   const chooseTrades = ready.flatMap((j) => {
     const k = j.stage === "ready_check_ready_to_schedule" ? "ready_check" : "piesa";
+    if (k === "ready_check") {
+      const hasInst = (trAsg ?? []).some((a) => a.job_id === j.id && a.role === "installer");
+      const offers = (tOff ?? []).filter((o) => o.job_id === j.id && o.kind === "ready_check");
+      const item = readyCheckOfficeItem({ channel: j.channel, stage: j.stage, hasInstaller: hasInst, offers });
+      if (item?.code === "offer_returned") { readyCheckReturned.push({ job_id: j.id, created_at: offers.map((o) => o.offered_at).sort().pop()!, detail: item.status === "declined" ? "(The installer said Not for me.)" : "(No times within 24 hours.)" }); return []; }
+      return item?.code === "choose_installer" ? [{ job_id: j.id, kind: k, since: null }] : [];
+    }
     const win = (rcWin ?? []).filter((w) => w.job_id === j.id);
     const readyForOffer = k === "piesa" || win.length > 0;
     const hasTrade = (trAsg ?? []).some((a) => a.job_id === j.id && a.role === (k === "piesa" ? "electrician" : "installer"));
@@ -79,12 +96,17 @@ export async function loadNeedsHivic() {
     .filter((e) => activeKey.has(`${e.job_id}:${(e.details as { business_id?: string } | null)?.business_id}`))
     .map((e) => ({ job_id: e.job_id, since: e.created_at }));
   const now = new Date();
+  // Our-lead Ready Check times going back and forth between owner and installer: no office step (decision 52).
+  const { READY_CHECK_TIME_NOTE } = await import("./ready-check-times.core");
+  const { data: rcTimes } = await admin.from("appointment_proposals").select("job_id").eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed").gt("starts_at", now.toISOString());
+  const rcTalking = new Set((rcTimes ?? []).map((r) => r.job_id));
   const { buildNeedsHivic } = await import("./allocation.core");
   const items = buildNeedsHivic({
+    readyCheckReturned,
     recNoLongerApproved,
     now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
     coverageExhausted: coverage,
-    releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
+    releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active && !(r.visit_kind === "ready_check" && rcTalking.has(r.job_id))).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
     failedComms: ok(comms, "communications"),
     rectDeclined: ok(rq, "electrical fixes quotes"),
     rectPricing: ok(rp, "electrical fixes drafts"),
@@ -100,6 +122,7 @@ export async function loadNeedsHivic() {
     offerNoTaker,
     chooseTrades,
     readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
+    veecUnsigned: (veecEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !veecSignedSet.has(e.job_id)),
     installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
   });
   // Never nag about closed, deleted or removed jobs (Jo 21 Oct).

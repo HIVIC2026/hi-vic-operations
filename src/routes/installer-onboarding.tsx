@@ -11,6 +11,7 @@ import {
   type InstData, type ResolvedAddress, type StepKey,
 } from "@/lib/installer-onboarding.core";
 import { isVictorianAddress, resumeFailureMode } from "@/lib/rec-onboarding.core";
+import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
 import {
   confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl, installerPiisaUploadUrl, confirmInstallerPiisaUpload,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
@@ -613,6 +614,18 @@ function DateBox({ id, value, onChange }: { id: string; value?: string | null | 
   );
 }
 
+/** The ESC notice, verbatim from esc-collection-notice.core.ts (never retyped here). */
+function CollectionNoticeText() {
+  return (
+    <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14, maxHeight: 320, overflowY: "auto", fontSize: 13.5, lineHeight: 1.5, color: NAVY }} data-esc-notice>
+      {COLLECTION_NOTICE_PARAGRAPHS.map((p, i) => p.kind === "heading" ? <p key={i} style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, margin: "0 0 4px" }}>{p.text}</p>
+        : p.kind === "version" ? <p key={i} style={{ color: MUTED, margin: "0 0 10px" }}>{p.text}</p>
+        : p.kind === "li" || p.kind === "li2" ? <p key={i} style={{ margin: "0 0 6px", paddingLeft: p.kind === "li2" ? 36 : 18, textIndent: -12 }}>• {p.text}</p>
+        : <p key={i} style={{ margin: "0 0 10px" }}>{p.text}</p>)}
+    </div>
+  );
+}
+
 /** "Your installers": asks once whether the applicant installs; if so Installer 1 is their page-1 details (done card + Edit). */
 function InstallersStep({ d, up, errFor, token, setError, preview, revision, onUploadBusy }: { d: InstData; up: (p: Partial<InstData>) => void; errFor: (field: string) => string | null; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
   const list = d.installers ?? [];
@@ -630,6 +643,10 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
     <Field label="Are you one of the installers?" required htmlFor="self_is_installer" error={errFor("self_is_installer")}>
       <div id="self_is_installer" tabIndex={-1}><Choice options={[{ v: true as boolean, l: "Yes" }, { v: false as boolean, l: "No" }]} value={d.self_is_installer ?? (list.some((x) => x.is_self) ? true : null)} onChange={chooseSelf} /></div>
     </Field>
+    </Section>
+    <Section title="ESC privacy collection notice">
+      <p style={note}>The Essential Services Commission requires every installer to be given this notice before we register them as a scheme participant in the VEU Registry. If you install, tick below that you have read it. Every other installer you list gets their own secure link after approval and acknowledges it themself.</p>
+      <CollectionNoticeText />
     </Section>
     {list.map((x, i) => {
       const self = !!x.is_self;
@@ -665,6 +682,9 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
           </>}
           {x.piisa_done === "no" && <p style={warn}>You can still submit. They can't get jobs until the certificate is uploaded and our office has checked it.</p>}
           <Field label="Other relevant training"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
+          {self
+            ? <div id={`installer-${i}-esc-notice`} tabIndex={-1}><Check required checked={x.esc_notice_ticked === true} onChange={(v) => set(i, { esc_notice_ticked: v })} error={errFor(`installer-${i}-esc-notice`)}>{COLLECTION_NOTICE_ACK_TEXT}</Check></div>
+            : <p style={note}>Once your business is approved, {x.full_legal_name?.trim() || "this installer"} gets their own secure link by text and email to read the ESC privacy collection notice and acknowledge it themself. They can't be listed on an installation until they have.</p>}
           <button type="button" style={removeBtn} onClick={() => up({ installers: list.filter((_, j) => j !== i), ...(self ? { self_is_installer: false } : {}) })}>{self ? "I'm not an installer" : `Remove installer ${i + 1}`}</button>
         </section>
       );
@@ -757,7 +777,7 @@ const SAMPLE_INSTALLER_DATA: InstData = {
   works_for_business: false, primary_contact_name: "Sample Installer representative", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Insulation Pty Ltd", trading_name: "Sample Insulation", abn: "51824753556", business_address: SAMPLE_ADDRESS.label, business_address_details: SAMPLE_ADDRESS,
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  installers: [{ full_legal_name: "Sample Installer One", mobile: "0400 000 001", email: "installer1@example.com", cii_holds: "held", cii_certificate_number: "CII-SAMPLE", cii_issuer: "Sample issuer" }],
+  installers: [{ full_legal_name: "Sample Installer One", mobile: "0400 000 001", email: "installer1@example.com", cii_holds: "held", cii_certificate_number: "CII-SAMPLE", cii_issuer: "Sample issuer", esc_notice_ticked: true }],
   electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true,
   service_origin: SAMPLE_ADDRESS.label, service_origin_details: SAMPLE_ADDRESS, travel_radius_km: 50,
   typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "4-8", accepting_jobs: true,

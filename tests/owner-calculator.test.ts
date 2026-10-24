@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { launchCampaignDb, LAUNCH_ID } from "./helpers/pglite-launch-campaign";
 import { ownerCalculatorChangeNote, savedPriceFromCalculator } from "../src/lib/launch-campaign.core";
-import { renderLaunchCampaignEmail } from "../src/lib/estimate-email";
 
 const route = readFileSync(new URL("../src/routes/estimate_.$token.calculator.tsx", import.meta.url), "utf8");
 const server = readFileSync(new URL("../src/lib/launch-campaign.server.ts", import.meta.url), "utf8");
@@ -17,12 +16,6 @@ describe("owner calculator (opened from an owner token)", () => {
     const save = server.slice(server.indexOf("export async function saveCampaignSpot"), server.indexOf("export async function savedSpotForJob"));
     expect(save).not.toMatch(/from\("(jobs|calculator_interests|owners|properties)"\)\.(insert|upsert)/);
     expect(save).toMatch(/from\("jobs"\)\.update\(\{ estimated_area_m2/);
-  });
-
-  test.skip("RETIRED by Jo 7 Oct — v8: the short campaign email links only to the owner's campaign page (the calculator link lives there)", () => {
-    const e = renderLaunchCampaignEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${TOKEN}`, estimatedTotal: 1850, veuDiscount: 1470, grossTotal: 3320, areaM2: 120, firstName: "Sam" } as never);
-    expect(e.html).toContain(`/estimate/${TOKEN}/campaign`);
-    expect(e.html).not.toContain("/calculator");
   });
 
   test("Save my spot from the calculator: one row, no new job, double tap safe", async () => {

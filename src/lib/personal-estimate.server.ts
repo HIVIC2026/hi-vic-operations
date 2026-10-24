@@ -1,9 +1,9 @@
-// P1-R3-COM-09 — read-only personal-estimate resolver (DEP-1) + Template 8 snapshot builder (DEP-2).
+// P1-R3-COM-09 — read-only personal-estimate resolver (DEP-1).
 // Service-role only. Never sends anything, never recalculates with current pricing, never creates or updates an
 // estimate, never mutates the pricing cohort, and never triggers a communication. Fails CLOSED (null) on any gap.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, linkUsable, LINK_PURPOSE } from "./estimatelink.core";
-import { buildPersonalEstimateView, buildTemplate8Snapshot, type SavedEstimateCore, type SavedFeeSettings } from "./personal-estimate.core";
+import { buildPersonalEstimateView, type SavedEstimateCore, type SavedFeeSettings } from "./personal-estimate.core";
 import { formatPropertyAddress } from "./address";
 
 type LinkRow = { id: string; job_id: string; token: string; status: string; expires_at: string };
@@ -84,23 +84,4 @@ export async function resolvePersonalEstimate(token: unknown) {
   const { readyCheckBookingAccess } = await import('./ready-check-booking-access.server');
   const booking = await readyCheckBookingAccess(link.job_id);
   return { job: { job_number: job.job_number ?? null, address }, ...view, bookingAllowed: booking.allowed };
-}
-
-/**
- * DEP-2 / Task F: build the immutable Template 8 saved-pricing snapshot for a saved-spot job, including the
- * customer's own personal-estimate (DEP-1) and Ready Check booking (DEP-2) URLs. Returns null (fail closed) unless
- * the job has a usable link and a complete saved snapshot. Never sends; the COM-04 dual switch still gates sending.
- */
-export async function template8SnapshotForJob(jobId: string) {
-  const { data: link } = await admin
-    .from("customer_estimate_links")
-    .select("token, status, expires_at")
-    .eq("job_id", jobId)
-    .eq("purpose", LINK_PURPOSE)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!link || !linkUsable(link)) return null;
-  const core = await savedCoreForJob(jobId);
-  const { fees, areaAssumed } = await frozenFeesAndArea(jobId);
-  return buildTemplate8Snapshot(core ? { ...core, areaAssumed } : null, fees, link.token);
 }

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { TradeShell, card, greenBtn } from "@/components/trade/TradeShell";
+import { TradeShell, card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { getTradeSetupView } from "@/lib/trade-view.functions";
 
 export const Route = createFileRoute("/_authenticated/field/welcome")({
@@ -21,6 +21,7 @@ function Welcome() {
       <section className="rounded-[18px] bg-estimate-green p-6 text-white"><p className="font-display text-[26px] font-bold leading-tight">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? "Ready Checks and installs" : "PIESAs"} from Home Insulation Victoria.</p></section>
       <section className={card}><p className="text-sm">Everything from your application — business details, rates, area, bank details, insurance, licences, team and agreement — is already loaded. You can see it any time under My business.</p></section>
       <Link to="/field" className={greenBtn}>Go to my work</Link>
+      {installer ? <Link to="/field/guide" className={ghostBtn}>How every job works</Link> : null}
     </TradeShell>
   );
 }

@@ -2,8 +2,8 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dollars } from "@/lib/estimate.core";
 import {
-  ELECTRICAL_OBSERVATION_DISCLAIMER, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
-  computeElectricalAllowance, measuredQuote, reconcilePiesa, type AllowanceSnapshot, type Observations, type Reconciliation,
+  UNPRICEABLE_COPY,
+  measuredQuote, type AllowanceSnapshot, type Observations, type Reconciliation,
 } from "@/lib/readycheck.core";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_MEASURED_QUOTE, CUSTOMER_PIESA_STAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, discountAmount, measuredCustomerRows } from "@/lib/customer-quote-system";
 import { CustomerStageHero } from "./estimate";
@@ -70,23 +70,6 @@ export function PiesaStageView({ complete, reconciliation, hadAllowance = true, 
       </>}
       <p className="mt-5 text-sm font-extrabold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p>
       <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
-    </section>
-  </div>;
-}
-
-export type PiesaPreviewCase = "before" | "none" | "same" | "lower" | "higher";
-
-export function MeasuredQuoteSample({ insulation, piesa, ap, discount, existingInsulation, piesaCase = "higher" }: { insulation: number; piesa: number; ap: number; discount: number; existingInsulation: boolean; piesaCase?: PiesaPreviewCase }) {
-  const allowance = computeElectricalAllowance(SAMPLE_OBSERVATIONS, TEST_REC_RATE_CARD, 1);
-  const items = { before: [], none: [], same: [{ code: "DL_HALOGEN_REPLACE", quantity: 8 }, { code: "RCD_NOT_VISIBLE", quantity: 1 }], lower: [{ code: "DL_HALOGEN_REPLACE", quantity: 6 }], higher: [{ code: "DL_HALOGEN_REPLACE", quantity: 8 }, { code: "RCD_NOT_VISIBLE", quantity: 1 }, { code: "SWB_CERAMIC", quantity: 1 }] }[piesaCase];
-  const recon = piesaCase === "before" || piesaCase === "none" ? null : reconcilePiesa(items, TEST_REC_RATE_CARD, allowance);
-  return <div className="space-y-8">
-    <p className="bg-warning-soft px-4 py-3 text-xs font-extrabold uppercase text-warning-foreground">Test mode · sample rate card fixtures only — not agreed live REC rates</p>
-    <MeasuredQuoteView insulation={insulation} removal={existingInsulation ? 2250 : 0} allowance={allowance} piesa={piesa} ap={ap} discount={discount} />
-    <PiesaStageView complete={piesaCase !== "before"} reconciliation={recon} />
-    <section className="border-2 border-dashed border-warning px-4 py-4 text-sm" aria-label="Admin only">
-      <p className="text-xs font-extrabold uppercase text-warning-foreground">Admin · test mode only — never shown to customers</p>
-      <p className="mt-2">{ELECTRICAL_OBSERVATION_DISCLAIMER}</p>
     </section>
   </div>;
 }

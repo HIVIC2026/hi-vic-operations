@@ -15,7 +15,7 @@ describe("partner profile", () => {
     const p = buildPartnerProfile(meta, inst);
     expect(p.business.abn).toBe("99663065843");
     expect(p.signer.email).toBe("x@y.com");
-    expect(p.workers[0]).toEqual({ name: "Harpreet Singh", role: "installer", mobile: "+61450229427", email: "cozy@gmail.com" });
+    expect(p.workers[0]).toMatchObject({ name: "Harpreet Singh", role: "installer", mobile: "+61450229427", email: "cozy@gmail.com", collection_notice: { state: "missing" } });
     expect(p.coverage).toMatchObject({ lat: -37.8, lng: 144.7, radius_km: 50, anywhere_in_victoria: false });
   });
   test("both trades when an existing business adds a capability", () => {
