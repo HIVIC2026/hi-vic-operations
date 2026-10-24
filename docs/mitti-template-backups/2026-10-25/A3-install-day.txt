@@ -1,0 +1,1 @@
+A3 – Install day = 1f325828-3f71-4b1a-988f-083c83414f95 (published 24 Oct 21:15 UTC, Q1–45 verified against docs/MITTI_INSTALL_FORM_FIX_PROMPT.md; mandatory_mark_as_complete was OFF at check time)
