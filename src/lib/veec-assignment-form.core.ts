@@ -21,7 +21,8 @@ export const VEEC_FORM_SHA256 = "465de27d88ce6aa47003f93dea403cd24bcdccecff1250a
 /** Template placeholder "<insert name of accredited person>" is filled with this (Jo, 24 Oct 2026). */
 export const AP_NAME_ON_FORM = "Home Insulation Victoria (DC Construction Solutions Pty Ltd, ABN 44 671 613 979, VEU Accredited Person A003654)";
 /** Section 2 Part A, from the AP's own records (not job facts). Company address/phone: not found in code — office enters. */
-export const AP_DETAILS = { fullName: null as string | null, companyName: "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", companyAddress: null as string | null, phone: null as string | null };
+// Decision 143 (Jo 24 Oct 2026): Chris Lowe is the AP representative on the form; address and phone per Jo.
+export const AP_DETAILS = { fullName: "Chris Lowe" as string | null, companyName: "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", companyAddress: "1/33 Altree Court, Phillip ACT 2606" as string | null, phone: "0416 252 406" as string | null };
 
 /** Retired portal path: the separate installer declaration draft (decision 118a). Kept as history, never signed again. */
 export const SUPERSEDED_INSTALLER_DECLARATION_VERSIONS: readonly string[] = ["DEECA-PIISA-March-2026-DRAFT"];
