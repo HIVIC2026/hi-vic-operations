@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { placeWorkJob, workCounts, type WorkJobInput } from "../src/lib/work-places.core";
 
 const STAGES = ["new_enquiry","eligibility_review","awaiting_electrician","assessment_booking","assessment_booked","assessment_complete","rectification_required","awaiting_owner_rectification_approval","awaiting_deposit_payment","rectification_scheduling","rectification_booked","ready_for_installer_quotes","awaiting_quote_acceptance","installation_scheduling","installation_booked","evidence_outstanding","ap_review","ready_for_veec","complete","on_hold","preliminary_estimate_ready","ready_check_awaiting_acceptance","ready_check_awaiting_payment","ready_check_ready_to_schedule","ready_check_scheduled","ready_check_complete","measured_estimate_ready","measured_quote_accepted","piesa_and_install_window_pending","piesa_scheduled","piesa_complete","electrical_variation_pending"];
-const base = (o: Partial<WorkJobInput>): WorkJobInput => ({ jobId: "j", stage: "ready_check_complete", trade: "installer", installerSourced: false, quoted: "yes", siteCheck: "yes", missingPhotos: 0, pendingOffer: false, upcoming: [], ...o });
+const base = (o: Partial<WorkJobInput>): WorkJobInput => ({ jobId: "j", stage: "ready_check_complete", trade: "installer", installerSourced: false, missingPhotos: 0, pendingOffer: false, upcoming: [], ...o });
 const soon = [{ kind: "installation", scheduled_start: new Date(Date.now() + 86_400_000).toISOString() }];
 
 describe("My work: one place per job", () => {
@@ -13,20 +13,10 @@ describe("My work: one place per job", () => {
       expect(p.title.length).toBeGreaterThan(0);
     }
   });
-  test("Quoted? answer needed is always Needs me, even with a booked visit", () => {
-    for (const stage of STAGES) expect(placeWorkJob(base({ stage, installerSourced: true, quoted: null, upcoming: soon })).place).toBe("needs_me");
-  });
-  test("site check not recorded is Needs me", () => expect(placeWorkJob(base({ installerSourced: true, siteCheck: null })).title).toBe("Site check? answer needed"));
-  test("Quoted? answer needed never appears on Home Insulation Victoria jobs, in any stage", () => {
-    for (const stage of STAGES) {
-      const p = placeWorkJob(base({ stage, installerSourced: false, quoted: null }));
-      expect(p.title).not.toBe("Quoted? answer needed");
-    }
-  });
-  test("Site check? answer needed never appears on Home Insulation Victoria jobs, in any stage", () => {
-    for (const stage of STAGES) {
-      const p = placeWorkJob(base({ stage, installerSourced: false, siteCheck: null }));
-      expect(p.title).not.toBe("Site check? answer needed");
+  test("decisions 34/115/185: no Quoted?/Site check? questions in any stage — the Mitti form carries them", () => {
+    for (const stage of STAGES) for (const installerSourced of [true, false]) {
+      const p = placeWorkJob(base({ stage, installerSourced, upcoming: soon }));
+      expect(p.title).not.toMatch(/Quoted\?|Site check\?|answer needed/);
     }
   });
   test("pending offer wins", () => expect(placeWorkJob(base({ pendingOffer: true, installerSourced: true, quoted: null })).place).toBe("offers"));
@@ -51,9 +41,8 @@ describe("My work: one place per job", () => {
   });
 });
 
-test("Jo 23 Oct: a job with a linked Mitti form never asks Quoted?/Site check? (the form carries them)", () => {
-  const j: WorkJobInput = { jobId: "j", stage: "ready_check_ready_to_schedule", trade: "installer", installerSourced: true, quoted: null, siteCheck: null, missingPhotos: 0, pendingOffer: false, upcoming: [] };
-  expect(placeWorkJob(j).title).toBe("Quoted? answer needed");
-  expect(placeWorkJob({ ...j, mittiForm: true }).title).not.toMatch(/Quoted\?|Site check\?/);
-  expect(placeWorkJob({ ...j, stage: "measured_quote_accepted", mittiForm: true }).title).not.toMatch(/Quoted\?/);
+test("an installer-sourced job with no Mitti form yet is never an installer question", () => {
+  const j: WorkJobInput = { jobId: "j", stage: "ready_check_ready_to_schedule", trade: "installer", installerSourced: true, missingPhotos: 0, pendingOffer: false, upcoming: [] };
+  expect(placeWorkJob(j)).toEqual({ place: "needs_me", title: "Book the Ready Check with the owner" });
+  expect(placeWorkJob({ ...j, stage: "measured_quote_accepted" }).title).not.toMatch(/Quoted\?/);
 });

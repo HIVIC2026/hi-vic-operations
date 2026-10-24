@@ -240,7 +240,7 @@ try {
           { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/enquiries', mustSee: ['Enquiries'] },
           { step: 'gap-pricing', path: '/admin/pricing', persona: 'office', expectedPath: '/admin/pricing', mustSee: ['Prices & margins', 'Owner prices', 'Price history'] },
           { step: 'gap-job-queue', path: '/admin/job-queue', persona: 'office', expectedPath: '/admin/job-queue', mustSee: ['Job queue'] },
-          { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-upload-actions]', discoverTestJob: true },
+          { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-my-work]', discoverTestJob: true },
           { step: 'gap-installer-money', path: '/field/money', persona: 'installer', expectedPath: '/field/money', mustSee: ['Money'] },
           { step: 'gap-installer-business', path: '/field/business', persona: 'installer', expectedPath: '/field/business', mustSee: ['My business', 'Approved partner', 'TEST'] },
           ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111'], safeButtons: ['Contacts, source & exceptions', 'Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] }] : []),

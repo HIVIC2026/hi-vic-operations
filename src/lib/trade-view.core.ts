@@ -114,16 +114,14 @@ export function surname(full: string | null | undefined): string {
   return parts.length ? parts[parts.length - 1]! : "Owner";
 }
 
-/** Day/window tile: "TUE 14" + "8–10am" (the four approved 2-hour windows). */
-const WINDOW_LABEL: Record<number, string> = { 8: "8–10am", 10: "10am–12", 12: "12–2pm", 14: "2–4pm" };
-export function dayTile(startIso: string): { day: string; window: string } {
+/** Day tile: "TUE 14" + the exact arrival time "8:00am" (decision 43: no windows). */
+export function dayTile(startIso: string): { day: string; time: string } {
   const tz = "Australia/Melbourne";
   const s = new Date(startIso);
   const wd = s.toLocaleDateString("en-AU", { weekday: "short", timeZone: tz }).toUpperCase().replace(/\.$/, "");
   const dn = s.toLocaleDateString("en-AU", { day: "numeric", timeZone: tz });
-  const hr = Number(new Intl.DateTimeFormat("en-AU", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(s));
-  const time = s.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: tz }).replace(":00", "").replace(" ", "");
-  return { day: `${wd} ${dn}`, window: WINDOW_LABEL[hr] ?? time };
+  const time = s.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: tz }).replace(/\s/g, "").toLowerCase();
+  return { day: `${wd} ${dn}`, time };
 }
 
 /** Review E: "Couldn't get in" only from a booked Ready Check whose visit day (Melbourne) is today or earlier. */
