@@ -138,11 +138,12 @@ export const ownerChangeReadyCheckFn = createServerFn({ method: "POST" }).middle
   });
 
 export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, session, ...signer, accept: z.boolean() }).parse(d))
+  // Approved P3 page (decision 128): the four Section 2 ticks travel with the signature; `signOwnerConsent` still enforces them.
+  .inputValidator((d) => z.object({ token, session, ...signer, accept: z.boolean(), declarations: z.object({ owner_or_authorised: z.boolean(), details_accurate: z.boolean(), consent_ap_sends: z.boolean(), consent_commission_shares: z.boolean() }).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
     const { signOwnerConsent } = await import("./consent.server");
-    await signOwnerConsent({ jobId: s.jobId, actorId: s.userId, input: { signatoryName: data.signatoryName, authorityType: data.authorityType, accept: data.accept, signatureName: data.signatureName }, ip: context.ip, userAgent: context.userAgent });
+    await signOwnerConsent({ jobId: s.jobId, actorId: s.userId, input: { signatoryName: data.signatoryName, authorityType: data.authorityType, accept: data.accept, signatureName: data.signatureName, declarations: data.declarations }, ip: context.ip, userAgent: context.userAgent });
     return { ok: true };
   });
 

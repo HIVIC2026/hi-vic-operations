@@ -7,6 +7,8 @@ import { Button } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
 import { acknowledgeCollectionNoticeLink, getCollectionNoticeLink } from "@/lib/esc-collection-notice.functions";
 import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
+import { NoticeBody, NoticeTickRow } from "@/components/portal/esc-notice-page";
+import { P5 } from "@/lib/owner-pages.core";
 
 // Decision 130: each installer person's own secure link (no login) to read the ESC notice verbatim and acknowledge it.
 export const Route = createFileRoute("/notice/$token")({
@@ -30,38 +32,40 @@ function NoticePage() {
   const [ticked, setTicked] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null); // ISO time of the acknowledgement made on this page
+  const [doneNote, setDoneNote] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const d = q.data;
   return (
-    <main className="estimate-brand min-h-screen bg-[#FBFCFA] px-4 py-8 text-[#22376B]">
-      <div className="mx-auto max-w-[560px] space-y-5">
-        <img src={logo.url} alt="Home Insulation Victoria" className="h-10 w-auto" />
-        <h1 className="font-display text-[26px] font-bold leading-tight">ESC privacy collection notice</h1>
-        {q.error && <p role="alert" className="rounded-[18px] border border-[#E4E9F5] bg-white p-5 text-sm">{(q.error as Error).message}</p>}
-        {!q.error && !d && <p className="text-sm">Loading…</p>}
+    // Approved P5 look (decision 130) on the person's own secure link: notice verbatim, their one tick row, typed name.
+    <main className="estimate-brand portal-theme min-h-screen bg-paper px-4 py-6 text-ink">
+      <div className="mx-auto max-w-[560px]">
+        <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto" />
+        <h1 className="mt-4 font-display text-[22px] font-semibold leading-tight">{P5.title}</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.sub}</p>
+        {q.error && <p role="alert" className="mt-4 rounded-[12px] border border-line bg-paper p-4 text-sm">{(q.error as Error).message}</p>}
+        {!q.error && !d && <p className="mt-4 text-sm">Loading…</p>}
         {d && <>
-          <p className="text-sm">Hi {d.name.split(/\s+/)[0]}, before Home Insulation Victoria can register you as a VEU installer for {d.business}, the Essential Services Commission requires you to be given this notice. Please read it and tick below.</p>
-          <section className="max-h-[420px] overflow-y-auto rounded-[18px] border border-[#E4E9F5] bg-white p-5 text-[14px] leading-relaxed shadow-sm" data-esc-notice>
-            {COLLECTION_NOTICE_PARAGRAPHS.map((p, i) => p.kind === "heading" ? <h2 key={i} className="font-display text-lg font-bold">{p.text}</h2>
-              : p.kind === "version" ? <p key={i} className="mb-3 text-sm text-[#5B6B8C]">{p.text}</p>
-              : p.kind === "li" || p.kind === "li2" ? <p key={i} className={`mb-1.5 ${p.kind === "li2" ? "pl-9" : "pl-4"}`}>• {p.text}</p>
-              : <p key={i} className="mb-3">{p.text}</p>)}
-          </section>
-          {(d.state === "acknowledged" || done) && <p role="status" className="rounded-[18px] bg-[#EDFAF2] p-5 text-sm font-bold text-[#07864B]">Thank you — acknowledged{done ?? (d.acknowledgedAt ? ` on ${new Date(d.acknowledgedAt).toLocaleDateString("en-AU")}` : "")}. Nothing more to do.</p>}
-          {d.state === "expired" && !done && <p role="alert" className="rounded-[18px] bg-[#FCE7F0] p-5 text-sm font-bold">This link has expired. Ask your business owner or the office to send a new one.</p>}
-          {d.state === "open" && !done && <section className="space-y-3 rounded-[18px] border border-[#E4E9F5] bg-white p-5 shadow-sm" data-esc-ack>
-            <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={ticked} disabled={busy} onChange={(e) => setTicked(e.target.checked)} /><span>{COLLECTION_NOTICE_ACK_TEXT}</span></label>
-            <label className="block text-sm font-semibold">Type your full name<Input className="mt-1 h-12" value={name} onChange={(e) => setName(e.target.value)} placeholder={d.name} autoComplete="name" disabled={busy} /></label>
-            <Button className="h-12 w-full" disabled={!ticked || name.trim().length < 2 || busy} onClick={async () => {
-              setBusy(true); setErr(null);
-              try { const r = await ack({ data: { token, ticked, typedName: name } }); setDone(` on ${new Date(r.at).toLocaleDateString("en-AU")}${r.email.status === "sent" ? ". A copy has been emailed to you" : ""}`); }
-              catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-            }}>{busy ? "Saving…" : "Acknowledge"}</Button>
-            {err && <p role="alert" className="text-sm font-bold text-[#B3261E]">{err}</p>}
+          <p className="mt-4 text-sm leading-relaxed">Hi {d.name.split(/\s+/)[0]}, before Home Insulation Victoria can register you as a VEU installer for {d.business}, the Essential Services Commission requires you to be given this notice. Please read it and tick below.</p>
+          <div className="mt-[18px]"><NoticeBody paragraphs={COLLECTION_NOTICE_PARAGRAPHS} /></div>
+          {d.state === "expired" && !done && <p role="alert" className="mt-4 rounded-[12px] bg-pink p-4 text-sm font-bold">This link has expired. Ask your business owner or the office to send a new one.</p>}
+          {d.state !== "expired" && <section className="mt-[22px]" data-esc-ack>
+            <h2 className="font-display text-[15px] font-semibold">{P5.yourInstallers}</h2>
+            <ul><NoticeTickRow name={d.name} text={COLLECTION_NOTICE_ACK_TEXT} on={d.state === "acknowledged" || !!done || ticked} canTick={d.state === "open" && !done} disabled={busy} onChange={setTicked} acknowledgedAt={d.state === "acknowledged" ? d.acknowledgedAt ?? null : done} /></ul>
+            {(d.state === "acknowledged" || done) && <p role="status" className="mt-3 text-sm font-bold text-hiv-green">Thank you — acknowledged{doneNote}. Nothing more to do.</p>}
+            {d.state === "open" && !done && <>
+              <label className="mt-3 block text-sm font-semibold">Type your full name<Input className="mt-1 h-12" value={name} onChange={(e) => setName(e.target.value)} placeholder={d.name} autoComplete="name" disabled={busy} /></label>
+              <p className="mt-3 text-[13px] leading-relaxed text-sub">{P5.note}<b>{P5.noteTeam}</b>{P5.noteEnd}</p>
+              <Button className="mt-[18px] h-12 w-full" disabled={!ticked || name.trim().length < 2 || busy} onClick={async () => {
+                setBusy(true); setErr(null);
+                try { const r = await ack({ data: { token, ticked, typedName: name } }); setDone(r.at); setDoneNote(r.email.status === "sent" ? ". A copy has been emailed to you" : ""); }
+                catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+              }}>{busy ? P5.saving : P5.button}</Button>
+              {err && <p role="alert" className="mt-2 text-sm font-bold text-rose">{err}</p>}
+            </>}
           </section>}
         </>}
-        <p className="text-xs text-[#5B6B8C]">Questions? Email info@homeinsulationvictoria.com.au. The commission's own contact for privacy questions is in the notice above.</p>
+        <p className="mt-6 text-xs text-sub">Questions? Email info@homeinsulationvictoria.com.au. The commission's own contact for privacy questions is in the notice above.</p>
       </div>
     </main>
   );

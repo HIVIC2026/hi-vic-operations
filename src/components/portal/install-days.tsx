@@ -6,6 +6,7 @@ import { getInstallerInstallDays, getOwnerInstallDays, installerChangeInstallDay
 import { INSTALLER_OFFER_DAYS, INSTALL_TIMES, OWNER_SUGGEST_MAX, dayOfferBlockers, formatInstallDay, installTimeLabel } from "@/lib/install-days.core";
 import { Button } from "@/components/ui/button";
 import { Section } from "./panels";
+import { ThirtyDayClock } from "@/components/owner/OwnerPageKit";
 
 const dayLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
 const deadlineLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
@@ -14,6 +15,10 @@ type DayState = { turn: string; deadline: string | null; daysLeft: number | null
 function Deadline({ s }: { s: DayState }) {
   if (!s.deadline) return null;
   return <p className="text-sm font-semibold">Install must be on or before {deadlineLabel(s.deadline)}{s.daysLeft != null ? ` · ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"} left` : ""}</p>;
+}
+/** Decision 137: the installer's job screen shows the red 30-day clock wherever the install window is shown. */
+function InstallerDeadline({ s }: { s: DayState }) {
+  return <><Deadline s={s} /><ThirtyDayClock className="mt-3" /></>;
 }
 
 function DayPicker({ days, max, picks, setPicks }: { days: string[]; max: number; picks: string[]; setPicks: (p: string[]) => void }) {
@@ -103,7 +108,7 @@ export function InstallerInstallDays({ jobId }: { jobId: string }) {
   if (data.turn === "booked") return <Booked s={data} title="Install day" busy={busy} onChange={() => run(() => change({ jobId }, "Day cancelled – offer the owner 3 new days"))} />;
   if (data.turn === "owner_to_answer") return (
     <Section title="Install day">
-      <Deadline s={data} />
+      <InstallerDeadline s={data} />
       <p className="mt-1 text-sm text-muted-foreground">Waiting for the owner to pick one of your times:</p>
       <ul className="mt-2 space-y-1 text-sm">{data.open.map((d) => <li key={d.id}>{formatInstallDay(d.starts_at)}</li>)}</ul>
     </Section>
@@ -118,10 +123,10 @@ export function InstallerInstallDays({ jobId }: { jobId: string }) {
     <p className="mt-2 text-xs text-muted-foreground">{picks.length} of {need} chosen.</p>
     <Button size="field" className="mt-2 w-full" disabled={busy || blockers.length > 0 || timesMissing} onClick={() => run(() => offer({ jobId, days: picks.map((d) => ({ day: d, time: times[d]! })) }, "Days sent to the owner"))}>Send these days to the owner</Button>
   </>;
-  if (data.turn === "installer_to_offer") return <Section title="Offer install days"><Deadline s={data} />{offerForm}</Section>;
+  if (data.turn === "installer_to_offer") return <Section title="Offer install days"><InstallerDeadline s={data} />{offerForm}</Section>;
   return (
     <Section title="The owner suggested these days">
-      <Deadline s={data} />
+      <InstallerDeadline s={data} />
       <p className="mt-1 text-sm">Choose your arrival time on one of these days to book it.</p>
       <div className="mt-3 space-y-2">{data.open.map((d) => <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>{formatInstallDay(d.starts_at, false)}</span><span className="flex gap-2"><TimeSelect label={`Arrival time ${formatInstallDay(d.starts_at, false)}`} value={takeTime[d.id] ?? ""} onChange={(t) => setTakeTime({ ...takeTime, [d.id]: t })} /><Button size="field" disabled={busy || !takeTime[d.id]} onClick={() => run(() => take({ jobId, proposalId: d.id, time: takeTime[d.id]! }, "Installation booked"))}>Book</Button></span></div>)}</div>
       {!offering ? <Button size="field" variant="outline" className="mt-3 h-auto min-h-12 w-full whitespace-normal" disabled={busy} onClick={() => setOffering(true)}>None of these work – offer other days</Button> : offerForm}

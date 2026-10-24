@@ -87,6 +87,17 @@
   --color-estimate-blush: var(--estimate-blush);
   --color-owner-house-pink: var(--owner-house-pink);
   --color-estimate-line: var(--estimate-line);
+  /* Approved owner pages (Jo 24 Oct 2026, P1–P5): sub text, field borders, locked button, amber hint, panels, red clock box. */
+  --color-estimate-sub: var(--estimate-sub);
+  --color-estimate-field-line: var(--estimate-field-line);
+  --color-estimate-locked: var(--estimate-locked);
+  --color-estimate-amber: var(--estimate-amber);
+  --color-estimate-panel: var(--estimate-panel);
+  --color-estimate-selected: var(--estimate-selected);
+  --color-estimate-rebate: var(--estimate-rebate);
+  --color-estimate-red: var(--estimate-red);
+  --color-estimate-red-soft: var(--estimate-red-soft);
+  --color-estimate-red-line: var(--estimate-red-line);
   --color-workspace-blush: var(--workspace-blush);
   --color-workspace-blush-strong: var(--workspace-blush-strong);
   --color-workspace-sun: var(--workspace-sun);
@@ -145,6 +156,16 @@
   --estimate-blush: #fdf2f6;
   --owner-house-pink: #f4a9c7;
   --estimate-line: #e4e9f5;
+  --estimate-sub: #5a6785;
+  --estimate-field-line: #cdd4e6;
+  --estimate-locked: #d5dae6;
+  --estimate-amber: #b26a00;
+  --estimate-panel: #f2f4fc;
+  --estimate-selected: #eef0fc;
+  --estimate-rebate: #e9fbf1;
+  --estimate-red: #b42318;
+  --estimate-red-soft: #fdecea;
+  --estimate-red-line: #f4c7c2;
   --estimate-secondary-border: oklch(0.884 0.037 278.5);
   --estimate-action-border: oklch(0.89 0.072 157);
   --estimate-white: oklch(1 0 0);

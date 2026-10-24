@@ -1,12 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronRight, FileText, MessageSquare, Phone, AlertCircle } from "lucide-react";
+import { Check, Phone } from "lucide-react";
 import { z } from "zod";
 import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
-import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
@@ -17,12 +16,15 @@ import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
-import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
+import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
+import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
+import { OFFICE_EMAIL, P2, P3, P4, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
+import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -54,11 +56,9 @@ function MyJobPage() {
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
-      <header className="mx-auto flex max-w-[480px] items-center justify-between px-5 py-4">
-        <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto max-w-[130px] object-contain" />
-        {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber}</span>}
-      </header>
-      <main className="mx-auto max-w-[480px] space-y-4 px-4">
+      {/* Approved pages P2–P4 (Jo 24 Oct): white bar, logo left, job number right. */}
+      <OwnerPageHeader right={data?.jobNumber ? (data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber) : undefined} />
+      <main className="mx-auto max-w-[560px] space-y-4 px-4 pt-5 sm:px-5">
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
@@ -99,8 +99,12 @@ function Hero({ v, level, size = "lg", headline }: { v: View; level: number; siz
 function Home({ v, token }: { v: View; token: string }) {
   const a = v.action;
   return <>
+    {/* Approved P3 (decision 128): when the ESC consent is waiting, it is the page; everything else follows below. */}
+    {v.consent && <ConsentCard v={v} token={token} />}
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
+    {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
+    {a.button?.screen === "book" && <ThirtyDayClock />}
     <StatusSnapshot v={v} />
     <PayNowCard v={v} token={token} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
@@ -129,9 +133,8 @@ function Home({ v, token }: { v: View; token: string }) {
           <span className={p.state === "done" ? "text-estimate-green" : p.state === "now" ? "font-bold text-estimate-blue" : "text-estimate-navy/60"}>{p.state === "done" ? `Done${p.at ? ` ${day(p.at)}` : ""}` : p.mustBy ? `Must be by ${day(p.mustBy)}` : p.state === "now" ? "Now" : "To come"}</span>
         </li>))}</ol>
     </section>
-    {v.veecAssignment && <VeecAssignmentCard token={token} />}
+    {v.veecAssignment && <VeecAssignmentCard v={v} token={token} />}
     <OwnerPaperwork token={token} />
-    {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
@@ -173,34 +176,49 @@ function StatusSnapshot({ v }: { v: View }) {
 function useSession() { return useState<string | null>(null); }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-function AcceptQuote({ token, quote }: { token: string; quote: { id: string; version: number } }) {
-  const [open, setOpen] = useState(false);
+/** Approved P2 "Say yes" (decisions 126/127): two ticks, full name, the 18+/owner tick, typed signature, one locked button.
+ *  Same server function, validation and 6-digit code: the code is asked for when the owner presses the button. */
+function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null }) {
   const [session, setSession] = useSession();
+  const [needCode, setNeedCode] = useState(false);
   const load = useServerFn(ownerAgreementFn);
   const accept = useServerFn(ownerAcceptQuoteFn);
   const qc = useQueryClient();
-  const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }), enabled: open });
+  const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
   const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
   const [over18, setOver18] = useState(false); const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (!open) return <button className={`${signBtn} mt-4`} onClick={() => setOpen(true)}>Say yes and sign</button>;
-  if (!session) return <div className="mt-4"><OwnerCodeGate token={token} onVerified={setSession} /></div>;
   const blocked = (ag?.blockers ?? []) as string[];
+  const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
+  const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
+  const ready = blocked.length === 0 && over18 && read && agree && f.name.trim().length >= 2 && f.sig.trim().length >= 2;
+  const sign = async () => {
+    if (!session) { setNeedCode(true); return; }
+    setErr(""); setBusy(true);
+    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
   return (
-    <div className="mt-4 space-y-3">
-      {ag?.consumerRights && <details className="rounded-2xl bg-estimate-mist p-3 text-sm"><summary className="cursor-pointer font-bold">Your consumer information ({ag.consumerRights.version})</summary><p className="mt-2 whitespace-pre-wrap">{ag.consumerRights.body}</p></details>}
-      {ag?.agreementWording && <details className="rounded-2xl bg-estimate-mist p-3 text-sm"><summary className="cursor-pointer font-bold">The agreement ({ag.agreementWording.version})</summary><p className="mt-2 whitespace-pre-wrap">{ag.agreementWording.body}</p></details>}
-      {blocked.length > 0 && <p role="alert" className="rounded-2xl bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
-      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
-      <Tick on={over18} set={setOver18}>I'm 18 or older.</Tick>
-      <Tick on={read} set={setRead}>I've read the consumer information.</Tick>
-      <Tick on={agree} set={setAgree}>I accept this quote and the agreement.</Tick>
-      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-      <button className={signBtn} disabled={busy || blocked.length > 0 || !over18 || !read || !agree || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => {
-        setErr(""); setBusy(true);
-        try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
-        catch (e) { setErr(errText(e)); } finally { setBusy(false); }
-      }}>{busy ? "Signing…" : "Sign and say yes"}</button>
+    <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
+      <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
+      <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoThings}</h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-estimate-sub">{P2.tapEach}</p>
+      <TickCard on={agree} set={setAgree} title={P2.tick1} sub={P2.tick1Sub(shortAud(rebate))} read={P2.tick1Read} readBody={ag?.agreementWording ? <>{`The agreement (${ag.agreementWording.version})`}{"\n\n"}{ag.agreementWording.body}</> : "Loading…"} />
+      <TickCard on={read} set={setRead} title={P2.tick2} sub={P2.tick2Sub(fee)} read={P2.tick2Read} readBody={ag ? <>{ag.consumerRights ? `Your consumer information (${ag.consumerRights.version})\n\n${ag.consumerRights.body}` : ""}{ag.paymentTerms ? `\n\nPayment terms\n\n${typeof ag.paymentTerms === "string" ? ag.paymentTerms : JSON.stringify(ag.paymentTerms, null, 1)}` : ""}</> : "Loading…"} />
+      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
+      <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
+        <p className="text-[15px] font-bold">{P2.signTitle}</p>
+        <p className="mt-0.5 text-[13px] leading-relaxed text-estimate-sub">{P2.signSub}</p>
+        <TypedField label={P2.fullName} value={f.name} onChange={(name) => setF({ ...f, name })} autoComplete="name" />
+        <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
+        <TickCard on={over18} set={setOver18} title={P2.tick3} />
+        <TypedField label={P2.typeAgain} value={f.sig} onChange={(sig) => setF({ ...f, sig })} placeholder={P2.typeHere} italic />
+      </section>
+      {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
+      {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
+      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>{P2.button(feeCents)}</LockedButton>
+      {!ready && <LockHint>{P2.lockHint}</LockHint>}
+      <SmallNote>{P2.payNote(fee)}</SmallNote>
     </div>
   );
 }
@@ -213,7 +231,7 @@ function DeclineQuote({ token, quoteId }: { token: string; quoteId: string }) {
   const [reason, setReason] = useState<DeclineReason | null>(null);
   const [note, setNote] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (!open) return <button type="button" data-decline-open className="mt-3 w-full py-2 text-center text-sm font-semibold text-estimate-navy underline" onClick={() => setOpen(true)}>Not for me</button>;
+  if (!open) return <p className="mt-[22px] text-center"><button type="button" data-decline-open className="min-h-11 text-sm text-estimate-sub underline" onClick={() => setOpen(true)}>{P2.notForMe}</button></p>;
   return (
     <div data-decline className="mt-4 space-y-3 rounded-2xl border border-estimate-line p-4">
       <p className="font-bold">No problem. Can you tell us why? (optional)</p>
@@ -283,22 +301,52 @@ function BookPickers({ token }: { token: string }) {
   </>;
 }
 
-function ConsentCard({ token, startsAt }: { token: string; startsAt: string | null }) {
+/** Approved P3 (decision 128): the ESC Owner's Consent Form verbatim — Section 1 prefilled, the four Section 2 ticks,
+ *  typed-name signature. Same server function and 24-hour/template guards; the 6-digit code is asked for on the button. */
+function ConsentCard({ v, token }: { v: View; token: string }) {
+  const c = v.consent as { scheduledStart: string | null; section1?: Record<string, string> | null };
   const sign = useServerFn(ownerSignConsentFn);
   const qc = useQueryClient();
   const [session, setSession] = useSession();
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
-  const [ok, setOk] = useState(false); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  return <section className="rounded-[22px] bg-estimate-blush p-5">
-    <p className="text-xs font-bold uppercase tracking-wide">You need to do this</p>
-    <h2 className="mt-1 font-display text-xl font-extrabold">Sign your install consent</h2>
-    <p className="mt-1 text-sm">For your install{startsAt ? ` on ${visitPill(startsAt)}` : ""}. It must be signed at least 24 hours before.</p>
-    <div className="mt-3">{!session ? <OwnerCodeGate token={token} onVerified={setSession} /> : <div className="space-y-3 rounded-[22px] bg-card p-4">
-      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
-      <Tick on={ok} set={setOk}>I consent to the information sharing for my install.</Tick>
-      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-      <button className={signBtn} disabled={busy || !ok || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => { setErr(""); setBusy(true); try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, accept: ok } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>Sign</button>
-    </div>}</div>
+  const [needCode, setNeedCode] = useState(false);
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
+  const [ticks, setTicks] = useState<Partial<Record<OwnerDeclarationKey, boolean>>>({});
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const all = OWNER_DECLARATIONS.every((d) => ticks[d.key] === true);
+  const ready = all && f.name.trim().length >= 2;
+  const q = v.quote as { total: number; split?: { deposit: number } | null } | null;
+  const deposit = v.payment?.provisional?.deposit ?? (q ? paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null }).installDepositCents / 100 : null);
+  const s1 = c.section1 ?? null;
+  const doSign = async () => {
+    if (!session) { setNeedCode(true); return; }
+    setErr(""); setBusy(true);
+    try {
+      await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, accept: all, declarations: { owner_or_authorised: !!ticks.owner_or_authorised, details_accurate: !!ticks.details_accurate, consent_ap_sends: !!ticks.consent_ap_sends, consent_commission_shares: !!ticks.consent_commission_shares } } });
+      await qc.invalidateQueries({ queryKey: ["my-job", token] });
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  return <section data-testid="owner-consent" className="space-y-4">
+    <PageIntro kicker={P3.kicker} title={c.scheduledStart ? P3.title(c.scheduledStart) : "Sign your install consent"}>{P3.sub(deposit != null && deposit > 0 ? centsAud(deposit) : null)}</PageIntro>
+    <InfoBox><b>{P3.whyLead}</b>{P3.why}</InfoBox>
+    <FormCard eyebrow={P3.formEyebrow}>
+      <SectionTitle className="mt-1.5 mb-1">{P3.section1}</SectionTitle>
+      {s1 && <FactRows rows={P3.rows.map(([k, label]) => ({ label, value: s1[k] || "—" }))} />}
+      <p className="mt-2 text-xs text-estimate-sub">{P3.wrong} <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent(`Correct my details${v.jobNumber ? ` – ${v.jobNumber}` : ""}`)}`}>{P3.correct}</a></p>
+      <SectionTitle className="mt-[18px]">{P3.section2}</SectionTitle>
+      <p className="text-[13px] text-estimate-sub">{P3.declare}</p>
+      {OWNER_DECLARATIONS.map((d) => <TickCard key={d.key} on={ticks[d.key] === true} set={(b) => setTicks({ ...ticks, [d.key]: b })} title={sentence(d.text)} bold={false} />)}
+      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
+      <TypedField label={P3.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P3.typeHere} autoComplete="name" />
+      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P3.dateLine(longDate(new Date().toISOString()))}</p>
+    </FormCard>
+    {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    <div>
+      <LockedButton ready={ready} busy={busy} busyLabel={P3.signing} onClick={() => void doSign()}>{P3.button}</LockedButton>
+      {!ready && <LockHint>{P3.lockHint}</LockHint>}
+      <SmallNote>{P3.afterNote}</SmallNote>
+      <OwnerFooter />
+    </div>
   </section>;
 }
 
@@ -348,48 +396,62 @@ function SpotScreen({ v, token }: { v: View; token: string }) {
   </>;
 }
 
+/** Approved P2 quote + acceptance page (decision 127): quote as the email, then "Say yes". Facts and guards unchanged. */
 function QuoteScreen({ v, token }: { v: View; token: string }) {
   const q = v.quote;
   const rebate = q?.rebate ?? v.numbers.rebate;
+  const measured = (v.progress as { at: string | null }[])[0]?.at ?? null;
+  const full = q ? q.total + q.rebate : null;
   return <>
     <Back token={token} />
-    <section data-testid="owner-quote-heading" className="border-b border-estimate-line pb-6">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <div className="min-w-0">
-          {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
-          <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight">{rebate > 0 ? <>You could save <span className="text-estimate-green">{aud(rebate)}</span> on ceiling insulation</> : "Your ceiling insulation quote"}</h1>
-        </div>
-        <OwnerHouse level={HOUSE_LEVEL.quote} size="sm" />
-      </div>
-      {v.address && <p className="mt-3 text-sm text-estimate-navy/80">{v.address}</p>}
+    <section data-testid="owner-quote-heading">
+      {/* Installer-quoted jobs the owner already agreed (Jo 7 Oct 9:25pm) keep their "Confirm your insulation job" title. */}
+      <PageIntro kicker={P2.kicker} title={q ? (v.agreed?.agreed ? ownerPriceTitle(v.agreed) : P2.title(v.firstName)) : (rebate > 0 ? <>You could save <span className="text-estimate-green">{aud(rebate)}</span> on ceiling insulation</> : "Your ceiling insulation quote")}>
+        {q ? P2.sub({ address: v.address, measuredOn: measured ? dayMonth(measured) : null, heldUntil: q.heldUntil ? longDate(q.heldUntil) : null }) : v.address}
+      </PageIntro>
+      {agreedWithLabel(v.agreed) && <p className="mt-2 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
       {!q && <div role="status" className="mt-6"><p className="font-semibold">Your exact price is being worked out.</p><p className="mt-1 text-sm">We'll let you know as soon as it's ready.</p></div>}
     </section>
     {q && <>
-      <section className="rounded-[22px] bg-card p-5 shadow-sm">
-        <h2 className="font-display text-xl font-extrabold">{ownerPriceTitle(v.agreed)}</h2>
-        {agreedWithLabel(v.agreed) && <p className="mt-1 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
-        <ul className="mt-3 divide-y divide-estimate-line text-sm">
-          <li className="flex justify-between py-2"><span>Ready Check</span><span className="font-bold text-estimate-green">FREE</span></li>
-          {q.lines.map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 py-2"><span className="min-w-0 break-words">{l.description}</span><span className="shrink-0 font-semibold tabular-nums">{aud(l.amount)}</span></li>)}
-          {q.rebate > 0 && <li className="flex justify-between py-2 text-estimate-green"><span>Government rebate (VEU)</span><span className="font-bold">−{aud(q.rebate)}</span></li>}
-          <li className="flex justify-between py-3 font-display text-lg font-extrabold"><span>You pay (inc GST)</span><span>{aud(q.total)}</span></li>
+      <section className="rounded-[18px] bg-estimate-panel px-4 py-[18px]">
+        {q.rebate > 0 && <div className="rounded-[14px] border-2 border-estimate-green bg-estimate-rebate px-2.5 py-4 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em]">{P2.rebateEyebrow}</p>
+          <p className="mt-1 font-display text-[32px] font-extrabold leading-none text-estimate-green">{P2.youSave(shortAud(q.rebate))}</p>
+          <p className="mt-1.5 text-[13px]">{P2.rebateNote}</p>
+        </div>}
+        <div className="pt-[18px] pb-1 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em]">{P2.priceEyebrow}</p>
+          <p className="mt-1 font-display text-[42px] font-extrabold leading-none text-estimate-blue">{centsAud(q.total)}</p>
+          {q.rebate > 0 && full != null && <p className="mt-1.5 text-[13px] font-bold">{P2.priceNote} <span className="line-through">{centsAud(full)}</span></p>}
+          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{v.address && <>{v.address}<br /></>}{P2.measured}</p>
+        </div>
+      </section>
+      <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
+        <h2 className="mb-1 text-[15px] font-bold">{P2.itemsTitle}</h2>
+        <ul data-testid="quote-lines">
+          <li className="flex items-start justify-between gap-2.5 py-2.5"><span className="text-sm font-bold">Ready Check</span><span className="shrink-0 text-sm font-bold text-estimate-green">FREE</span></li>
+          {q.lines.map((l: { description: string; amount: number }, i: number) => <li key={i} className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span className="min-w-0 break-words text-sm font-bold">{l.description}</span><span className="shrink-0 text-sm tabular-nums">{centsAud(l.amount)}</span></li>)}
+          {q.rebate > 0 && full != null && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.fullPrice}</span><span className="block text-xs text-estimate-sub">{P2.fullPriceSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums">{centsAud(full)}</span></li>}
+          {q.rebate > 0 && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.rebateLine}</span><span className="block text-xs text-estimate-sub">{P2.rebateLineSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums text-estimate-green">−{centsAud(q.rebate)}</span></li>}
+          <li className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">{P2.youPay}</span><span className="font-display text-lg font-extrabold text-estimate-blue">{centsAud(q.total)}</span></li>
         </ul>
+        <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
       <FixesNote />
-      <section className="rounded-[22px] bg-estimate-mint p-5"><p className="font-display text-lg font-extrabold">You don't lift a finger</p><p className="mt-1 text-sm">We book the Pre Insulation Electrical Safety Assessment (PIESA), the install and do all the rebate paperwork for you.</p></section>
-      <section className="rounded-[22px] bg-card p-5 shadow-sm">
-        <h3 className="font-display text-lg font-extrabold">How you can pay</h3>
+      <details className="rounded-[14px] border border-estimate-line bg-card px-4 py-3">
+        <summary className="cursor-pointer text-sm font-bold">How you can pay</summary>
         <ul className="mt-2 space-y-1 text-sm" data-testid="how-you-pay">
           {howYouPayLines(paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null })).map((l) => <li key={l}>{l}</li>)}
         </ul>
-        <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
-        {q.status === "issued"
-          ? <><AcceptQuote token={token} quote={q} /><DeclineQuote token={token} quoteId={q.id} /></>
-          : q.status === "declined"
-            ? <p data-quote-declined className="mt-4 rounded-2xl bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
-            : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
-      </section>
+        <p className="mt-2 text-xs text-estimate-sub">{PAYMENT_OPTION_SUMMARY}</p>
+      </details>
+      {q.status === "issued"
+        ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} /><DeclineQuote token={token} quoteId={q.id} /></div>
+        : q.status === "declined"
+          ? <p data-quote-declined className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
+          : <p className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
       {q.status === "accepted" && <PayNowCard v={v} token={token} />}
+      <OwnerFooter />
     </>}
   </>;
 }
@@ -432,6 +494,7 @@ function BookScreen({ v, token }: { v: View; token: string }) {
       <p className="mt-2 text-sm">For example, a Pre Insulation Electrical Safety Assessment (PIESA) on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
       <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
     </section>
+    <ThirtyDayClock />
     <FixesNote />
     <BookPickers token={token} />
     <PayNowCard v={v} token={token} />
@@ -441,49 +504,75 @@ function BookScreen({ v, token }: { v: View; token: string }) {
 function DoneScreen({ v, token }: { v: View; token: string }) {
   return <>
     {v.stage !== "complete" && <Back token={token} />}
+    {v.veecAssignment && <VeecAssignmentCard v={v} token={token} />}
     <Hero v={v} level={HOUSE_LEVEL.all_done} headline={ownerHeadline("all_done", v.numbers.rebate)} />
-    {v.veecAssignment && <VeecAssignmentCard token={token} />}
     <Numbers v={v} />
   </>;
 }
 /** Decision 119/120: the official ESC VEEC assignment form, shown read-only and signed by the owner ONLY after the install
  *  is recorded complete (never at acceptance). Installer → AP sign first; the owner is the last signature. */
-function VeecAssignmentCard({ token }: { token: string }) {
+/** Approved P4 (decision 129): Section 1 summarised with the full text a tap away, Section 2 read-only, Section 4
+ *  declaration verbatim with the one "I have read and make every declaration above" tick, the 18+/owner tick, typed
+ *  name. Same server function (over18 + confirmsSection2 + 6-digit code, asked for on the button). */
+function VeecAssignmentCard({ v, token }: { v: View; token: string }) {
   const load = useServerFn(ownerVeecAssignmentFn);
   const sign = useServerFn(ownerSignVeecAssignmentFn);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["owner-veec", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
+  const [needCode, setNeedCode] = useState(false);
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
   const [ok18, setOk18] = useState(false); const [okS2, setOkS2] = useState(false);
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [showAll, setShowAll] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [showRights, setShowRights] = useState(false); const [showAll, setShowAll] = useState(false);
   if (!data) return null;
   const rows = (data.rows ?? []) as { label: string; value: string }[];
   if (data.signedAt) return <section data-testid="veec-signed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
     <div><p className="font-display text-lg font-extrabold">Rebate form: Signed ✓</p><p className="text-sm">Signed {day(data.signedAt)}. {data.copySentAt ? "We've emailed you a copy." : "Your copy is on its way within 10 business days."}</p></div>
   </section>;
-  return <section data-testid="veec-assignment" className="rounded-[22px] bg-estimate-blush p-5">
-    <p className="text-xs font-bold uppercase tracking-wide">{data.canSign ? "You need to do this" : "Coming up"}</p>
-    <h2 className="mt-1 font-display text-xl font-extrabold">Sign your rebate form (VEEC assignment)</h2>
-    <p className="mt-1 text-sm">{data.canSign ? "Check the installation details below, then sign. This lets us claim your rebate." : data.waitingOn === "installer" ? "Your installer signs their part first, then Home Insulation Victoria. We'll let you know the moment it's your turn." : "Home Insulation Victoria is signing its part. We'll let you know the moment it's your turn."}</p>
-    {rows.length > 0 && <div className="mt-3 rounded-[18px] bg-card p-4 text-sm">
-      <p className="font-bold">Section 2: Activity and personnel details</p>
-      <dl className="mt-2 grid gap-1">{rows.map((r) => <div key={r.label} className="grid grid-cols-[1fr_auto] gap-3 border-b border-estimate-line py-1 last:border-0"><dt className="text-estimate-navy/70">{r.label}</dt><dd className="text-right font-semibold">{r.value}</dd></div>)}</dl>
-    </div>}
-    <div className="mt-3 rounded-[18px] bg-card p-4 text-sm">
-      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Official form {data.version}</p>
-      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed">{data.rights}</pre>
-      {showAll ? <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{[data.apDeclaration, data.installerDeclaration].join("\n\n")}</pre> : <button type="button" className="mt-2 text-sm font-bold text-estimate-blue underline" onClick={() => setShowAll(true)}>Show the installer and Home Insulation Victoria declarations</button>}
-      <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{data.consumerDeclaration}</pre>
-    </div>
-    {data.canSign && <div className="mt-3">{!session ? <OwnerCodeGate token={token} onVerified={setSession} /> : <div className="space-y-3 rounded-[22px] bg-card p-4">
-      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
-      <Tick on={okS2} set={setOkS2}>To the best of my knowledge, the information provided by the installer in Section 2 is correct and complete.</Tick>
-      <Tick on={ok18} set={setOk18}>I am 18 or older and I make the declaration above (Section 4 Part B).</Tick>
+  const rebate = shortAud(v.numbers.rebate);
+  const installedOn = (v.progress as { at: string | null }[])[3]?.at ?? null;
+  const ready = ok18 && okS2 && f.name.trim().length >= 2;
+  const doSign = async () => {
+    if (!session) { setNeedCode(true); return; }
+    setErr(""); setBusy(true);
+    try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, over18: ok18, confirmsSection2: okS2 } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-veec", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  return <section data-testid="veec-assignment" className="space-y-4">
+    <PageIntro kicker={data.canSign ? P4.kicker : "Coming up"} title={P4.title(v.firstName)}>
+      {data.canSign ? P4.intro({ installedOn: installedOn ? weekdayDate(installedOn) : null, rebate }) : data.waitingOn === "installer" ? P4.waitingInstaller : P4.waitingAp}
+    </PageIntro>
+    <InfoBox className="text-[13px]"><b>{P4.rightsLead}</b>{P4.rights(rebate)}<button type="button" className="font-bold text-estimate-blue" aria-expanded={showRights} onClick={() => setShowRights((s) => !s)}>{P4.rightsRead}</button>
+      {showRights && <pre className="mt-3 whitespace-pre-wrap border-t border-estimate-line pt-3 font-sans text-[13px] leading-relaxed">{data.rights}</pre>}
+    </InfoBox>
+    <FormCard eyebrow={P4.formEyebrow}>
+      <SectionTitle className="mt-4 mb-0.5">{P4.section2}</SectionTitle>
+      {rows.length > 0 ? <FactRows rows={rows} labelWidth="42%" /> : <p className="mt-1 text-sm text-estimate-sub">Being completed from your job record.</p>}
+      <p className="mt-2 text-xs text-estimate-sub">{P4.wrong} <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent(`Rebate form details${v.jobNumber ? ` – ${v.jobNumber}` : ""}`)}`}>{P4.tellUs}</a></p>
+      <SectionTitle className="mt-4 mb-0.5">{P4.section4}</SectionTitle>
+      <p className="text-[13px] text-estimate-sub">{P4.declare}</p>
+      <ul className="mt-1">{declarationBullets(data.consumerDeclaration).map((b) => <li key={b} className="flex gap-2 py-1 text-[13px] leading-[1.45]"><span className="text-estimate-blue">•</span><span>{b}</span></li>)}</ul>
+      <p className="mt-1 text-xs text-estimate-sub"><button type="button" className="font-bold text-estimate-blue" aria-expanded={showAll} onClick={() => setShowAll((s) => !s)}>{showAll ? "Hide the installer and Home Insulation Victoria declarations" : "Show the installer and Home Insulation Victoria declarations"}</button> · Official form {data.version}</p>
+      {showAll && <pre className="mt-2 whitespace-pre-wrap rounded-[10px] bg-estimate-panel p-3 font-sans text-[13px] leading-relaxed">{[data.apDeclaration, data.installerDeclaration].join("\n\n")}</pre>}
+      {data.canSign && <>
+        <TickCard on={okS2} set={setOkS2} title={P4.tick} />
+        <TickCard on={ok18} set={setOk18} title={P2.tick3} />
+        <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
+        <TypedField label={P4.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P4.typeHere} autoComplete="name" />
+        <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P4.dateLine(longDate(new Date().toISOString()))}</p>
+      </>}
+    </FormCard>
+    {data.canSign && <>
+      {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-      <button className={signBtn} disabled={busy || !ok18 || !okS2 || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => { setErr(""); setBusy(true); try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18: ok18, confirmsSection2: okS2 } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-veec", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>Sign my rebate form</button>
-    </div>}</div>}
+      <div>
+        <LockedButton ready={ready} busy={busy} busyLabel={P4.signing} onClick={() => void doSign()}>{P4.button}</LockedButton>
+        {!ready && <LockHint>{P4.lockHint}</LockHint>}
+        <SmallNote>{P4.afterNote}</SmallNote>
+        <OwnerFooter />
+      </div>
+    </>}
   </section>;
 }
 
