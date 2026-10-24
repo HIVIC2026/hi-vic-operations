@@ -233,3 +233,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 164. **Deep's email approved (Jo, 24 Oct).** `docs/templates/approved/DEEP-reply-go-live.md`, from Chris; sent only after the go-live steps (decision 159).
 165. **Blocked texts never count as sent (Jo, 24 Oct).** A text attempt blocked by a switch, quiet hours or unapproved wording must not consume the idempotency key for any text type; each sender reviewed so a switch flip does not re-fire old reminders.
 166. **VEEC sign request text approved (Jo, 24 Oct).** "Home Insulation Victoria: Your install is done! One last thing: please sign your rebate form so we can claim your {rebate} rebate: {link} Reply STOP to opt out."
+167. **30-day reminder texts approved (Jo, 24 Oct).** Owner and installer texts at 20 and 10 days as drafted in `thirty-day-rule.core.ts`; 5 calendar days response period for the repeat-PIESA payer decision. Emails still to approve.
