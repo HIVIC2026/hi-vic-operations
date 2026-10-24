@@ -21,6 +21,7 @@ import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseP
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
+import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -98,6 +99,7 @@ function Home({ v, token }: { v: View; token: string }) {
   const a = v.action;
   return <>
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
+    <OwnerReadyCheckTimes token={token} />
     <StatusSnapshot v={v} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-canvas/70">{a.kicker}</p>
@@ -436,6 +438,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
         <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}Step 1 of 6</p>
       </div>
     </section>
+    <OwnerReadyCheckTimes token={token} />
     <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>The waiting list is huge.</strong> We book in order and we're teaming up with more installers and electricians across Victoria to speed it up. We'll text you when it's your turn.</p>
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>

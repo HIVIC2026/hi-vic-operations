@@ -53,7 +53,8 @@ export const sendOfferToAll = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    // Jo 24 Oct 2026 (decision 49): Ready Check offers go to ONE office-picked installer — never to everyone.
+    if (data.kind === "ready_check") throw new WorkflowError("Ready Check offers go to one installer. Choose another installer on the job.");
     await logEvent(data.jobId, context.userId, "trade_choice_widened", "Office sent the offer to all eligible trades after their pick didn't take it", { kind: data.kind }, { internal: true });
-    if (data.kind === "ready_check") return (await import("./readycheck-booking.server")).startReadyCheckOffers(data.jobId, context.userId);
     return (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, data.kind);
   });

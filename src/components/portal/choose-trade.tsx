@@ -1,5 +1,6 @@
-// Office job page: "Choose trades for this job" (Jo, 7 Oct 2026). Tick who gets the Ready Check / safety-check offer.
+// Office job page: "Choose trades for this job" (Jo, 7 Oct 2026). Tick who gets the safety-check (PIESA) offer.
 // Only ticked trades get it; then the 24-hour rule and first-in-best-dressed apply as normal.
+// Ready Check offers go to ONE installer from "Choose installer" (choose-installer.tsx, Jo 24 Oct 2026).
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,7 +17,7 @@ const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigi
 
 export function ChooseTradePanel({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
-  const [kind, setKind] = useState<Kind>("ready_check");
+  const [kind, setKind] = useState<Kind>("piesa");
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
@@ -63,7 +64,7 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
       <Section title="Choose trades for this job">
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Which offer">
-            {(Object.keys(KIND_LABEL) as Kind[]).map((k) => <Button key={k} size="sm" variant={k === kind ? "default" : "outline"} onClick={() => { setKind(k); setTicked(new Set()); setExtra([]); }}>{KIND_LABEL[k]}</Button>)}
+            {(["piesa"] as Kind[]).map((k) => <Button key={k} size="sm" variant={k === kind ? "default" : "outline"} onClick={() => { setKind(k); setTicked(new Set()); setExtra([]); }}>{KIND_LABEL[k]}</Button>)}
           </div>
           {d && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/50 p-3 text-xs">

@@ -43,6 +43,7 @@ import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
 import { ReadyCheckInMitti } from "@/components/trade/new-ready-check";
+import { InstallerReadyCheckTimesCard } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -102,6 +103,7 @@ function FieldJob() {
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
+        {role === "installer" && job.channel === "hivic_sourced" && job.stage === "ready_check_ready_to_schedule" && <InstallerReadyCheckTimesCard jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}

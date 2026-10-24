@@ -1,7 +1,7 @@
 // Ready Check booking rules (pure). Price is never a ranking input.
 import { describe, expect, test } from "bun:test";
 import {
-  fullCurrentCert, installerCandidate, installerEligibilityBlocker, nextInstallerBatch, priceSeenBlocker, readyCheckNoTakerStep, readyCheckStartBlockers,
+  fullCurrentCert, installerCandidate, installerEligibilityBlocker, priceSeenBlocker, rankedInstallers,
   type InstallerFacts,
 } from "../src/lib/readycheck-booking.core";
 import { piesaWindowBlockers, allowedPiesaDays } from "../src/lib/piesa-windows.core";
@@ -27,7 +27,7 @@ describe("Ready Check installer eligibility", () => {
     expect(installerEligibilityBlocker(base({ free_in_window: false }))).toMatch(/booked/);
     expect(installerEligibilityBlocker(base({ freeMeasureUps: false }))).toMatch(/free Ready Checks/);
   });
-  test("ranking: nearby that day → reliability → fewest recent → speed; top 3 then next 3", () => {
+  test("Choose installer list order: nearby that day → reliability → fewest recent → speed; ineligible left out", () => {
     const c = [
       base({ business_id: "far", name: "A", acceptance_rate: 1 }),
       base({ business_id: "near", name: "B", nearby_job_that_day: true, acceptance_rate: 0.1 }),
@@ -35,11 +35,11 @@ describe("Ready Check installer eligibility", () => {
       base({ business_id: "slow", name: "D", acceptance_rate: 1, avg_accept_hours: 9 }),
       base({ business_id: "x", name: "E", fullCertifiedInstallers: 0 }),
     ];
-    const first = nextInstallerBatch(c, new Set(), 3).map((x) => x.business_id);
-    expect(first).toEqual(["near", "slow", "far"].sort((a, b) => first.indexOf(a) - first.indexOf(b)));
-    expect(first[0]).toBe("near");
-    expect(first).not.toContain("x");
-    expect(nextInstallerBatch(c, new Set(first), 3).map((x) => x.business_id)).toEqual(["busy"]);
+    const order = rankedInstallers(c).map((x) => x.business_id);
+    expect(order[0]).toBe("near");
+    expect(order).not.toContain("x");
+    expect(order.at(-1)).toBe("busy");
+    expect(order).toHaveLength(4);
   });
 });
 
@@ -49,14 +49,7 @@ describe("Ready Check flow rules", () => {
     expect(piesaWindowBlockers([{ date: d[0]!, slot: "8-10" }]).length).toBeGreaterThan(0);
     expect(piesaWindowBlockers([{ date: d[0]!, slot: "8-10" }, { date: d[1]!, slot: "12-14" }, { date: d[2]!, slot: "8-10" }])).toEqual([]);
   });
-  test("offers start only when waiting, no installer, owner times open, no open offers", () => {
-    expect(readyCheckStartBlockers({ stage: "ready_check_ready_to_schedule", hasInstaller: false, openWindows: 3, hasOpenOffers: false })).toEqual([]);
-    expect(readyCheckStartBlockers({ stage: "ready_check_scheduled", hasInstaller: true, openWindows: 0, hasOpenOffers: true })).toHaveLength(4);
-  });
-  test("no taker: round 1 asks owner once; round 2 goes to needs attention", () => {
-    expect(readyCheckNoTakerStep(1)).toBe("ask_owner_for_more_times");
-    expect(readyCheckNoTakerStep(2)).toBe("needs_attention");
-  });
+  // Jo 24 Oct 2026: office-picked single offers and the installer's times — see tests/ready-check-times.core.test.ts.
   test("price seen first only when an estimate exists", () => {
     expect(priceSeenBlocker({ hasEstimate: true, estimateViewed: false })).toMatch(/estimated price/);
     expect(priceSeenBlocker({ hasEstimate: true, estimateViewed: true })).toBeNull();

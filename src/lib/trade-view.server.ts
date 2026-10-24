@@ -92,7 +92,7 @@ export async function tradeHome(userId: string) {
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
   const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
-  const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Waiting for owner to pick Ready Check times", ready_check_complete: "Office checking your Ready Check", on_hold: "On hold (office review)" };
+  const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Arranging the Ready Check time", ready_check_complete: "Office checking your Ready Check", on_hold: "On hold (office review)" };
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
   const { statusFactsFor, statusView } = await import("./job-status.server");
   const sf = await statusFactsFor(c, live.map((j) => j.id));
@@ -132,10 +132,12 @@ export async function tradeOffer(offerId: string, userId: string) {
   if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
   const timing = offerTiming(o.offered_at, await offerSuggestHours());
   const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
+  // Jo 24 Oct 2026 (decision 52): a Ready Check offer is accepted by offering the owner 3 times — the owner gives none.
   const { data: winRows } = o.kind === "ready_check"
-    ? await admin.from("ready_check_windows").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).order("starts_at")
+    ? { data: [] as { id: string; starts_at: string; ends_at: string | null; status: string }[] }
     : await admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).not("piesa_window_round", "is", null).order("starts_at");
   const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
+  const rcDays = o.kind === "ready_check" && o.status === "pending" ? (await import("./ready-check-times.core")).allowedReadyCheckDays() : [];
   let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
   // Review B: contact details only while this business still holds an ACTIVE assignment on the job (and, for a worker, their own).
   const { data: liveAsg } = o.status === "accepted" ? await assignmentQuery(c, userId).eq("job_id", o.job_id).limit(1).maybeSingle() : { data: null };
@@ -150,8 +152,8 @@ export async function tradeOffer(offerId: string, userId: string) {
     if (b) locked = { owner: ow?.full_name ?? null, phone: ow?.phone ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b.scheduled_start, end: b.scheduled_end };
   }
   return {
-    id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked,
-    canSuggest: o.status === "pending" && timing.canSuggest, suggestUnlockLabel: timing.unlockLabel, takenByOther: o.status === "withdrawn" || o.status === "superseded",
+    id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked, rcDays, accepted: o.status === "accepted" && !!liveAsg,
+    canSuggest: o.kind !== "ready_check" && o.status === "pending" && timing.canSuggest, suggestUnlockLabel: timing.unlockLabel, takenByOther: o.status === "withdrawn" || o.status === "superseded",
     suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null,
     area: s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
   };
@@ -165,10 +167,8 @@ export async function tradeTakeTime(offerId: string, windowId: string, userId: s
   const { data: job } = await admin.from("jobs").select("source").eq("id", o.job_id).single();
   const staged = job?.source === "qa_test" && (o.summary as { test_staged?: boolean })?.test_staged;
   if (!staged) {
-    if (o.kind === "ready_check") {
-      const { respondToReadyCheckOffer } = await import("./readycheck-booking.server");
-      try { await respondToReadyCheckOffer(offerId, userId, true, null, windowId); return { tooSlow: false }; } catch (e) { if (/just been taken|no longer/.test((e as Error).message)) return { tooSlow: true }; throw e; }
-    }
+    // Jo 24 Oct 2026: Ready Check offers are accepted by offering the owner 3 times (tradeOfferReadyCheckTimes).
+    if (o.kind === "ready_check") throw new WorkflowError("To accept, offer the owner 3 Ready Check times.");
     const { takeJoOffer } = await import("./jo-tradie.server");
     return { tooSlow: (await takeJoOffer(offerId, windowId, userId)).tooSlow };
   }
@@ -199,6 +199,7 @@ export async function tradeOfferReply(offerId: string, userId: string, reply: "n
   if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
   if (o.status !== "pending") throw new WorkflowError(o.status === "withdrawn" ? "This job has been taken." : "This offer is no longer open.");
   if (reply === "cant_make") {
+    if (o.kind === "ready_check") throw new WorkflowError("Offer the owner 3 Ready Check times that suit you, or say \"Not for me\".");
     const hours = await offerSuggestHours();
     if (!offerTiming(o.offered_at, hours).canSuggest) throw new WorkflowError(`You can suggest another time once the job has been out for ${hours} hours with no taker. For now, pick one of the owner's times or say "Not for me".`);
   }
@@ -210,6 +211,33 @@ export async function tradeOfferReply(offerId: string, userId: string, reply: "n
   }
   await logEvent(o.job_id, userId, "trade_cant_make_times", `Needs me: ${c.biz.name} can't make the owner's times${note ? ` — suggests: ${note}` : ""}`, { business_id: c.biz.id, note, needs_office: true }, { internal: true });
   return { ok: true };
+}
+
+// ---- Our-lead Ready Check times (Jo 24 Oct 2026, decision 52). Business-scoped; rules in ready-check-times.core. ----
+
+/** Accept a Ready Check offer by offering the owner 3 times. */
+export async function tradeOfferReadyCheckTimes(offerId: string, userId: string, picks: { day: string; time: string }[]) {
+  const c = await ctxOrThrow(userId);
+  const { data: o } = await admin.from("partner_offers").select("id, business_id, kind").eq("id", offerId).maybeSingle();
+  if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
+  if (o.kind !== "ready_check") throw new WorkflowError("This offer cannot be accepted here.");
+  return (await import("./ready-check-times.server")).acceptOfferWithTimes(offerId, userId, picks);
+}
+
+/** The installer's side of the Ready Check times on an assigned job. */
+export async function tradeReadyCheckTimes(jobId: string, userId: string) {
+  await requireTradeJob(userId, jobId);
+  return (await import("./ready-check-times.server")).installerReadyCheckState(jobId, userId);
+}
+
+export async function tradeReadyCheckOfferNew(jobId: string, userId: string, picks: { day: string; time: string }[]) {
+  await requireTradeJob(userId, jobId);
+  return (await import("./ready-check-times.server")).installerOfferNewTimes(jobId, userId, picks);
+}
+
+export async function tradeReadyCheckTakeDay(jobId: string, proposalId: string, time: string, userId: string) {
+  await requireTradeJob(userId, jobId);
+  return (await import("./ready-check-times.server")).installerTakeOwnerDay(jobId, proposalId, userId, time);
 }
 
 /** Day page for any of the three visit kinds. */

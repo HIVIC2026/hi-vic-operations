@@ -40,12 +40,13 @@ export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([
 
 const windowPicks = z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).min(1).max(5);
 
-/** Owner requests the free Ready Check and gives 3–5 times in one step (times are required for new requests). */
+/** Owner requests the free Ready Check. Jo 24 Oct 2026 (decision 53): the owner no longer gives times — the installer
+ *  the office picks offers them. Times sent by an older open page are ignored, never saved. */
 export const acceptReadyCheckFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token: z.string().max(200), picks: windowPicks }).parse(d))
+  .inputValidator((d) => z.object({ token: z.string().max(200), picks: windowPicks.optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { acceptReadyCheck } = await import("./readycheck-payment.server");
-    return JSON.parse(JSON.stringify(await acceptReadyCheck(data.token, { ip: context.ip, userAgent: context.userAgent }, data.picks)));
+    return JSON.parse(JSON.stringify(await acceptReadyCheck(data.token, { ip: context.ip, userAgent: context.userAgent })));
   });
 
 /** Owner (no-login link): Ready Check time picker state — times only. */

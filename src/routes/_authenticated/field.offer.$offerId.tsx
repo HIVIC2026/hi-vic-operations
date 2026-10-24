@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { CalendarPlus, Check, MapPin, Phone, Zap } from "lucide-react";
 import { TradeShell, aud, card, ghostBtn } from "@/components/trade/TradeShell";
-import { getTradeOffer, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.functions";
+import { getTradeOffer, offerTradeReadyCheckTimes, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.functions";
+import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/portal/ready-check-times-installer";
 import { AREA_SOURCE_LABEL, INSULATION_LABEL, dayTile, distanceLine, goneIn, roughInstallValue, roughValueNote } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
@@ -22,6 +23,7 @@ function OfferPage() {
   const load = useServerFn(getTradeOffer);
   const take = useServerFn(takeTradeTime);
   const reply = useServerFn(replyTradeOffer);
+  const offerTimes = useServerFn(offerTradeReadyCheckTimes);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-offer", offerId], queryFn: () => load({ data: { offerId } }) });
   const [busy, setBusy] = useState<string | null>(null);
   const [took, setTook] = useState<string | null>(null);
@@ -76,6 +78,13 @@ function OfferPage() {
       </TradeShell>
     );
   }
+  if (rc && data.accepted && !data.locked) return (
+    <TradeShell installer>
+      <section className={card}><h1 className="font-display text-xl font-bold">Ready Check in {data.suburb ?? "Victoria"}</h1><p className="mt-1 text-sm text-sub">You've taken this job. The owner picks one of your times.</p></section>
+      <InstallerReadyCheckTimesCard jobId={data.jobId} />
+      <Link to="/field/day/$jobId" params={{ jobId: data.jobId }} className={ghostBtn}>Open the job page</Link>
+    </TradeShell>
+  );
   if (tooSlow || data.status !== "pending") return (
     <TradeShell installer={rc}>
       <section className={`${card} text-center`}><h1 className="font-display text-xl font-bold">{mode === "declined" || data.status === "declined" ? "Offer declined" : "This job has been taken"}</h1><p className="mt-1 text-sm">{mode === "declined" || data.status === "declined" ? "We'll offer it to someone else." : "Another trade accepted it first. This offer is now closed."}</p></section>
@@ -113,6 +122,23 @@ function OfferPage() {
       ) : mode === "cant_sent" ? (
         <section className={card}><p className="font-bold">Thanks, we've got it.</p><p className="text-sm">We'll check with the owner and come back to you. The times below are still open if one works.</p></section>
       ) : null}
+      {rc ? (
+        <section className={card} data-ready-check-offer>
+          <h2 className="font-display text-base font-bold">Offer the owner 3 times</h2>
+          {fail && <p role="alert" className="mt-2 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger" data-offer-error>{fail}</p>}
+          <ReadyCheckTimesForm days={data.rcDays} busy={!!busy || sending} sendLabel="Accept and send these times" onSend={async (picks) => {
+            if (busy || flight.current) return;
+            flight.current = true; setBusy("times"); setFail(null);
+            try { await offerTimes({ data: { offerId, picks } }); await refetch(); }
+            catch (e) { setFail(`Couldn't send your times: ${(e as Error).message || "check your signal and try again."}`); }
+            finally { setBusy(null); flight.current = false; }
+          }} />
+          <div className="flex justify-end pt-2 text-sm font-bold text-estimate-blue">
+            <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending ? "Sending…" : "Not for me"}</button>
+          </div>
+          <p className="pt-1 text-xs text-sub">This offer is only for you and stays open 24 hours. The address shows once you accept.</p>
+        </section>
+      ) : (
       <section className="space-y-2">
         <p className="font-display text-base font-bold">Pick a time to accept</p>
         <p className="text-sm text-sub">The first trade to accept gets the job.</p>
@@ -127,6 +153,7 @@ function OfferPage() {
         {!data.canSuggest && <p className="pt-1 text-xs text-sub">Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</p>}
         <p className="pt-2 text-center text-xs text-sub">Address shows once you accept.</p>
       </section>
+      )}
     </TradeShell>
   );
 }

@@ -20,6 +20,25 @@ export const replyTradeOffer = createServerFn({ method: "POST" }).middleware([re
   .inputValidator((d) => z.object({ offerId: uuid, reply: z.enum(["not_for_me", "cant_make"]), note: z.string().max(300).nullable() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeOfferReply(data.offerId, context.userId, data.reply, data.note));
 
+const rcPicks = z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) })).length(3);
+
+/** Jo 24 Oct 2026: accept a Ready Check offer by offering the owner 3 times. */
+export const offerTradeReadyCheckTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ offerId: uuid, picks: rcPicks }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeOfferReadyCheckTimes(data.offerId, context.userId, data.picks));
+
+export const getTradeReadyCheckTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeReadyCheckTimes(data.jobId, context.userId)));
+
+export const offerTradeReadyCheckNewTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, picks: rcPicks }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckOfferNew(data.jobId, context.userId, data.picks));
+
+export const takeTradeReadyCheckDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid, time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckTakeDay(data.jobId, data.proposalId, data.time, context.userId));
+
 export const getTradeDayView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDay(data.jobId, context.userId)));

@@ -179,19 +179,11 @@ const s3: StepFn = async (ctx, r) => {
   const office = await launchCampaignOffice();
   const row = office.rows.find((x) => x.jobId === ctx.jobId);
   check(r, "job shows in office Spot saved list", !!row?.spotSavedAt, row ? "row without saved time" : `${office.rows.length} rows, not this job`);
-  // Owner picks Ready Check times (3 windows on 3 days), then the office offers to the TEST installer only.
+  // Jo 24 Oct 2026: the owner gives no Ready Check times; the office picks the TEST installer, who offers the owner 3 times.
   await ownerSignGates(ctx, r, ["A"]);
-  const { submitReadyCheckWindows, startReadyCheckOffers } = await import("./readycheck-booking.server");
+  const { startReadyCheckOffers } = await import("./readycheck-booking.server");
   const { data: j } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
   ctx.notes["stage_before_offer"] = j?.stage;
-  const { piesaWindowBlockers } = await import("./piesa-windows.core");
-  const picks: { date: string; slot: "10-12" }[] = [];
-  for (let d = 2; d < 21 && picks.length < 3; d++) {
-    const p = { date: melbourneDate(d), slot: "10-12" as const };
-    if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never, new Date()).some((b) => /business day/i.test(b))) picks.push(p);
-  }
-  check(r, "owner picked 3 Ready Check times on 3 business days", picks.length === 3, `${picks.length} valid days`);
-  await submitReadyCheckWindows(ctx.jobId!, picks); // this starts offers to approved TEST installers itself
   const { count: pending } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "pending").eq("business_id", ctx.installer.business_id);
   if (!pending) await startReadyCheckOffers(ctx.jobId!, ctx.actorId, ctx.installer.business_id);
   const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "ready_check");
@@ -234,9 +226,16 @@ const s4: StepFn = async (ctx, r) => {
   const offerId = ctx.notes["rc_offer_id"] as string;
   const before = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id));
   check(r, "offer hides owner contact before it's taken", !before.includes(ctx.ownerEmail) && !/Journey Test Street/.test(before));
-  const { data: w } = await admin.from("ready_check_windows").select("id").eq("job_id", ctx.jobId!).eq("status", "open").order("starts_at").limit(1).single();
-  const took = await tv.tradeTakeTime(offerId, w!.id, ctx.installer.id);
-  check(r, "installer took the first time", !took.tooSlow);
+  // Installer accepts by offering the owner 3 times; the owner taps the first one (booked through confirmBooking).
+  const rct = await import("./ready-check-times.core");
+  const days = rct.allowedReadyCheckDays().slice(0, 3);
+  await tv.tradeOfferReadyCheckTimes(offerId, ctx.installer.id, days.map((day) => ({ day, time: "10:00" })));
+  const { data: offered } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("note", rct.READY_CHECK_TIME_NOTE).eq("status", "proposed").order("starts_at").limit(1).single();
+  check(r, "installer offered the owner 3 Ready Check times", !!offered);
+  const { data: jo0 } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
+  const owner0 = (jo0?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
+  await (await import("./ready-check-times.server")).ownerTakeReadyCheckTime(ctx.jobId!, offered!.id, owner0);
+  check(r, "owner took the first of the installer's times", true);
   const { data: j1 } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
   check(r, "job is Ready Check scheduled", j1?.stage === "ready_check_scheduled", j1?.stage);
   const after = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id));
