@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { outlookHarness, graphMessage, jsonResponse, bytesResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
 import { attachmentIdentityKey } from "../../src/lib/outlook-correspondence.core";
@@ -13,6 +14,12 @@ const expectPending = async (h: Harness) => {
   assert.equal(await total(h, "job_communications"), 0);
   assert.equal((await row(h, "outlook_message_work")).status, "pending");
 };
+// Change suggestions are raised only for recent mail (EMAIL_ACTION_MAX_AGE_DAYS), so these fixtures use "now".
+const RECENT = new Date().toISOString();
+const expectOnlyChangeRequests = async (h: Harness, intents: string[]) => {
+  const rows = (await h.db.query<{ event_type: string; intent: string; internal: boolean }>(`SELECT event_type, details->>'intent' AS intent, internal FROM workflow_events ORDER BY details->>'intent'`)).rows;
+  assert.deepEqual(rows.map((r) => [r.event_type, r.intent, r.internal]), intents.map((i) => ["email_change_request", i, true]));
+};
 const configured = async (h: Harness) => { await h.db.query(`UPDATE outlook_sync_state SET expected_mailbox=$1`, [TEST_MAILBOX]); };
 const readOnlyResponses = (url: string) => url.includes("/me?")
   ? jsonResponse({ id: "delegate-id", mail: "delegate@example.test", displayName: "Test delegate" })
@@ -27,18 +34,21 @@ const practice = (fn: (h: Harness) => Promise<void>) => async () => {
 export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["Outlook replies and owner emails copy once in both directions with no job decisions", practice(async h => {
     h.control.fetch = async () => jsonResponse({ value: [] });
-    const messages = [graphMessage("owner-decline", "Please cancel my enquiry."), graphMessage("office-reply", "I will check your photos tomorrow.", {
+    // Decision 245: a recent owner email asking to cancel raises ONE Apply/Ignore suggestion; the job itself is unchanged.
+    const messages = [graphMessage("owner-decline", "Please cancel my enquiry.", { receivedDateTime: RECENT }), graphMessage("office-reply", "I will check your photos tomorrow.", {
       from: { emailAddress: { address: TEST_MAILBOX } }, toRecipients: [{ emailAddress: { address: "owner@example.test" } }],
     })];
     const result = h.counts(); await h.server.processMessages(messages, TEST_MAILBOX, result, COMPLETE_WINDOW);
     assert.equal(result.stored, 2); assert.equal(result.closed, 0); assert.equal(result.flagged, 0);
     assert.equal((await row(h, "jobs")).stage, "new_enquiry");
-    assert.equal(await total(h, "workflow_events"), 0); assert.equal(await total(h, "correspondence_reviews"), 0);
+    await expectOnlyChangeRequests(h, ["cancel"]); assert.equal(await total(h, "correspondence_reviews"), 0);
+    assert.equal(result.matched, 2); assert.equal(result.changeRequests, 1);
     const directions = (await h.db.query(`SELECT direction FROM job_communications ORDER BY direction`)).rows.map(r => r.direction);
     assert.deepEqual(directions, ["inbound", "outbound"]);
     assert.equal((await h.db.query(`SELECT count(*)::int n FROM outlook_message_work WHERE record_only=true`)).rows[0]?.n, 2);
     const replay = h.counts(); await h.server.processMessages(messages, TEST_MAILBOX, replay, COMPLETE_WINDOW);
     assert.equal(replay.duplicate, 2); assert.equal(await total(h, "job_communications"), 2);
+    await expectOnlyChangeRequests(h, ["cancel"]);
   })],
   ["automated portal mail, junk and unmatched messages create no copied records or portal reviews", practice(async h => {
     const messages = [
@@ -120,7 +130,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(malformed.status, "failed"); assert.doesNotMatch(malformed.problem, /private-provider-response/);
   })],
   ["an attachment page failure retains new pending work and retries all metadata without changing the job", practice(async h => {
-    const message = graphMessage("attachment-retry", "We will not be proceeding.", { hasAttachments: true });
+    const message = graphMessage("attachment-retry", "We will not be proceeding.", { hasAttachments: true, receivedDateTime: RECENT });
     let fail = true;
     h.control.fetch = async url => url.includes("skiptoken=2")
       ? fail ? jsonResponse({}, 503) : jsonResponse({ value: [{ id: "a2", name: "second.pdf" }] })
@@ -133,9 +143,11 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(second.errors, 0); assert.equal(second.stored, 1); assert.equal(second.closed, 0);
     assert.deepEqual((await row(h, "job_communications")).attachment_refs.map((a: any) => a.id), ["a1", "a2"]);
     assert.equal((await row(h, "outlook_message_work")).status, "complete");
-    assert.equal(await total(h, "workflow_events"), 0);
+    // Decision 245: suggestions only (cancel + file to the Job File); nothing on the job changed.
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    await expectOnlyChangeRequests(h, ["attachment", "cancel"]);
     const replay = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, replay, COMPLETE_WINDOW);
-    assert.equal(replay.duplicate, 1); assert.equal(await total(h, "workflow_events"), 0);
+    assert.equal(replay.duplicate, 1); await expectOnlyChangeRequests(h, ["attachment", "cancel"]);
     assert.ok(h.requests.every(r => r.url.startsWith("https://connector-gateway.lovable.dev/microsoft_outlook/users/shared%40example.test/")));
   })],
   ["legacy communications/reviews never become pending and are never retrospectively closed", practice(async h => {
@@ -260,6 +272,23 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(stored.rows[0]!.visibility, "internal");
     const review = await h.db.query<{ reason: string }>(`SELECT reason FROM correspondence_reviews WHERE provider_message_id='stranger'`);
     assert.equal(review.rows.length, 0);
+  })],
+  ["decision 247: an unknown sender raises ONE job-less email_unmatched event with a best guess, never stored on a job", practice(async h => {
+    await h.db.exec(readFileSync(new URL("../../docs/pending-migrations/email-unmatched-events.sql", import.meta.url), "utf8"));
+    const manager = graphMessage("manager-mail", "Hi, I manage 1 Fixture Road for the owner — when is the inspection?", { subject: "Insulation at 1 Fixture Road", receivedDateTime: RECENT, from: { emailAddress: { address: "pm@agency.example", name: "Pat Agent" } } });
+    const stale = graphMessage("old-mail", "Old question", { subject: "Old", receivedDateTime: "2025-01-01T00:00:00Z", from: { emailAddress: { address: "old@agency.example" } } });
+    const junk = graphMessage("ooo-2", "I am out of office", { subject: "Automatic reply: hello", from: { emailAddress: { address: "pm@agency.example" } } });
+    const result = h.counts(); await h.server.processMessages([manager, stale, junk], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.unmatched, 1); assert.equal(result.junk, 1); assert.equal(result.unmatchedNotRecorded, 1); assert.equal(result.stored, 0);
+    assert.equal(await total(h, "job_communications"), 0); assert.equal(await total(h, "outlook_message_work"), 0);
+    const ev = (await h.db.query<{ job_id: string | null; event_type: string; details: any; internal: boolean }>(`SELECT job_id, event_type, details, internal FROM workflow_events`)).rows;
+    assert.equal(ev.length, 1); assert.equal(ev[0]!.job_id, null); assert.equal(ev[0]!.event_type, "email_unmatched"); assert.equal(ev[0]!.internal, true);
+    assert.equal(ev[0]!.details.message_id, "manager-mail"); assert.equal(ev[0]!.details.from, "pm@agency.example");
+    assert.equal(ev[0]!.details.snippet.length <= 300, true); assert.equal(ev[0]!.details.subject, "Insulation at 1 Fixture Road");
+    assert.ok(Array.isArray(ev[0]!.details.best_guess_job_ids));
+    const replay = h.counts(); await h.server.processMessages([manager], TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.duplicate, 1); assert.equal(replay.unmatched, 0); assert.equal(await total(h, "workflow_events"), 1);
+    assert.equal(h.requests.length, 0);
   })],
   ["a family reply in the same batch as its first matched thread message is retained", practice(async h => {
     const first = graphMessage("first-thread-msg", "Hi, about our insulation", { conversationId: "new-thread", subject: "Insulation" });

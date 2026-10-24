@@ -1,5 +1,10 @@
 // Record-only Outlook copier: matched human inbound and outbound mail plus private attachments.
-// Unmatched/junk stays in Outlook; copying never closes, flags or creates an Enquiries row.
+// Junk stays in Outlook; copying never closes, flags or creates an Enquiries row.
+// Decision 247: unmatched human INBOUND mail is no longer dropped silently — it raises ONE job-less
+// `email_unmatched` event (snippet + best-guess jobs) for Needs me "Match this email"; nothing is stored on a job
+// until the office matches it (email-office.server). Decision 245: a matched inbound email that asks for a change
+// (cancel, can't make it, new contact details, a photo/document) raises `email_change_request` on the job; the
+// office applies or ignores it. Neither ever drafts, sends, closes or moves anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
@@ -9,6 +14,8 @@ import {
   counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
 } from "./outlook-correspondence.core";
+import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
+import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, proposedChanges, recentEnoughForAction } from "./email-intent.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
 const syncAdmin = admin as SupabaseClient;
@@ -27,7 +34,13 @@ const OUR_DOMAINS = ["homeinsulationvictoria.com.au"];
 const SELECT = "id,conversationId,internetMessageId,subject,body,bodyPreview,from,sender,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isDraft";
 const BUCKET = "job-files";
 
-export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number };
+/** `matched` = filed on a job this pass; `unmatched` = new job-less `email_unmatched` events (decision 247);
+ *  `junk` = automatic/bulk mail skipped before matching; `unmatchedNotRecorded` = unmatched human inbound mail that
+ *  could not be recorded (pending migration email-unmatched-events.sql not applied, or too old to raise a row);
+ *  `notHomeowner` = other unmatched mail left in Outlook (outbound to non-customers). */
+export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number;
+  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number };
+const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched", n = 1) => { c[k] = (c[k] ?? 0) + n; };
 
 /** Job ids on a route. Rows reserved by the previous release carry a legacy single jobId. */
 export function routeJobIds(route: Route): string[] {
@@ -302,6 +315,129 @@ export async function storeOnJob(jobId: string, m: MailMessage, how: string, vis
   return data.id;
 }
 
+/** Jobs to score as the best guess for an unmatched email (bounded lookups; any failure = no guesses). */
+async function guessCandidates(m: MailMessage, extraIds: string[]): Promise<GuessJob[]> {
+  const look = guessLookups(m);
+  const ids = new Set(extraIds);
+  const clean = (v: string) => v.replace(/[%_\\,()*]/g, "");
+  const sel = "id, job_number, deleted_at, source, owners(full_name, email), properties(address_line, suburb, postcode)";
+  const rows: Record<string, unknown>[] = [];
+  if (look.jobNumbers.length) {
+    const { data, error } = await admin.from("jobs").select(sel).in("job_number", look.jobNumbers.slice(0, 10));
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+  for (const frag of look.addresses) {
+    const [num, word] = frag.split(" ");
+    if (!num || !word) continue;
+    const { data, error } = await admin.from("properties").select("id").ilike("address_line", `%${clean(num)} ${clean(word)}%`).limit(10);
+    if (error) throw new Error(error.message);
+    const pids = (data ?? []).map((p) => p.id);
+    if (pids.length) { const { data: js } = await admin.from("jobs").select("id").in("property_id", pids).limit(20); for (const j of js ?? []) ids.add(j.id); }
+  }
+  for (const surname of look.surnames) {
+    const { data, error } = await admin.from("owners").select("id").ilike("full_name", `%${clean(surname)}%`).limit(20);
+    if (error) throw new Error(error.message);
+    const oids = (data ?? []).map((o) => o.id);
+    if (oids.length) { const { data: js } = await admin.from("jobs").select("id").in("owner_id", oids).limit(20); for (const j of js ?? []) ids.add(j.id); }
+  }
+  const more = [...ids].slice(0, 60);
+  if (more.length) {
+    const { data, error } = await admin.from("jobs").select(sel).in("id", more);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+  const seen = new Map<string, GuessJob>();
+  for (const j of rows) {
+    if (j["deleted_at"] || j["source"] === "qa_test") continue;
+    const o = j["owners"] as { full_name?: string | null; email?: string | null } | null, p = j["properties"] as { address_line?: string | null; suburb?: string | null; postcode?: string | null } | null;
+    seen.set(String(j["id"]), { id: String(j["id"]), jobNumber: String(j["job_number"]), ownerName: o?.full_name ?? null, ownerEmail: o?.email?.toLowerCase() ?? null, addressLine: p?.address_line ?? null, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null });
+  }
+  return [...seen.values()];
+}
+
+/** Decision 247: ONE job-less `email_unmatched` event per Outlook message (idempotent by message id). Never throws:
+ *  "not_recorded" when the pending migration (job-less events) is not applied or the write failed. */
+async function recordUnmatched(m: MailMessage, mailbox: string, candidateJobIds: string[], reason: string): Promise<"recorded" | "duplicate" | "not_recorded"> {
+  try {
+    const { data: dup, error: de } = await syncAdmin.from("workflow_events").select("id").eq("event_type", EMAIL_UNMATCHED_EVENT).contains("details", { message_id: m.providerMessageId }).limit(1);
+    if (de) throw new Error(de.message);
+    if ((dup ?? []).length) return "duplicate";
+    let guesses: ReturnType<typeof guessJobsForEmail> = [];
+    try { guesses = guessJobsForEmail(m, await guessCandidates(m, candidateJobIds)); }
+    catch (e) { console.error("unmatched email guess skipped", e instanceof Error ? e.message : e); }
+    const details = {
+      message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, mailbox, direction: m.direction,
+      from: m.from, from_name: m.fromName, to: m.to, cc: m.cc, subject: m.subject, snippet: unmatchedSnippet(m.body), received_at: m.at,
+      has_attachments: m.hasAttachments, reason, candidate_job_ids: candidateJobIds,
+      best_guess_job_ids: guesses.map((g) => g.jobId), guesses: guesses.map((g) => ({ job_id: g.jobId, job_number: g.jobNumber, score: g.score, why: g.why })),
+    };
+    const { error } = await syncAdmin.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: EMAIL_UNMATCHED_EVENT, internal: true,
+      summary: `Email from ${m.fromName ? `${m.fromName} <${m.from}>` : m.from ?? "unknown sender"} could not be matched to a job — match it or mark Not a customer`, details });
+    if (error) {
+      if (error.code !== "23502" && error.code !== "23514") console.error("unmatched email not recorded", error.message);
+      return "not_recorded";
+    }
+    return "recorded";
+  } catch (e) {
+    console.error("unmatched email not recorded", e instanceof Error ? e.message : e);
+    return "not_recorded";
+  }
+}
+
+/** Is this sender one of our partner businesses (installer/electrician)? Partners never cancel an owner's job by email. */
+async function fromPartner(from: string | null): Promise<boolean> {
+  if (!from) return false;
+  const { data, error } = await admin.from("businesses").select("id").ilike("email", from.replace(/[%_\\,()*]/g, "")).limit(1);
+  return !error && (data ?? []).length > 0;
+}
+
+/** Decision 245: matched inbound mail asking for a change → one `email_change_request` per job and intent
+ *  (idempotent by message id + intent). Best-effort: returns how many were raised, never throws. */
+export async function recordChangeRequests(jobIds: string[], m: MailMessage, attachments: AttachmentRef[] = []): Promise<number> {
+  if (m.direction !== "inbound" || !jobIds.length || !recentEnoughForAction(m.at)) return 0;
+  let raised = 0;
+  try {
+    const changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
+      attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: await fromPartner(m.from) });
+    for (const jobId of jobIds) for (const c of changes) {
+      const { data: dup, error: de } = await syncAdmin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", EMAIL_CHANGE_REQUEST_EVENT).contains("details", { message_id: m.providerMessageId, intent: c.intent }).limit(1);
+      if (de) throw new Error(de.message);
+      if ((dup ?? []).length) continue;
+      const { intent, phrase, ...proposed } = c;
+      const { error } = await syncAdmin.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: EMAIL_CHANGE_REQUEST_EVENT, internal: true,
+        summary: `${changeRequestLabel(c)} — “${phrase}” (Apply / Ignore)`,
+        details: { message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, from: m.from, subject: m.subject, received_at: m.at, intent, phrase, proposed, label: changeRequestLabel(c) } });
+      if (error) throw new Error(error.message);
+      raised++;
+    }
+  } catch (e) {
+    console.error("email change request skipped", e instanceof Error ? e.message : e);
+  }
+  return raised;
+}
+
+/** Office matched an unmatched email (decision 247): re-read the full message from Outlook (read-only), store its
+ *  files privately for this job, file it on the job with the copier's own storeOnJob, then raise any change request.
+ *  Idempotent per job (storeOnJob returns null when already filed). Throws when Outlook can't be read — nothing filed. */
+export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?: string | null }, jobId: string, visibility: "customer" | "internal"): Promise<{ communicationId: string | null; message: MailMessage; changeRequests: number }> {
+  if (!outlookConfigured()) throw new Error("Outlook is not connected, so the email can't be read to file it.");
+  const mailbox = normaliseMailbox(d.mailbox ?? (await readOutlookSyncState()).expected_mailbox);
+  if (!mailbox) throw new Error("No shared mailbox is confirmed for Outlook.");
+  const g = await graph<GraphMessage>(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(d.message_id)}?$select=${SELECT}`);
+  const m = normaliseMessage(g, mailbox, OUR_DOMAINS);
+  if (!m || m.providerMessageId !== d.message_id) throw new Error("Outlook returned a different message; nothing was filed.");
+  let refs: StoredAttachmentRef[] = [];
+  if (m.hasAttachments) {
+    const work: Work = { provider_message_id: m.providerMessageId, mailbox, message: m, route: { kind: "job", jobIds: [jobId], how: "thread" }, attachments_complete: false, attachment_refs: [], status: "pending", record_only: true };
+    refs = (await storeAttachments(work, await attachmentsFor(m.providerMessageId, mailbox), [jobId])).refs;
+  }
+  const filed = { ...m, attachments: refs };
+  const communicationId = await storeOnJob(jobId, filed, "office_matched", visibility);
+  const changeRequests = await recordChangeRequests([jobId], filed, refs);
+  return { communicationId, message: m, changeRequests };
+}
+
 async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow): Promise<void> {
   if (work.route.kind !== "job" || !isHumanOwnerEmail({...work.message,provider:"outlook",channel:"email"})) return;
   try {
@@ -335,7 +471,8 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     const result = data as WorkResult;
     if (result.replayed || result.duplicate) counts.duplicate++;
     else {
-      if (result.stored) counts.stored++;
+      if (result.stored) { counts.stored++; bump(counts, "matched"); }
+      if (result.stored && !window.history) bump(counts, "changeRequests", await recordChangeRequests(routeJobIds(work.route), work.message, work.attachment_refs ?? []));
       if (result.unmatched) counts.unmatched++;
       if (result.closed) counts.closed++;
       if (result.flagged) counts.flagged++;
@@ -368,7 +505,9 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
 
 export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts,
   window: ClosureWindow = { inboxCompleteThrough: null }) {
-  const msgs = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m && isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
+  const normalised = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m);
+  const msgs = normalised.filter((m) => isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
+  bump(counts, "junk", normalised.length - msgs.length);
   if (!msgs.length) return;
   if (msgs.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
     throw new Error("Outlook returned a message without a usable identity or timestamp.");
@@ -397,7 +536,17 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       }
     }
     let route: Route = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail, byThread);
-    if (route.kind !== "job") { counts.notHomeowner++; continue; }
+    if (route.kind !== "job") {
+      // Decision 247: unmatched human inbound mail → one job-less `email_unmatched` event (never on a job until matched).
+      // History catch-ups and old mail stay record-only in Outlook, as before.
+      if (route.kind === "unmatched" && m.direction === "inbound") {
+        const r = !window.history && recentEnoughForAction(m.at) ? await recordUnmatched(m, mailbox, route.candidateJobIds, route.reason) : "not_recorded";
+        if (r === "recorded") bump(counts, "unmatched");
+        else if (r === "duplicate") counts.duplicate++;
+        else { counts.notHomeowner++; bump(counts, "unmatchedNotRecorded"); }
+      } else counts.notHomeowner++;
+      continue;
+    }
     // Our own outbound copy of an email the portal already recorded is not new history on that job.
     if (route.kind === "job" && m.direction === "outbound") {
       const remaining: string[] = [];
@@ -455,7 +604,7 @@ async function saveSyncState(state: SyncState, patch: Record<string, unknown>): 
 
 /** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages. */
 export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
-  const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0 };
+  const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 };
   let state: SyncState | null = null;
   const now = new Date().toISOString();
   try {

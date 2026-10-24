@@ -1,8 +1,8 @@
--- Decision 246 (Jo, 24 Oct 2026): the two automatic-offer switches, shown and saved under Office › Settings › Switches.
--- BOTH OFF by default: with a switch off the office picks the installer / electrician as today (decisions 49, 157, 220).
--- The offer logic that reads them is the backend's (auto-offers); the office page only renders and persists them.
--- Pending: proven on the practice database (tests/office-settings-switches.pglite.test.ts) before any live run;
--- the code fails closed (switch shown off and not editable) while the columns are missing.
+-- Decision 246 (Jo 24 Oct 2026): automatic offers by coverage, two switches, both OFF until Jo turns them on
+-- (Settings › Switches). The code reads them fail-closed: while these columns are missing every automatic offer is
+-- off and the office picks as today. Idempotent (`add column if not exists`) so the Settings build may add the same
+-- columns first. Pending: proven on PGlite (tests/auto-offer-switches-practice-db.test.ts), then live with Jo's go.
 alter table public.workflow_settings
-  add column if not exists auto_installer_offers boolean not null default false,
+  add column if not exists auto_installer_offers boolean not null default false;
+alter table public.workflow_settings
   add column if not exists auto_electrician_offers boolean not null default false;

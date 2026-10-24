@@ -82,7 +82,8 @@ async function tellOwnerBooked(jobId: string, startsAt: string) {
 
 /** Office picks ONE installer (decisions 49–51): one offer, open 24 hours, text + in-app to that installer only.
  *  Same eligibility list the office sees (installerCandidatesFor), TEST/real pairing and own-customer guards before writing. */
-export async function officePickReadyCheckInstaller(jobId: string, actorId: string | null, businessIds: string[]) {
+export type AutoOfferMeta = { attempt: number; basis: string; activeJobs: number; distanceKm: number | null };
+export async function officePickReadyCheckInstaller(jobId: string, actorId: string | null, businessIds: string[], opts: { auto?: AutoOfferMeta } = {}) {
   await (await import("./ready-check-booking-access.server")).assertOwnerReadyCheckBooking(jobId);
   const picks = [...new Set(businessIds)];
   const [{ data: job }, { count: inst }, { count: open }] = await Promise.all([
@@ -103,10 +104,12 @@ export async function officePickReadyCheckInstaller(jobId: string, actorId: stri
   ]);
   const { READY_CHECK_UNPAID_NOTE } = await import("./readycheck-booking.core");
   const expires = readyCheckOfferExpiry();
-  const summary = { job_number: job!.job_number ?? "", suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, office_choice: true, [READY_CHECK_TIMES_FLAG]: true };
+  // Decision 246: an automatic offer is the same one-installer offer, flagged so a miss counts towards the 2-miss hand-back.
+  const summary = { job_number: job!.job_number ?? "", suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, office_choice: true, [READY_CHECK_TIMES_FLAG]: true, ...(opts.auto ? { auto_offer: true } : {}) };
   const { data: row, error } = await admin.from("partner_offers").insert({ job_id: jobId, business_id: c.business_id, kind: "ready_check", batch: Math.max(0, ...(prior ?? []).map((o) => Number(o.batch))) + 1, summary: summary as never, offered_by: actorId, expires_at: expires }).select("id").single();
   if (error || !row) throw new Error(error?.message ?? "The offer could not be saved.");
-  await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the Ready Check — offer sent only to them (open 24 hours)`, { kind: "ready_check", business_ids: [c.business_id], business_names: [c.name], business_id: c.business_id, business_name: c.name, expires_at: expires, offer_id: row.id }, { internal: true });
+  if (opts.auto) await logEvent(jobId, actorId, "auto_offer_sent", `Automatic installer offer: ${c.name} for the Ready Check (offer ${opts.auto.attempt} of 2, open 24 hours)`, { kind: "ready_check", business_id: c.business_id, business_name: c.name, offer_id: row.id, attempt: opts.auto.attempt, basis: opts.auto.basis, active_jobs: opts.auto.activeJobs, distance_km: opts.auto.distanceKm, expires_at: expires }, { internal: true });
+  else await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the Ready Check — offer sent only to them (open 24 hours)`, { kind: "ready_check", business_ids: [c.business_id], business_names: [c.name], business_id: c.business_id, business_name: c.name, expires_at: expires, offer_id: row.id }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to offer the owner Ready Check times" }).eq("id", jobId);
   await (await import("./ready-check-offer-text.server")).textInstallerAboutOffer(row.id).catch((e) => console.error("job offer text skipped", (e as Error).message));
   // Decision 106: the offer email alongside the text (same wording + the offer link).
@@ -129,6 +132,8 @@ export async function declineReadyCheckOffer(offerId: string, userId: string, re
   if (!d) throw new WorkflowError("This offer is no longer open.");
   await logEvent(o.job_id, userId, "partner_offer_declined", "Installer declined the Ready Check offer", { reason, business_id: o.business_id }, { internal: true });
   await offerReturned(o.job_id, userId, "declined", o.business_id);
+  // Decision 246: with Automatic installer offers on, the next match gets it straight away (or the job goes back to the office).
+  await (await import("./auto-offer.server")).autoOfferForJob(o.job_id, "ready_check").catch((e) => console.error("automatic installer offer skipped", (e as Error).message));
   return { ok: true };
 }
 
