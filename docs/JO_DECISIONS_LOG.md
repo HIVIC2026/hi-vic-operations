@@ -114,3 +114,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 62. New-offer texts to installers are **held overnight (8pm–7am) and sent at 7am**. The 24-hour clock starts when the text is sent.
 63. When an offer closes after 24 hours with no answer, only the office is alerted; the installer is not texted.
 64. When the installer's Ready Check times are ready, the owner gets an **email and a text** (wording in the template review).
+65. First email structure: **one Save my spot email** (no insulation / some / thin or patchy, with small wording changes; "may qualify" and removal shown first when there's some insulation), plus a **separate "check your ceiling" email for "not sure"**. All in the new design.
