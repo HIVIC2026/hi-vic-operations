@@ -23,7 +23,7 @@ export const READ_ONLY_PATHS = [
   '/admin/ready-check', '/admin/save-my-spot-rules', '/admin/team-ups', '/admin/test-centre',
   '/admin/today', '/admin/todo', '/admin/users', '/admin/settings', '/field/setup', '/field/welcome', '/home', '/portal',
   '/partner/profile', '/campaign-preview', '/electrician-onboarding', '/installer-onboarding',
-  '/installer-preview', '/reset-password', '/step3-email-preview',
+  '/reset-password', '/step3-email-preview',
 ];
 export function uncoveredReason(route: RouteCoverage, attempted: Set<string>): string | null {
   if (attempted.has(route.path)) return null;
