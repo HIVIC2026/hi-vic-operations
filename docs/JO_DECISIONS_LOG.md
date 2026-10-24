@@ -63,3 +63,5 @@ Newest first. Each line is settled; anything still open is under "Open".
 31. The office keeps installers' own jobs separate: "New from installers" and the installer summary stay their-own-jobs only.
 32. Apply 0224 live: installers can't read the owner's price on our leads (database).
 33. Keep the "Not drafted yet" section on Quotes to check.
+34. **Add a job = basics only**: owner's full name, address picked from the list, mobile, email, and the "owner agreed to be contacted" tick. Everything else (visit, measurements, existing insulation, removal, price, product, electrician) is answered in the Mitti Ready Check form. Bulk upload uses the same basics.
+35. HV-3151 moved onto the Ready Check path (live, at Jo's request). Its Mitti form follows within 24 hours (retry wait after the earlier failure).
