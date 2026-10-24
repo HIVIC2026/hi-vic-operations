@@ -74,6 +74,9 @@ function FieldJob() {
   const task = turn.task;
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
   const yourTurn = turn.yourTurn;
+  // Jo 24 Oct: an installer's own job at the Ready Check waits on its Mitti form, never on "Check eligibility" (the form decides it).
+  const formComing = role === "installer" && !linkedMitti && job.channel === "installer_sourced" && ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready"].includes(job.stage ?? "");
+  const installStage = ["installation_booked", "evidence_outstanding", "ap_review"].includes(job.stage ?? "");
   return (
     <TradeShell installer={role !== "electrician"}>
       <div className="space-y-4">
@@ -83,7 +86,7 @@ function FieldJob() {
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
         <div className="mt-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /></div>
       </div>
-      <NowPanel attention={linkedMitti ? mitti.next.startsWith("You:") : yourTurn} eyebrow={linkedMitti ? "Next step" : turn.eyebrow} status={linkedMitti ? mitti.next : task.label}
+      <NowPanel attention={linkedMitti ? mitti.next.startsWith("You:") : formComing ? false : yourTurn} eyebrow={linkedMitti || formComing ? "Next step" : turn.eyebrow} status={linkedMitti ? mitti.next : formComing ? "Your Ready Check form is being set up in Mitti. It appears within about 15 minutes." : task.label}
         due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}
         next={job.install_deadline ? `Install must start by ${new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : undefined}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
@@ -93,20 +96,20 @@ function FieldJob() {
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
       {role === "installer" && <OwnerQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
-      {(role === "electrician" || (intake?.applies === false && !linkedMitti)) && <JobStatusCard jobId={jobId} />}
-      {role === "installer" && intake?.applies === false && !linkedMitti && <PartnerInstallerFactsCard jobId={jobId} />}
-      {role === "installer" && (linkedMitti ? <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section> : <JobElectricianCard jobId={jobId} />)}
-      <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
+      {role === "electrician" && <JobStatusCard jobId={jobId} />}
+      {role === "installer" && linkedMitti && <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section>}
+      {(role !== "installer" || installStage) && <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>}
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
-        {role === "installer" && !linkedMitti && <InstallerProgressCard jobId={jobId} />}
-        {role === "installer" && job.channel === "installer_sourced" && !linkedMitti && <MyIntakeDetailsCard jobId={jobId} />}
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
-        <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
+        {role === "installer" ? <>
+          <MessagesPanel jobId={jobId} isAdmin={false} role="installer" />
+          <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">More</summary><div className="mt-3 space-y-4"><WorkerLinksPanel jobId={jobId} /></div></details>
+        </> : <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" ? { role } : {})} /></div></details>}
       </div>
       </div>
     </TradeShell>
