@@ -13,7 +13,7 @@
 // is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
 
-export const ESTIMATE_FOLLOWUP_APPROVED = false as boolean;
+export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242)
 
 export type EstimateFollowupStep = "day_2" | "day_7" | "day_21";
 export const ESTIMATE_FOLLOWUP_STEPS: readonly EstimateFollowupStep[] = ["day_2", "day_7", "day_21"];
