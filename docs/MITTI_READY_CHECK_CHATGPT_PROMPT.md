@@ -91,7 +91,7 @@ option inside question 37. The new group below is complete as written.
 24. `Upload a photo clearly showing the measured insulation depth` — Photo — Not required — only show when question 21 = `Yes`
 25. `What is required for the existing insulation?` — Pick one: `Remove` / `Top up` / `Not sure` — Required — only show when question 21 = `Yes`
 26. `How much existing insulation needs to be removed? (m²)` — Number — Required — only show when question 25 = `Remove`
-27. `Upload an overview photo of this ceiling area` — Photo — Not required
+27. `Slow 360° video of this ceiling area, lit, saying its name` — Video (video attachment with location on) — Required — help text: `This is the before video the rebate needs. Show any existing insulation.`
 28. `Are there recessed downlights in this ceiling area?` — Yes/No — Required
 29. `How many recessed downlights?` — Number — Required — only show when question 28 = `Yes`
 30. `Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards` — Yes/No — Required

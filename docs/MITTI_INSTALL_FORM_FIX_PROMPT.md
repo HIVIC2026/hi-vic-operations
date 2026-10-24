@@ -82,18 +82,18 @@ Q34: `Lead installer's signature` — Signature — Required
 Q35: Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
 
 ## Group 8: Videos and photos (after the install)
-Q36: `Before videos: one slow 360° of each ceiling area, lit, saying the area's name` — Video, several files allowed — Required
-Q37: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
-Q38: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
-Q39: `Did the install take more than one day?` — Yes/No — Required
-Q40: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q39 = `Yes`
+The before video of each area was taken at the Ready Check, so it is not asked again.
+Q36: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
+Q37: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
+Q38: `Did the install take more than one day?` — Yes/No — Required
+Q39: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q38 = `Yes`
 
 ## Group 9: Finishing up
-Q41: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
-Q42: `Who turned it back on?` — Text — Required — only show when Q41 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
-Q43: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q41 = `Yes`
-Q44: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
-Q45: `I was here the whole time and supervised everyone` — Checkbox — Required
-Q46: `Lead installer's signature` — Signature — Required
+Q40: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
+Q41: `Who turned it back on?` — Text — Required — only show when Q40 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
+Q42: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q40 = `Yes`
+Q43: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
+Q44: `I was here the whole time and supervised everyone` — Checkbox — Required
+Q45: `Lead installer's signature` — Signature — Required
 
 Publish.
