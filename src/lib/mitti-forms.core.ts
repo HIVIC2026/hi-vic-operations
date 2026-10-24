@@ -140,8 +140,10 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.downlights, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("downlights"), source: "portal – observation only; electrician confirms ratings at PIESA" },
   { label: LEAN_Q.downlightsCount, type: "number", required: true, perArea: true, when: `${LEAN_Q.downlights} = Yes`, types: ["text"], aliases: al("downlightsCount"), source: "portal – luminaire count (PIISA P5 prefill)" },
   { label: LEAN_Q.issues, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("issues"), source: `${G} safety – installer observation; Yes = office review` },
-  // Lean: photo with note required. 24 Oct live forms have a text "Please explain" instead; accepted (types text) so they still validate.
-  { label: LEAN_Q.issuePhoto, type: "media", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, types: ["text"], aliases: al("issuePhoto"), source: `${G} safety – SWMS hazard evidence (restored, decision 222)` },
+  // Lean (Jo 24 Oct): Mitti cannot require a note on a media item, so the hazard is TWO questions — the note (text) then the
+  // photo (media). 24 Oct live forms asked a text "Please explain" (accepted as the note); only a photo counts as evidence.
+  { label: LEAN_Q.issueNote, type: "text", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issueNote"), source: `${G} safety – hazard description and where it is in the area (kept on the area record)` },
+  { label: LEAN_Q.issuePhoto, type: "media", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issuePhoto"), source: `${G} safety – SWMS hazard evidence (restored, decision 222); the only hazard evidence` },
   // Page 5 — Product and result
   { label: LEAN_Q.product, type: "choice", required: true, choices: [...PRODUCT_OPTIONS], aliases: al("product"), source: "portal – quote basic; exactly one of the 8 approved options (decision 150); always shown, not only on passed (decision 222)" },
   { label: LEAN_Q.outcome, type: "choice", required: true, choices: [...OUTCOME_OPTIONS], source: "portal – installer's overall call (failed = office review, never an auto-rejection); the portal applies the rules from the answers" },
