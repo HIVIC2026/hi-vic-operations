@@ -77,7 +77,7 @@ export type EnquiryListRow = {
 export async function loadEnquiriesList(p: EnquiryListParams) {
   const now = Date.now();
   const index = await all("enquiries", (a, b) => admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone")
-    .eq("office_bucket", "enquiry").in("source", ["base44", "portal"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
+    .eq("office_bucket", "enquiry").in("source", ["base44", "portal", "email"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),

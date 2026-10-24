@@ -7,6 +7,9 @@
 // Nothing here reads, writes, drafts or sends; `email-reply.server.ts` writes the Outlook DRAFT (never sends).
 // Wording sources: O1/O2 Save my spot, O6 not eligible, O18 quote ready (docs/templates/approved/), installer guide
 // GUIDE_WORDS (trade-view.core), job-wording owner lines, decisions 139–144 (payments), 205/244/245.
+// Decision 255 (Jo 24 Oct): replies point people to their own HOMEOWNER PAGE, never the calculator. Existing owners get
+// their own secure link; a new sender with no job gets the enquiry created from their email (email-enquiry.server) and
+// that enquiry's own page link, or is asked for their street address and suburb. No reply carries the calculator URL.
 import { classifyEmailIntents, type EmailIntent, type IntentHit } from "./email-intent.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { PayState } from "./trade-view.core";
@@ -33,7 +36,6 @@ export const REPLY_AUTO_SEND: Readonly<Record<ReplyType, boolean>> = { owner_sta
 export const SIGN_OFF = "Jo, Home Insulation Victoria";
 export const CHECK_BEFORE_SENDING = "Check before sending";
 export const OFFICE_EMAIL = "info@homeinsulationvictoria.com.au";
-export const CALCULATOR_URL = `${CUSTOMER_BASE}/`;
 export const TRADE_PORTAL_URL = `${CUSTOMER_BASE}/field`;
 
 // ---------- Facts (read by the server from the live job / partner records) ----------
@@ -85,6 +87,9 @@ export type PartnerFacts = {
   ownJobNumbers: string[];
 };
 
+/** Decision 255: the enquiry the server created from THIS email for a new sender (never set for a matched owner). */
+export type EmailEnquiryFacts = { created: true; addressFound: boolean };
+
 export type ReplyInput = {
   subject: string | null;
   body: string;
@@ -94,6 +99,8 @@ export type ReplyInput = {
   fromPartner: boolean;
   owner?: OwnerFacts | null;
   partner?: PartnerFacts | null;
+  /** Set only when `owner` is the enquiry just created from this email (decision 255). */
+  emailEnquiry?: EmailEnquiryFacts | null;
   now: Date;
 };
 
@@ -321,34 +328,55 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
 }
 
 // ---------- new_enquiry ----------
-function newEnquiry(f: OwnerFacts | null): Built {
-  const flags: string[] = [];
-  if (!f) {
-    flags.push("Sender not matched to a job — check they aren't an existing customer");
-    return {
-      lines: [
-        "Thanks for getting in touch about ceiling insulation.",
-        "Certified installers are in high demand, so we book homes in the order people save their spot, and you can save yours for free once you have your estimate.",
-      ],
-      link: CALCULATOR_URL, linkLine: `You can check your VEU rebate and price in about a minute here: ${CALCULATOR_URL}`, flags,
-    };
+/** Decision 255: the homeowner page sentence (three questions + Save my spot), never the calculator. */
+export const HOMEOWNER_PAGE_LINE = "Here's your own page: you can answer three quick questions and save your free spot:";
+const PAGE_LATER = "We'll send you your own page, where you can answer three quick questions and save your free spot.";
+const ASK_ADDRESS = "Could you reply with your home's street address and suburb, so your enquiry is for the right home?";
+const DEMAND = "Certified installers are in high demand, so we book homes in the order people save their spot.";
+const campaignLink = (ownerLink: string) => `${ownerLink.replace(/\/$/, "")}/campaign`;
+
+/** A new sender: the enquiry was created from their email (or could not be). Always checked before sending (255). */
+function emailEnquiryFlags(f: OwnerFacts | null, e: EmailEnquiryFacts | null): string[] {
+  if (!f || !e) return ["No enquiry could be created from this email — create it by hand, then add their homeowner page link"];
+  const flags = [`New enquiry ${f.jobNumber} created from this email — check before sending (decision 255)`];
+  if (!e.addressFound) flags.push("No complete street address in the email — the enquiry is in Enquiries › Fix details");
+  if (!f.ownerLink) flags.push("No homeowner page link yet — add it before sending");
+  return flags;
+}
+
+function newEnquiry(f: OwnerFacts | null, e: EmailEnquiryFacts | null): Built {
+  if (!f || e) {
+    const flags = emailEnquiryFlags(f, e);
+    const lines = ["Thanks for getting in touch about ceiling insulation."];
+    const link = f?.ownerLink ? campaignLink(f.ownerLink) : null;
+    if (link) {
+      lines.push(DEMAND);
+      if (!e?.addressFound) lines.push(ASK_ADDRESS);
+      return { lines, link, linkLine: `${HOMEOWNER_PAGE_LINE} ${link}`, flags };
+    }
+    if (!e?.addressFound) lines.push(ASK_ADDRESS);
+    lines.push(PAGE_LATER);
+    return { lines, link: null, linkLine: null, flags };
   }
+  const flags: string[] = [];
   if (f.matchedJobs > 1) flags.push(`Email matched ${f.matchedJobs} jobs — check it's about ${f.jobNumber}`);
   const lines = ["Thanks for getting in touch."];
   let link: string | null = null;
   if (f.estimate) {
     lines.push(`Your estimate${f.suburb ? ` for your ${f.suburb} home` : ""} is ready: you could save ${money(f.estimate.rebate)} with the VEU rebate and pay ${money(f.estimate.youPay)} (full price ${money(f.estimate.fullPrice)} incl. GST).`);
   } else { lines.push(officeConfirms("your estimate")); flags.push("Missing: current estimate"); }
-  lines.push("Certified installers are in high demand, so we book homes in the order people save their spot.");
+  lines.push(DEMAND);
   let linkLine: string | null = null;
-  if (f.ownerLink) { link = `${f.ownerLink.replace(/\/$/, "")}/campaign`; linkLine = `Save your free spot here, no payment and no obligation: ${link}`; }
+  if (f.ownerLink) { link = campaignLink(f.ownerLink); linkLine = `Save your free spot here, no payment and no obligation: ${link}`; }
   else { flags.push("No secure estimate link on the job"); }
   return { lines, link, linkLine, flags };
 }
 
 // ---------- price_rebate_eligibility ----------
-function priceRebate(f: OwnerFacts | null): Built {
+function priceRebate(f: OwnerFacts | null, e: EmailEnquiryFacts | null): Built {
   const flags: string[] = [];
+  const newSender = !f || !!e;
+  if (newSender) flags.push(...emailEnquiryFlags(f, e));
   const lines: string[] = [];
   let link: string | null = null;
   if (f && f.matchedJobs > 1) flags.push(`Email matched ${f.matchedJobs} jobs — check it's about ${f.jobNumber}`);
@@ -357,18 +385,27 @@ function priceRebate(f: OwnerFacts | null): Built {
     lines.push(`Your quote's full price is ${money(q.fullPrice)} incl. GST, and the ${money(q.rebate)} VEU rebate comes straight off, so you pay ${money(q.youPay)} with nothing for you to claim.`);
   } else if (f?.estimate) {
     lines.push(`Your estimate is ${money(f.estimate.fullPrice)} incl. GST, and the ${money(f.estimate.rebate)} VEU rebate comes straight off, so you'd pay ${money(f.estimate.youPay)}${f.estimate.areaM2 ? ` for the ${Math.round(f.estimate.areaM2)} m² ceiling you told us about` : ""}.`);
+  } else if (newSender) {
+    lines.push("Your price depends on the size of your ceiling, and the VEU rebate comes straight off it, with nothing for you to claim.");
   } else {
     lines.push(officeConfirms("the price and rebate for your home"));
-    flags.push(f ? "Missing: quote and estimate figures" : "Sender not matched to a job — no figures");
+    flags.push("Missing: quote and estimate figures");
   }
   lines.push("That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork.");
-  lines.push(q
+  const extras = q
     ? "Electrical fixes aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
-    : "Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us, and you'll know the exact price before you agree to anything.");
-  lines.push("The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0.");
+    : "Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us, and you'll know the exact price before you agree to anything.";
+  const rule = "The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0.";
   let linkLine: string | null = null;
-  if (f?.ownerLink) { link = f.ownerLink; linkLine = `You can see the full breakdown here: ${link}`; }
-  else if (!f) { link = CALCULATOR_URL; linkLine = `You can check your own rebate and price in about a minute here: ${link}`; }
+  if (newSender) {
+    // At most 5 sentences: the address ask and "page coming" outrank the extras line, which drops off first.
+    const pageLink = f?.ownerLink ? campaignLink(f.ownerLink) : null;
+    lines.push(rule, ...(e?.addressFound ? [] : [ASK_ADDRESS]), ...(pageLink ? [] : [PAGE_LATER]), extras);
+    if (pageLink) { link = pageLink; linkLine = `${HOMEOWNER_PAGE_LINE} ${pageLink}`; }
+  } else {
+    lines.push(extras, rule);
+    if (f?.ownerLink) { link = f.ownerLink; linkLine = `You can see the full breakdown here: ${link}`; }
+  }
   if (f?.insulationDeclared === "present" || f?.insulationDeclared === "unknown") flags.push("Owner has (or isn't sure about) existing insulation — R2.0 is checked at the Ready Check");
   return { lines, link, linkLine, flags };
 }
@@ -434,8 +471,8 @@ export function composeReply(i: ReplyInput): ReplyDraft | null {
   let name: string | null;
   switch (type) {
     case "owner_status": built = ownerStatus(owner!, intents, i.now); name = firstNameOf(owner!.ownerFullName) ?? firstNameOf(i.fromName); break;
-    case "new_enquiry": built = newEnquiry(owner); name = firstNameOf(owner?.ownerFullName) ?? firstNameOf(i.fromName); break;
-    case "price_rebate_eligibility": built = priceRebate(owner); name = firstNameOf(owner?.ownerFullName) ?? firstNameOf(i.fromName); break;
+    case "new_enquiry": built = newEnquiry(owner, i.emailEnquiry ?? null); name = firstNameOf(owner?.ownerFullName) ?? firstNameOf(i.fromName); break;
+    case "price_rebate_eligibility": built = priceRebate(owner, i.emailEnquiry ?? null); name = firstNameOf(owner?.ownerFullName) ?? firstNameOf(i.fromName); break;
     case "partner": built = partnerReply(i.partner ?? null, text, i.now); name = firstNameOf(i.fromName); break;
   }
   const draft = render(name, built, type, intents);

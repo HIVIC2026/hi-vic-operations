@@ -1,14 +1,15 @@
-// Renders the four decision-244 sample reply drafts into docs/templates/drafts/email-reply-samples.md for Jo.
+// Renders the decision-244/255 sample reply drafts into docs/templates/drafts/email-reply-samples.md for Jo.
 // Pure: no network, no database. Usage: bun scripts/render-email-reply-samples.ts
 import { mkdirSync, writeFileSync } from "node:fs";
 import { composeReply, draftCategories, REPLY_TYPE_LABEL } from "../src/lib/email-reply.core";
 import { SAMPLES } from "../tests/fixtures/email-reply-samples";
 
 const out: string[] = [
-  "# Inbox reply drafts — four samples for approval (decision 244)",
+  `# Inbox reply drafts — ${SAMPLES.length} samples for approval (decisions 244 and 255)`,
   "",
   "Drafts only: the portal writes these into info@ as Outlook drafts in the same thread; Jo or Chris presses Send. Nothing is sent automatically (each type stays manual until Jo switches it on).",
-  "Every name, address, job number and email below is invented. Figures follow the approved O18 quote example.",
+  "Decision 255: replies point people to their own homeowner page, never the calculator. A new sender with no job gets an enquiry created from their email (name and email from the email, the address only when the email gives a complete one) and the reply carries that enquiry's own page link; with no address the reply asks for it and the enquiry waits in Enquiries › Fix details. Those drafts are always marked “Check before sending” until Jo has seen a few.",
+  "Every name, address, job number, link and email below is invented. Figures follow the approved O18 quote example.",
   "",
 ];
 for (const s of SAMPLES) {
