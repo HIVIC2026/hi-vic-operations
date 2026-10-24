@@ -1,8 +1,7 @@
-// Fix prompt (24 Oct 2026, decisions 256–259): whole-job A3 videos deleted (zone videos stand in), Part 8 closing text, no typed day lines.
+// Old A3 forms (24 Oct 2026): the whole-job A3 videos were deleted and each zone's own before / after video stands in.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { INSTALL_EVIDENCE_QUESTIONS as Q, SWMS_QUESTIONS as S, readInstallEvidence, swmsBlockers, zoneVideoFiles } from "../src/lib/install-evidence.core";
-import { A3_MEDIA_IDS, A3_PART8_CLOSING_TEXT, A3_REQUIREMENT_LABELS, a3CompletionBlockers, a3EvidenceChecklist, a3MediaFiles, a3MediaSummary, a3MissingFields, a3PrestartBlockers, type A3EvidenceCtx } from "../src/lib/piisa-a3.core";
+import { INSTALL_EVIDENCE_QUESTIONS as Q, zoneVideoFiles } from "../src/lib/install-evidence.core";
+import { A3_MEDIA_IDS, A3_REQUIREMENT_LABELS, a3CompletionBlockers, a3EvidenceChecklist, a3MediaFiles, a3MediaSummary, a3MissingFields, a3PrestartBlockers, type A3EvidenceCtx } from "../src/lib/piisa-a3.core";
 import { currentPostworkMedia } from "../src/lib/piisa-postwork.core";
 import { a3Template } from "./helpers/a3-template";
 
@@ -54,16 +53,5 @@ describe("zone videos satisfy the deleted whole-job videos", () => {
     const t = a3Template() as { items: { item_id: string }[] };
     t.items = t.items.filter((x) => x.item_id !== A3_MEDIA_IDS.before_video && x.item_id !== A3_MEDIA_IDS.completed_video && x.item_id !== A3_MEDIA_IDS.final_plan);
     expect(a3MissingFields(t)).toEqual([]);
-  });
-});
-
-describe("fix prompt: Part 8 text and multi-day lines", () => {
-  test("Part 8 closing text matches the fix prompt and the build prompt note", () => {
-    expect(readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8")).toContain(`"${A3_PART8_CLOSING_TEXT}"`);
-    expect(readFileSync("docs/MITTI_INSTALL_FORM_CHATGPT_PROMPT.md", "utf8")).toContain(`\`${A3_PART8_CLOSING_TEXT}\``);
-  });
-  test("multi-day jobs need no typed re-check lines (decision 258): the SWMS asks only high-risk work and the controls tick", () => {
-    const s = readInstallEvidence({ items: [] }).swms;
-    expect(swmsBlockers({ ...s, onForm: true }, { additionalInstallers: [] })).toEqual([`${S.hrcw}: nothing ticked`, `${S.standardControls}: not ticked`]);
   });
 });

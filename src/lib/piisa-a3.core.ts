@@ -930,6 +930,3 @@ export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | 
   return { answers, blockers, needsVerification: nv };
 }
 
-/** Fix prompt (24 Oct 2026): the last Part 8 text on the A3 form (replaces the old "…completed-work video and final
- *  roof-space plan" wording; older published snapshots keep theirs as history). Display text only — never read as an answer. */
-export const A3_PART8_CLOSING_TEXT = "Signing does not finish this form. After installation, complete the Zones and evidence page and the After-install sign-off.";
