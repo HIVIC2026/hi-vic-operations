@@ -1559,7 +1559,19 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
       ["PIESA completed", ov?.piesa_date], ["Install by (PIESA +30 days)", ov?.install_deadline],
     ]);
     const consentView = consent ? { id: consent.id, status: consent.status, version: consent.version, scheduled_start: consent.scheduled_start, installation_days: consent.installation_days, premises_address: consent.premises_address, ap_legal_entity: consent.ap_legal_entity, owner_contact: consent.owner_contact, owner_signed_at: consent.owner_signed_at, ap_signed_at: consent.ap_signed_at, ap_rep_name: consent.ap_rep_name, delivery_status: consent.delivery_status, copy_path: consent.copy_path, blockers: consentValidityBlockers(consent, consent.scheduled_start) } : null;
+    // ESC template (decision 123): Section 1 prefilled from the consent snapshot; the owner never types it again.
+    const { section1FromFacts, SECTION1_LABELS, OWNER_DECLARATIONS, isEscTemplateVersion, apDeclarationText } = await import("./consent.core");
+    const escTemplate = isEscTemplateVersion(escConsentTemplate?.version);
+    const s1 = consent ? section1FromFacts({ owner: consent.owner_contact as { name: string | null; email: string | null; phone: string | null }, premises_address: consent.premises_address }) : null;
+    const consentForm = consent && escConsentTemplate ? {
+      esc: escTemplate, version: escConsentTemplate.version,
+      section1: s1 ? SECTION1_LABELS.map(([k, label]) => ({ label, value: s1[k] || "—" })) : [],
+      declarations: escTemplate ? OWNER_DECLARATIONS : [],
+      apDeclaration: escTemplate ? apDeclarationText("") : null,
+      apPrefill: role === "admin" && escTemplate ? await (await import("./consent.server")).apRepPrefill(context.userId) : null,
+    } : null;
     const common = {
+      consentForm,
       stage: job?.stage ?? null, installationCompleted: !!job?.installation_completed_at,
       installerBlockers: templateBlockers(templates, "installer"), finalBlockers: templateBlockers(templates, "final"),
       installerDeclaration, installerFields: parseFormFields(installerDeclaration?.form_fields), officialForm, escConsentTemplate, prefill,
@@ -1602,7 +1614,11 @@ export const signFinalAssignmentFn = createServerFn({ method: "POST" }).middlewa
   });
 
 export const signOwnerConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), accept: z.boolean(), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), accept: z.boolean(), signatureName: z.string().trim().min(2).max(200),
+    // ESC template (decision 123): the four Section 2 declaration ticks; each must be true (checked in consent.core).
+    declarations: z.object({ owner_or_authorised: z.boolean(), details_accurate: z.boolean(), consent_ap_sends: z.boolean(), consent_commission_shares: z.boolean() }).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });
     if (!isOwner) throw new WorkflowError("Only the owner or their authorised representative can sign this consent.");
@@ -1613,7 +1629,11 @@ export const signOwnerConsentFn = createServerFn({ method: "POST" }).middleware(
   });
 
 export const confirmApConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, apRepName: z.string().trim().min(2).max(200), purposeExplained: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, apRepName: z.string().trim().min(2).max(200).optional(), purposeExplained: z.boolean(),
+    // ESC template Section 3 Part A (prefilled from the office user's profile, editable): first/last name, role, phone, email.
+    apRep: z.object({ first_name: z.string().trim().min(1).max(100), last_name: z.string().trim().min(1).max(100), role: z.string().trim().min(2).max(100), phone: z.string().trim().max(40).nullable(), email: z.string().trim().max(200).nullable() }).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { confirmApConsent } = await import("./consent.server");
