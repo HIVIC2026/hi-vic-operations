@@ -29,13 +29,13 @@ describe("readyCheckFactsFromEntries", () => {
     expect(f.depthPhoto).toBe(false);
   });
 
-  test("the installer's below-R2 tick stands in for the depth photo", () => {
+  test("decision 268: the old below-R2 tick no longer stands in for the ruler photo", () => {
     const f = readyCheckFactsFromEntries([
       E("Is there existing insulation in this ceiling area?", "Yes"),
       E("No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate", "true"),
     ], base);
     expect(f.belowR2).toBe(true);
-    expect(f.depthPhoto).toBe(true);
+    expect(f.depthPhoto).toBe(false);
   });
 
   test("life support 'Yes' is never auto-reviewed", () => {
