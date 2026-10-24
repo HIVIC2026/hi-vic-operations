@@ -226,13 +226,13 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   await once("installer_contact_permission", async () => logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true }));
   if (intake) {
     // A real owner_contact_consents row (the event alone is not consent). Idempotent per import.
-    const { READY_CHECK_CONTACT_PERMISSION } = await import("./job-electrician.core");
+    const { OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
     const { INSTALLER_CONTACT_PERMISSION } = await import("./installer-intake.core");
     const { data: job } = await admin.from("jobs").select("owner_id").eq("id", res.job_id).single();
     const key = `installer_import:${imp.id}`;
     const { data: have } = await admin.from("owner_contact_consents").select("id").eq("job_id", res.job_id).eq("consent_key", key).maybeSingle();
     if (!have && job?.owner_id) {
-      const text = intake.electrician_payer ? INSTALLER_CONTACT_PERMISSION : READY_CHECK_CONTACT_PERMISSION; // exact label the installer ticked
+      const text = intake.electrician_payer ? INSTALLER_CONTACT_PERMISSION : OWNER_CONTACT_PERMISSION; // exact label the installer ticked (short sentence since decision 198; older jobs keep theirs)
       const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
       // Dedicated truthful source: remote permission-to-contact only. Never "onsite_ready_check", which owner-gates
       // treats as signed onsite paperwork (Gate A); owner approvals/tenancy/life-support/authority stay required.

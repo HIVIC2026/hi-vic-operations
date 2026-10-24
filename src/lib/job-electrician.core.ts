@@ -2,6 +2,7 @@
 
 /** Required owner-consent tick (Jo's exact wording). */
 /** Onsite + later Ready Check consent wording (Jo, 8 Oct 2026). */
+/** Older Add-a-job consents were recorded with this longer sentence; kept for history/matching only — new jobs record OWNER_CONTACT_PERMISSION (Jo, decision 198 follow-up). */
 export const READY_CHECK_CONTACT_PERMISSION = "The owner has given Home Insulation Victoria permission to contact them for the eligibility assessment.";
 export const OWNER_CONTACT_PERMISSION = "The owner has given Home Insulation Victoria permission to contact them.";
 

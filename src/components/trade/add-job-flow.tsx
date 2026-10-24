@@ -8,7 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { CustomerFields, FIELD_LABEL } from "./customer-fields";
 import { onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
-import { READY_CHECK_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
+import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput, OnsiteState } from "@/lib/onsite-ready-check.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
@@ -64,7 +64,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
 
   return (
     <div className="space-y-[18px]" data-add-job-flow data-step="customer">
-      <CustomerFields value={customer} consentLabel={READY_CHECK_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
+      <CustomerFields value={customer} consentLabel={OWNER_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
       <VisitField value={visit} onChange={setVisit} disabled={busy} />
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}
       {err && <p role="status" className="rounded-[12px] border border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
