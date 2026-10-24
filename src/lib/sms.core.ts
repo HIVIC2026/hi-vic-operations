@@ -20,6 +20,8 @@ export const SMS_MESSAGE_TYPES = {
   job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false, quietHours: false },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },
   daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
+  // Decision 130: each installer person's secure link to the ESC privacy collection notice (+ 3/7-day reminders). Wording with Jo.
+  esc_notice_link: { audience: "partner", label: "ESC privacy collection notice link to an installer", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

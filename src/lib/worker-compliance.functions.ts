@@ -8,7 +8,13 @@ import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 const uuid = z.string().uuid();
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
-const COLS = "id, business_id, profile_id, trade_role, full_legal_name, licence_expires_on, piisa_status, piisa_completed_on, piisa_certificate_path, piisa_verified_at, approval_status, removed_at, certification_status, certification";
+const COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, licence_expires_on, piisa_status, piisa_completed_on, piisa_certificate_path, piisa_verified_at, approval_status, removed_at, certification_status, certification";
+
+/** Decision 130: attach each installer's ESC collection notice state so flags, prompts and offer blocking share one rule. */
+async function withNoticeAck<T extends { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; removed_at: string | null }>(rows: T[]) {
+  const map = await (await import("./esc-collection-notice.server")).noticeAckMap(rows);
+  return rows.map((w) => ({ ...w, collection_notice_acknowledged: w.trade_role === "installer" ? map.get(w.id) ?? null : null }));
+}
 
 /** The caller may edit a worker if it's their own record or they're an active member of the worker's business. */
 async function canEditWorker(sb: { from: (t: string) => any }, userId: string, workerId: string) {
@@ -29,7 +35,7 @@ export const myTeamCompliance = createServerFn({ method: "POST" }).middleware([r
     const q = admin.from("partner_workers").select(COLS).is("removed_at", null);
     const { data } = ids.length ? await q.or(`business_id.in.(${ids.join(",")}),profile_id.eq.${context.userId}`) : await q.eq("profile_id", context.userId);
     const t = today();
-    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), licenceExpiry: w.licence_expires_on }));
+    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), licenceExpiry: w.licence_expires_on, selfProfile: w.profile_id === context.userId }));
   });
 
 export const addLicenceExpiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -77,7 +83,7 @@ export const officeWorkerCompliance = createServerFn({ method: "POST" }).middlew
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data } = await admin.from("partner_workers").select(`${COLS}, businesses(name, trading_name)`).is("removed_at", null);
     const t = today();
-    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(w as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never) }))
+    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(w as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), escNotice: w.collection_notice_acknowledged }))
       .filter((r) => r.flags.length || r.warning);
   });
 

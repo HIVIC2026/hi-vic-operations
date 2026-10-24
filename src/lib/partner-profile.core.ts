@@ -1,5 +1,6 @@
 // One tidy partner business profile built from a signed onboarding application, plus office review flags.
 // Pure: labels and normalises facts already given; it never approves, blocks or changes workflow.
+import { acksFromApplicationData, collectionNoticeFlags, collectionNoticeStatus, type NoticeState } from "./esc-collection-notice.core";
 
 export type ProfileType = "installer" | "electrician" | "both";
 type Data = Record<string, unknown>;
@@ -24,7 +25,8 @@ export type Credential = { kind: string; label: string; number: string | null; e
 export type PartnerProfile = {
   business: { legal_name: string | null; trading_name: string | null; abn: string | null; type: ProfileType; address: string | null; base_suburb: string | null; email: string | null; phone: string | null; gst_registered: boolean | null };
   signer: { name: string | null; position: string | null; mobile: string | null; email: string | null };
-  workers: { name: string | null; role: "electrician" | "installer"; mobile: string | null; email: string | null }[];
+  /** `collection_notice`: ESC collection notice record from the signed application (installers only; null for electricians). */
+  workers: { name: string | null; role: "electrician" | "installer"; mobile: string | null; email: string | null; collection_notice: { state: NoticeState; at: string | null; by_name: string | null } | null }[];
   licences: Credential[];
   insurance: { amount: number | null; insurer: string | null; policy: string | null; expires_at: string | null; expiry_source: "typed_by_applicant"; has_file: boolean; verified: boolean; file_url?: string | null };
   agreement: { version: string | null; signed_by: string | null; signed_at: string | null; has_copy: boolean };
@@ -51,7 +53,11 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
   const anywhere = radius === 9999;
   const signerMobile = normaliseMobile(data["business_phone"]);
   const people = (installer ? (data["installers"] as Data[] | undefined) : (data["electricians"] as Data[] | undefined)) ?? [];
-  const workers = people.map((w) => ({ name: txt(w["full_legal_name"]), role: (installer ? "installer" : "electrician") as "installer" | "electrician", mobile: normaliseMobile(w["mobile"]), email: normaliseEmail(w["email"]) }));
+  const notice = installer ? collectionNoticeStatus(people.map((w) => ({ email: normaliseEmail(w["email"]), full_legal_name: txt(w["full_legal_name"]) ?? "", trade_role: "installer" })), acksFromApplicationData(data)) : [];
+  const workers = people.map((w) => {
+    const n = notice.find((s) => s.email === (normaliseEmail(w["email"]) ?? ""));
+    return { name: txt(w["full_legal_name"]), role: (installer ? "installer" : "electrician") as "installer" | "electrician", mobile: normaliseMobile(w["mobile"]), email: normaliseEmail(w["email"]), collection_notice: installer ? { state: n?.state ?? "missing", at: n?.at ?? null, by_name: n?.byName ?? null } : null };
+  });
   const licences: Credential[] = installer
     ? people.map((w) => {
         const email = normaliseEmail(w["email"]) ?? "";
@@ -114,6 +120,8 @@ export function approvalFlags(p: PartnerProfile, peers: { r5: number[]; piesa: n
     if (piisa.some((l) => l.number === "not_done")) out.push("PIISA training not done.");
     if (piisa.some((l) => l.number === "done" && !l.has_file)) out.push("PIISA certificate missing.");
     if (piisa.some((l) => l.number === "done" && l.has_file)) out.push("PIISA certificate to verify before jobs.");
+    // ESC collection notice (1 Oct 2026): surfaced per installer, never a block on approval or activation.
+    out.push(...collectionNoticeFlags(p.workers.filter((w) => w.role === "installer" && w.collection_notice).map((w) => ({ workerId: null, email: w.email ?? "", name: w.name ?? w.email ?? "installer", state: w.collection_notice!.state, at: w.collection_notice!.at, byName: w.collection_notice!.by_name, source: null, superseded: false }))));
   } else {
     if (!p.licences.find((l) => l.kind === "rec_registration")?.number) out.push("Missing REC number.");
     if (!p.licences.find((l) => l.kind === "esv_licence")?.number) out.push("Missing ESV licence number.");

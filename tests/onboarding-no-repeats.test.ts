@@ -10,7 +10,7 @@ describe("onboarding no-repeat + short CII (5 Oct)", () => {
     expect(parseDateInput("soon")).toBeNull();
     expect(formatDateAu("2028-10-05")).toBe("05/10/2028");
   });
-  const one = { full_legal_name: "A B", piisa_done: "no", mobile: "0412345679", email: "a@example.com", cii_holds: "held" as const, cii_certificate_number: "C1", cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full" as const, cii_expiry: "2099-01-01" };
+  const one = { full_legal_name: "A B", piisa_done: "no", mobile: "0412345679", email: "a@example.com", cii_holds: "held" as const, cii_certificate_number: "C1", cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full" as const, cii_expiry: "2099-01-01", esc_notice_ticked: true };
   test("issuer required, issue date not asked; one installer has no prefix; expiry must be future", () => {
     expect(stepErrors("installers", { installers: [one] })).toEqual([]);
     expect(stepErrors("installers", { installers: [{ ...one, cii_issuer: "" }] })).toEqual(["Enter who issued the certificate, for example Energy Efficiency Council Victoria."]);

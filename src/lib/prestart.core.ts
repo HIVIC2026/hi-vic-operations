@@ -1,6 +1,7 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
 import { EARLIEST_MS, LEAD_MS, sendTimingBlocker } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
+import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
 export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
@@ -57,7 +58,8 @@ export function prestartRunAt(startIso: string): string {
   return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();
 }
 
-export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null };
+/** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null };
 export type PrestartFacts = {
   start: string;
   clearance: { cleared: boolean; blocker: string | null };
@@ -84,6 +86,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   else if (!f.lead.level || !f.lead.expiresOn) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: re-record certification as Full with expiry date.`);
   else if (f.lead.level !== "full") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} holds a provisional certification, not full.`);
   else if (f.lead.expiresOn < day) out.push(`Lead installer's certification expired on ${f.lead.expiresOn}.`);
+  if (f.lead.found && f.lead.noticeAcknowledged === false) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
   for (const c of f.consentBlockers) out.push(`Owner consent: ${c}`);
   if (!f.piesaCompletedAt) out.push("PIESA completion date is missing.");
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");

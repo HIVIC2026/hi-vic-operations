@@ -20,7 +20,8 @@ const swap = (e?: string | null) => e ? `test+${e.replace("@", ".at.")}@hivic.te
 d.business_email = swap(d.business_email) as never;
 d.installers = (d.installers ?? []).map((i) => ({ ...i, email: swap(i.email) })) as never;
 // Signing on the practice copy only: today's form also asks a PIISA question Deep's 6 Oct form did not have. Answer "no" (unknown) so the copy can be signed.
-const dSign = JSON.parse(JSON.stringify(d)); dSign.installers = dSign.installers.map((i: object) => ({ ...i, piisa_done: "no" }));
+// Likewise the ESC collection notice tick (1 Oct 2026 rule) did not exist then; ticked on the practice copy only.
+const dSign = JSON.parse(JSON.stringify(d)); dSign.installers = dSign.installers.map((i: object) => ({ ...i, piisa_done: "no", esc_notice_ticked: true }));
 const { installerDb } = await import("../tests/helpers/pglite-installer");
 const t = await installerDb();
 const id = await t.create(dSign);

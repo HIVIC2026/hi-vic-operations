@@ -6,8 +6,13 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
-import { getTradeBusiness, setTradeTaking } from "@/lib/trade-view.functions";
+import { getTradeBusiness, getTradeCollectionNotice, setTradeTaking } from "@/lib/trade-view.functions";
 import { expiryPill } from "@/lib/trade-view.core";
+
+type NoticeView = { selfWorkerId: string | null; statuses: { workerId: string | null; state: string }[] } | undefined;
+/** The caller's own row (or, for the boss, any installer) still to acknowledge the ESC notice. */
+const noticeOutstanding = (v: NoticeView) => !!v && v.statuses.some((s) => s.state !== "acknowledged");
+const noticeSub = (v: NoticeView) => (!v ? null : !v.statuses.length ? "Read the notice" : noticeOutstanding(v) ? `${v.statuses.filter((s) => s.state !== "acknowledged").length} to acknowledge` : "Acknowledged");
 
 export const Route = createFileRoute("/_authenticated/field/business")({
   head: () => ({ meta: [{ title: "My business – Home Insulation Victoria" }, { name: "description", content: "Your paperwork, work area and team." }, { property: "og:title", content: "My business – Home Insulation Victoria" }, { property: "og:description", content: "Your paperwork, work area and team." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -20,6 +25,9 @@ function Business() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: () => load() });
+  const loadNotice = useServerFn(getTradeCollectionNotice);
+  // ESC collection notice (1 Oct 2026 rule): installers who still have to read and acknowledge it get a prompt here.
+  const notice = useQuery({ queryKey: ["trade-esc-notice"], queryFn: () => loadNotice(), enabled: data?.kind === "installer" });
   const [busy, setBusy] = useState(false);
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
@@ -51,6 +59,7 @@ function Business() {
             ["/field/business/insurance", "Insurance & licences", "Current documents and expiry dates", !installer ? lic : liab],
             ["/field/business/agreement", "Your agreement", data.agreementSigned ? "Signed" : "To sign"],
             ["/field/business/team", "Team", `${data.team.length} ${data.team.length === 1 ? "person" : "people"}`],
+            ...(installer ? [["/field/business/esc-notice", "ESC privacy notice", noticeSub(notice.data), noticeOutstanding(notice.data) ? { label: "Please read and acknowledge", warn: true, days: null } : undefined]] : []),
           ] as [string, string, string | null, ReturnType<typeof expiryPill>?][]).map(([to, label, sub, p]) => (
             <li key={to}><Link to={to as never} className="flex min-h-14 items-center justify-between gap-3 p-4"><span><span className="block font-bold">{label}</span>{sub && <span className="block text-sm text-sub">{sub}</span>}</span><span className="flex items-center gap-2">{p && pill(p.label, p.warn)}<ChevronRight className="h-5 w-5 text-estimate-navy/50" /></span></Link></li>
           ))}
