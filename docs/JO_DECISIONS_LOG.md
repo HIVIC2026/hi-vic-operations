@@ -87,3 +87,8 @@ Newest first. Each line is settled; anything still open is under "Open".
 
 **Working rule (Jo):** ask every question as tap-boxes, always.
 48. Each installer job shows a small quiet grey label under the address: **"Your customer"** (their own job) or **"Home Insulation Victoria lead"** (our lead). It appears on the My work list and the job page.
+
+## How our leads reach installers (24 Oct 2026)
+49. **The office picks the installer** for each of our leads, on the job in the office screen. A "Choose installer" list shows nearby approved installers with their area and rates; tapping one sends the offer to that installer only. There is no automatic batch offering.
+50. The installer is told by **text and in the app**. Text (wording in the template review): "New job offer near [suburb] – tap to see times", with a link straight to the offer.
+51. An offer stays open **24 hours**. If the installer says "Not for me" or doesn't answer, it **goes back to the office** (one alert on the job) to pick another installer.
