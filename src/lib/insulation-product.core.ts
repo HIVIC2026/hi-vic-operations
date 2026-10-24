@@ -1,13 +1,20 @@
-// Jo 22 Oct 23:45: one required single-select Mitti question "Insulation product" on A1 and A2 with 6 approved
-// options. No brand/product-name/R-value questions, no profile product. Recorded on the job as declared, not verified.
+// Jo 22 Oct 23:45: one required single-select Mitti question "Insulation product" on A1 and A2 with approved
+// options (6, then 8 from 24 Oct, decision 150). No brand/product-name/R-value questions, no profile product. Recorded on the job as declared, not verified.
 
 export const PRODUCT_R_VALUES = ["R5.0", "R6.0", "R7.0"] as const;
 export type ProductRValue = (typeof PRODUCT_R_VALUES)[number];
 export type InsulationProduct = { option: string; rValue: ProductRValue };
 
-/** The 6 exact tap options on both forms (Jo 22 Oct 23:45). R-value is taken from the label. */
-export const APPROVED_PRODUCTS: readonly InsulationProduct[] = (["Bradford Gold", "Fletchers Pink Batts"] as const).flatMap((name) =>
-  ([["R5", "R5.0"], ["R6", "R6.0"], ["R7", "R7.0"]] as const).map(([r, rValue]) => ({ option: `${name} ${r}`, rValue })));
+/**
+ * The exact tap options on both forms. Jo 22 Oct 23:45: Bradford Gold and Fletchers Pink Batts R5/R6/R7; Jo 24 Oct 2026
+ * (decision 150): plus Earthwool R5 and ECOWOOL R5, the other ESC-register products at R5.0. R-value is taken from the label.
+ */
+export const APPROVED_PRODUCTS: readonly InsulationProduct[] = [
+  ...(["Bradford Gold", "Fletchers Pink Batts"] as const).flatMap((name) =>
+    ([["R5", "R5.0"], ["R6", "R6.0"], ["R7", "R7.0"]] as const).map(([r, rValue]) => ({ option: `${name} ${r}`, rValue }))),
+  { option: "Earthwool R5", rValue: "R5.0" },
+  { option: "ECOWOOL R5", rValue: "R5.0" },
+];
 /** Shown as-is in the office list. */
 export const PRODUCT_NEEDS_OFFICE = "Office needs to: confirm insulation product";
 
@@ -36,6 +43,8 @@ export function productQuoteDescription(p: Pick<InsulationProduct, "option">, ar
 export function productBrandModel(p: Pick<InsulationProduct, "option">): { brand: string; model: string } {
   if (/^bradford gold/i.test(p.option)) return { brand: "CSR Bradford", model: "Gold Ceiling Batt" };
   if (/pink batts/i.test(p.option)) return { brand: "PINK® Batts", model: "Ceiling Insulation" };
+  if (/^earthwool/i.test(p.option)) return { brand: "Earthwool", model: "Ceiling batt" };
+  if (/^ecowool/i.test(p.option)) return { brand: "ECOWOOL ®", model: "Insulation" };
   const [brand, ...rest] = p.option.replace(/\s+R\d+(\.\d+)?$/i, "").split(" ");
   return { brand: brand ?? p.option, model: rest.join(" ") };
 }
