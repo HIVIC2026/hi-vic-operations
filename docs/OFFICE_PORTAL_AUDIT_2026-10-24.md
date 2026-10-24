@@ -2,7 +2,9 @@
 
 **Branch audited:** `installer-mitti-workflow` at commit `1a525df6` ("Log decision 215", 24 Oct 2026). Read-only; nothing was changed.
 **Asked for by:** decision 212 (Jo, 24 Oct 2026: "the office layout is unclear, cluttered and unfunctional"; same method as the installer audit, then mock-ups one at a time).
-**Yardstick:** `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md`, `src/config/workflow-decisions.ts`, `docs/JO_DECISIONS_LOG.md` (decisions 1–215), `AGENTS.md`, `src/lib/AGENTS.md`, and the dated Jo rules written into the office code (19, 21, 22, 23 Oct).
+**Yardstick:** `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md`, `src/config/workflow-decisions.ts`, `docs/JO_DECISIONS_LOG.md` (decisions 1–216), `AGENTS.md`, `src/lib/AGENTS.md`, and the dated Jo rules written into the office code (19, 21, 22, 23 Oct).
+
+**Decision 216 (Jo, 24 Oct, leads data):** live counts are 1,717 real jobs, 1,325 estimate-only leads, 133 one-word names, junk names, 17 case problems, 72 never contacted, and website addresses stored as one line with a blank suburb. Jo approved: full name required at Save my spot; a **Fix details** pile for one-word / junk names; automatic capitalisation tidy; address normalisation into street / suburb / postcode for every source; a **Contact history** panel on every job (every email, text and call with date, content and what we are waiting for); a **Last heard from us** column on Leads; and a one-off review of the 1,325 estimate-only leads. These are written into Parts 2, 4 and 5 below.
 **Written for:** Jo. Plain words in Parts 1–5; file paths only in the appendix. Style A tokens are already decided, so nothing here is about colours or type — only structure, content and wording.
 
 **Who uses the office:** Jo (owner, Accredited Person representative, approves wording and money) and Chris (office, day-to-day: enquiries, choosing trades, checking quotes, signing as AP representative, recording payments, final check). "Daily" below means several times a day on a normal day; "weekly" once a week or less; "rare" only when something goes wrong or at set-up.
@@ -123,6 +125,10 @@ Twenty-nine screens for two people. The current process needs about nine.
 | Remove selected (reason "Fake or test enquiry") | KEEP | Removed stays hidden, history kept (AGENTS). |
 | Row status "Email sent – offering spot" / "Email sent – insulation details needed" (`STATUS_LABEL`) vs tile labels "Spot offered" / "Awaiting photos/videos" (`OFFICE_ENQUIRY_LABEL`) | FIX | Two label sets for one status; the row and the tile should say the same words (decisions 55: "estimate", not "quote"; 69: "3 questions"). |
 | **MISSING:** the **New enquiry (phone / manual)** button — it only exists on the retired Pipeline board. | — | Chris takes phone enquiries. |
+| **MISSING (decision 216): a "Fix details" pile** for one-word names, junk names and case problems (133 + 17 today), with an inline fix (name, address split) and the automatic capitalisation tidy applied first so only real junk reaches the pile. | — | Today the only hint is the "Email looked wrong" pill; a one-word name sails straight into Save my spot emails and quotes. One pile per job (0218): a lead in Fix details is in no other pile until fixed. |
+| **MISSING (216): a "Last heard from us" column** (date and what it was: estimate email, Save my spot, 3 questions, text) and "Never contacted" visible per row. | — | The scope line gives totals (72 never contacted) but no row says which ones. The reply-state words under Status ("reply recorded") are not a date. |
+| **MISSING (216): the address shown as street · suburb · postcode** for every source (website rows arrive as one line with a blank suburb). | — | Blank suburb breaks Choose installer distance, coverage and the approved texts ("near {Suburb}", decisions 71, 76, 78). |
+| **MISSING (216): a one-off review of the 1,325 estimate-only leads** (a filter or a Settings one-off like the 3 questions reminder, decision 172): keep · fix details · not eligible – close · remove. | — | Estimate-only leads are the "waiting list" statuses; nothing lists them for a decision. |
 
 ### Screen 5 · Active jobs (`/admin/jobs/active`)
 
@@ -281,6 +287,7 @@ Twenty-nine screens for two people. The current process needs about nine.
 | **Messages** (portal thread) | KEEP | Messages stays on the installer job page (36). |
 | **Owner conversation** (Outlook-matched email) + **Log a call, email or note** | KEEP | Outlook record-only rule. |
 | **What's happened** (`ClearTimeline`) · Visit changes and no-shows · fold-out "Detailed and raw audit history" (JobTimeline + TimelinePanel) | KEEP one timeline | Three history lists; keep the plain one with the raw one behind "More". |
+| **MISSING (decision 216): one Contact history panel** — every email, text and call, newest first: date · channel · what it was (approved template name) · the content · delivered / failed · "what we're waiting for". | — | Today the facts are split across four panels (Owner conversation = Outlook; Messages = portal thread; Daily Mitti links texts = trade texts; "Last email or text sent" one-liner in CompactJobStatus) and three timelines. The data already exists: `customer_email_sends` (portal emails, provider status), `job_communications` (recorded sends, calls and notes, direction + provider), `sms_messages` (texts, type, status), `messages` (portal thread), `outlook_message_work` (matched Outlook mail). One read that unions these five is the panel; nothing new needs storing. |
 | **All documents** + **Export complete job pack** | KEEP | 6-year record. |
 
 **Not rendered but still in the file:** `NextActionBand`, `EligibilityGlance`, `PhaseStrip` (job-workspace), `JobRightNow` + `StageTracker` (office.tsx), `OfficeReadyCheckReopen`, `ManualCommunicationActions`, `EngagementPanel` (only inside the estimate card). Dead or near-dead code the next builder will trip over.
@@ -455,6 +462,10 @@ Twenty-nine screens for two people. The current process needs about nine.
 | **Office fallback "Complete installation"** | 213 | Not found on the job page | Verify / add to the Install card. |
 | **Template review**: one page, a card per email or text with who / when / auto or pressed | 15, 60 | Templates hub (previews, no who/when/auto per card) | Partly built. |
 | **Owner "Couldn't reach / wrong email" re-contact**, Not-in-your-area email | 74 | Coverage card button in the Contacts fold-out | Should sit with the enquiry. |
+| **Fix lead details** (one-word / junk names, case problems, one-line addresses with blank suburb) | 216 | Nothing; "Email looked wrong" pill only | Needs: full name required at Save my spot (P1/owner pages), automatic capitalisation tidy on every source, address normalisation into street / suburb / postcode on every source (website, phone, installer Add a job, office import), and a **Fix details** pile on Leads with an inline fix. |
+| **See when we last contacted a lead** (72 never contacted) | 216 | Totals only in the Enquiries scope line and Communications Overview | A **Last heard from us** column (date · what) and a "Never contacted" filter on Leads. |
+| **See the whole contact history of a job** (every email, text, call; what we're waiting for) | 216 | Four panels + three timelines on the job page | One **Contact history** panel reading `customer_email_sends`, `job_communications`, `sms_messages`, `messages`, `outlook_message_work`; the "what we're waiting for" line comes from the job's one status (`officeStatus`). |
+| **One-off review of the 1,325 estimate-only leads** | 216 | No list | A Settings one-off (like the 3 questions reminder) or a Leads filter: keep · fix details · not eligible – close · remove, in batches, recorded per lead. |
 
 ---
 
@@ -478,14 +489,14 @@ One row per job, most urgent first, grouped by the office's real actions, each w
 - **Partners & system** (applications · CII to verify · privacy notice outstanding · Mitti forms to link · Mitti sync problems · failed texts/emails).
 Later = tomorrow 7am stays. Include TEST jobs stays. No dispatch switch, no "Send to all", no numbers strip unless Jo wants one (Part 2 Q).
 
-### 2. Enquiries — "Every website enquiry, one outcome."
-Piles: **Office review** · New (no reply) · Spot offered · Spot saved (waiting for an installer) · Asked the 3 questions · Not eligible. Search, remove, **New enquiry (phone)**. Row: owner · address · insulation/area · age · one status word · one action (photo rank buttons on Office review; **Choose installer** on Spot saved; Not-in-your-area email when coverage proves unavailable). Nothing about quotes here.
+### 2. Enquiries (Leads) — "Every website enquiry, one outcome, clean details."
+Piles: **Office review** · **Fix details** (one-word / junk names, case problems, addresses that didn't split — decision 216) · New (never contacted) · Spot offered · Spot saved (waiting for an installer) · Asked the 3 questions · Not eligible. Search, remove, **New enquiry (phone)**, and a one-off **Review estimate-only leads** mode (216) that walks the 1,325 in batches: keep · fix details · not eligible – close · remove. Row: owner (tidied capitalisation) · street · suburb · postcode · insulation/area · age · **Last heard from us** (date · what, or "Never") · one status word · one action (photo rank buttons on Office review; inline fix on Fix details; **Choose installer** on Spot saved; Not-in-your-area email when coverage proves unavailable). Nothing about quotes here. Full name is required at Save my spot so new leads stop arriving one-worded.
 
 ### 3. Jobs — one list, Active and Closed tabs.
 Active: filter by the six stages (Ready Check · Quote · PIESA · Install · Final check, plus "Installers' own jobs" per decision 31), search, sort; blocks above the list: **New from installers**, **Ready Checks started in Mitti**, **Mitti sync problems** (also mirrored in Needs me). Row: address · job no · owner · "Your customer / Our lead" · one status pill · waiting on · time left · life support. Bulk Put on hold / Cancel / Mark as test / Delete (test only) with reason. Closed: Completed · Cancelled · Ineligible · Removed/test.
 
 ### 4. Job page — "Next, then the six stages, then the file."
-- **Header**: job no, address, owner + Call/Text/Email, consent, label (own job / our lead), TEST, life support, the one or two warning pills (install by · ESC notice due).
+- **Header**: job no, address as street · suburb · postcode (216), owner (tidied) + Call/Text/Email, consent, label (own job / our lead), TEST, life support, **Last heard from us** (216), the one or two warning pills (install by · ESC notice due).
 - **Next** (one panel): whose move it is, one sentence, one button (Choose installer / Check & send / Choose electrician / Sign consent / Submit ESC notice / Sign VEEC Part A / Approve / Record payment), plus "Blocked because …" when blocked. Hold / Resume / Cancel / Delete behind **More**.
 - **Enquiry** card: estimate (figure, rebate, link status), the six eligibility checks (owner said / result / onsite) with the one change-result form, insulation answers, photos.
 - **Ready Check** card: Choose installer (our leads) or "Installer arranges directly" (own jobs, decision 54); booked day + time (fact); Mitti form (open · copy link · sync · what's missing); measured facts.
@@ -494,7 +505,8 @@ Active: filter by the six stages (Ready Check · Quote · PIESA · Install · Fi
 - **Install** card: clearance date → install must start by {date} · N days left; install days state (offered / owner's days / booked with time / deposit held until / Change day history); ESC owner consent (status, AP sign); ESC install notification (one panel: window, Registry block, record, withdraw/resubmit); PIISA status + official form; Mitti install form link; evidence checklist (read-only unless Jo says otherwise); office fallback Complete installation.
 - **Final check** card: Activity 48 records; the compliance checks + Approve; VEEC form (prerequisites, Part A sign, owner status, copy sent); VEEC lodgement; Profit (office only).
 - **Money** card: the one invoice, payment steps (what · how · state · due), Record payment, Xero sync, online invoice (office view), override with reason, payout for the trade.
-- **File**: messages · owner emails (Outlook) + log a call · texts sent · one timeline (raw audit behind More) · all documents · export pack · retain until.
+- **Contact history** (216): one list, newest first — date · email / text / call / portal message · what it was (template name) · content · delivered / failed · "what we're waiting for" (from the job's one status). Built from `customer_email_sends`, `job_communications`, `sms_messages`, `messages` and `outlook_message_work`; "Log a call or note" lives here. Replaces Owner conversation, Messages, Daily Mitti links texts and the "last email sent" line as separate panels.
+- **File**: one timeline (raw audit behind More) · visit changes · all documents · export pack · retain until.
 
 ### 5. Partners — "Who we work with."
 Tabs: **Applications** (today's queues) · **Approved** (business file with Team incl. CII level/expiry and cleared-for-crews, Usual electrician, rates, insurance expiry, agreement, ESC notice status, Xero supplier) · **People** (staff approvals = CII verification; privacy notice outstanding; Mitti invite per person) · **Rates** (installer price list and electrician rate card) · Coverage (if kept).
@@ -514,9 +526,9 @@ Templates (the one wording register, with Compliance Setup's versions and the ow
 
 ### Mock-up order (one at a time, no annotation boxes — decision 198)
 1. **Needs me** (sets the grouping and row shape everything else reuses)
-2. **Job page** (the Next panel and the six stage cards)
+2. **Job page** (the Next panel, the six stage cards and the Contact history panel)
 3. **Jobs** (Active + Closed, the row)
-4. **Enquiries** (piles, row, photo review, Choose installer, New enquiry)
+4. **Enquiries / Leads** (piles incl. Fix details, row with Last heard from us and split address, photo review, Choose installer, New enquiry, the estimate-only review mode)
 5. **Partners** (Applications · Approved file · People · Rates)
 6. **Money** (Overview · Payouts · Invoices · VEECs · Prices)
 7. **Communications + Settings** (Held & queued with Cancel all; Templates as the one register; Xero; Switches)
@@ -537,7 +549,7 @@ Templates (the one wording register, with Compliance Setup's versions and the ow
 9. **Expected install week, Partner & relationship, Invoice route select, Electrician team-ups, Partners overview** — planning and relationship panels no decision asks for (1, 157, 173).
 10. **The dead code that still describes the old office**: the sidebar nav in `AppShell`, `JobRightNow`/`StageTracker`, `NextActionBand`/`EligibilityGlance`/`PhaseStrip`, `OfficeReadyCheckReopen`, `ManualCommunicationActions`, the second ESC panel (`EscInstallPanel` vs `OfficePrestartCard`), the Internal pricing Adjust, and the retired status words in `job-wording.ts` ("Owner picking times", "Book Ready Check", "Agreeing install date", "Installer to upload photos", "Photos asked for").
 
-### The 7 biggest gaps
+### The 8 biggest gaps
 1. **Needs me is not in the navigation** and misses the office's real signatures and deadlines (ESC consent AP sign, VEEC Part A + prerequisites, day-10 VEEC alert, ESC notice window, fixes quote to check, declined quotes, second no-access, lapsed window). The 30-day alert fires at 5 days instead of 10 (decision 2).
 2. **One "Next" panel per job** — today three status boxes from three reads, and the main daily actions (Choose installer, Send quote, Sign consent, Sign VEEC, Record payment) are three to five fold-outs deep.
 3. **No Settings › Xero and no Settings › Switches** (176–182; 159; 16 cancel-all).
@@ -545,6 +557,7 @@ Templates (the one wording register, with Compliance Setup's versions and the ow
 5. **New enquiry (phone)** and **office bulk import** of an installer's list have no entry point once the board goes.
 6. **Install-day no access** (214/215) and the **office fallback Complete installation** (213) are not visible.
 7. **Status wording** — the office statuses (`SITUATION`) still describe owner-picked times, office booking and portal photo uploads; they drive Enquiries "Next office action", Active jobs pills and Needs me rows, so one wording table fixes three screens.
+8. **Leads data (decision 216)** — no Fix details pile, no Last heard from us, addresses in one line with a blank suburb, no contact history in one place, and no way to review the 1,325 estimate-only leads. The contact facts already exist in five tables (`customer_email_sends`, `job_communications`, `sms_messages`, `messages`, `outlook_message_work`); the name/address clean-up needs the capitalisation tidy and address split run on every source plus a required full name at Save my spot.
 
 ### Questions only Jo can answer (the UNSURE list)
 1. Needs me: does the office still step in when a Ready Check or PIESA isn't agreed 48 hours after contact, or only when a 24-hour offer lapses?
@@ -602,6 +615,9 @@ All paths under the repository root on `installer-mitti-workflow` at `1a525df6`.
 - Final check fold-out: `src/components/portal/job-profit.tsx`, `src/lib/compliance-timeline.core.ts` (`RECORD_LABELS`)
 - History fold-out: `src/components/portal/owner-eligibility.tsx`, `src/components/portal/workers.tsx` (`WorkerLinksPanel`), `src/components/portal/waiting.tsx` (`ClearTimeline`; `WhoHasTheBall` unused), `src/components/portal/visit-changes.tsx` (`AdminVisitHistory`)
 - Shared rules: `src/lib/nextstep.core.ts`, `src/lib/waiting.core.ts`, `src/lib/journey.core.ts`, `src/lib/portal-presentation.core.ts` (`targetForAction`, labels only), `src/lib/allocation.core.ts` (`parseJobSection`)
+
+**Contact history sources (decision 216)**
+- `customer_email_sends` (read in `src/lib/communications-centre.functions.ts`, `src/lib/jobfile.server.ts`), `job_communications` (`src/lib/portal-presentation.core.ts` `communicationOrigin`, `src/components/portal/jobfile.tsx` `LogCommunication`), `sms_messages` (`src/lib/sms.server.ts`, `src/lib/spot-saved-send.server.ts`), `messages` (`src/components/portal/panels.tsx` `MessagesPanel`, `src/lib/portal.functions.ts`), `outlook_message_work` (`src/lib/outlook-sync.server.ts`, `src/components/portal/OutlookReview.tsx`). Enquiry reply state today: `src/lib/enquiry-response.core.ts`; name/address fields: `owners`, `properties` via `src/lib/enquiry-groups.functions.ts`.
 
 **Communications / Templates / Compliance / Owner paperwork**
 - `src/routes/_authenticated/admin.communications.tsx` (tabs, `HistoryTable`, `Overview`, `IneligibleRetry`), `src/components/portal/EnquiryResponseOverview.tsx`, `src/components/portal/CampaignsPanel.tsx`, `src/components/portal/OutlookReview.tsx`
