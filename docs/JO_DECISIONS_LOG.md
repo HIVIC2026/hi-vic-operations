@@ -377,3 +377,5 @@ Newest first. Each line is settled; anything still open is under "Open".
 285. **Enquiries: no filter chips (Jo 25 Oct: "I hate the filters").** The chip panel (insulation / size / area / source / last heard) and its note go. The list has one search box (owner name or address, also job number) and sortable column headings only; the hottest-first default sort stays. Why: find a person or an address, nothing else.
 
 286. **Enquiries columns (Jo 25 Oct).** Columns: Job · Owner · Address · Size (m²) · Insulation (No / Some / Not sure) · Estimate ($, the website estimate or quoted price) · Last heard. Each column heading sorts AND filters (tap a heading: pick values for Insulation, type/range for Size and Estimate, text for Owner/Address) — no separate chip panel. Why: filter by the column you are looking at.
+
+287. **One way to add a ceiling area (Jo 25 Oct: "wtf").** A1/A2 keep only the repeating "Add a ceiling area" block; the "How many ceiling areas need to be measured separately?" count and the fixed Ceiling Area 1–6 sections are deleted; the button reads "Add a ceiling area" (no "CLICK ON ME"). Why: one list, nothing doubled.
