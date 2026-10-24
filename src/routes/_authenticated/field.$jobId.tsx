@@ -55,6 +55,7 @@ import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { InstallerInstallDays } from "@/components/portal/install-days";
+import { WhosDoingThis } from "@/components/trade/visit-allocation";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -105,6 +106,7 @@ function FieldJob() {
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
+        {role === "installer" && <WhosDoingThis jobId={jobId} />}
         {role === "installer" && job.channel === "hivic_sourced" && (job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled") && <InstallerReadyCheckTimesCard jobId={jobId} />}
         {role === "installer" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
