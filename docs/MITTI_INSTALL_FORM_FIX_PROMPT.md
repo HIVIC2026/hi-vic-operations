@@ -64,59 +64,54 @@ signature capture.
 25. `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when 23 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
 
 ## Group 5: The electrician's check (PIESA)
+The portal has the PIESA already: it fills in the light, cable and downlight answers on the official form itself, so none of
+them are asked here.
 26. `Have you read the PIESA and is it safe to start?` — Yes/No — Required — stop line when No: `Stop.`
-27. `Did the PIESA say an electrician must be here at the start?` — Yes/No — Required — portal fills this in
+27. `Does the PIESA need an electrician here at the start?` — Yes/No — Required — portal fills this in
 28. `Is the electrician here?` — Yes/No — Required — only show when 27 = `Yes` — stop line when No: `Stop. Wait for the electrician.`
 29. `Photo of the electrician at the front door, showing photo ID` — Photo — Required — only show when 28 = `Yes`
-30. `Are there downlights in the ceiling?` — Yes/No — Required — portal fills this in
-31. `How many?` — Number — Required — only show when 30 = `Yes`
-32. `Does the PIESA say every light is IC or IC-4?` — Yes/No — Required — only show when 30 = `Yes` — stop line when No: `Stop.`
-33. `Does the PIESA say the lights are safe to cover?` — Yes/No — Required — only show when 30 = `Yes` — stop line when No: `Stop. Don't cover them.`
-34. `Does the PIESA say the ceiling cables have RCD protection?` — Yes/No — Required — stop line when No: `Stop.`
-35. `Does the PIESA say the ceiling cables are TPS or equivalent?` — Yes/No — Required — stop line when No: `Stop.`
-36. `Does the PIESA say the ceiling cables meet basic protection?` — Yes/No — Required — stop line when No: `Stop.`
-37. `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required — help text: `Ask the owner.` — stop line when Yes: `Stop. An electrician must check again.`
+30. `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required — help text: `Ask the owner.` — stop line when Yes: `Stop. An electrician must check again.`
 
 ## Group 6: What's up there now
-38. `Is there insulation in the ceiling already?` — Yes/No — Required — portal fills this in
-39. `How deep is it on average (mm)?` — Number — Required — only show when 38 = `Yes`
-40. `What's its R-value, if you know?` — Text — only show when 38 = `Yes`
-41. `What are you doing with it?` — Pick one: `Removing it` / `Topping it up` / `Some of each` — Required — only show when 38 = `Yes`
-42. `Why is it staying?` — Text — Required — only show when 41 = `Topping it up` or `Some of each`
-43. `Is it in good enough condition to lay over?` — Yes/No — Required — only show when 41 = `Topping it up` or `Some of each` — stop line when No: `Stop. Take it out first.`
-44. `Is any of it foil, metallic or conductive?` — Yes/No — Required — only show when 38 = `Yes` — stop line when Yes: `It must come out before you start.`
-45. `Photo of the foil or metallic insulation` — Photo — Required — only show when 44 = `Yes`
+31. `Is there insulation in the ceiling already?` — Yes/No — Required — portal fills this in
+32. `How deep is it on average (mm)?` — Number — Required — only show when 31 = `Yes`
+33. `What's its R-value, if you know?` — Text — only show when 31 = `Yes`
+34. `What are you doing with it?` — Pick one: `Removing it` / `Topping it up` / `Some of each` — Required — only show when 31 = `Yes`
+35. `Why is it staying?` — Text — Required — only show when 34 = `Topping it up` or `Some of each`
+36. `Is it in good enough condition to lay over?` — Yes/No — Required — only show when 34 = `Topping it up` or `Some of each` — stop line when No: `Stop. Take it out first.`
+37. `Is any of it foil, metallic or conductive?` — Yes/No — Required — only show when 31 = `Yes` — stop line when Yes: `It must come out before you start.`
+38. `Photo of the foil or metallic insulation` — Photo — Required — only show when 37 = `Yes`
 
 ## Group 7: Product
-46. `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
+39. `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
 
 ## Group 8: Declaration (sign before you start)
-47. Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
-48. `Everything on this form is true and complete` — Checkbox — Required
-49. `Lead installer's signature` — Signature — Required
-50. Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
+40. Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
+41. `Everything on this form is true and complete` — Checkbox — Required
+42. `Lead installer's signature` — Signature — Required
+43. Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
 
 ## Group 9: Each ceiling area (after the install)
-51. `How many ceiling areas did you insulate?` — Pick one: `1` / `2` / `3` — Required — help text: `Use the same areas as the Ready Check.`
-52. `Area 1: which part of the home?` — Text — Required — portal fills this in
-53. `Area 1: was there old insulation here?` — Yes/No — Required
-54. `Area 1: photo of the old insulation with a ruler showing its depth` — Photo — Required — only show when 53 = `Yes`
-55. `Area 1: video before you start` — Video — Required — help text: `Slow 360°, lit, say the area name.`
-56. `Area 1: product installed` — Pick one — Required — the same product list as the Ready Check — portal fills this in
-57. `Area 1: m² installed` — Number — Required — portal fills this in
-58. `Area 1: video when it's done` — Video — Required — help text: `Slow 360°, lit, say the area name. Show full coverage and no rubbish left.`
-59. `Area 1: photo of the new insulation with a ruler showing its depth` — Photo — Required — help text: `Ruler standing up, insulation not squashed.`
-60–67. Same eight questions for `Area 2:` — only show when 51 = `2` or `3`
-68–75. Same eight questions for `Area 3:` — only show when 51 = `3`
-76. `Did the install take more than one day?` — Yes/No — Required
-77. `I checked every item on this form again before starting each day` — Checkbox — Required — only show when 76 = `Yes`
+44. `How many ceiling areas did you insulate?` — Pick one: `1` / `2` / `3` — Required — help text: `Use the same areas as the Ready Check.`
+45. `Area 1: which part of the home?` — Text — Required — portal fills this in
+46. `Area 1: was there old insulation here?` — Yes/No — Required
+47. `Area 1: photo of the old insulation with a ruler showing its depth` — Photo — Required — only show when 46 = `Yes`
+48. `Area 1: video before you start` — Video — Required — help text: `Slow 360°, lit, say the area name.`
+49. `Area 1: product installed` — Pick one — Required — the same product list as the Ready Check — portal fills this in
+50. `Area 1: m² installed` — Number — Required — portal fills this in
+51. `Area 1: video when it's done` — Video — Required — help text: `Slow 360°, lit, say the area name. Show full coverage and no rubbish left.`
+52. `Area 1: photo of the new insulation with a ruler showing its depth` — Photo — Required — help text: `Ruler standing up, insulation not squashed.`
+53–60. Same eight questions for `Area 2:` — only show when 44 = `2` or `3`
+61–68. Same eight questions for `Area 3:` — only show when 44 = `3`
+69. `Did the install take more than one day?` — Yes/No — Required
+70. `I checked every item on this form again before starting each day` — Checkbox — Required — only show when 69 = `Yes`
 
 ## Group 10: Finishing up
-78. `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
-79. `Who turned it back on?` — Text — Required — only show when 78 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
-80. `Photo of the switchboard with the main switch on` — Photo — Required — only show when 78 = `Yes`
-81. `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
-82. `I was here the whole time and supervised everyone` — Checkbox — Required
-83. `Lead installer's signature` — Signature — Required
+71. `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
+72. `Who turned it back on?` — Text — Required — only show when 71 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
+73. `Photo of the switchboard with the main switch on` — Photo — Required — only show when 71 = `Yes`
+74. `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
+75. `I was here the whole time and supervised everyone` — Checkbox — Required
+76. `Lead installer's signature` — Signature — Required
 
 Publish.
