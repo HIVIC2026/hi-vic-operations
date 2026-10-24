@@ -63,6 +63,8 @@ export async function prestartFacts(jobId: string, start: string) {
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
     siteHoldBlockers: await siteHoldBlockers(jobId),
     publicLiabilityBlocker: await installerPublicLiabilityBlocker(jobId),
+    // Decision 261: the portal's safety plan (SWMS) must be signed by the lead and every listed installer.
+    swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
   };
 }
 

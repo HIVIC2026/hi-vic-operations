@@ -167,3 +167,16 @@ export const getTradeMoneyJob = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeMoneyJob(data.jobId, context.userId)));
 
+
+/** Decision 261: the safety plan (SWMS) on the installer's job page. */
+export const getTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSwms(data.jobId, context.userId)));
+
+export const saveTradeSwmsNote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, note: z.string().max(2000) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsNote(data.jobId, context.userId, data.note));
+
+export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));

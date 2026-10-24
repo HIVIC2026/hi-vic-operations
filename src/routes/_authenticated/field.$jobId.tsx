@@ -38,6 +38,7 @@ import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
+import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, sendMessage } from "@/lib/portal.functions";
@@ -355,6 +356,9 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {installLine && <Row label="Install" value={installLine} last />}
         </Group>
       )}
+
+      {/* Decision 261: the safety plan (SWMS) the crew signs before install day. */}
+      <SafetyPlanCard jobId={jobId} />
 
       {page && readyCheck && (atReadyCheck || page.form.linked) && (
         <Group title="Ready Check">

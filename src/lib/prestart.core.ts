@@ -73,6 +73,8 @@ export type PrestartFacts = {
   siteHoldBlockers?: string[] | undefined; // open "Site conditions differ" review hold
   /** H3 (24 Oct 2026): the assigned installer business's lapsed public liability insurance (publicLiabilityBlocker); undefined = not loaded (older callers). */
   publicLiabilityBlocker?: string | null | undefined;
+  /** Decision 261: "Safety plan not signed: …" until the lead and every listed installer signed the portal SWMS; undefined = not loaded (older callers). */
+  swmsBlocker?: string | null | undefined;
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -96,6 +98,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   for (const b of f.readyCheckWorksBlockers ?? []) out.push(`Ready Check original condition not recorded: ${b}.`);
   for (const b of f.siteHoldBlockers ?? []) out.push(b);
   if (f.publicLiabilityBlocker) out.push(`Installer business: ${f.publicLiabilityBlocker}`);
+  if (f.swmsBlocker) out.push(f.swmsBlocker);
   return out;
 }
 
