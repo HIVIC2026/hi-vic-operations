@@ -149,3 +149,4 @@ Newest first. Each line is settled; anything still open is under "Open".
     - 3-day text (B): "Home Insulation Victoria: Hi {FirstName}, your quote with {rebate} off is waiting: {link} Reply STOP to opt out."
     - Expiry text (A): "Home Insulation Victoria: Hi {FirstName}, your quote price is held until {Day Date}. Accept by then to keep your {rebate} rebate price: {link} Reply STOP to opt out."
     - Reminder emails: the quote email's price box + button with a reminder line at the top; no breakdown.
+90. **"You're in!" acceptance + $349 receipt email approved (24 Oct).** Payment received card (amount, date, card, Paid, remaining balance with the 10% / install-day split); next steps (electrician offers times; separate quote only if fixes needed; installer offers 3 install days within 30 days of the safety check); See my job; signed acceptance + receipt attached. Design: `docs/templates/approved/O22-youre-in.html`.
