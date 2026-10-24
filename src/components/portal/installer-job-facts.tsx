@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useServerFn } from "@tanstack/react-start";
 import { answerInstallerQuoted, getInstallerJobFacts, getMyInstallerJobFacts } from "@/lib/portal.functions";
-import { askOwnerForReadyCheckTimesFn, bookOwnReadyCheckFn, getInstallerRcState, takeOwnerReadyCheckTimeFn } from "@/lib/installer-ready-check.functions";
-import { formatPiesaWindow } from "@/lib/piesa-windows.core";
+import { bookOwnReadyCheckFn, getInstallerRcState } from "@/lib/installer-ready-check.functions";
 import { Section } from "./panels";
 import { QUOTED_QUESTION, installerFactLabels, type InstallerJobFacts } from "@/lib/bulk-import.core";
 
@@ -99,8 +98,6 @@ function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const get = useServerFn(getInstallerRcState);
   const book = useServerFn(bookOwnReadyCheckFn);
-  const ask = useServerFn(askOwnerForReadyCheckTimesFn);
-  const take = useServerFn(takeOwnerReadyCheckTimeFn);
   const q = useQuery({ queryKey: ["installer-rc", jobId], queryFn: () => get({ data: { jobId } }) });
   const [mine, setMine] = useState(false);
   const [when, setWhen] = useState("");
@@ -116,13 +113,10 @@ function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
     <section className="rounded-[19px] border border-rose/25 bg-pink p-5 md:p-[23px]" data-installer-ready-check={s.action}>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
       {s.action === "booked" ? <><h2 className="font-display text-lg font-bold">Ready Check booked</h2>{s.bookedAt && <p className="text-sm">{new Date(s.bookedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}</>
-      : s.action === "waiting_for_owner" ? <><h2 className="font-display text-lg font-bold">Waiting for the owner's times</h2><p className="text-sm">We've asked the owner to choose 3 to 5 times. You'll see them here.</p></>
-      : s.action === "pick_owner_time" ? <><h2 className="font-display text-lg font-bold">Tap a time to book the Ready Check</h2>
-          <div className="mt-3 grid gap-2">{s.windows.map((w) => <Button key={w.id} size="field" variant="outline" disabled={busy} onClick={() => run(() => take({ data: { jobId, windowId: w.id } }))}>{formatPiesaWindow(w.starts_at, w.ends_at)}</Button>)}</div></>
       : <><h2 className="font-display text-lg font-bold">Book a Ready Check</h2>
+          <p className="mt-1 text-sm">Arrange the visit with the owner directly, then enter the time here.</p>
           <div className="mt-3 grid gap-2">
             <Button size="field" variant={mine ? "default" : "outline"} disabled={busy} onClick={() => setMine(true)}>I'll book it with the owner</Button>
-            <Button size="field" variant="outline" disabled={busy} onClick={() => run(() => ask({ data: { jobId } }))}>Ask the owner for times</Button>
           </div>
           {mine && <div className="mt-3 space-y-2">
             <label className="block text-sm font-bold">Date and time you agreed<Input type="datetime-local" className="mt-1 h-12" value={when} onChange={(e) => setWhen(e.target.value)} /></label>

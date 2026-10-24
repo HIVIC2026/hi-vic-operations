@@ -11,7 +11,6 @@ import {
   getLaunchCampaignOffice,
   saveDesktopInsulationCheck,
 } from "@/lib/launch-campaign.functions";
-import { InsulationQuestionsCampaign } from "./InsulationQuestionsCampaign";
 import { SpotPhotoCheck } from "./SpotPhotoCheck";
 
 const LABEL: Record<string, string> = {
@@ -111,7 +110,6 @@ export function CampaignsPanel() {
         automatic rules, and the wording lives in Templates › Email.
       </div>
 
-      <InsulationQuestionsCampaign />
       <section>
         <h2 className="font-display text-xl font-bold">Spots saved</h2>
         <p className="text-sm text-sub">

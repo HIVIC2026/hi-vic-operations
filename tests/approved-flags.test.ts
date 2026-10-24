@@ -22,6 +22,7 @@ import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "../src/lib/v
 import { THIRTY_DAY_REMINDER_APPROVED } from "../src/lib/thirty-day-rule.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
+import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { usualElectricianReminderBody } from "../src/lib/usual-electrician.core";
 
@@ -30,6 +31,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   LAUNCH_COPY_APPROVED: { value: LAUNCH_COPY_APPROVED, decisions: "66/67 (O1, O2)" },
   SAVE_SPOT_REAL_SEND_APPROVED: { value: SAVE_SPOT_REAL_SEND_APPROVED, decisions: "66/67 (O1, O2)" },
   INSULATION_DETAILS_REAL_SEND_APPROVED: { value: INSULATION_DETAILS_REAL_SEND_APPROVED, decisions: "67/69" },
+  INSULATION_QUESTIONS_SEND_APPROVED: { value: INSULATION_QUESTIONS_SEND_APPROVED, decisions: "180 (automatic Save my spot after the 3 questions / photo upload)" },
   READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
   READY_CHECK_TIMES_EMAIL_APPROVED: { value: READY_CHECK_TIMES_EMAIL_APPROVED, decisions: "77 (O11)" },
   READY_CHECK_BOOKED_EMAIL_APPROVED: { value: READY_CHECK_BOOKED_EMAIL_APPROVED, decisions: "81 (O12)" },
