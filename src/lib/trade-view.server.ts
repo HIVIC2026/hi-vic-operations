@@ -547,7 +547,7 @@ export async function tradeMittiInvited(userId: string) {
 /** Jo 24 Oct 2026 (decision 110): on the installer's own job (A1) the installer enters the Ready Check day and time.
  *  Business-scoped (the business that supplied the customer), the same slots the owner's times link offers, written
  *  as the normal ready_check booking so the 6:30am daily text lists it with the Mitti link. No owner notification. */
-export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick: { day: string; time: string }, now = new Date()) {
+export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick: { day: string; time: string }, now = new Date(), call?: import("./mitti.core").MittiCall) {
   const c = await ctxOrThrow(userId);
   if (c.kind !== "installer") throw new WorkflowError("Only the installer enters the Ready Check time.");
   const { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, readyCheckStartAt } = await import("./ready-check-times.core");
@@ -561,7 +561,8 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
   await confirmBooking(jobId, "ready_check", start, userId, "installer (time entered on own job)");
   const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
   await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", jobId);
-  await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
+  // Idempotent: a form already made at Add a job (decision 115) is found and kept; otherwise the booking starts it.
+  await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId, call).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
   await logEvent(jobId, userId, "installer_ready_check_time_entered", "Installer entered the Ready Check day and time on his own job (nothing sent to the owner)", { starts_at: start, business_id: c.biz.id });
   return { ok: true, startsAt: start };
 }

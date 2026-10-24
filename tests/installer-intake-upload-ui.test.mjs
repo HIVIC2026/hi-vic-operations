@@ -39,7 +39,7 @@ const removal = load('src/lib/intake-quote-details.core.ts');
 const melb = load('src/lib/melbourne-time.core.ts', { './daily-brief.core': load('src/lib/daily-brief.core.ts'), './piesa-windows.core': load('src/lib/piesa-windows.core.ts') });
 const core = load('src/lib/installer-intake.core.ts', { './intake-quote-details.core': removal, './melbourne-time.core': melb });
 // Customer/electrical validation is outside this upload regression; existing intake/file rules remain actual source.
-const flowCore = load('src/lib/add-job-flow.core.ts', { './onsite-ready-check.core': { onsiteProblems: () => [] }, './later-ready-check.core': {}, './installer-quote-intake.core': {} });
+const flowCore = load('src/lib/add-job-flow.core.ts', { './onsite-ready-check.core': { onsiteProblems: () => [] }, './install-days.core': { installTimeLabel: t => t } });
 const commercial = load('src/lib/installer-quote-commercial.core.ts');
 const legacy = { path: 'partners/business/imports/legacy.pdf', name: 'legacy.pdf', type: 'application/pdf' };
 const supporting = { path: 'partners/business/imports/photo.jpg', name: 'photo.jpg', type: 'image/jpeg', purpose: 'supporting' };
