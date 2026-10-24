@@ -42,7 +42,7 @@ describe("the four sample drafts (shown to Jo)", () => {
   });
   test("sample facts appear verbatim; nothing is invented", () => {
     const [status, enquiry, price, partner] = SAMPLES.map((s) => draft(s.input));
-    expect(status!.text).toContain("Your free Ready Check is booked for Wednesday 28 October, 9–11am.");
+    expect(status!.text).toContain("Your free Ready Check is booked for Wednesday 28 October at 9am.");
     expect(status!.checkBeforeSending).toBe(false);
     expect(enquiry!.link).toBe(CALCULATOR_URL);
     expect(enquiry!.checkBeforeSending).toBe(true); // new sender: office checks they aren't an existing customer
@@ -103,7 +103,7 @@ describe("owner_status", () => {
       stage: "installation_booked", install: { start: "2026-11-03T21:30:00Z", end: null },
       paymentDue: { key: "install_deposit", outstanding: 185.1, dueAt: "2026-10-26T00:00:00Z", state: "requested", cardAvailable: false }, installHeldUntil: "2026-10-26T00:00:00Z",
     }));
-    expect(d.text).toContain("Your install is booked for Wednesday 4 November, 8:30am.");
+    expect(d.text).toContain("Your install is booked for Wednesday 4 November at 8:30am.");
     expect(d.text).toContain("booking payment of $185.10");
     expect(d.text).toContain("by bank transfer or PayID");
     expect(d.text).not.toMatch(/card/i);
@@ -259,8 +259,8 @@ describe("switches and send guards", () => {
 describe("formatting", () => {
   test("money", () => { expect(money(2188)).toBe("$2,188"); expect(money(2200.5)).toBe("$2,200.50"); expect(money(349)).toBe("$349"); });
   test("Melbourne-local slots", () => {
-    expect(slotText({ start: "2026-10-27T22:00:00Z", end: "2026-10-28T00:00:00Z" })).toBe("Wednesday 28 October, 9–11am");
-    expect(slotText({ start: "2026-10-28T00:30:00Z", end: "2026-10-28T03:00:00Z" })).toBe("Wednesday 28 October, 11:30am–2pm");
+    expect(slotText({ start: "2026-10-27T22:00:00Z", end: "2026-10-28T00:00:00Z" })).toBe("Wednesday 28 October at 9am");
+    expect(slotText({ start: "2026-10-28T00:30:00Z", end: "2026-10-28T03:00:00Z" })).toBe("Wednesday 28 October at 11:30am");
   });
   test("first names", () => { expect(firstNameOf("helen mary sample")).toBe("Helen"); expect(firstNameOf("info@example.com")).toBeNull(); expect(firstNameOf("")).toBeNull(); });
 });

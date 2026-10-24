@@ -19,7 +19,7 @@ Every name, address, job number and email below is invented. Figures follow the 
 ```text
 Hi Helen,
 
-Your free Ready Check is booked for Wednesday 28 October, 9–11am. The installer will measure your ceiling and confirm the price.
+Your free Ready Check is booked for Wednesday 28 October at 9am. The installer will measure your ceiling and confirm the price.
 
 Jo, Home Insulation Victoria
 ```

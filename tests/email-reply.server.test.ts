@@ -130,7 +130,7 @@ describe("drafting", () => {
     const patch = calls[1]!;
     const content = String((patch.body!["body"] as Row)["content"]);
     expect(content).toContain("<p>Hi Helen,</p>");
-    expect(content).toContain("Your free Ready Check is booked for Wednesday 28 October, 9–11am.");
+    expect(content).toContain("Your free Ready Check is booked for Wednesday 28 October at 9am.");
     expect(content.endsWith("<div>quoted thread</div>")).toBe(true);
     expect(patch.body!["categories"]).toContain("Portal draft");
     expect(patch.headers["X-Connection-Api-Key"]).toBe("test-outlook");

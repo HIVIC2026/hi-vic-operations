@@ -118,12 +118,9 @@ export function money(n: number): string {
 }
 const dayText = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: TZ }).replace(",", "");
 const timeText = (iso: string) => new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: TZ }).replace(":00", "").replace(/\s/g, "").toLowerCase();
-/** "Tuesday 28 October, 9–11am" / "Tuesday 28 October, 9am". */
+/** "Tuesday 28 October at 9am": the exact arrival time only (decision 43: no time windows). */
 export function slotText(s: Slot): string {
-  const a = timeText(s.start);
-  if (!s.end) return `${dayText(s.start)}, ${a}`;
-  const b = timeText(s.end);
-  return `${dayText(s.start)}, ${a.slice(-2) === b.slice(-2) ? a.slice(0, -2) : a}–${b}`;
+  return `${dayText(s.start)} at ${timeText(s.start)}`;
 }
 const dateTimeText = (iso: string) => `${timeText(iso)} ${dayText(iso)}`;
 
