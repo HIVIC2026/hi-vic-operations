@@ -59,5 +59,7 @@ Newest first. Each line is settled; anything still open is under "Open".
 27. Electrician on our leads: most installers have one in house. Their **saved usual electrician does the safety check by default** and is paid our standard electrician rate; the owner still pays us $349. If none is saved, we arrange one.
 28. Keep the visit-day tick on our leads ("I will not discuss pricing with the owner").
 29. The Ready Check visit on our leads is **free** (as the agreement says). The installer is paid for the install.
-30. The installer's 7-day pay clock on our leads starts after **AP approval and the owner paying in full** (same as their own jobs).
+30. Installer pay on our leads: **keep the agreement**. Paid within 7 days of our approval; owner payment is not a condition. (Jo first chose "+ owner paid in full", then kept the signed agreement.)
 31. The office keeps installers' own jobs separate: "New from installers" and the installer summary stay their-own-jobs only.
+32. Apply 0224 live: installers can't read the owner's price on our leads (database).
+33. Keep the "Not drafted yet" section on Quotes to check.
