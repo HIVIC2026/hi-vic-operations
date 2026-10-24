@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { MenuPanel } from "@/components/portal/kit";
 import type { SortDir } from "@/lib/office-filters.core";
 
 export function ChipGroup<T extends string>({ label, options, labels, value, onChange }: { label: string; options: readonly T[]; labels: Record<T, string>; value: T[]; onChange: (v: T[]) => void }) {
@@ -43,12 +44,10 @@ export function ActionsMenu({ actions, selected, onPick }: { actions: BulkAction
   return (
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="inline-flex min-h-[38px] items-center rounded-[10px] border border-line bg-paper px-3 text-[13px] font-bold text-hiv-blue">Actions ▾{selected ? ` (${selected})` : ""}</button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-11 z-30 w-60 rounded-[14px] border border-line bg-paper p-1 shadow-lg" onClick={() => setOpen(false)}>
-          {selected === 0 && <p className="px-3 py-2 text-xs text-sub">Tick rows first.</p>}
-          {actions.map((a) => <button key={a.key} role="menuitem" type="button" disabled={selected === 0} onClick={() => onPick(a.key)} className={cn("block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist disabled:opacity-40", a.danger && "text-rose")}>{a.label}{selected ? ` (${selected})` : ""}</button>)}
-        </div>
-      )}
+      <MenuPanel open={open} onPick={() => setOpen(false)}>
+        {selected === 0 && <p className="px-3 py-2 text-xs text-sub">Tick rows first.</p>}
+        {actions.map((a) => <button key={a.key} role="menuitem" type="button" disabled={selected === 0} onClick={() => onPick(a.key)} className={cn("block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist disabled:opacity-40", a.danger && "text-rose")}>{a.label}{selected ? ` (${selected})` : ""}</button>)}
+      </MenuPanel>
     </div>
   );
 }

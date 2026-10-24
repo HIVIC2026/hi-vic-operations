@@ -8,6 +8,7 @@ import { ChevronDown, LogOut, Search } from "lucide-react";
 import { searchOffice } from "@/lib/office.functions";
 import { MORE_SECTIONS, OFFICE_HEADINGS, OFFICE_HOME, sectionFor } from "@/config/office-nav";
 import { cn } from "@/lib/utils";
+import { MenuPanel } from "@/components/portal/kit";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 /** One search for the whole office: job number, owner or address (top bar, decision 218). */
@@ -61,16 +62,14 @@ function MoreMenu({ active }: { active: boolean }) {
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className={cn("flex items-center gap-1 whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-semibold", active ? "bg-mist text-ink" : "text-sub hover:text-ink")}>
         More <ChevronDown className="h-4 w-4" aria-hidden />
       </button>
-      {open && (
-        <div role="menu" className="absolute left-0 top-11 z-50 w-64 rounded-[14px] border border-line bg-paper p-1 shadow-lg" onClick={() => setOpen(false)}>
-          {MORE_SECTIONS.map((s) => (
-            <div key={s.label}>
-              <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-sub">{s.label}</p>
-              {s.tabs.map((t) => <Link role="menuitem" key={t.label} to={t.to} search={(t.search ?? {}) as never} className="block rounded-[10px] px-3 py-2 text-sm hover:bg-mist">{t.label}</Link>)}
-            </div>
-          ))}
-        </div>
-      )}
+      <MenuPanel open={open} onPick={() => setOpen(false)} width={256} className="z-50">
+        {MORE_SECTIONS.map((s) => (
+          <div key={s.label}>
+            <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-sub">{s.label}</p>
+            {s.tabs.map((t) => <Link role="menuitem" key={t.label} to={t.to} search={(t.search ?? {}) as never} className="block rounded-[10px] px-3 py-2 text-sm hover:bg-mist">{t.label}</Link>)}
+          </div>
+        ))}
+      </MenuPanel>
     </div>
   );
 }

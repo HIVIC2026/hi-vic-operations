@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { MenuPanel } from "@/components/portal/kit";
 import { useAction } from "@/hooks/use-me";
 import { CARD_STATE_LABEL, type CardKey, type StageCard } from "@/lib/office-stage-cards.core";
 import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, type ContactRow } from "@/lib/contact-history.core";
@@ -472,8 +473,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
   return (
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className={cn(btn, "border border-line bg-paper text-hiv-blue")}>More ▾</button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-12 z-30 w-60 rounded-[14px] border border-line bg-paper p-1 shadow-lg" onClick={() => setOpen(false)}>
+      <MenuPanel open={open} onPick={() => setOpen(false)}>
           {h.stage === "on_hold" ? <button role="menuitem" type="button" className={item} onClick={() => void resume({ jobId: h.jobId, action: "resume" }, "Resumed")}>Resume</button>
             : !closed && <button role="menuitem" type="button" className={item} onClick={() => setDialog("hold")}>Put on hold</button>}
           {!h.isTest && <button role="menuitem" type="button" className={item} onClick={() => setDialog("test")}>Mark as test</button>}
@@ -481,8 +481,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
           {h.canReopen && <button role="menuitem" type="button" className={item} onClick={() => setDialog("reopen")}>Reopen…</button>}
           {h.canDelete && <button role="menuitem" type="button" className={cn(item, "text-rose")} onClick={() => setDialog("delete")}>Delete (test jobs only)</button>}
           {!closed && visitKind && <button role="menuitem" type="button" className={item} onClick={() => setDialog("override")}>Set a visit time by hand…</button>}
-        </div>
-      )}
+      </MenuPanel>
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
       <HoldDialog h={h} open={dialog === "hold"} onOpenChange={(v) => setDialog(v ? "hold" : null)} />
       <ReasonDialog title={`Mark ${h.jobNumber} as test`} description="It moves to Jobs › Closed › Removed / test and leaves every live list." action="Mark as test" tone="ink" open={dialog === "test"} onOpenChange={(v) => setDialog(v ? "test" : null)} run={async (reason) => !!(await markTest({ jobId: h.jobId, reason }, "Marked as test"))} />
