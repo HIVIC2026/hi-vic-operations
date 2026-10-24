@@ -123,11 +123,10 @@ test("TEST pill only when asked", () => {
   expect(renderOwnerQuoteEmail({ ...base, test: true }).html).toContain("TEST — only sent to Jo");
 });
 
-test("SMS follows the draft wording", () => {
-  expect(ownerQuoteSms("Courtney", "$2,347.00", url)).toBe(
-    `Hi Courtney, your Home Insulation Victoria ceiling insulation quote is ready: $2,347.00 after the VEU rebate. View and accept here: ${url}. Reply STOP to opt out.`,
-  );
-  expect(ownerQuoteSms(null, "$1.00", url)).toStartWith("Hi there,");
+test("SMS is the approved quote-ready text (decision 87, B); the sender adds the brand prefix", () => {
+  expect(ownerQuoteSms("Courtney", url)).toBe(`Your ceiling insulation quote is ready, Courtney. See it here: ${url} Reply STOP to opt out.`);
+  expect(ownerQuoteSms(null, url)).toBe(`Your ceiling insulation quote is ready. See it here: ${url} Reply STOP to opt out.`);
+  expect(ownerQuoteSms("Courtney", url)).not.toMatch(/\$\d/);
 });
 
 test("safety check price is taken only from one unambiguous line", () => {
@@ -233,7 +232,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
   expect(m.text).toContain("2A Chatfield Street, Kingsville VIC 3012");
   expect(m.text).toContain("$2,347.00");
   expect(m.html).toContain("TEST — only sent to Jo");
-  expect(sentSms[0]).toContain("$2,347.00 after the VEU rebate");
+  expect(sentSms[0]).toBe(`Your ceiling insulation quote is ready, Courtney. See it here: ${CUSTOMER_BASE}/my-job/test-token?screen=quote Reply STOP to opt out.`); // decision 87, B
   expect(sentSms[0]).toContain(`${CUSTOMER_BASE}/my-job/test-token?screen=quote`);
 });
 
@@ -243,7 +242,7 @@ test("Jo 24 Oct (decision 86): fixes are quoted separately, nothing done without
   }
 });
 
-test("quote reminders (decisions 88/89/134): reminder line, price box, button, no breakdown; not switched on", async () => {
+test("quote reminders (decisions 88/89/134): reminder line, price box, button, no breakdown; approved", async () => {
   const { renderQuoteReminderEmail, QUOTE_REMINDER_EMAIL_APPROVED } = await import("../src/lib/owner-quote-email.core");
   const day3 = renderQuoteReminderEmail({ ...base, subtotalIncGst: 4197, kind: "day3" });
   expect(day3.subject).toBe("Courtney, your quote is waiting");
@@ -255,5 +254,5 @@ test("quote reminders (decisions 88/89/134): reminder line, price box, button, n
   const expiry = renderQuoteReminderEmail({ ...base, subtotalIncGst: 4197, kind: "expiry" });
   expect(expiry.subject).toBe("Courtney, your quote price is held until 6 November");
   expect(expiry.text).toContain("Accept by then to keep your price with $1,850 off.");
-  expect(QUOTE_REMINDER_EMAIL_APPROVED).toBe(false);
+  expect(QUOTE_REMINDER_EMAIL_APPROVED).toBe(true); // decisions 89/134
 });

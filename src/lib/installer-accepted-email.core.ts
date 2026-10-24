@@ -1,12 +1,12 @@
 // Jo 24 Oct 2026 (decisions 4, 91, 92, 136): installer emails when the owner accepts or declines the quote.
 // Designs approved: docs/templates/approved/I23-owner-accepted.html ("Good news, {InstallerFirst}. {OwnerFirst}
 // accepted!") and I24-owner-declined.html ("{InstallerFirst}, {OwnerFirst} has declined the quote"). Pure. No prices:
-// trades never see the owner's price. The declined email has no sender yet: INSTALLER_DECLINED_EMAIL_APPROVED stays
-// false so only TEST jobs/partners could receive it.
+// trades never see the owner's price. Both flags are on (decisions 91/136); real partners get them through sendOfficeEmail.
 import * as K from "./email-kit.core";
 
 export const INSTALLER_ACCEPTED_EMAIL_APPROVED = true as boolean;
-export const INSTALLER_DECLINED_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 136 (I24 "Owner declined"): approved. Real partners still go through sendOfficeEmail. */
+export const INSTALLER_DECLINED_EMAIL_APPROVED = true as boolean;
 
 export type InstallerAcceptedInput = { installerFirstName: string | null; ownerName: string | null; address: string | null; jobNumber: string; jobUrl: string; test?: boolean };
 

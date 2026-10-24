@@ -2,11 +2,12 @@
 // Design approved: docs/templates/approved/O22-youre-in.html — payment received card (amount, date, card, Paid, remaining
 // balance with the 10% / install-day split); next steps (electrician offers times; separate quote only if fixes needed;
 // installer offers 3 install days within 30 days of the safety check); See my job; signed acceptance + receipt attached.
-// No live sender yet (acceptance receipts come with the Stripe step): ACCEPTANCE_EMAIL_APPROVED stays false, so only TEST
-// jobs could receive it through approved-owner-emails.server.ts. Pure.
+// Sent through approved-owner-emails.server.ts (sendOwnerTemplateEmail): TEST jobs via test-send, real owners only with
+// ACCEPTANCE_EMAIL_APPROVED (on since decision 90) AND customer_comms_enabled, through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 
-export const ACCEPTANCE_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 90 (O22 "You're in!" + $349 receipt): approved. Delivery still behind customer_comms_enabled. */
+export const ACCEPTANCE_EMAIL_APPROVED = true as boolean;
 
 export type AcceptanceEmailInput = {
   firstName: string | null; rebate: number | null; totalIncGst: number;

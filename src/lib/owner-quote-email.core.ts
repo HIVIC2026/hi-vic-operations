@@ -4,14 +4,16 @@
 // crossed out, address, "Measured at your Ready Check"); View and accept; itemised "Your quote"; not included; one-line
 // Next; held-until line. Subject, SMS and every delivery guard are unchanged (OWNER_QUOTE_EMAIL_APPROVED, customer_comms_enabled).
 // Reminder emails (decisions 88/89/134, O19-quote-reminder.html): price box + button with a reminder line, no breakdown.
-// They have no live sender yet (the quote-expiry sweep only queues outbox actions): QUOTE_REMINDER_EMAIL_APPROVED stays false.
+// Approved (decisions 89/134): QUOTE_REMINDER_EMAIL_APPROVED is on; the sender is approved-owner-emails.server.ts behind customer_comms_enabled.
+// Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
 import { aud } from "./workflow";
 import * as K from "./email-kit.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
 export const OWNER_QUOTE_EMAIL_VERSION = "v3-approved-2026-10-24";
-export const QUOTE_REMINDER_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decisions 89 and 134 (O19 quote reminder, day 3 + expiry): approved. Delivery still behind customer_comms_enabled. */
+export const QUOTE_REMINDER_EMAIL_APPROVED = true as boolean;
 
 export type OwnerQuoteLine = { description: string; lineTotalIncGst: number };
 export type OwnerQuoteEmailInput = {
@@ -152,8 +154,8 @@ export function renderQuoteReminderEmail(i: OwnerQuoteEmailInput & { kind: Quote
   return { subject, html, text };
 }
 
-/** SMS draft wording (docs/OWNER_QUOTE_MESSAGES_DRAFT.md). Not approved for real sends. */
-export function ownerQuoteSms(firstName: string | null, totalText: string, link: string): string {
+/** Quote ready text, approved by Jo 24 Oct 2026 (decision 87, version B). The "Home Insulation Victoria: " prefix is added by brandSmsBody. */
+export function ownerQuoteSms(firstName: string | null, link: string): string {
   const name = cleanName(firstName);
-  return `Hi ${name ?? "there"}, your Home Insulation Victoria ceiling insulation quote is ready: ${totalText} after the VEU rebate. View and accept here: ${link}. Reply STOP to opt out.`;
+  return `Your ceiling insulation quote is ready${name ? `, ${name}` : ""}. See it here: ${link} Reply STOP to opt out.`;
 }

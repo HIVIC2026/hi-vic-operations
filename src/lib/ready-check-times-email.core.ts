@@ -1,11 +1,12 @@
 // Jo 24 Oct 2026 (decisions 52–53, 77): when the installer offers Ready Check times, the owner gets a link to pick one.
 // Design approved (decision 77): docs/templates/approved/O11-ready-check-times.html — "{First}, pick a time for your
 // free Ready Check"; the 3 offered times as tap buttons; "None suit? Suggest other days"; "At your Ready Check";
-// two-figure price box; included / not included. Delivery stays behind READY_CHECK_TIMES_EMAIL_APPROVED
-// (the texts and the send switches are a separate approval); until then only TEST jobs receive it. Pure.
+// two-figure price box; included / not included. READY_CHECK_TIMES_EMAIL_APPROVED is on (decision 77); real delivery
+// still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 
-export const READY_CHECK_TIMES_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 77 (O11 pick a time for your free Ready Check): approved. Delivery still behind customer_comms_enabled. */
+export const READY_CHECK_TIMES_EMAIL_APPROVED = true as boolean;
 
 export type ReadyCheckTimeSlot = { day: string; time: string; href?: string | null };
 export type ReadyCheckTimesInput = {

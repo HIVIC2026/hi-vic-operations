@@ -2,11 +2,12 @@
 // Design approved: docs/templates/approved/O29-fixes-quote.html — "{First}, your safety check found something to fix
 // first"; plain explanation; amber "What they found" list; itemised "Your fixes quote" with total incl. GST; the red
 // "⏰ The 30-day clock" box with the actual expiry date; "Checked by our office… Paid in full when you approve…";
-// Approve and pay button. No sender yet (rectification nudges only queue outbox actions): FIXES_QUOTE_EMAIL_APPROVED
-// stays false, TEST only through approved-owner-emails.server.ts. Pure.
+// Approve and pay button. FIXES_QUOTE_EMAIL_APPROVED is on (decision 95); sent through approved-owner-emails.server.ts
+// behind customer_comms_enabled. Pure.
 import * as K from "./email-kit.core";
 
-export const FIXES_QUOTE_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 95 (O29 electrical fixes quote): approved. Delivery still behind customer_comms_enabled. */
+export const FIXES_QUOTE_EMAIL_APPROVED = true as boolean;
 
 export type FixesQuoteEmailInput = {
   firstName: string | null; electricianName: string | null;

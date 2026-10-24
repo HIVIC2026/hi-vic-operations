@@ -1,7 +1,8 @@
 // Stage 6 (Jo 22 Oct 2026): once a released installation quote exists, tell the owner — by text, and by
 // email only when an approved template is on file. Nothing here invents customer wording:
-//  • the text uses the `quote_ready` type, whose wording is NOT approved yet, so the real sender refuses it
-//    until Jo approves it (sms.core.ts). The draft below is what she would be approving.
+//  • the text is the approved `quote_ready` wording (decision 87, text B: ownerQuoteSms) through the one real sender,
+//    which still needs customer_comms_enabled + the quote_ready switch; it carries the secure My job link, so with no
+//    usable link nothing is texted.
 //  • the email is the rendered owner quote email (owner-quote-email.core.ts: real numbers, lines and the secure
 //    My job link) once OWNER_QUOTE_EMAIL_APPROVED is true; until then only an approved
 //    `customer_communication_templates` row may be sent, and with none on file the office is told the quote went
@@ -10,9 +11,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
 export const QUOTE_EMAIL_TEMPLATE_KEY = "quote_ready";
-/** DRAFT wording (never sent until Jo approves the `quote_ready` SMS type). */
-export const quoteReadySmsBody = (jobNumber: string) =>
-  `Your ceiling insulation quote is ready — please open your Home Insulation Victoria job page to see it (job ${jobNumber}). Reply STOP to opt out.`;
+/** The approved quote-ready text (decision 87, B) lives in owner-quote-email.core.ts as ownerQuoteSms. */
+export { ownerQuoteSms as quoteReadySmsBody } from "./owner-quote-email.core";
 
 export type QuoteNotifyResult = { sms: string; email: string };
 
@@ -89,10 +89,9 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
     // TEST may show the draft wording regardless of approval; the unsubscribe link is best-effort here.
     const unsubscribe = await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId).catch(() => null);
     const mail = renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: true });
-    const { aud } = await import("./workflow");
     const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(partner), label: `quote_ready:${quoteId}`, actorId: null };
     const email = await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text);
-    const sms = await sendTestSms(ctx, owner?.phone ?? "", ownerQuoteSms(facts.input.firstName, aud(facts.input.totalIncGst), facts.input.quoteUrl));
+    const sms = await sendTestSms(ctx, owner?.phone ?? "", ownerQuoteSms(facts.input.firstName, facts.input.quoteUrl));
     return { email: `${email.status}: ${email.detail}`, sms: `${sms.status}: ${sms.detail}` };
   }
 
@@ -100,14 +99,18 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   // Decision 165: the trigger is the quote release (sent_at). A switch flipped on days later must not text an old
   // release, and never one that has since been accepted/declined/reopened — so the sender gets the release time and state.
   const { data: q } = await admin.from("quotes").select("sent_at, status, release_state").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
-  const s = await sendRealSms({
-    type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,
-    body: quoteReadySmsBody(String(job.job_number ?? "")),
-    event: { at: q?.sent_at ?? null, current: q?.status === "issued" && q?.release_state === "released" },
-  }).catch((e) => ({ status: "failed" as const, detail: e instanceof Error ? e.message : "error", sid: null }));
+  // The approved text (decision 87) carries the secure My job link, so the same facts the email uses are read first.
+  const loaded = await loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null);
+  const s = loaded.input
+    ? await sendRealSms({
+        type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,
+        body: ownerQuoteSms(loaded.input.firstName, loaded.input.quoteUrl),
+        event: { at: q?.sent_at ?? null, current: q?.status === "issued" && q?.release_state === "released" },
+      }).catch((e) => ({ status: "failed" as const, detail: e instanceof Error ? e.message : "error", sid: null }))
+    : { status: "blocked" as const, detail: `not sent — ${loaded.missing}`, sid: null };
 
   // Approved rendered email wins; until Jo approves it only an approved DB template may be sent.
-  const facts = OWNER_QUOTE_EMAIL_APPROVED ? await loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null) : null;
+  const facts = OWNER_QUOTE_EMAIL_APPROVED ? loaded : null;
   const { data: tpl } = OWNER_QUOTE_EMAIL_APPROVED ? { data: null } : await admin.from("customer_communication_templates").select("subject, body_markdown")
     .eq("template_key", QUOTE_EMAIL_TEMPLATE_KEY).eq("status", "approved").order("version", { ascending: false }).limit(1).maybeSingle();
   const wording = OWNER_QUOTE_EMAIL_APPROVED ? (facts?.input ? "rendered" : null) : tpl ? "template" : null;
@@ -123,8 +126,8 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   if (OWNER_QUOTE_EMAIL_APPROVED && !facts?.input) {
     const linkMissing = facts?.missing === "owner secure link missing";
     await logEvent(jobId, null, "ready_check_needs_office", linkMissing
-      ? "Quote released to the owner — the owner has no working secure My job link, so no quote email was sent"
-      : "Quote released to the owner — the quote total could not be read, so no quote email was sent",
+      ? "Quote released to the owner — the owner has no working secure My job link, so no quote email or text was sent"
+      : "Quote released to the owner — the quote total could not be read, so no quote email or text was sent",
     { quote_id: quoteId, needs_office: true, reason: linkMissing ? "owner_link_missing" : "quote_total_unavailable" }, { internal: true });
   }
   if (!OWNER_QUOTE_EMAIL_APPROVED && !tpl) {

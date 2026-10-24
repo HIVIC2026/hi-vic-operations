@@ -2,11 +2,12 @@
 // booked". Design approved (decision 98): docs/templates/approved/O35-install-booked.html — "Consent signed and deposit
 // received ✓"; day + arrival card with installer and phone (+ deposit/balance rows when known); "⚡ Your power will be
 // off"; "On the day" checklist (removal dust line only when removal is included); what happens + balance due; Change day.
-// Delivery stays behind INSTALL_BOOKED_EMAIL_APPROVED (consent + Stripe deposit steps are still being built); TEST only. Pure.
+// INSTALL_BOOKED_EMAIL_APPROVED is on (decisions 98/151); real delivery still needs customer_comms_enabled. Pure.
 import * as K from "./email-kit.core";
 import { splitDayTime } from "./ready-check-times-email.core";
 
-export const INSTALL_BOOKED_EMAIL_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decisions 98 (O35) and 151 (O35b deposit owed): approved. Delivery still behind customer_comms_enabled. */
+export const INSTALL_BOOKED_EMAIL_APPROVED = true as boolean;
 
 export type InstallBookedInput = {
   firstName: string | null; when: string; address: string | null;

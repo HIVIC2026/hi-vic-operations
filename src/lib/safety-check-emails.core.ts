@@ -3,11 +3,12 @@
 // electrical safety check"; "{Electrician}, a licensed electrician, has offered these times"; 3 time buttons; Suggest
 // other days; the red "⏰ The 30-day clock" box; "At your safety check". The booked email mirrors the Ready Check
 // "You're booked" email (decision 81) with the electrician's name/phone, the switchboard line and the 30-day box.
-// No sender yet: SAFETY_CHECK_EMAILS_APPROVED stays false (TEST only through approved-owner-emails.server.ts). Pure.
+// Sent through approved-owner-emails.server.ts; SAFETY_CHECK_EMAILS_APPROVED is on (decision 94), real delivery behind customer_comms_enabled. Pure.
 import * as K from "./email-kit.core";
 import { splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 
-export const SAFETY_CHECK_EMAILS_APPROVED = false as boolean;
+/** Jo 24 Oct 2026, decision 94 (O26 safety check times + the mirrored booked email): approved. Delivery still behind customer_comms_enabled. */
+export const SAFETY_CHECK_EMAILS_APPROVED = true as boolean;
 
 export type SafetyCheckTimesInput = {
   firstName: string | null; electricianName: string | null; times: Array<string | ReadyCheckTimeSlot>; myJobUrl: string;

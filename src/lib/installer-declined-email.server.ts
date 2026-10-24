@@ -1,6 +1,6 @@
 // Decision 92/136 (Jo 24 Oct 2026): short "Owner declined" email to the job's installer. Same shape as the accepted
-// email sender (installer-accepted-email.server.ts), but INSTALLER_DECLINED_EMAIL_APPROVED is still false, so real
-// partners get nothing; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks the decline.
+// email sender (installer-accepted-email.server.ts); INSTALLER_DECLINED_EMAIL_APPROVED is on (decision 136), so real
+// partners get it through sendOfficeEmail; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks the decline.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 

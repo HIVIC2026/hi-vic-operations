@@ -72,9 +72,10 @@ export const COLLECTION_NOTICE_LINK_EVENT = "esc_collection_notice_link_issued";
 export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
 /** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
  *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. The emailed COPY of the notice on
- *  acknowledgement is still waiting for Jo. TEST partners use the test senders. */
+ *  acknowledgement was approved by decision 170. TEST partners use the test senders. */
 export const COLLECTION_NOTICE_SEND_APPROVED = true;
-export const COLLECTION_NOTICE_EMAIL_APPROVED = false;
+/** Jo 24 Oct 2026, decision 170: the emailed copy of the notice (verbatim) is approved; delivery still through sendOfficeEmail. */
+export const COLLECTION_NOTICE_EMAIL_APPROVED = true;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;
 /** Reminder schedule (decision 130): first send, then 3 and 7 days after the first send while not acknowledged. */
 export const COLLECTION_NOTICE_REMINDER_DAYS = [3, 7] as const;

@@ -1,7 +1,7 @@
 // Decision 80 (Jo 24 Oct 2026): "You're booked" to the owner after an our-lead Ready Check is booked or changed.
-// Best-effort: never blocks the booking. TEST jobs get the draft email through test-send; real owners only once Jo
-// approves the wording AND customer messages are on, through the one guarded owner-email path. The text is never sent
-// (no approved wording/SMS type). One email per booked start time.
+// Best-effort: never blocks the booking. TEST jobs get the email through test-send; real owners only with the flag on
+// (decision 81) AND customer messages on, through the one guarded owner-email path. No text is sent from here. One email
+// per booked start time.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 

@@ -82,11 +82,11 @@ describe("decision 120: request + reminders", () => {
     // a missed earlier step is sent before a later one (one per sweep, in order)
     expect(nextVeecReminderStep({ installCompletedAt: done, consumerSignedAt: null, done: [], now: "2026-10-30T05:00:00Z" })).toBe("request");
   });
-  test("texts: under two segments, secure link, STOP line; emails approved (decision 169), legacy SMS flag unused", () => {
+  test("texts: under two segments, secure link, STOP line; emails approved (decision 169), legacy SMS flag aligned", () => {
     const link = "https://estimate.homeinsulationvictoria.com.au/my-job/abcdefghijklmnopqrstuvwxyz0123456789ABCD?screen=done";
     for (const t of [veecSignRequestText(1800, link), veecSignReminderText(1800, link)]) { expect(t.length).toBeLessThan(SMS_SEGMENT_LIMIT); expect(t).toContain(link); expect(t).toContain("Reply STOP to opt out"); expect(t).toContain("$1,800"); }
     expect(veecSignReminderText(1800, link)).toMatch(/still needs your signature/);
-    expect(VEEC_COPY_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_SMS_APPROVED).toBe(false); // decision 169
+    expect(VEEC_COPY_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_EMAIL_APPROVED).toBe(true); expect(VEEC_SIGN_SMS_APPROVED).toBe(true); // decisions 166/168
     expect(SMS_MESSAGE_TYPES.veec_sign_request.wordingApproved).toBe(true); // decision 166
     expect(SMS_MESSAGE_TYPES.veec_sign_reminder.wordingApproved).toBe(true); // decision 168
   });
