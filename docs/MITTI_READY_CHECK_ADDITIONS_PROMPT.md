@@ -22,7 +22,11 @@ to Ceiling Area 6, wherever the block repeats). Do not reword, move, add or remo
    Required, shown only when the answer is Yes:
    `Describe the issue and add a photo`
 
-4. Colours: duplicate the Yes/No response set so there is one with Yes RED and No GREEN, and apply it to every
+4. Make the existing question `Upload a photo clearly showing the measured insulation depth` REQUIRED (it stays shown only
+   when the existing-insulation question is Yes), and set its help text to:
+   `Ruler standing vertically in the insulation. The rebate needs this for every area with existing insulation, even if it's being removed.`
+
+5. Colours: duplicate the Yes/No response set so there is one with Yes RED and No GREEN, and apply it to every
    question where Yes is the bad answer (the issues question above, and any life-support question).
 
 Publish both templates. The template IDs do not change.
