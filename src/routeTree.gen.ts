@@ -67,6 +67,7 @@ import { Route as AuthenticatedAdminQuotesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
 import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
 import { Route as AuthenticatedAdminSaveSpotReminderBlastRouteImport } from './routes/_authenticated/admin.save-spot-reminder-blast'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -126,6 +127,8 @@ import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
 import { Route as ApiPublicTwilioStatusRouteImport } from './routes/api/public/twilio/status'
+import { Route as AuthenticatedAdminPartnersApplicationEnquiryIdRouteImport } from './routes/_authenticated/admin.partners_.application.$enquiryId'
+import { Route as AuthenticatedAdminPartnersBusinessBusinessIdRouteImport } from './routes/_authenticated/admin.partners_.business.$businessId'
 import { Route as ApiPublicEmailArtTokenFileRouteImport } from './routes/api/public/email-art.$token.$file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -441,6 +444,12 @@ const AuthenticatedAdminSaveSpotReminderBlastRoute =
   AuthenticatedAdminSaveSpotReminderBlastRouteImport.update({
     id: '/save-spot-reminder-blast',
     path: '/save-spot-reminder-blast',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -773,6 +782,18 @@ const ApiPublicTwilioStatusRoute = ApiPublicTwilioStatusRouteImport.update({
   path: '/api/public/twilio/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminPartnersApplicationEnquiryIdRoute =
+  AuthenticatedAdminPartnersApplicationEnquiryIdRouteImport.update({
+    id: '/partners_/application/$enquiryId',
+    path: '/partners/application/$enquiryId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPartnersBusinessBusinessIdRoute =
+  AuthenticatedAdminPartnersBusinessBusinessIdRouteImport.update({
+    id: '/partners_/business/$businessId',
+    path: '/partners/business/$businessId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const ApiPublicEmailArtTokenFileRoute =
   ApiPublicEmailArtTokenFileRouteImport.update({
     id: '/api/public/email-art/$token/$file',
@@ -837,6 +858,7 @@ export interface FileRoutesByFullPath {
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -897,6 +919,8 @@ export interface FileRoutesByFullPath {
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
+  '/admin/partners/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
+  '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesByTo {
@@ -952,6 +976,7 @@ export interface FileRoutesByTo {
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -1012,6 +1037,8 @@ export interface FileRoutesByTo {
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
+  '/admin/partners/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
+  '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesById {
@@ -1073,6 +1100,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/_authenticated/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
+  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -1133,6 +1161,8 @@ export interface FileRoutesById {
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
+  '/_authenticated/admin/partners_/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
+  '/_authenticated/admin/partners_/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRouteTypes {
@@ -1194,6 +1224,7 @@ export interface FileRouteTypes {
     | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
     | '/admin/save-spot-reminder-blast'
+    | '/admin/settings'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1254,6 +1285,8 @@ export interface FileRouteTypes {
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
     | '/api/public/twilio/status'
+    | '/admin/partners/application/$enquiryId'
+    | '/admin/partners/business/$businessId'
     | '/api/public/email-art/$token/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1309,6 +1342,7 @@ export interface FileRouteTypes {
     | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
     | '/admin/save-spot-reminder-blast'
+    | '/admin/settings'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1369,6 +1403,8 @@ export interface FileRouteTypes {
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
     | '/api/public/twilio/status'
+    | '/admin/partners/application/$enquiryId'
+    | '/admin/partners/business/$businessId'
     | '/api/public/email-art/$token/$file'
   id:
     | '__root__'
@@ -1429,6 +1465,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ready-check'
     | '/_authenticated/admin/save-my-spot-rules'
     | '/_authenticated/admin/save-spot-reminder-blast'
+    | '/_authenticated/admin/settings'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1489,6 +1526,8 @@ export interface FileRouteTypes {
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
     | '/api/public/twilio/status'
+    | '/_authenticated/admin/partners_/application/$enquiryId'
+    | '/_authenticated/admin/partners_/business/$businessId'
     | '/api/public/email-art/$token/$file'
   fileRoutesById: FileRoutesById
 }
@@ -1949,6 +1988,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSaveSpotReminderBlastRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/team-ups': {
       id: '/_authenticated/admin/team-ups'
       path: '/team-ups'
@@ -2362,6 +2408,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTwilioStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/partners_/application/$enquiryId': {
+      id: '/_authenticated/admin/partners_/application/$enquiryId'
+      path: '/partners/application/$enquiryId'
+      fullPath: '/admin/partners/application/$enquiryId'
+      preLoaderRoute: typeof AuthenticatedAdminPartnersApplicationEnquiryIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/partners_/business/$businessId': {
+      id: '/_authenticated/admin/partners_/business/$businessId'
+      path: '/partners/business/$businessId'
+      fullPath: '/admin/partners/business/$businessId'
+      preLoaderRoute: typeof AuthenticatedAdminPartnersBusinessBusinessIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/api/public/email-art/$token/$file': {
       id: '/api/public/email-art/$token/$file'
       path: '/api/public/email-art/$token/$file'
@@ -2420,6 +2480,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
   AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
   AuthenticatedAdminSaveSpotReminderBlastRoute: typeof AuthenticatedAdminSaveSpotReminderBlastRoute
+  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2429,6 +2490,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminVeecRoute: typeof AuthenticatedAdminVeecRoute
   AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminPartnersApplicationEnquiryIdRoute: typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
+  AuthenticatedAdminPartnersBusinessBusinessIdRoute: typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -2466,6 +2529,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminSaveMySpotRulesRoute,
   AuthenticatedAdminSaveSpotReminderBlastRoute:
     AuthenticatedAdminSaveSpotReminderBlastRoute,
+  AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
@@ -2475,6 +2539,10 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminVeecRoute: AuthenticatedAdminVeecRoute,
   AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminPartnersApplicationEnquiryIdRoute:
+    AuthenticatedAdminPartnersApplicationEnquiryIdRoute,
+  AuthenticatedAdminPartnersBusinessBusinessIdRoute:
+    AuthenticatedAdminPartnersBusinessBusinessIdRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

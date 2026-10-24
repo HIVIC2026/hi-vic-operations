@@ -131,7 +131,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
   );
 }
 
-function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { businessId: string; creds: { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; critical: boolean }[]; isHivicAdmin: boolean; canAdd: boolean; onDone: () => void }) {
+export function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { businessId: string; creds: { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; critical: boolean }[]; isHivicAdmin: boolean; canAdd: boolean; onDone: () => void }) {
   const add = useAction(addCredential);
   const verify = useAction(verifyCredential);
   const upload = useServerFn(partnerUploadUrl);
@@ -210,19 +210,19 @@ function Team({ businessId, members, workers, canEdit, onDone }: { businessId: s
   );
 }
 
-function Electricians({ businessId, rels, options, canEdit, onDone }: { businessId: string; rels: { id: string; electrician_business_id: string; preferred: boolean; active: boolean; businesses: unknown }[]; options: { id: string; name: string; onboarding_status: string }[]; canEdit: boolean; onDone: () => void }) {
+export function Electricians({ businessId, rels, options, canEdit, onDone }: { businessId: string; rels: { id: string; electrician_business_id: string; preferred: boolean; active: boolean; businesses: unknown }[]; options: { id: string; name: string; onboarding_status: string }[]; canEdit: boolean; onDone: () => void }) {
   const set = useAction(setPartnerRelationship);
   const [pick, setPick] = useState("");
   return (
-    <Section title="Preferred electricians">
+    <Section title="Usual electrician">
       {rels.filter((r) => r.active).map((r) => { const e = r.businesses as { name: string; onboarding_status: string } | null; return (
         <div key={r.id} className="flex items-center justify-between border-b py-1 text-sm last:border-0">
           <span>{e?.name} <Badge variant="outline" className="ml-1 capitalize">{e?.onboarding_status.replace("_", " ")}</Badge></span>
-          {canEdit && <label className="flex items-center gap-2 text-xs"><Checkbox checked={r.preferred} onCheckedChange={async (v) => { await set({ installerBusinessId: businessId, electricianBusinessId: r.electrician_business_id, preferred: !!v, active: true }, "Saved"); onDone(); }} /> Preferred</label>}
+          {canEdit && <label className="flex items-center gap-2 text-xs"><Checkbox checked={r.preferred} onCheckedChange={async (v) => { await set({ installerBusinessId: businessId, electricianBusinessId: r.electrician_business_id, preferred: !!v, active: true }, "Saved"); onDone(); }} /> Usual</label>}
         </div>
       ); })}
       {canEdit && !options.length && <p className="mt-2 text-xs text-muted-foreground">To add your own electrician, choose "Use my electrician" when you add a job and enter their name and mobile.</p>}
-      {canEdit && options.length > 0 && <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Add an electrician business…</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.onboarding_status})</option>)}</select><Button disabled={!pick} onClick={async () => { await set({ installerBusinessId: businessId, electricianBusinessId: pick, preferred: true, active: true }, "Preferred electrician added"); setPick(""); onDone(); }}>Add</Button></div>}
+      {canEdit && options.length > 0 && <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Add an electrician business…</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.onboarding_status})</option>)}</select><Button disabled={!pick} onClick={async () => { await set({ installerBusinessId: businessId, electricianBusinessId: pick, preferred: true, active: true }, "Usual electrician added"); setPick(""); onDone(); }}>Add</Button></div>}
     </Section>
   );
 }

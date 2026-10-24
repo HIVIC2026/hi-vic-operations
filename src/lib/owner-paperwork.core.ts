@@ -17,4 +17,4 @@ export function templateDocState(rows: TemplateRow[], key: string) {
 }
 
 /** Link to that template's wording on the Compliance templates page. */
-export const templateEditHref = (key: string) => `/admin/compliance#tpl-${key}`;
+export const templateEditHref = (key: string) => `/admin/settings?tab=templates&key=${encodeURIComponent(key)}#tpl-${key}`;

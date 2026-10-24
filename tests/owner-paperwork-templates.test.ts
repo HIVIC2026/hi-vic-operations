@@ -21,10 +21,10 @@ describe("Owner paperwork shows template documents", () => {
     const gates = readFileSync("src/lib/owner-gates.functions.ts", "utf8");
     expect(portal).toContain("approveTemplateVersion(data.id");
     expect(gates).toContain("approveTemplateVersion(data.id");
-    const page = readFileSync("src/routes/_authenticated/admin.owner-paperwork.tsx", "utf8");
+    const page = readFileSync("src/components/portal/owner-documents.tsx", "utf8"); // merged into Settings › Templates (O7 build B)
     expect(page).not.toContain("Managed in Compliance templates");
     expect(page).toContain("Edit wording");
-    expect(templateEditHref("esc_consent")).toBe("/admin/compliance#tpl-esc_consent");
+    expect(templateEditHref("esc_consent")).toBe("/admin/settings?tab=templates&key=esc_consent#tpl-esc_consent");
   });
   test("real-job gate still requires approved + active template", () => {
     const srv = readFileSync("src/lib/owner-gates.server.ts", "utf8");

@@ -34,7 +34,7 @@ function centre(t,{query={},blockedPopup=false,issueError=null}={}){
   '@/lib/test-accounts.functions':handlers,
   '@/lib/qa-role-link.core':loadModule('src/lib/qa-role-link.core.ts'),
  };
- io.components=loadModule('src/routes/_authenticated/admin.test-centre.tsx',imports,'export { QaRoleControls, XeroConnectionCard };');
+ io.components={...loadModule('src/routes/_authenticated/admin.test-centre.tsx',imports,'export { QaRoleControls };'),...loadModule('src/components/portal/xero-connection-card.tsx',imports)}; // Xero card moved to Settings › Xero (O7 build B)
  io.roles=()=>{cursor=0;return io.components.QaRoleControls({jobId:'isolated-qa-job'});};
  return io;
 }
