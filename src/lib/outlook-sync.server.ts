@@ -4,7 +4,8 @@
 // `email_unmatched` event (snippet + best-guess jobs) for Needs me "Match this email"; nothing is stored on a job
 // until the office matches it (email-office.server). Decision 245: a matched inbound email that asks for a change
 // (cancel, can't make it, new contact details, a photo/document) raises `email_change_request` on the job; the
-// office applies or ignores it. Neither ever drafts, sends, closes or moves anything.
+// office applies or ignores it. Neither ever sends, closes or moves anything. Decision 244: new inbound mail may get ONE
+// Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
@@ -16,6 +17,7 @@ import {
 } from "./outlook-correspondence.core";
 import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
 import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, proposedChanges, recentEnoughForAction } from "./email-intent.core";
+import { EMAIL_REPLY_DRAFTS_ENABLED } from "./outlook-reply-drafts.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
 const syncAdmin = admin as SupabaseClient;
@@ -39,8 +41,8 @@ const BUCKET = "job-files";
  *  could not be recorded (pending migration email-unmatched-events.sql not applied, or too old to raise a row);
  *  `notHomeowner` = other unmatched mail left in Outlook (outbound to non-customers). */
 export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number;
-  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number };
-const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched", n = 1) => { c[k] = (c[k] ?? 0) + n; };
+  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number };
+const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts", n = 1) => { c[k] = (c[k] ?? 0) + n; };
 
 /** Job ids on a route. Rows reserved by the previous release carry a legacy single jobId. */
 export function routeJobIds(route: Route): string[] {
@@ -417,10 +419,22 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   return raised;
 }
 
+/** Decision 244: one reply DRAFT per new inbound email (never sent). Switch off = nothing loaded or done. Never throws. */
+async function draftReply(m: MailMessage, mailbox: string | null, jobIds: string[], origin: "sync" | "office_matched" | "unmatched"): Promise<string | null> {
+  if (!EMAIL_REPLY_DRAFTS_ENABLED || m.direction !== "inbound") return null;
+  try {
+    const r = await (await import("./email-reply.server")).draftReplyForMessage({ message: m, mailbox, jobIds, origin });
+    return r.status === "drafted" ? r.draftId : null;
+  } catch (e) {
+    console.error("email reply draft skipped", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Office matched an unmatched email (decision 247): re-read the full message from Outlook (read-only), store its
  *  files privately for this job, file it on the job with the copier's own storeOnJob, then raise any change request.
  *  Idempotent per job (storeOnJob returns null when already filed). Throws when Outlook can't be read — nothing filed. */
-export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?: string | null }, jobId: string, visibility: "customer" | "internal"): Promise<{ communicationId: string | null; message: MailMessage; changeRequests: number }> {
+export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?: string | null }, jobId: string, visibility: "customer" | "internal"): Promise<{ communicationId: string | null; message: MailMessage; changeRequests: number; replyDraftId: string | null }> {
   if (!outlookConfigured()) throw new Error("Outlook is not connected, so the email can't be read to file it.");
   const mailbox = normaliseMailbox(d.mailbox ?? (await readOutlookSyncState()).expected_mailbox);
   if (!mailbox) throw new Error("No shared mailbox is confirmed for Outlook.");
@@ -435,7 +449,8 @@ export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?:
   const filed = { ...m, attachments: refs };
   const communicationId = await storeOnJob(jobId, filed, "office_matched", visibility);
   const changeRequests = await recordChangeRequests([jobId], filed, refs);
-  return { communicationId, message: m, changeRequests };
+  const replyDraftId = await draftReply(filed, mailbox, [jobId], "office_matched");
+  return { communicationId, message: m, changeRequests, replyDraftId };
 }
 
 async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow): Promise<void> {
@@ -473,6 +488,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     else {
       if (result.stored) { counts.stored++; bump(counts, "matched"); }
       if (result.stored && !window.history) bump(counts, "changeRequests", await recordChangeRequests(routeJobIds(work.route), work.message, work.attachment_refs ?? []));
+      if (result.stored && !window.history && await draftReply(work.message, work.mailbox, routeJobIds(work.route), "sync")) bump(counts, "replyDrafts");
       if (result.unmatched) counts.unmatched++;
       if (result.closed) counts.closed++;
       if (result.flagged) counts.flagged++;
@@ -541,7 +557,7 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       // History catch-ups and old mail stay record-only in Outlook, as before.
       if (route.kind === "unmatched" && m.direction === "inbound") {
         const r = !window.history && recentEnoughForAction(m.at) ? await recordUnmatched(m, mailbox, route.candidateJobIds, route.reason) : "not_recorded";
-        if (r === "recorded") bump(counts, "unmatched");
+        if (r === "recorded") { bump(counts, "unmatched"); if (await draftReply(m, mailbox, [], "unmatched")) bump(counts, "replyDrafts"); }
         else if (r === "duplicate") counts.duplicate++;
         else { counts.notHomeowner++; bump(counts, "unmatchedNotRecorded"); }
       } else counts.notHomeowner++;
