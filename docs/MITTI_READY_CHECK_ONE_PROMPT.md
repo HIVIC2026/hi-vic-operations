@@ -18,10 +18,19 @@ In BOTH templates, in every ceiling-area block (the repeating block and Ceiling 
 
 In A1 ONLY:
 
-5. DELETE the whole section `Your quote to the homeowner` (the questions `What's included in your quote?`, `What else is included?`,
-   `Total quoted price (inc GST)`, `Who is doing the electrical safety check?` and the electrician name / licence / price
-   sub-questions). The business owner enters the price and the electrician on the portal job page instead; staff doing
-   the Ready Check never see a price.
+5. DELETE the whole page/section `Your quote to the homeowner`, including every question on it and every "only show when"
+   rule that points at those questions. The questions are exactly these seven:
+   - `What’s included in your quote?` (tick all)
+   - `What else is included?` (text, shown when Other is ticked)
+   - `Total quoted price (inc GST)` (number)
+   - `Who is doing the electrical safety check?` (pick one)
+   - `Electrician name` (text)
+   - `Electrician licence number` (text)
+   - `Electrician price (inc GST)` (number)
+   Do NOT add anything in its place: the business owner enters the price in our portal, not in Mitti; staff doing the
+   Ready Check never see a price.
+6. On `Difficult access fee ($ inc GST)` REPLACE the A1 help text with exactly:
+   `Included in the price your business owner enters in the portal; it is shown on the owner's quote.`
 
 If Mitti cannot calculate across the repeating block or the Ceiling Area 1–6 branches, say so before changing anything
 and tell me the closest thing it can do.

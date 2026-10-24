@@ -14,6 +14,8 @@ questions. The template ID does not change, so nothing needs re-connecting.
 
 Paste everything below the line into ChatGPT.
 
+> Folded into docs/MITTI_READY_CHECK_ONE_PROMPT.md (the prompt Jo runs); kept as the tested contract.
+
 ---
 
 Edit ONLY the Mitti template `A1 – Ready Check | Installer-Supplied Customer`. Do NOT touch
