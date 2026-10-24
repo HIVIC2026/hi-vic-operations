@@ -51,6 +51,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   daily_mitti: { kind: "window" }, // one per trade per Melbourne day, trade_text_log send_key claimed first
   daily_mitti_update: { kind: "window" }, // one per trade per day per change signature
   esc_notice_link: { kind: "window" }, // attempts 1/2/3 planned from the recorded send history; manual re-send has its own key
+  install_window_reminder: { kind: "window" }, // 20/10-day steps recorded once as workflow events before any send (thirty-day-rule.server)
+  install_window_reminder_installer: { kind: "window" }, // same steps, installer side
 };
 
 export type SmsEventInput = {
