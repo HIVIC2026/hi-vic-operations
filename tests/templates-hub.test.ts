@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { OFFICE_HEADINGS, sectionFor } from "../src/lib/office-nav";
 import { TEMPLATE_ENTRIES, TEMPLATE_STANDING, entriesFor, parseTemplateSearch, selectTemplate, templateStanding } from "../src/lib/template-hub.core";
-import { PARTNER_TEMPLATES, renderPartnerTemplate } from "../src/lib/partner-templates";
-import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 
 describe("Templates navigation", () => {
   test("one Templates heading among the five primary workspaces", () => {
@@ -18,7 +16,7 @@ describe("Templates navigation", () => {
     const jo = TEMPLATE_ENTRIES.find((e) => e.group.startsWith("Jo's approved"))!;
     expect(templateStanding(jo)).toBe("approved");
     expect(templateStanding(TEMPLATE_ENTRIES.find((e) => e.group === "Customer emails")!)).toBe("historical");
-    expect(templateStanding(TEMPLATE_ENTRIES.find((e) => e.id === "email:rec_invitation")!)).toBe("draft");
+    expect(templateStanding(TEMPLATE_ENTRIES.find((e) => e.id === "email:partner_login")!)).toBe("draft");
     expect(templateStanding(TEMPLATE_ENTRIES.find((e) => e.view.kind === "compliance_template")!)).toBe("reference");
   });
 });
@@ -48,8 +46,11 @@ describe("Template selection", () => {
     expect(entriesFor("compliance").some((e) => e.view.kind === "compliance_template" && e.view.templateKey === "piesa")).toBe(false);
   });
   test("no metadata invents approval for unknown records", () => {
-    const rec = TEMPLATE_ENTRIES.find((e) => e.id === "email:rec_invitation")!;
-    expect(rec.approval).toBe("Not recorded");
+    const login = TEMPLATE_ENTRIES.find((e) => e.id === "email:partner_login")!;
+    expect(login.approval).toMatch(/^Draft wording/);
+    // Decision 171: the copy-and-paste REC/installer invitation templates are gone.
+    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:rec_invitation")).toBeUndefined();
+    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:installer_invitation")).toBeUndefined();
     // P1-S77: superseded entries are removed, not relabelled; Jo's seven carry her recorded approval.
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:save_my_spot_no_size")).toBeUndefined();
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:insulation_details")).toBeUndefined();
@@ -59,13 +60,15 @@ describe("Template selection", () => {
   test("email inventory distinguishes exact builders, stored reviews and original tool", () => {
     const emails = entriesFor("email");
     // Jo's 7 homeowner enquiry emails (T8 retired 24 Oct 2026) + 2 customer emails outside her set (3-day reminder,
-    // area unavailable) + 6 partner emails = 15. The five later-stage review-only placeholders were removed on 24 Oct
-    // 2026 (replaced by approved designs O18, O35, O28, P4, O47). Nothing links to a legacy tool any more.
-    expect(emails.length).toBe(15);
+    // area unavailable) + 4 partner emails = 13. The five later-stage review-only placeholders were removed on 24 Oct
+    // 2026 (replaced by approved designs O18, O35, O28, P4, O47) and the two copy-and-paste partner invitation templates
+    // under decision 171. Nothing links to a legacy tool any more.
+    expect(emails.length).toBe(13);
     expect(emails.filter((e) => e.view.kind === "jo_sample").length).toBe(7);
     expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.id).sort()).toEqual(["email:area_unavailable", "email:estimate_unopened_3d"]);
     expect(emails.some((e) => (e.view.kind as string) === "review_only")).toBe(false);
-    expect(emails.filter((e) => ["partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(6);
+    expect(emails.filter((e) => ["partner_email", "plain_email"].includes(e.view.kind)).length).toBe(4);
+    expect(emails.some((e) => (e.view.kind as string) === "partner_invitation")).toBe(false);
     expect(emails.some((e) => (e.view.kind as string) === "open_original")).toBe(false);
   });
 });
@@ -79,9 +82,6 @@ describe("Render parity — hub shows the exact existing HTML", () => {
     // The only remaining sample_email entries are the two customer emails outside Jo's set.
     const samplesUsed = entriesFor("email").flatMap((e) => (e.view.kind === "sample_email" ? [e.view.sample] : [])).sort();
     expect(samplesUsed).toEqual(["coverage", "reminder3"]);
-  });
-  test("partner invitation HTML is verbatim", () => {
-    expect(renderPartnerTemplate(PARTNER_TEMPLATES.find((t) => t.key === "installer_invitation")!)).toBe(INSTALLER_INVITATION_HTML);
   });
   test("hub mounts emails in a fully sandboxed frame and adds no send/save endpoints", () => {
     const ui = readFileSync("src/components/portal/template-hub.tsx", "utf8");

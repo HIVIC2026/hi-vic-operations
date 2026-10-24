@@ -13,7 +13,6 @@ export const TEMPLATE_CATEGORIES: { key: TemplateCategory; label: string }[] = [
 /** What the detail pane mounts for the selected entry (only the selected one is mounted). */
 export type TemplateView =
   | { kind: "sample_email"; sample: "reminder3" | "coverage" }
-  | { kind: "partner_invitation"; templateKey: "rec_invitation" | "installer_invitation" }
   | { kind: "partner_email"; email: "welcome" | "changes" | "decline" }
   | { kind: "plain_email"; email: "partner_login" }
   | { kind: "mitti"; formKey: FormKey }
@@ -65,8 +64,8 @@ const EMAIL: TemplateEntry[] = [
   ...JO_EMAIL,
   commEntry("estimate_unopened_3d", { kind: "sample_email", sample: "reminder3" }, "Not recorded"),
   commEntry("area_unavailable", { kind: "sample_email", sample: "coverage" }, "Not recorded"),
-  { id: "email:rec_invitation", category: "email", group: "Partner emails", title: "REC partnership invitation", purpose: "Invites licensed electricians to apply.", audience: "Electrician / REC", trigger: "Office sends manually (download or copy)", approval: "Not recorded", view: { kind: "partner_invitation", templateKey: "rec_invitation" } },
-  { id: "email:installer_invitation", category: "email", group: "Partner emails", title: "Installer partnership invitation", purpose: "Invites insulation installers to apply.", audience: "Installer", trigger: "Office sends manually (download or copy)", approval: "Approved copy (project record)", view: { kind: "partner_invitation", templateKey: "installer_invitation" } },
+  // Decision 171 (24 Oct 2026): the copy-and-paste REC/installer invitation templates were removed; everyone onboards
+  // through the portal link the office shares.
   { id: "email:partner_welcome", category: "email", group: "Partner emails", title: "Partner welcome", purpose: "Tells an approved partner to set their password.", audience: "Approved installer / electrician", trigger: "When the office approves an application", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "welcome" } },
   { id: "email:partner_changes", category: "email", group: "Partner emails", title: "Application — send back for changes", purpose: "Asks an applicant to fix their application and sign again.", audience: "Applicant", trigger: "Office presses Send back (with typed message)", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "changes" } },
   { id: "email:partner_decline", category: "email", group: "Partner emails", title: "Application — decline", purpose: "Tells an applicant they were not approved.", audience: "Applicant", trigger: "Office presses Decline", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "decline" } },

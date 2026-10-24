@@ -8,7 +8,7 @@ const SAMPLE_UNSUBSCRIBE = `https://estimate.homeinsulationvictoria.com.au/api/p
 import type { JoTemplateId } from "@/lib/jo-email-templates.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight, Download } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Btn, Pill, btnClass, fieldInput } from "./kit";
 import { MittiFormCard } from "./mitti-forms";
 import { useAction } from "@/hooks/use-me";
@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { TEMPLATE_CATEGORIES, TEMPLATE_STANDING, entriesFor, entriesForStanding, registerFor, templateStanding, type TemplateCategory, type TemplateEntry, type TemplateStanding } from "@/lib/template-hub.core";
 import { ACTIVITY_48_FORMS, MITTI_FORM_ORDER } from "@/lib/template-catalog";
 import { samples } from "@/lib/step3-email-samples";
-import { PARTNER_TEMPLATES, renderPartnerTemplate } from "@/lib/partner-templates";
 import { partnerWelcomeEmail } from "@/lib/partner-email.core";
 import { changesEmail, declineEmail } from "@/lib/application-review.core";
 import { partnerLoginEmail } from "@/lib/partner-login-email.core";
@@ -117,7 +116,6 @@ function TemplateDetail({ entry }: { entry: TemplateEntry }) {
     <div className="space-y-4">
       <Facts entry={entry} />
       {v.kind === "sample_email" && <HtmlEmail subject={samples[v.sample].subject} preview={samples[v.sample].previewText} html={samples[v.sample].html} note="Sample values only. Same renderer as every real send." />}
-      {v.kind === "partner_invitation" && <PartnerInvitation templateKey={v.templateKey} />}
       {v.kind === "partner_email" && <PartnerEmail email={v.email} />}
       {v.kind === "plain_email" && <PlainEmail />}
       {v.kind === "mitti" && <MittiDetail formKey={v.formKey} />}
@@ -137,19 +135,6 @@ function HtmlEmail({ subject, preview, html, note, original }: { subject: string
       <p className="mt-1 text-xs text-sub">{note} Links are disabled in this preview.</p>
       {original && <a href={original.href} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-hiv-blue hover:underline">{original.label}<ArrowUpRight className="h-4 w-4" /></a>}
       <iframe title={`${subject} preview`} srcDoc={html} sandbox="" className="mt-3 h-[70vh] min-h-[480px] w-full rounded-[10px] border border-line bg-paper" />
-    </div>
-  );
-}
-
-function PartnerInvitation({ templateKey }: { templateKey: string }) {
-  const t = PARTNER_TEMPLATES.find((p) => p.key === templateKey)!;
-  return (
-    <div className="space-y-2">
-      <Btn tone="secondary" onClick={() => {
-        const url = URL.createObjectURL(new Blob([renderPartnerTemplate(t)], { type: "text/html;charset=utf-8" }));
-        const a = document.createElement("a"); a.href = url; a.download = t.fileName; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }}><Download className="h-4 w-4" />Download HTML template</Btn>
-      <HtmlEmail subject={t.subject} html={renderPartnerTemplate(t)} note={`Exact stored HTML. Registration link: ${t.registrationUrl}.`} />
     </div>
   );
 }

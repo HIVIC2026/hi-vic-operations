@@ -9,9 +9,10 @@ import { smsQuietReason } from "./quote-hold.core";
  */
 export const SMS_MESSAGE_TYPES = {
   save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true, quietHours: true },
+  // Decision 172 (Jo, 24 Oct 2026): one-off "3 questions" reminder text, sent once per pre-23-Oct enquiry from the office page.
+  three_questions_reminder: { audience: "owner", label: "One-off 3 questions reminder", wordingApproved: true, quietHours: true },
   spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true, quietHours: true },
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
-  ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false, quietHours: true },
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: false, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
   veec_sign_reminder: { audience: "owner", label: "Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: true, quietHours: true },
@@ -27,6 +28,8 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
+/** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
+export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 
 /** Australian mobiles only, as +614XXXXXXXX. */
 export const toAuE164 = (raw: string | null | undefined) => normaliseAuMobile(raw);
@@ -41,7 +44,7 @@ export type SmsGateInput = {
   /** Owner: current contact consent. Partner: approved active partner. */
   consent: boolean;
   isTestRecord: boolean;
-  /** Set only by the explicit admin blast; never enables other SMS types. */
+  /** Set only by the explicit office one-off blasts (Save My Spot reminder, 3 questions reminder); never enables other SMS types. */
   adminSpotReminderBlast?: boolean;
   /** Instant used for the quiet-hours rule; defaults to now. */
   nowIso?: string;
@@ -55,7 +58,7 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!t.wordingApproved) return "Wording not approved yet";
   if (t.quietHours) { const q = smsQuietReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   if (!x.commsEnabled) return "Customer communications are switched off";
-  if (!x.typeSwitchOn && !(x.type === "save_spot_reminder" && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
+  if (!x.typeSwitchOn && !(ONE_OFF_BLAST_TYPES.includes(x.type as SmsMessageType) && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
   if (!toAuE164(x.to)) return "Not an Australian mobile number";
   if (x.optedOut) return "This number replied STOP";

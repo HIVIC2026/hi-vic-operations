@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, likelySubjectLine } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
-import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 

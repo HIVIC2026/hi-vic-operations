@@ -121,6 +121,7 @@ export const MORE_SECTIONS: { label: string; tabs: OfficeTab[] }[] = [
       { label: "Compliance", to: "/admin/compliance" },
       { label: "Owner paperwork", to: "/admin/owner-paperwork" },
       { label: "Automatic sending rules", to: "/admin/save-my-spot-rules" },
+      { label: "3 questions reminder", to: "/admin/save-spot-reminder-blast" },
     ],
   },
 ];
