@@ -248,7 +248,7 @@ export function propertyTypeOption(v: string | null | undefined): string | null 
 }
 
 /** Find the Mitti option ID for a choice answer (v1 definitions keep options in template.response_sets). */
-function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
+export function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
   const root = template?.template ?? template;
   let rsId: string | null = null;
   const walk = (x: Any) => { if (!x || typeof x !== "object" || rsId) return; if (x.id === itemId && x.question?.response_set_id) { rsId = x.question.response_set_id; return; } for (const v of Object.values(x)) walk(v); };
@@ -363,6 +363,8 @@ export type MittiArea = {
   hazardFlag: boolean | null; hazardEvidence: boolean;
   /** The installer's note: what the issue is and where it is in this area (null when not given). */
   hazardNote: string | null;
+  /** Decision 264: this area's before video was attached at the Ready Check (the install's before-work video). */
+  beforeVideo: boolean;
   product: string | null; scope: string | null; sources: Record<string, never>;
 };
 export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
@@ -431,7 +433,7 @@ export function parseAudit(audit: Any) {
     const rv = rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
-    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.overviewPhoto, ...(LEAN_ALIASES.overviewPhoto ?? [])]) };
+    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]) };
     const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
     // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
@@ -591,7 +593,7 @@ export function parseAudit(audit: Any) {
     existing: r.present === true ? "present" : r.present === false ? "none" : null, present: r.present,
     rValue: r.rv, rValueBand: r.rvBand,
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
-    removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote,
+    removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
     product: null, scope: null, sources: {},
   }));
   // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.

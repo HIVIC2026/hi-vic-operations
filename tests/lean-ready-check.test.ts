@@ -38,13 +38,13 @@ function leanAudit(over: { rValue?: string; access?: string; who?: string | null
       areaA,
       it_(LEAN_Q.areaName, "Main house", "areaA"), it_(LEAN_Q.lengthM, "12", "areaA"), it_(LEAN_Q.widthM, "8.5", "areaA"), it_(LEAN_Q.measuredHow, ["Laser measure"], "areaA"),
       it_(LEAN_Q.existing, ["Yes"], "areaA"), it_(LEAN_Q.existingType, ["Batts"], "areaA"), it_(LEAN_Q.rValue, [over.rValue ?? "Below R2.0"], "areaA"), media(LEAN_Q.depthPhoto, "areaA"),
-      it_(LEAN_Q.existingAction, ["Remove"], "areaA"), it_(LEAN_Q.removeM2, "40", "areaA"), media(LEAN_Q.overviewPhoto, "areaA"),
+      it_(LEAN_Q.existingAction, ["Remove"], "areaA"), it_(LEAN_Q.removeM2, "40", "areaA"), media(LEAN_Q.beforeVideo, "areaA"),
       it_(LEAN_Q.downlights, ["Yes"], "areaA"), it_(LEAN_Q.downlightsCount, "6", "areaA"), it_(LEAN_Q.issues, ["Yes"], "areaA"),
       ...(over.hazardNote === false ? [] : [it_(LEAN_Q.issueNote, "Exposed wiring near the manhole", "areaA")]),
       ...(over.hazardEvidence === false ? [] : [media(LEAN_Q.issuePhoto, "areaA")]),
       areaB,
       it_(LEAN_Q.areaName, "Garage", "areaB"), it_(LEAN_Q.lengthM, "6", "areaB"), it_(LEAN_Q.widthM, "4", "areaB"), it_(LEAN_Q.measuredHow, ["Tape measure"], "areaB"),
-      it_(LEAN_Q.existing, ["No"], "areaB"), media(LEAN_Q.overviewPhoto, "areaB"), it_(LEAN_Q.downlights, ["No"], "areaB"), it_(LEAN_Q.issues, ["No"], "areaB"),
+      it_(LEAN_Q.existing, ["No"], "areaB"), media(LEAN_Q.beforeVideo, "areaB"), it_(LEAN_Q.downlights, ["No"], "areaB"), it_(LEAN_Q.issues, ["No"], "areaB"),
       it_(LEAN_Q.product, ["Bradford Gold R6"]), it_(LEAN_Q.outcome, ["Yes - Ready Check passed"]),
       it_(LEAN_Q.included, ["Ceiling insulation - supply & install", "Removal of existing insulation"]), it_(LEAN_Q.totalPrice, "3200"), it_(LEAN_Q.electrician, ["Home Insulation Victoria electrician"]),
     ],
@@ -223,7 +223,7 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
   test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
     const f = FORMS.ready_check.fields;
     const perArea = f.filter((x) => x.perArea).map((x) => x.label);
-    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.overviewPhoto, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
+    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.beforeVideo, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
     expect([m2.required, m2.portalOnly]).toEqual([false, true]);
@@ -340,7 +340,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
     const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessCharge", "accessFee", "accessPhoto",
-      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "overviewPhoto", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
+      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "included", "includedOther", "totalPrice", "electrician", "electricianName", "electricianLicence", "electricianPrice", "signatureA1", "signatureA2"];
     expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1); // every LEAN_Q key but the legacy m² entry
     for (const k of order) {

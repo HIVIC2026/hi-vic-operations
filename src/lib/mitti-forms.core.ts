@@ -136,7 +136,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.depthPhoto, type: "media", required: false, perArea: true, when: WHEN_EXISTING, aliases: al("depthPhoto"), source: `${G} Table 4 – optional on the form; missing = install-day photo lock` },
   { label: LEAN_Q.existingAction, type: "choice", required: true, perArea: true, choices: [...EXISTING_ACTION_OPTIONS], when: WHEN_EXISTING, aliases: al("existingAction"), source: `${G} removal criteria; Not sure goes to office review` },
   { label: LEAN_Q.removeM2, type: "number", required: true, perArea: true, when: `${LEAN_Q.existingAction} = Remove`, types: ["text"], aliases: al("removeM2"), source: "portal – removal pricing (summed over areas)" },
-  { label: LEAN_Q.overviewPhoto, type: "media", required: false, perArea: true, aliases: al("overviewPhoto"), source: `${G} Table 4 – optional on the form; missing = install-day photo lock` },
+  { label: LEAN_Q.beforeVideo, type: "media", required: true, perArea: true, aliases: al("beforeVideo"), source: `${G} Table 4 – the before video of this area (decision 264); counts as the install's before-work video` },
   { label: LEAN_Q.downlights, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("downlights"), source: "portal – observation only; electrician confirms ratings at PIESA" },
   { label: LEAN_Q.downlightsCount, type: "number", required: true, perArea: true, when: `${LEAN_Q.downlights} = Yes`, types: ["text"], aliases: al("downlightsCount"), source: "portal – luminaire count (PIISA P5 prefill)" },
   { label: LEAN_Q.issues, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("issues"), source: `${G} safety – installer observation; Yes = office review` },

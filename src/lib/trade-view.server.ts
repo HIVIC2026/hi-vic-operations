@@ -819,9 +819,10 @@ export async function tradeDayExtras(jobId: string, userId: string) {
   const { currentAllocation } = await import("./visit-allocation.core");
   const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
   const allocated = currentAllocation(evs, "install")?.worker_name ?? currentAllocation(evs, "ready_check")?.worker_name ?? null;
-  const evidence = (evEv?.details as { summary?: { blockers?: string[]; swmsComplete?: boolean }; blockers?: string[]; swmsComplete?: boolean } | null) ?? null;
+  const evidence = (evEv?.details as { summary?: { blockers?: string[] }; blockers?: string[] } | null) ?? null;
   const blockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
-  const swmsComplete = evidence?.summary?.swmsComplete ?? evidence?.swmsComplete ?? false;
+  // Decision 261: the portal safety plan (SWMS) signed by everyone listed.
+  const swmsComplete = (await (await import("./swms.server")).swmsStatusFor(jobId))?.complete === true;
   const showContact = contactVisible(mineBk ?? []);
   const ow = ownerRow?.owners as { full_name: string | null } | null;
   const p = ownerRow?.properties as { address_line: string | null; suburb: string | null } | null;
@@ -889,3 +890,32 @@ export async function tradeMoneyExtras(userId: string) {
   return { accountName: bank?.account_name ?? b?.legal_name ?? b?.name ?? c.biz.name, bsbStart: bsb.length >= 3 ? bsb.slice(0, 3) : null, accountEnding: digits.length >= 3 ? digits.slice(-3) : null };
 }
 
+
+/** Decision 261: the safety plan (SWMS) card on the installer's job page — from the install booking until the install is
+ *  recorded (read-only afterwards). Business-scoped through requireTradeJob; holds no prices or other partners. */
+export async function tradeSwms(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "installer") return { show: false as const };
+  const [{ data: j }, { data: inBook }] = await Promise.all([
+    admin.from("jobs").select("installation_completed_at").eq("id", jobId).single(),
+    admin.from("bookings").select("status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").limit(1).maybeSingle(),
+  ]);
+  if (!inBook) return { show: false as const };
+  const { loadSwms } = await import("./swms.server");
+  const { plan, signatures, status } = await loadSwms(jobId);
+  return { show: true as const, editable: !j?.installation_completed_at, plan, signatures, status };
+}
+async function requireOpenSwms(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "installer") throw new WorkflowError("Only the installing business signs the safety plan.");
+  const { data: j } = await admin.from("jobs").select("installation_completed_at").eq("id", jobId).single();
+  if (j?.installation_completed_at) throw new WorkflowError("The installation is recorded; the safety plan can't be changed now.");
+}
+export async function tradeSwmsNote(jobId: string, userId: string, note: string) {
+  await requireOpenSwms(jobId, userId);
+  return (await import("./swms.server")).saveSwmsSiteNote(jobId, userId, note);
+}
+export async function tradeSwmsSign(jobId: string, userId: string, key: string, typedName: string) {
+  await requireOpenSwms(jobId, userId);
+  return (await import("./swms.server")).signSwms(jobId, userId, key, typedName);
+}

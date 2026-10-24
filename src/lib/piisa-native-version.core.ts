@@ -89,9 +89,10 @@ export function stagedDirectCrewPrefill(selection: CrewSelection, staff: StaffOp
   return { items, ...checked };
 }
 /** Direct text entries must match BOTH current legal name and CII number in the assigned company. */
-export function resolveDirectCrew(audit: unknown, staff: StaffOption[]) {
+/** `choices` defaults to the direct A3 fields; the install day form passes its own typed rows (decision 262). */
+export function resolveDirectCrew(audit: unknown, staff: StaffOption[], typed?: CrewChoice[]) {
   const answers: Record<string, string> = {}, blockers: string[] = [];
-  const choices = stagedDirectCrewChoices(audit), seen = new Set<string>();
+  const choices = typed ?? stagedDirectCrewChoices(audit), seen = new Set<string>();
   for (const c of choices) {
     if (c.kind === "none") { if (!c.row) blockers.push("Lead installer full legal name and CII certification number are required."); continue; }
     if (c.kind !== "other") continue;

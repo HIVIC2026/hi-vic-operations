@@ -38,6 +38,14 @@ export const SMS_MESSAGE_TYPES = {
   team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
+
+/** Decision 266: while an install's safety plan (SWMS) is unsigned, two EXISTING installer texts (install tomorrow, and the
+ *  6:30am daily visits text on the install day) carry the secure job-page link to it. No new type, no new switch. */
+export const safetyPlanLine = (links: readonly string[]) => `Sign the safety plan first: ${links.join(" ")}`;
+export function withSafetyPlanLinks(body: string, links: readonly (string | null | undefined)[]): string {
+  const real = [...new Set(links.filter((l): l is string => !!l && l.trim().length > 0))];
+  return real.length ? `${body} ${safetyPlanLine(real)}` : body;
+}
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
 export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 

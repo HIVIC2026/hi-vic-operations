@@ -28,7 +28,7 @@ export function readyCheckFactsFromEntries(
   const present = find(entries, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]);
   const depthPhoto = answered(find(entries, ["Photo with tape measure showing depth", "Upload a photo clearly showing the measured insulation depth"]));
   const belowR2Tick = answered(find(entries, ["No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate"]));
-  const overviewPhoto = answered(find(entries, ["Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));
+  const overviewPhoto = answered(find(entries, ["Slow 360° video of this ceiling area, lit, saying its name", "Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));
   const stops = readyCheckStopReasons(entries);
   const rAnswers = entries.filter((e) => String(e.label ?? "").trim().toLowerCase() === LEAN_Q.rValue.toLowerCase()).map((e) => String(e.value ?? ""));
   const rBelow = rAnswers.length > 0 && rAnswers.every((v) => isBelowR2(v));

@@ -93,7 +93,7 @@ describe("prestart snapshot", () => {
 describe("crew resolved against CURRENT verified staff", () => {
   const staff: StaffOption[] = [
     { workerId: "w1", name: "Bhavdeep singh", eec: "CII-027", eecVerified: true, approved: true },
-    { workerId: "w2", name: "Pending Person", eec: "77", eecVerified: true, approved: false },
+    { workerId: "w2", name: "Pending Person", eec: "77", eecVerified: true, approved: false, cleared: false },
   ];
   test("composite native label and plain name both resolve exactly", () => {
     expect(a3CrewResolution([{ name: staffCompositeLabel(staff[0]!, "Reinsulate"), eec: "CII-027" }], staff, "Reinsulate")).toEqual({ resolved: ["w1"], blockers: [] });

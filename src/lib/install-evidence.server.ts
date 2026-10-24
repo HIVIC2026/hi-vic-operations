@@ -1,16 +1,15 @@
-// Install-day evidence, SWMS and sign-off (decisions 205/206/210/211/213): reads the Install day (A3) audit against the
-// job's upgrade zones and keeps the result as the append-only `install_evidence_synced` workflow event (latest per job
-// wins; a new event only when the result changed). Files the completed SWMS as an immutable PDF (6-year record). Rules
-// are pure in install-evidence.core.ts. Never sends; the only stage move is through recordInstallationComplete.
+// Install-day evidence and sign-off (decisions 205/210/211/213/262): reads the Install day audit against the job's
+// upgrade areas and keeps the result as the append-only `install_evidence_synced` workflow event (latest per job wins;
+// a new event only when the result changed). Rules are pure in install-evidence.core.ts. The safety plan (SWMS) lives
+// in swms.server.ts (decision 261). Never sends; the only stage move is through recordInstallationComplete.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { melbourneToday, addYmd } from "./melbourne-time.core";
-import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, swmsRecordText, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
+import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
 import { AREAS_FIELD_KEY, readAreas } from "./ready-check-areas.core";
 import type { MittiMediaFetch } from "./mitti.server";
 
 export const INSTALL_EVIDENCE_EVENT = "install_evidence_synced";
-export const SWMS_FILED_EVENT = "swms_filed";
 
 /** Melbourne calendar date of an ISO timestamp or a date-only string; null when unreadable. */
 export function melbourneDateOf(v: unknown): string | null {
@@ -30,10 +29,21 @@ export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
   const { data: obs } = rcRow ? await admin.from("ready_check_observations").select("value").eq("ready_check_id", rcRow.id).eq("field_key", AREAS_FIELD_KEY).maybeSingle() : { data: null };
   let rc: ReturnType<typeof readAreas> = [];
   try { rc = obs ? readAreas(obs.value) : []; } catch { rc = []; }
-  if (rc.length) return rc.map((a) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null }));
   const { data: m } = await admin.from("ceiling_measurements").select("insulation_present, existing_r_value, removal_required, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  // Decision 264: whether each area's before video is on the Ready Check (the Mitti sync stores it on the measurement zones).
+  const rawZones: unknown[] = Array.isArray(m?.zones) ? (m?.zones as unknown[]) : [];
+  const mz = rawZones.filter((z): z is Record<string, unknown> => !!z && typeof z === "object" && !Array.isArray(z));
+  const videoAt = (i: number, label: string | null): boolean | null => {
+    const z = mz.find((x) => label && typeof x["label"] === "string" && String(x["label"]).trim().toLowerCase() === label.trim().toLowerCase()) ?? mz[i];
+    return z && typeof z["beforeVideo"] === "boolean" ? (z["beforeVideo"] as boolean) : null;
+  };
+  if (rc.length) return rc.map((a, i) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null, areaM2: a.areaM2, product: a.product, beforeVideo: videoAt(i, a.label) }));
   const { rcAreasFromRecord } = await import("./piisa-a3.core");
-  return rcAreasFromRecord(m ?? null, null).map((a) => ({ name: a.name ?? null, underInsulated: a.present ?? null }));
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return rcAreasFromRecord(m ?? null, null).map((a, i) => {
+    const z = mz[i];
+    return { name: a.name ?? null, underInsulated: a.present ?? null, areaM2: num(z?.["areaM2"]), product: typeof z?.["product"] === "string" ? (z["product"] as string) : null, beforeVideo: videoAt(i, a.name ?? null) };
+  });
 }
 
 async function installBooking(jobId: string) {
@@ -70,11 +80,8 @@ export async function installEvidenceContext(jobId: string, audit: unknown): Pro
   const crew = a3.a3CrewChoices(audit);
   const nameOf = (c: (typeof crew)[number]) => (c.kind === "other" ? c.name : c.kind === "option" ? c.optionLabel : null);
   const leadName = nameOf(crew[0]!) ?? null;
-  const crewNames = crew.slice(1).map(nameOf).filter((n): n is string => !!n);
-  const iso = a3.a3MediaFiles(audit).isolation_photo.map((f) => f.capturedAt).filter((t): t is string => !!t).sort()[0] ?? null;
   const yn = (k: string): boolean | null => (str(k) === "Yes" ? true : str(k) === "No" ? false : null);
-  const p3 = (k: string): "Yes" | "No" | null => (str(k) === "Yes" ? "Yes" : str(k) === "No" ? "No" : null);
-  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, daysOnSite: days, leadName, crewNames, isolationCapturedAt: iso, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
+  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, leadName, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present") };
 }
 
 /** Read the audit, evaluate, and record the result when it changed. Returns the summary. */
@@ -91,48 +98,10 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   return summary;
 }
 
-/** Prefill facts for a new Install day audit (zone names from the Ready Check, SWMS header, crew names). */
-export async function installPrefillContext(jobId: string, businessName: string | null, crew: { leadName: string | null; crewNames: string[] }): Promise<InstallPrefillCtx> {
+/** Prefill facts for a new OLD-A3 Install day audit: zone names from the Ready Check. */
+export async function installPrefillContext(jobId: string): Promise<InstallPrefillCtx> {
   const zones = await jobUpgradeZones(jobId);
-  return { zoneNames: zones.map((z) => z.name), businessName, leadName: crew.leadName, crewNames: crew.crewNames };
-}
-
-/**
- * Decision 206: file the completed SWMS as an immutable PDF with the signature images (6-year record). Keyed by audit +
- * content hash, so a changed SWMS is a new file and an unchanged one is never duplicated. Returns the stored paths.
- */
-export async function fileSwmsRecord(jobId: string, actorId: string | null, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<{ filed: boolean; path: string | null; reason?: string }> {
-  const read = readInstallEvidence(audit);
-  const { data: job } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
-  if (!job) return { filed: false, path: null, reason: "Job not found." };
-  const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
-  const address = [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null;
-  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId });
-  const { createHash } = await import("node:crypto");
-  const sha = createHash("sha256").update(text).digest("hex");
-  const key = `swms:${auditId}:${sha.slice(0, 16)}`;
-  const { data: ex } = await admin.from("documents").select("id, storage_path").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-  if (ex) return { filed: false, path: ex.storage_path };
-  const { textToPdf } = await import("./signed-pdf.server");
-  const pdf = await textToPdf(`SWMS — Job ${job.job_number}`, text);
-  const base = `${jobId}/official/swms-${auditId}-${sha.slice(0, 8)}`;
-  const up = await admin.storage.from("job-files").upload(`${base}.pdf`, pdf, { contentType: "application/pdf", upsert: false });
-  if (up.error && !/exists/i.test(up.error.message)) return { filed: false, path: null, reason: `SWMS could not be stored: ${up.error.message}` };
-  const sigs = [read.swms.leadSignature, ...read.swms.workers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
-  const images: string[] = [];
-  for (const s of sigs) {
-    try {
-      const { bytes, contentType } = await fetchMedia(auditId, s.mediaId!);
-      if (!bytes.length) continue;
-      const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "img";
-      const p = `${base}.signature-${s.mediaId}.${ext}`;
-      const u = await admin.storage.from("job-files").upload(p, bytes, { contentType, upsert: false });
-      if (!u.error || /exists/i.test(u.error.message)) images.push(p);
-    } catch { /* a missing signature image is reported by the SWMS blockers, not here */ }
-  }
-  await admin.from("documents").insert({ job_id: jobId, kind: "swms", title: `SWMS — Install day form ${auditId.slice(0, 8)}`, storage_path: `${base}.pdf`, mime_type: "application/pdf", uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `swms-${job.job_number}.pdf`, size_bytes: pdf.byteLength });
-  await logEvent(jobId, actorId, SWMS_FILED_EVENT, "SWMS filed on the job (6-year record, decision 206)", { audit_id: auditId, path: `${base}.pdf`, sha256: sha, signature_images: images }, { internal: true });
-  return { filed: true, path: `${base}.pdf` };
+  return { zoneNames: zones.map((z) => z.name) };
 }
 
 /** Gate lines for AP review / Ready for VEEC: install evidence + Activity 48 product check. */
