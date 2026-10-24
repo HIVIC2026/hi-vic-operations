@@ -40,8 +40,9 @@ const screens=screenRules();
 test('legacy operations screenshot checks the actual current Enquiries destination',()=>{
   const spec=screens.find(s=>s.step==='office-operations');
   assert.throws(()=>route('admin.operations').beforeLoad({search:{}}),e=>e.redirect.to===spec.expectedPath&&e.redirect.replace===true);
-  assert.equal(spec.expectedPath,'/admin/enquiries');assert.deepEqual(spec.mustSee,['Enquiries','Active','Closed']);
-  assert.match(read('src/components/portal/EnquiriesWorkspace.tsx'),/<h1[^>]*>Enquiries<\/h1>/);
+  assert.equal(spec.expectedPath,'/admin/enquiries');assert.deepEqual(spec.mustSee,['Enquiries','Fix details','Waiting on owner']);
+  assert.match(read('src/components/portal/EnquiriesScreen.tsx'),/<h1[^>]*>Enquiries<\/h1>/);
+  assert.match(read('src/lib/office-jobs.core.ts'),/Fix details/);assert.match(read('src/lib/office-jobs.core.ts'),/Waiting on owner/);
 });
 test('legacy campaign screenshot checks the actual Templates email redirect and current read-only wording',()=>{
   const spec=screens.find(s=>s.step==='office-campaign-emails');
