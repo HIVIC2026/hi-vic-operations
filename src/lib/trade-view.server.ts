@@ -161,11 +161,17 @@ export async function tradeOffer(offerId: string, userId: string) {
     const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
     if (b) locked = { owner: ow?.full_name ?? null, phone: ow?.phone ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b.scheduled_start, end: b.scheduled_end };
   }
+  // Decision 201: the two plain lines come from the owner's OWN answers on the job (never an aerial/measured figure).
+  const says = o.kind === "ready_check" ? await ownerSaysFor(o.job_id) : { areaM2: null, insulation: null };
+  const { data: jn } = o.kind === "ready_check" ? await admin.from("jobs").select("job_number").eq("id", o.job_id).maybeSingle() : { data: null };
+  // Accepted (owner picking): the installer's own open times, so the accepted state can list them (approved state M5-accepted).
+  const times = o.kind === "ready_check" && o.status === "accepted" && liveAsg ? (await (await import("./ready-check-times.server")).installerReadyCheckState(o.job_id, userId).catch(() => null)) : null;
   return {
     id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked, rcDays, accepted: o.status === "accepted" && !!liveAsg,
     canSuggest: o.kind !== "ready_check" && o.status === "pending" && timing.canSuggest, suggestUnlockLabel: timing.unlockLabel, takenByOther: o.status === "withdrawn" || o.status === "superseded",
-    suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null,
-    area: s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
+    suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null, jobNumber: jn?.job_number ?? null,
+    area: says.areaM2 ?? s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (says.insulation ?? s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
+    offeredTimes: times && times.turn === "owner_to_answer" ? times.open.filter((t) => t.by === "installer").map((t) => t.starts_at) : [],
   };
 }
 
@@ -716,19 +722,45 @@ export async function tradeJobPage(jobId: string, userId: string) {
   ]);
   const { needsFinishingTask } = await import("./trade-view.core");
   const { installerQuoteLine } = await import("./installer-quote-status.core");
-  const qq = quote.quote as { sent_at?: string | null } | null;
+  const { needsFinishingList } = await import("./installer-screens.core");
+  const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
+  // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
+  const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }] = await Promise.all([
+    admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("job_assignments").select("profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
+    admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
+    admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
+    admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
+  const evidence = (evEv?.details as { summary?: { blockers?: string[] } ; blockers?: string[] } | null) ?? null;
+  const evidenceBlockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
+  const { currentAllocation } = await import("./visit-allocation.core");
+  const installAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "install");
+  const rcAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "ready_check");
+  const crew = [...new Set([decl?.installer_name, installAlloc?.worker_name, rcAlloc?.worker_name].filter((x): x is string => !!x && x.trim().length > 0))];
+  const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
+  const payRows = c.boss ? (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.jobId === jobId && r.kind === "installation") : [];
+  const payRow = payRows[0] ?? null;
   return {
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
-    install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned },
+    install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew },
     form: mitti.applies
-      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? "") }
-      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null },
-    quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null } : null,
+      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null }
+      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null },
+    quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
-    piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null },
+    piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
     mittiInvited: c.biz.mitti_account_invited === true,
+    // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
+    complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,
+      pay: payRow ? { amount: payRow.amount, state: payRow.state } : null },
   };
 }
 
@@ -748,10 +780,75 @@ export async function tradeDayExtras(jobId: string, userId: string) {
   const prof = (el?.profiles as unknown as { full_name: string | null; phone: string | null } | null) ?? null;
   const items = ((q?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? []).sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0));
   const product = items.find((i) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(i.code ?? "") && !/removal|safety assessment|accredited person/i.test(i.description ?? ""))?.description ?? null;
+  // Approved M4 states: the 30-day end date (couldn't-get-in sheet), who the visit is allocated to, the owner's own
+  // answers (Ready Check day "What we know"), the install form's Complete time and the PIISA signature (sign-rebate ticks).
+  const [{ data: dl }, { data: alloc }, { data: decl }, { data: evEv }, says, { data: ownerRow }, { data: mineBk }] = await Promise.all([
+    admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle(),
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
+    admin.from("installer_declarations").select("installer_name, signed_at").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ownerSaysFor(jobId),
+    admin.from("jobs").select("owners(full_name), properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+    admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", ["ready_check", "installation"] as never),
+  ]);
+  const { currentAllocation } = await import("./visit-allocation.core");
+  const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
+  const allocated = currentAllocation(evs, "install")?.worker_name ?? currentAllocation(evs, "ready_check")?.worker_name ?? null;
+  const evidence = (evEv?.details as { summary?: { blockers?: string[]; swmsComplete?: boolean }; blockers?: string[]; swmsComplete?: boolean } | null) ?? null;
+  const blockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
+  const swmsComplete = evidence?.summary?.swmsComplete ?? evidence?.swmsComplete ?? false;
+  const showContact = contactVisible(mineBk ?? []);
+  const ow = ownerRow?.owners as { full_name: string | null } | null;
+  const p = ownerRow?.properties as { address_line: string | null; suburb: string | null } | null;
   return {
     channel: j?.channel ?? null, product, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null,
-    access: m?.access_difficulty ?? null, pay: c.boss ? pay : null, installForm: form, installationRecorded: !!j?.installation_completed_at, rebateSigned,
+    access: m?.access_difficulty ?? null, pay: c.boss ? pay : null, installForm: { ...form, completedAt: decl?.signed_at ?? null, piisaSigned: !!decl?.signed_at, swmsComplete: swmsComplete === true, evidenceChecked: Array.isArray(blockers) ? blockers.length === 0 : false, crew: [...new Set([decl?.installer_name, allocated].filter((x): x is string => !!x))] },
+    installationRecorded: !!j?.installation_completed_at, rebateSigned,
     electrician: { required: needsElec, name: prof?.full_name ?? null, phone: prof?.phone ?? null },
+    installDeadline: dl?.install_deadline ? String(dl.install_deadline) : null, allocatedTo: allocated, ownerSays: says,
+    ownerFirstName: showContact ? (ow?.full_name ?? "").trim().split(/\s+/)[0] || null : null,
+    streetAddress: showContact ? shortAddress(p?.address_line, p?.suburb) : null,
+  };
+}
+
+/** The owner's own words on the enquiry (never a measurement): the website size and the declared insulation answer. */
+async function ownerSaysFor(jobId: string): Promise<{ areaM2: number | null; insulation: InsulationNow | null }> {
+  const { data: j } = await admin.from("jobs").select("estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle();
+  const enrich = (j?.properties as { enrichment?: Record<string, unknown> | null } | null)?.enrichment ?? null;
+  const b44 = (enrich?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
+  const { declaredExtras } = await import("./enquiry.core");
+  const { normaliseInsulation } = await import("./eligibility.core");
+  const ins = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
+  const area = j?.estimated_area_unknown ? null : j?.estimated_area_m2 == null ? null : Number(j.estimated_area_m2);
+  return { areaM2: Number.isFinite(area as number) && (area as number) > 0 ? area : null, insulation: ins === "none" ? "none" : ins === "present" ? "some" : ins === "unknown" ? "unknown" : null };
+}
+
+/** M6 per-job pay detail (approved state M6-job-detail): own pay only, business owner only, facts from the same rows as Money. */
+export async function tradeMoneyJob(jobId: string, userId: string) {
+  const c = await bossOrThrow(userId);
+  await requireTradeJob(userId, jobId);
+  const rows = (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.jobId === jobId && r.billing === "hivic");
+  const row = rows.find((r) => r.kind === "installation") ?? rows[0] ?? null;
+  const [{ data: bank }, { data: decl }, { data: finalAsg }, { data: alloc }, { data: m }, { data: invs }] = await Promise.all([
+    admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle(),
+    admin.from("installer_declarations").select("installer_name, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("invoices").select("status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId),
+  ]);
+  const { currentAllocation } = await import("./visit-allocation.core");
+  const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
+  const crew = [...new Set([decl?.installer_name, currentAllocation(evs, "install")?.worker_name].filter((x): x is string => !!x))];
+  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
+  const paidInFull = (invs ?? []).length && (invs ?? []).every((x) => x.status === "fully_paid") ? (invs ?? []).map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null : null;
+  return {
+    found: !!row, jobId, jobNumber: row?.jobNumber ?? null, suburb: row?.suburb ?? null, channel: row?.channel ?? null, doneAt: row?.doneAt ?? null,
+    amount: row?.amount ?? null, state: row?.state ?? { kind: "checking" as const }, accountEnding: digits.length >= 4 ? digits.slice(-4) : null,
+    product: decl?.installed_product ?? finalAsg?.installed_product ?? null,
+    areaM2: finalAsg?.installed_area_m2 != null ? Number(finalAsg.installed_area_m2) : m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
+    removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null, crew,
+    installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apApprovedAt: row?.approvedAt ?? null, ownerPaidInFullAt: paidInFull,
   };
 }
 

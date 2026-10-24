@@ -4,11 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
-import { GROUP_LABEL, doneSub, monthStripWords, offerPanelWords, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
+import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -26,6 +26,7 @@ function MyWork() {
   const load = useServerFn(getTradeHome);
   const [onlyChasing, setOnlyChasing] = useState(false);
   const [onlyMoving, setOnlyMoving] = useState(false);
+  const [offersOpen, setOffersOpen] = useState(false);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000 });
   if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 min-h-11 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
@@ -37,9 +38,12 @@ function MyWork() {
   if (installer) {
     const home = data.home ?? { action: [], progress: [], done: [] };
     const words = first ? offerPanelWords(first, data.offers.length) : null;
+    // Approved state M1-more-offers: the "Job offers · N" list opens under the first offer and the rest folds (decision 235).
+    const offersList = offersOpen ? offersListView(data.offers, goneIn) : null;
+    const empty = homeIsEmpty({ offers: data.offers.length, coming: data.coming.length, action: home.action.length, progress: home.progress.length, done: data.done.length });
     return (
       <TradeShell installer boss={data.boss} test={data.isTest} redesign>
-        <div data-my-work>
+        <div data-my-work data-empty={empty || undefined}>
           <h1 className="font-display text-[22px] font-semibold leading-[1.2]">{g.title}</h1>
           <p className="mt-1 text-sm text-sub">{g.sub}</p>
         </div>
@@ -54,28 +58,37 @@ function MyWork() {
           </Link>
         )}
         {data.offers.length > 1 && (
+          <button type="button" data-more-offers aria-expanded={offersOpen} onClick={() => setOffersOpen((o) => !o)} className="-mt-3 flex min-h-11 w-full items-center justify-between text-[15px] font-semibold text-hiv-blue">
+            <span>{offersOpen ? "Hide the other offers" : `More offers · ${data.offers.length - 1}`}</span><span className="text-xl text-sub">{offersOpen ? "▴" : "›"}</span>
+          </button>
+        )}
+        {offersList && (
           <section data-other-offers>
-            <h2 className={`${EYEBROW} border-b border-line pb-2`}>More offers <span className="font-medium normal-case tracking-normal">· {data.offers.length - 1}</span></h2>
-            {data.offers.slice(1).map((o) => { const w = offerPanelWords(o, 1); return (
+            <h2 className={`${EYEBROW} border-b border-line pb-2`}>{offersList.heading}</h2>
+            {offersList.rows.map((o) => (
               <Link key={o.id} to="/field/offer/$offerId" params={{ offerId: o.id }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
-                <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{w.title}</span><span className="mt-0.5 block text-sm text-sub">{[w.detail, o.expiresAt ? goneIn(o.expiresAt) : null].filter(Boolean).join(" · ")}</span></span>{CHEVRON}
-              </Link>); })}
+                <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{o.title}</span><span className="mt-0.5 block text-sm text-sub">{o.detail}</span>{o.closes && <span className="block text-[13px] text-sub">{o.closes}</span>}</span>{CHEVRON}
+              </Link>))}
+            <p className="mt-2 text-[13px] leading-[1.45] text-sub">{offersList.note}</p>
           </section>
         )}
 
         <section data-coming-up>
           <h2 className={`${EYEBROW} border-b border-line pb-2`}>Coming up</h2>
-          {data.coming.length ? data.coming.map((b) => { const t = dayTile(b.start); return (
+          {offersList ? <p className="py-3 text-sm text-sub">{offersList.comingUpFold(data.coming.length)}</p>
+            : data.coming.length ? data.coming.map((b) => { const t = dayTile(b.start); return (
             <Link key={b.jobId + b.start} to="/field/day/$jobId" params={{ jobId: b.jobId }} className="flex min-h-[60px] items-center gap-3.5 border-b border-line py-2.5">
               <span className="w-[74px] shrink-0 rounded-[12px] bg-mist py-2 text-center"><span className="block text-xs font-bold">{t.day}</span><span className="mt-0.5 block text-sm font-semibold text-hiv-blue">{t.time}</span></span>
               <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{b.what} · {b.surname}</span><span className="mt-0.5 block text-sm text-sub">{b.address}</span></span>{CHEVRON}
             </Link>); })
-            : <p className="py-3 text-sm text-sub">Nothing booked yet.</p>}
+            : <p className="py-3 text-sm text-sub">{HOME_EMPTY.coming}</p>}
         </section>
 
-        <JobGroup group="action" rows={home.action} empty="Nothing needs you right now." />
-        <JobGroup group="progress" rows={home.progress} empty="No jobs in progress." />
-        <DoneGroup rows={data.done} />
+        {!offersList && <>
+          <JobGroup group="action" rows={home.action} empty={HOME_EMPTY.action} emptyAction={empty && data.boss ? <Link to="/partner/import" data-empty-add-job className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[12px] bg-hiv-blue text-base font-semibold text-white">{HOME_EMPTY.actionButton}</Link> : null} />
+          <JobGroup group="progress" rows={home.progress} empty={HOME_EMPTY.progress} />
+          <DoneGroup rows={data.done} />
+        </>}
 
         {data.boss && data.month && (() => { const m = monthStripWords(data.month); return (
           <Link to="/field/money" data-this-month className="flex min-h-14 items-center justify-between rounded-[14px] border border-line px-4 py-3.5">
@@ -156,10 +169,10 @@ function MyWork() {
 }
 
 /** Action needed / In progress: address · job number + source label · one "Next:" line (blue when it's the installer's move). */
-function JobGroup({ group, rows, empty }: { group: "action" | "progress"; rows: InstallerHomeRow[]; empty: string }) {
+function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "progress"; rows: InstallerHomeRow[]; empty: string; emptyAction?: ReactNode }) {
   return (
     <section data-job-group={group}>
-      <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]} <span className="font-medium normal-case tracking-normal">· {rows.length}</span></h2>
+      <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]}{rows.length > 0 && <span className="font-medium normal-case tracking-normal"> · {rows.length}</span>}</h2>
       {rows.length ? rows.map((j) => (
         <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className={ROW}>
           <span className="min-w-0 flex-1">
@@ -169,6 +182,7 @@ function JobGroup({ group, rows, empty }: { group: "action" | "progress"; rows: 
           </span>{CHEVRON}
         </Link>
       )) : <p className="py-3 text-sm text-sub">{empty}</p>}
+      {!rows.length && emptyAction}
     </section>
   );
 }

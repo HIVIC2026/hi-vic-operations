@@ -122,16 +122,40 @@ export function installerHomeGroups(jobs: InstallerHomeJob[]): { action: Install
 /** Section heading count: "Action needed · 3". */
 export const GROUP_LABEL: Record<Exclude<HomeGroup, "offer">, string> = { action: "Action needed", progress: "In progress", done: "Done" };
 
-/** Offer panel words: "1 new job offer" · "Ready Check in Glen Waverley" · "About 120 m² · Home Insulation Victoria lead". */
+/** Offer panel words (approved state M1-more-offers, decision 201 wording): "1 new job offer" · "Ready Check in Glen Waverley" ·
+ *  "Owner says ~120 m² · Home Insulation Victoria lead" (or "No size yet · …" when the enquiry has no size). */
 export function offerPanelWords(o: { suburb: string | null; areaM2: number | null }, count: number): { eyebrow: string; title: string; detail: string } {
   return {
     eyebrow: `${count} new job offer${count === 1 ? "" : "s"}`,
     title: `Ready Check in ${o.suburb ?? "Victoria"}`,
-    detail: [o.areaM2 ? `About ${Math.round(o.areaM2)} m²` : null, "Home Insulation Victoria lead"].filter(Boolean).join(" · "),
+    detail: [o.areaM2 ? `Owner says ~${Math.round(o.areaM2)} m²` : "No size yet", "Home Insulation Victoria lead"].join(" · "),
   };
 }
 
-/** This month strip (business owner only, own pay only): "4 installs done" · "$6,840 paid". */
+/** Approved state M1-more-offers: the "Job offers · N" list under the first offer — every open offer, the first included. */
+export function offersListView(offers: { id: string; suburb: string | null; areaM2: number | null; expiresAt: string | null }[], closes: (expiresAt: string | null) => string | null): { heading: string; rows: { id: string; title: string; detail: string; closes: string | null }[]; note: string; comingUpFold: (visits: number) => string } | null {
+  if (offers.length < 2) return null;
+  return {
+    heading: `Job offers · ${offers.length}`,
+    rows: offers.map((o) => { const w = offerPanelWords(o, 1); return { id: o.id, title: w.title, detail: w.detail, closes: closes(o.expiresAt) }; }),
+    note: "Each offer is only for you and stays open 24 hours. Open one to offer the owner 3 Ready Check times.",
+    comingUpFold: (visits: number) => (visits ? `${visits} visit${visits === 1 ? "" : "s"} booked · see My work` : "Nothing booked yet"),
+  };
+}
+
+/** Approved state M1-empty (new installer): the plain empty lines, with the one "Add a job" button under Action needed. */
+export const HOME_EMPTY = {
+  coming: "Nothing booked yet.",
+  action: "Nothing needs you right now. When we send you a job, or you add your own, it shows here.",
+  actionButton: "Add a job",
+  progress: "No jobs in progress.",
+  done: "No finished jobs yet.",
+} as const;
+export function homeIsEmpty(h: { offers: number; coming: number; action: number; progress: number; done: number }): boolean {
+  return h.offers === 0 && h.coming === 0 && h.action === 0 && h.progress === 0 && h.done === 0;
+}
+
+/** This month strip (business owner only, own pay only): "4 installs done" · "$6,840 paid"; empty → "No installs done yet" · "$0 paid". */
 export function monthStripWords(m: { jobs: number; paid: number }): { installs: string; paid: string } {
-  return { installs: `${m.jobs} install${m.jobs === 1 ? "" : "s"} done`, paid: `$${Math.floor(m.paid).toLocaleString("en-AU")} paid` };
+  return { installs: m.jobs === 0 ? "No installs done yet" : `${m.jobs} install${m.jobs === 1 ? "" : "s"} done`, paid: `$${Math.floor(m.paid).toLocaleString("en-AU")} paid` };
 }

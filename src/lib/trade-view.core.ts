@@ -318,3 +318,74 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
   if (!f.agreementSigned) return { title: "Your agreement isn't signed yet", sub: "The office will send it to you to sign.", button: "See your agreement", to: "/field/business/agreement" };
   return null;
 }
+
+// ---------- M7 sub-page states (approved 24 Oct 2026, decision 236). PURE words over recorded facts. ----------
+/** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); nothing is texted from here. */
+export const TEAM_ADD_SHEET = {
+  title: "Add a team member",
+  body: "They get a link to set up their login, the ESC privacy notice to tick, and a place to upload their CII certificate. The office checks it before they can be on an install.",
+  fields: ["Full name", "Mobile", "Email"] as const,
+  button: "Create the invite link",
+  cancel: "Cancel",
+  linkNote: "Send this link to them yourself (text or email). It is single use and lasts 14 days; you won't see it again.",
+} as const;
+export function teamCountLine(n: number): string { return `${n} ${n === 1 ? "person" : "people"}`; }
+/** Invite contact: the mobile when given, else the email, else nothing (the link is still created). */
+export function inviteContact(f: { mobile: string; email: string }): string | null {
+  const m = f.mobile.trim(), e = f.email.trim();
+  return m || e || null;
+}
+
+/** Your agreement → "What it covers" (installer agreement = AP contract, decisions 23/171). Static approved lines. */
+export const AGREEMENT_COVERS = [
+  "Your rates on our leads and the free Ready Check visit",
+  "Pay within 7 days of our approval (your own customers: once the owner pays their balance)",
+  "Install within 30 days of the safety check, or whoever's move it was pays for a new one",
+  "Photos, forms and the rebate form on every job",
+] as const;
+export const AGREEMENT_CHANGE_NOTE = "To change anything in the agreement, ask the office.";
+/** "Fri 3 Oct 2026, 2:14pm" (Melbourne) for the agreement's signed line. */
+export function signedOnLine(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const day = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: MEL }).replace(",", "");
+  const time = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: MEL }).replace(/\s/g, "").toLowerCase();
+  return `${day}, ${time}`;
+}
+
+/** Bank details page: the masked "On file" rows. The text-a-code-before-change step is NOT built (see docs/INSTALLER_STATES_PROOF.md). */
+export function bankOnFileRows(b: { account_name: string; bsb: string; account_number: string } | null): [string, string][] | null {
+  if (!b) return null;
+  const bsb = b.bsb.replace(/\D/g, ""), acct = b.account_number.replace(/\D/g, "");
+  return [["Account name", b.account_name.trim()], ["BSB", bsb.length >= 3 ? `${bsb.slice(0, 3)}-xxx` : "—"], ["Account number", acct.length >= 4 ? `•••• ${acct.slice(-4)}` : "—"]];
+}
+export const BANK_CHANGE_NOTE = "The office confirms the first payment to a new account before it goes out.";
+
+/** ESC privacy notice overview: one line per person from recorded facts (decision 130). */
+export function escNoticeRowLine(s: { state: string; at: string | null; linkSentAt?: string | null; reminderAt?: string | null }): string {
+  if (s.state === "acknowledged") return `Acknowledged${s.at ? ` ${shortDate(s.at)}` : ""}`;
+  const parts: string[] = [];
+  if (s.linkSentAt) parts.push(`link sent ${dayMonth(s.linkSentAt)}`);
+  if (s.reminderAt) parts.push(`reminder ${dayMonth(s.reminderAt)}`);
+  return parts.length ? `Not yet · ${parts.join(", ")}` : "Not yet · no link sent";
+}
+
+/** Installer guide (approved state M7-guide, decisions 21/107/145/236): five steps, the 30 days, getting paid. Static wording, no job data. */
+export const GUIDE_STEPS = [
+  { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
+  { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
+  { title: "Safety check", body: "We arrange it once the owner accepts. You get the PIESA at least 24 hours before install." },
+  { title: "Install days", body: "Once the safety check is cleared, offer the owner 3 days with arrival times. Install within 30 days of the electrical safety check, or a new one is needed." },
+  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: SWMS, PIISA, then the photos. Press Complete in Mitti, then sign your part of the rebate form on the job." },
+] as const;
+export const GUIDE_WORDS = {
+  eyebrow: "Installer guide",
+  title: "How every job works",
+  sub: "Two minutes. Five steps, the 30 days, getting paid.",
+  paidTitle: "Getting every job paid",
+  paidBody: "We check every form and photo before we claim the rebate. If anything's missing, we can't claim it, and the job can't be paid.",
+  photos: "Photos must be taken live at the property on the day (geotagged and timed). The lead installer signs personally.",
+  pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
+  back: "Back to My work",
+} as const;

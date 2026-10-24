@@ -8,7 +8,7 @@ import { useState } from "react";
 import { TradeShell, aud } from "@/components/trade/TradeShell";
 import { getTradeMoneyExtras, getTradeMoneyView } from "@/lib/trade-view.functions";
 import { payPill } from "@/lib/trade-view.core";
-import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, shortDay } from "@/lib/installer-screens.core";
+import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, paidByMonth, shortDay } from "@/lib/installer-screens.core";
 import { Group, LinkRow, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/money")({
@@ -24,6 +24,7 @@ function Money() {
   const loadExtras = useServerFn(getTradeMoneyExtras);
   const { all } = Route.useSearch();
   const [showAll, setShowAll] = useState(!!all);
+  const [monthFilter, setMonthFilter] = useState<string | null>(null);
   const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load(), retry: false }); // a refusal (staff) shows at once, not after retries
   const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false });
   if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
@@ -32,12 +33,38 @@ function Money() {
   const t = moneyTotals(data.rows);
   const open = data.rows.filter((r) => r.state.kind !== "paid").sort((a, b) => (a.state.kind === "checking" ? -1 : 1) - (b.state.kind === "checking" ? -1 : 1));
   const paid = data.rows.filter((r) => r.state.kind === "paid").sort((a, b) => ((b.state as { on: string }).on).localeCompare((a.state as { on: string }).on));
-  const rows = [...open, ...(showAll ? paid : paid.slice(0, PAID_SHOWN))];
+  const rows = [...open, ...paid.slice(0, PAID_SHOWN)];
   const csv = () => {
     const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...data.rows.map((r) => [r.jobNumber, r.surname, r.suburb ?? "", r.what, String(r.amount ?? ""), payPill(r.state).label])];
     return `data:text/csv;charset=utf-8,${encodeURIComponent(lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   };
   const tile = (label: string, value: string, sub: string, tone: "mist" | "line", color = "") => <div className={`rounded-[14px] px-3.5 py-3 ${tone === "mist" ? "bg-mist" : "border border-line"}`}><p className="text-xs text-sub">{label}</p><p className={`mt-0.5 text-xl font-semibold ${color}`}>{value}</p><p className="mt-0.5 text-xs text-sub">{sub}</p></div>;
+  const payRow = (r: (typeof data.rows)[number]) => { const p = payPill(r.state); return (
+    <Link key={`${r.jobId}:${r.kind}`} to={data.kind === "installer" && r.kind === "installation" ? "/field/money/$jobId" : "/field/$jobId"} params={{ jobId: r.jobId }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
+      <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="mt-0.5 block text-[13px] text-sub">{data.kind === "installer" ? moneyRowSub({ channel: r.channel, doneAt: r.doneAt }) : `${r.what}${r.doneAt ? ` · ${shortDay(r.doneAt)}` : ""}`}</span></span>
+      <span className="text-right"><span className="block text-base font-semibold">{aud(r.amount)}</span><span className="mt-1 block"><Pill tone={p.tone}>{p.label}</Pill></span></span>
+    </Link>); };
+
+  // Approved state M6-all-paid: every paid job grouped by month with month totals, filter chips All / each month.
+  if (showAll) {
+    const months = paidByMonth(paid.map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, suburb: r.suburb, surname: r.surname, amount: r.amount, paidOn: (r.state as { on: string }).on, doneAt: r.doneAt, channel: r.channel })));
+    const shownMonths = monthFilter ? months.filter((m) => m.key === monthFilter) : months;
+    return (
+      <TradeShell installer={data.kind === "installer"} boss={data.boss}>
+        <Screen>
+          <button type="button" onClick={() => { setShowAll(false); setMonthFilter(null); }} className="inline-flex min-h-9 items-center text-sm font-medium text-hiv-blue">‹ Money</button>
+          <div><h1 className="font-display text-[22px] font-semibold leading-[1.2]">All paid jobs</h1><p className="mt-1 text-sm text-sub">Everything paid to {business}. Amounts include GST.</p></div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by month" data-month-chips>
+            <button type="button" aria-pressed={!monthFilter} onClick={() => setMonthFilter(null)} className={`min-h-9 rounded-full border px-3.5 text-sm font-semibold ${!monthFilter ? "border-hiv-blue bg-hiv-blue text-white" : "border-line text-ink"}`}>All</button>
+            {months.map((m) => <button key={m.key} type="button" aria-pressed={monthFilter === m.key} onClick={() => setMonthFilter(m.key)} className={`min-h-9 rounded-full border px-3.5 text-sm font-semibold ${monthFilter === m.key ? "border-hiv-blue bg-hiv-blue text-white" : "border-line text-ink"}`}>{m.label.split(" · ")[0]}</button>)}
+          </div>
+          {shownMonths.map((m) => <Group key={m.key} title={m.label}>{m.rows.map((r) => payRow(data.rows.find((x) => x.jobId === r.jobId && x.state.kind === "paid")!))}</Group>)}
+          {!months.length && <p className="py-3 text-sm text-sub">Nothing paid yet.</p>}
+          {data.rows.length > 0 && <a href={csv()} download="statement.csv" className={outlineLinkClass}>Download statement</a>}
+        </Screen>
+      </TradeShell>
+    );
+  }
   return (
     <TradeShell installer={data.kind === "installer"} boss={data.boss}>
       <Screen>
@@ -58,14 +85,9 @@ function Money() {
             </div>
 
             <Group title="Jobs">
-              {rows.map((r) => { const p = payPill(r.state); return (
-                <Link key={`${r.jobId}:${r.kind}`} to="/field/$jobId" params={{ jobId: r.jobId }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
-                  <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="mt-0.5 block text-[13px] text-sub">{data.kind === "installer" ? moneyRowSub({ channel: r.channel, doneAt: r.doneAt }) : `${r.what}${r.doneAt ? ` · ${shortDay(r.doneAt)}` : ""}`}</span></span>
-                  <span className="text-right"><span className="block text-base font-semibold">{aud(r.amount)}</span><span className="mt-1 block"><Pill tone={p.tone}>{p.label}</Pill></span></span>
-                </Link>
-              ); })}
+              {rows.map(payRow)}
               {!rows.length && <p className="py-3 text-sm text-sub">None right now.</p>}
-              {paid.length > PAID_SHOWN && !showAll && <LinkRow onClick={() => setShowAll(true)}>All paid jobs</LinkRow>}
+              {paid.length > 0 && <LinkRow onClick={() => setShowAll(true)}>All paid jobs</LinkRow>}
             </Group>
           </>
         )}

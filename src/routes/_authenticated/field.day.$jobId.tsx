@@ -1,6 +1,8 @@
-// Today's job = approved mock-up M4 (Jo 24 Oct 2026, decision 199): exact arrival time, Call/Text/Directions, one
-// NEXT panel (three phone checks + the Mitti form), electrician-on-site card only when the PIESA requires one, the job
-// facts + own pay, crew today, "Couldn't get in?". After the install form is Complete the panel reads "Sign the rebate form".
+// Today's job = approved mock-up M4 (Jo 24 Oct 2026, decision 199) and its states (decision 235): exact arrival time,
+// Call/Text/Directions, one NEXT panel (three phone checks + the Mitti form), electrician-on-site card only when the
+// PIESA requires one, the job facts + own pay (install) or "What we know" (Ready Check), crew today / who's on this,
+// "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
+// (decision 213) with the recorded ticks, the declaration and "Then".
 import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -17,9 +19,9 @@ import { confirmHivicReadyCheckPricingFn, getTradeDayExtras, getTradeDayView, tr
 import { completeInstallation } from "@/lib/portal.functions";
 import { useAction } from "@/hooks/use-me";
 import { COULDNT_GET_IN, couldntGetInMessage } from "@/lib/trade-view.core";
-import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, dayNext, electricianOnSite, payNote, sourceLabel } from "@/lib/installer-screens.core";
+import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, couldntGetInSheet, dayNext, electricianOnSite, leadInstallerDeclaration, payNote, signRebateChecks, signRebateThen, sourceLabel, whatWeKnow } from "@/lib/installer-screens.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
-import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, QuietButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
+import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -42,10 +44,16 @@ function DayPage() {
   if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
   const o = data.outcome;
-  const next = dayNext({ kind: data.kind, channel: data.channel, installFormComplete: !!x?.installForm.complete, rebateSigned: !!x?.rebateSigned });
+  const ownerFirst = x?.ownerFirstName ?? (data.owner ? data.owner.trim().split(/\s+/)[0] ?? null : null);
+  const next = dayNext({ kind: data.kind, channel: data.channel, installFormComplete: !!x?.installForm.complete, rebateSigned: !!x?.rebateSigned, ownerFirstName: ownerFirst });
   const elec = x ? electricianOnSite({ required: x.electrician.required, name: x.electrician.name, arrival: data.kind === "install" && data.start ? arrivalPill(data.start)?.split(" · ").pop() ?? null : null, reason: null }) : null;
   const area = x ? areaLine({ areaM2: x.areaM2, removalM2: x.removalM2 }) : null;
+  const sheet = couldntGetInSheet({ kind: data.kind, ownerFirstName: ownerFirst, installDeadline: x?.installDeadline ?? null });
   const back = <Link to="/field" className={outlineLinkClass}>Back to My work</Link>;
+  const signRebate = x ? <SignRebate jobId={jobId} recorded={!!x.installationRecorded} onDone={() => done({ jobId }, "Install recorded")}
+    checks={signRebateChecks({ installFormCompletedAt: x.installForm.completedAt, evidenceChecked: x.installForm.evidenceChecked, crew: x.installForm.crew, piisaSigned: x.installForm.piisaSigned, swmsComplete: x.installForm.swmsComplete })}
+    declaration={leadInstallerDeclaration({ address: x.streetAddress, installedOn: x.installForm.completedAt, product: x.product, areaM2: x.areaM2, removalM2: x.removalM2 })}
+    then={signRebateThen(ownerFirst, x.pay, x.channel)} /> : null;
   return (
     <TradeShell installer={installer}>
       <Screen>
@@ -60,7 +68,7 @@ function DayPage() {
             {o.kind === "quoted" && <Result good title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
             {o.kind === "not_eligible" && <Result title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
             {o.kind === "wrap" && (x?.installForm.complete && !x.rebateSigned
-              ? <NextPanel title="Sign the rebate form" sub="The install form is Complete. Sign your declaration as lead installer (Section 3 Part B)."><SignRebate jobId={jobId} recorded={!!x.installationRecorded} onDone={() => done({ jobId }, "Install recorded")} /></NextPanel>
+              ? <NextPanel title={next.title} sub={next.sub}>{signRebate}</NextPanel>
               : <Result good title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />)}
             {o.kind === "missing" && <Result title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the install form and this page updates itself." items={o.items} />}
             {o.kind === "couldnt_get_in" && <Result title={o.visit === "install" ? "Thanks. Offer 3 new days when you're ready." : "Thanks. We'll rebook it."} body={couldntGetInMessage(o.reason, o.visit)} />}
@@ -68,16 +76,16 @@ function DayPage() {
             {back}
           </>
         ) : asking ? (
-          <section className="rounded-[18px] border border-line p-4">
-            <h2 className="text-[17px] font-semibold">Couldn't get in?</h2>
-            <p className="mt-1 text-sm text-sub">{data.kind === "install" ? "Pick what happened. The owner is told, nobody is charged, and you offer 3 new days inside the 30-day window." : "Pick what happened. We'll take it from here."}</p>
-            <div className="mt-3 space-y-2">{COULDNT_GET_IN.map((r) => <QuietButton key={r} disabled={busy} onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}>{r}</QuietButton>)}</div>
-            <button type="button" className="mt-3 min-h-11 w-full text-center text-sm font-semibold text-hiv-blue" onClick={() => setAsking(false)}>Go back</button>
+          <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={sheet.title} data-couldnt-get-in>
+            <h2 className="text-[17px] font-semibold">{sheet.title}</h2>
+            <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.sub}</p>
+            <div className="mt-3">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-line text-left text-[15px] font-medium disabled:opacity-50" onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}><span>{r}</span><span className="text-xl text-sub">›</span></button>)}</div>
+            <button type="button" className="mt-3 min-h-11 w-full text-center text-[15px] font-semibold text-sub" onClick={() => setAsking(false)}>{sheet.cancel}</button>
           </section>
         ) : (
           <>
             <NextPanel title={next.title} sub={next.sub}>
-              {next.signRebate ? <SignRebate jobId={jobId} recorded={!!x?.installationRecorded} onDone={() => done({ jobId }, "Install recorded")} />
+              {next.signRebate ? signRebate
                 : data.mittiId ? (started
                   ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note></div>
                   : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
@@ -96,7 +104,14 @@ function DayPage() {
               </section>
             )}
 
-            {x && (x.product || area || x.access || x.pay != null) && (
+            {/* Approved state M4-ready-check-day: "What we know" — the owner's own words, free visit, pay after the install. No prices. */}
+            {data.kind === "ready_check" && x && (
+              <Group title="What we know">
+                {whatWeKnow(x.ownerSays).map(([k, v], i, all) => <Row key={k} label={k} value={v} last={i === all.length - 1} />)}
+              </Group>
+            )}
+
+            {data.kind === "install" && x && (x.product || area || x.access || x.pay != null) && (
               <Group title="The job">
                 {x.product && <Row label="Product" value={x.product} />}
                 {area && <Row label="Area" value={area} />}
@@ -107,6 +122,7 @@ function DayPage() {
             )}
 
             {data.kind === "install" && <PiisaCrewPicker jobId={jobId} />}
+            {data.kind === "ready_check" && x?.allocatedTo && <Group title="Who's on this"><Row label="Allocated to" value={x.allocatedTo} last /></Group>}
 
             {(data.kind === "ready_check" || data.kind === "install") && <LinkRow muted border onClick={() => setAsking(true)}>Couldn't get in?</LinkRow>}
           </>
@@ -116,14 +132,23 @@ function DayPage() {
   );
 }
 
-/** Decision 196/119: once the Mitti install form is Complete, confirm the install is finished (if not yet recorded) and
- *  sign Section 3 Part B. The signing itself is the existing guarded assignment flow. */
-function SignRebate({ jobId, recorded, onDone }: { jobId: string; recorded: boolean; onDone: () => Promise<unknown> }) {
+/** Decision 213/119: once the Mitti install form is Complete, confirm the install is finished (if not yet recorded) and
+ *  sign Section 3 Part B. The recorded ticks, the declaration preview and "Then" come from pure rules; the signing itself
+ *  is the existing guarded assignment flow (typed full name). */
+function SignRebate({ jobId, recorded, onDone, checks, declaration, then }: { jobId: string; recorded: boolean; onDone: () => Promise<unknown>; checks: string[]; declaration: string; then: [string, string][] }) {
   return (
     <div className="mt-3 space-y-3" data-sign-rebate>
+      {checks.length > 0 && <ul data-sign-rebate-checks>{checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
       {!recorded
         ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={onDone} />
-        : <InstallerFinalDeclaration jobId={jobId} />}
+        : <>
+          <p className="rounded-[12px] bg-paper p-3 text-sm leading-[1.5]" data-declaration-preview>{declaration}</p>
+          <InstallerFinalDeclaration jobId={jobId} />
+        </>}
+      <div data-sign-rebate-then>
+        <p className="border-b border-line pb-1.5 text-xs font-bold uppercase tracking-[1.1px] text-sub">Then</p>
+        {then.map(([k, v], i) => <Row key={k} label={k} value={v} last={i === then.length - 1} />)}
+      </div>
     </div>
   );
 }
@@ -139,7 +164,7 @@ function Result({ good = false, title, body, items }: { good?: boolean; title: s
   );
 }
 
-/** Uses the existing guarded onsite-form action (membership, booking and paperwork checks stay server-side). */
+/** Uses the existing guarded onsite-form action (membership, booking and paperwork checks stay server-side). Decision 115. */
 function PrepareForm({ jobId, onDone }: { jobId: string; onDone: () => void }) {
   const get = useServerFn(onsiteFormStatus);
   const [busy, setBusy] = useState(false);

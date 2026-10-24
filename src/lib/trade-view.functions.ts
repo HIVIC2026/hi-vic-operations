@@ -162,3 +162,8 @@ export const getTradeDayExtras = createServerFn({ method: "POST" }).middleware([
 export const getTradeMoneyExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeMoneyExtras(context.userId)));
 
+/** M6 per-job pay detail (approved state M6-job-detail): business owner only, own pay only. */
+export const getTradeMoneyJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeMoneyJob(data.jobId, context.userId)));
+
