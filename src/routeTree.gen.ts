@@ -115,7 +115,6 @@ import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_au
 import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
-import { Route as ApiPublicEmailArtPreviewKindRouteImport } from './routes/api/public/email-art-preview.$kind'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
@@ -709,12 +708,6 @@ const AuthenticatedFieldOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
-const ApiPublicEmailArtPreviewKindRoute =
-  ApiPublicEmailArtPreviewKindRouteImport.update({
-    id: '/api/public/email-art-preview/$kind',
-    path: '/api/public/email-art-preview/$kind',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -892,7 +885,6 @@ export interface FileRoutesByFullPath {
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1008,7 +1000,6 @@ export interface FileRoutesByTo {
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1130,7 +1121,6 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-art-preview/$kind': typeof ApiPublicEmailArtPreviewKindRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1252,7 +1242,6 @@ export interface FileRouteTypes {
     | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1366,7 +1355,6 @@ export interface FileRouteTypes {
     | '/field/business/esc-notice'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1485,7 +1473,6 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
-    | '/api/public/email-art-preview/$kind'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
@@ -1534,7 +1521,6 @@ export interface RootRouteChildren {
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
-  ApiPublicEmailArtPreviewKindRoute: typeof ApiPublicEmailArtPreviewKindRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
@@ -2293,13 +2279,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
-    '/api/public/email-art-preview/$kind': {
-      id: '/api/public/email-art-preview/$kind'
-      path: '/api/public/email-art-preview/$kind'
-      fullPath: '/api/public/email-art-preview/$kind'
-      preLoaderRoute: typeof ApiPublicEmailArtPreviewKindRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -2631,7 +2610,6 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
-  ApiPublicEmailArtPreviewKindRoute: ApiPublicEmailArtPreviewKindRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,

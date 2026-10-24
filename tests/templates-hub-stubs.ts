@@ -1,8 +1,5 @@
 // Isolated browser fixture only: named stand-ins for the hub's server functions (TEST data, never real records).
 const named = (name: string) => Object.assign(() => undefined, { __mockName: name });
-export const listCustomerCommunicationTemplates = named("listCustomerCommunicationTemplates");
-export const saveCustomerCommunicationDraft = named("saveCustomerCommunicationDraft");
-export const approveCustomerCommunicationDraft = named("approveCustomerCommunicationDraft");
 export const getMittiForms = named("getMittiForms");
 export const connectMittiForm = named("connectMittiForm");
 export const paperworkCatalogueFn = named("paperworkCatalogueFn");

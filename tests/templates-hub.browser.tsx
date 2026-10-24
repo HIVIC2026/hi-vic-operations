@@ -7,13 +7,6 @@ import "../src/styles.css";
 
 const g = globalThis as Record<string, unknown>;
 g.__mockData = {
-  listCustomerCommunicationTemplates: [
-    { id: "t1", template_key: "likely_estimate", version: "TEST-v1", status: "approved", subject: "TEST subject", body_markdown: "TEST likely review wording" },
-    { id: "t2", template_key: "measured_quote", version: "TEST-approved-quote", status: "approved", subject: "TEST measured quote", body_markdown: "TEST exact stored quote wording\n<script>window.fixtureInjected = true</script>", source_note: "TEST stored review source" },
-    { id: "t3", template_key: "booking_consent", version: "TEST-draft-booking", status: "draft", subject: "TEST booking", body_markdown: "TEST exact booking review wording" },
-    { id: "t4", template_key: "assignment_signing", version: "TEST-approved-empty", status: "approved", subject: "TEST assignment", body_markdown: "" },
-    { id: "t5", template_key: "completion_pack", version: "TEST-superseded", status: "superseded", subject: "TEST completion", body_markdown: "TEST historical completion wording" },
-  ],
   getMittiForms: { ready_check: "template_" + "a".repeat(32), ready_check_priced: null, piesa: null, piisa: null },
   paperworkCatalogueFn: { docs: [{ key: "contact_privacy", gate: "A", title: "Contact and privacy", version: "TEST-1", status: "Draft", approvedBy: null, approvedAt: null, managedIn: "Owner paperwork", templateId: null }, { key: "consumer_declaration", gate: "D", title: "Official assignment", version: "TEST-2", status: "Approved", approvedBy: "TEST Admin", approvedAt: "2026-10-01T00:00:00Z", managedIn: "Templates", templateId: "x" }], bodies: { contact_privacy: "TEST wording" } },
   listComplianceTemplates: [{ id: "c1", template_key: "esc_consent", version: "TEST-esc-1", is_active: true, approved: true, body: "TEST official wording", source_note: null, form_fields: [] }],

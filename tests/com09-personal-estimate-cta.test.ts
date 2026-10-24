@@ -13,11 +13,10 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import {
   PERSONAL_ESTIMATE_ROUTE, READY_CHECK_ROUTE,
   personalEstimateUrl, readyCheckBookingUrl, personalEstimateTokenUsable,
-  buildPersonalEstimateView, buildTemplate8Snapshot,
+  buildPersonalEstimateView,
   type SavedEstimateCore, type SavedFeeSettings,
 } from "../src/lib/personal-estimate.core";
 import { isWellFormedToken, newToken, expiryFrom, LINK_TTL_DAYS, LINK_PURPOSE } from "../src/lib/estimatelink.core";
-import { renderJoReadyCheckInvitation, type JoRecipient } from "../src/lib/jo-email-templates.core";
 
 // ---------------------------------------------------------------------------
 // Real-DB setup (PGlite) + real resolver under test
@@ -79,7 +78,7 @@ beforeAll(async () => {
 });
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
-const { resolvePersonalEstimate, template8SnapshotForJob } = await import("../src/lib/personal-estimate.server");
+const { resolvePersonalEstimate } = await import("../src/lib/personal-estimate.server");
 
 // ---------------------------------------------------------------------------
 // Pure core (URLs, token rules, fail-closed snapshot building)
@@ -121,23 +120,15 @@ describe("saved-pricing integrity (pure, fail-closed)", () => {
     expect(v.personalEstimateUrl).toBe(`/my-estimate/${TOKEN_A}`);
     expect(v.readyCheckBookingUrl).toBe(`/estimate/${TOKEN_A}`);
   });
-  test("missing frozen fees => limited view (no fabricated installation), email snapshot fails closed", () => {
+  test("missing frozen fees => limited view (no fabricated installation)", () => {
     const limited = buildPersonalEstimateView(core, null, TOKEN_A)!;
     expect(limited.customerTotal).toBe(4000);
     expect(limited.installation).toBeUndefined(); // not invented
     expect(limited.piesaFee).toBeUndefined();
-    expect(buildTemplate8Snapshot(core, null, TOKEN_A)).toBeNull(); // fail closed, no email
   });
   test("missing saved core => null (fail closed)", () => {
     expect(buildPersonalEstimateView(null, FEES, TOKEN_A)).toBeNull();
-    expect(buildTemplate8Snapshot(null, FEES, TOKEN_A)).toBeNull();
     expect(buildPersonalEstimateView({ ...core, savedTotal: null }, FEES, TOKEN_A)).toBeNull();
-  });
-  test("email snapshot is frozen/immutable and carries both CTAs' URLs", () => {
-    const s = buildTemplate8Snapshot(core, FEES, TOKEN_A)!;
-    expect(Object.isFrozen(s)).toBe(true);
-    expect(s.personalEstimateUrl).toBe(`/my-estimate/${TOKEN_A}`);
-    expect(s.readyCheckBookingUrl).toBe(`/estimate/${TOKEN_A}`);
   });
 });
 
@@ -196,34 +187,13 @@ describe("real resolvePersonalEstimate against Postgres (PGlite)", () => {
     const links = (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM public.customer_estimate_links`)).rows[0].n;
     expect(links).toBe(rows);
   });
-  test("INT-08/INT-09 template8SnapshotForJob returns the customer's own URLs from the usable link", async () => {
-    const snap = await template8SnapshotForJob(JOB_A);
-    expect(snap).not.toBeNull();
-    expect(snap!.personalEstimateUrl).toBe(`/my-estimate/${TOKEN_A}`);
-    expect(snap!.readyCheckBookingUrl).toBe(`/estimate/${TOKEN_A}`);
-    // No usable link / no saved spot => fail closed.
-    expect(await template8SnapshotForJob(JOB_C)).toBeNull();
-  });
 });
 
 // ---------------------------------------------------------------------------
 // Template 8 rendering + safety (INT-01, INT-08, INT-11, INT-13, INT-14, INT-15)
 // ---------------------------------------------------------------------------
-const recipient: JoRecipient = { firstName: "Alex", propertyAddress: "1 Test St, Reservoir VIC 3073", enquiryReference: "REF-1" };
-
-describe("Template 8 CTA rendering", () => {
-  test("INT-01/INT-08 Template 8 links both the personal estimate and the Ready Check booking URL", () => {
-    const snap = buildTemplate8Snapshot(core, FEES, TOKEN_A)!;
-    const out = renderJoReadyCheckInvitation(recipient, snap);
-    expect(out.body).toContain(`[Book my Ready Check →](/estimate/${TOKEN_A})`);
-    expect(out.body).toContain(`/my-estimate/${TOKEN_A}`);
-    expect(out.ctas).toEqual(["book_ready_check"]);
-  });
-  test("COM-08 snapshots without a booking URL still render the bare CTA (back-compat)", () => {
-    const legacy = { ...buildTemplate8Snapshot(core, FEES, TOKEN_A)!, readyCheckBookingUrl: undefined };
-    const out = renderJoReadyCheckInvitation(recipient, legacy as never);
-    expect(out.body).toContain("[Book my Ready Check →]");
-  });
+// Template 8 (the office Ready Check invitation) was retired on 24 Oct 2026; its snapshot and renderer are gone.
+describe("Jo templates 1-7 routing", () => {
   test("INT-15 Templates 1-7 are unaffected by the COM-09 change (still route + CTA as before)", async () => {
     // Delegate to the COM-08 suite's assertions via a quick import of its pure router.
     const { selectJoTemplate, ctasForTemplate } = await import("../src/lib/jo-email-templates.core");

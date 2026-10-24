@@ -68,12 +68,18 @@ async function logJob(input: RealSmsInput, to: string, status: string, detail: s
 
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
 export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast?: true; scheduledSpotReminder?: true }): Promise<RealSmsResult> {
-  const blastAllowed = input.type === "save_spot_reminder" && (blast?.adminSpotReminderBlast === true || blast?.scheduledSpotReminder === true) &&
-    input.idempotencyKey === `save-spot-reminder-blast:v1:${input.jobId}`;
+  // One-off blasts: the Save My Spot reminder (office page or the hourly automatic run) and the 3 questions reminder
+  // (decision 172, office page only). Each has its own key format and phone-claim space; nothing else may pass `blast`.
+  const oneOffKey = input.type === "save_spot_reminder" ? `save-spot-reminder-blast:v1:${input.jobId}`
+    : input.type === "three_questions_reminder" ? `three-questions-reminder-sms:v1:${input.jobId}` : null;
+  const blastAllowed = !!oneOffKey && input.idempotencyKey === oneOffKey &&
+    (blast?.adminSpotReminderBlast === true || (input.type === "save_spot_reminder" && blast?.scheduledSpotReminder === true));
   if (blast && !blastAllowed) throw new Error("Invalid one-off SMS authorization");
   if (blastAllowed && blast) {
-    const { blastClaimId } = await import("./save-spot-reminder-blast.core");
-    if (blast.claimId !== await blastClaimId(input.to ?? "")) throw new Error("Invalid one-off phone claim");
+    const claimFor = input.type === "save_spot_reminder"
+      ? (await import("./save-spot-reminder-blast.core")).blastClaimId
+      : (await import("./three-questions-reminder.core")).threeQuestionsClaimId;
+    if (blast.claimId !== await claimFor(input.to ?? "")) throw new Error("Invalid one-off phone claim");
   }
   const to = toAuE164(input.to);
   const from = sendingNumber();

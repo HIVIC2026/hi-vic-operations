@@ -6,7 +6,6 @@ import { isWellFormedToken } from "./estimatelink.core";
 import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
-import { renderStep3SaveSpot } from "./step3-emails";
 export type EstimateEmailInput = {
   estimateUrl: string; outcome?: "likely" | "onsite"; estimatedTotal?: number | null;
   veuDiscount?: number | null; areaM2?: number | null; savingsPercent?: number | null;
@@ -33,16 +32,6 @@ export type IneligibleOutcomeEmailInput = {
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
 const BASE = "https://estimate.homeinsulationvictoria.com.au";
-/** The locked likely-email pink-box paragraph; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
-const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.";
-export const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from owners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
-/** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
-const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
-export const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
-/** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
-const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
-/** Retired from Save your spot (Jo, 7 Oct 17:27 UTC: only four pink-box swaps). Kept for reference only. */
-export const SAVE_SPOT_HERO_SENTENCE_RETIRED = "We organise everything for you: a certified installer, the licensed electrician’s Pre Insulation Electrical Safety Assessment (PIESA) and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
 /** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const LOGO_URL = CUSTOMER_BRAND.logoUrl;
 const SITE = "https://homeinsulationvictoria.com.au";
@@ -396,27 +385,6 @@ export const V2_THEME = {
   F, FH, colors: { BLUE, GREEN, INK, TEXT_GREEN, MIST, MINT, BLUSH, LINE, WHITE }, site: SITE,
 } as const;
 
-export type LaunchCampaignEmailInput = {
-  referralUrl?: string | null;
-  group: "likely" | "onsite";
-  campaignUrl: string;
-  unsubscribeUrl: string;
-  firstName?: string | null;
-  estimatedTotal: number;
-  veuDiscount: number;
-  grossTotal: number;
-  areaM2: number;
-  address?: string | null;
-  reference?: string | null;
-  /** Declared existing insulation; drives the removal sentence. */
-  insulation?: string | null;
-  /** Cost breakdown (defaults: current $349 PIESA, $349 AP fee, installation = price before discount minus both; $70 per VEEC). */
-  installation?: number; assessmentFee?: number; apFee?: number; veecValue?: number;
-  /** Owner's no-login My job link (same token). Optional. */
-  myJobUrl?: string | null;
-  /** Office draft wording (preview only). Blank/missing = approved default. "{name}" = first name. */
-  copy?: Partial<Record<LaunchCopyField, string>> | null;
-};
 export const CAMPAIGN_H1_MAX_CHARS = 54;
 export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" | "video" | "nextTitle" | "urgency" | "button";
 
@@ -462,109 +430,4 @@ export function campaignHeadingImg(origin: string, token: string, text: string, 
 /** "You pay about" amount as an Outfit 800 image; alt is the amount. */
 export function campaignAmountImg(src: string, amount: string) {
   return `<img src="${escape(src)}" width="${amountArtWidth(amount)}" height="${AMOUNT_LH}" alt="${escape(amount)}" style="display:inline-block;width:${amountArtWidth(amount)}px;height:${AMOUNT_LH}px;border:0;vertical-align:middle;${FH}color:${INK};font-size:30px;line-height:${AMOUNT_LH}px;font-weight:800;">`;
-}
-
-/** Save my spot for likely-eligible owners: ALWAYS the Jo-approved locked email (7 Oct 2026 12:52). Group B keeps its own renderer. */
-export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): EstimateEmail {
-  if (input.group !== "likely") return renderLaunchCampaignEmail(input);
-  return renderStep3SaveSpot({
-    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl, referralUrl: input.referralUrl ?? null,
-    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
-    firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
-    existingInsulationPresent: input.insulation === "present",
-    ...(input.installation === undefined ? {} : { installation: input.installation }),
-    ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
-    ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
-  });
-}
-
-/** Group B (onsite) campaign email only. The v9 likely-eligible Save my spot version is RETIRED (Jo, 7 Oct) and refuses to render. */
-export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
-  if (input.group === "likely") throw new Error("The old Save my spot email is retired. Use renderSaveSpotFromLikelyEmail.");
-  const campaign = new URL(input.campaignUrl);
-  if (campaign.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
-  const base = renderStep3SaveSpot({
-    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
-    referralUrl: input.referralUrl ?? null, firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
-    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
-    existingInsulationPresent: true,
-    ...(input.installation === undefined ? {} : { installation: input.installation }),
-    ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
-    ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
-  });
-  const instruction = "Demand is high and installer capacity is limited. Your enquiry is behind eligible homes while we check your existing insulation. To JUMP THE QUEUE, send manhole video/photos or select ‘I confirm this is below R2’. Our office will assess it. If it appears below R2 and your home qualifies, we’ll move you into the eligible queue so you can save your spot.";
-  const small = "Office review first. No payment. No obligation.";
-  const intro = "your home could qualify for a VEU ceiling insulation rebate, subject to checking the existing insulation.";
-  const replace = (value: string) => value
-    .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
-    .replace("Your estimated VEU rebate", "Your potential VEU rebate")
-    .replace("Your estimated cost after rebate", "Estimated cost if eligible")
-    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", `${REMOVAL_BUDGET_EMAIL_NOTE} Estimate only; eligibility and final price subject to assessment.`)
-    .replace(SAVE_SPOT_INSTRUCTION, instruction)
-    .replace(SAVE_SPOT_SMALL_PRINT, small);
-  const html = replace(base.html)
-    .replace("Save your spot</h2>", "JUMP THE QUEUE</h2>")
-    .replace(`href="${escape(input.campaignUrl)}"`, `href="${escape(input.campaignUrl.replace(/\/campaign$/, "/video"))}"`)
-    .replace("Save my spot →", "Send my insulation details →");
-  const plainText = replace(base.plainText)
-    .replace("SAVE YOUR SPOT\n", "JUMP THE QUEUE\n")
-    .replace(`Save my spot: ${input.campaignUrl}`, `Send my insulation details: ${input.campaignUrl.replace(/\/campaign$/, "/video")}`);
-  return { subject: `${input.firstName?.trim() || "Your home"} — your preliminary insulation estimate`, previewText: "Limited installer capacity. Help us check your insulation so you could move into the eligible queue and save your spot.", html, plainText };
-}
-
-// ---------------------------------------------------------------------------
-// DRAFT (not yet approved for sending): existing-insulation calculator + optional phone video invitation.
-// Same visual system; existing renderers above are untouched.
-// ---------------------------------------------------------------------------
-export type InsulationVideoEmailInput = { captureUrl: string; firstName?: string | null; reference?: string | null; referralUrl?: string | null };
-export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): EstimateEmail {
-  const u = new URL(input.captureUrl);
-  if (u.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/video$/.test(u.pathname) || u.search || u.hash) throw new Error("A secure Home Insulation Victoria video link is required.");
-  const referralUrl = validReferralUrl(input.referralUrl ?? null);
-  const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
-  const subject = `${name ? `${name}, a` : "A"} quick next step for your insulation enquiry`;
-  const previewText = "Check your estimate, and optionally send a short phone video of your existing insulation.";
-  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
-  const intro = "You told us there’s already some insulation in your ceiling. Everything else you shared looks good, so the next step is checking that existing insulation.";
-  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Your next step</p><h1 class="lx-h1" style="margin:0 0 14px;${FH}color:${INK};font-size:32px;line-height:37px;font-weight:800;">${name ? `${escape(name)}, help` : "Help"} us check your existing insulation</h1><p style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;">${escape(intro)}</p>`;
-  const card = (bg: string, title: string, body: string, button: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${bg}" style="width:100%;border-collapse:separate;background-color:${bg};border-radius:18px;"><tr><td class="lx-result-pad" style="padding:20px;${F}"><h2 style="margin:0 0 8px;${FH}color:${INK};font-size:19px;line-height:1.25;font-weight:800;">${title}</h2>${body}<div style="height:14px;line-height:14px;">&nbsp;</div>${button}</td></tr></table>`;
-  const p = (t: string) => `<p style="margin:0 0 6px;${F}color:${INK};font-size:14px;line-height:1.55;">${t}</p>`;
-  const calc = card(MIST, "1. Check your estimate", p("Use our online calculator to see your potential VEU rebate."), v2Button(PUBLIC_CALCULATOR_URL, "Open the calculator"));
-  const video = card(MINT, "2. Optional: send a short phone video", `${p("If you can do it safely — for example, holding your phone up through the ceiling hatch from a stable ladder — a 20–60 second video helps us review your enquiry sooner.")}${p("<strong>Please don’t climb into or walk through the roof space.</strong> If you can’t record safely, skip this step and we’ll check everything at your free onsite visit.")}`, v2Button(input.captureUrl, "Record or upload a video"));
-  const note = `<p style="margin:0;${F}color:#5A6785;font-size:12.5px;line-height:1.55;text-align:center;">A video helps us prioritise your enquiry. It doesn’t confirm eligibility on its own — that is still confirmed at the free onsite check.</p>`;
-  const reason = "You’re receiving this because you requested an eligibility check.";
-  const html = likelyV2Shell(`${row(v2Header("Next step"), "22px 36px 18px")}${row(hero, "8px 36px 22px")}${row(calc, "0 28px 16px")}${row(video, "0 28px 16px")}${row(note, "4px 36px 22px")}${v2FooterRow(v2Footer(input.reference, referralUrl, reason))}`, previewText, null);
-  const plainText = [
-    subject, "", intro, "",
-    "1. CHECK YOUR ESTIMATE", `Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "",
-    "2. OPTIONAL: SEND A SHORT PHONE VIDEO",
-    "If you can do it safely — for example, holding your phone up through the ceiling hatch from a stable ladder — a 20–60 second video helps us review your enquiry sooner.",
-    "Please don’t climb into or walk through the roof space. If you can’t record safely, skip this step and we’ll check everything at your free onsite visit.",
-    `Record or upload a video: ${input.captureUrl}`, "",
-    "A video helps us prioritise your enquiry. It doesn’t confirm eligibility on its own — that is still confirmed at the free onsite check.", "",
-    ...v2FooterPlain(input.reference, referralUrl, reason),
-  ].join("\n");
-  return { subject, previewText, html, plainText };
-}
-
-/** Save your spot (likely eligible). APPROVED by Jo Lowe, 7 Oct 2026 (12:52) — FINAL; replaces v9–v14. Do not change without Jo's approval.
- *  The Step 3 likely email with ONLY four pink-box swaps (heading, paragraph, button -> campaign link, small line) — Jo, 7 Oct 17:27 UTC.
- *  Same hero, price rows and footer (Refer a friend + Unsubscribe, filled by withUnsubscribe in step3-emails.ts).
- *  Used by the hot-leads campaign for likely-eligible owners. */
-export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl?: string }): EstimateEmail {
-  const base = renderV2QuoteEmail(input, "likely");
-  const must = (s: string, from: string | RegExp, to: string) => { const out = s.replace(from, () => to); if (out === s) throw new Error(`Save-spot render: anchor missing (${String(from).slice(0, 40)})`); return out; };
-  const card0 = base.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0];
-  if (!card0) throw new Error("Save-spot render: next-step card missing");
-  let card = must(card0, "Free Ready Check", "Save your spot");
-  card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
-  card = must(card, "Arrange my free Ready Check →", "Save my spot →");
-  card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
-  card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
-  let html = base.html.replace(card0, () => card);
-  let text = must(base.plainText, /FREE READY CHECK\n/, "SAVE YOUR SPOT\n");
-  text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
-  text = must(text, /Arrange my free Ready Check: .*/, `Save my spot: ${input.campaignUrl}`);
-  text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
-  return applyReadyCheckFee({ subject: base.subject, previewText: base.previewText, html, plainText: text }, input, true);
 }

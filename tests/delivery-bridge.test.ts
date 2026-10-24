@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from "fs";
 import { createHmac } from "crypto";
 import { join } from "path";
 import { base44BridgeConfig, bridgeAdapter, bridgeBody, hmacHex } from "../src/lib/delivery.core";
-import { renderIneligibleEmail, safeReason } from "../src/lib/ineligible-email";
+import { safeReason } from "../src/lib/ineligible-email";
 import { sendBlocker } from "../src/lib/engagement.core";
 
 const src = (p: string) => readFileSync(p, "utf8");
@@ -108,22 +108,11 @@ describe("post-intake + worker wiring", () => {
   });
 });
 
-describe("ineligible renderer", () => {
-  test("reason + referral CTA, no price/booking", () => {
-    const m = renderIneligibleEmail({ referralUrl: REF, reason: "The home was built less than 5 years ago." });
-    expect(m.subject).toBe("Your ceiling insulation eligibility result");
-    for (const t of [m.html, m.plainText]) {
-      expect(t.toLowerCase()).toContain("doesn’t appear eligible");
-      expect(t).toContain("built less than 5 years ago");
-      expect(t.toLowerCase()).toContain("refer a friend");
-      expect(t.toLowerCase()).toContain("know someone else thinking about ceiling insulation");
-      expect(t).not.toMatch(/\$\d|ESTIMATED CUSTOMER PRICE|349/i);
-    }
-    expect(m.html).toContain(`href="${REF.replace(/&/g, "&amp;")}"`);
-  });
-  test("no reason is fine; internal codes dropped; referral required", () => {
-    expect(renderIneligibleEmail({ referralUrl: REF }).plainText).not.toContain("Reason:");
+// The old preliminary ineligible renderer was removed on 24 Oct 2026 (the approved O6 Not eligible email replaced it);
+// its shared reason filter is still used by the live ineligible path.
+describe("ineligible reason filter", () => {
+  test("internal codes dropped; plain reasons kept", () => {
     expect(safeReason("REVIEW REQUIRED internal")).toBeNull();
-    expect(() => renderIneligibleEmail({ referralUrl: "https://evil.example/x" })).toThrow();
+    expect(safeReason("The home was built less than 5 years ago.")).toBe("The home was built less than 5 years ago.");
   });
 });

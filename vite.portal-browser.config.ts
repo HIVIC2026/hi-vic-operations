@@ -7,7 +7,6 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig({ root, plugins: [react(), tailwindcss()], resolve: { alias: [
   { find: "@tanstack/react-start/server", replacement: fileURLToPath(new URL("./tests/portal-browser-start-server-stub.ts", import.meta.url)) },
   { find: "@tanstack/react-start", replacement: fileURLToPath(new URL("./tests/portal-browser-serverfn-stub.ts", import.meta.url)) },
-  { find: "@/lib/customer-communications.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
   { find: "@/lib/mitti-forms.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
   { find: "@/lib/owner-gates.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
   { find: "@/lib/portal.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-functions-stub.ts", import.meta.url)) },

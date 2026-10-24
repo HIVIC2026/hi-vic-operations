@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderLaunchCampaignEmail, likelySubjectLine, renderSaveSpotFromLikelyEmail } from "../src/lib/estimate-email";
+import { renderEstimateEmail, renderIneligibleOutcomeEmail, likelySubjectLine } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
-import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
@@ -94,10 +93,7 @@ describe("customer outcome email renderers", () => {
     for (const t of ["$5,198", "$1,482", "$3,716"]) expect(e.html).toContain(t);
     for (const t of ["$4,500", "$349"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("$2,361");
-    const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
-    const sample = readFileSync("src/lib/step3-email-samples.ts", "utf8");
-    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "amountPayableNow: 0"]) expect(sample).toContain(value);
-    expect(preview).not.toMatch(/bg-background|text-primary/);
+    // The Step 3 preview page and its sample figures were removed on 24 Oct 2026 (the route only redirects now).
   });
 
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
@@ -146,7 +142,6 @@ describe("customer outcome email renderers", () => {
 
   test("uses email-safe markup, loads calculator fonts for likely, and remains a pure renderer", () => {
     const source = readFileSync("src/lib/estimate-email.ts", "utf8");
-    const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
     for (const email of [renderEstimateEmail(common), renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] })]) {
       expect(email.html).not.toMatch(/<script\b|\son\w+=/i);
       expect(email.html).toContain("max-width:640px");
@@ -161,12 +156,7 @@ describe("customer outcome email renderers", () => {
     expect(likely).toContain("<!--[if !mso]><!-->");
     expect(likely).toContain("<!--[if mso]>");
     expect(likely).toContain("@media only screen and (max-width:480px)");
-    expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
-    expect(preview).toContain("Likely eligible");
-    expect(preview).toContain("Test Open the calculator →");
-    expect(preview).toContain("Test Review my result →");
-    expect(preview).toContain("640 desktop");
-    expect(preview).toContain("390 mobile");
+    expect(source).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
   });
 
   test("shares the canonical brand and quote order across eligible outcomes", () => {
@@ -197,72 +187,8 @@ d2("copy normalisation", () => {
   });
 });
 
-const CAMPAIGN_BANNED = ["VEU rebate", "You could save", "PIESA", "REC", "CII", "Accredited Person (AP)", "VEECs ×", "Open the calculator", "incl. GST · before rebate", "What this includes"];
-describe("launch campaign email drafts", () => {
-  const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
-  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
-
-  test.skip("RETIRED by Jo 7 Oct — v9 Group A reuses the partner invitation template shell verbatim with live price rows", () => {
-    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3728, veuDiscount: 1470, grossTotal: 5198, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", reference: "HV-1" });
-    expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
-    expect(email.previewText).toBe("Save your spot in one tap. Installers are booking up fast.");
-    const tpl = INSTALLER_INVITATION_HTML;
-    const logoRow = tpl.slice(tpl.indexOf('<tr><td style="height:5px'), tpl.indexOf("TRADE<br>PARTNERS"));
-    expect(email.html).toContain(logoRow);
-    expect(email.html).toContain(tpl.slice(0, tpl.indexOf("<title>")));
-    expect(email.html).toContain("DC Construction Solutions Pty Ltd<br>ABN 44 671 613 979<br>Trading as Home Insulation Victoria");
-    for (const text of ["Great news, Sarah!", "Your Ballarat home looks eligible for the Victorian Energy Upgrades rebate.", "Ceiling insulation (150 m²)", "$4,500", "Pre Insulation Electrical Safety Assessment (PIESA)", "Accredited Person fee", "VEU rebate", "−$1,470", "You pay about", "$3,728", "FREE", "Free Ready Check", "Save my spot →", "Free · no payment · no obligation", "Privacy", "Remove my enquiry"]) expect(email.html).toContain(text);
-    expect(email.html).toContain(`href="${campaignUrl}"`);
-    expect(email.html).toContain('href="https://estimate.homeinsulationvictoria.com.au/privacy"');
-    for (const text of ["TRADE<br>PARTNERS", "partnership invitations", "email-art", "Saving your spot does not book a visit", "TEST — only sent to Jo"]) expect(email.html).not.toContain(text);
-    expect(email.html.match(/<img /g)?.length).toBe(1);
-  });
-  test("Group B: approved Group A layout with preliminary estimate and office-first insulation invitation", () => {
-    const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
-    expect(email.subject).toBe("Michael — your preliminary insulation estimate");
-    for (const text of ["your home could qualify", "JUMP THE QUEUE", "below R2", "Our office will assess", "$3,379", "$1,470", "data-likely-savings", "data-likely-itemised", "What could change this price?"]) expect(email.html).toContain(text);
-    for (const text of ["installer capacity is limited", "behind eligible homes", "move you into the eligible queue", "save your spot", "Send my insulation details", "Please budget $15 per m² including GST for the areas that need removal only", "confirm the area and cost before you approve any removal"]) {
-      expect(email.html).toContain(text);
-      expect(email.plainText).toContain(text);
-    }
-    expect(email.html).toContain(`href="${campaignUrl.replace(/\/campaign$/, "/video")}"`);
-    expect(email.html).not.toContain("Save my spot →");
-  });
-
-});
-
-describe("Save your spot (likely eligible) duplicate", () => {
-  const SAVE_SPOT_COPY = "We have been inundated with requests from owners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
-  const LIKELY_HERO = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
-  const SAVE_SPOT_HERO = "We organise everything for you: a certified installer, the licensed electrician’s Pre Insulation Electrical Safety Assessment (PIESA) and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
-  const campaign = "https://estimate.homeinsulationvictoria.com.au/campaign/" + "C".repeat(43);
-  const input = { ...detailed, outcome: "likely" as const, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" };
-  test("pink box: heading, Jo's new paragraph and button only; small lines and the rest of the email unchanged", () => {
-    const email = renderSaveSpotFromLikelyEmail({ ...input, campaignUrl: campaign });
-    const card = email.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0] ?? "";
-    for (const copy of ["Save your spot", SAVE_SPOT_COPY, "Save my spot →", `href="${campaign}"`, "Demand is high. Installer availability is limited.", "We will be in touch to book your free Ready Check as soon as we can.", "No payment required. No obligation to proceed with installation."]) expect(card).toContain(copy);
-    for (const retired of ["Your installer measures the ceiling", "Free Ready Check", "Arrange my free Ready Check →", "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time."]) expect(card).not.toContain(retired);
-    const text = email.plainText;
-    expect(text).toContain(`SAVE YOUR SPOT\n${SAVE_SPOT_COPY}\n`);
-    expect(text).toContain(`Save my spot: ${campaign}`);
-    expect(text).toContain("Demand is high. Installer availability is limited.");
-    expect(text).toContain("We will be in touch to book your free Ready Check as soon as we can.");
-    expect(text).not.toContain("Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.");
-    expect(text).toContain("No payment required. No obligation to proceed with installation.");
-    expect(text).not.toContain("Your installer measures the ceiling");
-    const base = renderEstimateEmail(input);
-    expect(email.subject).toBe(base.subject);
-    expect(email.previewText).toBe(base.previewText);
-    // Jo, 7 Oct 17:27 UTC: hero is the same as the likely email; only the four pink-box swaps.
-    expect(email.html).not.toContain(SAVE_SPOT_HERO);
-    expect(email.html).toContain(LIKELY_HERO);
-    expect(text).toContain(LIKELY_HERO);
-    expect(base.html).toContain(LIKELY_HERO);
-    expect(base.plainText).toContain(LIKELY_HERO);
-    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, ""));
-  });
-});
-
+// The launch-campaign (Group A/B) and "Save your spot from likely" renderers were removed on 24 Oct 2026: no send path
+// used them after Jo's approved O1/O2 designs replaced them.
 describe("Group A header image", () => {
   test("renders a 1062px-wide (354 at 3x, phone-first) PNG for short, long and missing names", async () => {
     const { renderEmailHeroPng } = await import("../src/lib/email-hero.core");

@@ -237,7 +237,7 @@ try {
         screens = [
           { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Recent send log'], safeTabs: true },
           { step: 'gap-list', path: '/admin/list?test=true', persona: 'office', expectedPath: '/admin/list', readinessSelector: 'table', mustSee: ['Jobs'] },
-          { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/ready-check', mustSee: ['Ready Check invitations'] },
+          { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/enquiries', mustSee: ['Enquiries'] },
           { step: 'gap-pricing', path: '/admin/pricing', persona: 'office', expectedPath: '/admin/pricing', mustSee: ['Prices & margins', 'Owner prices', 'Price history'] },
           { step: 'gap-job-queue', path: '/admin/job-queue', persona: 'office', expectedPath: '/admin/job-queue', mustSee: ['Job queue'] },
           { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-upload-actions]', discoverTestJob: true },

@@ -48,7 +48,6 @@ const fetchCalls: string[] = [];
 globalThis.fetch = (async (u: unknown) => { fetchCalls.push(String(u)); return new Response("{}"); }) as typeof fetch;
 
 const { campaignPage, saveCampaignSpot } = await import("../src/lib/launch-campaign.server");
-const { renderStep3SaveSpotNoSize, renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE } = await import("../src/lib/step3-emails");
 
 const J = "00000000-0000-4000-8000-00000000c150";
 const TOKEN = "T".repeat(43);
@@ -65,26 +64,6 @@ beforeEach(() => {
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, id: "s1", version: 2 }],
   };
 });
-
-const { areaM2: _a, areaIsTypical: _t, ...facts } = STEP3_SAVESPOT_SAMPLE;
-const email = renderStep3SaveSpotNoSize({ ...facts, estimateUrl: URL_BASE, campaignUrl: `${URL_BASE}/campaign`, estimatedTotal: 3716.24, veuDiscount: 1481.76, grossTotal: 5198 });
-
-test("no-size email = normal Save your spot plus only the labelled 150 m² assumption", () => {
-  const normal = renderStep3SaveSpot({ ...STEP3_SAVESPOT_SAMPLE, estimateUrl: URL_BASE, campaignUrl: `${URL_BASE}/campaign`, estimatedTotal: 3716.24, veuDiscount: 1481.76, grossTotal: 5198 });
-  expect(email.subject).toBe(normal.subject);
-  const extra = email.plainText.split("\n").filter((l) => !normal.plainText.split("\n").includes(l));
-  expect(extra).toEqual(["Ceiling: 150 m² (typical-home assumption)", "You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate. Your final price will depend on the measured ceiling area."]);
-  for (const out of [email.html, email.plainText]) {
-    expect(out).toContain("You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate.");
-    expect(out).toContain("$1,482"); expect(out).toContain("$3,716");
-    expect(out).toContain("No payment required. No obligation to proceed with installation.");
-    expect(out).toContain("calculator");
-  }
-  expect(email.html).toContain(`href="${URL_BASE}/campaign"`);
-  expect(email.html).toContain("Save my spot →");
-  expect(email.plainText).toContain(`Save my spot: ${URL_BASE}/campaign`);
-});
-
 
 test("opening the secure page does not save; the typical estimate shows as assumed", async () => {
   const page = JSON.parse((await campaignPage(TOKEN, false))!);

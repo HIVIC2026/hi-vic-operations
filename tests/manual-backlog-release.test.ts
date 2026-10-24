@@ -24,7 +24,6 @@ import { emailSuppression, withUnsubscribe } from "../src/lib/emailsafety.core";
 import { AREA_BASIS_MISMATCH, joAreaBasis } from "../src/lib/jo-area-basis.core";
 import { computeEstimate, pickArea } from "../src/lib/estimate.core";
 import {
-  JO_CONTACT_URL,
   JO_RESULT_FALLBACK_URL,
   renderJoOutcomeEmail,
   type JoOutcomeFacts,
@@ -388,7 +387,7 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
       // Decision 137 footer: AP number · ABN · Unsubscribe (the earlier Contact us / Privacy links stay on T8 only).
       expect(m.html).toContain(`href="${UNSUB}"`);
       expect(m.html).toContain("VEU Accredited Person A003654");
-      void JO_CONTACT_URL; void PRIVACY_URL;
+      void PRIVACY_URL;
       expect(m.html).not.toMatch(
         /\[(Save my spot|Upload my photos|Review my result|Contact us|Privacy|Remove my enquiry)[^\]]*\]/,
       );

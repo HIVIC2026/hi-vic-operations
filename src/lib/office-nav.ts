@@ -87,7 +87,6 @@ export const OFFICE_TOOLS: OfficeTab[] = [
   { label: "Today's brief", to: "/admin/today" },
   { label: "Quote approvals", to: "/admin/board", search: { tab: "quotes" } },
   { label: "Final check", to: "/admin/ap-queue" },
-  { label: "Ready Check invitations", to: "/admin/ready-check" },
   { label: "Registered interest", to: "/admin/interests" },
   { label: "Deleted jobs", to: "/admin/deleted" },
   { label: "Test centre & system health", to: "/admin/test-centre" },
@@ -122,6 +121,7 @@ export const MORE_SECTIONS: { label: string; tabs: OfficeTab[] }[] = [
       { label: "Compliance", to: "/admin/compliance" },
       { label: "Owner paperwork", to: "/admin/owner-paperwork" },
       { label: "Automatic sending rules", to: "/admin/save-my-spot-rules" },
+      { label: "3 questions reminder", to: "/admin/save-spot-reminder-blast" },
     ],
   },
 ];
