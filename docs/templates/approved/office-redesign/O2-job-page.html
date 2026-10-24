@@ -63,7 +63,7 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
           </div>
           <div style="font-size:14px;color:#5A6785;margin-top:6px;">Website enquiry 9 Oct · permission to contact given 9 Oct · Last heard from us: Fri 24 Oct 10:12am · email</div>
         </div>
-        <a href="#" style="font-size:14px;font-weight:600;color:#5A6785;border:1px solid #E4E9F5;border-radius:10px;padding:9px 14px;white-space:nowrap;">More ▾</a>
+        <a href="#" style="font-size:14px;font-weight:600;color:#5A6785;border:1px solid #E4E9F5;border-radius:10px;padding:9px 14px;white-space:nowrap;" title="Hold · Cancel · Delete">More ▾</a>
       </div>
 
       <!-- Next: one sentence, one button (audit Part 5 §4; decisions 157/173) -->
@@ -106,6 +106,30 @@ body{margin:0;background:#F2F4FC;} a{text-decoration:none;color:inherit;}
     </main>
   </div>
 
+
+  <!-- Cancel dialog (decision 227) — hidden until More ▾ › Cancel; shown for the O2-job-page-cancel screenshot -->
+  <div id="cancel" style="display:none;position:fixed;inset:0;background:rgba(34,55,107,.45);z-index:10;align-items:flex-start;justify-content:center;padding:120px 16px 0;">
+    <div style="background:#fff;border-radius:18px;width:520px;max-width:100%;box-sizing:border-box;padding:24px 24px 22px;font-family:Figtree,Arial,Helvetica,sans-serif;color:#22376B;">
+      <div style="font-family:Outfit,Figtree,Arial,sans-serif;font-size:22px;font-weight:600;">Cancel HV-3104 · Siobhan Brennan</div>
+      <div style="font-size:14px;color:#5A6785;margin-top:4px;">27 Hanover Road, Vermont South · quote accepted</div>
+      <div style="font-size:12px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#5A6785;margin-top:18px;">Reason</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <span style="border:1px solid #3C51C4;color:#3C51C4;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;">✓ Owner changed mind</span>
+        <span style="border:1px solid #E4E9F5;border-radius:999px;padding:5px 12px;font-size:13px;">Not eligible</span>
+        <span style="border:1px solid #E4E9F5;border-radius:999px;padding:5px 12px;font-size:13px;">No response</span>
+        <span style="border:1px solid #E4E9F5;border-radius:999px;padding:5px 12px;font-size:13px;">Duplicate</span>
+        <span style="border:1px solid #E4E9F5;border-radius:999px;padding:5px 12px;font-size:13px;">Other</span>
+      </div>
+      <div style="border:1px solid #E4E9F5;border-radius:10px;padding:10px 12px;font-size:14px;color:#5A6785;margin-top:12px;min-height:44px;box-sizing:border-box;">Note (optional) — e.g. owner called, selling the house</div>
+      <label style="display:flex;align-items:center;gap:10px;font-size:14px;margin-top:14px;"><span style="width:18px;height:18px;border:1.5px solid #E4E9F5;border-radius:4px;display:inline-block;"></span>Email the owner</label>
+      <label style="display:flex;align-items:center;gap:10px;font-size:14px;margin-top:8px;"><span style="width:18px;height:18px;border:1.5px solid #E4E9F5;border-radius:4px;display:inline-block;"></span>Text the installer</label>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:18px;">
+        <a href="#" style="display:inline-flex;align-items:center;justify-content:center;background:#B42318;color:#fff;border-radius:10px;min-height:44px;padding:0 20px;font-size:15px;font-weight:600;">Cancel job</a>
+        <a href="#" style="font-size:14px;font-weight:600;color:#5A6785;">Keep the job</a>
+      </div>
+      <div style="font-size:13px;color:#5A6785;margin-top:12px;">Stops every reminder and text, releases the install day and installer, keeps the history.</div>
+    </div>
+  </div>
   <nav class="phone-tabs" style="grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid #E4E9F5;padding:8px 6px 22px;background:#fff;">
     <a href="#" style="text-align:center;font-size:12px;font-weight:500;color:#5A6785;min-height:44px;display:flex;align-items:center;justify-content:center;">Needs me</a>
     <a href="#" style="text-align:center;font-size:12px;font-weight:500;color:#5A6785;min-height:44px;display:flex;align-items:center;justify-content:center;">Enquiries</a>
