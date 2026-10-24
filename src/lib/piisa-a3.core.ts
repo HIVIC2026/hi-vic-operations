@@ -202,6 +202,8 @@ export function a3MissingFields(template: unknown): string[] {
   out.push(...a3CrewSchemaProblems(template));
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
+    // Decision 211: the final roof-space plan upload is retired (the portal draws the diagram); its absence is fine.
+    if (!e && k === "final_plan") continue;
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
     else if (!a3AcceptedMediaLabels(k as A3EvidenceKey).includes(e.norm)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
   }
@@ -515,7 +517,15 @@ export type A3EvidenceCtx = {
   mandatoryCurrentPostwork?: boolean;
   /** Life-support consent/plan already on file (reused, never uploaded twice). */
   lifeSupportConsentOnFile: boolean;
+  /** Decision 211: the portal's generated final installation plan (kind `final_area_diagram`) is on the job file. */
+  generatedFinalPlan?: boolean;
 };
+/** Decision 211 (Jo 24 Oct 2026): the generated final plan replaces the install-day "final plan" upload. Old jobs keep
+ *  their uploaded plan (existingPlanMatchesInstall) as an accepted alternative. */
+export function generatedPlanSatisfiesFinalPlan(ctx: Pick<A3EvidenceCtx, "generatedFinalPlan" | "existingPlanMatchesInstall" | "mandatoryCurrentPostwork">): boolean {
+  if (ctx.generatedFinalPlan === true) return true;
+  return ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork;
+}
 /** capturedAt = LATEST recorded capture time; timed = files with a recorded time (undefined = legacy, treated as all). */
 export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; timed?: number; capturedAt?: string | null };
 /** Before-work media are checked at prestart; after-work media only at completion (never block the prestart check). */
@@ -533,7 +543,7 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "before_video", min: 1 },
     { key: "product_photos", min: 1 },
     { key: "completed_video", min: 1 },
-    ...(ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork ? [] : [{ key: "final_plan" as const, min: 1 }]),
+    ...(generatedPlanSatisfiesFinalPlan(ctx) ? [] : [{ key: "final_plan" as const, min: 1 }]),
   ];
   return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
 }

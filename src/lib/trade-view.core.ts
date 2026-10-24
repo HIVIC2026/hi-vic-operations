@@ -95,8 +95,24 @@ export const START_LABEL: Record<DayKind, string> = { safety_check: "Start check
 
 /** Ready Check "Couldn't get in?" reasons (Jo-approved). */
 export const COULDNT_GET_IN = ["No one home", "Couldn't reach the manhole", "Not safe to go up", "Something else"] as const;
-export function couldntGetInMessage(reason: string): string {
+export type CouldntGetInVisit = "ready_check" | "install";
+/** Decision 214: the same reasons on install days; the install goes back to "offer 3 install days" (the installer keeps the job). */
+export function couldntGetInMessage(reason: string, visit: CouldntGetInVisit = "ready_check"): string {
+  if (visit === "install") return `Thanks for letting us know. ${reason}. The office has been told. Offer the owner 3 new install days from the job page — the 30-day window still applies.`;
   return `Thanks for letting us know. ${reason}. We'll rebook with the owner and offer it back to you first.`;
+}
+
+/** Decision 214: which visit a "Couldn't get in?" report is about, or why it can't be made. Ready Check (booked, visit day
+ *  today or earlier) or install day (booked, visit day today or earlier). Pure; the server cancels and moves the job. */
+export function couldntGetInPlan(f: { stage: string | null; readyCheckStart: string | null; installStart: string | null; now: Date }): { visit: CouldntGetInVisit } | { blocker: string } {
+  const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (f.stage === "installation_booked") {
+    if (!f.installStart) return { blocker: "There's no booked install day to report." };
+    if (day(new Date(f.installStart)) > day(f.now)) return { blocker: "You can only report this on or after the install day." };
+    return { visit: "install" };
+  }
+  const b = couldntGetInBlocker(f.stage, f.readyCheckStart, f.now);
+  return b ? { blocker: f.stage !== "ready_check_scheduled" ? "This job doesn't have a booked Ready Check or install day." : b } : { visit: "ready_check" };
 }
 
 /** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "Current". */

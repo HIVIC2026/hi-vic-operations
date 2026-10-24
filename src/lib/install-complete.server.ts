@@ -37,6 +37,14 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
   // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
   await logEvent(jobId, actorId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start, source }, { internal: true });
   await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken", { source });
+  // Decision 211: the final installation plan is generated from the recorded areas — the install-day per-zone
+  // confirmations (name, m², product) when the Install day form has been read, else the Ready Check areas. Never blocks.
+  try {
+    const { latestInstallEvidence } = await import("./install-evidence.server");
+    const { installZoneConfirmations } = await import("./install-evidence.core");
+    const zones = installZoneConfirmations(await latestInstallEvidence(jobId));
+    await (await import("./area-diagram.server")).fileFinalAreaDiagram(jobId, actorId, zones.length ? zones : null);
+  } catch (e) { console.error("Final area diagram failed", (e as Error).message); }
   await autoAdvanceJob(jobId, actorId, "installation completed");
   // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
   // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.

@@ -1,6 +1,6 @@
 # Prompt for ChatGPT: add the evidence, SWMS and sign-off items to the Install day form in Mitti
 
-Copy everything between the lines into ChatGPT (it edits the template with Mitti's "Build with AI"). It is ONE combined build: Part A relabels four existing photo questions, Part C adds the SWMS section, Part B adds the upgrade-zone evidence, Part E adds the foil question, Part D adds the after-install sign-off. Nothing existing is removed. Decisions 205, 206, 210, 211 and 213 (Jo, 24 Oct 2026). Every wording is fixed in `src/lib/install-evidence.core.ts` (`INSTALL_EVIDENCE_QUESTIONS`, `A3_RELABELS`, `SWMS_QUESTIONS`, `SWMS_HAZARDS`, `AFTER_INSTALL_QUESTIONS`, `FOIL_QUESTIONS`) and `tests/install-evidence-prompt.test.ts` fails if this file and the constants drift apart.
+Copy everything between the lines into ChatGPT (it edits the template with Mitti's "Build with AI"). It is ONE combined build: Part A relabels four existing photo questions, Part C adds the SWMS section, Part B adds the upgrade-zone evidence, Part E adds the foil question, Part D adds the after-install sign-off, Part F removes the old final-plan upload (the portal now draws the diagram). Nothing else existing is removed. Decisions 205, 206, 210, 211 and 213 (Jo, 24 Oct 2026). Every wording is fixed in `src/lib/install-evidence.core.ts` (`INSTALL_EVIDENCE_QUESTIONS`, `A3_RELABELS`, `SWMS_QUESTIONS`, `SWMS_HAZARDS`, `AFTER_INSTALL_QUESTIONS`, `FOIL_QUESTIONS`) and `tests/install-evidence-prompt.test.ts` fails if this file and the constants drift apart.
 
 The template ID does **not** change, so nothing needs reconnecting. After publishing, open Office → Settings → Mitti forms → **Check form**: the portal lists any new question it cannot find by its exact wording.
 
@@ -10,12 +10,12 @@ You are editing my EXISTING **Install day** template in **Mitti** (mitti.com.au,
 
 **Rules that must not be broken**
 
-1. **Keep every existing question exactly as it is and in its current order** — same answer type, same Required setting, same "only show when" rule, same position. The only change to existing items is the **four label changes in Part A**. In particular, the two existing Part 3 questions `Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?` and `Have all Table 1 hazards been assessed and controlled in the SWMS?` stay on the form (the software cross-checks them against the new SWMS section).
+1. **Keep every existing question exactly as it is and in its current order** — same answer type, same Required setting, same "only show when" rule, same position. The only changes to existing items are the **four label changes in Part A** and the **one deletion in Part F**. In particular, the two existing Part 3 questions `Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?` and `Have all Table 1 hazards been assessed and controlled in the SWMS?` stay on the form (the software cross-checks them against the new SWMS section).
 2. The new wording below must be copied **character for character** — including the long dash "—", the short dash "–", the degree sign in "360°", "m²", "(geotagged…)", capitals and punctuation — because connected software reads each answer by its question text and refuses the job's rebate claim if an item is missing. Do not reword, shorten, merge, split, renumber the zones or drop anything. Do not move help text into the question line.
 3. **Every Photo and Video item: Media type with location/GPS on** (and "camera only" / "capture date" if Mitti offers them). Video items must accept video. "allow several" means the item may hold more than one file.
 4. If Mitti does not support an answer type I name, tell me the closest one and **ask me before substituting**. If a "Date & time" type is not available, use Mitti's date/time item and tell me.
 5. **Do not use a repeating section.** Build the zone blocks and the SWMS hazard blocks exactly as written, so the question text itself carries the zone number / hazard name.
-6. **Do not add a plan or floor-plan upload** — the portal draws the final diagram from the per-zone product and m² answers.
+6. **Do not add a plan or floor-plan upload** — the portal draws the final diagram from the per-zone product and m² answers. The one existing plan upload is deleted in Part F.
 7. Questions marked "portal fills this in" are pre-filled by the software when it creates each form; keep them as normal editable Text.
 
 Answer-type key: Pick one = single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice with the exact options listed; Yes/No = two choices "Yes" / "No"; Text = single-line text (long text is fine); Number = numeric; Date & time = date and time picker; Photo = media (photo), location on; Video = media (video), location on; Checkbox = single checkbox that must be ticked; Signature = signature capture (Mitti records the signer's name and time).
@@ -142,7 +142,7 @@ The SWMS section has thirteen hazard blocks of five questions each (present? →
 94. `SWMS — lead installer signature` — Signature — Required
 95. `SWMS — signed at (date and time)` — Date & time — Required
 
-## Part B: upgrade zones and evidence (add after the existing `After installation, please record a clear video …` and final-plan questions, before the installer declaration and signature)
+## Part B: upgrade zones and evidence (add after the existing `After installation, please record a clear video …` question, before the installer declaration and signature)
 
 96. `How many upgrade zones are you insulating on this job?` — Pick one: `1` / `2` / `3` — Required
 97. `Zone 1 — name of this ceiling area (use the same name as the Ready Check and floor plan)` — Text — Required — portal fills this in ("Area 1 – <Ready Check area name>"); keep it editable
@@ -192,6 +192,10 @@ The SWMS section has thirteen hazard blocks of five questions each (present? →
 
 Note: the two existing single video questions (`Before installation, please record a clear video …` and `After installation, please record a clear video …`) stay on the form unchanged; the portal now reads the per-zone videos in Part B.
 
+## Part F: remove the old final-plan upload (decision 211)
+
+Delete ONE existing item, in the section "AP Evidence – After Installation": the media question whose label is `Please upload a clear final roof-space plan showing the installed area in m² and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).` (an older form reads `Final installation plan — actual installed area (m²) and products`). The portal now draws the final installation diagram from the Ready Check areas and the per-zone product and m² answers in Part B, so this upload is no longer needed. Delete only this item; everything else in that section stays.
+
 ## When you have given me the steps
 
 Finish with a checklist I can use to verify the **published** template:
@@ -203,7 +207,7 @@ Finish with a checklist I can use to verify the **published** template:
 - location on for every Photo and Video item; video allowed on the six zone video items;
 - every "only show when" rule as written: Zone 2 block when question `How many upgrade zones are you insulating on this job?` is 2 or 3, Zone 3 block when it is 3, each zone's existing-insulation photo when that zone's under-insulated answer is Yes, each hazard's controls / person when that hazard is Yes, each "other control" when `Other control` is ticked, each "other person" when `Other (name in next box)` is chosen, the no-reception line when reception is No, the daily re-check items when the multi-day answer is Yes, the foil photo when the foil answer is Yes, the lock-out name and switchboard-after photo when the lock-out answer is Yes;
 - the eight product options on each `Zone N — insulation product installed` question, spelled exactly and in that order;
-- no existing question was moved, removed or changed other than the four labels; no plan upload was added;
+- no existing question was moved, removed or changed other than the four labels (Part A) and the deleted final-plan upload (Part F); no plan upload was added;
 - a form already in progress still opens;
 - the **template ID** is unchanged (it is in the web address when the template is open, or under the template's settings) — tell me where to read it so I can confirm it still matches what the portal has.
 

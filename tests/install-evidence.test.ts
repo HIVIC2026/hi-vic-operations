@@ -353,6 +353,11 @@ describe("live Mitti structure (24 Oct 10:07 UTC: Parts A and B already on the A
     const health = validateSavedDefinition("piisa", liveTemplate());
     expect(health.ok).toBe(true);
     expect(health.issues.filter((i) => i.startsWith("Native A3:"))).toEqual([]);
+    // Decision 211: the retired final-plan upload may be deleted from the form without the form reading as broken.
+    const noPlan = liveTemplate();
+    noPlan.template.items = noPlan.template.items.filter((x) => x["item_id"] !== A3_MEDIA_IDS.final_plan);
+    expect(a3MissingFields(noPlan)).toEqual([]);
+    expect(validateSavedDefinition("piisa", noPlan).ok).toBe(true);
   });
   test("an audit in the live shape (flat items with parent_id, media files carrying their own label) reads the zone answers", () => {
     const audit = { audit_id: "audit_x", items: [

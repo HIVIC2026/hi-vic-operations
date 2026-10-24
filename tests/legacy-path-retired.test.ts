@@ -98,7 +98,8 @@ describe("legacy electrician-assessment path retired", () => {
   test("trade/owner UI no longer offers legacy appointment or assessment booking actions", () => {
     const field = src("src/routes/_authenticated/field.$jobId.tsx");
     expect(field).not.toContain("<AppointmentPanel");
-    expect(field).toContain('["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel');
+    // Jo 24 Oct 2026 (audit removal 1, decisions 27/157/185): the electrician is answered in the Mitti form; no choice panel.
+    expect(field).not.toContain("<ElectricianChoicePanel");
     expect(src("src/routes/_authenticated/owner.$jobId.tsx")).toContain(": null; // legacy assessment bookings retired");
   });
 

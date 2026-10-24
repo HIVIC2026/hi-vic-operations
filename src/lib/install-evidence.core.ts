@@ -154,6 +154,14 @@ export const FOIL_QUESTIONS = {
   foilPhoto: "Photo of the existing insulation showing the facing (geotagged)",
 } as const;
 
+/** Decision 211: the old upload item to DELETE from the Install day form — the portal draws the final diagram instead. */
+export const RETIRED_FINAL_PLAN_UPLOAD_LABEL = "Please upload a clear final roof-space plan showing the installed area in m² and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
+
+/** Per-zone confirmations for the generated final diagram (area-diagram.server `fileFinalAreaDiagram`). Zones without a name or figures are left out. */
+export function installZoneConfirmations(summary: Pick<InstallEvidenceSummary, "zoneProducts"> | null | undefined): { name: string; areaM2: number | null; productOption: string | null }[] {
+  return (summary?.zoneProducts ?? []).filter((z) => z.name && (z.areaM2 != null || z.product)).map((z) => ({ name: String(z.name).replace(/^\s*area\s*\d+\s*[–—-]\s*/i, "").trim() || String(z.name), areaM2: z.areaM2, productOption: z.product }));
+}
+
 /** Zone name convention (audit §6): "Area N – <name>"; a one-area job is "Main ceiling". */
 export const DEFAULT_SINGLE_AREA_NAME = "Main ceiling";
 export const zoneNameValue = (z: number, name: string | null | undefined) => `Area ${z} – ${name?.trim() || (z === 1 ? DEFAULT_SINGLE_AREA_NAME : `Area ${z}`)}`;

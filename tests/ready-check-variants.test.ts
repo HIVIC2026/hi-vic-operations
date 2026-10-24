@@ -40,12 +40,14 @@ describe("Ready Check variants", () => {
     expect(result.issues.some((i) => i.includes("Total quoted price (inc GST)"))).toBe(true);
   });
 
-  test("AI prompt for the priced form uses tick-what's-included + one total and the draw option", () => {
+  test("AI prompt for the priced form uses tick-what's-included + one total; no diagram question (decision 211)", () => {
     const prompt = mittiAiPrompt("ready_check_priced");
     expect(prompt).toContain("What's included in your quote?");
     expect(prompt).toContain('"Total quoted price (inc GST)"');
     expect(prompt).toContain("Do NOT add a price box per item");
-    expect(prompt).toContain("DRAW the diagram inside the form");
+    // Decision 211: the portal draws the diagram; the build prompt must not ask for one.
+    expect(prompt).toContain("Do NOT add a diagram, sketch or floor plan question");
+    expect(prompt).not.toContain("DRAW the diagram inside the form");
     expect(mittiAiPrompt("ready_check")).not.toContain("Total quoted price");
   });
 });

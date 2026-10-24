@@ -140,12 +140,14 @@ export { setInstallDueDate } from "./invoice-dates.server";
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
   await requireHivicInvoice(invoiceId); // before any lookup, lock or Xero call
-  const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id))").eq("id", invoiceId).single();
+  const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(code, description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id), properties(address_line, suburb, state, postcode))").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
+  // Decision 209 wording (installation address, itemised insulation line, "VEEC incentive") applies to invoices created from
+  // here on: an invoice already linked to Xero is never re-created or rewritten.
   if (inv.xero_invoice_id) return; // already linked – never create a second Xero invoice
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
-  const job = inv.jobs as unknown as { job_number: string; owners: { id: string; full_name: string; email: string | null; xero_contact_id: string | null } };
-  const quote = inv.quotes as unknown as { status: string; customer_total_inc_gst: number; veec_discount_inc_gst: number; quote_items: { description: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number; sort: number }[] };
+  const job = inv.jobs as unknown as { job_number: string; owners: { id: string; full_name: string; email: string | null; xero_contact_id: string | null }; properties: { address_line: string; suburb: string | null; state: string | null; postcode: string | null } | null };
+  const quote = inv.quotes as unknown as { status: string; customer_total_inc_gst: number; veec_discount_inc_gst: number; quote_items: { code: string | null; description: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number; sort: number }[] };
   try {
     const guard = quoteGuard(quote, inv.total_inc_gst);
     if (guard) throw new Error(guard);
@@ -159,11 +161,22 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     let contactId = x?.Contact?.ContactID ?? job.owners.xero_contact_id;
     if (!x) {
       if (!contactId) contactId = (await findOrCreateContact(call, job.owners)).contactId;
-      const items = [...quote.quote_items].sort((a, b) => a.sort - b.sort);
-      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items, veecDiscount: quote.veec_discount_inc_gst, tracking });
+      // Decision 209: "Ceiling insulation — {brand} {model} R{value} — {m²} m²" from the declared product + Ready Check area;
+      // unknown facts keep the rate-card wording and raise an office item (never invented). Amounts are untouched.
+      const { itemiseInvoiceLines, missingProductFacts } = await import("./invoice-itemisation.core");
+      const { installedProductFacts } = await import("./invoice-itemisation.server");
+      const facts = await installedProductFacts(inv.job_id);
+      const itemised = itemiseInvoiceLines([...quote.quote_items].sort((a, b) => a.sort - b.sort), facts);
+      const { formatPropertyAddress } = await import("./address");
+      const installationAddress = formatPropertyAddress(job.properties) || null;
+      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items: itemised.items, veecIncentive: quote.veec_discount_inc_gst, tracking, installationAddress });
       assertHivicPayload(payload, mode);
       const res = await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload });
       x = res.Invoices[0];
+      if (itemised.officeFlag) {
+        const { INVOICE_PRODUCT_UNCONFIRMED_EVENT } = await import("./invoice-itemisation.core");
+        await logEvent(inv.job_id, actorId, INVOICE_PRODUCT_UNCONFIRMED_EVENT, `${itemised.officeFlag}: ${missingProductFacts(facts).join("; ")}`, { invoice_id: invoiceId, reasons: missingProductFacts(facts), needs_office: true }, { internal: true }).catch((e) => console.error("invoice product flag skipped", (e as Error).message));
+      }
     }
     if (contactId && contactId !== job.owners.xero_contact_id) await admin.from("owners").update({ xero_contact_id: contactId }).eq("id", job.owners.id);
     const { error: linkErr } = await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking?.optionId ?? null, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);

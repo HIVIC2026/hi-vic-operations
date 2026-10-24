@@ -7,6 +7,13 @@
 // through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 are approved too
 // (COMPLETION_EMAILS_APPROVED, decisions 133/103/105) and go through the same guarded sender. Pure.
 import * as K from "./email-kit.core";
+import { AP_DETAILS } from "./veec-assignment-form.core";
+import { insulationLineWithCodes } from "./invoice-itemisation.core";
+
+/** Decision 209: the installed product line as it appears on the Xero invoice, with the exact ESC model code(s) when known. */
+export type InstalledLine = { description: string; escModelCodes: string[] };
+/** Contracting business line for the tax invoice: name, address (AP company address on file) and ABN. */
+export const BUSINESS_LINE = [`${K.ENTITY_LINE} trading as Home Insulation Victoria`, AP_DETAILS.companyAddress?.trim() || null, K.ABN_LINE, `VEU Accredited Person ${K.AP_NUMBER}`].filter(Boolean).join(" · ");
 
 /** Jo 24 Oct 2026: O45 final invoice (decision 133), O47 completion pack (decision 103), O51 review request (decision 105) approved. Delivery still behind customer_comms_enabled. */
 export const COMPLETION_EMAILS_APPROVED = true as boolean;
@@ -58,9 +65,12 @@ export type FinalInvoiceInput = {
   totalIncGst: number; gst: number | null; rebate: number;
   payments: { label: string; amount: number }[];
   balanceDue: number; payUrl: string; test?: boolean;
+  /** Decision 209: installed product itemisation (brand, model, R-value, m², ESC model codes); omitted when unknown. */
+  installed?: InstalledLine | null;
 };
 
-/** Decision 133: full tax invoice in HIV's name, VEU rebate as a price reduction, payments so far, balance due today, Pay button. */
+/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today, Pay button.
+ *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line. */
 export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
   if (!/^https:\/\//.test(i.payUrl)) throw new Error("Payment link is unavailable.");
   const first = K.cleanName(i.firstName) ?? "there";
@@ -71,11 +81,16 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
   const rows = [
     ...i.lines.map((l) => ({ label: l.description, amount: K.cents(l.amount) })),
     { label: `Total incl. GST${i.gst != null ? ` (GST ${K.cents(i.gst)})` : ""}`, amount: K.cents(i.totalIncGst), bold: true },
-    { label: "VEU rebate (price reduction)", amount: `−${K.cents(i.rebate)}`, bold: true, color: K.KIT.GREEN },
-    { label: "Price after rebate", amount: K.cents(i.totalIncGst - i.rebate), bold: true },
+    { label: "VEEC incentive (your VEU rebate, price reduction)", amount: `−${K.cents(i.rebate)}`, bold: true, color: K.KIT.GREEN },
+    { label: "Amount after VEEC incentive", amount: K.cents(i.totalIncGst - i.rebate), bold: true },
     ...i.payments.map((p) => ({ label: `Paid: ${p.label}`, amount: `−${K.cents(p.amount)}` })),
   ];
-  const meta = [`${K.ENTITY_LINE} trading as Home Insulation Victoria · ${K.ABN_LINE} · VEU Accredited Person ${K.AP_NUMBER}`, `To: ${[i.ownerName?.trim(), i.address?.trim()].filter(Boolean).join(", ")}`];
+  const meta = [
+    BUSINESS_LINE,
+    ...(i.ownerName?.trim() ? [`To: ${i.ownerName.trim()}`] : []),
+    ...(i.address?.trim() ? [`Installation address: ${i.address.trim()}`] : []),
+    ...(i.installed ? [`Installed: ${insulationLineWithCodes(i.installed)}`] : []),
+  ];
   const after = "Once it's paid, we'll send your completion pack: certificate, warranties and all your signed forms. You'll also get a short text asking you to sign your rebate form, if you haven't already.";
   const closing = installerLine(i.installer, ", or reply to this email.");
   const body = [
@@ -93,6 +108,8 @@ export type CompletionPackInput = {
   firstName: string | null; installer: Installer | null;
   downloads: { certificateUrl: string | null; invoiceUrl: string | null; warrantiesUrl: string | null; signedFormsUrl: string | null };
   test?: boolean;
+  /** Decision 209: the same installed product line as the tax invoice (with ESC model codes when known); omitted when unknown. */
+  installed?: InstalledLine | null;
 };
 
 /** Decision 103: downloads, "Something not right?" (installer → us → ESC), care tips. */
@@ -118,13 +135,14 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     "Adding new downlights later? Make sure they're IC-rated, which means they're safe to cover with insulation.",
   ];
   const closing = "Thanks for choosing Home Insulation Victoria. Your pack is always on your job page too.";
+  const installed = i.installed ? `Installed: ${insulationLineWithCodes(i.installed)}` : null;
   const body = [
-    K.h1(subject, 8), K.p(intro), K.downloadList(downloads),
+    K.h1(subject, 8), K.p(intro), installed ? K.note(installed, "0 0 14px") : "", K.downloadList(downloads),
     K.mistBox("Something not right?", K.numberedSteps(steps, true), { marginTop: 16, padding: "14px 16px 6px", radius: 14 }).replace("margin-bottom:6px;", "margin-bottom:10px;"),
     K.sectionTitle("Looking after your insulation", "22px 0 10px"), K.checkList(care.map(K.esc), 14, "8px"), K.small(closing),
   ].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", "YOUR DOCUMENTS", ...downloads.map((d) => `${d.title} (${d.detail})${d.href ? `: ${d.href}` : " — on your job page"}`), "", "SOMETHING NOT RIGHT?", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", "LOOKING AFTER YOUR INSULATION", ...care.map((c) => `✓ ${c}`), "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, ...(installed ? [installed] : []), "", "YOUR DOCUMENTS", ...downloads.map((d) => `${d.title} (${d.detail})${d.href ? `: ${d.href}` : " — on your job page"}`), "", "SOMETHING NOT RIGHT?", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", "LOOKING AFTER YOUR INSULATION", ...care.map((c) => `✓ ${c}`), "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

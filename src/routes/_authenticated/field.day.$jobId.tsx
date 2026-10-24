@@ -1,116 +1,139 @@
+// Today's job = approved mock-up M4 (Jo 24 Oct 2026, decision 199): exact arrival time, Call/Text/Directions, one
+// NEXT panel (three phone checks + the Mitti form), electrician-on-site card only when the PIESA requires one, the job
+// facts + own pay, crew today, "Couldn't get in?". After the install form is Complete the panel reads "Sign the rebate form".
 import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowUpRight, Check, MapPin, Phone } from "lucide-react";
-import { TradeShell, card, navyCard, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
+import { Check } from "lucide-react";
+import { TradeShell } from "@/components/trade/TradeShell";
 import { TradePrestart } from "@/components/trade/TradePrestart";
 import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
+import { InstallerFinalDeclaration } from "@/components/portal/assignment";
+import { OneTapAction } from "@/components/trade/one-tap-action";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
-import { confirmHivicReadyCheckPricingFn, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
-import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
+import { confirmHivicReadyCheckPricingFn, getTradeDayExtras, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
+import { completeInstallation } from "@/lib/portal.functions";
+import { useAction } from "@/hooks/use-me";
+import { COULDNT_GET_IN, couldntGetInMessage } from "@/lib/trade-view.core";
+import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, dayNext, electricianOnSite, payNote, sourceLabel } from "@/lib/installer-screens.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, QuietButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
-  head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Before you start, then open the onsite form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Before you start, then open the onsite form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: DayPage,
 });
-
-const WHAT = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install" } as const;
 
 function DayPage() {
   const { jobId } = Route.useParams();
   const load = useServerFn(getTradeDayView);
+  const loadExtras = useServerFn(getTradeDayExtras);
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
+  const done = useAction(completeInstallation);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000 });
+  const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000 });
   const [started, setStarted] = useState(false);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const installer = data ? data.kind !== "safety_check" : false;
-  if (error) return <TradeShell installer={installer}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
+  if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
-  const t = data.start ? dayTile(data.start) : null;
-  const isToday = data.start ? dayTile(data.start).day === dayTile(new Date().toISOString()).day : false;
-  const pill = data.kind === "install" ? `Install ${isToday ? "today" : t?.day ?? ""} · ${t?.time ?? ""}` : `${isToday ? "Today" : t?.day ?? ""} · ${t?.time ?? ""}`;
   const o = data.outcome;
-  const back = <Link to="/field" className={ghostBtn}>Back to my work</Link>;
+  const next = dayNext({ kind: data.kind, channel: data.channel, installFormComplete: !!x?.installForm.complete, rebateSigned: !!x?.rebateSigned });
+  const elec = x ? electricianOnSite({ required: x.electrician.required, name: x.electrician.name, arrival: data.kind === "install" && data.start ? arrivalPill(data.start)?.split(" · ").pop() ?? null : null, reason: null }) : null;
+  const area = x ? areaLine({ areaM2: x.areaM2, removalM2: x.removalM2 }) : null;
+  const back = <Link to="/field" className={outlineLinkClass}>Back to My work</Link>;
   return (
     <TradeShell installer={installer}>
-      <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
-        {t && <span className="inline-block rounded-[18px] bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">{pill}</span>}
-        <h1 className="mt-3 font-display text-2xl font-bold">{WHAT[data.kind]} · {data.surname}</h1>
-        <p className="mt-1 text-sm text-sub">{data.address}</p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(data.address ?? "")}`} target="_blank" rel="noreferrer"><MapPin className="h-5 w-5" />Directions</a>
-          {data.phone ? <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`tel:${data.phone}`}><Phone className="h-5 w-5" />Call owner</a> : <span />}
-        </div>
-      </section>
+      <Screen>
+        <ScreenHead pill={arrivalPill(data.start)} title={`${DAY_WHAT[data.kind]} · ${data.surname ?? "Owner"}`} line1={data.address ?? (data.contactHidden ? "Address shows while your visit is current" : null)} line2={[data.owner, data.jobNumber, sourceLabel(data.channel)].filter(Boolean).join(" · ")}>
+          <ContactButtons phone={data.phone} address={data.address} />
+        </ScreenHead>
 
-      {o ? (
-        <>
-          {o.kind === "all_clear" && <Result tone="mint" title="All clear. Done and dusted." body="No fixes needed, so the install's good to go." />}
-          {o.kind === "fixes" && <Result tone="blush" title={`${o.items.length} fix${o.items.length === 1 ? "" : "es"} found. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
-          {o.kind === "quoted" && <Result tone="mint" title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
-          {o.kind === "not_eligible" && <Result tone="blush" title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
-          {o.kind === "wrap" && <Result tone="mint" title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />}
-          {o.kind === "missing" && <Result tone="blush" title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the onsite form and this page updates itself." items={o.items} />}
-          {o.kind === "couldnt_get_in" && <Result tone="blush" title="Thanks. The office will rebook it." body={couldntGetInMessage(o.reason)} />}
-          {back}
-        </>
-      ) : started ? (
-        <>
-          {data.mittiId ? (
-            <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]" data-mitti-handoff>
-              <section className={navyCard}>
-                <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
-                <h2 className="mt-1 font-display text-xl font-bold">Over to your onsite form</h2>
-                <p className="mt-1 text-sm opacity-90">Complete it onsite, in order. Your answers and required evidence come back to this job, and this page updates itself.</p>
-                <MittiFormLink auditId={data.mittiId} className={`${greenBtn} mt-4`}>Open form in Mitti<ArrowUpRight className="h-4 w-4" /></MittiFormLink>
-              </section>
-              <aside className={card}>
-                <h3 className="font-display text-base font-bold">What comes back here</h3>
-                <ul className="mt-2 space-y-2 text-sm">{["Submitted form and result", data.kind === "safety_check" ? "Electrical findings" : "Measurements", "Required photo and document status", "The next step for this job"].map((t) => <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-hiv-green" />{t}</li>)}</ul>
-              </aside>
-            </div>
-          ) : (
-            <section className={`${card} border-rose bg-pink`} data-mitti-setup>
-              <h2 className="font-display text-xl font-bold">Your form is being set up.</h2>
-              <p className="mt-1 text-sm">Home Insulation Victoria is preparing the onsite form. It will appear on this job when ready.</p>
-              {data.kind === "ready_check" && data.channel === "installer_sourced" && <PrepareForm jobId={jobId} onDone={() => refetch()} />}
-            </section>
-          )}
-          {back}
-        </>
-      ) : asking ? (
-        <section className={card}>
-          <h2 className="font-display text-xl font-bold">Couldn't get in?</h2>
-          <p className="mt-1 text-sm">Pick what happened. We'll take it from here.</p>
-          <div className="mt-3 space-y-2">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className={ghostBtn} onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}>{r}</button>)}</div>
-          <button type="button" className="mt-3 w-full text-center text-sm font-bold text-estimate-blue" onClick={() => setAsking(false)}>Go back</button>
-        </section>
-      ) : (
-        <>
-          <section className={card}>
-            <h2 className="font-display text-xl font-bold">Ready when you are</h2>
-            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the Pre Insulation Electrical Safety Assessment (PIESA) form. We'll pick it up from there." : data.kind === "ready_check" ? (data.channel === "hivic_sourced" ? "Tap below to open the Ready Check form. Measure and photos go in there; we price the owner's quote from your agreed rates." : "Tap below to open the Ready Check form. Measure, photos and your quote all go in there.") : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
-            {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
+        {o ? (
+          <>
+            {o.kind === "all_clear" && <Result good title="All clear. Done and dusted." body="No fixes needed, so the install's good to go." />}
+            {o.kind === "fixes" && <Result title={`${o.items.length} fix${o.items.length === 1 ? "" : "es"} found. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
+            {o.kind === "quoted" && <Result good title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
+            {o.kind === "not_eligible" && <Result title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
+            {o.kind === "wrap" && (x?.installForm.complete && !x.rebateSigned
+              ? <NextPanel title="Sign the rebate form" sub="The install form is Complete. Sign your declaration as lead installer (Section 3 Part B)."><SignRebate jobId={jobId} recorded={!!x.installationRecorded} onDone={() => done({ jobId }, "Install recorded")} /></NextPanel>
+              : <Result good title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />)}
+            {o.kind === "missing" && <Result title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the install form and this page updates itself." items={o.items} />}
+            {o.kind === "couldnt_get_in" && <Result title={o.visit === "install" ? "Thanks. Offer 3 new days when you're ready." : "Thanks. We'll rebook it."} body={couldntGetInMessage(o.reason, o.visit)} />}
+            {o.kind === "couldnt_get_in" && o.visit === "install" && <Link to="/field/$jobId" params={{ jobId }} className={primaryLinkClass}>Offer 3 new install days</Link>}
+            {back}
+          </>
+        ) : asking ? (
+          <section className="rounded-[18px] border border-line p-4">
+            <h2 className="text-[17px] font-semibold">Couldn't get in?</h2>
+            <p className="mt-1 text-sm text-sub">{data.kind === "install" ? "Pick what happened. The owner is told, nobody is charged, and you offer 3 new days inside the 30-day window." : "Pick what happened. We'll take it from here."}</p>
+            <div className="mt-3 space-y-2">{COULDNT_GET_IN.map((r) => <QuietButton key={r} disabled={busy} onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}>{r}</QuietButton>)}</div>
+            <button type="button" className="mt-3 min-h-11 w-full text-center text-sm font-semibold text-hiv-blue" onClick={() => setAsking(false)}>Go back</button>
           </section>
-          {data.kind !== "ready_check" && data.kind !== "safety_check" && <PiisaCrewPicker jobId={jobId} />}
-          <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
-        </>
-      )}
+        ) : (
+          <>
+            <NextPanel title={next.title} sub={next.sub}>
+              {next.signRebate ? <SignRebate jobId={jobId} recorded={!!x?.installationRecorded} onDone={() => done({ jobId }, "Install recorded")} />
+                : data.mittiId ? (started
+                  ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note></div>
+                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
+                : <div className="mt-3" data-mitti-setup>
+                    <p className="text-sm font-semibold">Your form is being set up.</p>
+                    <p className="mt-1 text-sm text-sub">{data.mittiInvited ? "Home Insulation Victoria is preparing the Mitti form. It appears on this job when ready." : "Your Mitti account isn't invited yet, so the form can't open. Home Insulation Victoria has to invite you."}</p>
+                    {data.kind === "ready_check" && data.channel === "installer_sourced" && <PrepareForm jobId={jobId} onDone={() => refetch()} />}
+                  </div>}
+            </NextPanel>
+
+            {elec && (
+              <section className="rounded-[14px] border border-line px-3.5 py-3" data-electrician-on-site>
+                <p className="text-[15px] font-semibold">⚡ {elec.title}</p>
+                <p className="mt-1 text-sm leading-[1.45] text-sub">{elec.body}</p>
+                {elec.call && x?.electrician.phone && <a href={`tel:${x.electrician.phone}`} className="mt-0.5 inline-flex min-h-10 items-center text-sm font-semibold text-hiv-blue">{elec.call} ›</a>}
+              </section>
+            )}
+
+            {x && (x.product || area || x.access || x.pay != null) && (
+              <Group title="The job">
+                {x.product && <Row label="Product" value={x.product} />}
+                {area && <Row label="Area" value={area} />}
+                {x.access && <Row label="Access" value={ACCESS_LABEL[x.access] ?? x.access} />}
+                {x.pay != null && <Row label="Your pay" value={`$${Math.round(x.pay).toLocaleString("en-AU")}`} tone="bold" last />}
+                {x.pay != null && <Note className="mt-0">{payNote({ channel: x.channel, areaM2: x.areaM2, removalM2: x.removalM2 })}</Note>}
+              </Group>
+            )}
+
+            {data.kind === "install" && <PiisaCrewPicker jobId={jobId} />}
+
+            {(data.kind === "ready_check" || data.kind === "install") && <LinkRow muted border onClick={() => setAsking(true)}>Couldn't get in?</LinkRow>}
+          </>
+        )}
+      </Screen>
     </TradeShell>
   );
 }
 
-function Result({ tone, title, body, items }: { tone: "mint" | "blush"; title: string; body: string; items?: string[] }) {
+/** Decision 196/119: once the Mitti install form is Complete, confirm the install is finished (if not yet recorded) and
+ *  sign Section 3 Part B. The signing itself is the existing guarded assignment flow. */
+function SignRebate({ jobId, recorded, onDone }: { jobId: string; recorded: boolean; onDone: () => Promise<unknown> }) {
   return (
-    <section className={`rounded-[18px] p-5 ${tone === "mint" ? "bg-estimate-green-soft" : "bg-estimate-blush"}`}>
-      {tone === "mint" && <span className="flex h-10 w-10 items-center justify-center rounded-full bg-estimate-green text-white"><Check className="h-6 w-6" /></span>}
-      <h2 className="mt-2 font-display text-xl font-bold">{title}</h2>
-      <p className="mt-1 text-sm">{body}</p>
+    <div className="mt-3 space-y-3" data-sign-rebate>
+      {!recorded
+        ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={onDone} />
+        : <InstallerFinalDeclaration jobId={jobId} />}
+    </div>
+  );
+}
+
+function Result({ good = false, title, body, items }: { good?: boolean; title: string; body: string; items?: string[] }) {
+  return (
+    <section className={`rounded-[18px] p-4 ${good ? "bg-mist" : "border border-line"}`}>
+      {good && <span className="flex h-9 w-9 items-center justify-center rounded-full bg-hiv-green text-white"><Check className="h-5 w-5" /></span>}
+      <h2 className="mt-2 text-[17px] font-semibold">{title}</h2>
+      <p className="mt-1 text-sm text-sub">{body}</p>
       {!!items?.length && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{items.map((i) => <li key={i}>{i}</li>)}</ul>}
     </section>
   );
@@ -123,12 +146,12 @@ function PrepareForm({ jobId, onDone }: { jobId: string; onDone: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   return (
     <div className="mt-3" data-prepare-form>
-      <button type="button" disabled={busy} className={greenBtn} onClick={async () => {
+      <PrimaryButton disabled={busy} onClick={async () => {
         setBusy(true); setMsg(null);
         try { const s = await get({ data: { jobId, retry: true } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
         catch { setMsg("Couldn't check the form just now. Try again in a minute."); }
         finally { setBusy(false); }
-      }}>{busy ? "Checking…" : "Get my Ready Check form"}</button>
+      }}>{busy ? "Checking…" : "Get my Ready Check form"}</PrimaryButton>
       {msg && <p className="mt-2 text-sm font-semibold" data-prepare-msg>{msg}</p>}
     </div>
   );
