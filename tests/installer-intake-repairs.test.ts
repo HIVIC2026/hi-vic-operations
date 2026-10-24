@@ -42,6 +42,6 @@ describe("duplicate email safely recovers", () => {
     expect(calls).toContain("originating_installer_business_id:business-1");
     expect(calls).toContain("channel:installer_sourced");
   });
-  test("unrelated duplicate stops with office-review message", async () => { const { db } = dbFor(null); await expect(createInstallerOwner(db, "business-1", input)).rejects.toThrow("Contact the office"); });
+  test("unrelated duplicate stops with office-review message", async () => { const { db } = dbFor(null); await expect(createInstallerOwner(db, "business-1", input)).rejects.toThrow("customer who isn't yours"); });
   test("other insert failures never reuse customer", async () => { const { db, calls } = dbFor("owner", "42501"); await expect(createInstallerOwner(db, "business-1", input)).rejects.toThrow("could not be saved"); expect(calls).toEqual(["owners"]); });
 });
