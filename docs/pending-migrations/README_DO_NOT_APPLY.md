@@ -50,6 +50,7 @@ Apply order: **0149 → 0202 → 0221** (security-first; 0221 last, with Outlook
 
 - 0150 (D6) is staged and unapplied; 0204 (T6) remains reserved in the README plan (no file).
 - 0205 — `0205_save_my_spot_real_send_enabled.sql` (COM-04 Save My Spot send control; forward-only rename of the original 0204 file, kept 0204 free for T6). Staged and unapplied.
+- 0226 — `0226_esc_consent_template_v1.sql` (Jo decision 123, 24 Oct 2026): inserts the ESC Owner's Consent Form Template v1 (14 Apr 2026, SHA-256 `e6458b32…7753151`) as the active, approved `esc_consent` wording (approved_by Jo's admin user), retires the lawyer row to inactive history, and adds `owner_esc_consents.owner_declarations` / `ap_rep`. Requires Jo's profile row `950fa0b6-dc44-49af-a754-6a65f26a661e` (FK). Proven on PGlite: `tests/esc-consent-template-db.test.ts`. Rollback `0226_esc_consent_template_v1.rollback.sql` reactivates the previous approved wording and keeps both rows and both columns. Staged and unapplied.
 - 0200/0201 are superseded by the applied 0147/0148.
 - Numbers 0131 and 0147 are reused by different migrations — always refer to the full filename.
 

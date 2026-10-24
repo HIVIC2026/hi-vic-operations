@@ -148,12 +148,17 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
   const [sig, setSig] = useState("");
   const [cSig, setCSig] = useState("");
   const [cOk, setCOk] = useState(false);
+  const [decl, setDecl] = useState<Record<string, boolean>>({});
   const [fSig, setFSig] = useState("");
   const [f18, setF18] = useState(false);
   if (!data) return null;
   const ag = data.agreement as Any, c = data.consent as Any, a = data.current as Any;
   if (!ag && !c && !a) return null;
   const pending = (data.variations ?? []).find((v) => v.status === "pending");
+  const form = data.consentForm;
+  const escForm = !!form?.esc;
+  const allDecl = escForm && (form?.declarations ?? []).every((d) => decl[d.key] === true);
+  const consentReady = escForm ? allDecl : cOk;
   return (
     <Section title="Your agreement & forms">
       <div className="space-y-4 text-sm">
@@ -162,7 +167,22 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2"><b>Information-sharing consent (ESC)</b><StatusPill s={c.status} /></div>
             <p className="text-muted-foreground">Installation: {(c.installation_days as string[]).join(", ")} · {c.premises_address}</p>
-            {c.status === "awaiting_owner" && data.escConsentTemplate && <>
+            {c.status === "awaiting_owner" && data.escConsentTemplate && escForm && form && <>
+              {/* ESC Owner's Consent Form Template v1 (decision 123): Section 1 prefilled, Section 2 = four ticks, then sign. */}
+              <div className="rounded-lg border p-3">
+                <div className="font-medium">Section 1: Information to be shared</div>
+                <div className="text-muted-foreground">Owner details</div>
+                <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">{form.section1.map((r) => <Fragment key={r.label}><dt className="text-muted-foreground">{r.label}:</dt><dd>{r.value}</dd></Fragment>)}</dl>
+              </div>
+              <div className="font-medium">Section 2: Declaration by owner</div>
+              <p>I declare that:</p>
+              {form.declarations.map((d) => <Tick key={d.key} v={decl[d.key] === true} set={(v) => setDecl({ ...decl, [d.key]: v })}>{d.text}</Tick>)}
+              <Input className="h-12" placeholder="Owner signature: type your full name" value={cSig} onChange={(e) => setCSig(e.target.value)} />
+              <Button size="field" className="w-full" disabled={!consentReady || cSig.trim().length < 2}
+                onClick={() => signConsent({ jobId, signatoryName: cSig, authorityType: "owner", accept: allDecl, signatureName: cSig, declarations: { owner_or_authorised: decl["owner_or_authorised"] === true, details_accurate: decl["details_accurate"] === true, consent_ap_sends: decl["consent_ap_sends"] === true, consent_commission_shares: decl["consent_commission_shares"] === true } }, "Consent signed")}>Sign consent</Button>
+              <Official title={`Full form (${form.version})`} body={data.escConsentTemplate.body} />
+            </>}
+            {c.status === "awaiting_owner" && data.escConsentTemplate && !escForm && <>
               <Official title={`Consent (${data.escConsentTemplate.version})`} body={data.escConsentTemplate.body} />
               <Tick v={cOk} set={setCOk}>I consent to {c.ap_legal_entity} sharing the information described above with the Essential Services Commission.</Tick>
               <Input className="h-12" placeholder="Type your full name to sign" value={cSig} onChange={(e) => setCSig(e.target.value)} />
@@ -210,8 +230,14 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
   const [apName, setApName] = useState("");
   const [explained, setExplained] = useState(false);
   const [apSig, setApSig] = useState("");
+  const [apRepEdit, setApRepEdit] = useState<{ first_name: string; last_name: string; role: string; phone: string | null; email: string | null } | null>(null);
   if (!data) return null;
   const ag = data.agreement as Any, c = data.consent as Any, a = data.current as Any;
+  const form = data.consentForm;
+  // Section 3 Part A: prefilled from the signing office user's profile, editable before signing.
+  const apRep = apRepEdit ?? form?.apPrefill ?? { first_name: "", last_name: "", role: "", phone: null, email: null };
+  const apRepName = `${apRep.first_name.trim()} ${apRep.last_name.trim()}`.trim();
+  const apRepOk = apRep.first_name.trim().length > 0 && apRep.last_name.trim().length > 0 && apRep.role.trim().length >= 2;
   return (
     <div className="space-y-4">
       <Section title="1. Customer Agreement / Quote Acceptance (commercial)">
@@ -228,7 +254,22 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /> v{c.version} · {(c.installation_days as string[]).join(", ")} {c.copy_path && <CopyLink id={c.id} which="consent" label="Signed copy" />}</div>
             {c.blockers.length > 0 && <ul className="list-disc pl-5 text-warning">{c.blockers.map((b: string) => <li key={b}>{b}</li>)}</ul>}
-            {c.status === "awaiting_ap" && <div className="space-y-2 rounded border p-2">
+            {c.status === "awaiting_ap" && form?.esc && <div className="space-y-2 rounded border p-2">
+              {/* ESC template Section 3 (decision 123): Part A details prefilled from your profile, Part B declaration tick, then sign. */}
+              <div className="font-medium">Section 3 – Accredited person details and declaration</div>
+              <div className="text-muted-foreground">Part A: Accredited person name: DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654)</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input placeholder="First name" value={apRep.first_name} onChange={(e) => setApRepEdit({ ...apRep, first_name: e.target.value })} />
+                <Input placeholder="Last name" value={apRep.last_name} onChange={(e) => setApRepEdit({ ...apRep, last_name: e.target.value })} />
+                <Input placeholder="Role (e.g. Office manager)" value={apRep.role} onChange={(e) => setApRepEdit({ ...apRep, role: e.target.value })} />
+                <Input placeholder="Phone number" value={apRep.phone ?? ""} onChange={(e) => setApRepEdit({ ...apRep, phone: e.target.value || null })} />
+                <Input placeholder="Email address" value={apRep.email ?? ""} onChange={(e) => setApRepEdit({ ...apRep, email: e.target.value || null })} />
+              </div>
+              <div className="font-medium">Part B: Declaration by accredited person</div>
+              <label className="flex items-start gap-2"><Checkbox checked={explained} onCheckedChange={(v) => setExplained(!!v)} /> <span>I {apRepName || "<insert name>"}, am the authorised representative of DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654) and declare that I have explained to the property owner the purpose for which this written consent is being obtained.</span></label>
+              <Button disabled={!explained || !apRepOk} onClick={() => confirm({ jobId, apRep, purposeExplained: explained }, "Consent confirmed")}>Sign as accredited person representative</Button>
+            </div>}
+            {c.status === "awaiting_ap" && !form?.esc && <div className="space-y-2 rounded border p-2">
               <Input placeholder="AP representative full name" value={apName} onChange={(e) => setApName(e.target.value)} />
               <label className="flex items-start gap-2"><Checkbox checked={explained} onCheckedChange={(v) => setExplained(!!v)} /> I explained the purpose of the information sharing to the owner.</label>
               <Button disabled={!explained || apName.trim().length < 2} onClick={() => confirm({ jobId, apRepName: apName, purposeExplained: explained }, "Consent confirmed")}>Confirm as AP representative</Button>
