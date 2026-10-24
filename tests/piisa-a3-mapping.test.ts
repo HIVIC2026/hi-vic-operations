@@ -27,10 +27,10 @@ describe("stable native IDs (draft-observed)", () => {
   test("API definition that disagrees fails closed: missing ID or a different question on a known ID", () => {
     const t = fullTemplate();
     (t.items as { item_id: string; label: string }[]).find((x) => x.item_id === "1be8ebff-a754-4a2a-83f0-9561708ffb85")!.label = "Something else";
-    t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== A3_MEDIA_IDS.before_video);
+    t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== A3_MEDIA_IDS.isolation_photo);
     const m = a3MissingFields(t);
     expect(m.some((x) => /SWMS.*now reads "Something else"/.test(x))).toBe(true);
-    expect(m).toContain(`${A3_EVIDENCE_LABELS.before_video} (media)`);
+    expect(m).toContain(`${A3_EVIDENCE_LABELS.isolation_photo} (media)`);
   });
   test("parses answers by ID; media counted per evidence item", () => {
     const a = { items: [

@@ -352,6 +352,20 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   return { formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), swms, after, foil };
 }
 
+/**
+ * Fix prompt §2 (24 Oct 2026): the whole-job before / completed videos are deleted from the A3 form — each zone's own
+ * before / after 360° video now stands as that evidence. Returns every zone's files for a phase ONLY when the form's zone
+ * count is answered and every zone 1..n carries at least one file; otherwise null (never a partial set).
+ */
+export function zoneVideoFiles(audit: unknown): { before: MittiMediaFile[] | null; after: MittiMediaFile[] | null } {
+  const r = readInstallEvidence(audit);
+  const n = r.formZoneCount;
+  if (!r.questionsOnForm || n == null || n < 1 || n > MAX_FORM_ZONES) return { before: null, after: null };
+  const zones = r.zones.slice(0, n);
+  const all = (k: "beforeVideo" | "afterVideo") => (zones.every((z) => z[k].length > 0) ? zones.flatMap((z) => z[k]) : null);
+  return { before: all("beforeVideo"), after: all("afterVideo") };
+}
+
 // ======================================================================================================
 // The rules
 // ======================================================================================================
@@ -363,7 +377,7 @@ export type InstallEvidenceCtx = {
   zones: JobZone[];
   /** Installation runs over more than one day (booked days, or form start ≠ completion date). */
   multiDay: boolean;
-  /** Expected days on site (start → completion inclusive); 3+ asks for the day-3 re-check lines. */
+  /** Expected days on site (start → completion inclusive). Informational: the day-3 re-check line is optional (fix prompt §4). */
   daysOnSite?: number | null;
   /** Lead installer's recorded name (Part 2) — SWMS and completion signatures must carry it. null = not checked. */
   leadName?: string | null;
@@ -463,10 +477,8 @@ export function swmsBlockers(s: SwmsRead, ctx: Pick<InstallEvidenceCtx, "leadNam
     if (s.leadSignature.signedAt && ctx.isolationCapturedAt && Date.parse(s.leadSignature.signedAt) > Date.parse(ctx.isolationCapturedAt)) b.push("SWMS was signed after the power-isolation photo was taken — the SWMS must be completed before work starts; office review");
   }
   need(s.signedAt, `${S.signedAt}: not entered`);
-  if (ctx.multiDay) {
-    need(s.day2Recheck, `${S.day2Recheck}: not entered for this multi-day installation`);
-    if ((ctx.daysOnSite ?? 0) >= 3) need(s.day3Recheck, `${S.day3Recheck}: not entered`);
-  }
+  // Fix prompt §4: the day-3-or-later re-check line is optional on the form (still read and filed when written).
+  if (ctx.multiDay) need(s.day2Recheck, `${S.day2Recheck}: not entered for this multi-day installation`);
   return b;
 }
 

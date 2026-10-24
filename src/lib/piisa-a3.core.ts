@@ -11,7 +11,7 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { crewClearance, melbourneToday } from "./worker-compliance.core";
-import { INSTALL_EVIDENCE_RELABELS } from "./install-evidence.core";
+import { INSTALL_EVIDENCE_RELABELS, zoneVideoFiles } from "./install-evidence.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -203,7 +203,9 @@ export function a3MissingFields(template: unknown): string[] {
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
     // Decision 211: the final roof-space plan upload is retired (the portal draws the diagram); its absence is fine.
-    if (!e && k === "final_plan") continue;
+    // Fix prompt §2 (24 Oct 2026): the whole-job before / completed videos are deleted — each zone's own before / after
+    // video in "Zones and evidence" stands in (A3_ZONE_VIDEO_KEYS), so their absence is fine too.
+    if (!e && (k === "final_plan" || A3_ZONE_VIDEO_KEYS.includes(k as A3EvidenceKey))) continue;
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
     else if (!a3AcceptedMediaLabels(k as A3EvidenceKey).includes(e.norm)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
   }
@@ -222,12 +224,22 @@ function itemsById(audit: unknown): Map<string, Any> {
   walk(audit);
   return byId;
 }
-/** Every A3 media item on an audit (in-progress or completed) with per-file metadata. */
+/** Fix prompt §2 (24 Oct 2026): A3 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
+export const A3_ZONE_VIDEO_KEYS: A3EvidenceKey[] = ["before_video", "completed_video"];
+/**
+ * Every A3 media item on an audit (in-progress or completed) with per-file metadata. before_video / completed_video
+ * = the old whole-job video (older forms) PLUS every zone's before / after 360° video when EVERY zone the form counts
+ * has one (zoneVideoFiles); a partly filmed set adds nothing, so the item stays missing. The before-work timing rule
+ * and the after-work copy (piisa-postwork) therefore apply to the zone videos too.
+ */
 export function a3MediaFiles(audit: unknown): Record<A3EvidenceKey, A3MediaFile[]> {
   const byId = itemsById(audit);
+  const zones = zoneVideoFiles(audit);
+  const zoneFor: Partial<Record<A3EvidenceKey, A3MediaFile[] | null>> = { before_video: zones.before, completed_video: zones.after };
   return Object.fromEntries((Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
     const o = byId.get(nid); const media = o?.media ?? o?.responses?.media ?? o?.responses?.attachments ?? [];
-    return [key, Array.isArray(media) ? media.map(mediaFile) : []];
+    const own = Array.isArray(media) ? media.map(mediaFile) : [];
+    return [key, [...own, ...(zoneFor[key] ?? [])]];
   })) as Record<A3EvidenceKey, A3MediaFile[]>;
 }
 /** Files -> A3Media summary. Geotagged/timestamped only when actually recorded; anything missing is counted for review. */
@@ -499,6 +511,13 @@ export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   isolation_photo: INSTALL_EVIDENCE_RELABELS.isolation_photo,
   product_photos: INSTALL_EVIDENCE_RELABELS.product_photos,
 };
+/** What the installer/office is told when a requirement is short. The whole-job videos are gone from the current form
+ *  (fix prompt §2), so their requirement names the per-zone videos that now satisfy it. */
+export const A3_REQUIREMENT_LABELS: Record<A3EvidenceKey, string> = {
+  ...A3_EVIDENCE_LABELS,
+  before_video: "Before-work video — the before 360° video of every zone (Zones and evidence page)",
+  completed_video: "Completed-work video — the after 360° video of every zone (Zones and evidence page)",
+};
 /** What the office checks on each photo before AP sign-off (Table 4 wording), shown beside the checklist row. */
 export const A3_EVIDENCE_VERIFICATION: Partial<Record<A3EvidenceKey, string>> = {
   installer_photos: "Each installer is at the front of the premises and their photo ID is clearly readable; location and time recorded.",
@@ -545,7 +564,7 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "completed_video", min: 1 },
     ...(generatedPlanSatisfiesFinalPlan(ctx) ? [] : [{ key: "final_plan" as const, min: 1 }]),
   ];
-  return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
+  return req.map((r) => ({ ...r, label: A3_REQUIREMENT_LABELS[r.key] }));
 }
 
 function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
@@ -649,7 +668,7 @@ export function a3EvidenceChecklist(answers: OfficialAnswers, ctx: A3EvidenceCtx
     const m = by.get(key); const min = req.get(key) ?? 0; const count = m?.count ?? 0;
     const phase = A3_PRESTART_KEYS.includes(key) ? "before" as const : "after" as const;
     const v = a3VerificationNote(key, answers);
-    const row = (required: number, state: A3ChecklistRow["state"]): A3ChecklistRow => ({ key, label: A3_EVIDENCE_LABELS[key], phase, required, count, state, ...(v ? { verification: v } : {}) });
+    const row = (required: number, state: A3ChecklistRow["state"]): A3ChecklistRow => ({ key, label: A3_REQUIREMENT_LABELS[key], phase, required, count, state, ...(v ? { verification: v } : {}) });
     if (!min) return row(0, "not_required");
     if (count < min) return row(min, "missing");
     const review = (GEOTAG.includes(key) && (m?.geotagged ?? 0) < min) || (m?.timed != null && m.timed < count);
@@ -846,3 +865,7 @@ export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | 
   }
   return { answers, blockers, needsVerification: nv };
 }
+
+/** Fix prompt §3 (24 Oct 2026): the last Part 8 text on the A3 form (replaces the old "…completed-work video and final
+ *  roof-space plan" wording; older published snapshots keep theirs as history). Display text only — never read as an answer. */
+export const A3_PART8_CLOSING_TEXT = "Signing does not finish this form. After installation, complete the Zones and evidence page and the After-install sign-off.";

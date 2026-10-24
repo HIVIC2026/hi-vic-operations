@@ -1,5 +1,7 @@
 # Prompt for ChatGPT: add the evidence, SWMS and sign-off items to the Install day form in Mitti
 
+> **Superseded in part (24 Oct 2026).** For the whole-job videos, the multi-day re-check and the Part 8 closing text, `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` is the current instruction and wins over this file: the two whole-job videos (`Before installation, please record a clear video …` and the "AP Evidence – After Installation" section with `After installation, please record a clear video …`) are **deleted** — each zone's before / after 360° video in Part B is that evidence now; `SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)` is **not required**; and the last Part 8 text reads `Signing does not finish this form. After installation, complete the Zones and evidence page and the After-install sign-off.` The SWMS section (Part C) is being slimmed by the same fix prompt — check that file before building Part C.
+
 Copy everything between the lines into ChatGPT (it edits the template with Mitti's "Build with AI"). It is ONE combined build: Part A relabels four existing photo questions, Part C adds the SWMS section, Part B adds the upgrade-zone evidence, Part E adds the foil question, Part D adds the after-install sign-off, Part F removes the old final-plan upload (the portal now draws the diagram). Nothing else existing is removed. Decisions 205, 206, 210, 211 and 213 (Jo, 24 Oct 2026). Every wording is fixed in `src/lib/install-evidence.core.ts` (`INSTALL_EVIDENCE_QUESTIONS`, `A3_RELABELS`, `SWMS_QUESTIONS`, `SWMS_HAZARDS`, `AFTER_INSTALL_QUESTIONS`, `FOIL_QUESTIONS`) and `tests/install-evidence-prompt.test.ts` fails if this file and the constants drift apart.
 
 The template ID does **not** change, so nothing needs reconnecting. After publishing, open Office → Settings → Mitti forms → **Check form**: the portal lists any new question it cannot find by its exact wording.
@@ -142,7 +144,7 @@ The SWMS section has thirteen hazard blocks of five questions each (present? →
 94. `SWMS — lead installer signature` — Signature — Required
 95. `SWMS — signed at (date and time)` — Date & time — Required
 
-## Part B: upgrade zones and evidence (add after the existing `After installation, please record a clear video …` question, before the installer declaration and signature)
+## Part B: upgrade zones and evidence (its own section "Zones and evidence", after Part 8, before the after-install sign-off; on older forms it sat after the now-deleted `After installation, please record a clear video …` question)
 
 96. `How many upgrade zones are you insulating on this job?` — Pick one: `1` / `2` / `3` — Required
 97. `Zone 1 — name of this ceiling area (use the same name as the Ready Check and floor plan)` — Text — Required — portal fills this in ("Area 1 – <Ready Check area name>"); keep it editable
@@ -172,7 +174,7 @@ The SWMS section has thirteen hazard blocks of five questions each (present? →
 121. `Will this installation run over more than one day?` — Yes/No — Required
 122. `Before starting work each day, I re-checked every item on this safety assessment and they all still hold.` — Checkbox (must tick) — Required — only show when `Will this installation run over more than one day?` = Yes
 123. `SWMS — day 2 re-check: date, time and lead installer initials (and any change to the SWMS)` — Text — Required — only show when `Will this installation run over more than one day?` = Yes
-124. `SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)` — Text — Required — only show when `Will this installation run over more than one day?` = Yes
+124. `SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)` — Text — NOT required (optional line) — only show when `Will this installation run over more than one day?` = Yes
 
 ## Part E: foil / conductive existing insulation (add straight after `Is the existing insulation suitable to lay new insulation over?` in Part 6)
 
@@ -190,7 +192,7 @@ The SWMS section has thirteen hazard blocks of five questions each (present? →
 133. `Lead installer signature at completion` — Signature — Required
 
 
-Note: the two existing single video questions (`Before installation, please record a clear video …` and `After installation, please record a clear video …`) stay on the form unchanged; the portal now reads the per-zone videos in Part B.
+Note: the two whole-job video questions (`Before installation, please record a clear video …` and `After installation, please record a clear video …`) are deleted by `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` §2 — the per-zone before / after videos in Part B satisfy the before-work and completed-work video evidence. Older forms that still carry them keep working (a whole-job video still counts).
 
 ## Part F: remove the old final-plan upload (decision 211)
 
@@ -203,7 +205,7 @@ Finish with a checklist I can use to verify the **published** template:
 - the four reworded photo questions read exactly as the "New" text in Part A, each still Required with location on, in their original positions;
 - 133 new questions in total: Part C (SWMS) 95 questions placed after `Additional installer` and before `Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?`; Part B 29 questions; Part E 2 questions after the existing-insulation suitability question; Part D 7 questions at the very end;
 - every label spelled exactly as above (check every "—" long dash, "360°", "250 MB", "m²", "R-value", the zone numbers 1/2/3 and the hazard names in the SWMS labels);
-- Required on every new question;
+- Required on every new question except the optional day-3-or-later re-check line;
 - location on for every Photo and Video item; video allowed on the six zone video items;
 - every "only show when" rule as written: Zone 2 block when question `How many upgrade zones are you insulating on this job?` is 2 or 3, Zone 3 block when it is 3, each zone's existing-insulation photo when that zone's under-insulated answer is Yes, each hazard's controls / person when that hazard is Yes, each "other control" when `Other control` is ticked, each "other person" when `Other (name in next box)` is chosen, the no-reception line when reception is No, the daily re-check items when the multi-day answer is Yes, the foil photo when the foil answer is Yes, the lock-out name and switchboard-after photo when the lock-out answer is Yes;
 - the eight product options on each `Zone N — insulation product installed` question, spelled exactly and in that order;
