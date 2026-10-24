@@ -1,107 +1,122 @@
-# Install day form (A3): the one rebuild prompt (24 Oct 2026, decisions 260–261)
+# Prompt for ChatGPT: build the Install day template in Mitti (decisions 260–262)
 
-Paste everything below the line into ChatGPT. It describes the finished form, so it is safe to run on the form as it
-is now. Quoted labels must be copied exactly; the portal reads them by wording.
+Copy everything between the lines into ChatGPT. It is ONE self-contained build of a NEW template, in the same style as
+the Ready Check build. The old "A3 - PIISA + AP Evidence" template is left alone until the new one is checked, then
+renamed "(old)" and unpublished. The portal reads every answer by its question text, so the wording below is fixed in
+`src/lib/install-day.core.ts` and a test fails if this file and the code drift apart.
 
 ---
 
-Rebuild the Mitti template "A3 - PIISA + AP Evidence" so it contains exactly the items below, in this order, with
-exactly these labels, and nothing else. Keep the existing response sets (Yes/No, Yes/No/N/A, the product list, the
-high-risk work list, the zone count 1/2/3) and the existing logic shapes where they match. Anything in the current
-form that is not listed here is deleted. `*` = required. "Help:" = help text under the item, never part of the label.
-"→ when X" = show only when the answer is X (logic). "Stop line" = a short red text item inside the logic. Then publish.
+You are helping me build a form template in **Mitti** (mitti.com.au field inspection app, web template builder). I will
+follow your instructions click by click in the Mitti web app. Give me the build as a numbered list of steps I can tick
+off, nothing skipped. The question wording, answer types, options, Required settings, help texts and "only show when"
+logic below are **fixed and must be copied exactly, character for character, including punctuation, capitals and the ²
+symbol**, because a connected software system reads every answer by its question text. Do not reword, reorder, merge,
+split, add or drop any question. If Mitti does not offer an answer type I name, tell me the closest Mitti type and ask me
+before substituting.
 
-## Section "Job"
-- Text * "Job number"
-- Text * "Address"
-- Date * "Install date"
-- Text * "Accredited person"
+**Template name:** `A3 – Install day`
+Build it as a NEW template. The existing "A3 - PIISA + AP Evidence" stays as it is for now.
 
-## Section "Crew"
-- Text * "Installer company"
-- Text * "Lead installer name"
-- Text * "Lead installer CII number"
-- Text "Installer 2 name (blank if none)"
-  → when filled: Text * "Installer 2 CII number"
-- Text "Installer 3 name (blank if none)" → when filled: Text * "Installer 3 CII number"
-- Text "Installer 4 name (blank if none)" → when filled: Text * "Installer 4 CII number"
+**Inspection title:** Portal Job Number + Site address (questions 1 and 2).
+**Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for every Photo and Video question.
+**Pages:** one page per ## group below.
+**Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
+editable items so the installer can correct them.
+**Stop lines** are short red text items that only show when the answer before them is `No`; they are not questions.
 
-## Section "Photos before work"
-- Media * "Photo: each installer at the front door with ID"   Help: "One photo per installer, geotagged."
-- Media * "Photo: power isolated, lock-out tag on switchboard"   Help: "Solar and battery isolators off too, where fitted. Geotagged."
+Answer-type key: Text = single line text; Number = numeric; Date = date; Yes/No = two choices `Yes` and `No`; Pick one =
+single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice; Photo = photo with
+location on; Video = video attachment with location on; Checkbox = single checkbox that must be ticked; Signature =
+signature capture.
 
-(The safety plan itself is NOT on this form: the portal writes it and the crew sign it on the job page before install day.)
+## Group 1: Job
+1. `Portal Job Number` — Text — Required — portal fills this in
+2. `Site address` — Text — Required — portal fills this in
+3. `Install date` — Date — Required — portal fills this in
+4. `Accredited person` — Text — Required — portal fills this in
 
-## Section "Household"
-- Yes/No * "Household told the power will be off?"   → when No: Stop line "Stop. Tell them first."
-- Yes/No * "Anyone on life support?"
-  → when Yes:
-  - Yes/No * "Written consent or medical plan received?"   → when No: Stop line "Stop."
-  - Media * "Upload the consent or medical plan"   Help: "Every page readable."
+## Group 2: Who's on site
+5. `Installer business` — Text — Required — portal fills this in
+6. `Lead installer` — Text — Required — portal fills this in
+7. `Lead installer's CII number` — Text — Required — portal fills this in
+8. `Is anyone else installing today?` — Yes/No — Required
+9. `Second installer` — Text — Required — only show when 8 = `Yes`
+10. `Second installer's CII number` — Text — Required — only show when 8 = `Yes`
+11. `Is there a third installer?` — Yes/No — Required — only show when 8 = `Yes`
+12. `Third installer` — Text — Required — only show when 11 = `Yes`
+13. `Third installer's CII number` — Text — Required — only show when 11 = `Yes`
+14. `Photo of each installer at the front door, showing photo ID` — Photo — Required — help text: `One photo per person.`
 
-## Section "Safe to start"
-- Yes/No * "Safety plan done, all risks identified?"   → when No: Stop line "Stop."
-- Yes/No * "All common hazards controlled in the safety plan?"   → when No: Stop line "Stop."
-- Yes/No * "Power isolated, locked, tagged, ceiling safe to enter?"   → when No: Stop line "Stop."
+## Group 3: Before anyone goes up
+15. `Does the household know the power will be off today?` — Yes/No — Required — stop line when No: `Stop. Tell them before you go on.`
+16. `Does anyone here rely on life support?` — Yes/No — Required — portal fills this in
+17. `Do you have their written consent or medical plan?` — Yes/No — Required — only show when 16 = `Yes` — stop line when No: `Stop. You need it before starting.`
+18. `Upload the consent or medical plan` — Photo — Required — only show when 17 = `Yes` — help text: `Every page readable.`
+19. `Is the safety plan for this job signed?` — Yes/No — Required — help text: `It's on your job page.` — stop line when No: `Stop. Sign it on your job page first.`
+20. `Are all the common hazards covered in it?` — Yes/No — Required — stop line when No: `Stop.`
+21. `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
+22. `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `Solar and battery isolators off too, if the home has them.`
 
-## Section "Solar, battery, generator"
-- Yes/No * "Any solar, battery or generator?"
-  → when Yes:
-  - Yes/No * "Shutdown and restart instructions available?"   → when No: Stop line "Stop. Electrician must isolate."
-  - Yes/No * "Ground-level isolator works and is safe?"   → when No: Stop line "Stop. Electrician to check."
+## Group 4: Solar, battery or generator
+23. `Is there solar, a battery or a generator?` — Yes/No — Required — portal fills this in
+24. `Do you have the shutdown and restart instructions?` — Yes/No — Required — only show when 23 = `Yes` — stop line when No: `Stop. An electrician must isolate it.`
+25. `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when 23 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
 
-## Section "Electrical check (PIESA)"
-- Yes/No * "Read the PIESA, safe to start?"   → when No: Stop line "Stop."
-- Yes/No/N/A * "Electrician needed at start attended?"   Help: "N/A only if the PIESA doesn't require one."
-  → when Yes: Media * "Photo: electrician at the front door with ID"   Help: "Geotagged."
-  → when No: Stop line "Stop."
-- Yes/No * "Recessed lights in the ceiling?"   → when Yes: Text * "How many?"
-- Yes/No * "PIESA: all lights IC or IC-4?"   → when No: Stop line "Stop."
-- Yes/No * "PIESA: lights safe to cover?"   → when No: Stop line "Stop."
-- Yes/No * "PIESA: cables RCD protected?"   → when No: Stop line "Stop."
-- Yes/No * "PIESA: cables TPS or equivalent?"   → when No: Stop line "Stop."
-- Yes/No * "PIESA: cables meet basic protection?"   → when No: Stop line "Stop."
-- Yes/No * "Nobody in the ceiling since the PIESA?"   → when No: Stop line "Stop. Electrician to reassess."
+## Group 5: The electrician's check (PIESA)
+26. `Have you read the PIESA and is it safe to start?` — Yes/No — Required — stop line when No: `Stop.`
+27. `Did the PIESA say an electrician must be here at the start?` — Yes/No — Required — portal fills this in
+28. `Is the electrician here?` — Yes/No — Required — only show when 27 = `Yes` — stop line when No: `Stop. Wait for the electrician.`
+29. `Photo of the electrician at the front door, showing photo ID` — Photo — Required — only show when 28 = `Yes`
+30. `Are there downlights in the ceiling?` — Yes/No — Required — portal fills this in
+31. `How many?` — Number — Required — only show when 30 = `Yes`
+32. `Does the PIESA say every light is IC or IC-4?` — Yes/No — Required — only show when 30 = `Yes` — stop line when No: `Stop.`
+33. `Does the PIESA say the lights are safe to cover?` — Yes/No — Required — only show when 30 = `Yes` — stop line when No: `Stop. Don't cover them.`
+34. `Does the PIESA say the ceiling cables have RCD protection?` — Yes/No — Required — stop line when No: `Stop.`
+35. `Does the PIESA say the ceiling cables are TPS or equivalent?` — Yes/No — Required — stop line when No: `Stop.`
+36. `Does the PIESA say the ceiling cables meet basic protection?` — Yes/No — Required — stop line when No: `Stop.`
+37. `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required — help text: `Ask the owner.` — stop line when Yes: `Stop. An electrician must check again.`
 
-## Section "Existing insulation"
-- Yes/No * "Existing insulation in the ceiling?"
-  → when Yes:
-  - Text * "Average depth (mm)"
-  - Text "R-value if known"
-  - Single choice * "Remove, top up or both?"  Answers: "Remove" / "Top up" / "Both"
-    → when "Top up": Text * "Why keep it?"
-  - Yes/No * "Suitable to lay over?"   → when No: Stop line "Stop. Remove it first."
-  - Yes/No * "Foil, metallic or conductive?"   → when Yes: Media * "Photo of the facing"   Help: "Geotagged."
+## Group 6: What's up there now
+38. `Is there insulation in the ceiling already?` — Yes/No — Required — portal fills this in
+39. `How deep is it on average (mm)?` — Number — Required — only show when 38 = `Yes`
+40. `What's its R-value, if you know?` — Text — only show when 38 = `Yes`
+41. `What are you doing with it?` — Pick one: `Removing it` / `Topping it up` / `Some of each` — Required — only show when 38 = `Yes`
+42. `Why is it staying?` — Text — Required — only show when 41 = `Topping it up` or `Some of each`
+43. `Is it in good enough condition to lay over?` — Yes/No — Required — only show when 41 = `Topping it up` or `Some of each` — stop line when No: `Stop. Take it out first.`
+44. `Is any of it foil, metallic or conductive?` — Yes/No — Required — only show when 38 = `Yes` — stop line when Yes: `It must come out before you start.`
+45. `Photo of the foil or metallic insulation` — Photo — Required — only show when 44 = `Yes`
 
-## Section "Product"
-- Media * "Photo: product packaging showing brand, model, R-value"   Help: "One per product, geotagged."
+## Group 7: Product
+46. `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
 
-## Section "Declaration (before work starts)"
-- Keep the three existing declaration text items exactly as they are now (the one starting "INSTALLER DECLARATION – Sign BEFORE insulation work starts.", the one starting "d. I will ensure that:", and the "Privacy Collection Statement").
-- Checkbox * "All information is correct"
-- Signature * "Signature"
-- Text item: "Signing doesn't finish the form. After the install, do Zones and Sign-off."
+## Group 8: Declaration (sign before you start)
+47. Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
+48. `Everything on this form is true and complete` — Checkbox — Required
+49. `Lead installer's signature` — Signature — Required
+50. Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
 
-## Section "Zones (after install)"
-- Single choice * "How many zones?"  Answers: "1" / "2" / "3"
-  → when 1, 2 or 3: Zone 1 items; → when 2 or 3: Zone 2 items; → when 3: Zone 3 items. For zone N:
-  - Text * "Zone N name (same as the Ready Check)"
-  - Yes/No * "Zone N: existing insulation here?"   → when Yes: Media * "Zone N: photo with ruler showing depth"   Help: "Ruler vertical; show any brand, model or R-value markings. Geotagged."
-  - Media * "Zone N: before video"   Help: "360°, lit, say the zone name. Under 250 MB. Geotagged."
-  - Multiple choice (single answer) * "Zone N: product installed"   (keep the existing product list)
-  - Text * "Zone N: m² installed"
-  - Media * "Zone N: after video"   Help: "360°, lit, say the zone name. Show full coverage, no waste left. Under 250 MB. Geotagged."
-  - Media * "Zone N: after photo with ruler showing depth"   Help: "Ruler vertical, not compressed. Geotagged."
-- Yes/No * "More than one day?"
-  → when Yes: Checkbox * "I re-checked every item before starting each day"
+## Group 9: Each ceiling area (after the install)
+51. `How many ceiling areas did you insulate?` — Pick one: `1` / `2` / `3` — Required — help text: `Use the same areas as the Ready Check.`
+52. `Area 1: which part of the home?` — Text — Required — portal fills this in
+53. `Area 1: was there old insulation here?` — Yes/No — Required
+54. `Area 1: photo of the old insulation with a ruler showing its depth` — Photo — Required — only show when 53 = `Yes`
+55. `Area 1: video before you start` — Video — Required — help text: `Slow 360°, lit, say the area name.`
+56. `Area 1: product installed` — Pick one — Required — the same product list as the Ready Check — portal fills this in
+57. `Area 1: m² installed` — Number — Required — portal fills this in
+58. `Area 1: video when it's done` — Video — Required — help text: `Slow 360°, lit, say the area name. Show full coverage and no rubbish left.`
+59. `Area 1: photo of the new insulation with a ruler showing its depth` — Photo — Required — help text: `Ruler standing up, insulation not squashed.`
+60–67. Same eight questions for `Area 2:` — only show when 51 = `2` or `3`
+68–75. Same eight questions for `Area 3:` — only show when 51 = `3`
+76. `Did the install take more than one day?` — Yes/No — Required
+77. `I checked every item on this form again before starting each day` — Checkbox — Required — only show when 76 = `Yes`
 
-## Section "Sign-off"
-- Yes/No * "Lock-out removed, power back on?"
-  → when Yes:
-  - Text * "Who did it?"   Help: "Name and role: who applied the lock, or the attending electrician."
-  - Media * "Photo: switchboard, main switch on"   Help: "Lock-out tag removed. Geotagged."
-- Single choice * "Solar, battery or generator restarted?"  Answers: "Yes" / "No" / "None here"
-- Checkbox * "I was on site the whole time and supervised every installer"
-- Signature * "Signature"
+## Group 10: Finishing up
+78. `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
+79. `Who turned it back on?` — Text — Required — only show when 78 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
+80. `Photo of the switchboard with the main switch on` — Photo — Required — only show when 78 = `Yes`
+81. `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
+82. `I was here the whole time and supervised everyone` — Checkbox — Required
+83. `Lead installer's signature` — Signature — Required
 
 Publish.
