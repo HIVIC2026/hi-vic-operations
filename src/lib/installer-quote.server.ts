@@ -6,7 +6,6 @@ import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
 import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst, isDirectBilledElectrician } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
-import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 export const OWN_REC_QUOTE_NOTE = "Your electrician's Pre Insulation Electrical Safety Assessment (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
@@ -113,11 +112,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     return draft;
   }
   const installerPrice = draft.lines.find((line) => line.code === "INSTALLER_PRICE")?.line_total_inc_gst ?? null;
-  // Jo 24 Oct: Ready Check quotes are checked against $15–$30/m² insulation + $5–$15/m² removal and the $500 access limit.
-  const autoRules = await import("./auto-quote-send.core");
-  const rangeReason = !intakePrice
-    ? [autoRules.installerPriceRangeHold(installerPrice != null ? installerPrice - (accessFee.amountIncGst ?? 0) : null, m2, answers.removalTotalM2(entries)), autoRules.accessFeeHold(accessFee)].filter(Boolean).join(" · ") || null
-    : installerPriceRangeReason(installerPrice != null && m2 ? installerPrice / m2 : null, workflow?.installer_quote_min_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_min_inc_gst_per_m2), workflow?.installer_quote_max_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_max_inc_gst_per_m2));
+  // Jo 24 Oct: on the installer's own jobs he charges what he wants — no price-range or access-fee limit. Only a
+  // difficult access fee with no usable amount holds the quote (the owner's quote can't show it otherwise).
+  const rangeReason = !intakePrice ? accessFee.reason ?? null : null;
   // Honest status: the automatic step only ever creates a DRAFT held for office review. Nothing is issued,
   // marked sent or released here; the office sends via sendInstallerQuote, which checks consent/fees/switches.
   const releaseBlockers = !intakePrice

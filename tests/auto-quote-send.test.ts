@@ -3,25 +3,13 @@ import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
-import { ACCESS_FEE_MAX, AUTO_QUOTE_SEND_ENABLED, CHANGED_AFTER_SEND, accessFeeHold, autoSendDecision, installerPriceRangeHold } from "../src/lib/auto-quote-send.core";
+import { AUTO_QUOTE_SEND_ENABLED, CHANGED_AFTER_SEND, autoSendDecision } from "../src/lib/auto-quote-send.core";
 
-describe("price checks (Jo: $15–$30/m² insulation, $5–$15/m² removal, access fee ≤ $500)", () => {
-  test("inside the range passes", () => expect(installerPriceRangeHold(3000, 120, null)).toBeNull());
-  test("removal widens the range", () => {
-    expect(installerPriceRangeHold(4200, 120, 120)).toBeNull(); // max 120×30 + 120×15 = 5400
-    expect(installerPriceRangeHold(4200, 120, null)).toContain("above the normal range"); // max 3600 without removal
-  });
-  test("too cheap and too dear are held with the numbers", () => {
-    expect(installerPriceRangeHold(1500, 120, null)).toBe("Quote held: installer price $1,500 is below the normal range ($1,800–$3,600 for 120 m²)");
-    expect(installerPriceRangeHold(6000, 120, 100)).toBe("Quote held: installer price $6,000 is above the normal range ($2,300–$5,100 for 120 m² + 100 m² removal)");
-  });
-  test("missing price or area can't be checked", () => expect(installerPriceRangeHold(null, 120, null)).toContain("can't be checked"));
-  test("access fee", () => {
-    expect(ACCESS_FEE_MAX).toBe(500);
-    expect(accessFeeHold({ amountIncGst: 500, reason: null })).toBeNull();
-    expect(accessFeeHold({ amountIncGst: 650, reason: null })).toBe("Quote held: difficult access fee $650 is over the $500 limit");
-    expect(accessFeeHold({ amountIncGst: null, reason: "Office needs to: confirm the difficult access fee – the amount is missing or not a number" })).toContain("amount is missing");
-  });
+// Jo 24 Oct (later): the installer's own jobs have no price-range or access-fee limit.
+test("installer jobs: no price or access-fee limit; only a missing access amount holds", () => {
+  const src = readFileSync("src/lib/installer-quote.server.ts", "utf8");
+  expect(src).toContain("const rangeReason = !intakePrice ? accessFee.reason ?? null : null;");
+  expect(src).not.toMatch(/installerPriceRange|ACCESS_FEE/);
 });
 
 describe("autoSendDecision", () => {
@@ -95,14 +83,10 @@ test("wired into the Mitti sync for installer forms only; sends only through the
   expect(src).toContain('releaseQuoteToOwner(jobId, draft.id, null, "auto")');
 });
 
-// Jo 24 Oct: Deep's total INCLUDES the access fee — never added twice; only the price check takes it out.
-test("access fee is inside the installer total: shown on the line, removed only for the per-m² check", async () => {
+// Jo 24 Oct: Deep's total INCLUDES the access fee — never added twice.
+test("access fee is inside the installer total and shown on the line", async () => {
   const { applyMittiAccessFeeIncluded } = await import("../src/lib/mitti-installer-quote.core");
   const d = { lines: [{ code: "INSTALLER_PRICE", description: "R5.0 batts – 120 m²" }] };
   applyMittiAccessFeeIncluded(d, true, 300);
   expect(d.lines[0]!.description).toBe("R5.0 batts – 120 m² · Includes difficult access ($300)");
-  expect(installerPriceRangeHold(3900 - 300, 120, null)).toBeNull(); // $3,900 incl. $300 access → $3,600 = top of range
-  const src = readFileSync("src/lib/installer-quote.server.ts", "utf8");
-  expect(src).toContain("installerPrice - (accessFee.amountIncGst ?? 0)");
-  expect(src).not.toContain("ACCESS_FEE");
 });

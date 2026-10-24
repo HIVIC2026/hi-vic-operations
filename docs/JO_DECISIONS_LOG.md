@@ -24,6 +24,7 @@ Newest first. Each line is settled; anything still open is under "Open".
 11. HIV absorbs the card fee; the owner pays clean amounts.
 12. **Accept + pay $349 in one step, switched on straight away** (Jo chose not to wait for the lawyer).
 13. Install payments: **10% deposit of what's left on the invoice (after the $349)**, due when the owner books the install date (corrected by Jo, 24 Oct), the remainder on install day, and **always an option to pay the full amount now**.
+14a. Unpaid agreed install day (owner suggested it, installer accepted it) is held 48 hours for the 10% deposit, then released and the installer is told.
 14. Electrical fixes: the office checks the fixes quote before it goes. The owner then **approves, pays in full and picks one of the electrician's times in one step**. If none of the times suit, the owner and the electrician go back and forth. The office is not involved.
 
 **Templates (after Deep)**
