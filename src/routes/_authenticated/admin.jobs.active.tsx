@@ -1,35 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
-import { JobsWorkspace, jobsSearchSpec } from "@/components/portal/JobsWorkspace";
-import { listControlsToSearch, parseListControls } from "@/lib/list-paging.core";
+import { JobsScreen } from "@/components/portal/JobsScreen";
+import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs.core";
 
-const SPEC = jobsSearchSpec("active");
-
+// O3 Jobs › Active (decisions 224, 226, 239). `?stage=` opens one of the six stages (old Quote approvals links land on Quote).
 export const Route = createFileRoute("/_authenticated/admin/jobs/active")({
-  // Page, size, search, sort, direction and stage all live in the URL, so a refresh, a shared link and
-  // the back button restore exactly the same list. Defaults are dropped, keeping the link readable.
-  validateSearch: (s: Record<string, unknown>) => listControlsToSearch(parseListControls(s, SPEC), SPEC),
+  validateSearch: (s: Record<string, unknown>): { stage?: JobsStage } => (typeof s["stage"] === "string" && (JOBS_STAGE_KEYS as string[]).includes(s["stage"]) ? { stage: s["stage"] as JobsStage } : {}),
   head: () => ({ meta: [
-    { title: "Active jobs — Home Insulation Victoria Office" },
-    { name: "description", content: "Every operational job with its current stage, next action and who it is waiting on." },
-    { property: "og:title", content: "Active jobs — Home Insulation Victoria Office" },
-    { property: "og:description", content: "One active jobs workspace." },
+    { title: "Jobs — Home Insulation Victoria Office" },
+    { name: "description", content: "Every job from Choose installer to Final check, one stage each." },
+    { property: "og:title", content: "Jobs — Home Insulation Victoria Office" },
+    { property: "og:description", content: "Active jobs in six stages." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
     { name: "robots", content: "noindex, nofollow" },
   ] }),
-  component: ActiveJobsPage,
+  component: () => {
+    const { stage } = Route.useSearch();
+    return <AppShell><JobsScreen mode="active" initialStage={stage} /></AppShell>;
+  },
 });
-
-function ActiveJobsPage() {
-  const controls = parseListControls(Route.useSearch(), SPEC);
-  const navigate = Route.useNavigate();
-  return (
-    <AppShell wide>
-      <JobsWorkspace
-        mode="active"
-        controls={controls}
-        navigate={(search) => void navigate({ search, resetScroll: false })}
-      />
-    </AppShell>
-  );
-}

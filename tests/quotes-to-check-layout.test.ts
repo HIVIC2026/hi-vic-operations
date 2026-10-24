@@ -22,7 +22,7 @@ describe("Quotes to check layout rules (Jo 24 Oct 2026: installers no longer app
     expect(mittiAuditUrl(null)).toBeNull();
   });
   it("the office list returns every draft as rows and has no Waiting on installer section", () => {
-    const fn = readFileSync("src/lib/installer-quote-review.functions.ts", "utf8");
+    const fn = readFileSync("src/lib/installer-quote-review.server.ts", "utf8");
     expect(fn).toContain("return { rows: split.drafts, notDrafted: split.notDrafted, declined };");
     expect(fn).not.toMatch(/waitingOnInstaller|WAITING_ON_INSTALLER|installer-quote-approval/);
     const ui = readFileSync("src/components/portal/QuotesToCheck.tsx", "utf8");

@@ -1,60 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
-import { EnquiriesWorkspace, type EnquiryView } from "@/components/portal/EnquiriesWorkspace";
+import { EnquiriesScreen } from "@/components/portal/EnquiriesScreen";
 
-const VIEWS: EnquiryView[] = [
-  "all",
-  "new",
-  "spot_saved",
-  "offered_spot",
-  "insulation_requested",
-  "ineligible",
-  "needs_attention",
-  "photos",
-  "removed",
-];
-
+// O4 Enquiries (decisions 238/239: two piles). Old ?status= bookmarks keep working: a saved spot is now a job
+// (Jobs › Choose installer) and ineligible / removed enquiries live on Jobs › Closed.
 export const Route = createFileRoute("/_authenticated/admin/enquiries")({
-  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string; page?: number } => ({
-    page: Math.max(0, Number(s["page"]) || 0),
-    ...(VIEWS.includes(s["status"] as EnquiryView) ? { status: s["status"] === "removed" ? "all" : s["status"] === "photos" ? "needs_attention" : s["status"] as EnquiryView } : {}),
-    ...(typeof s["q"] === "string" && s["q"] ? { q: s["q"] } : {}),
-  }),
+  beforeLoad: ({ search }) => {
+    const status = (search as { status?: string }).status;
+    if (status === "spot_saved") throw redirect({ to: "/admin/jobs/active", search: { stage: "choose_installer" }, replace: true });
+    if (status === "ineligible" || status === "removed") throw redirect({ to: "/admin/jobs/closed", replace: true });
+  },
+  validateSearch: (s: Record<string, unknown>): { status?: string } => (typeof s["status"] === "string" ? { status: s["status"] } : {}),
   head: () => ({
     meta: [
       { title: "Enquiries — Home Insulation Victoria Office" },
-      {
-        name: "description",
-        content:
-          "One enquiry workspace: current outcome, photos, eligibility and the next office action.",
-      },
+      { name: "description", content: "Every enquiry before a spot is saved: Fix details and Waiting on owner." },
       { property: "og:title", content: "Enquiries — Home Insulation Victoria Office" },
-      { property: "og:description", content: "One enquiry workspace for the office." },
+      { property: "og:description", content: "Two piles: Fix details and Waiting on owner." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-  component: EnquiriesPage,
+  component: () => <AppShell><EnquiriesScreen /></AppShell>,
 });
-
-function EnquiriesPage() {
-  const { status = "needs_attention", q = "", page = 0 } = Route.useSearch();
-  const navigate = Route.useNavigate();
-  return (
-    <AppShell wide>
-      <EnquiriesWorkspace
-        view={status}
-        q={q}
-        page={page}
-        onPage={next => void navigate({ search: prev => ({ ...prev, page: next }), resetScroll: false })}
-        onView={(next) =>
-          void navigate({ search: (prev) => ({ ...prev, status: next, page: 0 }), resetScroll: false })
-        }
-        onQ={(next) =>
-          void navigate({ search: (prev) => ({ ...prev, q: next, page: 0 }), resetScroll: false })
-        }
-      />
-    </AppShell>
-  );
-}

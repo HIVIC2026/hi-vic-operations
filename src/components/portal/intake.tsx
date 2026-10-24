@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getIntakeSummary } from "@/lib/portal.functions";
 import { Pill } from "./badges";
-import { PhotoRankButtons } from "./SpotPhotoCheck";
 import { openFileViewer } from "@/components/portal/file-viewer";
 
 const yn = (v: string | null | undefined) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : "Not answered");
@@ -61,7 +60,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
             <div key={m.id}>{m.url ? <button type="button" className="text-primary underline" onClick={() => openFileViewer(m.url, m.name)}>{m.name}</button> : m.name}</div>
           ))}
           {data.lastMediaFailure && <div className="text-destructive">{data.lastMediaFailure.summary} ({when(data.lastMediaFailure.created_at)})</div>}
-          {data.media.length > 0 && <div className="pt-2"><div className="mb-1 text-xs font-medium uppercase text-muted-foreground">Photo check</div><PhotoRankButtons jobId={jobId} onDone={() => void refetch()} /></div>}
+          {/* Decision 238: office photo review dropped — photos stay on the job for the installer and the file. */}
         </div>
       </div>
     </section>
