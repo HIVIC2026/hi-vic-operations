@@ -136,3 +136,7 @@ Newest first. Each line is settled; anything still open is under "Open".
     - Owner booked (B): "Home Insulation Victoria: Booked! Your free Ready Check is {Day Date}, {time}. Installer: {Installer} {phone}. Details: {link}"
     - Owner day before (B): "Home Insulation Victoria: See you tomorrow at {time} for your free Ready Check ({Installer}, {phone})."
     - Installer booked (A): "Home Insulation Victoria: Booked: Ready Check {Day Date} {time}, {address} ({HV-number}). Owner details on the job: {link}"
+83. **Installer texts approved (24 Oct):**
+    - Morning (6:30am): "Home Insulation Victoria: Good morning! Your jobs today: 1) {time}, {short address}: {Mitti link} 2) … Tap a link to open its Mitti form." (falls back to the My work link when too long)
+    - Missing answers: "Home Insulation Victoria: Nearly there! {HV} ({address}) still needs: {items}. Add them in Mitti and we'll prepare the owner's quote."
+    - Usual electrician missing: "Home Insulation Victoria: To send the quote for {HV}, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: {link}"
