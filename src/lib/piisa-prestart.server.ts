@@ -57,6 +57,14 @@ export async function capturePiisaPrestart(jobId: string, actorId: string | null
     return { status: "already", message: "Start-of-work check already captured.", prestart: existing };
   }
   if (!built.ok) return { status: "not_signed", message: built.reason };
+  // Decisions 205/206/210: the before-work items on the same form (SWMS section, zone before-videos / ruler photos,
+  // foil answer) join the start-of-work check. A read failure is recorded as a blocker, never as a pass.
+  try {
+    const core = await import("./install-evidence.core");
+    const { installEvidenceContext } = await import("./install-evidence.server");
+    const s = core.evaluateInstallEvidence(core.readInstallEvidence(audit), await installEvidenceContext(jobId, audit), built.snapshot.signature.signed_at);
+    built.snapshot.blockers.push(...s.prestartBlockers.map((b) => `Install day: ${b}`));
+  } catch (e) { built.snapshot.blockers.push(`Install day: before-work items could not be read (${e instanceof Error ? e.message : "error"}) — office review`); }
   let image: StoredSignature;
   try { image = await storeSignatureImage(jobId, auditId, built.snapshot.signature, fetchMedia); }
   catch (e) { return { status: "error", message: e instanceof Error ? e.message : "Signature image could not be stored." }; }

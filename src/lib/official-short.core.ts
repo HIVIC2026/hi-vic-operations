@@ -47,6 +47,8 @@ const LIFE_SUPPORT_CONFIRM = "Is the life support record shown above still corre
 const LIFE_SUPPORT_WHEN = "Life support confirmed Yes";
 
 /** Short PIESA (electrician). Life support is confirmed against the enquiry record, never re-asked from scratch. */
+/** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
+export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?";
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
@@ -67,6 +69,8 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   yn("downlightsNonIc", "Are any of them not IC or IC-4 rated?", "downlightsPresent = Yes"),
   yn("appliancesPresent", "Are there any appliances, exhaust fans or flues in the ceiling space?"),
   { id: "applianceDetails", label: "Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.", type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
+  // Decision 210 (audit P-1): the official Part 7 "effective" question, asked on site so the printed P7 rule can pass.
+  yn("appliancesEffective", PIESA_EFFECTIVE_QUESTION, "appliancesPresent = Yes"),
   { id: "rectificationOutcome", label: "Is any electrical repair work needed before insulation can be installed?", type: "choice", required: true, choices: [...RECTIFICATION_OUTCOMES], source: "short onsite form" },
   { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationOutcome = Yes, repair work is needed", source: "short onsite form" },
   { id: "rectificationOther", label: "Please describe the other repair work.", type: "text", required: true, when: "Other is ticked", source: "short onsite form" },

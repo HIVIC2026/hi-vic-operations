@@ -122,6 +122,9 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
         out["p7.appliance#0"] = txt(short["applianceDetails"]);
         flagged.push("Appliances: the office must split the description into the official table (location, hazard, actions) before lodgement.");
       } else flagged.push("Appliances: described as present but no details given.");
+      // Decision 210: the official "effective" tick comes from the electrician's own answer; a blank is flagged, never "Yes".
+      if (isYes(short["appliancesEffective"]) || isNo(short["appliancesEffective"])) out["p7.effective"] = isYes(short["appliancesEffective"]) ? "Yes" : "No";
+      else flagged.push("Appliances: \"does the action effectively reduce the risk\" not answered.");
     }
   } else flagged.push("Appliances and flues: not answered.");
 
@@ -266,7 +269,7 @@ export const expandShortAnswers = (key: OfficialKey, short: ShortAnswers, ctx: E
 
 /** Ids the expansion intentionally never fills (signed on paper / office-completed table detail). */
 export const EXPANSION_EXCLUDED: Record<OfficialKey, string[]> = {
-  piesa: ["c.signature", "o.signature", "p7.location", "p7.hazard", "p7.actions", "p7.effective", "p7.otherHazard", "p7.otherAction"],
+  piesa: ["c.signature", "o.signature", "p7.location", "p7.hazard", "p7.actions", "p7.otherHazard", "p7.otherAction"],
   piisa: ["p8.signature"],
 };
 

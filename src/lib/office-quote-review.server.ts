@@ -27,8 +27,12 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     if (error) throw new WorkflowError("Ready Check could not be checked.");
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
+  // Decision 205 (checklist D6): the declared product must be on the ESC register, in date and reach R5.0 — shown here
+  // so the office sees it on Quotes to check, long before AP review blocks on the same rule.
+  const { jobProductProblems } = await import("./install-evidence.server");
+  const product = await jobProductProblems(jobId);
   // Jo 24 Oct: no installer approval on any Ready Check quote — Complete in Mitti + these checks are the gate.
-  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : [])])];
+  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...product])];
 }
 
 /** Office "Send quote" (an authenticated button). */

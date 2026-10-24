@@ -30,6 +30,24 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const isA3 = expectedTpl === A3_TPL;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
   const finalPostworkVersion = "a3-final-postwork-2026-10-08";
+  // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A3 sync,
+  // signed or not — the gate reads the latest record; a failed read leaves the gate closed, never open.
+  let installEvidence: import("./install-evidence.core").InstallEvidenceSummary | null = null;
+  if (isA3) {
+    try {
+      const ie = await import("./install-evidence.server");
+      installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit);
+      // Decision 206: a complete SWMS is filed at once (immutable PDF + signature images), signed form or not.
+      if (installEvidence.swmsComplete && fetchMedia) await ie.fileSwmsRecord(jobId, actorId, auditId, audit, fetchMedia);
+    } catch (e) { try { await logEvent(jobId, actorId, "install_evidence_sync_failed", "Install-day evidence (Table 4 / SWMS / sign-off) could not be read — sync again", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
+  }
+  // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
+  // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
+  const finishInstall = async (declarationSaved: boolean) => {
+    if (!isA3 || !p.completed) return;
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence }); }
+    catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
+  };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));
   if (existing) {
     if (auditOwnedFinalPostwork) {
@@ -44,6 +62,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       const reviewed = await products.verifiedInstalledProductAnswers(jobId);
       if (problems.length || reviewed.blockers.length || JSON.stringify(reviewed.answers) !== JSON.stringify(saved.official.a3_evidence.actual_product_answers)) return { status: "error", message: "Product label evidence changed or needs review; the historical signed PIISA was not altered." };
     }
+    await finishInstall(true);
     return { status: "already", message: "Declaration already saved." };
   }
   // A3: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
@@ -134,6 +153,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     if (mappingProblems.length) return { status: "error", message: `The PIISA field structure has changed and needs confirmed mapping: ${mappingProblems.join(" • ")}. No signed official copy saved.` };
     const crewRes = directCrew ?? coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), audit, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
     Object.assign(answers, crewRes.answers, actualProducts?.answers ?? {});
+    // Decision 210 c: the form's foil / conductive answer (+ facing photo) feeds the official P6 foil rule as the
+    // portal-side conductivity record, so P6-FOIL-UNKNOWN no longer holds every existing-insulation job.
+    if (installEvidence?.foil != null) { answers["supp.conductive"] = installEvidence.foil ? "Yes" : "No"; if (installEvidence.foilPhotoMediaId) answers["supp.conductiveEvidence"] = `mitti:${auditId}:${installEvidence.foilPhotoMediaId}`; }
     if (direct) {
       const assessmentDay = piisaAssessmentDay(signedAt);
       if (!assessmentDay) return { status: "missing", message: "The captured PIISA assessment/signing timestamp is missing or invalid; no expected completion date was invented." };
@@ -194,5 +216,6 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (error || !row) return { status: "error", message: error?.message ?? "Could not save the declaration." };
   await admin.from("declarations").upsert({ job_id: jobId, kind: "installer_declaration", declared_by: a?.user_id ?? null, statement: `${tpl.version}: ${tpl.body}`, declared_at: signedAt }, { onConflict: "job_id,kind" });
   await logEvent(jobId, actorId, "INSTALLER_DECLARATION_SIGNED", `Installer declaration signed in the Mitti PIISA (${tpl.version}) – ${d.product}, ${d.areaM2} m²`, { declaration_id: row.id, sha256: hash, audit_id: auditId });
+  await finishInstall(true);
   return { status: "saved", message: "Declaration saved from the Mitti PIISA." };
 }

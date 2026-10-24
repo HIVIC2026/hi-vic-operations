@@ -106,3 +106,17 @@ In Mitti, I have two existing **Ready Check** templates (one for installers' own
 Finish with a check: open each Ready Check template, confirm eight options spelled exactly as above, and confirm a form already in progress still opens.
 
 ---
+
+## Addendum (decision 210, Jo 24 Oct 2026): one more question after 19
+
+Copy this into ChatGPT (or Mitti's "Build with AI") with the PIESA template open. It adds ONE question and changes nothing else; the wording is fixed in `src/lib/official-short.core.ts` (`PIESA_EFFECTIVE_QUESTION`).
+
+---
+
+In my existing **PIESA – Electrician safety assessment** template in Mitti, add one question directly AFTER `Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.` and BEFORE `Is any electrical repair work needed before insulation can be installed?`. Keep every other question exactly as it is and in its order. The wording must be copied character for character:
+
+19a. `Does the action you described effectively reduce the risk from each hazard listed?` — Yes/No — Required — only show when question 18 (`Are there any appliances, exhaust fans or flues in the ceiling space?`) = Yes
+
+Finish with a check: the new question sits between 19 and 20, is Required, shows only when question 18 = Yes, and the template ID is unchanged.
+
+---

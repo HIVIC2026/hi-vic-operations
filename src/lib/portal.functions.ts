@@ -1024,30 +1024,11 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
 export const completeInstallation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    // P0: no confirmed installation booking = no completion (checked BEFORE any stage change; fails closed).
-    const { confirmedInstallBooking } = await import("./workflow.server");
-    const { booking: unlockBooking, blocker } = await confirmedInstallBooking(data.jobId);
-    if (blocker || !unlockBooking) throw new WorkflowError(blocker ?? "No confirmed installation booking.");
-    // Stage 7 (Jo 22 Oct): install-day photos carried from the Ready Check lock completion until they're in. Fails closed.
-    {
-      const { data: reqs, error: re } = await admin.from("evidence_requirements").select("category, label, gate, required, status").eq("job_id", data.jobId).eq("gate", "installation");
-      if (re) throw new WorkflowError("The install-day photo checklist could not be checked — please try again.");
-      const { installDayPhotoBlocker } = await import("./ready-check-chase.core");
-      const photo = installDayPhotoBlocker((reqs ?? []) as never);
-      if (photo) throw new WorkflowError(photo);
-    }
-    await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
-    await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
-    await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
-    // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
-    await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
-    await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
-    await autoAdvanceJob(data.jobId, context.userId, "installation completed");
-    // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
-    // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.
-    try { await (await import("./veec-reminders.server")).sendVeecSignStep(data.jobId, "request"); } catch (e) { console.error("VEEC sign request failed", (e as Error).message); }
-    return { ok: true };
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
+    // Decision 213: the one guarded, idempotent completion path (also used when the Mitti Install day form is Complete
+    // and every evidence check passes); the button stays as the fallback.
+    const { recordInstallationComplete } = await import("./install-complete.server");
+    return recordInstallationComplete(data.jobId, context.userId, role === "admin" ? "office_button" : "installer_button");
   });
 
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

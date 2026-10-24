@@ -11,6 +11,7 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { crewClearance, melbourneToday } from "./worker-compliance.core";
+import { INSTALL_EVIDENCE_RELABELS } from "./install-evidence.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -124,7 +125,7 @@ const A3_PREVIOUS_MEDIA_LABELS: Record<A3EvidenceKey, string> = {
   final_plan: "Final installation plan — actual installed area (m²) and products",
 };
 export function a3AcceptedMediaLabels(key: A3EvidenceKey): string[] {
-  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
+  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_INSTRUCTION_LABELS_2026_10_09[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
 }
 
 /** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
@@ -476,7 +477,8 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
 export const A3_EVIDENCE_QUALITY = "Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
-export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
+/** Jo's 9 Oct 2026 full instructions — still accepted on the same stable IDs (a3AcceptedMediaLabels). */
+export const A3_INSTRUCTION_LABELS_2026_10_09: Record<A3EvidenceKey, string> = {
   installer_photos: `Please take a clear, geotagged photo of every installer at this property. ${A3_EVIDENCE_QUALITY}`,
   electrician_photo: `Please take a clear, geotagged photo of the electrician attending this property. ${A3_EVIDENCE_QUALITY}`,
   isolation_photo: `Before work starts, please take a clear, geotagged photo showing the power isolated, locked out and tagged. ${A3_EVIDENCE_QUALITY}`,
@@ -484,6 +486,23 @@ export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   product_photos: `Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. ${A3_EVIDENCE_QUALITY}`,
   completed_video: `After installation, please record a clear video showing all insulated areas, coverage, depth and removal of waste. ${A3_EVIDENCE_QUALITY}`,
   final_plan: `Please upload a clear final roof-space plan showing the installed area in m² and the products used. ${A3_EVIDENCE_QUALITY}`,
+};
+/** Current labels. Decision 205 (Activity Guide v1.2 Table 4): the four photo items are reworded on the SAME Mitti items
+ * (front of premises + photo ID; lock-out tag + solar/battery isolators off; packaging brand/model/R-value). The per-zone
+ * videos, ruler photos and daily re-check are NEW label-read items in install-evidence.core.ts. */
+export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
+  ...A3_INSTRUCTION_LABELS_2026_10_09,
+  installer_photos: INSTALL_EVIDENCE_RELABELS.installer_photos,
+  electrician_photo: INSTALL_EVIDENCE_RELABELS.electrician_photo,
+  isolation_photo: INSTALL_EVIDENCE_RELABELS.isolation_photo,
+  product_photos: INSTALL_EVIDENCE_RELABELS.product_photos,
+};
+/** What the office checks on each photo before AP sign-off (Table 4 wording), shown beside the checklist row. */
+export const A3_EVIDENCE_VERIFICATION: Partial<Record<A3EvidenceKey, string>> = {
+  installer_photos: "Each installer is at the front of the premises and their photo ID is clearly readable; location and time recorded.",
+  electrician_photo: "The electrician is at the front of the premises with photo ID clearly readable, taken before work started; location and time recorded.",
+  isolation_photo: "The switchboard is tagged and locked out; where the home has solar or a battery, each isolator is visibly switched off.",
+  product_photos: "Brand, model and R-value are readable on the packaging label of every product installed.",
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
 
@@ -606,17 +625,25 @@ export function a3EvidenceBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx,
 }
 
 /** Checklist rows for the job page/AP: every A3 item with its real state. */
-export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met" };
+export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met"; /** Decision 205: what the office verifies on the photo (Table 4 wording). */ verification?: string };
+/** Office verification text for a photo item; with solar/battery present the isolation photo must show the isolators off. */
+export function a3VerificationNote(key: A3EvidenceKey, answers: OfficialAnswers): string | undefined {
+  const base = A3_EVIDENCE_VERIFICATION[key];
+  if (key === "isolation_photo" && answers["p4.present"] === "Yes") return `${base} Solar or battery is present at this home — the isolator switches must be visibly off.`;
+  return base;
+}
 export function a3EvidenceChecklist(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[]): A3ChecklistRow[] {
   const req = new Map(a3EvidenceRequired(answers, ctx).map((r) => [r.key, r.min]));
   const by = new Map(media.map((m) => [m.key, m]));
   return (Object.keys(A3_EVIDENCE_LABELS) as A3EvidenceKey[]).map((key) => {
     const m = by.get(key); const min = req.get(key) ?? 0; const count = m?.count ?? 0;
     const phase = A3_PRESTART_KEYS.includes(key) ? "before" as const : "after" as const;
-    if (!min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: 0, count, state: "not_required" as const };
-    if (count < min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: "missing" as const };
+    const v = a3VerificationNote(key, answers);
+    const row = (required: number, state: A3ChecklistRow["state"]): A3ChecklistRow => ({ key, label: A3_EVIDENCE_LABELS[key], phase, required, count, state, ...(v ? { verification: v } : {}) });
+    if (!min) return row(0, "not_required");
+    if (count < min) return row(min, "missing");
     const review = (GEOTAG.includes(key) && (m?.geotagged ?? 0) < min) || (m?.timed != null && m.timed < count);
-    return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: review ? "review" as const : "met" as const };
+    return row(min, review ? "review" : "met");
   });
 }
 

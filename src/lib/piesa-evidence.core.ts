@@ -20,7 +20,7 @@ export type PiesaEvidenceId = "switchboard_photo" | "onsite_photo" | "hazard_pho
 
 /** One media file on a Mitti audit with ONLY the metadata Mitti actually returned. Unknown stays null (never faked).
  *  capturedAt = a real capture time only; Mitti's `date_created` is the upload time and is kept apart as uploadedAt. */
-export type MittiMediaFile = { mediaId: string | null; capturedAt: string | null; uploadedAt?: string | null; lat: number | null; lng: number | null };
+export type MittiMediaFile = { mediaId: string | null; capturedAt: string | null; uploadedAt?: string | null; lat: number | null; lng: number | null; /** File size when Mitti reports it (decision 205: videos ≤250 MB); null = not reported. */ sizeBytes?: number | null };
 const num = (v: unknown) => { const x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN; return Number.isFinite(x) ? x : null; };
 /** Shared reader for PIESA evidence and the PIISA install-day photos (piisa-a3.core delegates here). */
 export function mittiMediaFile(raw: unknown): MittiMediaFile {
@@ -33,7 +33,9 @@ export function mittiMediaFile(raw: unknown): MittiMediaFile {
   const ts = [m["captured_at"], m["date_taken"], m["metadata"]?.captured_at].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
   const id = m["media_id"] ?? m["id"] ?? null;
   const up = typeof m["date_created"] === "string" && !Number.isNaN(Date.parse(m["date_created"])) ? m["date_created"] : null;
-  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, uploadedAt: up, lat, lng };
+  const size = num(m["file_size"] ?? m["size_bytes"] ?? m["size"] ?? m["metadata"]?.file_size ?? m["metadata"]?.size);
+  // sizeBytes only when Mitti reported one, so stored snapshots and existing readers keep their exact shape.
+  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, uploadedAt: up, lat, lng, ...(size != null && size > 0 ? { sizeBytes: size } : {}) };
 }
 export type PiesaMediaFile = MittiMediaFile;
 export type PiesaEvidenceMedia = Record<PiesaEvidenceId, PiesaMediaFile[]>;
