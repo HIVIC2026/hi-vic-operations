@@ -14,7 +14,7 @@ const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 
 function creds() {
   const lovable = process.env["LOVABLE_API_KEY"];
-  const xero = process.env["XERO_API_KEY"];
+  const xero = process.env["XERO_API_KEY_1"];
   return lovable && xero ? { lovable, xero } : null;
 }
 
