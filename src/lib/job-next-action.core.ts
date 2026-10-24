@@ -27,7 +27,7 @@ const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   sign_consent: () => "Sign the ESC owner consent as the AP representative before the install.",
   esc_window: () => "Submit the ESC installation notification inside its window.",
   final_check: () => "Install complete — do the final check and approve.",
-  sign_veec_a: (f) => (f.veecPartA?.missing ? "Record the remaining prerequisites, then sign VEEC Part A." : "Sign VEEC Part A — the prerequisites are recorded."),
+  veec_a_held: (f) => `VEEC Part A signs itself once these are recorded: ${(f.veecApHeld?.reasons ?? []).join(" ")}`,
   send_failed: (f) => `A message to the owner failed: ${f.sendFailed?.text ?? ""}`,
 };
 

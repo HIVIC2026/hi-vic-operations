@@ -77,6 +77,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['veecReminders'] = "failed";
         }
         try {
+          // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
+          const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
+          (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
+        } catch (e) {
+          console.error("allocation tick: automatic AP signature sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['veecApAuto'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
         } catch (e) {

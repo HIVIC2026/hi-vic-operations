@@ -118,7 +118,7 @@ describe("M2 states", () => {
       pay: { amount: 2890, state: { kind: "coming", on: "2026-11-02T21:00:00Z" } }, piisaSignedAt: "2026-10-26T21:00:00Z", installerSignedAt: "2026-10-26T22:00:00Z", ownerSignedAt: "2026-10-27T22:00:00Z", apSignedAt: "2026-10-28T22:00:00Z" });
     expect(v.heading).toBe("HV-3117 · Glen Waverley");
     expect(v.sub).toBe("Home Insulation Victoria lead · Job complete Tue 27 Oct");
-    expect(v.done).toEqual({ title: "Nothing more to do", body: "Rebate form signed by you and the owner. The office has checked the photos. Owner contact details are no longer shown." });
+    expect(v.done).toEqual({ title: "Nothing more to do", body: "Rebate form signed by you and the owner. Part A of the rebate form is signed. Owner contact details are no longer shown." });
     expect(v.summary).toEqual([["Installed", "Bradford Gold R5.0 · 137.6 m²"], ["Removed", "40 m²"], ["Crew", "Raj Kumar, Deep Singh"], ["Your pay", "$2,890 · Coming Tue 3 Nov"]]);
     expect(v.paperwork).toEqual([["PIISA", "Signed Tue 27 Oct"], ["Rebate form Part B", "Signed Tue 27 Oct"], ["Owner's part", "Signed Wed 28 Oct"]]);
     expect(completeView({ jobNumber: null, suburb: null, channel: null, completedAt: null, product: null, areaM2: null, removalM2: null, crew: [], pay: null, piisaSignedAt: null, installerSignedAt: null, ownerSignedAt: null, apSignedAt: null }).paperwork[2]).toEqual(["Owner's part", "Not signed yet"]);
@@ -159,7 +159,7 @@ describe("M4 states", () => {
     expect(leadInstallerDeclaration({ address: null, installedOn: null, product: null, areaM2: null, removalM2: null })).toBe("I was the lead installer. The information in Section 2 is true and correct.");
     expect(signRebateChecks({ installFormCompletedAt: "2026-10-27T03:40:00Z", evidenceChecked: true, crew: [], piisaSigned: true, swmsComplete: true })).toEqual(["Install form Complete · Tue 27 Oct at 2:40pm", "SWMS and PIISA signed", "Photos and videos checked by the portal"]);
     expect(signRebateChecks({ installFormCompletedAt: null, evidenceChecked: false, crew: [], piisaSigned: true })).toEqual(["PIISA signed"]);
-    expect(signRebateThen("Anita", 2890, "hivic_sourced")).toEqual([["Owner", "Anita signs their part by secure link"], ["Office", "Checks the photos and signs it off"], ["Your pay", "$2,890 · within 7 days of our approval"]]);
+    expect(signRebateThen("Anita", 2890, "hivic_sourced")).toEqual([["Owner", "Anita signs their part by secure link"], ["Office", "Does the final check; Part A of the form signs itself"], ["Your pay", "$2,890 · within 7 days of our approval"]]);
     expect(signRebateThen(null, null, "installer_sourced")).toHaveLength(2);
   });
 });
