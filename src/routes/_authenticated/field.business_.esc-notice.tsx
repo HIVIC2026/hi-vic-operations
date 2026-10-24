@@ -5,8 +5,10 @@ import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { TradeShell, card, greenBtn } from "@/components/trade/TradeShell";
 import { acknowledgeTradeCollectionNotice, getTradeCollectionNotice } from "@/lib/trade-view.functions";
-import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS, collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
+import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
+import { NoticeBody, NoticeTickRow } from "@/components/portal/esc-notice-page";
+import { P5 } from "@/lib/owner-pages.core";
 
 export const Route = createFileRoute("/_authenticated/field/business_/esc-notice")({
   head: () => ({ meta: [{ title: "ESC privacy notice – Home Insulation Victoria" }, { name: "description", content: "The Essential Services Commission's VEU Scheme Participant Privacy Collection Notice." }, { property: "og:title", content: "ESC privacy notice – Home Insulation Victoria" }, { property: "og:description", content: "The Essential Services Commission's VEU Scheme Participant Privacy Collection Notice." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -23,33 +25,32 @@ function EscNotice() {
   const [msg, setMsg] = useState<string | null>(null);
   const installer = data?.kind !== "electrician";
   const mine = data?.statuses.find((s) => s.workerId === data.selfWorkerId) ?? null;
-  const pill = (state: string) => <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${state === "acknowledged" ? "bg-estimate-green-soft text-estimate-green" : "bg-owner-house-pink"}`}>{state === "acknowledged" ? "Acknowledged" : "To do"}</span>;
+  // Approved P5 page (decision 130): the notice verbatim, then one row per installer person. Only the signed-in person's
+  // own row can be ticked (nobody ticks for someone else); "Save acknowledgements" records that one tick.
+  const mineOpen = !!mine && mine.state !== "acknowledged";
   return (
     <TradeShell installer={installer} boss={data?.boss}>
-      <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
-      <div><h1 className="font-display text-[26px] font-bold leading-tight">ESC privacy notice</h1><p className="mt-1 text-sm text-sub">The Essential Services Commission requires every installer to be given this notice before we register them in the VEU Registry. Please read and acknowledge it.</p></div>
+      <Link to="/field/business" className="inline-flex min-h-11 items-center text-sm text-hiv-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
+      <div><h1 className="font-display text-[22px] font-semibold leading-tight">{P5.title}</h1><p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.sub}</p></div>
       {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : (<>
-        <section className={`${card} max-h-[420px] overflow-y-auto text-[14px] leading-relaxed`} data-esc-notice>
-          {COLLECTION_NOTICE_PARAGRAPHS.map((p, i) => p.kind === "heading" ? <h2 key={i} className="font-display text-lg font-bold">{p.text}</h2>
-            : p.kind === "version" ? <p key={i} className="mb-3 text-sm text-sub">{p.text}</p>
-            : p.kind === "li" || p.kind === "li2" ? <p key={i} className={`mb-1.5 ${p.kind === "li2" ? "pl-9" : "pl-4"}`}>• {p.text}</p>
-            : <p key={i} className="mb-3">{p.text}</p>)}
-        </section>
-        {mine && mine.state !== "acknowledged" && <section className={`${card} space-y-3`} data-esc-ack>
-          <p className="font-bold">Please read and acknowledge</p>
-          <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={ticked} disabled={busy} onChange={(e) => setTicked(e.target.checked)} /><span>{COLLECTION_NOTICE_ACK_TEXT}</span></label>
-          <button type="button" className={greenBtn} disabled={!ticked || busy} onClick={async () => { setBusy(true); setMsg(null); try { const r = await ack(); setMsg(r.email.status === "sent" ? "Acknowledged. A copy has been emailed to you." : "Acknowledged and recorded."); await refetch(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Acknowledge"}</button>
-          {msg && <p role="status" className="text-sm font-bold text-estimate-green">{msg}</p>}
-        </section>}
-        {mine?.state === "acknowledged" && <p className="text-sm font-bold text-estimate-green">{collectionNoticeLabel(mine)} — thank you.</p>}
-        {!mine && !data.boss && <p className="text-sm text-sub">You're not listed as an installer for this business, so there's nothing to acknowledge.</p>}
-        {data.boss && <section>
-          <h2 className="mb-2 font-bold">Your installers</h2>
-          <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
-            {data.statuses.map((s) => <li key={s.email} className="flex flex-wrap items-center justify-between gap-3 p-4"><span><span className="block font-bold">{s.name}</span><span className="block text-sm text-sub">{collectionNoticeLabel(s)}{s.state !== "acknowledged" && s.workerId !== data.selfWorkerId ? " · they get their own link by text and email; only they can tick it" : ""}</span></span><span className="flex items-center gap-2">{pill(s.state)}{s.state !== "acknowledged" && s.workerId && s.workerId !== data.selfWorkerId && <SendNoticeLinkInline workerId={s.workerId} />}</span></li>)}
-            {!data.statuses.length && <li className="p-4 text-sm text-sub">No installers listed yet.</li>}
+        <NoticeBody paragraphs={COLLECTION_NOTICE_PARAGRAPHS} />
+        {(data.boss || mine) && <section data-esc-ack>
+          <h2 className="font-display text-[15px] font-semibold">{P5.yourInstallers}</h2>
+          <ul>
+            {data.statuses.map((s, i) => {
+              const self = !!s.workerId && s.workerId === data.selfWorkerId;
+              return <NoticeTickRow key={s.email} name={`${s.name}${i === 0 && data.boss ? P5.leadSuffix : ""}`} text={COLLECTION_NOTICE_ACK_TEXT}
+                on={s.state === "acknowledged" || (self && ticked)} canTick={self && s.state !== "acknowledged"} disabled={busy} onChange={setTicked}
+                acknowledgedAt={s.state === "acknowledged" ? s.at : null}
+                action={s.state !== "acknowledged" && !self && s.workerId && data.boss ? <SendNoticeLinkInline workerId={s.workerId} /> : null} />;
+            })}
+            {!data.statuses.length && <li className={`${card} mt-2 text-sm text-sub`}>No installers listed yet.</li>}
           </ul>
+          <p className="mt-3 text-[13px] leading-relaxed text-sub">{P5.note}<b>{P5.noteTeam}</b>{P5.noteEnd}</p>
+          {mineOpen && <button type="button" className={`${greenBtn} mt-[18px] md:w-full`} disabled={!ticked || busy} onClick={async () => { setBusy(true); setMsg(null); try { const r = await ack(); setMsg(r.email.status === "sent" ? "Acknowledged. A copy has been emailed to you." : "Acknowledged and recorded."); await refetch(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }}>{busy ? P5.saving : P5.button}</button>}
+          {msg && <p role="status" className="mt-2 text-sm font-bold text-estimate-green">{msg}</p>}
         </section>}
+        {!mine && !data.boss && <p className="text-sm text-sub">You're not listed as an installer for this business, so there's nothing to acknowledge.</p>}
       </>)}
     </TradeShell>
   );
