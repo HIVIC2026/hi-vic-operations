@@ -286,13 +286,17 @@ export async function tradeDay(jobId: string, userId: string) {
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
   const { data: cgi } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string } = null;
-  if (cgi && dayKind === "ready_check" && j?.stage === "ready_check_ready_to_schedule") outcome = { kind: "couldnt_get_in", reason: String((cgi.details as { reason?: string })?.reason ?? "") };
+  let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string; visit: "ready_check" | "install" } = null;
+  const cgiD = cgi?.details as { reason?: string; visit?: string } | null;
+  if (cgi && dayKind === "ready_check" && j?.stage === "ready_check_ready_to_schedule" && cgiD?.visit !== "install") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "ready_check" };
+  // Decision 214: after an install-day report the booking is cancelled, so the day reads from the latest (cancelled) install booking.
+  else if (cgi && cgiD?.visit === "install" && j?.stage === "installation_scheduling") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "install" };
   else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) outcome = (miss ?? []).length ? { kind: "missing", items: (miss ?? []).map((m) => m.label) } : { kind: "wrap" };
+  const shownKind = outcome?.kind === "couldnt_get_in" && outcome.visit === "install" ? "install" : dayKind;
   return {
-    kind: dayKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
+    kind: shownKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
     address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
@@ -308,19 +312,33 @@ export async function tradeCouldntGetIn(jobId: string, reason: string, userId: s
   const { data: asg } = await (c.boss ? aq : aq.eq("user_id", userId)).limit(1).maybeSingle();
   if (!asg) throw new WorkflowError("This job isn't assigned to you.");
   // Review E: only from a booked Ready Check whose visit is today or past (Melbourne date), via the central guarded transition.
-  const [{ data: job }, { data: bk }] = await Promise.all([
+  // Decision 214: the same on a booked install day — the booking is returned to "offer 3 install days" (changeInstallDay,
+  // installDayTurn rules; 30-day window and payer per decision 158 untouched) and the office is alerted. Installer keeps the job.
+  const [{ data: job }, { data: bk }, { data: ib }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const { couldntGetInBlocker } = await import("./trade-view.core");
-  const blocker = couldntGetInBlocker(job?.stage ?? null, bk?.scheduled_start ?? null, new Date());
-  if (blocker) throw new WorkflowError(blocker);
+  const { couldntGetInPlan } = await import("./trade-view.core");
+  const plan = couldntGetInPlan({ stage: job?.stage ?? null, readyCheckStart: bk?.scheduled_start ?? null, installStart: ib?.scheduled_start ?? null, now: new Date() });
+  if ("blocker" in plan) throw new WorkflowError(plan.blocker);
+  if (plan.visit === "install") {
+    // Decision 215: office alerted only on the SECOND no-access on this job; the owner is told at once (text + email).
+    const { count: priorCount } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").contains("details", { visit: "install" });
+    const { installNoAccessAlertsOffice } = await import("./install-no-access-notice.core");
+    const alertOffice = installNoAccessAlertsOffice(priorCount ?? 0);
+    const { changeInstallDay } = await import("./install-days.server");
+    await changeInstallDay(jobId, userId, "installer", { couldntGetIn: reason });
+    await logEvent(jobId, userId, "trade_couldnt_get_in", `${alertOffice ? "Needs me: second time the " : "The "}installer couldn't get in on the install day (${reason}). ${c.biz.name} offers the owner 3 new days inside the 30-day window.`, { reason, visit: "install", business_id: c.biz.id, booking_id: ib!.id, needs_office: alertOffice, prior_install_no_access: priorCount ?? 0 }, { internal: true });
+    const notice = await (await import("./install-no-access-notice.server")).sendInstallNoAccessNotice({ jobId, bookingId: ib!.id, wasStart: ib!.scheduled_start, reason }).catch((e: Error) => `notice failed — ${e.message}`);
+    return { ok: true, visit: "install" as const, notice };
+  }
   const { transition } = await import("./workflow.server");
   await transition(jobId, "ready_check_ready_to_schedule", userId, `Installer couldn't get in (${reason})`, { reason, business_id: c.biz.id }, { nextAction: `Needs me: rebook the Ready Check (${reason}). Offer back to ${c.biz.name} first.` });
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", bk!.id).eq("status", "confirmed");
   await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: `Couldn't get in: ${reason}` } as never).eq("id", asg.id);
-  await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
-  return { ok: true };
+  await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, visit: "ready_check", business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
+  return { ok: true, visit: "ready_check" as const };
 }
 
 /** Required acknowledgement before an installer starts a Ready Check on a Home Insulation Victoria customer. */

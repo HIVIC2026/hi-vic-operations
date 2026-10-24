@@ -27,6 +27,7 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder: { audience: "owner", label: "30-day install window reminder (20/10 days left) to the owner", wordingApproved: true, quietHours: true },
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
+  install_no_access: { audience: "owner", label: "We couldn't get in today – install day no access (decision 215, install-no-access-notice.core.ts). DRAFT wording, awaiting Jo", wordingApproved: false, quietHours: true },
   install_clearance: { audience: "partner", label: "Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: true, quietHours: true },
   // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
   ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
@@ -63,6 +64,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   install_window_reminder: { kind: "window" }, // 20/10-day steps recorded once as workflow events before any send (thirty-day-rule.server)
   install_window_reminder_installer: { kind: "window" }, // same steps, installer side
   deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
+  install_no_access: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the installer's "couldn't get in" report on the install day (recorded once per booking before any send)
   install_clearance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = electrical clearance becoming valid (recorded once per job + timing date before any send)
   ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
   ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
