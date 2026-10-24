@@ -43,7 +43,7 @@ A licensed electrician does the official pre-installation electrical safety asse
 Once the safety check is cleared, we text and email you to offer the customer three install days with arrival times. They tap one, or suggest other days, until you agree. The install must happen within 30 days of the safety check, and we remind you as the deadline gets closer.
 
 **9. Install day**
-On the morning of the install, your 6:30am text includes the link to that job's install form in Mitti. Just follow the form from top to bottom: it takes you through the SWMS, the official PIISA safety assessment, and every photo and video the rebate needs, in the right order, and ends with your declaration. Everything is geotagged and timed, so photos must be taken at the property on the day.
+When the install is booked, we text you a link to the job's safety plan. We write it for you from the job; you and your crew sign it with one tap before the day (the link is in your 6:30am text too if it's still unsigned). On the morning of the install, your 6:30am text includes the link to that job's install form in Mitti. It's short: the official safety checks, your declaration, then the after videos and depth photos the rebate needs. Everything is geotagged and timed, so photos must be taken at the property on the day.
 
 **10. Getting paid**
 The customer pays a 10% deposit when the install is booked and the balance on install day, by bank transfer. For your own customers, you're paid once that balance is paid. For jobs we send you, 7 days after we approve the job.
