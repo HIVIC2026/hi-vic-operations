@@ -57,15 +57,13 @@ describe("zone videos satisfy the deleted whole-job videos", () => {
   });
 });
 
-describe("fix prompt §3 and §4", () => {
+describe("fix prompt: Part 8 text and multi-day lines", () => {
   test("Part 8 closing text matches the fix prompt and the build prompt note", () => {
     expect(readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8")).toContain(`"${A3_PART8_CLOSING_TEXT}"`);
     expect(readFileSync("docs/MITTI_INSTALL_FORM_CHATGPT_PROMPT.md", "utf8")).toContain(`\`${A3_PART8_CLOSING_TEXT}\``);
   });
-  test("day 3 re-check is optional on a long multi-day job; day 2 still required", () => {
+  test("multi-day jobs need no typed re-check lines (decision 258): the SWMS asks only high-risk work and the controls tick", () => {
     const s = readInstallEvidence({ items: [] }).swms;
-    const b = swmsBlockers({ ...s, onForm: true }, { multiDay: true, daysOnSite: 4 });
-    expect(b).toContain(`${S.day2Recheck}: not entered for this multi-day installation`);
-    expect(b.some((x) => x.includes(S.day3Recheck))).toBe(false);
+    expect(swmsBlockers({ ...s, onForm: true }, { additionalInstallers: [] })).toEqual([`${S.hrcw}: nothing ticked`, `${S.standardControls}: not ticked`]);
   });
 });

@@ -1,6 +1,6 @@
 // The Mitti build prompts and the readers must never drift: every exact wording constant appears verbatim in the prompt.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { A3_RELABELS, AFTER_INSTALL_QUESTIONS, FOIL_QUESTIONS, RETIRED_FINAL_PLAN_UPLOAD_LABEL, SOLAR_RESTARTED_OPTIONS, SWMS_ADDITIONAL_INSTALLERS, SWMS_HAZARDS, SWMS_HOW_IN_PLACE, SWMS_HRCW_OPTIONS, SWMS_QUESTIONS, SWMS_STANDARD_CONTROLS_TEXT, ZONE_PRODUCT_OPTIONS, installEvidenceQuestionList } from "../src/lib/install-evidence.core";
 import { A3_INSTRUCTION_LABELS_2026_10_09 } from "../src/lib/piisa-a3.core";
 import { PIESA_EFFECTIVE_QUESTION } from "../src/lib/official-short.core";
@@ -20,9 +20,8 @@ describe("Install day prompt carries every constant verbatim", () => {
   });
   test("the four relabels, every option list and the prefill texts", () => {
     for (const v of Object.values(A3_RELABELS)) expect(install).toContain(`New: \`${v}\``);
-    for (const o of [...SWMS_HRCW_OPTIONS, ...SWMS_HAZARDS.map((h) => h.name), ...SOLAR_RESTARTED_OPTIONS, ...ZONE_PRODUCT_OPTIONS]) expect(install).toContain(`\`${o}\``);
+    for (const o of [...SWMS_HRCW_OPTIONS, ...SOLAR_RESTARTED_OPTIONS, ...ZONE_PRODUCT_OPTIONS]) expect(install).toContain(`\`${o}\``);
     expect(install).toContain(`\`${SWMS_STANDARD_CONTROLS_TEXT}\``);
-    expect(install).toContain(`\`${SWMS_QUESTIONS.leadSignature}\``);
     expect(install).toContain(`\`${AFTER_INSTALL_QUESTIONS.completionSignature}\``);
     expect(install).toContain(`\`${FOIL_QUESTIONS.foilPhoto}\``);
   });
@@ -42,38 +41,28 @@ describe("PIESA prompt addendum", () => {
   });
 });
 
-/** Decision 256: the fix prompt Jo pastes into ChatGPT is the spec for the slimmed SWMS — the code must equal it. */
-describe("Install day fix prompt §1 (SWMS) equals the code", () => {
-  const fix = readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8");
+/** Decisions 256/258/259: the end-state prompt(s) Jo pastes into ChatGPT are the spec for the SWMS — the code must equal them.
+ *  The end state lives in docs/MITTI_INSTALL_FORM_FIX_PROMPT.md (plus the follow-up file while it exists). */
+describe("Install day end-state prompt (SWMS, finish time, re-check lines) equals the code", () => {
+  const files = ["docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "docs/MITTI_INSTALL_FORM_FOLLOWUP_PROMPT.md"].filter((f) => existsSync(f));
+  const spec = files.map((f) => readFileSync(f, "utf8")).join("\n");
   const S = SWMS_QUESTIONS;
-  const quoted = (v: string) => expect(fix, v).toContain(`"${v}"`);
-  test("every new / renamed / kept SWMS label is quoted verbatim", () => {
-    for (const v of [S.hrcw, S.hazards, S.standardControls, S.changes, S.leadSignature, S.signedAt, S.day3Recheck]) quoted(v);
-    expect(fix).toContain(`"${S.leadDeclaration.split(". ")[0]}. …"`);
-    // The prompt writes the crew items once with "N" (N = 1, 2, 3).
-    quoted(S.installerRead(1).replace("installer 1:", "installer N:"));
+  const quoted = (v: string) => expect(spec, v).toContain(`"${v}"`);
+  test("every current SWMS label is quoted verbatim (crew signature written once with N = 1, 2, 3)", () => {
+    for (const v of [S.hrcw, S.standardControls, S.changes]) quoted(v);
     quoted(S.installerSignature(1).replace("installer 1:", "installer N:"));
     expect(SWMS_ADDITIONAL_INSTALLERS).toBe(3);
-    expect(fix).toContain('"Additional Installer 1", "Additional Installer 2", "Additional Installer 3"');
   });
-  test("the nine hazard answers, in order, exactly", () => {
-    const block = fix.slice(fix.indexOf(`"${S.hazards}"`), fix.indexOf("b) Instruction"));
-    const answers = [...block.matchAll(/^\s+- (.+)$/gm)].map((m) => m[1]!.trim());
-    expect(answers).toEqual(SWMS_HAZARDS.map((h) => h.name));
-  });
-  test("the standard-controls instruction is the hazards' control sentences plus the how-it-is-put-in-place sentence", () => {
+  test("the standard-controls instruction is the nine hazards' control sentences plus the how-it-is-put-in-place sentence", () => {
     quoted(SWMS_STANDARD_CONTROLS_TEXT);
+    expect(SWMS_HAZARDS).toHaveLength(9);
     expect(SWMS_STANDARD_CONTROLS_TEXT.endsWith(SWMS_HOW_IN_PLACE)).toBe(true);
+    expect(SWMS_STANDARD_CONTROLS_TEXT).toContain("it is a licensed asbestos removalist's job before work continues");
   });
-  test("the old items the prompt deletes are no longer read", () => {
+  test("items the prompt deletes are no longer asked for or required", () => {
     const labels = installEvidenceQuestionList().map((q) => q.label);
-    for (const gone of ["SWMS — prepared by (installer business name)", "SWMS — first aider on site (name)", "SWMS — emergency assembly point", "SWMS — how the controls will be checked during the job", "SWMS — changes to hazards or controls during this job (write 'None' if none)"]) {
-      expect(fix).toContain(`"${gone}"`);
-      expect(labels).not.toContain(gone);
-    }
-    for (let n = 1; n <= 4; n++) {
-      expect(fix).toContain(`"SWMS — worker ${n}: …"`);
-      expect(labels.some((l) => l.startsWith(`SWMS — worker ${n}:`))).toBe(false);
-    }
+    for (const gone of ["SWMS — hazards on this job (tick every one that applies)", "SWMS — lead installer signature", "SWMS — signed at (date and time)", "SWMS — prepared by (installer business name)", "SWMS — first aider on site (name)", "Installation finished at (date and time)", "SWMS — day 2 re-check: date, time and lead installer initials (and any change to the SWMS)", "SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)"]) expect(labels).not.toContain(gone);
+    expect(labels.some((l) => /^SWMS — (worker \d|I am the lead installer)/.test(l) || /additional installer \d: I have read/.test(l))).toBe(false);
+    expect(installEvidenceQuestionList().filter((q) => q.optional).map((q) => q.label)).toEqual([S.changes]);
   });
 });

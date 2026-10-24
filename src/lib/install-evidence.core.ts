@@ -100,7 +100,7 @@ export const SWMS_HRCW_NONE = SWMS_HRCW_OPTIONS[5];
  *  the standard-controls instruction on the form (`short`: `control`.). The filed PDF prints every one of them. */
 export const SWMS_HAZARDS: readonly { name: string; short: string; control: string }[] = [
   { name: "Live electrical hazards", short: "Live electrical", control: "power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables" },
-  { name: "Hazardous substances (friable asbestos, harmful chemicals)", short: "Hazardous substances", control: "if asbestos is suspected, do not disturb it — stop work and call the office (an asbestos control plan is needed before work continues); no chemicals or solvents used in the ceiling" },
+  { name: "Hazardous substances (friable asbestos, harmful chemicals)", short: "Hazardous substances", control: "if asbestos is suspected, do not disturb it — stop work; it is a licensed asbestos removalist's job before work continues; no chemicals or solvents used in the ceiling" },
   { name: "Biological hazards (mould, animal waste)", short: "Biological (mould, animal waste)", control: "do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating" },
   { name: "High temperatures and heat exhaustion", short: "Heat", control: "work early, water and a break every 30 minutes, stop in extreme heat" },
   { name: "Unsafe noise and vibration levels", short: "Noise and vibration", control: "hearing protection for blowers and power tools" },
