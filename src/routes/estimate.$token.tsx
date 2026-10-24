@@ -8,9 +8,9 @@ import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import type { ReadyCheckAcceptanceState as AssessmentAcceptanceState } from "@/lib/readycheck.core";
-import { ReadyCheckTimesPicker, ReadyCheckTimesStatus } from "@/components/portal/ready-check-times";
+// Jo 24 Oct 2026 (decision 53): no Ready Check time picker here — the installer the office picks offers the times.
+import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { ReadyCheckVisitChange } from "@/components/portal/visit-changes";
-import { piesaWindowBlockers, type PiesaWindowPick } from "@/lib/piesa-windows.core";
 import { SPOT_HELD_MESSAGE } from '@/lib/ready-check-booking-access.core';
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
@@ -42,7 +42,6 @@ function PublicEstimatePage() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [picks, setPicks] = useState<PiesaWindowPick[]>([]);
   useEffect(() => {
     const sync = () => setConfirming(window.location.hash === "#confirm");
     sync();
@@ -53,7 +52,7 @@ function PublicEstimatePage() {
   const fee = data?.estimate?.fees?.piesa;
   const showConfirm = data?.bookingAllowed && confirming && standard && typeof fee === "number";
   const run = async (action: () => Promise<unknown>) => { setBusy(true); setActionError(null); try { await action(); await refetch(); } catch (e) { setActionError(e instanceof Error ? e.message : "This action could not be completed."); } finally { setBusy(false); } };
-  const acceptCurrent = () => run(() => accept({ data: { token, picks } }));
+  const acceptCurrent = () => run(() => accept({ data: { token } }));
   const openReadyCheck = () => {
     window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#confirm`);
     setConfirming(true);
@@ -68,7 +67,7 @@ function PublicEstimatePage() {
           : <>
              {data.job.job_number && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">Reference {data.job.job_number}</p>}
              {showConfirm
-                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} picker={<ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />} canSubmit={piesaWindowBlockers(picks).length === 0} after={<><ReadyCheckTimesStatus token={token} /><ReadyCheckVisitChange token={token} /></>} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} after={<><OwnerReadyCheckTimes token={token} /><ReadyCheckVisitChange token={token} /></>} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                  : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage onReadyCheck={data.bookingAllowed ? openReadyCheck : undefined} readyCheckClose={data.bookingAllowed ? undefined : data.spotHeld ? <p role="status" className="mt-6 border-t border-estimate-blue-soft pt-6 font-bold">{SPOT_HELD_MESSAGE}</p> : <a className="estimate-action-button mt-6 flex min-h-12 items-center justify-center rounded-md px-4 py-3 font-extrabold" href={`/estimate/${token}/campaign`}>Save my spot</a>} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}

@@ -106,6 +106,29 @@ export const ownerSuggestInstallDaysFn = createServerFn({ method: "POST" }).midd
     return (await import("./install-days.server")).ownerSuggestDays(s.jobId, s.userId, data.days);
   });
 
+/** Jo 24 Oct 2026 (decision 52): our-lead Ready Check — the installer's 3 times (times only, no installer contact). */
+export const ownerReadyCheckTimesFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    return JSON.parse(JSON.stringify(await (await import("./ready-check-times.server")).ownerReadyCheckTimesState(jobId)));
+  });
+
+export const ownerTakeReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, proposalId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./ready-check-times.server")).ownerTakeReadyCheckTime(s.jobId, data.proposalId, s.userId);
+  });
+
+export const ownerSuggestReadyCheckDaysFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5) }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./ready-check-times.server")).ownerSuggestReadyCheckDays(s.jobId, s.userId, data.days);
+  });
+
 export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, session, ...signer, accept: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {

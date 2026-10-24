@@ -178,7 +178,7 @@ describe("3. a confirmed Ready Check booking starts exactly one creation", () =>
     // Kept OUT of booking.server.ts on purpose: the autoAdvanceJob import graph must never reach Mitti (tests/comms.test.ts).
     expect(readFileSync("src/lib/booking.server.ts", "utf8")).not.toContain("mitti-create");
     const sites: [string, string][] = [
-      ["src/lib/readycheck-booking.server.ts", 'await confirmBooking(o.job_id, "ready_check"'],
+      ["src/lib/ready-check-times.server.ts", 'await confirmBooking(jobId, "ready_check", startsAt'], // Jo 24 Oct: owner/installer agree a time
       ["src/lib/installer-ready-check.server.ts", 'await confirmBooking(jobId, "ready_check", new Date(startIso)'],
       ["src/lib/installer-ready-check.server.ts", 'try { await confirmBooking(jobId, "ready_check", w.starts_at'],
       ["src/lib/onsite-ready-check.server.ts", 'await confirmBooking(job.id, "ready_check"'],

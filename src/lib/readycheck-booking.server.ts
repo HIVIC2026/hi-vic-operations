@@ -1,29 +1,17 @@
 import { partnerAllowedForJob } from "./test-send.core";
-// Ready Check booking persistence: owner windows, installer matching/offers, one-tap booking, rounds, timer.
-// Rules: readycheck-booking.core.ts. Atomic acceptance in SQL: accept_ready_check_offer (migration 0099).
+// Ready Check booking persistence: installer matching, the office-picked offer (one installer, 24 hours), the timer, and
+// the legacy owner windows (installer-supplied customers only; kept as history on our leads).
+// Jo 24 Oct 2026: on our leads the office picks the installer and the installer offers the owner the times
+// (ready-check-times.server); there are no automatic batch offers and owners no longer give Ready Check times.
+// Rules: readycheck-booking.core.ts + ready-check-times.core.ts. Atomic acceptance in SQL: accept_ready_check_offer.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { verifiedServiceAreaMatch, partnerWorkBlocker, type BusinessLike } from "./pilot.core";
-import { ACCEPT_OUTCOME_MESSAGE, offerExpiryBusinessHours } from "./allocation.core";
 import { melbourneYmd, piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } from "./piesa-windows.core";
-import {
-  READY_CHECK_NO_TAKER_DETAIL, READY_CHECK_UNPAID_NOTE, READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate,
-  installerEligibilityBlocker, nextInstallerBatch, readyCheckNoTakerStep, readyCheckStartBlockers,
-} from "./readycheck-booking.core";
+import { READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate, installerEligibilityBlocker } from "./readycheck-booking.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 type Pick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
-
-async function settings() {
-  const { data } = await admin.from("workflow_settings").select("rec_offer_business_hours, rec_offer_batch_size").eq("id", 1).maybeSingle();
-  return { businessHours: Number(data?.rec_offer_business_hours ?? 4), batchSize: Number(data?.rec_offer_batch_size ?? 3) };
-}
-
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 export async function readyCheckWindowRound(jobId: string) {
   const { data } = await admin.from("ready_check_windows").select("id, round, created_at, status, starts_at, ends_at").eq("job_id", jobId);
@@ -45,7 +33,9 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
   await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(jobId);
   const b = piesaWindowBlockers(picks, now);
   if (b.length) throw new WorkflowError(b.join(" "));
-  const [{ data: job }, inst, w] = await Promise.all([admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId)]);
+  const [{ data: job }, inst, w] = await Promise.all([admin.from("jobs").select("stage, channel").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId)]);
+  // Jo 24 Oct 2026 (decision 53): owners of our leads no longer give Ready Check times — the installer offers them.
+  if (job?.channel === "hivic_sourced") throw new WorkflowError(OWNER_WAITS_FOR_INSTALLER_TIMES);
   if (!job || !(READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage)) throw new WorkflowError("Ready Check times can't be chosen at this point.");
   // Installer-supplied customer whose installer asked us to collect the owner's times (Jo, 7 Oct 6pm).
   const ownInstaller = inst && (await import("./installer-ready-check.server")).ownerTimesRequested(jobId);
@@ -65,19 +55,22 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
     await admin.from("jobs").update({ next_action: "Installer to tap one of the owner's Ready Check times" }).eq("id", jobId);
     return { ok: true, round };
   }
-  await admin.from("jobs").update({ next_action: "Waiting for an installer to take one of the owner's Ready Check times" }).eq("id", jobId);
-  if (job.stage === "ready_check_ready_to_schedule" && !(await (await import("./offer-dispatch.server")).jobOfficePicks(jobId))) { try { await startReadyCheckOffers(jobId, null); } catch { /* timer retries */ } }
+  // No installer and not our lead: nothing is offered automatically (office picks the installer).
+  await admin.from("jobs").update({ next_action: "Waiting for Home Insulation Victoria to choose an installer" }).eq("id", jobId);
   return { ok: true, round };
 }
+
+export const OWNER_WAITS_FOR_INSTALLER_TIMES = "Your installer will offer you Ready Check times. We'll send you a link to choose one.";
 
 /** Owner view (no installer details). */
 export async function ownerReadyCheckWindowState(jobId: string) {
   const access = await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId);
   const [{ data: job }, inst, w, { count: asked }] = await Promise.all([
-    admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
+    admin.from("jobs").select("stage, channel").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "ready_check_more_times_requested"),
   ]);
-  const stageOk = !!job && (READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage);
+  // Our leads: the owner never picks Ready Check windows (decision 53); old windows stay as read-only history.
+  const stageOk = !!job && job.channel !== "hivic_sourced" && (READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage);
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "ready_check", w.roundStart);
   const ownInstaller = inst && (await (await import("./installer-ready-check.server")).ownerTimesRequested(jobId));
   const canPick = access.allowed && stageOk && (!inst || ownInstaller) && w.open.length === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
@@ -159,135 +152,20 @@ export async function installerCandidatesFor(jobId: string) {
   return { postcode, candidates };
 }
 
-/** Start (or continue) Ready Check offers. Refuses unless the job is waiting for a Ready Check booking with open owner times. */
-export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string | string[], opts: { adding?: boolean } = {}) {
-  await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(jobId);
-  const [{ data: job }, inst, w, { count: open }] = await Promise.all([
-    admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
-    admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending"),
-  ]);
-  const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open && !opts.adding });
-  if (b.length) throw new WorkflowError(`Ready Check offers cannot start: ${b.join(" ")}`);
-  return offerNextReadyCheckBatch(jobId, actorId, onlyBusiness);
+/** Office picks ONE installer for an our-lead Ready Check (Jo 24 Oct 2026, decisions 49–51). No automatic batches: this
+ *  is the only way a Ready Check offer is made. Logic: ready-check-times.server (officePickReadyCheckInstaller). */
+export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string | string[], _opts: { adding?: boolean } = {}) {
+  const picks = onlyBusiness ? (Array.isArray(onlyBusiness) ? onlyBusiness : [onlyBusiness]) : [];
+  return (await import("./ready-check-times.server")).officePickReadyCheckInstaller(jobId, actorId, picks);
 }
 
-async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string | string[]) {
-  const { businessHours, batchSize } = await settings();
-  const [{ candidates }, w, { data: prior }, { data: j }] = await Promise.all([
-    installerCandidatesFor(jobId), readyCheckWindowRound(jobId),
-    admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", "ready_check"),
-    admin.from("jobs").select("job_number, properties(suburb, postcode)").eq("id", jobId).single(),
-  ]);
-  let batch: { business_id: string; name?: string }[];
-  const picks = onlyBusiness ? (Array.isArray(onlyBusiness) ? onlyBusiness : [onlyBusiness]) : null;
-  if (picks) {
-    batch = picks.map((id) => {
-      const c = candidates.find((x) => x.business_id === id);
-      if (!c) throw new WorkflowError("One of those installers isn't an approved installer for this job.");
-      if (c.blocker) throw new WorkflowError(`${c.name} can't take this Ready Check: ${c.blocker}`);
-      return c;
-    });
-  } else {
-    const inRound = (prior ?? []).filter((o) => !w.roundStart || o.offered_at >= w.roundStart);
-    batch = nextInstallerBatch(candidates, new Set(inRound.map((o) => o.business_id)), batchSize);
-  }
-  if (!batch.length) {
-    if (w.round > 0) await readyCheckNoTaker(jobId, actorId, w.round);
-    return { offered: 0, exhausted: true };
-  }
-  const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
-  const p = j?.properties as { suburb: string | null; postcode: string | null } | null;
-  const summary = { job_number: j?.job_number ?? "", suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, ...(onlyBusiness ? { office_choice: true } : {}) };
-  const expires = picks ? await (await import("./offer-dispatch.server")).chosenOfferExpiry() : offerExpiryBusinessHours(new Date(), businessHours);
-  await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id), "ready_check");
-  const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind: "ready_check", batch: batchNo, summary: summary as unknown as Json, offered_by: actorId, expires_at: expires })));
-  if (error) throw new Error(error.message);
-  if (picks) await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${batch.map((b) => b.name ?? "an installer").join(", ")} for the Ready Check — offer sent only to ${batch.length === 1 ? "them" : `these ${batch.length}`}`, { kind: "ready_check", business_ids: batch.map((b) => b.business_id), business_names: batch.map((b) => b.name ?? null), business_id: batch[0]!.business_id, business_name: batch[0]!.name ?? null, expires_at: expires }, { internal: true });
-  else await logEvent(jobId, actorId, "ready_check_offers_made", `Ready Check offered to ${batch.length} approved installer(s), batch ${batchNo}`, { batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
-  return { offered: batch.length, exhausted: false };
+/** Installer answers a Ready Check offer. "Not for me" closes it and returns the job to the office. Accepting is only by
+ *  offering the owner 3 times (ready-check-times.server acceptOfferWithTimes). */
+export async function respondToReadyCheckOffer(offerId: string, userId: string, accept: boolean, reason: string | null, _windowId: string | null) {
+  if (accept) throw new WorkflowError("To accept, offer the owner 3 Ready Check times.");
+  return (await import("./ready-check-times.server")).declineReadyCheckOffer(offerId, userId, reason);
 }
 
-/** No installer took the owner's times: round 1 → ask the owner once for more times (queued only); round 2 → needs attention. Idempotent. */
-async function readyCheckNoTaker(jobId: string, actorId: string | null, round: number) {
-  if (!(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
-  const step = readyCheckNoTakerStep(round);
-  if (step === "none") return;
-  const nowIso = new Date().toISOString();
-  await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: nowIso }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
-  await admin.from("ready_check_windows").update({ status: "closed" }).eq("job_id", jobId).eq("round", round).eq("status", "open");
-  if (step === "ask_owner_for_more_times") {
-    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "ready_check_more_times_requested");
-    if (count) return;
-    await logEvent(jobId, actorId, "ready_check_more_times_requested", "No installer could take the owner's Ready Check times — owner asked to pick more times (prepared; delivery follows the sending switches)", { round }, { internal: true });
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "ready_check_more_times_requested").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ev) {
-      const { error } = await admin.rpc("enqueue_external_action", {
-        _job: jobId, _event: ev.id, _action: "customer_email", _target: `job:${jobId}`, _basis: "transactional_job_coordination",
-        _version: "ready-check-more-times-v1", _payload: `ready_check_windows:round${round}`, _facts: await sha256Hex(`${jobId}-rc-more-times-${round}`), _key: `rc-more-times-${jobId}-r${round}`,
-      });
-      if (error) console.error("ready check more-times enqueue skipped", error.message);
-    }
-    await admin.from("jobs").update({ next_action: "Waiting for the owner to pick more Ready Check times" }).eq("id", jobId);
-    return;
-  }
-  const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "ready_check_no_taker");
-  if (!count) await logEvent(jobId, actorId, "ready_check_no_taker", `${READY_CHECK_NO_TAKER_DETAIL} Needs Home Insulation Victoria`, { round }, { internal: true });
-  await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no installer could take the owner's Ready Check times" }).eq("id", jobId);
-}
-
-async function refill(jobId: string, actorId: string | null) {
-  if (!(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
-  const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).single();
-  if (job?.stage !== "ready_check_ready_to_schedule") return;
-  const [{ count: open }, inst] = await Promise.all([
-    admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending"),
-    hasActiveInstaller(jobId),
-  ]);
-  if (open || inst) return;
-  // Office-picked installer said no / ran out: wait for "Pick another" or "Send to all" in Needs me.
-  if (await (await import("./allocation.server")).officePickUnanswered(jobId, "ready_check")) return;
-  if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"
-  const w = await readyCheckWindowRound(jobId);
-  if (!w.open.length) { if (w.round > 0) await readyCheckNoTaker(jobId, actorId, w.round); return; }
-  await offerNextReadyCheckBatch(jobId, actorId);
-}
-
-/** Installer responds to a Ready Check offer. windowId = tap one of the owner's times (booked); null = accept and arrange a time. */
-export async function respondToReadyCheckOffer(offerId: string, userId: string, accept: boolean, reason: string | null, windowId: string | null) {
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, business_id").eq("id", offerId).single();
-  if (!o || o.kind !== "ready_check") throw new WorkflowError("Offer not found.");
-  if (!accept) {
-    const { data: d } = await admin.from("partner_offers").update({ status: "declined", responded_by: userId, responded_at: new Date().toISOString(), decline_reason: reason }).eq("id", o.id).eq("status", "pending").select("id").maybeSingle();
-    if (!d) throw new WorkflowError("This offer is no longer open.");
-    await logEvent(o.job_id, userId, "partner_offer_declined", "Installer declined the Ready Check offer", { reason, business_id: o.business_id }, { internal: true });
-    await refill(o.job_id, null);
-    return { ok: true };
-  }
-  const { data: isInstaller } = await admin.rpc("has_role", { _user_id: userId, _role: "installer" });
-  if (!isInstaller) throw new WorkflowError("Only an installer team member can accept a Ready Check.");
-  const { data, error } = await admin.rpc("accept_ready_check_offer", { _offer: offerId, _user: userId, _window: windowId as string });
-  if (error) throw new Error(error.message);
-  const outcome = data?.[0]?.outcome ?? "not_found";
-  if (outcome === "slot_unavailable") throw new WorkflowError("That time is no longer available. Please choose another time.");
-  if (outcome === "already_assigned" || outcome === "already_withdrawn" || outcome === "already_accepted") throw new WorkflowError("This Ready Check has just been taken.");
-  if (outcome === "not_qualified") throw new WorkflowError("Your business needs an approved installer with a Full, current EEC certification recorded by Home Insulation Victoria.");
-  if (outcome !== "accepted") throw new WorkflowError(ACCEPT_OUTCOME_MESSAGE[outcome] ?? "This offer could not be accepted.");
-  if (!windowId) {
-    await admin.from("jobs").update({ next_action: "Owner and installer to agree a Ready Check time" }).eq("id", o.job_id);
-    return { ok: true, booked: false };
-  }
-  const { data: w } = await admin.from("ready_check_windows").select("starts_at").eq("id", windowId).single();
-  try {
-    const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(o.job_id, "ready_check", w!.starts_at, userId, "installer (owner's chosen time)");
-    await (await import("./mitti-create.server")).onReadyCheckBooked(o.job_id, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message)); // T3: confirmed booking starts the form in the background
-    return { ok: true, booked: true };
-  } catch (e) {
-    await logEvent(o.job_id, userId, "ready_check_window_booking_blocked", `Owner's time taken but booking not confirmed: ${(e as Error).message}`, { window_id: windowId }, { internal: true });
-    await admin.from("jobs").update({ next_action: "Owner and installer to agree a Ready Check time" }).eq("id", o.job_id);
-    return { ok: true, booked: false };
-  }
-}
 
 /** Open owner windows for these jobs (times only, never owner details) — for the installer dashboard. */
 export async function readyCheckOfferWindows(jobIds: string[]) {
@@ -296,24 +174,8 @@ export async function readyCheckOfferWindows(jobIds: string[]) {
   return data ?? [];
 }
 
-/** 15-minute timer: expire offers → next batch; close passed times → no-taker step; start offers for jobs waiting with owner times. */
-export async function sweepReadyCheckOffers(actorId: string | null = null) {
-  const { data: gate, error: gateError } = await admin.from('workflow_settings').select('ready_check_booking_enabled').eq('id', 1).maybeSingle();
-  if (gateError || gate?.ready_check_booking_enabled !== true) return { expired: 0, started: 0 };
-  const nowIso = new Date().toISOString();
-  const { data: expired } = await admin.from("partner_offers").update({ status: "expired" }).eq("kind", "ready_check").eq("status", "pending").lt("expires_at", nowIso).select("job_id");
-  for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", "An installer Ready Check offer expired without a response", { kind: "ready_check" }, { internal: true });
-  await admin.from("ready_check_windows").update({ status: "closed" }).eq("status", "open").lt("starts_at", nowIso);
-  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "ready_check_ready_to_schedule").neq("source", "qa_test");
-  const touched = new Set([...(expired ?? []).map((o) => o.job_id), ...(waiting ?? []).map((j) => j.id)]);
-  let started = 0;
-  for (const jobId of touched) {
-    const w = await readyCheckWindowRound(jobId);
-    if (w.round === 0) continue; // old path (no owner times): unchanged
-    const before = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
-    await refill(jobId, actorId).catch((e) => console.error("ready check refill failed", (e as Error).message));
-    const after = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
-    if ((after.count ?? 0) > (before.count ?? 0)) started++;
-  }
-  return { expired: expired?.length ?? 0, started };
+/** 15-minute timer (allocation tick): Ready Check offers with no times after 24 hours close and go back to the office.
+ *  Never starts or widens offers. Logic: ready-check-times.server (sweepOfficePickedOffers). */
+export async function sweepReadyCheckOffers(actorId: string | null = null, now = new Date()) {
+  return (await import("./ready-check-times.server")).sweepOfficePickedOffers(actorId, now);
 }

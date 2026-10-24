@@ -314,7 +314,7 @@ export type NeedsCode =
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
-  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades"
+  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held";
 export type NeedsUrgency = "urgent" | "today" | "soon";
@@ -358,6 +358,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rectification_new_times: { why: "A booked electrical fixes visit was cancelled. The electrician supplies electrical fixes times, so the office arranges new ones.", next: "Ask the electrician for new times and agree one with the owner.", tab: "overview", urgency: "today" },
   choose_trades: { why: "This job is ready for an offer. “How job offers go out” is set to Office picks first, so nothing has gone out yet.", next: "Open the job and use “Choose trades for this job” to tick who gets the offer.", tab: "overview", urgency: "today" },
   offer_no_taker_24h: { why: "This job has been offered for the set time (24 hours by default) and nobody has taken one of the owner's times. Trades who still hold the offer can now suggest another time.", next: "Open the job and use “Choose trades for this job” to add more trades (those already offered keep theirs), or watch for suggested times.", tab: "overview", urgency: "today" },
+  ready_check_offer_returned: { why: "The installer you chose for this Ready Check didn't take it (Not for me, or no times within 24 hours). Nothing else was offered.", next: "Open the job and use “Choose installer” to send the offer to another installer.", tab: "overview", urgency: "today" },
   ready_check_no_taker: { why: "No installer could take the owner's Ready Check times, even after the owner gave more times.", next: "Call the owner to agree a time, then assign an approved installer from the People section.", tab: "overview", urgency: "today" },
   rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
 };
@@ -409,6 +410,7 @@ export type NeedsInput = {
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
   prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] } | undefined;
   readyCheckNoTaker?: { job_id: string; created_at: string }[];
+  readyCheckReturned?: { job_id: string; created_at: string; detail?: string | undefined }[];
   offerNoTaker?: { job_id: string; kind: string; since: string }[];
   chooseTrades?: { job_id: string; kind: string; since: string | null }[];
   visitFlags?: { job_id: string; code: "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times"; created_at: string; detail?: string | undefined }[];
@@ -452,7 +454,8 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
   for (const q of i.rectUnanswered ?? []) if (rectQuoteUnanswered({ kind: "rectification", status: "issued", sent_at: q.sent_at }, i.now)) add("rectification_quote_unanswered", q.job_id, q.sent_at);
   for (const r of i.readyCheckNoTaker ?? []) { const j = jobs.get(r.job_id); if (j?.stage === "ready_check_ready_to_schedule") add("ready_check_no_taker", r.job_id, r.created_at); }
-  for (const r of i.chooseTrades ?? []) add("choose_trades", r.job_id, r.since, r.kind === "piesa" ? "(Electrician Pre Insulation Electrical Safety Assessment (PIESA).)" : "(Installer Ready Check.)");
+  for (const r of i.readyCheckReturned ?? []) add("ready_check_offer_returned", r.job_id, r.created_at, r.detail);
+  for (const r of i.chooseTrades ?? []) add("choose_trades", r.job_id, r.since, r.kind === "piesa" ? "(Electrician Pre Insulation Electrical Safety Assessment (PIESA).)" : "(Installer Ready Check: choose one installer.)");
   for (const r of i.offerNoTaker ?? []) add("offer_no_taker_24h", r.job_id, r.since, r.kind === "piesa" ? "(Electrician Pre Insulation Electrical Safety Assessment (PIESA) offer.)" : "(Installer Ready Check offer.)");
   for (const f of i.visitFlags ?? []) add(f.code, f.job_id, f.created_at, f.detail);
   for (const f of i.installFlags ?? []) { const j = jobs.get(f.job_id); if (j?.stage === "installation_scheduling") add(f.code, f.job_id, f.created_at, f.detail); }

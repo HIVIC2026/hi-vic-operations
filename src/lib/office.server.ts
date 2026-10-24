@@ -28,7 +28,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const now = Date.now();
   const scope = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
   const jobQ = () => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, installer_site_check, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, deleted_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
+    let q = admin.from("jobs").select("id, job_number, stage, source, channel, installer_site_check, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, deleted_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
     if (opts.onlyIds) q = q.in("id", opts.onlyIds);
     return q;
   };
@@ -95,8 +95,16 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const noTaker = new Set(offersWithNoTaker(rows, hours, new Date(now)).map((r) => `${r.job_id}:${r.kind}`));
     for (const j of timed) {
       const id = String(j["id"]); const k = j["stage"] === "ready_check_ready_to_schedule" ? "ready_check" as const : "piesa" as const;
-      if (noTaker.has(`${id}:${k}`)) { offerChoice.set(id, { kind: k, state: "no_taker", hours }); continue; }
       const hasTrade = tAsg.some((a) => String(a["job_id"]) === id && a["role"] === (k === "piesa" ? "electrician" : "installer"));
+      if (k === "ready_check") {
+        // Jo 24 Oct 2026: our leads — the office picks ONE installer; a returned offer shows once as "Choose installer".
+        if (tradeChoice.has(id)) continue;
+        const { readyCheckOfficeItem } = await import("./ready-check-times.core");
+        const item = readyCheckOfficeItem({ channel: s(j["channel"]), stage: String(j["stage"]), hasInstaller: hasTrade, offers: rows.filter((o) => o.job_id === id && o.kind === k) });
+        if (item) offerChoice.set(id, { kind: k, state: "choose", hours });
+        continue;
+      }
+      if (noTaker.has(`${id}:${k}`)) { offerChoice.set(id, { kind: k, state: "no_taker", hours }); continue; }
       const out = rows.filter((o) => o.job_id === id && o.kind === k && (o.status === "pending" || o.status === "accepted")).length;
       const readyForOffer = k === "piesa" || wins.some((w) => String(w["job_id"]) === id && w["status"] === "open");
       if (needsChooseTrades({ officePicks: officePicks(mode, s(j["offer_dispatch_override"])), readyForOffer, hasTrade, offersThisRound: out })) offerChoice.set(id, { kind: k, state: "choose", hours });
