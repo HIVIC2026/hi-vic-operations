@@ -105,6 +105,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installerTexts'] = "failed";
         }
         try {
+          // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
+          // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
+          const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");
+          (out as Record<string, unknown>)['estimateFollowups'] = await sweepEstimateFollowups();
+        } catch (e) {
+          console.error("allocation tick: estimate follow-up sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['estimateFollowups'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");
