@@ -42,7 +42,8 @@ export const LEAN_Q = {
   depthPhoto: "Upload a photo clearly showing the measured insulation depth",
   existingAction: "What is required for the existing insulation?",
   removeM2: "How much existing insulation needs to be removed? (m²)",
-  overviewPhoto: "Upload an overview photo of this ceiling area",
+  /** Decision 264: the before video the rebate needs (replaces the optional overview photo); per area, before install. */
+  beforeVideo: "Slow 360° video of this ceiling area, lit, saying its name",
   downlights: "Are there recessed downlights in this ceiling area?",
   downlightsCount: "How many recessed downlights?",
   issues: "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
@@ -86,7 +87,7 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   depthPhoto: ["Photo with tape measure showing depth"],
   existingAction: ["What needs to happen to it?"],
   removeM2: ["Area to remove (m2)"],
-  overviewPhoto: ["Photo of the empty ceiling space"],
+  beforeVideo: ["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
   downlights: ["Recessed downlights in this area?"],
   downlightsCount: ["How many?"],
   issues: ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"],
@@ -135,6 +136,7 @@ export const LEAN_HELP = {
   areaName: "Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.",
   dimensions: "Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.",
   rValue: `R2.0 exactly counts as "${R_AT_OR_ABOVE}". Typical old 50–70 mm batts or thin loose fill are ${R_BELOW}.`,
+  beforeVideo: "This is the before video the rebate needs. Show any existing insulation.",
   outcome: "The portal also applies the eligibility rules from your answers above.",
   totalPrice: "Your whole price to the owner for the insulation work, including any difficult-access charge. Home Insulation Victoria adds the electrical safety check and its $349 fee and takes off the rebate.",
 } as const;

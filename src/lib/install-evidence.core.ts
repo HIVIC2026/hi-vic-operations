@@ -57,9 +57,10 @@ export const INSTALL_EVIDENCE_QUESTIONS = {
   multiDay: ID.multiDay,
   dailyRecheck: ID.dailyRecheck,
 } as const;
-/** Decision 263: the three after-install multi-file items of the install day form. Each needs at least one file per
- *  Ready Check area; the per-area m² and product come from the Ready Check record. */
-export const INSTALL_DAY_EVIDENCE = { beforeVideos: ID.beforeVideos, afterVideos: ID.afterVideos, depthPhotos: ID.depthPhotos } as const;
+/** Decisions 263/264: the two after-install multi-file items of the install day form. Each needs at least one file per
+ *  Ready Check area; the before video of each area is the Ready Check's own (JobZone.beforeVideo); the per-area m² and
+ *  product come from the Ready Check record. */
+export const INSTALL_DAY_EVIDENCE = { afterVideos: ID.afterVideos, depthPhotos: ID.depthPhotos } as const;
 /** Decision 205 wording on the old "A3 - PIISA + AP Evidence" template (still read on completed old forms). */
 export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
   zoneCount: "How many upgrade zones are you insulating on this job?",
@@ -158,7 +159,6 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
   const out: QuestionSpec[] = [];
   // Part B — the install day form's after-install files (decision 263) and the multi-day items.
   out.push(
-    { part: "B", label: INSTALL_DAY_EVIDENCE.beforeVideos, type: "video", zone: null },
     { part: "B", label: INSTALL_DAY_EVIDENCE.afterVideos, type: "video", zone: null },
     { part: "B", label: INSTALL_DAY_EVIDENCE.depthPhotos, type: "photo", zone: null },
   );
@@ -210,7 +210,7 @@ export type InstallEvidenceZoneRead = { zone: number; name: string | null; under
 export type AfterInstallRead = { onForm: boolean; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
 export type InstallEvidenceRead = { /** The "A3 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
-  /** Install day form (decision 263): the three multi-file items. Empty on the old A3. */ files: { beforeVideos: MittiMediaFile[]; afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
+  /** Install day form (decisions 263/264): the two multi-file items. Empty on the old A3. */ files: { afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
 export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
@@ -232,7 +232,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const completionSignature = sig(A.completionSignature);
   const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
-  const files = { beforeVideos: m(INSTALL_DAY_EVIDENCE.beforeVideos), afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
+  const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
   return { installDay: isInstallDayDoc(audit), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
@@ -243,9 +243,9 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
  */
 export function zoneVideoFiles(audit: unknown): { before: MittiMediaFile[] | null; after: MittiMediaFile[] | null } {
   const r = readInstallEvidence(audit);
-  // Install day form (decision 263): the before / after video items themselves (per-area coverage is checked by
-  // evaluateInstallEvidence against the Ready Check areas).
-  if (r.installDay) return { before: r.files.beforeVideos.length ? r.files.beforeVideos : null, after: r.files.afterVideos.length ? r.files.afterVideos : null };
+  // Install day form (decisions 263/264): the after-video item itself; the before videos are the Ready Check's (not on
+  // this audit). Per-area coverage is checked by evaluateInstallEvidence against the Ready Check areas.
+  if (r.installDay) return { before: null, after: r.files.afterVideos.length ? r.files.afterVideos : null };
   const n = r.formZoneCount;
   if (!r.questionsOnForm || n == null || n < 1 || n > MAX_FORM_ZONES) return { before: null, after: null };
   const zones = r.zones.slice(0, n);
@@ -259,7 +259,9 @@ export function zoneVideoFiles(audit: unknown): { before: MittiMediaFile[] | nul
 /** One upgrade zone the JOB records (Ready Check / final plan). */
 export type JobZone = { name: string | null; /** existing insulation present = under-insulated (Table 4 R-value photo applies). null = not established. */ underInsulated: boolean | null;
   /** Ready Check m² and product option for the area (decision 263: the installed figures unless the office edits). undefined = not loaded. */
-  areaM2?: number | null; product?: string | null };
+  areaM2?: number | null; product?: string | null;
+  /** Decision 264: the Ready Check holds this area's before video. undefined = not loaded. */
+  beforeVideo?: boolean | null };
 export type InstallEvidenceCtx = {
   /** Installation start date (Melbourne YYYY-MM-DD). null = unknown → rule applies. */
   installDate: string | null;
@@ -358,10 +360,13 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
   const items: InstallEvidenceItem[] = [];
   const before: string[] = [], after: string[] = [];
   if (read.installDay) {
-    // Decision 263: at least one file per Ready Check area in each of the three items; before videos before work starts.
+    // Decisions 263/264: a before video per area at the Ready Check; at least one after video and one depth photo per area.
     const add = (list: string[], id: string, label: string, r: { state: InstallEvidenceItem["state"]; problems: string[] }, count: number) => { items.push({ id, zone: null, label, state: r.state, count, problems: r.problems }); list.push(...r.problems); };
     const per = `${zoneCount} ceiling area${zoneCount === 1 ? "" : "s"}`;
-    add(before, "before_videos", INSTALL_DAY_EVIDENCE.beforeVideos, mediaProblems(`Before videos (one per area — ${per})`, read.files.beforeVideos, { min: zoneCount, video: true, workStartAt, phase: "before" }), read.files.beforeVideos.length);
+    const withVideo = ctx.zones.filter((z) => z.beforeVideo === true).length;
+    const missingBefore = ctx.zones.map((z, i) => (z.beforeVideo === true ? null : z.name?.trim() || `Area ${i + 1}`)).filter((x): x is string => !!x);
+    items.push({ id: "before_videos", zone: null, label: "Ready Check before videos", state: missingBefore.length || !ctx.zones.length ? "missing" : "met", count: withVideo, problems: [] });
+    if (missingBefore.length) before.push(`Ready Check before video missing for ${missingBefore.join(", ")} — the before video of every area is taken at the Ready Check`);
     add(after, "after_videos", INSTALL_DAY_EVIDENCE.afterVideos, mediaProblems(`After videos (one per area — ${per})`, read.files.afterVideos, { min: zoneCount, video: true, phase: "after" }), read.files.afterVideos.length);
     add(after, "depth_photos", INSTALL_DAY_EVIDENCE.depthPhotos, mediaProblems(`Depth photos with a ruler (one per area — ${per})`, read.files.depthPhotos, { min: zoneCount, video: false, phase: "after" }), read.files.depthPhotos.length);
     // The final diagram and the tax invoice need each area's product and m² from the Ready Check record.

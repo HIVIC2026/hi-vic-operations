@@ -589,6 +589,8 @@ export type A3EvidenceCtx = {
   lifeSupportConsentOnFile: boolean;
   /** Decision 211: the portal's generated final installation plan (kind `final_area_diagram`) is on the job file. */
   generatedFinalPlan?: boolean;
+  /** Decision 262: the "A3 – Install day" template (before videos come from the Ready Check). */
+  installDayForm?: boolean;
 };
 /** Decision 211 (Jo 24 Oct 2026): the generated final plan replaces the install-day "final plan" upload. Old jobs keep
  *  their uploaded plan (existingPlanMatchesInstall) as an accepted alternative. */
@@ -610,7 +612,8 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "installer_photos", min: Math.max(1, ctx.crewCount) },
     ...(elec ? [{ key: "electrician_photo" as const, min: 1 }] : []),
     { key: "isolation_photo", min: 1 },
-    { key: "before_video", min: 1 },
+    // Decision 264: on the install day form the before video of each area is the Ready Check's (checked by install-evidence).
+    ...(ctx.installDayForm ? [] : [{ key: "before_video" as const, min: 1 }]),
     { key: "product_photos", min: 1 },
     { key: "completed_video", min: 1 },
     ...(generatedPlanSatisfiesFinalPlan(ctx) ? [] : [{ key: "final_plan" as const, min: 1 }]),

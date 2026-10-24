@@ -628,6 +628,39 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
   if (!sameMittiTemplateId(mittiTemplateIdentity(template).id, MITTI_PIISA_TEMPLATE_ID))
     throw new WorkflowError("Mitti returned an unexpected or unidentifiable PIISA template; office review is required.");
+  // Decision 262: the "A3 – Install day" template (connected as the PIISA form) is prefilled by wording from job facts.
+  {
+    const id = await import("./install-day.core");
+    if (id.isInstallDayDoc(template)) {
+      const missingQs = id.installDayMissingQuestions(template);
+      if (missingQs.length) throw new WorkflowError(`The Install day form is missing questions (exact wording), so it was not created: ${missingQs.join("; ")}`);
+      const { loadCrew } = await import("./piisa-a3.server");
+      const { staff, selection } = await loadCrew(jobId);
+      if (!selection) throw new WorkflowError("Choose the install crew (lead installer and any additional installers) before sending the install day form.");
+      const cp = a3.crewSelectionProblems(selection, staff);
+      if (cp.problems.length) throw new WorkflowError(cp.problems.join(" • "));
+      if (cp.needsVerification.length) throw new WorkflowError(`Verify before work: ${cp.needsVerification.join("; ")}`);
+      const lead = staff.find((x) => x.workerId === a3.leadWorkerId(selection)) ?? null;
+      const hv = (itemId: string) => hints.find((h) => h.itemId === itemId)?.value ?? null;
+      const yes = (v: string | null) => (v == null ? null : /^\s*yes\b/i.test(v) ? true : /^\s*no\b/i.test(v) ? false : null);
+      const { a3Ctx } = await import("./piisa-prestart.server");
+      const facts = {
+        jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
+        leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
+        lifeSupport: yes(hv("lifeSupport")), solarPresent: yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
+      };
+      const prefill = id.installDayPrefillItems(template, facts, (await import("./mitti.core")).choiceOption);
+      const headerIds = new Set((await import("./mitti.core")).flatten(template).filter((e) => e.header).map((e) => String(e.id)));
+      const header_items = prefill.filter((x) => headerIds.has(x.item_id)), items = prefill.filter((x) => !headerIds.has(x.item_id));
+      const created = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items, items } as never)) as { audit_id?: string; id?: string };
+      const newId = created?.audit_id ?? created?.id;
+      if (!newId) throw new WorkflowError("Mitti did not return an audit ID.");
+      await logEvent(jobId, actorId, "mitti_piisa_audit_created", "Install day form created; prefill verification pending", { audit_id: String(newId), template: MITTI_PIISA_TEMPLATE_ID, native_version: id.INSTALL_DAY_RULE });
+      await api.shareAudit(String(newId), String(userId)); await api.setAuditOwner(String(newId), String(userId));
+      await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Install day form sent to ${email} with ${prefill.length} pre-filled answers`, { audit_id: String(newId), prefill_count: prefill.length, template: MITTI_PIISA_TEMPLATE_ID, native_version: id.INSTALL_DAY_RULE });
+      return { auditId: String(newId), reused: false, skipped: [] as string[] };
+    }
+  }
   const native = await import("./piisa-native-version.core");
   const resolved = isA3 ? native.resolvePiisaNativeVersion(template) : null;
   if (resolved && (!resolved.active || !resolved.mapping)) throw new WorkflowError(`The PIISA mapping needs review: ${resolved.problems.join("; ")}`);

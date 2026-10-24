@@ -53,8 +53,8 @@ export const INSTALL_DAY_Q = {
   productPhotos: "Photo of the packaging showing brand, model and R-value",
   declaration: "Everything on this form is true and complete",
   signature: "Lead installer's signature",
-  /** Decision 263: one multi-file item each; the files must cover every Ready Check area. */
-  beforeVideos: "Before videos: one slow 360° of each ceiling area, lit, saying the area's name",
+  /** Decisions 263/264: one multi-file item each; the files must cover every Ready Check area. The before video of each
+   *  area is a Ready Check item (ready-check-lean.core LEAN_Q.beforeVideo), not asked here. */
   afterVideos: "After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left",
   depthPhotos: "Depth photos: the new insulation in each area with a ruler standing in it",
   multiDay: "Did the install take more than one day?",
@@ -80,7 +80,7 @@ export type InstallDayQuestion = {
 };
 
 const Q = INSTALL_DAY_Q;
-/** Every question in form order (Q1–46). */
+/** Every question in form order (Q1–45). */
 export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   const out: InstallDayQuestion[] = [];
   let n = 0;
@@ -120,7 +120,6 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(7, Q.declaration, "checkbox", true);
   q(7, Q.signature, "signature", true);
   n++; // Q35: "That's the before-work part done…" text item, not a question
-  q(8, Q.beforeVideos, "video", true, { multiple: true });
   q(8, Q.afterVideos, "video", true, { multiple: true });
   q(8, Q.depthPhotos, "photo", true, { multiple: true, help: "Don't squash it." });
   const md = q(8, Q.multiDay, "yes_no", true);
@@ -180,7 +179,7 @@ export const allWithLabel = (items: Labelled[], label: string) => items.filter((
 /** Is this template / audit the "A3 – Install day" form? (Two labels no other form carries.) */
 export function isInstallDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
-  return allWithLabel(items, Q.declaration).length > 0 && allWithLabel(items, Q.beforeVideos).length > 0;
+  return allWithLabel(items, Q.declaration).length > 0 && allWithLabel(items, Q.afterVideos).length > 0;
 }
 /** Question labels the template does not carry (exact wording; "Lead installer's signature" twice). Empty = built. */
 export function installDayMissingQuestions(template: unknown): string[] {
@@ -201,7 +200,7 @@ const yesNo = (v: string | null | undefined): "Yes" | "No" | null => (v == null 
 export type InstallDayRead = {
   text: (label: string) => string | null; yn: (label: string) => "Yes" | "No" | null; ticked: (label: string) => boolean;
   media: (label: string) => MittiMediaFile[];
-  /** Q34 (before work) and Q46 (after install): the 1st and 2nd "Lead installer's signature". */
+  /** Q34 (before work) and Q45 (after install): the 1st and 2nd "Lead installer's signature". */
   declarationSignature: ReadSignature; completionSignature: ReadSignature;
 };
 export function readInstallDay(audit: unknown): InstallDayRead {
@@ -258,10 +257,10 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   return { answers: a, crew: [row(r.text(Q.lead), r.text(Q.leadCii)), second, third] };
 }
 
-/** The A3 photo items of this form by the A3 evidence keys, plus the three after-install multi-file items (decision 263). */
-export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[]; before_videos: MittiMediaFile[]; after_videos: MittiMediaFile[]; depth_photos: MittiMediaFile[] } {
+/** The A3 photo items of this form by the A3 evidence keys, plus the two after-install multi-file items (decisions 263/264). */
+export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[]; after_videos: MittiMediaFile[]; depth_photos: MittiMediaFile[] } {
   const r = readInstallDay(audit);
-  return { installer_photos: r.media(Q.installerPhotos), electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), before_videos: r.media(Q.beforeVideos), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
+  return { installer_photos: r.media(Q.installerPhotos), electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
 }
 
 // ======================================================================================================

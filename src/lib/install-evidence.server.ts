@@ -29,10 +29,21 @@ export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
   const { data: obs } = rcRow ? await admin.from("ready_check_observations").select("value").eq("ready_check_id", rcRow.id).eq("field_key", AREAS_FIELD_KEY).maybeSingle() : { data: null };
   let rc: ReturnType<typeof readAreas> = [];
   try { rc = obs ? readAreas(obs.value) : []; } catch { rc = []; }
-  if (rc.length) return rc.map((a) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null }));
   const { data: m } = await admin.from("ceiling_measurements").select("insulation_present, existing_r_value, removal_required, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  // Decision 264: whether each area's before video is on the Ready Check (the Mitti sync stores it on the measurement zones).
+  const rawZones: unknown[] = Array.isArray(m?.zones) ? (m?.zones as unknown[]) : [];
+  const mz = rawZones.filter((z): z is Record<string, unknown> => !!z && typeof z === "object" && !Array.isArray(z));
+  const videoAt = (i: number, label: string | null): boolean | null => {
+    const z = mz.find((x) => label && typeof x["label"] === "string" && String(x["label"]).trim().toLowerCase() === label.trim().toLowerCase()) ?? mz[i];
+    return z && typeof z["beforeVideo"] === "boolean" ? (z["beforeVideo"] as boolean) : null;
+  };
+  if (rc.length) return rc.map((a, i) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null, areaM2: a.areaM2, product: a.product, beforeVideo: videoAt(i, a.label) }));
   const { rcAreasFromRecord } = await import("./piisa-a3.core");
-  return rcAreasFromRecord(m ?? null, null).map((a) => ({ name: a.name ?? null, underInsulated: a.present ?? null }));
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return rcAreasFromRecord(m ?? null, null).map((a, i) => {
+    const z = mz[i];
+    return { name: a.name ?? null, underInsulated: a.present ?? null, areaM2: num(z?.["areaM2"]), product: typeof z?.["product"] === "string" ? (z["product"] as string) : null, beforeVideo: videoAt(i, a.name ?? null) };
+  });
 }
 
 async function installBooking(jobId: string) {

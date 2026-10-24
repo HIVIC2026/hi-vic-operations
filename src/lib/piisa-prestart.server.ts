@@ -33,7 +33,7 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
   const pe = await currentCopy(jobId, "piesa");
   const b1 = pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] : null;
   const generatedFinalPlan = await (await import("./area-diagram.server")).hasGeneratedFinalPlan(jobId);
-  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), generatedFinalPlan, lifeSupportConsentOnFile: !!ls?.value || lsUpload || (lsDoc ?? []).length > 0 };
+  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), generatedFinalPlan, installDayForm: isInstallDayDoc(audit), lifeSupportConsentOnFile: !!ls?.value || lsUpload || (lsDoc ?? []).length > 0 };
 }
 
 /**
