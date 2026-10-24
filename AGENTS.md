@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Xero calls and configured-state checks use the explicitly selected connector credential consistently, never a fallback connection; organisation routing remains fail-closed and TEST-only Demo isolation is preserved. Why: switching Xero accounts must not silently retain the old books.
 - Document early recovery owns module error/rejection events; the router handles preload/route catches and cache-busts reloads. Why: competing refresh handlers can interrupt startup and leave stale tabs blank.
 - Insulation tap answers use a pure route resolver and an immutable website-answer overlay saved by the `save_owner_insulation_details` RPC (live); preview hosts save only qa_test jobs, the published site saves real website owners, and answering the questions lets photo owners save their spot. Why: preview must not mutate real owners, but owners must be able to save.
 - Usual electrician settings use business-scoped append-only config events; Mitti-only electrician/commercial facts use job audit snapshots and quote-specific electrical guards. Why: editable nominations and the new formula need history without altering legacy payer rules or approved partner rates.
