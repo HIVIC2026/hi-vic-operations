@@ -1825,6 +1825,16 @@ export const recordEscSubmissionFn = createServerFn({ method: "POST" }).middlewa
     return { ok: true };
   });
 
+/** Office: the earlier notification was UPDATED in the VEU Registry (same notification ID; date/lead-installer fields only). */
+export const recordEscRegistryUpdateFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid, reference: z.string().trim().min(3).max(200), updatedAt: z.string().datetime({ offset: true }), confirmed: z.literal(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordEscRegistryUpdate } = await import("./esc.server");
+    await recordEscRegistryUpdate({ ...data, actorId: context.userId });
+    return { ok: true };
+  });
+
 /** Office: a submitted notification was withdrawn in the VEU Registry (date slipped outside its window / key details changed). History kept. */
 export const withdrawEscNotificationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ notificationId: uuid, reason: z.string().trim().min(3).max(500), withdrawnAt: z.string().datetime({ offset: true }) }).parse(d))

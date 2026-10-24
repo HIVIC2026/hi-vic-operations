@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkerStatus } from "@/components/portal/workers";
 import { OfficeWorkerCompliance } from "@/components/portal/worker-compliance";
+import { OfficeMittiInvites } from "@/components/portal/mitti-invites";
 import { decideWorker, listWorkerApprovals } from "@/lib/worker-links.functions";
 import { prepareTradeLogin } from "@/lib/trade-access.functions";
 
@@ -26,6 +27,7 @@ function Approvals() {
       <h1 className="text-2xl font-bold">Staff approvals</h1>
       <p className="mb-4 text-sm text-muted-foreground">Staff listed by partner companies. Check the licence or qualification, then approve — only approved staff can receive job links.</p>
       <OfficeWorkerCompliance />
+      <OfficeMittiInvites />
       <h2 className="mb-2 font-semibold">Waiting for approval ({pending.length})</h2>
       <ul className="mb-6 space-y-2">{pending.map((w) => <Row key={w.id} w={w} onDone={refetch} />)}{!pending.length && <li className="text-sm text-muted-foreground">Nothing waiting.</li>}</ul>
       <h2 className="mb-2 font-semibold">All staff</h2>

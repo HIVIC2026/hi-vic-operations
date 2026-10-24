@@ -1,5 +1,5 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
-import { EARLIEST_MS, LEAD_MS, sendTimingBlocker } from "./esc.core";
+import { EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 
@@ -22,7 +22,8 @@ export function escTask(i: { start: string; current: EscNotice | null; previousS
   if (curSent) return null;
   const by = new Date(s - LEAD_MS).toISOString();
   if (i.previousSent?.sent_at && Date.parse(i.previousSent.scheduled_start) !== s) {
-    const ok = sendTimingBlocker(i.previousSent.sent_at, i.start) === null;
+    // Activity Guide v1.2 §3.3.3: update (same ID) only while the original start has not passed and the new start is within 5 days.
+    const ok = registryUpdateTimingReasons(i.previousSent.scheduled_start, i.start, i.now.toISOString()).length === 0;
     return ok
       ? { code: "esc_update_registry", detail: `Install moved to ${fmt(i.start)}. Update the notification in the Registry by ${fmt(by)}, then record it.` }
       : { code: "esc_withdraw_resubmit", detail: `Install moved to ${fmt(i.start)}, outside the original notification's window. Withdraw it and resubmit by ${fmt(by)}.` };

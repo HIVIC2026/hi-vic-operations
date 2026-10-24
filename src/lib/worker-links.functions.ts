@@ -98,6 +98,8 @@ export const decideWorker = createServerFn({ method: "POST" }).middleware([requi
     if (error) throw new Error(error.message);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.approve ? "worker_approved" : "worker_rejected", summary: data.approve ? "Worker approved" : `Worker rejected: ${data.reason}`, details: { worker_id: data.id, reason: data.reason ?? null } });
     if (!data.approve) await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", data.id).is("revoked_at", null);
+    // Decision 188: approved partner person → Mitti auto-invite (switch MITTI_AUTO_INVITE_ENABLED, off = no-op). Never fails the approval.
+    if (data.approve) await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(data.id, context.userId)).catch((e) => console.error("Mitti auto-invite skipped", (e as Error).message));
     return { ok: true };
   });
 
