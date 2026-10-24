@@ -2,7 +2,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { DECLINE_REASONS, declineReasonText, OWNER_DECLINED_SCREEN } from "../src/lib/quote-decline.core";
-import { approvalCardLine } from "../src/lib/installer-quote-approval.core";
+import { installerQuoteLine } from "../src/lib/installer-quote-status.core";
 import { classifyNewInstallerJob, type NewJobFacts } from "../src/lib/installer-new-jobs.core";
 import { renderOwnerQuoteEmail } from "../src/lib/owner-quote-email.core";
 
@@ -14,7 +14,7 @@ describe("decline wording and rules", () => {
     expect(declineReasonText(null, "  ")).toBeNull();
   });
   test("installer card shows the decline", () =>
-    expect(approvalCardLine("approved", true, false, { held: false, declined: true })).toBe("Waiting on office: the owner declined the quote"));
+    expect(installerQuoteLine({ sent: true, accepted: false, held: false, declined: true })).toBe("Waiting on office: the owner declined the quote"));
   test("New from installers flags it until the office reopens", () => {
     const now = new Date("2026-10-24T08:00:00Z");
     const job = (events: NewJobFacts["events"]): NewJobFacts => ({ jobId: "j", jobNumber: "HV-3117", createdAt: "2026-10-10T00:00:00Z", source: "installer_mitti", stage: "measured_estimate_ready", owner: "Helen Yang", address: "824 High Street Road", installer: "Reinsulate", eligibility: null, hasMittiForm: true, mittiAuditId: "a", hasQuote: true, events });

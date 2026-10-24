@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { getInstallerQuotesToCheck, reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
-import { WAITING_ON_INSTALLER, mittiAuditUrl, waitingStatus } from "@/lib/installer-quote-approval.core";
+import { mittiAuditUrl } from "@/lib/mitti-link.core";
+import { missingStatus } from "@/lib/installer-quote-status.core";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InstallerQuoteDraftPanel } from "./installer-quote";
@@ -26,7 +27,7 @@ export function QuotesToCheck() {
   const [selected, setSelected] = useState<Row | null>(null);
   const [popup, setPopup] = useState<{ title: string; items: string[] } | null>(null);
   const [open, setOpen] = useState(false);
-  const ready = q.data?.rows ?? [], waiting = q.data?.waiting ?? [], declined = q.data?.declined ?? [];
+  const ready = q.data?.rows ?? [], notDrafted = q.data?.notDrafted ?? [], declined = q.data?.declined ?? [];
   const reopen = useServerFn(reopenDeclinedQuote);
   const [reopening, setReopening] = useState<string | null>(null);
   const line = (r: Row) => [r.jobNumber, r.owner ?? "Owner", r.suburb ?? "Suburb missing", r.installer ?? "Installer"].join(" · ");
@@ -55,20 +56,17 @@ export function QuotesToCheck() {
           <Button size="sm" variant="outline" disabled={reopening === d.quoteId} onClick={async () => { setReopening(d.quoteId); try { await reopen({ data: { jobId: d.jobId, quoteId: d.quoteId } }); await q.refetch(); } finally { setReopening(null); } }}>Reopen<span className="sr-only"> {d.jobNumber}</span></Button>
         </li>)}</ul>
       </div>}
-      <div data-waiting-on-installer>
+      {notDrafted.length > 0 && <div data-not-drafted>
         <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between py-2 text-sm font-semibold text-muted-foreground">
-          Waiting on installer ({waiting.length})<ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          Not drafted yet ({notDrafted.length})<ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
-        {open && <ul className="divide-y">{waiting.map(row => {
-          const missing = row.reasons.filter(r => r !== WAITING_ON_INSTALLER);
-          return <li key={row.jobId} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-            <span className="min-w-0 basis-full break-words sm:flex-1 sm:basis-auto">{line(row)}</span>
-            <span className="text-xs text-muted-foreground">{waitingStatus(row.reasons)}</span>
-            <Button variant="ghost" size="sm" disabled={!missing.length} onClick={() => setPopup({ title: `${row.jobNumber} · What's missing`, items: missing })}>What's missing</Button>
-            <MittiButton id={row.mittiAuditId} jobNumber={row.jobNumber} />
-          </li>;
-        })}</ul>}
-      </div>
+        {open && <ul className="divide-y">{notDrafted.map(row => <li key={row.jobId} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+          <span className="min-w-0 basis-full break-words sm:flex-1 sm:basis-auto">{line(row)}</span>
+          <span className="text-xs text-muted-foreground">{missingStatus(row.reasons)}</span>
+          <Button variant="ghost" size="sm" disabled={!row.reasons.length} onClick={() => setPopup({ title: `${row.jobNumber} · What's missing`, items: row.reasons })}>What's missing</Button>
+          <MittiButton id={row.mittiAuditId} jobNumber={row.jobNumber} />
+        </li>)}</ul>}
+      </div>}
     </>}
     <Dialog open={!!popup} onOpenChange={o => { if (!o) setPopup(null); }}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-lg">

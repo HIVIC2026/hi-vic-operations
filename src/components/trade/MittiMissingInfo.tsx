@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ExternalLink } from "lucide-react";
-import { mittiAuditUrl } from "@/lib/installer-quote-approval.core";
+import { mittiAuditUrl } from "@/lib/mitti-link.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export function MittiMissingInfo({ missing, stops, auditId }: { missing: string[]; stops: string[]; auditId: string }) {

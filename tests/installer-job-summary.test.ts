@@ -26,14 +26,20 @@ describe("installer job summary", () => {
     expect([s.waitingOn, s.quote.status]).toEqual(["office", "Held: Price outside range"]);
     expect(s.officeActions).toContain("Sort out the held quote: Price outside range");
   });
-  test("quote journey: installer check → office send → owner → accepted", () => {
-    const q = { total: 3900, sent: false, accepted: false, installerApproved: false };
-    const f = { ...base, mittiAuditId: "audit_1", basics: { missing: [], stops: [], completed: true } };
-    expect(installerJobSummary({ ...f, quote: q }).waitingOn).toBe("installer");
-    const ready = installerJobSummary({ ...f, quote: { ...q, installerApproved: true } });
+  test("quote journey (Jo 24 Oct: no installer approval): Complete in Mitti → office send → owner → accepted", () => {
+    const q = { total: 3900, sent: false, accepted: false, held: false };
+    const f = { ...base, mittiAuditId: "audit_1", basics: { missing: [], stops: [], completed: false } };
+    const drafted = installerJobSummary({ ...f, quote: q });
+    expect([drafted.waitingOn, drafted.upTo]).toEqual(["installer", "Waiting for Reinsulate to finish the Ready Check and press Complete in Mitti"]);
+    const done = { ...f, basics: { missing: [], stops: [], completed: true } };
+    const ready = installerJobSummary({ ...done, quote: q });
     expect([ready.waitingOn, ready.officeActions[0]]).toEqual(["office", "Check and send the quote ($3,900.00) (Quotes to check)"]);
-    expect(installerJobSummary({ ...f, quote: { ...q, installerApproved: true, sent: true } }).upTo).toBe("Waiting for the owner to accept the quote");
-    expect(installerJobSummary({ ...f, quote: { ...q, sent: true, accepted: true } }).upTo).toContain("Owner accepted the quote");
+    const held = installerJobSummary({ ...done, quote: { ...q, held: true } });
+    expect([held.waitingOn, held.quote.status]).toEqual(["office", "Held for you to check ($3,900.00)"]);
+    expect(installerJobSummary({ ...done, quote: { ...q, sent: true } }).upTo).toBe("Waiting for the owner to accept the quote");
+    expect(installerJobSummary({ ...done, quote: { ...q, sent: true, accepted: true } }).upTo).toContain("Owner accepted the quote");
+    expect(installerJobSummary({ ...done, quote: { ...q, sent: true, declined: true } }).quote.status).toBe("Declined by the owner ($3,900.00)");
+    for (const s of [drafted, ready, held]) expect(JSON.stringify(s)).not.toMatch(/approv|to check it\b/i);
   });
   test("missing owner permission is always an office action; other warnings pass through", () => {
     const s = installerJobSummary({ ...base, consent: null, warnings: ["Possible duplicate of HV-2282"] });

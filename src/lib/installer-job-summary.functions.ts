@@ -30,8 +30,8 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
     const problem = !auditId ? ev.find((e) => (FORM_PROBLEM_EVENTS as readonly string[]).includes(e.type) && (!created || e.at > created.at)) : undefined;
     const held = ev.find((e) => (HELD_EVENTS as readonly string[]).includes(e.type));
     const heldDetails = held?.details ?? {};
-    const { loadQuoteApproval } = await import("./installer-quote-approval.server");
-    const ap = await loadQuoteApproval(data.jobId).catch(() => null);
+    const { loadInstallerQuote } = await import("./installer-quote-status.server");
+    const ap = await loadInstallerQuote(data.jobId).catch(() => null);
     // Warnings the summary doesn't already show in its own rows (duplicate, A2, ineligible, not started).
     const listed = classifyNewInstallerJob({
       jobId: job.data.id, jobNumber: job.data.job_number, createdAt: job.data.created_at, source: job.data.source, stage: job.data.stage,
@@ -46,7 +46,7 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
       mittiAuditId: auditId, formProblem: problem?.summary?.trim() ?? null,
       basics: b ? { missing: b.missing ?? [], stops: b.stops ?? [], completed: b.completed === true } : null,
       heldReasons: held ? ((heldDetails["blockers"] as string[] | undefined) ?? (heldDetails["reasons"] as string[] | undefined) ?? ["Reason not recorded"]) : null,
-      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted === true, installerApproved: ap.state === "approved", ...(ap.installerJob ? { autoSendHeld: ap.held === true } : {}) } : null,
+      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted, declined: ap.declined, held: ap.held } : null,
       warnings,
     });
     return { applies: true as const, installer: biz?.name ?? null, consent: consent.data?.consent_status ?? null, ...summary };

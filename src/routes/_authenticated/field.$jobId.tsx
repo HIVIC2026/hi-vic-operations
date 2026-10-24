@@ -38,7 +38,7 @@ import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements }
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
-import { CheckQuoteCard } from "@/components/trade/CheckQuoteCard";
+import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
@@ -92,7 +92,7 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
-      {role === "installer" && <CheckQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
+      {role === "installer" && <OwnerQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
       {(role === "electrician" || (intake?.applies === false && !linkedMitti)) && <JobStatusCard jobId={jobId} />}
       {role === "installer" && intake?.applies === false && !linkedMitti && <PartnerInstallerFactsCard jobId={jobId} />}
       {role === "installer" && (linkedMitti ? <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section> : <JobElectricianCard jobId={jobId} />)}

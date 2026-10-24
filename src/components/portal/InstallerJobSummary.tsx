@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ExternalLink } from "lucide-react";
 import { getInstallerJobSummary } from "@/lib/installer-job-summary.functions";
-import { mittiAuditUrl } from "@/lib/installer-quote-approval.core";
+import { mittiAuditUrl } from "@/lib/mitti-link.core";
 import { Button } from "@/components/ui/button";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 

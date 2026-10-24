@@ -7,7 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ExternalLink } from "lucide-react";
 import { getNewInstallerJobs } from "@/lib/installer-new-jobs.functions";
 import { NEW_JOB_DAYS, type NewJobItem } from "@/lib/installer-new-jobs.core";
-import { mittiAuditUrl } from "@/lib/installer-quote-approval.core";
+import { mittiAuditUrl } from "@/lib/mitti-link.core";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
