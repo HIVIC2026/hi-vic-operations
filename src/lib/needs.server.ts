@@ -24,6 +24,11 @@ export async function loadNeedsHivic() {
   ]);
   const { data: instEv } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", ["install_ten_days_left", "install_days_declined"]).order("created_at", { ascending: false });
   const { data: rcEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "ready_check_no_taker").order("created_at", { ascending: false });
+  // Decision 120: day-10 VEEC assignment alerts stay open until the owner's signature is recorded.
+  const { data: veecEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "veec_assignment_unsigned_10_days").order("created_at", { ascending: false });
+  const veecJobIds = [...new Set((veecEv ?? []).map((e) => e.job_id).filter((x): x is string => !!x))];
+  const { data: veecSigned } = veecJobIds.length ? await admin.from("customer_assignments").select("job_id").in("job_id", veecJobIds).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").not("consumer_signed_at", "is", null) : { data: [] as { job_id: string }[] };
+  const veecSignedSet = new Set((veecSigned ?? []).map((r) => r.job_id));
   // Visit flags (cancellations / no-shows): open until a newer booking of that visit type exists, or the no-show is cleared.
   const { data: vEv } = await admin.from("workflow_events").select("job_id, created_at, details, summary").eq("event_type", "visit_needs_office").gte("created_at", new Date(Date.now() - 60 * 86_400_000).toISOString());
   const vJobs = [...new Set((vEv ?? []).map((e) => e.job_id).filter(Boolean))] as string[];
@@ -117,6 +122,7 @@ export async function loadNeedsHivic() {
     offerNoTaker,
     chooseTrades,
     readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
+    veecUnsigned: (veecEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !veecSignedSet.has(e.job_id)),
     installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
   });
   // Never nag about closed, deleted or removed jobs (Jo 21 Oct).

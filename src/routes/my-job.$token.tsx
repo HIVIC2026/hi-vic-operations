@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
@@ -127,6 +127,7 @@ function Home({ v, token }: { v: View; token: string }) {
           <span className={p.state === "done" ? "text-estimate-green" : p.state === "now" ? "font-bold text-estimate-blue" : "text-estimate-navy/60"}>{p.state === "done" ? `Done${p.at ? ` ${day(p.at)}` : ""}` : p.mustBy ? `Must be by ${day(p.mustBy)}` : p.state === "now" ? "Now" : "To come"}</span>
         </li>))}</ol>
     </section>
+    {v.veecAssignment && <VeecAssignmentCard token={token} />}
     <OwnerPaperwork token={token} />
     {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
@@ -417,9 +418,51 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
   return <>
     {v.stage !== "complete" && <Back token={token} />}
     <Hero v={v} level={HOUSE_LEVEL.all_done} headline={ownerHeadline("all_done", v.numbers.rebate)} />
+    {v.veecAssignment && <VeecAssignmentCard token={token} />}
     <Numbers v={v} />
   </>;
 }
+/** Decision 119/120: the official ESC VEEC assignment form, shown read-only and signed by the owner ONLY after the install
+ *  is recorded complete (never at acceptance). Installer → AP sign first; the owner is the last signature. */
+function VeecAssignmentCard({ token }: { token: string }) {
+  const load = useServerFn(ownerVeecAssignmentFn);
+  const sign = useServerFn(ownerSignVeecAssignmentFn);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["owner-veec", token], queryFn: () => load({ data: { token } }) });
+  const [session, setSession] = useSession();
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
+  const [ok18, setOk18] = useState(false); const [okS2, setOkS2] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [showAll, setShowAll] = useState(false);
+  if (!data) return null;
+  const rows = (data.rows ?? []) as { label: string; value: string }[];
+  if (data.signedAt) return <section data-testid="veec-signed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
+    <div><p className="font-display text-lg font-extrabold">Rebate form: Signed ✓</p><p className="text-sm">Signed {day(data.signedAt)}. {data.copySentAt ? "We've emailed you a copy." : "Your copy is on its way within 10 business days."}</p></div>
+  </section>;
+  return <section data-testid="veec-assignment" className="rounded-[22px] bg-estimate-blush p-5">
+    <p className="text-xs font-bold uppercase tracking-wide">{data.canSign ? "You need to do this" : "Coming up"}</p>
+    <h2 className="mt-1 font-display text-xl font-extrabold">Sign your rebate form (VEEC assignment)</h2>
+    <p className="mt-1 text-sm">{data.canSign ? "Check the installation details below, then sign. This lets us claim your rebate." : data.waitingOn === "installer" ? "Your installer signs their part first, then Home Insulation Victoria. We'll let you know the moment it's your turn." : "Home Insulation Victoria is signing its part. We'll let you know the moment it's your turn."}</p>
+    {rows.length > 0 && <div className="mt-3 rounded-[18px] bg-card p-4 text-sm">
+      <p className="font-bold">Section 2: Activity and personnel details</p>
+      <dl className="mt-2 grid gap-1">{rows.map((r) => <div key={r.label} className="grid grid-cols-[1fr_auto] gap-3 border-b border-estimate-line py-1 last:border-0"><dt className="text-estimate-navy/70">{r.label}</dt><dd className="text-right font-semibold">{r.value}</dd></div>)}</dl>
+    </div>}
+    <div className="mt-3 rounded-[18px] bg-card p-4 text-sm">
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Official form {data.version}</p>
+      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed">{data.rights}</pre>
+      {showAll ? <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{[data.apDeclaration, data.installerDeclaration].join("\n\n")}</pre> : <button type="button" className="mt-2 text-sm font-bold text-estimate-blue underline" onClick={() => setShowAll(true)}>Show the installer and Home Insulation Victoria declarations</button>}
+      <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{data.consumerDeclaration}</pre>
+    </div>
+    {data.canSign && <div className="mt-3">{!session ? <OwnerCodeGate token={token} onVerified={setSession} /> : <div className="space-y-3 rounded-[22px] bg-card p-4">
+      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
+      <Tick on={okS2} set={setOkS2}>To the best of my knowledge, the information provided by the installer in Section 2 is correct and complete.</Tick>
+      <Tick on={ok18} set={setOk18}>I am 18 or older and I make the declaration above (Section 4 Part B).</Tick>
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <button className={signBtn} disabled={busy || !ok18 || !okS2 || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => { setErr(""); setBusy(true); try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18: ok18, confirmsSection2: okS2 } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-veec", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>Sign my rebate form</button>
+    </div>}</div>}
+  </section>;
+}
+
 
 /** Jo-approved My job at the SPOT SAVED stage (before any Ready Check is booked). */
 function SpotSavedHome({ v, token }: { v: View; token: string }) {

@@ -66,6 +66,6 @@ describe("final VEEC assignment", () => {
   test("phase blockers are separate", () => {
     expect(templateBlockers([], "agreement").length).toBe(1);
     expect(templateBlockers([], "consent")[0]).toMatch(/ESC owner consent/);
-    expect(templateBlockers([], "final")[0]).toMatch(/official Activity 48/);
+    expect(templateBlockers([], "final")[0]).toMatch(/official ESC VEEC assignment form v1\.1/);
   });
 });
