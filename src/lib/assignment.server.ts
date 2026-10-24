@@ -299,6 +299,8 @@ export async function apPrerequisites(jobId: string): Promise<string[]> {
     warrantyCopyProvidedAt: warranty?.created_at ?? null,
     collectionNotices: facts.installers.map((i, n) => ({ installer: i.name ?? `installer ${n + 1}`, providedAt: noticeFor(workerIds[n] ?? null) })),
   };
+  // G1 (Jo 25 Oct): when no copy is recorded, say which installed product's warranty PDF is not on file (the completion pack would have recorded it otherwise).
+  if (!f.warrantyCopyProvidedAt) f.warrantyProductsNotOnFile = await (await import("./product-warranty.server")).warrantyGapsFor(jobId).catch(() => []);
   return apPrerequisiteBlockers(f);
 }
 
