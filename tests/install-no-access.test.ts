@@ -64,11 +64,15 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
     expect(d.html).toContain("Thursday 29 October");
     expect(renderInstallNoAccessEmail({ ...f, installBy: null }).text).toContain("within 30 days of your safety check");
   });
-  test("both held until Jo approves: email flag off, SMS type unapproved (never sends), behind customer_comms_enabled", () => {
-    expect(INSTALL_NO_ACCESS_NOTICE_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES[INSTALL_NO_ACCESS_SMS_TYPE as keyof typeof SMS_MESSAGE_TYPES]).toMatchObject({ audience: "owner", wordingApproved: false, quietHours: true });
+  test("approved by Jo 24 Oct (decision 217): email flag on, SMS wording approved, still behind customer_comms_enabled and the owner guards", () => {
+    expect(INSTALL_NO_ACCESS_NOTICE_APPROVED).toBe(true);
+    expect(SMS_MESSAGE_TYPES[INSTALL_NO_ACCESS_SMS_TYPE as keyof typeof SMS_MESSAGE_TYPES]).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS[INSTALL_NO_ACCESS_SMS_TYPE as keyof typeof SMS_FRESHNESS]).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
-    expect(smsBlocker({ type: INSTALL_NO_ACCESS_SMS_TYPE, to: "0400000000", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-27T00:00:00Z" })).toBe("Wording not approved yet");
+    const ok = { type: INSTALL_NO_ACCESS_SMS_TYPE, to: "0400000000", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-27T00:00:00Z" } as const;
+    expect(smsBlocker(ok)).toBeNull();
+    expect(smsBlocker({ ...ok, commsEnabled: false })).toBe("Customer communications are switched off");
+    expect(smsBlocker({ ...ok, consent: false })).toBe("No contact consent from the owner");
+    expect(smsBlocker({ ...ok, isTestRecord: true })).toBe("TEST record – use the test sender");
     const server = readFileSync("src/lib/install-no-access-notice.server.ts", "utf8");
     expect(server).toContain("sendGuardedOwnerEmail");
     expect(server).toContain("sendRealSms");
