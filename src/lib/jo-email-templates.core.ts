@@ -295,7 +295,8 @@ export function questionsHeadline(firstName: string, veuRebate?: number | null):
     ? `${firstName}, you could save ${money(veuRebate)} on ceiling insulation`
     : `${firstName}, you could save on ceiling insulation`;
 }
-export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 questions & save my spot";
+/** Decision 69 (24 Oct 2026): the approved questions-email button. */
+export const INSULATION_QUESTIONS_CTA_LABEL = "Answer & save my spot";
 function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
   const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
   const assumedNote = f.areaEstimated

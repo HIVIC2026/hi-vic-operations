@@ -77,9 +77,10 @@ describe("A2. known / unknown ceiling-area variants", () => {
   test("the known-size variants state the size the owner supplied; unknown states the 150 m² assumption", () => {
     const known = renderJoOutcomeEmail(base({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, figures: { ...FIGURES, areaEstimated: false } }))!;
     const unknown = renderJoOutcomeEmail(base({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: false }))!;
-    expect(known.plainText).toContain("150 m² — based on the size you provided");
+    // Decision 66 wording: "Based on what you told us: 150 m² ceiling…" vs the labelled typical-size assumption.
+    expect(known.plainText).toContain("Based on what you told us: 150 m² ceiling");
     expect(known.plainText).not.toContain("estimated, not measured");
-    expect(unknown.plainText).toContain("150 m² — estimated, not measured");
+    expect(unknown.plainText).toContain("Based on a typical 150 m² ceiling (estimated, not measured)");
   });
   test("a missing size, the typical default and a declared size each choose their own variant", () => {
     const declared = selectJoOutcomeTemplate({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true });
@@ -122,8 +123,9 @@ describe("A4. T5/T6 use the media-upload CTA, not Save my spot", () => {
       const mail = renderJoOutcomeEmail(base({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: known }))!;
       expect(mail.ctas).toEqual(["upload_media"]);
       expect(mail.html).toContain("/estimate/tok/video");
-      expect(mail.plainText).toContain("Upload my photos or video →");
-      expect(mail.plainText).not.toContain("Save my spot →");
+      // Decision 69: the questions email button, pointing at the owner's questions page.
+      expect(mail.plainText).toContain("Answer & save my spot: https://estimate.homeinsulationvictoria.com.au/estimate/tok/video");
+      expect(mail.plainText).not.toContain("Save my free spot");
       expect(mail.html).not.toContain("/estimate/tok/campaign");
     }
   });
@@ -160,24 +162,24 @@ describe("A5. T7 ineligible routing is preserved", () => {
 describe("A6. the correct pricing values reach the renderer", () => {
   test("the saved figures appear verbatim in both parts of the email", () => {
     const mail = renderJoOutcomeEmail(base({}))!;
-    expect(mail.plainText).toContain("You could save $1,482");
-    expect(mail.plainText).toContain("Your estimated cost after rebate: $3,697 including GST");
-    expect(mail.plainText).toContain("Before rebate: $5,179 including GST");
+    expect(mail.plainText).toContain("You save $1,482");
+    expect(mail.plainText).toContain("You pay after the rebate: $3,697 incl. GST (full price before rebate $5,179)");
     expect(mail.html).toContain("$1,482");
     expect(mail.html).toContain("$3,697");
     expect(mail.html).toContain("$5,179");
-    // The removal allowance never appears in T1's total; it is absent there and informational elsewhere.
-    expect(mail.plainText).not.toContain("Please budget $15 per m²");
+    // The removal allowance never appears in T1; it is informational (the existing-insulation card) elsewhere.
+    expect(mail.plainText).not.toContain("If some needs removing");
     const belowR2 = renderJoOutcomeEmail(base({ insulation: "present", ceilingSizeKnown: true, deskCheckStatus: "looks_eligible" }))!;
-    expect(belowR2.plainText).toContain("Please budget $15 per m² including GST for the areas that need removal only.");
-    expect(belowR2.plainText).toContain("Removal is not included in this preliminary quote.");
+    expect(belowR2.plainText).toContain("If some needs removing: $15/m², only the areas that need it.");
+    expect(belowR2.plainText).toContain("If it can stay: $0.");
     // It is never added to the quoted total.
-    expect(belowR2.plainText).toContain("Before rebate: $5,179 including GST");
+    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price before rebate $5,179)");
   });
-  test("the itemised split uses the figures supplied, and no unsupplied figure is invented", () => {
+  test("the included card states the customer price and rebate supplied, and no unsupplied figure is invented", () => {
     const mail = renderJoOutcomeEmail(base({}))!;
-    expect(mail.plainText).toContain("$4,481");
-    expect(mail.plainText).toContain("$349");
+    expect(mail.plainText).toContain("WHAT'S INCLUDED IN $3,697");
+    expect(mail.plainText).toContain("The $1,482 comes straight off your price.");
+    expect(mail.plainText).not.toContain("$4,481");
   });
   test("templates 1–6 refuse to render without figures (fail closed, never a $0 email)", () => {
     expect(() => renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: false, recipient: RECIPIENT, links: LINKS } as JoOutcomeEmailInput)).toThrow();

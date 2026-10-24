@@ -1,12 +1,14 @@
 // Jo 24 Oct 2026 (decision 111): once the PIESA is signed and the install day is booked, the signed copy goes to the
 // owner and the installer automatically, so "Signed PIESA copy delivery" (readyToInstall) and PIISA Part 8(a) clear
 // without an office step. Pure rules + wording only. Persistence and sending: piesa-delivery.server.ts.
-// Wording is DRAFT until Jo approves it: PIESA_COPY_EMAIL_APPROVED stays false, real jobs only log "not sent".
+// Design approved (decision 131): docs/templates/approved/O28-piesa-copy.html — "your electrical safety check: all clear"
+// (or "repairs completed"), result card (date, electrician, repairs, install day), PDF button, "don't let anyone into the
+// ceiling before the install". Delivery stays behind PIESA_COPY_EMAIL_APPROVED until the sending switch is turned on.
 import { escDueBy } from "./esc.core";
-import { simpleEmail } from "./simple-email.core";
+import * as K from "./email-kit.core";
 
 export const PIESA_COPY_EMAIL_APPROVED = false as boolean;
-export const PIESA_COPY_EMAIL_VERSION = "piesa-copy-v1-draft";
+export const PIESA_COPY_EMAIL_VERSION = "piesa-copy-v2-approved-design";
 export const PIESA_COPY_DELIVERED_EVENT = "piesa_copy_delivered";
 export const PIESA_COPY_NOT_SENT_EVENT = "piesa_copy_email_not_sent";
 /** How many install bookings one 15-minute tick looks at. */
@@ -59,29 +61,66 @@ export function piesaDeliveryPlan(f: PiesaDeliveryFacts, now = new Date()): Pies
 /** One idempotency key per recipient and signed copy: a re-signed PIESA is a new copy and goes again. */
 export const piesaCopyKey = (signedCopyId: string, recipient: PiesaCopyRecipient) => `piesa-copy:v1:${signedCopyId}:${recipient}`;
 
-const fmtDate = (ymd: string | null) => {
+const fmtDate = (ymd: string | null, weekday = true) => {
   if (!ymd || !/^\d{4}-\d{2}-\d{2}/.test(ymd)) return null;
   const d = new Date(`${ymd.slice(0, 10)}T00:00:00+10:00`);
-  return Number.isFinite(d.getTime()) ? d.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" }) : null;
+  return Number.isFinite(d.getTime()) ? d.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", ...(weekday ? { weekday: "long" } : {}), day: "numeric", month: "long", year: "numeric" }) : null;
+};
+const fmtInstall = (iso: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  const day = d.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" });
+  const t = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true }).format(d).replace(/\s/g, "").replace(":00", "").toLowerCase();
+  return `${day}, arriving ${t}`;
 };
 
-/** DRAFT wording (Jo to approve). No prices, no other party's contact details. */
-export function renderPiesaCopyEmail(i: { recipient: PiesaCopyRecipient; firstName: string | null; address: string | null; jobNumber: string; signatureDate: string | null; installStart: string | null; link: string; test?: boolean }) {
+export type PiesaCopyEmailInput = {
+  recipient: PiesaCopyRecipient; firstName: string | null; address: string | null; jobNumber: string; signatureDate: string | null; installStart: string | null; link: string; test?: boolean;
+  /** Electrician business + licence/REC numbers, when known. */
+  electrician?: { name: string | null; licence?: string | null; rec?: string | null } | null;
+  /** Repairs: null/undefined = none recorded; a CES number means repairs were completed. */
+  repairs?: { completed: boolean; cesNumber?: string | null } | null;
+};
+
+/** Decision 131 wording. No prices, no other party's contact details. */
+export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const where = i.address?.trim() || "the property";
   const signed = fmtDate(i.signatureDate);
-  const install = i.installStart ? new Date(i.installStart).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" }) : null;
+  const install = fmtInstall(i.installStart);
+  const repaired = i.repairs?.completed === true;
+  const first = K.cleanName(i.firstName) ?? "there";
   const subject = `Signed electrical safety check (PIESA) – ${i.jobNumber}`;
-  const lines = i.recipient === "owner"
-    ? [
-      `Here is the signed copy of the pre-installation electrical safety assessment (PIESA) for ${where}${signed ? `, completed on ${signed}` : ""}. It is kept on your Home Insulation Victoria job file.`,
-      install ? `Your insulation install is booked for ${install}. The installer has been sent the same copy and will confirm on the day that they have received it.` : "The installer has been sent the same copy.",
-      "Please keep this email with your records.",
-    ]
-    : [
-      `Here is the signed copy of the pre-installation electrical safety assessment (PIESA) for ${where} (${i.jobNumber})${signed ? `, completed on ${signed}` : ""}. The owner has been sent the same copy.`,
-      install ? `The install is booked for ${install}. On the day, tick Part 8(a) of the installer safety assessment (PIISA): "I have received a completed copy of the pre-installation electrical safety assessment for the premises".` : "On install day, tick Part 8(a) of the installer safety assessment (PIISA) to confirm you received it.",
-      "Please keep this email with your records.",
-    ];
-  const mail = simpleEmail(`Hi ${i.firstName?.trim() || "there"},`, lines, { label: i.recipient === "owner" ? "Open my job page" : "Open the job in the portal", url: i.link }, { testLabel: i.test === true });
-  return { subject, html: mail.html, text: mail.text };
+  const owner = i.recipient === "owner";
+  const headline = owner
+    ? `${first}, your electrical safety check: ${repaired ? "repairs completed" : "all clear"}`
+    : `${first}, the owner's electrical safety check for ${i.jobNumber}: ${repaired ? "repairs completed" : "all clear"}`;
+  const intro = owner
+    ? "Here's your copy of the completed pre-installation electrical safety assessment (the PIESA) for your home. The VEU program requires you to have it at least 24 hours before your install, so please keep this email."
+    : `Here's the signed copy of the pre-installation electrical safety assessment (PIESA) for ${where} (${i.jobNumber}). The owner has been sent the same copy. On install day, tick Part 8(a) of the installer safety assessment (PIISA): "I have received a completed copy of the pre-installation electrical safety assessment for the premises".`;
+  const el = i.electrician?.name?.trim() ? [i.electrician.name.trim(), i.electrician.licence ? `Lic. ${i.electrician.licence}` : null, i.electrician.rec ? `REC ${i.electrician.rec}` : null].filter(Boolean).join(" · ") : null;
+  const rows: { k: string; v: string }[] = [
+    ...(signed ? [{ k: "Checked on", v: signed }] : []),
+    ...(el ? [{ k: "Electrician", v: el }] : []),
+    { k: "Repairs needed", v: repaired ? `Completed${i.repairs?.cesNumber ? ` · CES ${i.repairs.cesNumber}` : ""}` : "None" },
+    ...(install ? [{ k: owner ? "Your install" : "Install", v: install }] : []),
+  ];
+  const after = owner
+    ? `Your installer has the same copy. One thing to know: <strong>please don't let anyone into the ceiling before the install</strong>. If anything changes up there, the check may need to be done again.`
+    : `Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.`;
+  const body = [
+    K.h1(headline, 8),
+    K.p(intro),
+    K.resultCard({ label: "Safety check result", headline: repaired ? "Safe to insulate (after repairs) ✓" : "Safe to insulate ✓", rows, kv: true }),
+    K.button(i.link, "View your safety check (PDF)"),
+    K.p(after, "16px 0 0", true),
+    K.small(owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email."),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: intro.slice(0, 120), testLabel: i.test === true, unsubscribe: null });
+  const text = K.plainText([
+    headline, "", intro, "",
+    "SAFETY CHECK RESULT", repaired ? "Safe to insulate (after repairs)" : "Safe to insulate", ...rows.map((r) => `${r.k}: ${r.v}`), "",
+    `View your safety check (PDF): ${i.link}`, "", K.stripTags(after), "", owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.",
+  ], { testLabel: i.test === true });
+  return { subject, html, text };
 }

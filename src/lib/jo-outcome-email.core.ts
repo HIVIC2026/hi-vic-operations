@@ -1,19 +1,15 @@
 /**
- * P1-R3-S92 — GAP-1: the workflow-to-renderer wiring for Jo's templates 1–7.
+ * The real owner first-message renderers (Jo, 24 Oct 2026, decisions 66–69 and 73; applied under decision 137).
  *
- * PURE module: no database, no network, no email sending, no pricing calculation. It exists so the
- * customer OUTCOME workflows stop hand-picking email copy and instead ask the single canonical
- * selector (`selectJoTemplate`) which of Jo's approved templates applies.
- *
- * Responsibilities, in order:
- *   1. Translate the job's Gate-1 outcome facts into `JoRoutingInput`.
- *   2. Let `selectJoTemplate()` choose the template (or null => no Jo email => fail closed).
- *   3. Render through the EXISTING renderers `renderJoEstimateEmail` / `renderJoIneligibleEmail`.
- *   4. Wrap Jo's verbatim copy into the existing approved HTML shell so the current delivery
- *      pipeline (subject / html / plainText) is unchanged in shape.
- *
- * This module never authors, edits or re-authorises Jo's wording. It only fills the placeholders
- * Jo left in her copy ([Save my spot →], [Upload my photos or video →], [Review my result →]).
+ * PURE module: no database, no network, no email sending, no pricing calculation. Every outcome workflow asks the single
+ * canonical selector (`selectJoTemplate`) which template applies, then renders through `renderJoOutcomeEmail`:
+ *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/approved/O1-save-my-spot.html
+ *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/approved/O2-save-my-spot-some-insulation.html
+ *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/approved/O2-save-my-spot-questions.html
+ *   T7 (ineligible)                                     → Not eligible          docs/templates/approved/O6-not-eligible.html
+ * Subjects, template ids, CTA sets, link binding and fail-closed rules are unchanged; only the body copy and
+ * presentation now follow the approved designs through the shared `email-kit.core.ts`. T8 (the retired office
+ * Ready Check invitation) keeps its earlier presentation.
  */
 import {
   ctasForTemplate,
@@ -45,8 +41,9 @@ import { REMOVAL_UPTO_NOTE } from "./estimate-removal-upto.core";
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { LOGO_PNG } from "./email-hero-assets";
 import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
+import * as K from "./email-kit.core";
 
-/** Jo's footer link row, verbatim placeholders (P1-S77: bound to real links, never shown as bracketed text). */
+/** Jo's footer link row, verbatim placeholders (T8 only; P1-S77: bound to real links, never shown as bracketed text). */
 export const JO_FOOTER_LINKS_LINE = "[Contact us] · [Privacy] · [Remove my enquiry]";
 export const JO_CONTACT_URL = "https://homeinsulationvictoria.com.au/contact";
 /** T7 "Review my result" when the customer has no secure estimate link (ineligible jobs never keep one): the same
@@ -558,24 +555,144 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
     const body = bindLinks(rendered.body, input.links, rendered.ctas);
     const missing = missingCta(rendered.ctas, body);
     if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
-    return assemble(id, rendered.subject, body, rendered.ctas, input);
+    return finish(id, rendered.ctas, input, renderNotEligible(input, rendered.subject));
   }
 
   if (!input.figures) throw new Error("Templates 1–6 require the job's estimate figures; none were supplied.");
   const questions = input.insulationQuestions === true;
-  if (questions && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('The insulation questions email only applies to unconfirmed insulation.');
-  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures, { declaredThinPatchy: input.declaredThinPatchy === true, declaredExisting: input.declaredExisting === true, insulationQuestions: questions });
+  const unconfirmed = id === "potentially_eligible_unknown_size_unknown" || id === "potentially_eligible_unknown_size_known";
+  if (questions && !unconfirmed) throw new Error("The insulation questions email only applies to unconfirmed insulation.");
   const received = input.mediaAlreadyReceived === true;
-  if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
-  const copy = received ? rendered.body
-    .replace('Tell us about your existing insulation: answer three quick tap questions — no typing. Got photos or a short video? You can add them too.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
+  if (received && !unconfirmed) throw new Error("Received-media acknowledgement requires an unreviewed insulation estimate.");
+  // Subject + CTA set come from the existing template rules (unchanged); the missing-link check still fails closed.
+  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures, { declaredThinPatchy: input.declaredThinPatchy === true, declaredExisting: input.declaredExisting === true, insulationQuestions: questions });
   const ctas = rendered.ctas;
-  const linkedBody = bindLinks(copy, input.links, ctas);
-  const missing = missingCta(ctas, linkedBody);
+  const missing = missingCta(ctas, bindLinks(rendered.body, input.links, ctas));
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
-  const body = received ? linkedBody.replace('Tell us about your insulation', 'Add more photos or video →') : questions ? linkedBody.replace('|Tell us about your insulation\u0001', `|${INSULATION_QUESTIONS_CTA_LABEL}\u0001`) : linkedBody;
-  return assemble(id, rendered.subject, body, ctas, input);
+  const someInsulation = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known" || input.declaredThinPatchy === true || input.declaredExisting === true;
+  const variant: SaveSpotVariant = unconfirmed ? (received ? "received" : "questions") : someInsulation ? "some" : "none";
+  return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject));
 }
+
+function finish(id: Exclude<JoTemplateId, "ready_check_invitation">, ctas: JoCta[], input: JoOutcomeEmailInput, mail: EstimateEmail): JoWiredEmail {
+  const withFee = applyReadyCheckFee(mail, {
+    readyCheckFeeIncGst: input.readyCheckFeeIncGst ?? null,
+    ...(input.pricingCohort ? { pricingCohort: input.pricingCohort } : {}),
+    ...(input.installationRatePerM2 == null ? {} : { installationRatePerM2: input.installationRatePerM2 }),
+  }, false);
+  return { ...withFee, templateId: id, ctas };
+}
+
+// ---------------------------------------------------------------------------
+// Approved designs (decisions 66–69, 73) through the shared kit
+// ---------------------------------------------------------------------------
+type SaveSpotVariant = "none" | "some" | "questions" | "received";
+
+/** Decision 67: the removal card's rate and "up to" figure. The informational `removalUpTo` (current rate × area) wins;
+ *  without it the approved $15/m² figure applies. Never part of any total. */
+function removalCard(f: JoEstimateFigures): { ratePerM2: number; upTo: number } {
+  const area = f.ceilingAreaM2 > 0 ? f.ceilingAreaM2 : 0;
+  if (f.removalUpTo != null && f.removalUpTo > 0 && area > 0) return { ratePerM2: Math.round(f.removalUpTo / area), upTo: f.removalUpTo };
+  return { ratePerM2: 15, upTo: 15 * area };
+}
+
+/** "Based on what you told us: 137 m² ceiling, no existing insulation." — a typical-size estimate is never called the owner's size. */
+export function basisLine(f: JoEstimateFigures, someInsulation: boolean): string {
+  const ins = someInsulation ? "with some existing insulation" : "no existing insulation";
+  return f.areaEstimated
+    ? `Based on a typical ${K.m2(f.ceilingAreaM2)} ceiling (estimated, not measured), ${ins}.`
+    : `Based on what you told us: ${K.m2(f.ceilingAreaM2)} ceiling, ${ins}.`;
+}
+
+const O1_INTRO = "This is the Victorian Government's Energy Upgrades (VEU) rebate, taken straight off your price. To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.";
+const O2_INTRO = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Government's Energy Upgrades (VEU) rebate. We bring together the certified installer, licensed electrician and accredited provider you need, and organise the whole job.";
+const O1_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check. No payment, no obligation.";
+const O2_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check, where they'll also check your existing insulation. No payment, no obligation.";
+const O2Q_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
+const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's safe. Please don't climb into the roof space.";
+const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
+const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
+const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. We check all of this at your free Ready Check and tell you the exact price before you agree to anything.";
+const O1_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
+export const QUESTIONS = [
+  { title: "What type is it?", detail: "Loose fill or batts" },
+  { title: "About how thick is it?", detail: "Less than a finger, a hand's width, or thicker" },
+  { title: "When was your home built?", detail: "Pick a decade" },
+];
+
+function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, variant: SaveSpotVariant, subject: string): EstimateEmail {
+  const first = input.recipient.firstName;
+  const some = variant !== "none";
+  const rebate = K.whole(f.veuRebate), price = K.whole(f.customerTotal), full = K.whole(f.totalBeforeRebate);
+  const headline = some ? `${first}, you may qualify for ${rebate} off ceiling insulation` : `${first}, you could save ${rebate} on ceiling insulation`;
+  const basis = basisLine(f, some);
+  const calc = input.links.calculatorUrl ? { href: input.links.calculatorUrl, label: "Try a different ceiling size" } : null;
+  const removal = removalCard(f);
+  const saveUrl = input.links.saveMySpotUrl, answerUrl = input.links.uploadMediaUrl;
+  const action = variant === "questions"
+    ? `${K.sectionTitle("Save your spot: answer 3 quick questions", "22px 0 6px")}${K.p(O2Q_SAVE, "0 0 10px")}${K.questionList(QUESTIONS)}${K.button(answerUrl, INSULATION_QUESTIONS_CTA_LABEL)}${K.small(O2Q_PHOTOS, "8px 0 0", { center: true })}`
+    : variant === "received"
+      ? `${K.sectionTitle("Thanks for your photos or video", "22px 0 6px")}${K.p(RECEIVED_ACK, "0 0 4px")}${K.button(answerUrl, "Add more photos or video")}${K.small(RECEIVED_SAFETY, "8px 0 0", { center: true })}`
+      : `${K.sectionTitle("Save your spot, it's free", "22px 0 6px")}${K.p(some ? O2_SAVE : O1_SAVE, "0 0 4px")}${K.button(saveUrl, "Save my free spot")}`;
+  const body = [
+    K.h1(headline),
+    K.p(some ? O2_INTRO : O1_INTRO),
+    K.priceBox({ rebateLabel: some ? "Your potential VEU rebate" : "Your estimated VEU rebate", rebate: f.veuRebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price, fullPrice: full, basis, calculator: calc }),
+    some ? K.existingInsulationCard({ areaM2: f.ceilingAreaM2, ratePerM2: removal.ratePerM2, upTo: removal.upTo }) : "",
+    action,
+    K.spacer(8),
+    K.includedAndNotIncluded({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing: some ? O2_CLOSING : O1_CLOSING, seeEstimate: input.links.reviewResultUrl || null }),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: subject, unsubscribe: "slot" });
+  const plainText = K.plainText([
+    headline, "",
+    some ? O2_INTRO : O1_INTRO, "",
+    some ? "YOUR POTENTIAL VEU REBATE" : "YOUR ESTIMATED VEU REBATE",
+    `You save ${rebate}`,
+    `${some ? "Your cost if eligible" : "You pay after the rebate"}: ${price} incl. GST (full price before rebate ${full})`,
+    basis,
+    calc ? `Try a different ceiling size: ${calc.href}` : null, "",
+    ...(some ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${removal.ratePerM2}/m², only the areas that need it. Up to ${K.whole(removal.upTo)} for your ${K.m2(f.ceilingAreaM2)} ceiling.`, "Prices incl. GST. The installer checks this at your free Ready Check, and you'll know the exact cost before you agree to anything.", ""] : []),
+    ...(variant === "questions"
+      ? ["SAVE YOUR SPOT: ANSWER 3 QUICK QUESTIONS", O2Q_SAVE, ...QUESTIONS.map((q, n) => `${n + 1}. ${q.title} (${q.detail})`), `${INSULATION_QUESTIONS_CTA_LABEL}: ${answerUrl}`, O2Q_PHOTOS]
+      : variant === "received"
+        ? ["THANKS FOR YOUR PHOTOS OR VIDEO", RECEIVED_ACK, `Add more photos or video: ${answerUrl}`, RECEIVED_SAFETY]
+        : ["SAVE YOUR SPOT, IT'S FREE", some ? O2_SAVE : O1_SAVE, `Save my free spot: ${saveUrl}`]),
+    "",
+    ...K.includedAndNotIncludedText({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing: some ? O2_CLOSING : O1_CLOSING }),
+    input.links.reviewResultUrl ? `See your full estimate: ${input.links.reviewResultUrl}` : null,
+    "", `Reference: ${input.recipient.enquiryReference}`,
+  ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
+  return { subject, previewText: subject, html, plainText };
+}
+
+const O6_INTRO = "Thanks for checking with us. Based on what you told us, your home doesn't qualify for the VEU ceiling insulation rebate at the moment. We'd rather tell you now than waste your time.";
+const O6_RECHECK = "If any of your details were wrong, for example your ceiling size or the insulation you have, check your result and let us know. We'll take another look.";
+
+/** Decision 73: "{First}, your ceiling insulation result" with the Why box, Review my result and the friend card. */
+function renderNotEligible(input: JoOutcomeEmailInput, subject: string): EstimateEmail {
+  const first = input.recipient.firstName;
+  const reason = (input.reason ?? "").trim() || INELIGIBLE_FALLBACK_REASON;
+  const headline = `${first}, your ceiling insulation result`;
+  const body = [
+    K.h1(headline),
+    K.p(O6_INTRO),
+    K.mistBox("Why", `<div style="font-size:15px;line-height:1.55;color:${K.KIT.NAVY};">${K.esc(reason)}</div>`),
+    K.sectionTitle("Something doesn't look right?", "22px 0 6px"),
+    K.p(O6_RECHECK, "0 0 4px"),
+    K.button(input.links.reviewResultUrl, "Review my result"),
+    // "Send to a friend" opens the public eligibility checker (no customer data in the link).
+    K.friendCard(PUBLIC_CALCULATOR_URL, "eligibility"),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: subject, unsubscribe: "slot" });
+  const plainText = K.plainText([
+    headline, "", O6_INTRO, "", "WHY", reason, "", "SOMETHING DOESN'T LOOK RIGHT?", O6_RECHECK, `Review my result: ${input.links.reviewResultUrl}`, "",
+    "Know someone thinking about insulation? They can check their own eligibility in about a minute.", `Send to a friend: ${PUBLIC_CALCULATOR_URL}`, "",
+    `Reference: ${input.recipient.enquiryReference}`,
+  ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
+  return { subject, previewText: subject, html, plainText };
+}
+
 
 export const INELIGIBLE_FALLBACK_REASON =
   "Based on the details provided, the property doesn’t meet the current requirements for a VEU ceiling insulation rebate.";
@@ -619,43 +736,6 @@ export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapsh
 
 export type JoT8Email = EstimateEmail & { templateId: "ready_check_invitation"; ctas: JoCta[] };
 
-function assemble(
-  id: Exclude<JoTemplateId, "ready_check_invitation">,
-  subject: string,
-  body: string,
-  ctas: JoCta[],
-  input: JoOutcomeEmailInput,
-): JoWiredEmail {
-  const previewText = subject;
-  const { content: bodyCopy, reference } = splitJoFooter(body);
-  const content = joBodyToHtml(bodyCopy);
-  // T1–T6 reuse the Spot Saved header art; T7 has no rebate, so it keeps the same logo alone.
-  const header = id === "ineligible" ? JO_LOGO_HEADER : joHeader(input.links.reviewResultUrl, "headline", firstHeadline(bodyCopy), input.previewArtSrc);
-  const html = joShell(
-    header,
-    subject,
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${content}</td></tr></table>`,
-    reference,
-  );
-  // Jo's body is already the plain-text email; only the CTA markers need stripping.
-  const plainText = plainTextOf(body);
-  const mail: EstimateEmail = { subject, previewText, html, plainText };
-  const withFee = applyReadyCheckFee(
-    mail,
-    {
-      readyCheckFeeIncGst: input.readyCheckFeeIncGst ?? null,
-      ...(input.pricingCohort ? { pricingCohort: input.pricingCohort } : {}),
-      ...(input.installationRatePerM2 == null ? {} : { installationRatePerM2: input.installationRatePerM2 }),
-    },
-    false,
-  );
-  return { ...withFee, templateId: id, ctas };
-}
-
-/**
- * The plain-text twin of Jo's copy: token markers become readable "Label: url" lines, headings lose
- * their markdown prefix and Jo's markdown table becomes one "Item — $Amount" line per row.
- */
 function plainTextOf(body: string): string {
   const lines = body.split("\n");
   const out: string[] = [];

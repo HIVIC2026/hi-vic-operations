@@ -299,10 +299,9 @@ describe("assumed-size indicative email disclosure (owner-approved OPTION A)", (
       },
     })!;
     const body = `${mail.html}\n${mail.plainText}`;
-    expect(body).toContain(`Ceiling size: ${DEFAULT_ESTIMATED_AREA_M2} m² — estimated, not measured`); // (1)
-    expect(body).toMatch(/You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote/); // (1)+(2)
+    expect(body).toContain(`Based on a typical ${DEFAULT_ESTIMATED_AREA_M2} m² ceiling (estimated, not measured)`); // (1)+(2)
     expect(body).toMatch(/Ready Check/);                                // (3)
-    expect(body).toMatch(/final price will depend on the measured ceiling area/i); // (4)
+    expect(body).toMatch(/tell you the exact price before you agree to anything/i); // (4)
     expect(mail.subject).toBe("Sam, you could save $1,482 on ceiling insulation");
   });
 });

@@ -8,26 +8,31 @@ import { logEvent } from "./workflow.server";
 export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, source, channel").eq("id", jobId).maybeSingle();
   if (!job || job.channel !== "hivic_sourced") return "skipped";
-  const [{ data: owner }, { data: asg }, { data: link }, { count: before }] = await Promise.all([
+  const [{ data: owner }, { data: asg }, { data: link }, { count: before }, { data: prop }, { data: saved }] = await Promise.all([
     admin.from("owners").select("full_name, email").eq("id", job.owner_id).maybeSingle(),
-    admin.from("job_assignments").select("businesses(name, trading_name, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
+    admin.from("job_assignments").select("businesses(name, trading_name, phone, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
     admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "cancelled"),
+    admin.from("jobs").select("properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+    admin.from("lead_campaign_responses").select("saved_veu_discount, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
   ]);
+  const estimate = saved?.saved_total && Number(saved.saved_total) > 0 ? { rebate: Number(saved.saved_veu_discount ?? 0), price: Number(saved.saved_total), areaM2: Number(saved.saved_area_m2 ?? 0) } : null;
+  const p = (prop?.properties ?? null) as { address_line: string | null; suburb: string | null } | null;
   const changed = (before ?? 0) > 0;
   const { linkUsable } = await import("./estimatelink.core");
   if (!link || !linkUsable(link)) {
     await logEvent(jobId, null, "ready_check_booked_email_not_sent", "Ready Check booked — no working owner job link, so no booked email or text was sent", { starts_at: startIso, changed }, { internal: true });
     return "not sent — owner link missing";
   }
-  const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; onboarding_notes: string | null } | null;
+  const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; phone: string | null; onboarding_notes: string | null } | null;
   const { CUSTOMER_BASE } = await import("./engagement.core");
   const { firstName } = await import("./worker-links.core");
   const { formatReadyCheckTime } = await import("./ready-check-times.core");
   const { renderReadyCheckBookedEmail, READY_CHECK_BOOKED_EMAIL_APPROVED } = await import("./ready-check-booked-email.core");
   const input = {
     firstName: firstName(owner?.full_name ?? null), when: formatReadyCheckTime(startIso), changed,
-    installerName: (biz?.trading_name ?? biz?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,
+    installerName: (biz?.trading_name ?? biz?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, installerPhone: biz?.phone ?? null,
+    address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, estimate, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,
   };
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");

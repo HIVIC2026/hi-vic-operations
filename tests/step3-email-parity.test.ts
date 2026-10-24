@@ -41,15 +41,14 @@ describe("T1 (size unknown) = T2 (size known) except the size disclosure", () =>
     expect(b.length).toBe(a.length);
     const changed = a.map((l, i) => [l, b[i]!] as const).filter(([x, y]) => x !== y);
     expect(changed.map(([x, y]) => [x, y])).toEqual([
-      ["Ceiling size: 150 m² — based on the size you provided", "Ceiling size: 150 m² — estimated, not measured"],
-      ["We’ll confirm the ceiling measurements at your free Ready Check.", "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote. Your final price will depend on the measured ceiling area."],
+      ["Based on what you told us: 150 m² ceiling, no existing insulation.", "Based on a typical 150 m² ceiling (estimated, not measured), no existing insulation."],
     ]);
   });
   test("missing-size email states the 150 m² estimate; the size-known email never does", () => {
-    const note = "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote.";
+    const note = "Based on a typical 150 m² ceiling (estimated, not measured)";
     const t1 = withUnsubscribe(renderJoOutcomeEmail(input(false))!, UNSUB), t2 = withUnsubscribe(renderJoOutcomeEmail(input(true))!, UNSUB);
     expect(t1.plainText).toContain(note);
-    expect(t1.html).toContain("Want to explore a different ceiling size?");
+    expect(t1.html).toContain("Try a different ceiling size");
     expect(t2.plainText).not.toContain(note);
   });
 });

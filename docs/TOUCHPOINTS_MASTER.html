@@ -32,6 +32,7 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
 .rew { color: var(--rew); background: var(--rewbg); }
 .new { color: var(--new); background: var(--newbg); }
 .form { color: var(--form); background: var(--formbg); }
+.done { color: #FFFFFF; background: #07BF61; }
 .totals { background: var(--soft); border-radius: 12px; padding: 14px 16px; font-size: 14px; }
 .totals b { font-variant-numeric: tabular-nums; }
 @media (max-width: 520px) { li { grid-template-columns: 28px minmax(0, 1fr); } li .chip { grid-column: 2; justify-self: start; } }
@@ -41,7 +42,7 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
 <header>
   <h1>Every Touchpoint</h1>
   <p class="lead">Every email, text, document and form, for every person, from the first enquiry to after the install. In job order. Each one gets reviewed one at a time (wording and design) before anything is switched on.</p>
-  <div class="key"><span class="chip have">Have it</span> works, just restyle <span class="chip rew">Rewrite</span> exists but out of date <span class="chip new">New</span> needs building <span class="chip form">Official form</span> VEU/ESC document</div>
+  <div class="key"><span class="chip have">Have it</span> works, just restyle <span class="chip rew">Rewrite</span> exists but out of date <span class="chip new">New</span> needs building <span class="chip form">Official form</span> VEU/ESC document <span class="chip done">Design applied</span> approved design now rendered by the real email code (decision 137, 24 Oct 2026; emails first, pages and installer screens next)</div>
 </header>
 
 <section>
@@ -49,11 +50,11 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <ol>
     <li><span class="n">1</span><span class="what">Thanks for your enquiry (instant)</span><span class="chip new">New</span><span class="how">Email · owner · auto · confirms we've got it and what happens next</span></li>
     <li><span class="n">2</span><span class="what">Help us check your ceiling</span><span class="chip rew">Rewrite</span><span class="how">Email · owner · auto when insulation is unknown</span></li>
-    <li><span class="n">3</span><span class="what">Save my spot (no insulation / some / thin or patchy)</span><span class="chip rew">Rewrite</span><span class="how">Email · owner · auto when likely eligible · draft redesign done</span></li>
+    <li><span class="n">3</span><span class="what">Save my spot (no insulation / some / thin or patchy)</span><span class="chip done">Design applied</span><span class="how">Email · owner · auto when likely eligible · draft redesign done</span></li>
     <li><span class="n">4</span><span class="what">Save my spot reminder</span><span class="chip rew">Rewrite</span><span class="how">Text · owner · auto 24h later if not saved</span></li>
-    <li><span class="n">5</span><span class="what">Spot saved</span><span class="chip rew">Rewrite</span><span class="how">Email + text · owner · auto when they save</span></li>
-    <li><span class="n">6</span><span class="what">Not eligible</span><span class="chip have">Have it</span><span class="how">Email · owner · auto, or office "Not eligible – close"</span></li>
-    <li><span class="n">7</span><span class="what">No installer in your area yet</span><span class="chip rew">Rewrite</span><span class="how">Email · owner · when no installer covers the postcode</span></li>
+    <li><span class="n">5</span><span class="what">Spot saved</span><span class="chip done">Design applied</span><span class="how">Email + text · owner · auto when they save</span></li>
+    <li><span class="n">6</span><span class="what">Not eligible</span><span class="chip done">Design applied</span><span class="how">Email · owner · auto, or office "Not eligible – close"</span></li>
+    <li><span class="n">7</span><span class="what">No installer in your area yet</span><span class="chip done">Design applied</span><span class="how">Email · owner · when no installer covers the postcode</span></li>
     <li><span class="n">8</span><span class="what">Your installer has added your job (installer's own customers)</span><span class="chip new">New</span><span class="how">Email · owner · auto when an installer adds a job · who we are, what happens, the rebate</span></li>
   </ol>
 </section>
@@ -62,9 +63,9 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <h2>2. Ready Check</h2><p class="stage-sub">Free visit: measure, check insulation, confirm eligibility</p>
   <ol>
     <li><span class="n">9</span><span class="what">New job offer (our leads)</span><span class="chip new">New</span><span class="how">Text · installer · when office picks them · 24h to offer times</span></li>
-    <li><span class="n">10</span><span class="what">Your installer has offered Ready Check times</span><span class="chip new">New</span><span class="how">Email + text · owner · tap one to book</span></li>
+    <li><span class="n">10</span><span class="what">Your installer has offered Ready Check times</span><span class="chip done">Design applied</span><span class="how">Email + text · owner · tap one to book</span></li>
     <li><span class="n">11</span><span class="what">Owner suggested other days</span><span class="chip new">New</span><span class="how">Text · installer · back-and-forth</span></li>
-    <li><span class="n">12</span><span class="what">Ready Check booked</span><span class="chip rew">Rewrite</span><span class="how">Email + text · owner and installer · when a time is agreed</span></li>
+    <li><span class="n">12</span><span class="what">Ready Check booked</span><span class="chip done">Design applied</span><span class="how">Email + text · owner and installer · when a time is agreed</span></li>
     <li><span class="n">13</span><span class="what">Ready Check tomorrow</span><span class="chip new">New</span><span class="how">Text · owner · day before</span></li>
     <li><span class="n">14</span><span class="what">Today's Mitti forms (6:30am)</span><span class="chip have">Have it</span><span class="how">Text · installer · each morning with links</span></li>
     <li><span class="n">15</span><span class="what">Your Mitti form is missing answers</span><span class="chip rew">Rewrite</span><span class="how">Text · installer · after sync finds gaps</span></li>
@@ -76,13 +77,13 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <h2>3. Quote and accepting</h2><p class="stage-sub">After Complete in Mitti and the office presses Send</p>
   <ol>
     <li><span class="n">17</span><span class="what">The quote itself (page + PDF)</span><span class="chip new">New</span><span class="how">Document · owner · branded quote they can save or print, with inclusions, terms and validity</span></li>
-    <li><span class="n">18</span><span class="what">Your quote is ready</span><span class="chip have">Have it</span><span class="how">Email + text · owner · v3 approved; restyle to match</span></li>
-    <li><span class="n">19</span><span class="what">Quote reminder</span><span class="chip new">New</span><span class="how">Email · owner · e.g. 3 days later, and 2 days before it expires</span></li>
+    <li><span class="n">18</span><span class="what">Your quote is ready</span><span class="chip done">Design applied</span><span class="how">Email + text · owner · v3 approved; restyle to match</span></li>
+    <li><span class="n">19</span><span class="what">Quote reminder</span><span class="chip done">Design applied</span><span class="how">Email · owner · e.g. 3 days later, and 2 days before it expires</span></li>
     <li><span class="n">20</span><span class="what">Signing code</span><span class="chip rew">Rewrite</span><span class="how">Email or text · owner · when they accept and sign</span></li>
     <li><span class="n">21</span><span class="what">Customer Acceptance + terms</span><span class="chip form">Official form</span><span class="how">Signed by owner at acceptance · includes the 30-day rule and payment terms (lawyer to check)</span></li>
-    <li><span class="n">22</span><span class="what">You're in! Quote accepted + $349 receipt</span><span class="chip new">New</span><span class="how">Email · owner · signed acceptance copy, payment receipt, what happens next</span></li>
-    <li><span class="n">23</span><span class="what">Owner accepted</span><span class="chip have">Have it</span><span class="how">Email · installer · built today</span></li>
-    <li><span class="n">24</span><span class="what">Owner declined</span><span class="chip new">New</span><span class="how">Email · installer · plus an office alert</span></li>
+    <li><span class="n">22</span><span class="what">You're in! Quote accepted + $349 receipt</span><span class="chip done">Design applied</span><span class="how">Email · owner · signed acceptance copy, payment receipt, what happens next</span></li>
+    <li><span class="n">23</span><span class="what">Owner accepted</span><span class="chip done">Design applied</span><span class="how">Email · installer · built today</span></li>
+    <li><span class="n">24</span><span class="what">Owner declined</span><span class="chip done">Design applied</span><span class="how">Email · installer · plus an office alert</span></li>
   </ol>
 </section>
 
@@ -90,10 +91,10 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <h2>4. Electrical safety check (PIESA)</h2><p class="stage-sub">Required before installation, within 30 days of the install</p>
   <ol>
     <li><span class="n">25</span><span class="what">New safety check job</span><span class="chip rew">Rewrite</span><span class="how">Text · electrician (or installer's usual electrician)</span></li>
-    <li><span class="n">26</span><span class="what">Safety check times / booked</span><span class="chip rew">Rewrite</span><span class="how">Email + text · owner · and confirmation to the electrician</span></li>
+    <li><span class="n">26</span><span class="what">Safety check times / booked</span><span class="chip done">Design applied</span><span class="how">Email + text · owner · and confirmation to the electrician</span></li>
     <li><span class="n">27</span><span class="what">Safety check tomorrow</span><span class="chip new">New</span><span class="how">Text · owner · day before</span></li>
     <li><span class="n">28</span><span class="what">PIESA form (signed copy)</span><span class="chip form">Official form</span><span class="how">To owner and installer, at least 24h before install</span></li>
-    <li><span class="n">29</span><span class="what">Electrical fixes quote (pay in full)</span><span class="chip new">New</span><span class="how">Email + page · owner · only if fixes are needed · office checks first</span></li>
+    <li><span class="n">29</span><span class="what">Electrical fixes quote (pay in full)</span><span class="chip done">Design applied</span><span class="how">Email + page · owner · only if fixes are needed · office checks first</span></li>
     <li><span class="n">30</span><span class="what">Fixes booked</span><span class="chip new">New</span><span class="how">Email + text · owner and electrician</span></li>
     <li><span class="n">31</span><span class="what">Certificate of Electrical Safety (after fixes)</span><span class="chip form">Official form</span><span class="how">To owner and installer</span></li>
   </ol>
@@ -103,16 +104,16 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <h2>5. Installation</h2><p class="stage-sub">Within 30 days of the safety check</p>
   <ol>
     <li><span class="n">32</span><span class="what">Offer the owner 3 install times</span><span class="chip new">New</span><span class="how">Text · installer · when the safety check clears</span></li>
-    <li><span class="n">33</span><span class="what">Your installer has offered install times</span><span class="chip new">New</span><span class="how">Email + text · owner · tap one, pay 10% to lock it in</span></li>
+    <li><span class="n">33</span><span class="what">Your installer has offered install times</span><span class="chip done">Design applied</span><span class="how">Email + text · owner · tap one, pay 10% to lock it in</span></li>
     <li><span class="n">34</span><span class="what">10% booking payment + receipt</span><span class="chip new">New</span><span class="how">Email · owner · Stripe</span></li>
-    <li><span class="n">35</span><span class="what">Your install is booked</span><span class="chip new">New</span><span class="how">Email · owner · draft built today · day, time, installer + phone, how to prepare</span></li>
+    <li><span class="n">35</span><span class="what">Your install is booked</span><span class="chip done">Design applied</span><span class="how">Email · owner · draft built today · day, time, installer + phone, how to prepare</span></li>
     <li><span class="n">36</span><span class="what">Owner ESC consent (Reg 23A)</span><span class="chip form">Official form</span><span class="how">Signed by owner at least 24h before install · with a reminder if not signed</span></li>
     <li><span class="n">37</span><span class="what">Before-install documents</span><span class="chip form">Official form</span><span class="how">Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if fixed) · to owner before install</span></li>
     <li><span class="n">38</span><span class="what">ESC notification</span><span class="chip form">Official form</span><span class="how">To the ESC · 5 days to 24h before install · automatic</span></li>
     <li><span class="n">39</span><span class="what">Install tomorrow</span><span class="chip new">New</span><span class="how">Text · owner and installer · day before</span></li>
     <li><span class="n">40</span><span class="what">30-day window reminders (20 and 10 days left)</span><span class="chip new">New</span><span class="how">Text · whoever's move it is</span></li>
     <li><span class="n">41</span><span class="what">Installer safety assessment (PIISA)</span><span class="chip form">Official form</span><span class="how">Installer completes before work starts</span></li>
-    <li><span class="n">42</span><span class="what">Install day changed</span><span class="chip new">New</span><span class="how">Email + text · the other party · after "Change day"</span></li>
+    <li><span class="n">42</span><span class="what">Install day changed</span><span class="chip done">Design applied</span><span class="how">Email + text · the other party · after "Change day"</span></li>
   </ol>
 </section>
 
@@ -120,14 +121,14 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
   <h2>6. After installation</h2><p class="stage-sub">Sign-off, payment, rebate and aftercare</p>
   <ol>
     <li><span class="n">43</span><span class="what">Installer declaration</span><span class="chip form">Official form</span><span class="how">Installer signs after install</span></li>
-    <li><span class="n">44</span><span class="what">Your installation is complete</span><span class="chip new">New</span><span class="how">Email · owner · thank you, what happens next, balance due</span></li>
-    <li><span class="n">45</span><span class="what">Final tax invoice + pay balance</span><span class="chip new">New</span><span class="how">Email · owner · Stripe, with receipt</span></li>
+    <li><span class="n">44</span><span class="what">Your installation is complete</span><span class="chip done">Design applied</span><span class="how">Email · owner · thank you, what happens next, balance due</span></li>
+    <li><span class="n">45</span><span class="what">Final tax invoice + pay balance</span><span class="chip done">Design applied</span><span class="how">Email · owner · Stripe, with receipt</span></li>
     <li><span class="n">46</span><span class="what">VEEC assignment form (sign)</span><span class="chip form">Official form</span><span class="how">Owner, installer and us sign · owner gets a copy within 10 business days</span></li>
-    <li><span class="n">47</span><span class="what">Completion pack</span><span class="chip new">New</span><span class="how">Email + PDF · owner · tax invoice, complaints and disputes info, care instructions, contacts, all signed forms</span></li>
+    <li><span class="n">47</span><span class="what">Completion pack</span><span class="chip done">Design applied</span><span class="how">Email + PDF · owner · tax invoice, complaints and disputes info, care instructions, contacts, all signed forms</span></li>
     <li><span class="n">48</span><span class="what">Warranties (1-year installer workmanship, 5-year product)</span><span class="chip new">New</span><span class="how">Certificate PDF · owner · in the completion pack</span></li>
     <li><span class="n">49</span><span class="what">Certificate of completion</span><span class="chip new">New</span><span class="how">Branded PDF · owner · product, R-value, area, installer, date, rebate applied</span></li>
     <li><span class="n">50</span><span class="what">Something not right? Who to contact</span><span class="chip new">New</span><span class="how">In the completion pack and on My job · us first, how to raise a warranty claim, ESC complaints</span></li>
-    <li><span class="n">51</span><span class="what">How did we go? (review request)</span><span class="chip new">New</span><span class="how">Email · owner · a week after install</span></li>
+    <li><span class="n">51</span><span class="what">How did we go? (review request)</span><span class="chip done">Design applied</span><span class="how">Email · owner · a week after install</span></li>
     <li><span class="n">52</span><span class="what">Refer a friend</span><span class="chip new">New</span><span class="how">Email · owner · with the review request or separately</span></li>
   </ol>
 </section>
@@ -135,10 +136,10 @@ li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12
 <section>
   <h2>7. Installers and electricians</h2><p class="stage-sub">Joining, working with us and getting paid</p>
   <ol>
-    <li><span class="n">53</span><span class="what">Application received</span><span class="chip new">New</span><span class="how">Email · applicant</span></li>
-    <li><span class="n">54</span><span class="what">You're approved – welcome + set password</span><span class="chip rew">Rewrite</span><span class="how">Email · new installer or electrician</span></li>
+    <li><span class="n">53</span><span class="what">Application received</span><span class="chip done">Design applied</span><span class="how">Email · applicant</span></li>
+    <li><span class="n">54</span><span class="what">You're approved – welcome + set password</span><span class="chip done">Design applied</span><span class="how">Email · new installer or electrician</span></li>
     <li><span class="n">55</span><span class="what">How it works (installer guide)</span><span class="chip new">New</span><span class="how">Email + help page · every installer on approval</span></li>
-    <li><span class="n">56</span><span class="what">Application needs a change / declined</span><span class="chip rew">Rewrite</span><span class="how">Email · applicant</span></li>
+    <li><span class="n">56</span><span class="what">Application needs a change / declined</span><span class="chip done">Design applied</span><span class="how">Email · applicant</span></li>
     <li><span class="n">57</span><span class="what">Partner agreement (signed copy)</span><span class="chip form">Official form</span><span class="how">PDF · installer or electrician</span></li>
     <li><span class="n">58</span><span class="what">Team member invite</span><span class="chip rew">Rewrite</span><span class="how">Email · worker invited by their boss</span></li>
     <li><span class="n">59</span><span class="what">Electrician invited by an installer</span><span class="chip rew">Rewrite</span><span class="how">Email · electrician</span></li>

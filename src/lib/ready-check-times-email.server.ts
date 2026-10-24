@@ -7,11 +7,15 @@ import { logEvent } from "./workflow.server";
 export async function emailOwnerReadyCheckTimes(jobId: string, startsAt: string[]): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
-  const [{ data: owner }, { data: asg }, { data: link }] = await Promise.all([
+  const [{ data: owner }, { data: asg }, { data: link }, { data: prop }, { data: saved }] = await Promise.all([
     admin.from("owners").select("full_name, email").eq("id", job.owner_id).maybeSingle(),
     admin.from("job_assignments").select("businesses(name, trading_name, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
+    admin.from("jobs").select("properties(suburb)").eq("id", jobId).maybeSingle(),
+    // Saved-spot figures for the approved price box (best-effort; the email renders without them).
+    admin.from("lead_campaign_responses").select("saved_veu_discount, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
   ]);
+  const estimate = saved?.saved_total && Number(saved.saved_total) > 0 ? { rebate: Number(saved.saved_veu_discount ?? 0), price: Number(saved.saved_total), areaM2: Number(saved.saved_area_m2 ?? 0) } : null;
   const { linkUsable } = await import("./estimatelink.core");
   const key = [...startsAt].sort().join(",");
   if (!link || !linkUsable(link)) {
@@ -26,6 +30,7 @@ export async function emailOwnerReadyCheckTimes(jobId: string, startsAt: string[
   const input = {
     firstName: firstName(owner?.full_name ?? null), times: [...startsAt].sort().map((s) => formatReadyCheckTime(s)),
     installerName: (biz?.trading_name ?? biz?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,
+    suburb: ((prop?.properties ?? null) as { suburb: string | null } | null)?.suburb ?? null, estimate,
   };
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");

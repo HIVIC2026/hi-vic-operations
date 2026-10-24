@@ -1,0 +1,219 @@
+// Decision 137 (Jo 24 Oct 2026): every email renderer produces the approved design in docs/templates/approved/*.html.
+// Each renderer is rendered with that file's sample data and checked for its headline, amounts, button label, the
+// 30-day box where applicable, the shared kit shell, and the absence of retired wording. Pure: no I/O, nothing sent.
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
+import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
+import { renderCoverageUnavailableEmail } from "../src/lib/coverage-email";
+import { renderSpotSavedEmail } from "../src/lib/spot-saved-messages.core";
+import { renderReadyCheckTimesEmail, READY_CHECK_TIMES_EMAIL_APPROVED } from "../src/lib/ready-check-times-email.core";
+import { renderReadyCheckBookedEmail, READY_CHECK_BOOKED_EMAIL_APPROVED } from "../src/lib/ready-check-booked-email.core";
+import { renderOwnerQuoteEmail, renderQuoteReminderEmail, OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED } from "../src/lib/owner-quote-email.core";
+import { renderYoureInEmail, ACCEPTANCE_EMAIL_APPROVED } from "../src/lib/acceptance-email.core";
+import { renderSafetyCheckTimesEmail, renderSafetyCheckBookedEmail, SAFETY_CHECK_EMAILS_APPROVED } from "../src/lib/safety-check-emails.core";
+import { renderFixesQuoteEmail, FIXES_QUOTE_EMAIL_APPROVED } from "../src/lib/rectification-quote-email.core";
+import { renderPiesaCopyEmail, PIESA_COPY_EMAIL_APPROVED } from "../src/lib/piesa-delivery.core";
+import { renderInstallDaysEmail, renderInstallDayChangedEmail, INSTALL_DAYS_EMAIL_APPROVED } from "../src/lib/install-days-email.core";
+import { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } from "../src/lib/install-booked-email.core";
+import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPackEmail, renderReviewRequestEmail, COMPLETION_EMAILS_APPROVED } from "../src/lib/completion-emails.core";
+import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail, INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
+import { renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
+import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
+
+const JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
+const EST = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
+const LINKS = { saveMySpotUrl: `${EST}/campaign`, uploadMediaUrl: `${EST}/video`, reviewResultUrl: EST, calculatorUrl: `${EST}/calculator` };
+const HELEN = { firstName: "Helen", propertyAddress: "824 High Street Road, Glen Waverley VIC 3150", enquiryReference: "HV-3117" };
+const FIG = { veuRebate: 1610, customerTotal: 2188, totalBeforeRebate: 3798, installation: 3100, piesaFee: 349, apFee: 349, ceilingAreaM2: 137, areaEstimated: false };
+const REINSULATE = { name: "Reinsulate", phone: "0400 000 000" };
+
+/** Retired wording (scripts/scan-retired-terms.ts customer-visible terms) must never appear. */
+const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /50 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
+const shell = (html: string, text: string, unsubscribe: boolean) => {
+  expect(html.startsWith("<!doctype html")).toBe(true);
+  expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+  expect(html).toContain("max-width:540px;background:#FBFCFA;border:1px solid #E4E9F5;border-radius:22px;");
+  expect(html.match(/VEU Accredited Person A003654/g)?.length).toBeGreaterThanOrEqual(1);
+  expect(html).toContain("ABN 44 671 613 979");
+  expect(text).toContain(FOOTER_TEXT);
+  expect(html.includes(">Unsubscribe</a>") || html.includes("<!--HIV_SECURE_UNSUBSCRIBE_LINK-->")).toBe(unsubscribe);
+  expect(html).not.toMatch(/display:\s*flex/);
+  expect(html).not.toMatch(/<script|\son[a-z]+=/i);
+  for (const re of RETIRED) { expect(html).not.toMatch(re); expect(text).not.toMatch(re); }
+};
+const has = (s: string, parts: string[]) => { for (const p of parts) expect(s).toContain(p); };
+
+describe("approved owner email designs", () => {
+  test("O1 Save my spot", () => {
+    const m = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, recipient: HELEN, figures: FIG, links: LINKS })!;
+    shell(m.html, m.plainText, true);
+    has(m.html, ["Helen, you could save $1,610 on ceiling insulation", "You save $1,610", "$2,188", "$3,798", "Based on what you told us: 137 m² ceiling, no existing insulation.", "Save my free spot", "What's included in $2,188", "Not included, only if needed"]);
+  });
+  test("O2 Save my spot, some insulation", () => {
+    const m = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, declaredThinPatchy: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS })!;
+    shell(m.html, m.plainText, true);
+    has(m.html, ["Helen, you may qualify for $1,610 off ceiling insulation", "Your potential VEU rebate", "Your cost if eligible", "Your existing insulation", "Up to $2,055 for your 137 m² ceiling.", "$15/m²", "Save my free spot", "already R2.0 or above"]);
+  });
+  test("O2 insulation questions", () => {
+    const m = renderJoOutcomeEmail({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, insulationQuestions: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS })!;
+    shell(m.html, m.plainText, true);
+    has(m.html, ["Save your spot: answer 3 quick questions", "What type is it?", "About how thick is it?", "When was your home built?", "Answer &amp; save my spot", `href="${EST}/video"`]);
+  });
+  test("O6 Not eligible", () => {
+    const m = renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient: HELEN, reason: "From the photos and details you sent us, the insulation already in your ceiling appears to be R2.0 or above.", links: LINKS })!;
+    shell(m.html, m.plainText, true);
+    has(m.html, ["Helen, your ceiling insulation result", "We'd rather tell you now than waste your time.", "appears to be R2.0 or above", "Review my result", "Send to a friend"]);
+  });
+  test("O7 Not in your area yet", () => {
+    const m = renderCoverageUnavailableEmail({ firstName: "Helen", suburb: "Mildura", postcode: "3500", missing: ["REC / electrician", "installer"], reference: "HV-1" });
+    shell(m.html, m.plainText, true);
+    has(m.html, ["Helen, we're not in Mildura just yet", "Mildura 3500", "we won't rush it", "What happens now", "We keep your details on file.", "No payment, no obligation.", "Send to a friend"]);
+  });
+  test("O10 Spot saved", () => {
+    const m = renderSpotSavedEmail({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: "824 High Street Road, Glen Waverley", myJobUrl: JOB, optOutUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=x", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=r", estimate: { gross: 3798, customer: 2188, areaM2: 137, address: "824 High Street Road, Glen Waverley VIC 3150", calculatorUrl: `${EST}/calculator` } });
+    shell(m.html, m.text, true);
+    has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting.", ">$1,610<", ">$2,188<", "Estimate incl. GST for 137 m². Confirmed at your free Ready Check.", "An installer offers you times", "Tap the time that suits you", "Free Ready Check, then your exact price", ">See my job<", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
+  });
+  test("O11 Ready Check times", () => {
+    const m = renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Deep Insulation", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, pick a time for your free Ready Check", "a certified installer near Glen Waverley is ready for you", ">Tuesday 28 October<", "8:00am &rsaquo;", "12:30pm &rsaquo;", "Suggest other days", "At your Ready Check", ">$1,610<", "What's included in $2,188"]);
+    expect(READY_CHECK_TIMES_EMAIL_APPROVED).toBe(false);
+  });
+  test("O12 Ready Check booked", () => {
+    const m = renderReadyCheckBookedEmail({ firstName: "Helen", when: "Tuesday 28 October at 8:00am", installerName: "Deep Insulation", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
+    shell(m.html, m.text, false);
+    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "<strong>Change time</strong>", "call or text Deep Insulation on 0400 000 000", ">See my job<", "What's included in $2,188"]);
+    expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(false);
+  });
+  const quote = { firstName: "Helen", address: "824 High Street Road, Glen Waverley VIC 3150", totalIncGst: 2200, rebateIncGst: 1850, subtotalIncGst: 4050, areaM2: 137.6, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, safetyCheckPrice: 349,
+    lines: [{ description: "Bradford Gold R5.0 ceiling batts, supplied and installed", lineTotalIncGst: 2752 }, { description: "Old insulation removed and taken away", lineTotalIncGst: 600 }, { description: "Electrical safety check (PIESA)", lineTotalIncGst: 349 }, { description: "Accredited Provider fee", lineTotalIncGst: 349 }],
+    quoteUrl: `${JOB}?screen=quote`, validUntil: new Date("2026-11-07T12:59:59.999Z"), officePhone: null, unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/u/x" };
+  test("O18 Quote ready", () => {
+    const m = renderOwnerQuoteEmail(quote);
+    shell(m.html, m.text, true);
+    has(m.html, ["Hi Helen, your quote is ready.", "You save $1,850 on ceiling insulation", "Taken off upfront. Nothing for you to claim.", ">$2,200.00<", "$4,050.00", "Measured at your Ready Check", ">View and accept your quote<", ">Your quote</div>", "137.6 m² × $20.00 per m²", "installed by Reinsulate, EEC-certified (AS 3999)", "40 m² × $15.00 per m²", "By a licensed electrician, before any insulation goes in", "Home Insulation Victoria (VEU A003654)", ">Full price<", "−$1,850.00", ">You pay<", "Not included: electrical fixes", "accept and pay $349.00", "held until 7 November 2026"]);
+    expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
+  });
+  test("O19 Quote reminder", () => {
+    const m = renderQuoteReminderEmail({ ...quote, kind: "day3" });
+    shell(m.html, m.text, true);
+    has(m.html, ["Helen, your quote is waiting", "Just checking you saw it.", "held until <strong>7 November</strong>", "You save $1,850", ">$2,200.00<", ">View and accept your quote<", "Not ready, or not for you?"]);
+    expect(m.html).not.toContain(">Your quote</div>");
+    expect(QUOTE_REMINDER_EMAIL_APPROVED).toBe(false);
+  });
+  test("O22 You're in", () => {
+    const m = renderYoureInEmail({ firstName: "Helen", rebate: 1850, totalIncGst: 2200, payment: { amount: 349, paidOn: "24 Oct 2026", cardLast4: "4242" }, installerName: "Reinsulate", myJobUrl: JOB });
+    shell(m.html, m.text, false);
+    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Remaining: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check", "Only if something needs fixing", "Book your install day", "Reinsulate offers you 3 days", ">See my job<", "signed acceptance and receipt are attached"]);
+    expect(ACCEPTANCE_EMAIL_APPROVED).toBe(false);
+  });
+  test("O26 Safety check times (+ the 30-day clock)", () => {
+    const m = renderSafetyCheckTimesEmail({ firstName: "Helen", electricianName: "Spark Electrical", times: ["Wednesday 5 November at 8:00am", "Thursday 6 November at 12:30pm", "Monday 10 November at 7:30am"], myJobUrl: JOB, paid: 349 });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, pick a time for your electrical safety check", "Spark Electrical, a licensed electrician, has offered these times.", ">Wednesday 5 November<", "Suggest other days", "&#9200; The 30-day clock", "Your install must happen within 30 days of this safety check.", "a new check may be charged", "At your safety check", "It's already paid for ($349.00)."]);
+    expect(m.text).toContain("The 30-day clock");
+    const b = renderSafetyCheckBookedEmail({ firstName: "Helen", when: "Wednesday 5 November at 8:00am", electricianName: "Spark Electrical", electricianPhone: "0400 111 222", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB });
+    shell(b.html, b.text, false);
+    has(b.html, ["You're booked, Helen", "Your electrical safety check is confirmed.", "Electrician: Spark Electrical · 0400 111 222", "&#9200; The 30-day clock", "<strong>switchboard</strong>", ">See my job<"]);
+    expect(SAFETY_CHECK_EMAILS_APPROVED).toBe(false);
+  });
+  test("O28 PIESA copy", () => {
+    const m = renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", signatureDate: "2026-11-05", installStart: "2026-11-10T20:30:00Z", link: `${JOB}?doc=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, your electrical safety check: all clear", "at least 24 hours before your install", "Safety check result", "Safe to insulate ✓", "Thursday 5 November 2026", "Spark Electrical · Lic. 12345 · REC 67890", ">None<", "Wednesday 11 November, arriving 7:30am", "View your safety check (PDF)", "<strong>please don't let anyone into the ceiling before the install</strong>"]);
+    expect(PIESA_COPY_EMAIL_APPROVED).toBe(false);
+  });
+  test("O29 Electrical fixes quote (+ the 30-day clock with the expiry date)", () => {
+    const m = renderFixesQuoteEmail({ firstName: "Helen", electricianName: "Spark Electrical", checkedOn: "Wednesday 5 November", found: ["4 old downlights that can't be covered by insulation", "One ceiling cable joint that isn't enclosed"], lines: [{ description: "Replace 4 downlights with IC-rated LEDs", detail: "4 × $120.00, supplied and installed", lineTotalIncGst: 480 }, { description: "Enclose cable joint in a junction box", detail: "Labour and parts", lineTotalIncGst: 200 }], totalIncGst: 680, expiresOn: "5 December", approveUrl: `${JOB}?screen=quote` });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, your safety check found something to fix first", "Spark Electrical checked your home on Wednesday 5 November.", "What they found", "4 old downlights", "Your fixes quote", ">$480.00<", "Total incl. GST", ">$680.00<", "&#9200; The 30-day clock", "<strong>Please approve this quickly.</strong>", "on <strong>5 December</strong>", "Checked by our office", "Certificate of Electrical Safety", "Approve and pay $680.00"]);
+    expect(FIXES_QUOTE_EMAIL_APPROVED).toBe(false);
+  });
+  test("O33 Install days", () => {
+    const m = renderInstallDaysEmail({ firstName: "Helen", installerName: "Reinsulate", days: ["Tuesday 11 November at 8:00am", "Thursday 13 November at 12:30pm", "Monday 17 November at 7:30am"], myJobUrl: JOB, balanceIncGst: 1851, installBy: "4 December" });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, pick your install day", "Your safety check is all clear. Reinsulate has offered these days", ">Tuesday 11 November<", "Suggest other days", "Lock in your day", "sign your install consent", "10% deposit of <strong>$185.10</strong>", "we hold it for 48 hours", "<strong>$1,665.90</strong>, is due on install day", "by <strong>4 December</strong>, 30 days after your safety check"]);
+    expect(INSTALL_DAYS_EMAIL_APPROVED).toBe(false);
+  });
+  test("O35 Install booked", () => {
+    const m = renderInstallBookedEmail({ firstName: "Helen", when: "Tuesday 11 November at 7:30am", address: "824 High Street Road, Glen Waverley", installerName: "Reinsulate", installerPhone: "0400 000 000", removal: true, myJobUrl: JOB, consentSigned: true, payment: { depositPaid: 185.1, cardLast4: "4242", balanceDue: 1665.9, payInFullUrl: `${JOB}?pay=full` } });
+    shell(m.html, m.text, false);
+    has(m.html, ["Your install is booked, Helen", "Consent signed and deposit received ✓", ">Arriving 7:30am<", "Installer: Reinsulate · 0400 000 000", "Deposit paid · card ending 4242", "$185.10", "Balance due on install day", "$1,665.90", ">Pay in full<", "Your power will be off", "On the day", "<strong>adult (18+)</strong>", "<strong>expect some dust</strong>", "<strong>Change day</strong>", ">See my job<"]);
+    expect(INSTALL_BOOKED_EMAIL_APPROVED).toBe(false);
+  });
+  test("O42 Install day changed", () => {
+    const m = renderInstallDayChangedEmail({ firstName: "Helen", installerName: "Reinsulate", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", when: "Thursday 13 November at 7:30am", was: "Tuesday 11 November at 7:30am", myJobUrl: JOB });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, your install day has changed", "your deposit still holds your booking", "New install day", ">Thursday 13 November<", ">Arriving 7:30am<", "text-decoration:line-through;\">Was Tuesday 11 November, 7:30am", "<strong>Change day</strong>", ">See my job<"]);
+    expect(m.subject).toBe("Your install has moved to Thursday 13 November at 7:30am");
+  });
+  test("O44 Install complete", () => {
+    const m = renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=assignment` });
+    shell(m.html, m.text, false);
+    has(m.html, ["All done, Helen. Enjoy a warmer home!", "137.6 m² Bradford Gold R5.0", "$1,850 off", "Paid in full ✓", "One last thing: sign your rebate form", ">Sign your rebate form<", "What you'll get from us", "Your completion pack", "1-year workmanship warranty and the 5-year product warranty", "A copy of your signed rebate form", "Contact Reinsulate first on 0400 000 000"]);
+    expect(COMPLETION_EMAILS_APPROVED).toBe(false);
+  });
+  test("O45 Final invoice", () => {
+    const m = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley VIC 3150", installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Bradford Gold R5.0 ceiling batts, 137.6 m² supplied and installed", amount: 2752 }, { description: "Old insulation removed and taken away, 40 m²", amount: 600 }, { description: "Electrical safety check (PIESA)", amount: 349 }, { description: "Accredited Provider fee", amount: 349 }], totalIncGst: 4050, gst: 368.18, rebate: 1850, payments: [{ label: "safety check (24 Oct)", amount: 349 }, { label: "deposit (4 Nov)", amount: 185.1 }], balanceDue: 1665.9, payUrl: `${JOB}?pay=balance` });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, your install is done. Here's your final invoice", "Tax invoice HIV-3117 · 11 November 2026", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", "To: Helen Yang, 824 High Street Road", "Total incl. GST (GST $368.18)", ">$4,050.00<", "VEU rebate (price reduction)", "−$1,850.00", "Price after rebate", ">$2,200.00<", "Paid: safety check (24 Oct)", "−$185.10", "Balance due today", ">$1,665.90<", "Pay $1,665.90 now", "Secure card payment by Stripe · Invoice PDF attached", "completion pack"]);
+  });
+  test("O47 Completion pack", () => {
+    const m = renderCompletionPackEmail({ firstName: "Helen", installer: REINSULATE, downloads: { certificateUrl: `${JOB}?doc=cert`, invoiceUrl: `${JOB}?doc=invoice`, warrantiesUrl: `${JOB}?doc=warranty`, signedFormsUrl: `${JOB}?doc=forms` } });
+    shell(m.html, m.text, false);
+    has(m.html, ["Your completion pack, Helen", "Certificate of Completion", "Tax invoice", "1-year installer workmanship · 5-year product warranty", "Signed forms", ">Download<", "Something not right?", "Contact your installer first", "Reinsulate · 0400 000 000. Workmanship is covered for 1 year.", "Essential Services Commission", "Looking after your insulation", "IC-rated"]);
+  });
+  test("O51 Review request", () => {
+    const m = renderReviewRequestEmail({ firstName: "Helen", installer: REINSULATE, starUrl: (n) => `${JOB}?stars=${n}`, googleReviewUrl: "https://g.page/r/x/review", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=r" });
+    shell(m.html, m.text, false);
+    has(m.html, ["Helen, how's your home feeling?", "It's been a week since Reinsulate installed", "Tap a star", `href="${JOB}?stars=5"`, "&#9733;", "Leave a Google review", "Know someone with a cold house?", "Send to a friend", "Contact Reinsulate first on 0400 000 000"]);
+    expect((m.html.match(/&#9733;/g) ?? []).length).toBe(5);
+  });
+});
+
+describe("approved installer email designs", () => {
+  const job = { installerFirstName: "Sam", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j" };
+  test("I23 Owner accepted", () => {
+    const m = renderInstallerAcceptedEmail(job);
+    shell(m.html, m.text, false);
+    has(m.html, ["Good news, Sam. Helen accepted!", "<strong>824 High Street Road, Glen Waverley</strong> (HV-3117)", "paid for the electrical safety check", "Electrical safety check", "Offer Helen 3 install days", "Install within 30 days", ">Open the job<"]);
+    expect(m.html).not.toMatch(/\$\d/);
+    expect(INSTALLER_ACCEPTED_EMAIL_APPROVED).toBe(true);
+  });
+  test("I24 Owner declined", () => {
+    const m = renderInstallerDeclinedEmail({ ...job, reasonLabel: "Price too high", reasonNote: "We've decided to wait until next year." });
+    shell(m.html, m.text, false);
+    has(m.html, ["Sam, Helen has declined the quote", "Reason given", "Price too high", "We've decided to wait until next year.", "Nothing more to do; the job is closed.", ">See the job<"]);
+    expect(m.html).not.toMatch(/\$\d/);
+    expect(INSTALLER_DECLINED_EMAIL_APPROVED).toBe(false);
+  });
+  test("I53 Application received", () => {
+    const m = renderApplicationReceivedEmail({ contactName: "Sam", businessName: "Reinsulate" });
+    shell(m.html, m.text, false);
+    has(m.html, ["Thanks Sam, we've got your application", "Reinsulate's application to install under the VEU program", "We check your details", "min $5 million", "You're approved", "Start adding jobs", "about 30 seconds"]);
+    expect(APPLICATION_RECEIVED_EMAIL_APPROVED).toBe(false);
+  });
+  test("I54 Welcome", () => {
+    const m = partnerWelcomeEmail({ firstName: "Sam", businessName: "Reinsulate", trade: "installer", email: "sam@reinsulate.test", link: "https://estimate.homeinsulationvictoria.com.au/reset-password?token_hash=t&type=recovery&next=%2Ffield%2Fwelcome", test: false });
+    shell(m.html, m.text, false);
+    has(m.html, ["Welcome aboard, Sam. You're approved!", "Reinsulate can now take VEU ceiling insulation jobs", "<strong>Jobs sent to you</strong>, plus add your own customers", "We only add our $349 AP fee", "<strong>Quotes, electrician, compliance and rebate paperwork</strong> handled by us", ">Set your password<", "New to how we work?", "Read the 2-minute guide", 'href="https://estimate.homeinsulationvictoria.com.au/field/guide"']);
+  });
+});
+
+describe("senders stay behind their flags (nothing new is sent to real people)", () => {
+  test("new owner senders go only through sendOwnerTemplateEmail; test-send for TEST, guarded path for real", () => {
+    const s = readFileSync("src/lib/owner-template-send.server.ts", "utf8");
+    for (const t of ["sendTestEmail", "assertCustomerDeliveryAllowed", "sendGuardedOwnerEmail", "if (!p.approved)"]) expect(s).toContain(t);
+    const a = readFileSync("src/lib/approved-owner-emails.server.ts", "utf8");
+    expect(a).not.toMatch(/resend|fetch\(|sendRealSms|sendTestSms/i);
+    for (const flag of ["QUOTE_REMINDER_EMAIL_APPROVED", "ACCEPTANCE_EMAIL_APPROVED", "SAFETY_CHECK_EMAILS_APPROVED", "FIXES_QUOTE_EMAIL_APPROVED", "INSTALL_DAYS_EMAIL_APPROVED", "COMPLETION_EMAILS_APPROVED"]) expect(a).toContain(flag);
+    const d = readFileSync("src/lib/installer-declined-email.server.ts", "utf8");
+    expect(d).toContain("if (!test && !INSTALLER_DECLINED_EMAIL_APPROVED)");
+  });
+  test("the touchpoint master marks the applied designs", () => {
+    const html = readFileSync("docs/TOUCHPOINTS_MASTER.html", "utf8");
+    expect((html.match(/Design applied/g) ?? []).length).toBeGreaterThanOrEqual(20);
+  });
+});

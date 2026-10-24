@@ -372,7 +372,7 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
   // The subject (and therefore <title>) legitimately differs per template; everything else in the
   // shared shell must be identical.
   const shellOf = (html: string) =>
-    html.replace(/<title>[^<]*<\/title>/, "<title></title>").slice(0, 400);
+    html.replace(/<title>[^<]*<\/title>/, "<title></title>").replace(/<div style="display:none[^>]*>[^<]*<\/div>\n?/, "").slice(0, 400);
   const t1 = withUnsubscribe(
     renderJoOutcomeEmail({ ...cases[0]!.facts, recipient, figures: fig(false), links })!,
     UNSUB,
@@ -385,18 +385,21 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
         UNSUB,
       );
       expect(m.html).toContain(`href="${c.cta}"`);
-      for (const u of [JO_CONTACT_URL, PRIVACY_URL, UNSUB]) expect(m.html).toContain(`href="${u}"`);
+      // Decision 137 footer: AP number · ABN · Unsubscribe (the earlier Contact us / Privacy links stay on T8 only).
+      expect(m.html).toContain(`href="${UNSUB}"`);
+      expect(m.html).toContain("VEU Accredited Person A003654");
+      void JO_CONTACT_URL; void PRIVACY_URL;
       expect(m.html).not.toMatch(
         /\[(Save my spot|Upload my photos|Review my result|Contact us|Privacy|Remove my enquiry)[^\]]*\]/,
       );
       expect(m.plainText).not.toContain("{{");
       expect(m.html).not.toContain("data-hiv-remove-enquiry");
       if (c.known) {
-        expect(m.plainText).toContain("Ceiling size: 118 m² — based on the size you provided");
+        expect(m.plainText).toContain("Based on what you told us: 118 m² ceiling");
         expect(m.plainText).not.toContain("150 m²");
       } else {
-        expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
-        expect(m.plainText).not.toContain("based on the size you provided");
+        expect(m.plainText).toContain("Based on a typical 150 m² ceiling (estimated, not measured)");
+        expect(m.plainText).not.toContain("Based on what you told us");
       }
       expect(shellOf(m.html)).toBe(shellOf(t1.html));
     });
