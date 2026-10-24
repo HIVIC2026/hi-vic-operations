@@ -7692,7 +7692,6 @@ export type Database = {
           ap_ip: string | null
           ap_legal_entity: string
           ap_purpose_explained: boolean | null
-          ap_rep: Json | null
           ap_rep_name: string | null
           ap_signed_at: string | null
           ap_signed_by: string | null
@@ -7706,7 +7705,6 @@ export type Database = {
           job_id: string
           owner_authority_type: string | null
           owner_contact: Json
-          owner_declarations: Json | null
           owner_ip: string | null
           owner_signatory_name: string | null
           owner_signature_name: string | null
@@ -7729,7 +7727,6 @@ export type Database = {
           ap_ip?: string | null
           ap_legal_entity: string
           ap_purpose_explained?: boolean | null
-          ap_rep?: Json | null
           ap_rep_name?: string | null
           ap_signed_at?: string | null
           ap_signed_by?: string | null
@@ -7743,7 +7740,6 @@ export type Database = {
           job_id: string
           owner_authority_type?: string | null
           owner_contact?: Json
-          owner_declarations?: Json | null
           owner_ip?: string | null
           owner_signatory_name?: string | null
           owner_signature_name?: string | null
@@ -7766,7 +7762,6 @@ export type Database = {
           ap_ip?: string | null
           ap_legal_entity?: string
           ap_purpose_explained?: boolean | null
-          ap_rep?: Json | null
           ap_rep_name?: string | null
           ap_signed_at?: string | null
           ap_signed_by?: string | null
@@ -7780,7 +7775,6 @@ export type Database = {
           job_id?: string
           owner_authority_type?: string | null
           owner_contact?: Json
-          owner_declarations?: Json | null
           owner_ip?: string | null
           owner_signatory_name?: string | null
           owner_signature_name?: string | null
