@@ -283,7 +283,10 @@ export async function apPrerequisites(jobId: string): Promise<string[]> {
     businessId ? admin.from("admin_config_events").select("created_at, details").eq("event_type", AP_PREREQ_EVENTS.ESC_COLLECTION_NOTICE_PROVIDED).contains("details", { business_id: businessId }) : Promise.resolve({ data: [] as { created_at: string; details: unknown }[] }),
   ]);
   const first = (role: string) => (dels ?? []).filter((d) => String(d.recipient).toLowerCase().includes(role)).map((d) => d.delivered_at).sort()[0] ?? null;
-  const noticeFor = (workerId: string | null) => (notices ?? []).filter((n) => { const w = (n.details as { worker_id?: string | null } | null)?.worker_id ?? null; return w == null || w === workerId; }).map((n) => n.created_at).sort()[0] ?? null;
+  // Decision 130: an installer's own acknowledgement (secure link / My business / onboarding) counts, as does an office record.
+  const acks = businessId ? await (await import("./esc-collection-notice.server")).businessNoticeStatuses(businessId).catch(() => []) : [];
+  const ackAt = (workerId: string | null) => acks.find((a) => workerId && a.workerId === workerId && a.state === "acknowledged" && !a.superseded)?.at ?? null;
+  const noticeFor = (workerId: string | null) => [ackAt(workerId), ...(notices ?? []).filter((n) => { const w = (n.details as { worker_id?: string | null } | null)?.worker_id ?? null; return w == null || w === workerId; }).map((n) => n.created_at)].filter((x): x is string => !!x).sort()[0] ?? null;
   const f: ApPrerequisiteFacts = {
     installStart: book?.scheduled_start ?? null, piesaCopyToInstallerAt: first("installer"), piesaCopyToOwnerAt: first("owner"), escNotificationSentAt: esc?.sent_at ?? null,
     warrantyCopyProvidedAt: warranty?.created_at ?? null,
