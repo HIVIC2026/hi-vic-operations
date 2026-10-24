@@ -17,4 +17,4 @@
 Not a full-repository test pass or release approval. No real customer, Mitti audit creation/signature, worker/compliance approval, send or publication tested. Root review required before publication; existing HV-2010 Mitti membership blocker remains.
 
 ## Reproduce isolated checks
-Run `PORT=8092 node tests/save-feedback.vite.mjs` (the former `installer-intake-races.vite.mjs` harness went with the retired 4-step intake, decision 185), then `python3 tests/save-feedback.browser.py`. Screenshots live under `/tmp/browser/final-save/`.
+Run `PORT=8092 node tests/installer-intake-races.vite.mjs`, then `python3 tests/save-feedback.browser.py`. Screenshots live under `/tmp/browser/final-save/`.

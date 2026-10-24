@@ -35,9 +35,9 @@ export type IntakeSave = {
 };
 type ElChoices = { approved: { businessId?: string; nominationId?: string; name: string }[]; pending: { businessId?: string; nominationId?: string; name: string }[] };
 
-/** Pure view: callers supply load/save/upload (real RPCs on /field; isolated stand-ins in tests). */
-export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electricians }: {
-  facts: IntakeJobFacts; businessId: string; onSave: (s: IntakeSave) => Promise<{ quoteHeld: string[] }>; upload: (f: File[]) => Promise<AttachedFile[]>; electricians?: ElChoices | undefined;
+/** Pure view: callers supply load/save/upload (real RPCs on /field, local stand-ins on /installer-preview). */
+export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electricians, preview = false }: {
+  facts: IntakeJobFacts; businessId: string; onSave: (s: IntakeSave) => Promise<{ quoteHeld: string[] }>; upload: (f: File[]) => Promise<AttachedFile[]>; electricians?: ElChoices | undefined; preview?: boolean;
 }) {
   const initStatus: QuoteStatus | null = facts.quoteAnswer !== undefined ? facts.quoteAnswer : facts.quoted === "yes" || facts.quoteIncGst != null ? "have_quote" : facts.quoted === "no" ? "not_quoted" : null;
   const [open, setOpen] = useState(false);
@@ -107,7 +107,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });
       setNewFiles([]); if (feeTick) setFeeTick(false);
-      setMsg(r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
+      setMsg(preview ? "Preview only — nothing was saved." : r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
     } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Try again."); }
     finally { saveFlight.current = false; setBusy(false); }
   };

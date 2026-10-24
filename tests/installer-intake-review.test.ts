@@ -110,6 +110,6 @@ describe("consent source and visit provenance", () => {
   test("intake records visit as unknown, not an assumed site check", () => {
     const src = readFileSync("src/lib/partner-import.server.ts", "utf8");
     expect(src).toContain('installer_site_check: intake ? (intake.attended === "attended" ? "yes" : intake.attended === "not_attended" ? "no" : null) : inst.site_check'); // Jo 20 Oct: explicit attendance only
-    expect(readFileSync("src/components/trade/add-job-flow.tsx", "utf8")).not.toContain('site_check: "yes"'); // decision 185: the only Add a job left never assumes a visit
+    expect(readFileSync("src/components/trade/installer-intake-flow.tsx", "utf8")).not.toContain('site_check: "yes"');
   });
 });

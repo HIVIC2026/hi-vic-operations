@@ -295,16 +295,24 @@ export function intakeOriginalConditionMedia(existing: string | null | undefined
   return { required: [...INTAKE_REQUIRED_MEDIA], notApplicable: [], blocker: "Existing insulation (none / present) is not recorded in the Ready Check" };
 }
 
-// ---- Coordination choice (Jo, 8 Oct 2026; question retired from Add a job by decision 185, 24 Oct 2026). Kept only to
-// validate/display the choice recorded on already-submitted jobs — never waives any gate. ----
+// ---- Who will organise this job? (Jo, 8 Oct 2026). Coordination responsibility only — never waives any gate. ----
 export type Coordination = "hivic_managed" | "self_managed";
 export const COORDINATION_VERSION = "coordination-2026-10-08";
+// Jo, 9 Oct 2026 01:17 Sydney: organise choice comes FIRST on its own screen, before "Have you measured and quoted?".
+export const ORGANISE_QUESTION = "How would you like to organise this job?";
+export const COORDINATION_CHOICES: { value: Coordination; title: string; badge?: string; body: string }[] = [
+  { value: "hivic_managed", title: "Home Insulation Victoria manages the process", badge: "Recommended", body: "We coordinate bookings, the required documentation, and your VEEC submission once all requirements are met." },
+  { value: "self_managed", title: "I’ll manage the job myself", body: "You coordinate the owner, electrician and installation, meet the required steps and deadlines, and provide the complete evidence for our review." },
+];
+
 // ---------- Jo, 9 Oct 2026: measured/quoted question, electrician payer and installer fee declaration ----------
 export const INSTALLER_CONTACT_PERMISSION = "The owner has given permission for Home Insulation Victoria to contact them to check eligibility and discuss this job.";
 // Jo, 20 Oct 2026 ("Ok fix"): attendance and quote are two independent answers. Unanswered stays null (unknown).
 export type AttendanceAnswer = "attended" | "not_attended";
 export const ATTENDED_QUESTION = "Have you attended and assessed this property?";
 export const ATTENDED_CHOICES: { value: AttendanceAnswer; label: string }[] = [{ value: "attended", label: "Yes" }, { value: "not_attended", label: "No" }];
+export const QUOTE_PREPARED_QUESTION = "Have you prepared a quote?";
+export const QUOTE_PREPARED_CHOICES: { value: QuoteStatus; label: string }[] = [{ value: "have_quote", label: "Yes" }, { value: "not_quoted", label: "Not yet" }];
 export const PRELIMINARY_QUOTE_NOTE = "Without a site visit your quote is a preliminary estimate. An onsite Ready Check is still required.";
 /** jobs.installer_site_check <-> attendance. Never derived from price, area or files. */
 export const attendanceFromSiteCheck = (v: string | null | undefined): AttendanceAnswer | null => v === "yes" ? "attended" : v === "no" ? "not_attended" : null;
@@ -339,6 +347,7 @@ export function onsiteMeasuredFrom(m: { verified_area_m2?: unknown; provenance?:
 }
 /** Job document title carries the explicit file purpose so Office file lists show it (job_imports.files stays canonical). */
 export const intakeDocumentTitle = (f: { name: string; purpose?: string | null | undefined }) => `${f.purpose === "quote" ? "Installer quote" : f.purpose === "supporting" ? "Supporting evidence" : "Unclassified file"} — ${f.name}`.slice(0, 300);
+export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
@@ -369,6 +378,7 @@ export function intakeNextAction(c: Coordination | null, quoted: boolean, attend
     : "Home Insulation Victoria checks the owner's eligibility, then arranges the Ready Check.";
 }
 export const SELF_MANAGED_ACK = "I understand I am responsible for organising the required assessments and installation, meeting the applicable requirements and deadlines, and supplying complete, accurate evidence. Missing, late or unacceptable evidence may prevent this job from receiving the rebate.";
+export const VEEC_NOTE = "VEEC claims can only be submitted once all requirements are met. Final registration is subject to the regulator's approval.";
 
 export function coordinationProblems(c: Coordination | null, selfAck: boolean): string[] {
   if (!c) return ["Choose who will organise this job"];

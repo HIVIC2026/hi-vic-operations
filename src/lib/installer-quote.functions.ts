@@ -63,6 +63,19 @@ export const officeIntakeAction = createServerFn({ method: "POST" }).middleware(
     return m.installerIntakeState(data.jobId);
   });
 
+// Installer's own job: the Ready Check outstanding list (business-scoped via job assignment).
+export const getMyIntakeReadyCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
+    if (error || !ok) throw new Error("Not your job.");
+    const { installerIntakeState } = await import("./installer-intake.server");
+    const s = await installerIntakeState(data.jobId);
+    const { loadRcDraft } = await import("./ready-check-draft.server");
+    const d = await loadRcDraft(data.jobId);
+    return { coordination: s.coordination, readyCheck: { outstandingCount: d.progress.outstandingCount, outstanding: [] as { label: string; status: string }[] }, quoteHeldFor: s.readiness.blockers.filter((b) => /insulation|eligib/i.test(b)) };
+  });
+
 // ---- Supplying installer: add/update what they know on their own received job (Jo, 8 Oct). ----
 /** An installer who can access this job (assigned or supplying). Does NOT require the supplying business. */
 async function requireJobInstaller(supabase: { rpc: (...a: never[]) => unknown }, userId: string, jobId: string) {

@@ -69,6 +69,10 @@ export function visitSummary(v: VisitPick): string {
 /** Review-summary wording: positive only when the same rule final validation uses is satisfied (restored drafts reset these on purpose). */
 export const contactPermissionSummary = (c: Pick<OnsiteInput, "contact_permission" | "consent_by">) =>
   c.contact_permission === true && c.consent_by === "installer" ? "Permission to contact given" : "Contact permission still needs to be ticked";
+export const organiseSummary = (coord: "hivic_managed" | "self_managed" | string | null, selfAck: boolean) =>
+  coord === "self_managed"
+    ? selfAck ? "I’ll manage the job myself (responsibility acknowledged)" : "I’ll manage the job myself — responsibility still needs to be ticked"
+    : coord ? "Home Insulation Victoria manages the process" : "Who organises the job still needs to be chosen";
 
 // ---- What the installer sees after saving (decisions 115/116): the real outcome from the server's own answer. ----
 export type AddJobBooking = "none" | "confirmed" | "blocked";

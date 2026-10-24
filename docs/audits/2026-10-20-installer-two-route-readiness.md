@@ -2,8 +2,6 @@
 
 # Installer two-route Add Job — consolidated readiness audit (20 Oct 2026, after 11:00 UTC review)
 
-> Superseded in part (decision 185, 24 Oct 2026): `installer-intake-flow.tsx` and `/installer-preview` no longer exist; Add a job is the basics-only `AddJobFlow` at `/partner/import`. The existing-job editor (`intake-details-editor.tsx`) findings still apply.
-
 Scope: installer intake, its Ready Check/quote handoffs. Not published. No sends, provider writes, account, role or approval changes. Dad/Deep access on hold. No schema migration (uses existing `jobs.installer_site_check(_date)` and `workflow_events`).
 The first slice (a32318bb) is NOT the full redesign. This file lists what is implemented now and what is still blocked.
 

@@ -597,6 +597,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       await logEvent(data.jobId, context.userId, "rectification_windows_given", `Electrician gave ${data.rectWindows.length} electrical fixes windows and an estimate of ${data.rectHours} hours`, { hours: data.rectHours });
     }
     await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
+    // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).
+    try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
     return res;
   });
 
@@ -651,6 +653,8 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       await transition(data.jobId, "installation_scheduling", context.userId, "Electrical fixes complete, PIESA passed – installation scheduling unlocked");
     }
     await autoAdvanceJob(data.jobId, context.userId, "PIESA recorded");
+    // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).
+    try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
     return { ok: true };
   });
 
