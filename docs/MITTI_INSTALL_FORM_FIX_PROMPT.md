@@ -1,54 +1,115 @@
-# Install day form (A3): the one prompt (24 Oct 2026, decisions 256–259)
+# Install day form (A3): the one rebuild prompt (24 Oct 2026, decision 260)
 
-Paste everything below the line into ChatGPT. It describes the END STATE, so it is safe to run whether or not an
-earlier version was run. Quoted labels must be copied exactly; the portal reads them by wording.
+Paste everything below the line into ChatGPT. It describes the finished form, so it is safe to run on the form as it
+is now. Quoted labels must be copied exactly; the portal reads them by wording.
 
 ---
 
-Edit the Mitti template "A3 - PIISA + AP Evidence" so it matches everything below. Where the form already matches,
-leave it. Do not change, reword, move or add anything not listed here. Copy every quoted label exactly. Then publish.
+Rebuild the Mitti template "A3 - PIISA + AP Evidence" so it contains exactly the items below, in this order, with
+exactly these labels, and nothing else. Keep the existing response sets (Yes/No, Yes/No/N/A, the product list, the
+high-risk work list, the zone count 1/2/3) and the existing logic shapes where they match. Anything in the current
+form that is not listed here is deleted. `*` = required. "Help:" = help text under the item, never part of the label.
+"→ when X" = show only when the answer is X (logic). "Stop line" = a short red text item inside the logic. Then publish.
 
-## A. Section "AP Evidence – Before Work"
+## Section "Job"
+- Text * "Job number"
+- Text * "Address"
+- Date * "Install date"
+- Text * "Accredited person"
 
-1. Categories "Additional Installer 1", "Additional Installer 2", "Additional Installer 3" (N = 1, 2, 3): each already
-   has a name item with logic that shows the CII number when a name is entered. Inside that SAME logic, directly after
-   the CII number item, there must be exactly one more item and nothing else:
-   - Signature, required: "SWMS — additional installer N: signature (I have read this SWMS, understand the hazards and controls, and will follow it)"
-   Delete any other "SWMS — additional installer N: …" item.
+## Section "Crew"
+- Text * "Installer company"
+- Text * "Lead installer name"
+- Text * "Lead installer CII number"
+- Text "Installer 2 name (blank if none)"
+  → when filled:
+  - Text * "Installer 2 CII number"
+  - Signature * "Installer 2 signature: I have read the safety plan and will follow it"
+- Text "Installer 3 name (blank if none)" → same two items with "Installer 3"
+- Text "Installer 4 name (blank if none)" → same two items with "Installer 4"
 
-2. Category "SWMS" must contain ONLY these items, in this order:
-   a) The existing multiple-choice question "SWMS — which high-risk construction work applies to this job? (tick all)"
-      with its existing logic: if "None of these apply (explain in the next box)" is ticked, show the required text
-      "SWMS — if none of the high-risk work types apply, explain why".
-   b) Instruction (text only, not a question; it may be split over two or three consecutive Instruction items if one is too long), exactly:
-      "Standard controls for the hazards of every ceiling insulation job. Live electrical: power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables. Hazardous substances: if asbestos is suspected, do not disturb it — stop work; it is a licensed asbestos removalist's job before work continues; no chemicals or solvents used in the ceiling. Biological (mould, animal waste): do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating. Heat: work early, water and a break every 30 minutes, stop in extreme heat. Noise and vibration: hearing protection for blowers and power tools. Dust and irritants: P2 mask, goggles, gloves and long sleeves in the ceiling; removed material bagged in the ceiling. Enclosed spaces: exits kept clear, lighting set up first, stay in contact with someone outside the ceiling. Height (inside and outside the ceiling space): walk only on joists or crawl boards, never on plasterboard; ladder secured and footed with three points of contact; no roof access in wind or rain. Fire and ignition sources: AS 3999 clearances kept to flues, chimneys, gas heaters, heat lamps, exhaust fans and downlights; cables over 400 mm in insulation as the PIESA directs. How these are put in place: the lead installer directly supervises the crew, checks every control before anyone enters the ceiling and again at the start of each day, and stops work if any control cannot be followed."
-   c) Checkbox, required: "SWMS — the standard controls above are in place on this job"
-   d) Text, NOT required: "SWMS — anything specific to this house, or any change during the job (optional)"
-   Delete every other item in the SWMS category (prepared by / prepared for / work / date, every per-hazard question
-   and its sub-items, hazards tick list, how controls are checked, first aid kit, first aider, hospital, phone
-   reception, assembly point, electrical emergency, every "worker 1–4" item, the lead installer SWMS declaration,
-   "SWMS — lead installer signature", "SWMS — signed at (date and time)").
+## Section "Safety plan"
+- Multiple choice (multiple answers) * "High-risk work on this job (tick all)"
+  Answers exactly: "Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists)" /
+  "Work on or near energised electrical installations or services (ceiling cables, switchboard, solar/battery)" /
+  "Work in or near a confined space" / "Work that may disturb asbestos (home built before 1990, or asbestos suspected)" /
+  "Work on or near a roadway or in an area with powered mobile plant" / "None of these apply (explain in the next box)"
+  → when "None of these apply (explain in the next box)" is ticked: Text * "None apply: why?"
+- Checkbox * "Standard controls are in place (they're on your job page)"
+- Text "Anything specific to this house (optional)"
+- Media * "Photo: each installer at the front door with ID"   Help: "One photo per installer, geotagged."
+- Media * "Photo: power isolated, lock-out tag on switchboard"   Help: "Solar and battery isolators off too, where fitted. Geotagged."
 
-3. Delete the item that starts "Before installation, please record a clear video of every ceiling area being upgraded".
+## Section "Household"
+- Yes/No * "Household told the power will be off?"   → when No: Stop line "Stop. Tell them first."
+- Yes/No * "Anyone on life support?"
+  → when Yes:
+  - Yes/No * "Written consent or medical plan received?"   → when No: Stop line "Stop."
+  - Media * "Upload the consent or medical plan"   Help: "Every page readable."
 
-## B. Section "Part 8 – Installer Declaration"
+## Section "Safe to start"
+- Yes/No * "Safety plan done, all risks identified?"   → when No: Stop line "Stop."
+- Yes/No * "All common hazards controlled in the safety plan?"   → when No: Stop line "Stop."
+- Yes/No * "Power isolated, locked, tagged, ceiling safe to enter?"   → when No: Stop line "Stop."
 
-The last text item (starts "Signing does not finish this form.") must read exactly:
-"Signing does not finish this form. After installation, complete the Zones and evidence page and the After-install sign-off."
+## Section "Solar, battery, generator"
+- Yes/No * "Any solar, battery or generator?"
+  → when Yes:
+  - Yes/No * "Shutdown and restart instructions available?"   → when No: Stop line "Stop. Electrician must isolate."
+  - Yes/No * "Ground-level isolator works and is safe?"   → when No: Stop line "Stop. Electrician to check."
 
-## C. Section "AP Evidence – After Installation"
+## Section "Electrical check (PIESA)"
+- Yes/No * "Read the PIESA, safe to start?"   → when No: Stop line "Stop."
+- Yes/No/N/A * "Electrician needed at start attended?"   Help: "N/A only if the PIESA doesn't require one."
+  → when Yes: Media * "Photo: electrician at the front door with ID"   Help: "Geotagged."
+  → when No: Stop line "Stop."
+- Yes/No * "Recessed lights in the ceiling?"   → when Yes: Text * "How many?"
+- Yes/No * "PIESA: all lights IC or IC-4?"   → when No: Stop line "Stop."
+- Yes/No * "PIESA: lights safe to cover?"   → when No: Stop line "Stop."
+- Yes/No * "PIESA: cables RCD protected?"   → when No: Stop line "Stop."
+- Yes/No * "PIESA: cables TPS or equivalent?"   → when No: Stop line "Stop."
+- Yes/No * "PIESA: cables meet basic protection?"   → when No: Stop line "Stop."
+- Yes/No * "Nobody in the ceiling since the PIESA?"   → when No: Stop line "Stop. Electrician to reassess."
 
-Delete this whole section (it only holds the item that starts "After installation, please record a clear video").
+## Section "Existing insulation"
+- Yes/No * "Existing insulation in the ceiling?"
+  → when Yes:
+  - Text * "Average depth (mm)"
+  - Text "R-value if known"
+  - Single choice * "Remove, top up or both?"  Answers: "Remove" / "Top up" / "Both"
+    → when "Top up": Text * "Why keep it?"
+  - Yes/No * "Suitable to lay over?"   → when No: Stop line "Stop. Remove it first."
+  - Yes/No * "Foil, metallic or conductive?"   → when Yes: Media * "Photo of the facing"   Help: "Geotagged."
 
-## D. Section "Zones and evidence"
+## Section "Product"
+- Media * "Photo: product packaging showing brand, model, R-value"   Help: "One per product, geotagged."
 
-Under the question "Will this installation run over more than one day?", the Yes logic must contain only the
-checkbox "Before starting work each day, I re-checked every item on this safety assessment and they all still hold."
-(required). Delete "SWMS — day 2 re-check: date, time and lead installer initials (and any change to the SWMS)" and
-"SWMS — day 3 or later re-checks: one line per day (date, time, initials, changes)".
+## Section "Declaration (before work starts)"
+- Keep the three existing declaration text items exactly as they are now (the one starting "INSTALLER DECLARATION – Sign BEFORE insulation work starts.", the one starting "d. I will ensure that:", and the "Privacy Collection Statement").
+- Checkbox * "All information is correct"
+- Signature * "Signature"
+- Text item: "Signing doesn't finish the form. After the install, do Zones and Sign-off."
 
-## E. Section "After-install sign-off"
+## Section "Zones (after install)"
+- Single choice * "How many zones?"  Answers: "1" / "2" / "3"
+  → when 1, 2 or 3: Zone 1 items; → when 2 or 3: Zone 2 items; → when 3: Zone 3 items. For zone N:
+  - Text * "Zone N name (same as the Ready Check)"
+  - Yes/No * "Zone N: existing insulation here?"   → when Yes: Media * "Zone N: photo with ruler showing depth"   Help: "Ruler vertical; show any brand, model or R-value markings. Geotagged."
+  - Media * "Zone N: before video"   Help: "360°, lit, say the zone name. Under 250 MB. Geotagged."
+  - Multiple choice (single answer) * "Zone N: product installed"   (keep the existing product list)
+  - Text * "Zone N: m² installed"
+  - Media * "Zone N: after video"   Help: "360°, lit, say the zone name. Show full coverage, no waste left. Under 250 MB. Geotagged."
+  - Media * "Zone N: after photo with ruler showing depth"   Help: "Ruler vertical, not compressed. Geotagged."
+- Yes/No * "More than one day?"
+  → when Yes: Checkbox * "I re-checked every item before starting each day"
 
-Delete "Installation finished at (date and time)".
+## Section "Sign-off"
+- Yes/No * "Lock-out removed, power back on?"
+  → when Yes:
+  - Text * "Who did it?"   Help: "Name and role: who applied the lock, or the attending electrician."
+  - Media * "Photo: switchboard, main switch on"   Help: "Lock-out tag removed. Geotagged."
+- Single choice * "Solar, battery or generator restarted?"  Answers: "Yes" / "No" / "None here"
+- Checkbox * "I was on site the whole time and supervised every installer"
+- Signature * "Signature"
 
 Publish.
