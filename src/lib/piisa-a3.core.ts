@@ -11,7 +11,8 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { crewClearance, melbourneToday } from "./worker-compliance.core";
-import { INSTALL_EVIDENCE_RELABELS, zoneVideoFiles } from "./install-evidence.core";
+import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
+import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -125,7 +126,8 @@ const A3_PREVIOUS_MEDIA_LABELS: Record<A3EvidenceKey, string> = {
   final_plan: "Final installation plan — actual installed area (m²) and products",
 };
 export function a3AcceptedMediaLabels(key: A3EvidenceKey): string[] {
-  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_INSTRUCTION_LABELS_2026_10_09[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
+  const long = (INSTALL_EVIDENCE_RELABELS_LONG as Partial<Record<A3EvidenceKey, string>>)[key];
+  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_INSTRUCTION_LABELS_2026_10_09[key], A3_EVIDENCE_LABELS[key], ...(long ? [long] : []), ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
 }
 
 /** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
@@ -184,6 +186,8 @@ export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | unde
 
 /** Every mapped field must exist on the native template, including all three crew rows. Visible failure list. */
 export function a3MissingFields(template: unknown): string[] {
+  // Decision 262: the "A3 – Install day" template is read by wording (install-day.core), not by the old stable IDs.
+  if (isInstallDayDoc(template)) return installDayMissingQuestions(template);
   const entries = flatten(template);
   const out: string[] = [];
   const ids = new Set([...Object.keys(A3_NATIVE_IDS), ...Object.keys(A3_ALIASES)]);
@@ -233,6 +237,11 @@ export const A3_ZONE_VIDEO_KEYS: A3EvidenceKey[] = ["before_video", "completed_v
  * and the after-work copy (piisa-postwork) therefore apply to the zone videos too.
  */
 export function a3MediaFiles(audit: unknown): Record<A3EvidenceKey, A3MediaFile[]> {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: the photo items by wording; the before / completed videos are the areas' own videos.
+    const m = installDayMedia(audit), zones = zoneVideoFiles(audit);
+    return { installer_photos: m.installer_photos, electrician_photo: m.electrician_photo, isolation_photo: m.isolation_photo, product_photos: m.product_photos, before_video: zones.before ?? [], completed_video: zones.after ?? [], final_plan: [] };
+  }
   const byId = itemsById(audit);
   const zones = zoneVideoFiles(audit);
   const zoneFor: Partial<Record<A3EvidenceKey, A3MediaFile[] | null>> = { before_video: zones.before, completed_video: zones.after };
@@ -270,6 +279,13 @@ const YN_IDS = new Set(["p1.powerInformed", "lifeSupport", "p3.swms", "p3.table1
 
 /** Completed native audit -> official PIISA answers (keyed by official IDs). Only answered fields are returned. */
 export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew: { name: string; eec: string | null }[] } {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: every asked answer mapped to its official item (install-day.core); Part 5 lights / cables come from
+    // the stored PIESA (piesaPart5Answers), never from this form. Crew rows as typed (resolved against verified staff later).
+    const r = installDayOfficialAnswers(audit);
+    const crew = r.crew.slice(1).filter((c): c is { name: string | null; cii: string | null } => !!c?.name).map((c) => ({ name: c.name!, eec: c.cii }));
+    return { answers: r.answers as OfficialAnswers, crew };
+  }
   const entries = flatten(audit);
   const answers: OfficialAnswers = {};
   for (const id of Object.keys(A3_ALIASES)) {
@@ -293,6 +309,11 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
 
 /** The installer's signature must carry its OWN timestamp. The audit's modified/completed time is never used. */
 export function a3Signature(audit: unknown): { name: string | null; signedAt: string | null; present: boolean; mediaId: string | null; itemId: string | null } {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: the before-work "Lead installer's signature" (the FIRST of the two) is the official Part 8 signature.
+    const sig = readInstallDay(audit).declarationSignature;
+    return { ...sig, itemId: allWithLabel(labelledItems(audit), INSTALL_DAY_Q.signature)[0]?.id ?? null };
+  }
   const root = (audit as { template?: unknown })?.template ?? audit;
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
@@ -769,6 +790,11 @@ export function a3AuditUsesDirectCrew(audit: unknown): boolean {
   return items.has(A3_DIRECT_SIGNATURE_ID) && !A3_CREW_NAME_IDS.some((id) => items.has(id));
 }
 export function a3CrewChoices(audit: unknown): CrewChoice[] {
+  if (isInstallDayDoc(audit)) {
+    // Decision 262: typed names + CII numbers (lead, second, third); a fourth row never exists on this form.
+    const rows = installDayOfficialAnswers(audit).crew;
+    return [0, 1, 2, 3].map((row): CrewChoice => { const c = rows[row]; return c ? { row, kind: "other", name: c.name, eec: c.cii } : { row, kind: "none" }; });
+  }
   const items = allItems(audit);
   const txt = (id: string) => { const r = items.get(id)?.responses ?? {}; const v = r.text ?? r.value; return typeof v === "string" && v.trim() ? v.trim() : null; };
   if (a3AuditUsesDirectCrew(audit)) return A3_CREW_OTHER_FIELDS.map((pair, row): CrewChoice => {

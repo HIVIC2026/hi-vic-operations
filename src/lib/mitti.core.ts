@@ -248,7 +248,7 @@ export function propertyTypeOption(v: string | null | undefined): string | null 
 }
 
 /** Find the Mitti option ID for a choice answer (v1 definitions keep options in template.response_sets). */
-function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
+export function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
   const root = template?.template ?? template;
   let rsId: string | null = null;
   const walk = (x: Any) => { if (!x || typeof x !== "object" || rsId) return; if (x.id === itemId && x.question?.response_set_id) { rsId = x.question.response_set_id; return; } for (const v of Object.values(x)) walk(v); };

@@ -1,19 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Install-day evidence and safety record on the Mitti Install day form (the native A3 PIISA template). PURE: no
-// database, no network. Jo 24 Oct 2026, decisions 205 (Activity Guide v1.2 §4.2 + Table 4), 206 (SWMS section inside
-// the form), 210 (audit must-haves: lock-out removal / re-energise, lead present + finish time + signature, foil /
-// conductive existing insulation, product + m² per zone, zone names from the Ready Check) and 211 (no plan upload:
-// the final diagram is drawn by the portal from the per-zone product + m² answers).
+// Install-day evidence and sign-off on the Mitti Install day form. PURE: no database, no network. Jo 24 Oct 2026,
+// decisions 205 (Activity Guide v1.2 §4.2 + Table 4), 210 (lock-out removal / re-energise, lead present + signature, foil /
+// conductive existing insulation, product + m² per area, area names from the Ready Check), 211 (no plan upload: the
+// final diagram is drawn from the per-area product + m² answers) and 262 (the "A3 – Install day" template).
 //
-// The portal reads every new item BY EXACT QUESTION WORDING — the constants below are the wording Jo types into Mitti
-// (docs/MITTI_INSTALL_FORM_CHATGPT_PROMPT.md is built from them and a test checks the two never drift). Form health
-// lists any wording the published template lacks; the stage gates fail closed for installs from the effective date.
+// The portal reads every item BY EXACT QUESTION WORDING. The current wording is the "A3 – Install day" template
+// (install-day.core.ts, built from docs/MITTI_INSTALL_FORM_FIX_PROMPT.md); the decision-205 wording of the old
+// "A3 - PIISA + AP Evidence" template stays readable as aliases so completed old forms still parse. The safety plan
+// (SWMS) is not on the form any more (decision 261, swms.core.ts). Form health lists any wording the template lacks;
+// the stage gates fail closed for installs from the effective date.
 //
 // Grandfathering: installs that started before INSTALL_EVIDENCE_EFFECTIVE_DATE keep the seven original A3 items only
 // (piisa-a3.core); nothing here applies to them, so history is untouched.
 import { norm } from "./mitti.core";
 import { melbourneToday } from "./melbourne-time.core";
-import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
+import type { MittiMediaFile } from "./piesa-evidence.core";
+import { INSTALL_DAY_Q as ID, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, labelKey as key, labelledItems, NO_SIGNATURE, type Labelled, type ReadSignature } from "./install-day.core";
 import { activity48ProductProblems, modelsForMittiOption } from "./esc-approved-products.core";
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
 
@@ -22,8 +24,6 @@ export const INSTALL_EVIDENCE_EFFECTIVE_DATE = "2026-11-01";
 export const INSTALL_EVIDENCE_RULE = "install-day-v2-2026-10-24";
 /** Zone blocks on the Mitti form. */
 export const MAX_FORM_ZONES = 3;
-/** Additional installer rows on the A3 crew section (Part 2: Additional installer 1–3); each signs the SWMS inside its own block. */
-export const SWMS_ADDITIONAL_INSTALLERS = 3;
 /** Table 4: "Each video should not exceed 250MB in file size." */
 export const VIDEO_MAX_BYTES = 250 * 1024 * 1024;
 export const ZONE_COUNT_OPTIONS = ["1", "2", "3"] as const;
@@ -42,22 +42,21 @@ export function installEvidenceApplies(installDate: string | null | undefined, t
 // Exact Mitti question wording (character for character)
 // ======================================================================================================
 
-/** Part B — zones and Table 4 evidence (decision 205) + per-zone product and m² (decision 210 d). Decision 260: the short
- *  labels of docs/MITTI_INSTALL_FORM_FIX_PROMPT.md are primary; every earlier wording stays readable (LABEL_ALIASES). */
+/** Areas and Table 4 evidence (decision 205) + per-area product and m² (decision 210 d): the "A3 – Install day" wording. */
 export const INSTALL_EVIDENCE_QUESTIONS = {
-  zoneCount: "How many zones?",
-  zoneName: (z: number) => `Zone ${z} name (same as the Ready Check)`,
-  zoneUnderInsulated: (z: number) => `Zone ${z}: existing insulation here?`,
-  zoneExistingPhoto: (z: number) => `Zone ${z}: photo with ruler showing depth`,
-  zoneBeforeVideo: (z: number) => `Zone ${z}: before video`,
-  zoneAfterVideo: (z: number) => `Zone ${z}: after video`,
-  zoneDepthPhoto: (z: number) => `Zone ${z}: after photo with ruler showing depth`,
-  zoneProduct: (z: number) => `Zone ${z}: product installed`,
-  zoneAreaM2: (z: number) => `Zone ${z}: m² installed`,
-  multiDay: "More than one day?",
-  dailyRecheck: "I re-checked every item before starting each day",
+  zoneCount: ID.areaCount,
+  zoneName: ID.areaName,
+  zoneUnderInsulated: ID.areaOld,
+  zoneExistingPhoto: ID.areaOldPhoto,
+  zoneBeforeVideo: ID.areaBeforeVideo,
+  zoneAfterVideo: ID.areaAfterVideo,
+  zoneDepthPhoto: ID.areaNewPhoto,
+  zoneProduct: ID.areaProduct,
+  zoneAreaM2: ID.areaM2,
+  multiDay: ID.multiDay,
+  dailyRecheck: ID.dailyRecheck,
 } as const;
-/** The 24 Oct 2026 long wordings (decision 205), still read on forms built before decision 260. */
+/** Decision 205 wording on the old "A3 - PIISA + AP Evidence" template (still read on completed old forms). */
 export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
   zoneCount: "How many upgrade zones are you insulating on this job?",
   zoneName: (z: number) => `Zone ${z} — name of this ceiling area (use the same name as the Ready Check and floor plan)`,
@@ -72,84 +71,32 @@ export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
   dailyRecheck: "Before starting work each day, I re-checked every item on this safety assessment and they all still hold.",
 } as const;
 
-/** The four A3 photo items (same Mitti items, wording only). Decision 260 short labels; help text carries the detail. */
+/** The four A3 photo items: the "A3 – Install day" wording. */
 export const INSTALL_EVIDENCE_RELABELS = {
-  installer_photos: "Photo: each installer at the front door with ID",
-  electrician_photo: "Photo: electrician at the front door with ID",
-  isolation_photo: "Photo: power isolated, lock-out tag on switchboard",
-  product_photos: "Photo: product packaging showing brand, model, R-value",
+  installer_photos: ID.installerPhotos,
+  electrician_photo: ID.electricianPhoto,
+  isolation_photo: ID.isolationPhoto,
+  product_photos: ID.productPhotos,
 } as const;
-/** Decision 205 wordings of the same four items (still accepted on the same stable IDs). */
+/** Decision 205 wordings of the same four items on the old A3 template (still accepted on the same stable IDs). */
 export const INSTALL_EVIDENCE_RELABELS_LONG = {
   installer_photos: "Photo of each installer at the front of the premises with photo ID clearly visible — one photo per installer (geotagged)",
   electrician_photo: "Photo of the electrician at the front of the premises with photo ID clearly visible (geotagged)",
   isolation_photo: "Before work starts: photo of the power isolated — lock-out tag on the switchboard, and the solar and battery isolators switched off where the home has them (geotagged)",
   product_photos: "Photo of the product packaging on site showing the brand, model and R-value label — one per product (geotagged)",
 } as const;
-/** Alias used by the Mitti build prompt. */
+/** Alias used by the old A3 build prompt. */
 export const A3_RELABELS = INSTALL_EVIDENCE_RELABELS;
 
-/** Part C — SWMS ("safety plan"), the legal minimum (decisions 256/258/260, Jo 24 Oct 2026; docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md;
- *  end state docs/MITTI_INSTALL_FORM_FIX_PROMPT.md): high-risk work, one required tick that the standard controls (shown on
- *  the installer's job page and printed on the filed SWMS — SWMS_STANDARD_CONTROLS_TEXT) are in place, an optional box for
- *  anything specific to the house, and each named installer 2–4 signing inside their own crew block. The lead's sign-off is
- *  the declaration signature; prepared by / for / work / date come from job facts on the filed PDF. */
-export const SWMS_QUESTIONS = {
-  hrcw: "High-risk work on this job (tick all)",
-  hrcwNone: "None apply: why?",
-  standardControls: "Standard controls are in place (they're on your job page)",
-  /** Optional. */
-  changes: "Anything specific to this house (optional)",
-  /** Additional installer n (1..3) = the form's "Installer n+1", shown only when that name is filled in. */
-  installerSignature: (n: number) => `Installer ${n + 1} signature: I have read the safety plan and will follow it`,
-} as const;
-/** Earlier wordings still read on forms built before decision 260. */
-export const SWMS_LEGACY_LABELS = {
-  hrcw: ["SWMS — which high-risk construction work applies to this job? (tick all)"],
-  hrcwNone: ["SWMS — if none of the high-risk work types apply, explain why"],
-  standardControls: ["SWMS — the standard controls above are in place on this job", "SWMS — the standard controls above are in place for every ticked hazard"],
-  changes: ["SWMS — anything specific to this house, or any change during the job (optional)", "SWMS — anything specific to this house, or any change to hazards or controls during the job (write 'None' if none)", "SWMS — changes to hazards or controls during this job (write 'None' if none)"],
-  installerSignature: (n: number) => [`SWMS — additional installer ${n}: signature (I have read this SWMS, understand the hazards and controls, and will follow it)`, `SWMS — additional installer ${n}: signature`],
-} as const;
-export const SWMS_HRCW_OPTIONS = [
-  "Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists)",
-  "Work on or near energised electrical installations or services (ceiling cables, switchboard, solar/battery)",
-  "Work in or near a confined space",
-  "Work that may disturb asbestos (home built before 1990, or asbestos suspected)",
-  "Work on or near a roadway or in an area with powered mobile plant",
-  "None of these apply (explain in the next box)",
-] as const;
-export const SWMS_HRCW_NONE = SWMS_HRCW_OPTIONS[5];
-/** The nine ESC hazards of every ceiling insulation job (all always apply, decision 258) with each one's sentence from
- *  the standard-controls instruction on the form (`short`: `control`.). The filed PDF prints every one of them. */
-export const SWMS_HAZARDS: readonly { name: string; short: string; control: string }[] = [
-  { name: "Live electrical hazards", short: "Live electrical", control: "power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables" },
-  { name: "Hazardous substances (friable asbestos, harmful chemicals)", short: "Hazardous substances", control: "if asbestos is suspected, do not disturb it — stop work; it is a licensed asbestos removalist's job before work continues; no chemicals or solvents used in the ceiling" },
-  { name: "Biological hazards (mould, animal waste)", short: "Biological (mould, animal waste)", control: "do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating" },
-  { name: "High temperatures and heat exhaustion", short: "Heat", control: "work early, water and a break every 30 minutes, stop in extreme heat" },
-  { name: "Unsafe noise and vibration levels", short: "Noise and vibration", control: "hearing protection for blowers and power tools" },
-  { name: "Respiratory hazards and irritants (dust, odours)", short: "Dust and irritants", control: "P2 mask, goggles, gloves and long sleeves in the ceiling; removed material bagged in the ceiling" },
-  { name: "Working in enclosed spaces", short: "Enclosed spaces", control: "exits kept clear, lighting set up first, stay in contact with someone outside the ceiling" },
-  { name: "Working at height (inside and outside the ceiling space)", short: "Height (inside and outside the ceiling space)", control: "walk only on joists or crawl boards, never on plasterboard; ladder secured and footed with three points of contact; no roof access in wind or rain" },
-  { name: "Fire hazards and ignition sources (flues, chimneys, gas heaters, heat lamps, exhaust fans, downlights, cables over 400 mm surrounded by insulation)", short: "Fire and ignition sources", control: "AS 3999 clearances kept to flues, chimneys, gas heaters, heat lamps, exhaust fans and downlights; cables over 400 mm in insulation as the PIESA directs" },
-];
-/** Closing sentence of the standard-controls instruction (how the controls are implemented and monitored). */
-export const SWMS_HOW_IN_PLACE = "How these are put in place: the lead installer directly supervises the crew, checks every control before anyone enters the ceiling and again at the start of each day, and stops work if any control cannot be followed.";
-/** The instruction (text item, not a question) shown above SWMS_QUESTIONS.standardControls — verbatim. */
-export const SWMS_STANDARD_CONTROLS_TEXT = ["Standard controls for the hazards of every ceiling insulation job.", ...SWMS_HAZARDS.map((h) => `${h.short}: ${h.control}.`), SWMS_HOW_IN_PLACE].join(" ");
-/** Header facts printed on the filed SWMS (from the job, not the form). */
-export const SWMS_PREPARED_FOR = "Home Insulation Victoria (DC Construction Solutions Pty Ltd)";
-export const SWMS_WORK_DEFAULT = "Ceiling insulation removal (if required) and installation of bulk ceiling insulation – VEU Activity 48";
-
-/** Part D — after-install sign-off (decision 210 a, b; audit A3-1…A3-7), decision 260 short labels. The completion
- *  signature shares the label "Signature" with the declaration signature: it is the SECOND "Signature" on the form. */
+/** After-install sign-off (decision 210 a, b; audit A3-1…A3-7). The completion signature shares the label "Lead
+ *  installer's signature" with the before-work declaration signature: it is the SECOND one on the form. */
 export const AFTER_INSTALL_QUESTIONS = {
-  lockoutRemoved: "Lock-out removed, power back on?",
-  lockoutRemovedBy: "Who did it?",
-  switchboardAfterPhoto: "Photo: switchboard, main switch on",
-  solarRestarted: "Solar, battery or generator restarted?",
-  leadPresent: "I was on site the whole time and supervised every installer",
-  completionSignature: "Signature",
+  lockoutRemoved: ID.lockoutOff,
+  lockoutRemovedBy: ID.lockoutBy,
+  switchboardAfterPhoto: ID.switchboardOn,
+  solarRestarted: ID.solarBack,
+  leadPresent: ID.supervised,
+  completionSignature: ID.signature,
 } as const;
 export const AFTER_INSTALL_QUESTIONS_LONG = {
   lockoutRemoved: "After installation: have all lock-out devices been removed and the premises safely re-energised?",
@@ -159,23 +106,23 @@ export const AFTER_INSTALL_QUESTIONS_LONG = {
   leadPresent: "I, the lead installer, was on site for the whole installation, supervised every other installer and confirm the installation complies with the VEU program requirements.",
   completionSignature: "Lead installer signature at completion",
 } as const;
-/** Decision 258: deleted from the form; still read on older forms. Otherwise the completion signature's time is the finish time. */
+/** Old A3 only; the install-day form has no finish time — the completion signature's own time is the finish time. */
 export const LEGACY_FINISHED_AT_LABEL = "Installation finished at (date and time)";
-export const SOLAR_RESTARTED_OPTIONS = ["Yes", "No", "None here"] as const;
-/** "None here" (decision 260) or the earlier "N/A – none at this property". */
-export const solarNoneAnswer = (v: string) => /^(n\/?a\b|none\b)/i.test(v.trim());
+export const SOLAR_RESTARTED_OPTIONS = INSTALL_DAY_SOLAR_BACK_OPTIONS;
+/** "There isn't one" (install day) or the old "N/A – none at this property". */
+export const solarNoneAnswer = (v: string) => /^(n\/?a\b|none\b|there isn.t one)/i.test(v.trim());
 
-/** Part E — foil / conductive existing insulation (decision 210 c; audit A3-10), feeding the official P6 foil rule. */
+/** Foil / conductive existing insulation (decision 210 c; audit A3-10), feeding the official P6 foil rule. */
 export const FOIL_QUESTIONS = {
-  foil: "Foil, metallic or conductive?",
-  foilPhoto: "Photo of the facing",
+  foil: ID.foil,
+  foilPhoto: ID.foilPhoto,
 } as const;
 export const FOIL_QUESTIONS_LONG = {
   foil: "Is any of the existing insulation foil-backed, metallic or electrically conductive?",
   foilPhoto: "Photo of the existing insulation showing the facing (geotagged)",
 } as const;
 
-/** Every earlier wording of each current label (exact, first line), so forms built before decision 260 still read. */
+/** The old A3 wording of each current label (exact, first line), so completed old forms still read. */
 export const LABEL_ALIASES: Readonly<Record<string, readonly string[]>> = (() => {
   const out: Record<string, string[]> = {};
   const add = (cur: string, ...old: readonly string[]) => { out[cur] = [...(out[cur] ?? []), ...old]; };
@@ -184,9 +131,6 @@ export const LABEL_ALIASES: Readonly<Record<string, readonly string[]>> = (() =>
   for (let z = 1; z <= MAX_FORM_ZONES; z++) for (const k of ["zoneName", "zoneUnderInsulated", "zoneExistingPhoto", "zoneBeforeVideo", "zoneAfterVideo", "zoneDepthPhoto", "zoneProduct", "zoneAreaM2"] as const) add(Q[k](z), QL[k](z));
   for (const k of Object.keys(AFTER_INSTALL_QUESTIONS) as (keyof typeof AFTER_INSTALL_QUESTIONS)[]) add(AFTER_INSTALL_QUESTIONS[k], AFTER_INSTALL_QUESTIONS_LONG[k]);
   add(FOIL_QUESTIONS.foil, FOIL_QUESTIONS_LONG.foil); add(FOIL_QUESTIONS.foilPhoto, FOIL_QUESTIONS_LONG.foilPhoto);
-  const S = SWMS_QUESTIONS, L = SWMS_LEGACY_LABELS;
-  add(S.hrcw, ...L.hrcw); add(S.hrcwNone, ...L.hrcwNone); add(S.standardControls, ...L.standardControls); add(S.changes, ...L.changes);
-  for (let n = 1; n <= SWMS_ADDITIONAL_INSTALLERS; n++) add(S.installerSignature(n), ...L.installerSignature(n));
   return out;
 })();
 
@@ -211,23 +155,14 @@ export type QuestionType = "pick_one" | "tick_all" | "text" | "yes_no" | "photo"
 export type QuestionSpec = { part: "B" | "C" | "D" | "E"; label: string; type: QuestionType; zone?: number | null; options?: readonly string[]; showWhen?: string | undefined; prefill?: string | undefined; /** Not required on the form. */ optional?: boolean };
 
 export function installEvidenceQuestionList(): QuestionSpec[] {
-  const Q = INSTALL_EVIDENCE_QUESTIONS, S = SWMS_QUESTIONS, A = AFTER_INSTALL_QUESTIONS, F = FOIL_QUESTIONS;
+  const Q = INSTALL_EVIDENCE_QUESTIONS, A = AFTER_INSTALL_QUESTIONS, F = FOIL_QUESTIONS;
   const out: QuestionSpec[] = [];
-  // Part C — SWMS (decisions 256/258). Crew signatures sit inside each "Additional Installer N" block of Part 2 (shown
-  // when that name is filled in); the SWMS questions sit before Part 3 of the PIISA, so they are done before isolation.
-  for (let n = 1; n <= SWMS_ADDITIONAL_INSTALLERS; n++) out.push({ part: "C", label: S.installerSignature(n), type: "signature", showWhen: `Additional installer ${n} name is filled in` });
-  out.push(
-    { part: "C", label: S.hrcw, type: "tick_all", options: SWMS_HRCW_OPTIONS },
-    { part: "C", label: S.hrcwNone, type: "text", showWhen: `${S.hrcw} has "${SWMS_HRCW_NONE}" ticked` },
-    { part: "C", label: S.standardControls, type: "checkbox" },
-    { part: "C", label: S.changes, type: "text", optional: true },
-  );
-  // Part B — zones.
+  // Part B — areas.
   out.push({ part: "B", label: Q.zoneCount, type: "pick_one", zone: null, options: ZONE_COUNT_OPTIONS });
   for (let z = 1; z <= MAX_FORM_ZONES; z++) {
     const show = z === 1 ? undefined : `${Q.zoneCount} is ${ZONE_COUNT_OPTIONS.slice(z - 1).join(" or ")}`;
     out.push(
-      { part: "B", label: Q.zoneName(z), type: "text", zone: z, showWhen: show, prefill: `"${zoneNameValue(z, "<Ready Check area name>")}"` },
+      { part: "B", label: Q.zoneName(z), type: "text", zone: z, showWhen: show, prefill: "<Ready Check area name>" },
       { part: "B", label: Q.zoneUnderInsulated(z), type: "yes_no", zone: z, showWhen: show },
       { part: "B", label: Q.zoneExistingPhoto(z), type: "photo", zone: z, showWhen: `${Q.zoneUnderInsulated(z)} = Yes` },
       { part: "B", label: Q.zoneBeforeVideo(z), type: "video", zone: z, showWhen: show },
@@ -243,7 +178,7 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
   );
   // Part E — foil (with the existing-insulation part of the PIISA).
   out.push(
-    { part: "E", label: F.foil, type: "yes_no", showWhen: "Is there existing insulation in the ceiling? = Yes" },
+    { part: "E", label: F.foil, type: "yes_no", showWhen: `${ID.existing} = Yes` },
     { part: "E", label: F.foilPhoto, type: "photo", showWhen: `${F.foil} = Yes` },
   );
   // Part D — after-install sign-off (end of the form).
@@ -259,55 +194,17 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
 }
 
 // ======================================================================================================
-// Reading the audit / template by label
+// Reading the audit / template by label (primitives shared with install-day.core)
 // ======================================================================================================
-/** First line of a Mitti label, normalised (Mitti appends help text after a line break). */
-const key = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
-
-export type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
-type Labelled = { label: string; value: string | null; values: string[]; media: MittiMediaFile[]; signature: ReadSignature };
-
-function signatureOf(r: Record<string, any>): ReadSignature {
-  const m = r["image"] ?? r["media"] ?? r["media_id"] ?? r["signature"];
-  const pick = (x: any): string | null => typeof x === "string" ? (/^[0-9a-f-]{16,}$/i.test(x.trim()) || /^https:\/\//.test(x.trim()) ? x.trim() : null) : x && typeof x === "object" ? pick(Array.isArray(x) ? x[0] : (x.media_id ?? x.id ?? x.href)) : null;
-  const mediaId = pick(m);
-  const captured = m && typeof m === "object" && !Array.isArray(m) ? m : {};
-  const ts = [r["timestamp"], r["signed_at"], r["datetime"], captured.timestamp, captured.signed_at, captured.metadata?.signed_at].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
-  const name = r["name"] ?? captured.name ?? captured.metadata?.signer_name;
-  return { present: !!mediaId, name: typeof name === "string" && name.trim() ? name.trim() : null, signedAt: ts ?? null, mediaId };
-}
-function labelledItems(doc: unknown): Labelled[] {
-  const out: Labelled[] = [];
-  const walk = (x: unknown) => {
-    if (Array.isArray(x)) { x.forEach(walk); return; }
-    if (!x || typeof x !== "object") return;
-    const o = x as Record<string, any>;
-    if (typeof o["label"] === "string") {
-      const r = (o["responses"] ?? {}) as Record<string, any>;
-      const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];
-      const sel = selected.length ? selected.join(", ") : null;
-      // Same answer keys as mitti.core responseValue (text / number / datetime items), plus the item-level value.
-      const txt = [sel, r["text"], r["value"], r["number"], r["numeric"], r["datetime"], r["date"], o["value"]].map((v) => (typeof v === "number" ? String(v) : v)).find((v) => typeof v === "string" && v.trim()) as string | undefined;
-      const ticked = r["value"] === true || r["checked"] === true ? "Yes" : null;
-      const media = o["media"] ?? r["media"] ?? r["attachments"] ?? [];
-      out.push({ label: o["label"], value: txt ?? ticked ?? null, values: selected, media: Array.isArray(media) ? media.map(mittiMediaFile) : [], signature: signatureOf(r) });
-    }
-    for (const v of Object.values(o)) if (v && typeof v === "object") walk(v);
-  };
-  walk((doc as any)?.template ?? doc);
-  return out;
-}
-/** One exact label. "Signature" is shared by the declaration and the sign-off: the sign-off one is the SECOND on the form
- *  (a form with a single "Signature" has no sign-off signature yet — never the declaration's). */
+export type { ReadSignature } from "./install-day.core";
+/** One exact label. "Lead installer's signature" is shared by the declaration and the sign-off: the sign-off one is the
+ *  SECOND on the form (a form with a single one has no sign-off signature yet — never the declaration's). */
 const findExact = (items: Labelled[], label: string) => {
-  const k = key(label);
-  if (k === key(AFTER_INSTALL_QUESTIONS.completionSignature)) return items.filter((i) => key(i.label) === k)[1];
-  return items.find((i) => key(i.label) === k);
+  if (key(label) === key(AFTER_INSTALL_QUESTIONS.completionSignature)) return allWithLabel(items, label)[1];
+  return allWithLabel(items, label)[0];
 };
 /** Current wording first, then every earlier wording of it (LABEL_ALIASES). */
 const find = (items: Labelled[], label: string) => [label, ...(LABEL_ALIASES[label] ?? [])].map((l) => findExact(items, l)).find((x) => !!x);
-/** First item carrying any of the labels (current wording first, then older wordings). */
-const findAny = (items: Labelled[], labels: readonly string[]) => labels.map((l) => find(items, l)).find((x) => !!x);
 const yn = (v: string | null): boolean | null => (v == null ? null : /^yes\b/i.test(v.trim()) ? true : /^no\b/i.test(v.trim()) ? false : null);
 const numberOf = (v: string | null): number | null => { if (v == null) return null; const n = Number(String(v).replace(/[^0-9.]/g, "")); return Number.isFinite(n) ? n : null; };
 /** Ticked options of a tick-all answer: the selected labels, else the comma-joined text matched against the option list. */
@@ -325,22 +222,18 @@ export function installEvidenceMissingQuestions(template: unknown): string[] {
 }
 
 export type InstallEvidenceZoneRead = { zone: number; name: string | null; underInsulated: boolean | null; existingPhoto: MittiMediaFile[]; beforeVideo: MittiMediaFile[]; afterVideo: MittiMediaFile[]; depthPhoto: MittiMediaFile[]; product: string | null; areaM2: number | null };
-/** One "Additional Installer N" SWMS sign-off (N = row, 1..3). */
-export type SwmsInstallerRead = { row: number; signature: ReadSignature };
-export type SwmsRead = { onForm: boolean; hrcw: string[]; hrcwNone: string | null; standardControls: boolean; changes: string | null; installers: SwmsInstallerRead[] };
 export type AfterInstallRead = { onForm: boolean; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
-export type InstallEvidenceRead = { formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; swms: SwmsRead; after: AfterInstallRead; foil: FoilRead };
+export type InstallEvidenceRead = { formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
 export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const items = labelledItems(audit);
-  const Q = INSTALL_EVIDENCE_QUESTIONS, S = SWMS_QUESTIONS, A = AFTER_INSTALL_QUESTIONS, F = FOIL_QUESTIONS;
+  const Q = INSTALL_EVIDENCE_QUESTIONS, A = AFTER_INSTALL_QUESTIONS, F = FOIL_QUESTIONS;
   const v = (label: string) => find(items, label)?.value ?? null;
   const t = (label: string) => { const x = v(label); return x && x.trim() ? x.trim() : null; };
   const m = (label: string) => find(items, label)?.media ?? [];
-  const sig = (label: string, legacy: readonly string[] = []): ReadSignature => findAny(items, [label, ...legacy])?.signature ?? { present: false, name: null, signedAt: null, mediaId: null };
-  const tAny = (labels: readonly string[]) => { const x = findAny(items, labels)?.value ?? null; return x && x.trim() ? x.trim() : null; };
+  const sig = (label: string): ReadSignature => find(items, label)?.signature ?? NO_SIGNATURE;
   const zc = v(Q.zoneCount);
   const n = zc == null ? NaN : Number(String(zc).trim());
   const zones: InstallEvidenceZoneRead[] = [];
@@ -349,17 +242,11 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
     existingPhoto: m(Q.zoneExistingPhoto(z)), beforeVideo: m(Q.zoneBeforeVideo(z)), afterVideo: m(Q.zoneAfterVideo(z)), depthPhoto: m(Q.zoneDepthPhoto(z)),
     product: t(Q.zoneProduct(z)), areaM2: numberOf(v(Q.zoneAreaM2(z))),
   });
-  const swms: SwmsRead = {
-    onForm: !!findAny(items, [S.standardControls, ...SWMS_LEGACY_LABELS.standardControls]),
-    hrcw: ticks(find(items, S.hrcw), SWMS_HRCW_OPTIONS), hrcwNone: t(S.hrcwNone),
-    standardControls: !!tAny([S.standardControls, ...SWMS_LEGACY_LABELS.standardControls]), changes: tAny([S.changes, ...SWMS_LEGACY_LABELS.changes]),
-    installers: Array.from({ length: SWMS_ADDITIONAL_INSTALLERS }, (_, i) => ({ row: i + 1, signature: sig(S.installerSignature(i + 1), SWMS_LEGACY_LABELS.installerSignature(i + 1)) })),
-  };
-  // Decision 258: "Installation finished at" is gone — the completion signature's own time stands as the finish time.
+  // The install-day form has no finish time: the completion signature's own time stands as the finish time.
   const completionSignature = sig(A.completionSignature);
   const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
-  return { formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), swms, after, foil };
+  return { formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
 /**
@@ -387,17 +274,12 @@ export type InstallEvidenceCtx = {
   zones: JobZone[];
   /** Installation runs over more than one day (booked days, or form start ≠ completion date). */
   multiDay: boolean;
-  /** Lead installer's recorded name (Part 2) — the completion signature must carry it; printed on the SWMS. null = not checked. */
+  /** Lead installer's recorded name — the completion signature must carry it. null = not checked. */
   leadName?: string | null;
-  /** Part 2 "Additional installer 1–3" names by row (index 0 = additional installer 1; null = row empty). Every filled
-   *  row needs its SWMS signature (decisions 256/258). */
-  additionalInstallers?: (string | null)[];
   /** PIISA Part 4 "solar, battery or other supply present" answer. */
   solarPresent?: boolean | null;
   /** PIISA Part 6 "existing insulation present" answer (foil question applies). */
   existingInsulation?: boolean | null;
-  /** The official Part 3 ticks, cross-checked against the SWMS section (never removed from the form). */
-  p3Swms?: "Yes" | "No" | null; p3Table1?: "Yes" | "No" | null;
 };
 
 export type InstallEvidenceItem = { id: string; zone: number | null; label: string; state: "met" | "missing" | "review" | "not_required"; count: number; problems: string[] };
@@ -406,12 +288,10 @@ export type InstallEvidenceSummary = {
   items: InstallEvidenceItem[];
   /** Everything outstanding, plain words, one line per item. */
   blockers: string[];
-  /** The before-work subset (reg 327 SWMS, zone before-items, foil) for the prestart snapshot. */
+  /** The before-work subset (area before-items, foil) for the prestart snapshot. */
   prestartBlockers: string[];
   /** Per-zone installed product + m² as answered (drives the generated final diagram, decision 211). */
   zoneProducts: { zone: number; name: string | null; product: string | null; areaM2: number | null }[];
-  /** The SWMS section is complete (filed as the 6-year record when true). */
-  swmsComplete: boolean;
   /** Foil / conductive answer for the official P6 rule: true / false / null (not answered or not asked). */
   foil: boolean | null; foilPhotoMediaId: string | null;
 };
@@ -432,38 +312,6 @@ function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: numb
   return { state: problems.length ? "review" : "met", problems };
 }
 const sameName = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && norm(a) === norm(b);
-
-/** SWMS section (decisions 206/256/258): what is still missing before work may start. Empty = complete. The lead's
- *  sign-off is the PIISA Part 8 signature, checked by the PIISA gate; the specific/changes box is optional. */
-export function swmsBlockers(s: SwmsRead, ctx: Pick<InstallEvidenceCtx, "additionalInstallers">): string[] {
-  const S = SWMS_QUESTIONS;
-  if (!s.onForm) return [`The Mitti Install day form does not have the current SWMS yet ("${S.standardControls}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md to the template.`];
-  const b: string[] = [];
-  if (!s.hrcw.length) b.push(`${S.hrcw}: nothing ticked`);
-  else if (s.hrcw.includes(SWMS_HRCW_NONE)) { if (s.hrcw.length > 1) b.push("SWMS — high-risk work: \"None of these apply\" cannot be ticked with another type"); if (!s.hrcwNone) b.push(`${S.hrcwNone}: not entered`); }
-  if (!s.standardControls) b.push(`${S.standardControls}: not ticked`);
-  // Every additional installer named on the form signs the SWMS inside their own block.
-  (ctx.additionalInstallers ?? []).slice(0, SWMS_ADDITIONAL_INSTALLERS).forEach((name, i) => {
-    if (!name) return;
-    const w = s.installers[i]!;
-    const who = `SWMS — additional installer ${i + 1} (${name})`;
-    if (!w.signature.present) b.push(`${who}: signature missing`);
-    else if (!w.signature.signedAt) b.push(`${who}: signature has no time recorded`);
-  });
-  return b;
-}
-
-/** Official Part 3 ticks must agree with the section: a Yes on a half-done SWMS is a contradiction, never a pass. */
-export function swmsCrossCheck(s: SwmsRead, swmsProblems: string[], p3Swms: "Yes" | "No" | null | undefined, p3Table1: "Yes" | "No" | null | undefined): string[] {
-  const out: string[] = [];
-  if (!s.onForm) return out;
-  const complete = swmsProblems.length === 0;
-  const tableOneDone = s.standardControls;
-  if (p3Swms === "Yes" && !complete) out.push("PIISA Part 3 says the SWMS is complete, but the SWMS section on the form is not — finish the SWMS section");
-  if (p3Table1 === "Yes" && !tableOneDone) out.push("PIISA Part 3 says every Table 1 hazard is controlled, but the SWMS standard controls are not confirmed");
-  if (p3Swms === "No" && complete) out.push("PIISA Part 3 says the SWMS is not complete although the SWMS section is — the installer must correct Part 3");
-  return out;
-}
 
 /** After-install sign-off (decision 210 a, b). Empty = complete. */
 export function afterInstallBlockers(a: AfterInstallRead, ctx: Pick<InstallEvidenceCtx, "leadName" | "solarPresent">, workStartAt?: string | null): string[] {
@@ -511,10 +359,10 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
   const zoneCount = Math.max(1, ctx.zones.length);
   const zoneProducts = read.zones.slice(0, Math.min(zoneCount, MAX_FORM_ZONES)).map((z) => ({ zone: z.zone, name: z.name, product: z.product, areaM2: z.areaM2 }));
   const base = { rule: INSTALL_EVIDENCE_RULE, applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null } as const;
-  if (!applies) return { ...base, items: [], blockers: [], prestartBlockers: [], swmsComplete: false };
+  if (!applies) return { ...base, items: [], blockers: [], prestartBlockers: [] };
   const items: InstallEvidenceItem[] = [];
   const before: string[] = [], after: string[] = [];
-  if (!read.questionsOnForm) before.push(`The Mitti Install day form has no "${Q.zoneCount}" question yet — add the new items to the template (docs/MITTI_INSTALL_FORM_CHATGPT_PROMPT.md).`);
+  if (!read.questionsOnForm) before.push(`The Mitti Install day form has no "${Q.zoneCount}" question yet — build the "A3 – Install day" template (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md).`);
   else {
     if (zoneCount > MAX_FORM_ZONES) before.push(`This job records ${zoneCount} upgrade zones but the Mitti form holds ${MAX_FORM_ZONES} — office review (extra zones need their own evidence).`);
     if (read.formZoneCount == null) before.push(`${Q.zoneCount}: not answered`);
@@ -550,27 +398,25 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
       if (!ok) after.push("Daily pre-start re-check not ticked for this multi-day installation");
     } else items.push({ id: "daily_recheck", zone: null, label: Q.dailyRecheck, state: "not_required", count: read.dailyRecheck ? 1 : 0, problems: [] });
   }
-  // SWMS (before work), its cross-check with the official Part 3, foil (before work), after-install sign-off.
-  const swmsProblems = swmsBlockers(read.swms, ctx);
-  before.push(...swmsProblems.map((p) => (p.startsWith("SWMS") || p.startsWith("The Mitti") ? p : `SWMS: ${p}`)), ...swmsCrossCheck(read.swms, swmsProblems, ctx.p3Swms, ctx.p3Table1));
+  // Foil (before work), after-install sign-off. The safety plan is checked by the pre-start check (decision 261).
   const existing = ctx.existingInsulation === true || ctx.zones.some((z) => z.underInsulated === true) || read.zones.some((z) => z.underInsulated === true);
   before.push(...foilBlockers(read.foil, existing, workStartAt));
   after.push(...afterInstallBlockers(read.after, ctx, workStartAt));
   const prestartBlockers = [...new Set(before)];
-  return { ...base, items, blockers: [...new Set([...before, ...after])], prestartBlockers, swmsComplete: read.swms.onForm && swmsProblems.length === 0 };
+  return { ...base, items, blockers: [...new Set([...before, ...after])], prestartBlockers };
 }
 
 /** Lines for the stage gate. `summary` null = never read from Mitti; blocks only when the rule applies. */
 export function installEvidenceGateLines(summary: InstallEvidenceSummary | null | undefined, installDate: string | null): string[] {
   if (!installEvidenceApplies(installDate)) return [];
-  if (!summary) return ["Install-day evidence (Activity Guide Table 4, SWMS and sign-off) has not been read from the Mitti Install day form yet — sync the PIISA."];
+  if (!summary) return ["Install-day evidence (Activity Guide Table 4 and sign-off) has not been read from the Mitti Install day form yet — sync the PIISA."];
   if (!summary.applies) return [];
   return summary.blockers.map((b) => `Install evidence: ${b}`);
 }
 
 // ======================================================================================================
-// Prefill (zone names from the Ready Check) — label-matched text items. Decision 256: the SWMS has no prefilled items
-// (prepared by / for / work come from job facts on the filed PDF; crew names are the Part 2 crew prefill).
+// Prefill for the OLD A3 template (zone names from the Ready Check) — label-matched text items. The "A3 – Install day"
+// template is prefilled by install-day.core installDayPrefillItems.
 // ======================================================================================================
 export type InstallPrefillCtx = { zoneNames: (string | null)[] };
 /** Text items to send with the audit: only questions the template actually carries (by exact wording). */
@@ -594,55 +440,6 @@ function labelledItemsWithIds(doc: unknown): { id: string; label: string }[] {
   };
   walk((doc as any)?.template ?? doc);
   return out;
-}
-
-// ======================================================================================================
-// SWMS record text (filed as the 6-year PDF, decision 206)
-// ======================================================================================================
-/** Job facts for the SWMS header (decisions 256/258: not asked on the form). `leadSignature` = the PIISA Part 8 signature. */
-export type SwmsRecordMeta = { jobNumber: string; address: string | null; auditId: string; preparedBy: string | null; leadName: string | null; leadSignature: ReadSignature | null; additionalInstallers: (string | null)[]; multiDay: boolean | null; dailyRecheck: boolean };
-/** Fixed wording on the filed SWMS (WorkSafe Victoria sample template layout, decision 256). */
-export const SWMS_RECORD_TASK = "Ceiling insulation removal (if required) and installation in the ceiling space";
-export const SWMS_COMPLIANCE_MEASURES = "Direct supervision by the lead installer; every control checked before first entry and at the start of each day";
-export const SWMS_HOW_IMPLEMENTED = "Lead installer directly supervises the crew, checks the control before anyone enters the ceiling and again at the start of each day, and stops work if it cannot be followed";
-/**
- * The filed SWMS (6-year record) laid out like WorkSafe Victoria's sample SWMS template (Safe-work-method-statements-2023-07):
- * header rows from job facts, compliance rows, a Tasks | Hazard | Control measures | How implemented | Responsible table for
- * all nine hazards (control = that hazard's own sentence from the form's standard-controls text), the review row (daily
- * re-check tick + the optional specific/changes box) and a Name | Signature | Date sign-off table (lead = Part 8 signature,
- * then each named additional installer; date = the Mitti signature time).
- */
-export function swmsRecordText(s: SwmsRead, meta: SwmsRecordMeta): string {
-  const L: string[] = [];
-  const val = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "—");
-  const leadSig = meta.leadSignature ?? { present: false, name: null, signedAt: null, mediaId: null };
-  const lead = val(meta.leadName ?? leadSig.name);
-  const sigCell = (x: ReadSignature) => (x.present ? `signed (signature image ${x.mediaId})` : "NOT SIGNED");
-  L.push("Safe Work Method Statement — ceiling insulation (VEU Activity 48)", `Job ${meta.jobNumber} — Mitti Install day form ${meta.auditId}`, "");
-  L.push(
-    `Direct employer: ${val(meta.preparedBy)}`,
-    `Principal contractor: ${SWMS_PREPARED_FOR}`,
-    `Work supervisor: ${lead}`,
-    `Site location/address: ${val(meta.address)}`,
-    `Work activity: ${SWMS_WORK_DEFAULT}`,
-    `Date SWMS signed: ${val(leadSig.signedAt)}`,
-    `High-risk construction work: ${s.hrcw.length ? s.hrcw.join("; ") : "—"}`,
-  );
-  if (s.hrcwNone) L.push(`Why no high-risk construction work applies: ${s.hrcwNone}`);
-  L.push("", `Person responsible for ensuring compliance with SWMS: ${lead}`, `Measures to ensure compliance: ${SWMS_COMPLIANCE_MEASURES}`);
-  const daily = meta.multiDay === true ? `Daily re-check before each day's work: ${meta.dailyRecheck ? "confirmed by the lead installer" : "NOT CONFIRMED"}` : "One-day installation: controls checked before first entry";
-  L.push(`How control measures will be reviewed: ${daily} · Specific to this house / changes during the job: ${val(s.changes ?? "None recorded")}`);
-  L.push("", "Tasks | Hazard | Control measures | How implemented | Responsible");
-  for (const h of SWMS_HAZARDS) L.push(`${SWMS_RECORD_TASK} | ${h.name} | ${h.short}: ${h.control}. | ${SWMS_HOW_IMPLEMENTED} | ${lead} (lead installer)`);
-  L.push("", SWMS_HOW_IN_PLACE, `Standard controls in place on this job: ${s.standardControls ? "Yes" : "No"}`);
-  L.push("", "Worker sign-off (I have read this SWMS, understand the hazards and controls, and will follow it)", "Name | Signature | Date");
-  L.push(`${lead} (lead installer — PIISA Part 8 signature) | ${sigCell(leadSig)} | ${val(leadSig.signedAt)}`);
-  meta.additionalInstallers.slice(0, SWMS_ADDITIONAL_INSTALLERS).forEach((name, i) => {
-    const w = s.installers[i]!;
-    if (!name && !w.signature.present) return;
-    L.push(`${val(name)} (additional installer ${w.row}) | ${sigCell(w.signature)} | ${val(w.signature.signedAt)}`);
-  });
-  return L.join("\n");
 }
 
 // ======================================================================================================

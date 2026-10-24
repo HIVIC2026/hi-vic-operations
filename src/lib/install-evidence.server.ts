@@ -1,16 +1,15 @@
-// Install-day evidence, SWMS and sign-off (decisions 205/206/210/211/213): reads the Install day (A3) audit against the
-// job's upgrade zones and keeps the result as the append-only `install_evidence_synced` workflow event (latest per job
-// wins; a new event only when the result changed). Files the completed SWMS as an immutable PDF (6-year record). Rules
-// are pure in install-evidence.core.ts. Never sends; the only stage move is through recordInstallationComplete.
+// Install-day evidence and sign-off (decisions 205/210/211/213/262): reads the Install day audit against the job's
+// upgrade areas and keeps the result as the append-only `install_evidence_synced` workflow event (latest per job wins;
+// a new event only when the result changed). Rules are pure in install-evidence.core.ts. The safety plan (SWMS) lives
+// in swms.server.ts (decision 261). Never sends; the only stage move is through recordInstallationComplete.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { melbourneToday, addYmd } from "./melbourne-time.core";
-import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, swmsRecordText, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
+import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
 import { AREAS_FIELD_KEY, readAreas } from "./ready-check-areas.core";
 import type { MittiMediaFetch } from "./mitti.server";
 
 export const INSTALL_EVIDENCE_EVENT = "install_evidence_synced";
-export const SWMS_FILED_EVENT = "swms_filed";
 
 /** Melbourne calendar date of an ISO timestamp or a date-only string; null when unreadable. */
 export function melbourneDateOf(v: unknown): string | null {
@@ -70,11 +69,8 @@ export async function installEvidenceContext(jobId: string, audit: unknown): Pro
   const crew = a3.a3CrewChoices(audit);
   const nameOf = (c: (typeof crew)[number]) => (c.kind === "other" ? c.name : c.kind === "option" ? c.optionLabel : null);
   const leadName = nameOf(crew[0]!) ?? null;
-  // Decision 256: each filled "Additional installer N" row (by position) signs the SWMS inside its own block.
-  const additionalInstallers = crew.slice(1, 4).map((c, i) => (c.kind === "none" ? null : nameOf(c) ?? `Additional installer ${i + 1}`));
   const yn = (k: string): boolean | null => (str(k) === "Yes" ? true : str(k) === "No" ? false : null);
-  const p3 = (k: string): "Yes" | "No" | null => (str(k) === "Yes" ? "Yes" : str(k) === "No" ? "No" : null);
-  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, leadName, additionalInstallers, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
+  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, leadName, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present") };
 }
 
 /** Read the audit, evaluate, and record the result when it changed. Returns the summary. */
@@ -91,55 +87,10 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   return summary;
 }
 
-/** Prefill facts for a new Install day audit: zone names from the Ready Check (decision 256: the SWMS has no prefilled items). */
+/** Prefill facts for a new OLD-A3 Install day audit: zone names from the Ready Check. */
 export async function installPrefillContext(jobId: string): Promise<InstallPrefillCtx> {
   const zones = await jobUpgradeZones(jobId);
   return { zoneNames: zones.map((z) => z.name) };
-}
-
-/**
- * Decision 206: file the completed SWMS as an immutable PDF with the signature images (6-year record). Keyed by audit +
- * content hash, so a changed SWMS is a new file and an unchanged one is never duplicated. Returns the stored paths.
- */
-export async function fileSwmsRecord(jobId: string, actorId: string | null, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<{ filed: boolean; path: string | null; reason?: string }> {
-  const read = readInstallEvidence(audit);
-  const { data: job } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
-  if (!job) return { filed: false, path: null, reason: "Job not found." };
-  const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
-  const address = [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null;
-  // Decision 256: prepared by / for / work / date come from job facts (installer business, fixed texts, signed-at).
-  const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-  const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
-  const ctx = await installEvidenceContext(jobId, audit);
-  // Decision 258: the lead's SWMS sign-off is the PIISA Part 8 signature and its own time.
-  const part8 = (await import("./piisa-a3.core")).a3Signature(audit);
-  const leadSignature = { present: part8.present, name: part8.name, signedAt: part8.signedAt, mediaId: part8.mediaId };
-  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId, preparedBy: biz?.name ?? null, leadName: ctx.leadName ?? null, leadSignature, additionalInstallers: ctx.additionalInstallers ?? [], multiDay: read.multiDay === true || ctx.multiDay, dailyRecheck: read.dailyRecheck });
-  const { createHash } = await import("node:crypto");
-  const sha = createHash("sha256").update(text).digest("hex");
-  const key = `swms:${auditId}:${sha.slice(0, 16)}`;
-  const { data: ex } = await admin.from("documents").select("id, storage_path").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-  if (ex) return { filed: false, path: ex.storage_path };
-  const { textToPdf } = await import("./signed-pdf.server");
-  const pdf = await textToPdf(`SWMS — Job ${job.job_number}`, text);
-  const base = `${jobId}/official/swms-${auditId}-${sha.slice(0, 8)}`;
-  const up = await admin.storage.from("job-files").upload(`${base}.pdf`, pdf, { contentType: "application/pdf", upsert: false });
-  if (up.error && !/exists/i.test(up.error.message)) return { filed: false, path: null, reason: `SWMS could not be stored: ${up.error.message}` };
-  const sigs = [leadSignature, ...read.swms.installers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
-  const images: string[] = [];
-  for (const s of sigs) {
-    try {
-      const { bytes, contentType } = await fetchMedia(auditId, s.mediaId!);
-      if (!bytes.length) continue;
-      const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "img";
-      const p = `${base}.signature-${s.mediaId}.${ext}`;
-      const u = await admin.storage.from("job-files").upload(p, bytes, { contentType, upsert: false });
-      if (!u.error || /exists/i.test(u.error.message)) images.push(p);
-    } catch { /* a missing signature image is reported by the SWMS blockers, not here */ }
-  }
-  await admin.from("documents").insert({ job_id: jobId, kind: "swms", title: `SWMS — Install day form ${auditId.slice(0, 8)}`, storage_path: `${base}.pdf`, mime_type: "application/pdf", uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `swms-${job.job_number}.pdf`, size_bytes: pdf.byteLength });
-  await logEvent(jobId, actorId, SWMS_FILED_EVENT, "SWMS filed on the job (6-year record, decision 206)", { audit_id: auditId, path: `${base}.pdf`, sha256: sha, signature_images: images }, { internal: true });
-  return { filed: true, path: `${base}.pdf` };
 }
 
 /** Gate lines for AP review / Ready for VEEC: install evidence + Activity 48 product check. */
