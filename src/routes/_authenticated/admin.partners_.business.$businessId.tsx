@@ -83,7 +83,7 @@ function BusinessFile() {
           </dl>
           {p.data && <details className="mt-3" id="upload"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">Upload a new certificate › / verify</summary><div className="mt-2"><Credentials businessId={businessId} creds={p.data.credentials as never} isHivicAdmin canAdd onDone={() => void refresh()} /></div></details>}
         </Panel>
-        <Panel title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
+        <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
         {f.canBeUsualElectrician && <Panel title="Usual electrician" action={f.usual ? <Link to="/admin/partners/business/$businessId" params={{ businessId: f.usual.id }} className="text-sm font-semibold text-hiv-blue hover:underline">Open {f.usual.name} ›</Link> : undefined}>
           <dl data-why="157/173: the installer's usual electrician does the PIESA">
             {f.usual ? <>
