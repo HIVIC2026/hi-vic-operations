@@ -42,3 +42,12 @@ test('a later unclear review removes the offer permission', async () => {
   const result = await campaignLink(token);
   expect(result?.group).toBe('onsite'); expect(campaignPermission(result!, null)).toBe(false);
 });
+// Jo 24 Oct "Fix the saving": an owner who answered the 3 questions saves their spot even with photos on file.
+test('photo owners who answered the 3 questions may save their spot; photos alone still wait for the office', () => {
+  const base = { group: 'onsite', criteriaPassed: true, ownerQualified: true, mediaReview: null, media: { excluded: true, received: true, uncertain: false, pendingSync: false, count: 5 } } as never as Parameters<typeof campaignPermission>[0];
+  expect(campaignPermission({ ...base, answeredQuestions: true }, 'pending')).toBe(true);
+  expect(campaignPermission({ ...base, answeredQuestions: false }, 'pending')).toBe(false);
+  expect(campaignPermission({ ...base, answeredQuestions: true, criteriaPassed: false }, 'pending')).toBe(false);
+  expect(campaignPermission({ ...base, answeredQuestions: true, mediaReview: 'over_r2' }, 'pending')).toBe(false);
+  expect(campaignPermission({ ...base, answeredQuestions: true }, 'not_eligible')).toBe(false);
+});

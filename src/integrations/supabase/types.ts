@@ -13860,6 +13860,10 @@ export type Database = {
         Args: { _actor: string; _batch: string; _rows: Json; _summary: Json }
         Returns: undefined
       }
+      save_owner_insulation_details: {
+        Args: { p_answers: Json; p_token: string }
+        Returns: Json
+      }
       set_bulk_import_plan: {
         Args: { _actor: string; _batch: string; _plan: Json }
         Returns: undefined
