@@ -31,3 +31,11 @@ export function productQuoteDescription(p: Pick<InsulationProduct, "option">, ar
   const area = areaM2 != null && areaM2 > 0 ? ` – ${Math.round(areaM2 * 100) / 100} m²` : "";
   return `Supply and install of ${p.option} ceiling insulation${area}`;
 }
+
+/** VEEC form Section 2 brand/model from an approved option, named as on the ESC register (decisions 148/149). */
+export function productBrandModel(p: Pick<InsulationProduct, "option">): { brand: string; model: string } {
+  if (/^bradford gold/i.test(p.option)) return { brand: "CSR Bradford", model: "Gold Ceiling Batt" };
+  if (/pink batts/i.test(p.option)) return { brand: "PINK® Batts", model: "Ceiling Insulation" };
+  const [brand, ...rest] = p.option.replace(/\s+R\d+(\.\d+)?$/i, "").split(" ");
+  return { brand: brand ?? p.option, model: rest.join(" ") };
+}

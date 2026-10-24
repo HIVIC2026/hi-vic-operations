@@ -257,7 +257,14 @@ export async function veecJobFacts(jobId: string): Promise<{ facts: VeecFacts; b
   const reviewed = (prod ?? []).map((r) => { try { return JSON.parse(r.notes ?? "") as { products?: { brand: string; model: string; rValue: number }[] }; } catch { return null; } }).find((x) => x && Array.isArray(x.products) && x.products.length && (prod ?? []).some((r) => reviewedProductAnswers({ jobId, requirementId: r.id, status: r.status, verifiedBy: r.verified_by, verifiedAt: r.verified_at, notes: r.notes, files: r.evidence_files }).blockers.length === 0));
   const products = reviewed?.products ?? [];
   if (products.length) areas = products.map((pr, i) => ({ name: `Area ${i + 1}`, existing, existingRValue: existingR, removed, productType: null, brand: pr.brand, model: pr.model, rValue: `R${pr.rValue}`, areaM2: i === 0 ? area : null }));
-  else areas = [{ name: "Area 1", existing, existingRValue: existingR, removed, productType: null, brand: null, model: null, rValue: decl?.installed_r_value ?? null, areaM2: area }];
+  else {
+    // Decisions 148/149: no reviewed label yet → the product declared on the Mitti form (Jo's six options; all ESC category 48A).
+    const { productForHivQuote } = await import("./insulation-product.server");
+    const { productBrandModel } = await import("./insulation-product.core");
+    const declared = (await productForHivQuote(jobId).catch(() => ({ product: null }))).product;
+    const bm = declared ? productBrandModel(declared) : null;
+    areas = [{ name: "Area 1", existing, existingRValue: existingR, removed, productType: bm ? "48A" : null, brand: bm?.brand ?? null, model: bm?.model ?? null, rValue: decl?.installed_r_value ?? declared?.rValue ?? null, areaM2: area }];
+  }
   const facts: VeecFacts = {
     ap: { fullName: AP_DETAILS.fullName, companyName: AP_DETAILS.companyName, companyAddress: AP_DETAILS.companyAddress, phone: AP_DETAILS.phone },
     electrician: { name: elec?.profile?.full_name ?? null, phone: elec?.profile?.phone ?? elec?.business?.phone ?? null, licence: elec?.profile?.licence_number ?? elec?.business?.licence_number ?? null, company: elec?.business?.trading_name ?? elec?.business?.name ?? null, companyAddress: elec?.business?.address ?? null, recNumber: elec?.business?.rec_number ?? null },
