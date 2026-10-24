@@ -83,23 +83,37 @@ export async function findInvoiceByReference(call: XeroCall, reference: string) 
   return (r.Invoices ?? []).find((i: any) => !["VOIDED", "DELETED"].includes(i.Status)) ?? null;
 }
 
-/** ONE full detailed invoice: every accepted customer-facing quote line once, plus the VEEC discount as a negative line.
- *  Amounts are inc GST (LineAmountTypes Inclusive) so Xero never adds GST again; lines must sum to the accepted total exactly. */
+/** Name of the negative incentive line (Activity Guide v1.2 Table 4 / decision 209: "VEEC incentive", not "discount"). */
+export const VEEC_INCENTIVE_LINE = "VEEC incentive";
+export const INSTALLATION_ADDRESS_LABEL = "Installation address";
+
+/** ONE full detailed invoice: every accepted customer-facing quote line once, plus the VEEC incentive as a negative line.
+ *  Amounts are inc GST (LineAmountTypes Inclusive) so Xero never adds GST again; lines must sum to the accepted total exactly.
+ *  Decision 209 (Jo 24 Oct 2026): the first line also carries the installation address (the Reference stays the locked
+ *  "Home Insulation Victoria <job>"); the insulation line's wording is prepared by `itemiseInvoiceLines` before this call.
+ *  Business name, address and ABN come from the Xero invoice template (Jo's organisation settings), not from here.
+ *  Invoices already in Xero are never rewritten: `pushInvoiceToXero` returns as soon as `xero_invoice_id` is set, so this
+ *  wording applies to invoices created from this change on. */
 export function buildInvoicePayload(a: {
   contactId: string; jobNumber: string; dueDate: string; total: number;
   items: { description: string; quantity: number | string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string }[];
-  veecDiscount: number | string; tracking: { categoryName: string; optionName: string } | null;
+  /** The VEEC incentive taken off the price (quotes.veec_discount_inc_gst), inc GST. */
+  veecIncentive: number | string; tracking: { categoryName: string; optionName: string } | null;
+  /** Installation address; printed on the first line when known, never invented. */
+  installationAddress?: string | null;
 }) {
   const ref = xeroReference(a.jobNumber);
   const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
-  const LineItems = a.items.map((i) => {
+  const address = a.installationAddress?.trim() ? ` – ${INSTALLATION_ADDRESS_LABEL}: ${a.installationAddress.trim()}` : "";
+  const LineItems = a.items.map((i, n) => {
     const q = Number(i.quantity), u = Number(i.unit_price_inc_gst), lt = Number(i.line_total_inc_gst);
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
+    const head = `${ref}${n === 0 ? address : ""}`;
     return exact
-      ? { Description: `${ref} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
-      : { Description: `${ref} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
+      ? { Description: `${head} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
+      : { Description: `${head} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
   });
-  if (Number(a.veecDiscount) > 0) LineItems.push({ Description: `${ref} – VEEC discount`, Quantity: 1, UnitAmount: -Number(a.veecDiscount), AccountCode: "200", Tracking });
+  if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: "200", Tracking });
   const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);
   if (sum !== Math.round(a.total * 100)) throw new Error(`Quote lines (${sum / 100}) don't add up to the accepted total (${a.total}) – invoice not pushed.`);
   return { Invoices: [{ Type: "ACCREC", Contact: { ContactID: a.contactId }, LineAmountTypes: "Inclusive", Reference: ref, DueDate: a.dueDate, Status: "AUTHORISED", LineItems }] };

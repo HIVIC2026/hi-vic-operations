@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { assertHivicPayload, buildInvoicePayload, findTrackingOption } from "../src/lib/xero.core";
 const noTracking = async () => ({ TrackingCategories: [] });
-const base = { contactId: "c", jobNumber: "HV-1", dueDate: "2026-10-10", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecDiscount: 0 };
+const base = { contactId: "c", jobNumber: "HV-1", dueDate: "2026-10-10", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecIncentive: 0 };
 describe("Business Unit tracking", () => {
   test("TEST (Demo Company) invoices go without it", async () => {
     expect(await findTrackingOption(noTracking as never, "test")).toBeNull();
