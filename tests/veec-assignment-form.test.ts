@@ -86,8 +86,8 @@ describe("decision 120: request + reminders", () => {
     for (const t of [veecSignRequestText(1800, link), veecSignReminderText(1800, link)]) { expect(t.length).toBeLessThan(SMS_SEGMENT_LIMIT); expect(t).toContain(link); expect(t).toContain("Reply STOP to opt out"); expect(t).toContain("$1,800"); }
     expect(veecSignReminderText(1800, link)).toMatch(/still needs your signature/);
     expect(VEEC_COPY_EMAIL_APPROVED).toBe(false); expect(VEEC_SIGN_EMAIL_APPROVED).toBe(false); expect(VEEC_SIGN_SMS_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES.veec_sign_request.wordingApproved).toBe(false);
-    expect(SMS_MESSAGE_TYPES.veec_sign_reminder.wordingApproved).toBe(false);
+    expect(SMS_MESSAGE_TYPES.veec_sign_request.wordingApproved).toBe(true); // decision 166
+    expect(SMS_MESSAGE_TYPES.veec_sign_reminder.wordingApproved).toBe(true); // decision 168
   });
   test("copy due within 10 Melbourne business days of the owner's signature", () => {
     // 20 Oct + 10 business days = 3 Nov, but 3 Nov 2026 is Melbourne Cup Day (Victorian public holiday) → 4 Nov.
