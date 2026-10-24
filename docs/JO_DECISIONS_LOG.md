@@ -152,3 +152,7 @@ Newest first. Each line is settled; anything still open is under "Open".
 90. **"You're in!" acceptance + $349 receipt email approved (24 Oct).** Payment received card (amount, date, card, Paid, remaining balance with the 10% / install-day split); next steps (electrician offers times; separate quote only if fixes needed; installer offers 3 install days within 30 days of the safety check); See my job; signed acceptance + receipt attached. Design: `docs/templates/approved/O22-youre-in.html`.
 91. **Installer "Owner accepted" email approved (24 Oct).** "Good news, {InstallerFirst}. {OwnerFirst} accepted!"; accepted + paid the safety check; next steps (electrician offers times, nothing for you; offer 3 install days once cleared; install within 30 days, portal shows days left); Open the job. Design: `docs/templates/approved/I23-owner-accepted.html`.
 92. **Owner declined → short installer email + office alert (24 Oct).** "{OwnerFirst} declined the quote for {address} ({HV}). Reason: {reason}. Nothing more to do; the job is closed." Same look as the accepted email.
+93. **Safety check (PIESA) texts approved (24 Oct):**
+    - To electrician (B): "Home Insulation Victoria: New PIESA job near {Suburb} ({HV}), {pay}. Offer the owner 3 times within 24 hours: {link}"
+    - Owner booked (A): "Home Insulation Victoria: Booked! Your electrical safety check is {Day Date}, {time} with {Electrician} ({phone}). Details: {link}"
+    - Owner day before: "Home Insulation Victoria: See you tomorrow at {time} for your electrical safety check ({Electrician}, {phone})."
