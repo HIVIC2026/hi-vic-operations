@@ -21,8 +21,10 @@ describe("Ready Check basics (Jo 23 Oct)", () => {
   });
   it("Jo's exact next-step wording", () => {
     const m = readyCheckBasics({ ...full, areaM2: null, installerPriceIncGst: null, ownerMobile: null, ownerEmail: null, contactPermission: null }).missing;
-    expect(needsFinishingFromMissing(m)).toBe("Needs finishing: ceiling area, price, owner mobile/email/permission on the Mitti form");
-    expect(needsFinishingFromMissing(["price", "owner mobile", "owner email", "contact permission"])).toBe("Needs finishing: price, owner mobile/email/permission on the Mitti form");
+    // Decision 278: the price is never a Mitti item — it follows on the job page once the form items are in.
+    expect(needsFinishingFromMissing(m)).toBe("Needs finishing: ceiling area, owner mobile/email/permission on the Mitti form");
+    expect(needsFinishingFromMissing(["price", "owner mobile", "owner email", "contact permission"])).toBe("Needs finishing: owner mobile/email/permission on the Mitti form");
+    expect(needsFinishingFromMissing(["price"])).toBe("Needs finishing: your price on the job page");
     expect(needsFinishingFromMissing([])).toBeNull();
   });
 });

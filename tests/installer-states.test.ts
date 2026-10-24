@@ -42,7 +42,7 @@ describe("M1 states", () => {
 describe("M2 states", () => {
   test("own customer before the Ready Check: arrange it directly, time entry panel", () => {
     const own: JobNextFacts = { ...base, channel: "installer_sourced", stage: "ready_check_ready_to_schedule", ownerFirstName: "Mei", formCompleted: false, quoteLine: null, readyCheckTurn: null, readyCheckBookedAt: null };
-    expect(jobNext(own)).toMatchObject({ panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: "You arrange the visit with Mei directly. Measurements, photos, product and your price all go in the form.", yours: true });
+    expect(jobNext(own)).toMatchObject({ panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: "You arrange the visit with Mei directly. Measurements, photos and product all go in the form.", yours: true });
     expect(quoteStatusRow(null, { formLinked: true }).label).toBe("Prepared once you press Complete in Mitti");
   });
   test("needs finishing: 'Add 4 things in Mitti' with the approved list from ready-check-basics", () => {
@@ -280,7 +280,7 @@ describe("M3 heavier Add a job (decision 237)", () => {
     expect(v.line1).toBe("HV-3166 · 18 Bogong Avenue, Glen Waverley");
     expect(v.line2).toBe("Helen Yang · 0412 345 678");
     expect(v.card).toEqual({ title: "Your Ready Check form is ready in Mitti", body: "Ready Check Mon 26 Oct at 7:30am — it's in your 6:30am text. Fill in as much as you can at the visit. Press Complete only when it's fully finished — that sends Helen their quote.", button: "Open Mitti form" });
-    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your form: your price plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
+    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your Ready Check and the price you enter on the job page, plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
     expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "preparing", message: "soon" } }).card).toMatchObject({ title: "Your Ready Check form is being set up in Mitti", button: null });
     expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "retry", message: "No signal." } }).card).toMatchObject({ title: "Job added — form not ready yet", button: "Try again" });
   });

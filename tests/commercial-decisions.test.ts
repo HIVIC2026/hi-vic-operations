@@ -48,11 +48,13 @@ describe("C02 Ready Check sheet for an installer who has not been on site", () =
     expect(t).toContain("HV-1234");
     expect(t).toContain("12 Test Street, Geelong");
   });
-  test("only the installer-sourced sheet carries the price section, and says we don't mark it up", () => {
+  test("only the installer-sourced sheet carries the price section: the business owner enters it in the portal (decision 278), no mark-up", () => {
     const priced = readyCheckTemplateText("ready_check_priced", { jobNumber: "HV-1234" });
-    expect(priced).toContain("Total quoted price (inc GST)");
+    expect(priced).toContain("YOUR PRICE TO THE OWNER");
+    expect(priced).toContain("business owner enters the price");
     expect(priced).toContain("does not mark this figure up");
-    expect(readyCheckTemplateText("ready_check", { jobNumber: "HV-1234" })).not.toContain("Total quoted price (inc GST)");
+    expect(priced).not.toContain("Total quoted price (inc GST)"); // no price question on the sheet or the form any more
+    expect(readyCheckTemplateText("ready_check", { jobNumber: "HV-1234" })).not.toContain("YOUR PRICE TO THE OWNER");
   });
 });
 

@@ -77,7 +77,8 @@ describe("M4 today's job", () => {
     expect(dayNext({ kind: "install", channel: "hivic_sourced", installFormComplete: false, rebateSigned: false })).toMatchObject({ title: "Start the install in Mitti", button: "Open install form", signRebate: false });
     expect(dayNext({ kind: "install", channel: "hivic_sourced", installFormComplete: true, rebateSigned: false })).toMatchObject({ title: "Sign the rebate form", signRebate: true });
     expect(dayNext({ kind: "ready_check", channel: "hivic_sourced", installFormComplete: false, rebateSigned: false }).sub).toContain("We price the owner's quote from your agreed rates");
-    expect(dayNext({ kind: "ready_check", channel: "installer_sourced", installFormComplete: false, rebateSigned: false }).sub).toContain("plus your price");
+    // Decision 278: staff may do the Ready Check — the day page never mentions the price on A1 either.
+    expect(dayNext({ kind: "ready_check", channel: "installer_sourced", installFormComplete: false, rebateSigned: false }).sub).not.toMatch(/price/i);
   });
   test("electrician-on-site card only when the PIESA requires one", () => {
     expect(electricianOnSite({ required: false, name: "Sam Lee", arrival: "8:00am", reason: null })).toBeNull();

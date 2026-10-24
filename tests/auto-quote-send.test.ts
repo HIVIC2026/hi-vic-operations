@@ -26,8 +26,11 @@ describe("autoSendDecision", () => {
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE quotes (id uuid primary key, job_id uuid, kind text, status text, sent_at timestamptz, release_state text, release_hold_reason text, created_at timestamptz, option_code text);
-CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());`);
+CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
+CREATE TABLE jobs (id uuid primary key, channel text);`);
 const J = "00000000-0000-0000-0000-000000000001", Q = "00000000-0000-0000-0000-0000000000q1".replace("q", "a");
+const J_NO_PRICE = "00000000-0000-0000-0000-000000000002", J_LEAD = "00000000-0000-0000-0000-000000000003", J_PRICED = "00000000-0000-0000-0000-000000000004";
+await db.query("insert into jobs values ($1,'installer_sourced'),($2,'installer_sourced'),($3,'hivic_sourced'),($4,'installer_sourced')", [J, J_NO_PRICE, J_LEAD, J_PRICED]);
 await db.query("insert into quotes values ($1,$2,'installation','draft',null,'held','Waiting for office review before sending','2026-10-24T01:00:00Z','INSTALLER_A1')", [Q, J]);
 let blockers: string[] = [];
 const released: string[] = [];
@@ -71,6 +74,28 @@ describe("maybeAutoSendInstallerQuote", () => {
     expect(rows.at(-1)!.summary).toContain(CHANGED_AFTER_SEND);
     expect(await held()).toBe(2);
     expect(released).toHaveLength(1);
+  });
+});
+
+// Decision 278: a completed A1 Ready Check with no price from the business owner (and none on an old form) is held, once.
+describe("price not entered by the business owner (decision 278)", () => {
+  const heldFor = async (job: string) => (await db.query<{ n: number }>("select count(*)::int n from workflow_events where event_type='quote_auto_send_held' and job_id=$1", [job])).rows[0]!.n;
+  test("no draft, form complete, no price anywhere → held with the exact reason, one office note", async () => {
+    for (let i = 0; i < 3; i++) expect(await maybeAutoSendInstallerQuote(J_NO_PRICE, { formCompleted: true, formModifiedAt: "2026-10-25T01:00:00Z", enabled: true, entries: [{ label: "Length (m)", value: "10" }] })).toEqual({ sent: false, reasons: ["Price not entered by the business owner"] });
+    expect(await heldFor(J_NO_PRICE)).toBe(1);
+  });
+  test("an old form that still carries a price is the fallback: no hold", async () => {
+    expect(await maybeAutoSendInstallerQuote(J_NO_PRICE, { formCompleted: true, formModifiedAt: "2026-10-25T01:00:00Z", enabled: true, entries: [{ label: "Total quoted price (inc GST)", value: "$2,400" }] })).toEqual({ sent: false, reasons: [] });
+  });
+  test("the boss's portal price (installer_price_set) satisfies it", async () => {
+    await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'installer_price_set','x',$2)", [J_PRICED, JSON.stringify({ price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: { choice: "hivic", name: null, licence: null, price_inc_gst: null } })]);
+    expect(await maybeAutoSendInstallerQuote(J_PRICED, { formCompleted: true, formModifiedAt: "2026-10-25T01:00:00Z", enabled: true, entries: [{ label: "Length (m)", value: "10" }] })).toEqual({ sent: false, reasons: [] });
+    expect(await heldFor(J_PRICED)).toBe(0);
+  });
+  test("our leads (A2) never need one; an unread form snapshot never raises it", async () => {
+    expect(await maybeAutoSendInstallerQuote(J_LEAD, { formCompleted: true, formModifiedAt: "2026-10-25T01:00:00Z", enabled: true, entries: [] })).toEqual({ sent: false, reasons: [] });
+    expect(await maybeAutoSendInstallerQuote(J_NO_PRICE, { formCompleted: false, formModifiedAt: "2026-10-25T01:00:00Z", enabled: true, entries: [] })).toEqual({ sent: false, reasons: [] });
+    expect(await heldFor(J_LEAD)).toBe(0);
   });
 });
 

@@ -55,7 +55,8 @@ export const LEAN_Q = {
   outcome: "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?",
   failReasons: "Why did the property fail the ready check? Select all that apply",
   noPricingTick: "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.",
-  // Page 6 — A1 only: Your quote to the homeowner
+  // OLD A1 forms only (decision 278, Jo 25 Oct 2026): the "Your quote to the homeowner" page is deleted from A1 — the
+  // business owner enters the price in the portal. The readers keep these labels so forms built before 25 Oct still parse.
   included: "What’s included in your quote?",
   includedOther: "What else is included?",
   totalPrice: "Total quoted price (inc GST)",
@@ -131,15 +132,19 @@ export const LEAN_HELP = {
   contactPermission: `If No, stop here and answer "${OUTCOME_FAILED}" on the last page.`,
   lifeSupport: "Pre-filled from what the owner told us. Change it if you learn otherwise; the office will call before anything goes out.",
   access: `No safe access: take the access photo, then go to the last page and answer "${OUTCOME_FAILED}".`,
-  accessFeeA1: "Included in your total quoted price below; it is shown on the owner's quote.",
+  accessFeeA1: "Included in the price your business owner enters in the portal; it is shown on the owner's quote.",
   accessFeeA2: "Your charge to Home Insulation Victoria. Never discussed with the owner.",
   areaName: "Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.",
   dimensions: "Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.",
   rValue: `R2.0 exactly counts as "${R_AT_OR_ABOVE}". Typical old 50–70 mm batts or thin loose fill are ${R_BELOW}.`,
   beforeVideo: "This is the before video the rebate needs. Show any existing insulation.",
   outcome: "The portal also applies the eligibility rules from your answers above.",
-  totalPrice: "Your whole price to the owner for the insulation work, including any difficult-access charge. Home Insulation Victoria adds the electrical safety check and its $349 fee and takes off the rebate.",
 } as const;
+
+/** Decision 278: the A1 quote page ("Your quote to the homeowner") and its seven questions, deleted from the A1 template.
+ *  Named here so the delete prompt (docs/MITTI_READY_CHECK_PRICE_PROMPT.md) and the build prompt can never disagree. */
+export const A1_QUOTE_PAGE = "Your quote to the homeowner";
+export const A1_QUOTE_QUESTIONS = [LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice, LEAN_Q.electrician, LEAN_Q.electricianName, LEAN_Q.electricianLicence, LEAN_Q.electricianPrice] as const;
 
 /** §6.5 — every live item the lean forms drop (exact live labels). The prompt tells ChatGPT not to carry these over. */
 export const LEAN_REMOVE = {

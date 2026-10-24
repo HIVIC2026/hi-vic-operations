@@ -59,7 +59,7 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
 
   // 3. The owner's quote.
   const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-  const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: i.modifiedAt, enabled: sendEnabled });
+  const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: i.modifiedAt, enabled: sendEnabled, entries: i.entries });
   return r.sent ? { done: "sent", reasons: [] } : { done: (await getStage(jobId)) === "measured_estimate_ready" ? "stage_ready" : "held", reasons: r.reasons };
 }
 
@@ -92,10 +92,10 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     }
     if (j.stage === "awaiting_quote_acceptance") {
       const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled }).catch(() => undefined);
+      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled, entries: entries.length ? entries : undefined }).catch(() => undefined);
       continue;
     }
-    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries: [], ourLead: j.channel !== "installer_sourced", enabled, sendEnabled }).catch(() => undefined);
+    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries, ourLead: j.channel !== "installer_sourced", enabled, sendEnabled }).catch(() => undefined);
     retried++;
   }
   return { retried, watched };

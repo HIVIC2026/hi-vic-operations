@@ -2,14 +2,19 @@
 // event only when the result changes, and keeps "Needs finishing…" on installer/Mitti jobs. Never sends.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { readyCheckBasics, needsFinishingFromMissing } from "./ready-check-basics.core";
+import { readyCheckBasics, needsFinishingFromMissing, formHasInstallerAnswers } from "./ready-check-basics.core";
 
 type E = { label: string; value: string | null };
 export const BASICS_EVENT = "ready_check_basics";
 /** Jobs whose next step is protected as "Needs finishing…" while basics are missing. */
 export const PROTECT_EVENTS = ["mitti_pickup_needs_finishing", "mitti_pickup_manual_adopt"];
 
-export async function checkReadyCheckBasics(jobId: string, actorId: string | null, entries: E[], formCompleted: boolean, auditId: string) {
+export async function checkReadyCheckBasics(jobId: string, actorId: string | null, formEntries: E[], formCompleted: boolean, auditId: string) {
+  // Decision 278: the A1 price comes from the portal (business owner) first; old forms that still carry it are the fallback.
+  const priceRecord = await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null);
+  const entries = (await import("./installer-price.core")).withInstallerPrice(formEntries, priceRecord?.record ?? null) as E[];
+  // Decision 279: whether the installer has answered anything beyond the pre-fill (drives "Next: do the Ready Check").
+  const answered = formHasInstallerAnswers(formEntries);
   const [{ data: job }, { data: m }, { data: perm }, { data: last }] = await Promise.all([
     admin.from("jobs").select("channel, stage, owner_id, life_support_status, owners(phone,email), properties(enrichment)").eq("id", jobId).maybeSingle(),
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
@@ -38,9 +43,9 @@ export async function checkReadyCheckBasics(jobId: string, actorId: string | nul
     productReady: resolveMittiProduct(a.productOption).ready, installerPriceIncGst: Number.isFinite(total) ? total : null,
     ownerMobile: owner?.phone ?? a.phone ?? null, ownerEmail: owner?.email ?? a.email ?? null, contactPermission: permission, stops, formCompleted,
   });
-  const prev = last?.details as { missing?: string[]; stops?: string[]; completed?: boolean } | null;
-  if (!prev || JSON.stringify(prev.missing ?? []) !== JSON.stringify(r.missing) || JSON.stringify(prev.stops ?? []) !== JSON.stringify(r.stops) || prev.completed !== formCompleted)
-    await logEvent(jobId, actorId, BASICS_EVENT, r.ready ? "Ready Check basics in — quote drafted for office check" : `Ready Check basics missing: ${[...r.missing, ...r.stops].join(", ")}`, { audit_id: auditId, missing: r.missing, stops: r.stops, notes: r.notes, completed: formCompleted, ready: r.ready }, { internal: true });
+  const prev = last?.details as { missing?: string[]; stops?: string[]; completed?: boolean; answered?: boolean } | null;
+  if (!prev || JSON.stringify(prev.missing ?? []) !== JSON.stringify(r.missing) || JSON.stringify(prev.stops ?? []) !== JSON.stringify(r.stops) || prev.completed !== formCompleted || prev.answered !== answered)
+    await logEvent(jobId, actorId, BASICS_EVENT, r.ready ? "Ready Check basics in — quote drafted for office check" : `Ready Check basics missing: ${[...r.missing, ...r.stops].join(", ")}`, { audit_id: auditId, missing: r.missing, stops: r.stops, notes: r.notes, completed: formCompleted, ready: r.ready, answered, price_source: priceRecord ? "portal" : null }, { internal: true });
   // Jo 24 Oct: our leads show "Needs finishing…" on the installer's My work too (same as their own jobs).
   await keepNeedsFinishingFor(jobId, job.stage as string, r.missing);
   return r;

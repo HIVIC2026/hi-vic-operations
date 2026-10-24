@@ -65,7 +65,7 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 11. `What type of roof does the home have?` — Pick one: `Tiles` / `Metal sheet` / `Other` — Required (no "describe" text box)
 12. `How would you rate the ceiling access?` — Pick one: `Easy` / `Standard` / `Difficult` / `No safe access` — Required — note required on `Difficult` and on `No safe access` — help text: `No safe access: take the access photo, then go to the last page and answer "No - Ready Check failed".`
 13. `Is there a difficult access charge?` — Yes/No — Required — only show when question 12 = `Difficult`
-14. `Difficult access fee ($ inc GST)` — Number — Required — only show when question 13 = `Yes` — help text **A1:** `Included in your total quoted price below; it is shown on the owner's quote.` — help text **A2:** `Your charge to Home Insulation Victoria. Never discussed with the owner.`
+14. `Difficult access fee ($ inc GST)` — Number — Required — only show when question 13 = `Yes` — help text **A1:** `Included in the price your business owner enters in the portal; it is shown on the owner's quote.` — help text **A2:** `Your charge to Home Insulation Victoria. Never discussed with the owner.`
 15. `Upload a clear photo of the ceiling access point` — Photo — Not required
 
 ## Group 4: Ceiling areas (repeating section, button `Add a ceiling area`; the installer adds one per area)
@@ -79,7 +79,7 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 - the single m² entry `Enter the measured ceiling area (m²)` (replaced by questions 17 and 18).
 Also do not carry over `What is the property type?` (the "Other" text under Property type), `Describe the roof type`,
 `Please explain why the access is difficult`, `Please explain why there is no safe access`, or `Difficult access` as an
-option inside question 37. The new group below is complete as written.
+option anywhere. The new group below is complete as written.
 16. `Which part of the home does this ceiling area cover?` — Text — Required — help text: `Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.`
 17. `Length (m)` — Number — Required — help text (on this question only): `Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.`
 18. `Width (m)` — Number — Required
@@ -104,22 +104,19 @@ option inside question 37. The new group below is complete as written.
 35. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 34 = `No - Ready Check failed`
 36. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
 
-## Group 6: Your quote to the homeowner — **A1 only** (whole group only shows when question 34 = `Yes - Ready Check passed`)
-37. `What’s included in your quote?` — Tick all: `Ceiling insulation - supply & install` / `Removal of existing insulation` / `Other` — Required (`Difficult access` is NOT an option here — it is questions 13 and 14)
-38. `What else is included?` — Text — Required — only show when question 37 has `Other` ticked
-39. `Total quoted price (inc GST)` — Number — Required — help text: `Your whole price to the owner for the insulation work, including any difficult-access charge. Home Insulation Victoria adds the electrical safety check and its $349 fee and takes off the rebate.`
-40. `Who is doing the electrical safety check?` — Pick one: `Home Insulation Victoria electrician` / `My usual electrician` / `A different electrician` — Required
-41. `Electrician name` — Text — Required — only show when question 40 = `A different electrician`
-42. `Electrician licence number` — Text — Required — only show when question 40 = `A different electrician`
-43. `Electrician price (inc GST)` — Number — Required — only show when question 40 = `A different electrician`
+**No quote page on A1 (decision 278, Jo 25 Oct 2026).** The old A1 page `Your quote to the homeowner` is DELETED and must
+not be rebuilt: no `What’s included in your quote?`, `What else is included?`, `Total quoted price (inc GST)`,
+`Who is doing the electrical safety check?`, `Electrician name`, `Electrician licence number` or `Electrician price (inc GST)`
+question anywhere, on either template. The business owner enters the price, what is included and the electrician in our
+portal, never in Mitti (**A1 only** difference: A1 simply has no question 36 and no quote page).
 
-## Group 7: Sign
-44. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
+## Group 6: Sign
+37. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 43 questions and A2 has 37** (Group 4
-counted once; A2 = questions 1–36 and 44, A1 = questions 1–35 and 37–44), in this order; every "only show when" rule;
+Finish with a checklist I can use to verify each published template: **A1 has 36 questions and A2 has 37** (Group 4
+counted once; A2 = questions 1–37, A1 = questions 1–35 and 37), in this order; every "only show when" rule;
 Required exactly as marked (the three Photo questions 15, 24 and 27 are the only optional ones); location on for every
 Photo; the repeating section adds a complete copy of questions 16–32 each time; the eight product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each

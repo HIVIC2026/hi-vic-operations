@@ -16,12 +16,13 @@ export const READY_CHECK_TEMPLATE_INTRO = [
   "If something can't be collected today, write why next to it — the office will add it to the installation-day PIISA list.",
 ].join("\n");
 
-/** C02: the installer prices their own customer; we add our two set fees and nothing else. */
+/** C02 + decision 278: the installer prices their own customer, but the price is entered by the BUSINESS OWNER on the job
+ *  page in the portal (never on this sheet or in Mitti); we add our two set fees and nothing else. */
 export const READY_CHECK_TEMPLATE_PRICING = [
   "YOUR PRICE TO THE OWNER",
-  "Enter your own price. Home Insulation Victoria does not mark this figure up: the owner's",
-  "invoice is your full price plus our $349 Accredited Person fee and the chosen electrician's",
-  "price (Home Insulation Victoria electrician: $349; usual electrician: saved price; different electrician: form price), less the VEU discount.",
+  "The business owner enters the price, what it includes and the electrician on the job page in the portal — not here.",
+  "Home Insulation Victoria does not mark this figure up: the owner's invoice is that price plus our $349 Accredited",
+  "Person fee and the chosen electrician's price (Home Insulation Victoria electrician: $349; usual electrician: saved price; different electrician: the price entered), less the VEU discount.",
 ].join("\n");
 
 const HINTS: Record<FormField["type"], string> = {

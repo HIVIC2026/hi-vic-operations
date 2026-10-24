@@ -52,7 +52,8 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
-import { completeView, electricianRow, firstName, installRow, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -294,9 +295,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
     piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
+    formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss,
   }) : null;
-  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length }) : null;
+  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
+  // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
+  const status = page ? installerStatusLine({ channel: page.channel, formLinked: page.form.linked, formCompleted: page.form.completed, formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, quoteLine: page.quote?.line ?? null }) : null;
   const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
+  const showQuoteStatus = !!status && (status.kind === "quote" || status.kind === "none");
   const atReadyCheck = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(job.stage ?? "");
   const elecRow = page ? electricianRow({ name: page.piesa.electrician ?? (page.form.electrician?.startsWith("Home Insulation Victoria") ? "Home Insulation Victoria electrician" : page.form.electrician), piesaBookedAt: page.piesa.bookedAt, piesaPassedOn: page.piesa.passedOn, fixesNote: page.piesa.fixesNote }) : null;
   const installLine = page ? installRow({ doneAt: page.install.recordedAt, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 }) : null;
@@ -344,14 +349,15 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextPanel>
       )}
 
-      {page && (
+      {page && (showQuoteStatus || (page.boss && page.channel === "installer_sourced") || page.pay.amount != null) && (
         <Group title="Quote">
-          <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />
+          {showQuoteStatus && <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />}
           {/* Approved M2-quote-declined: the pay line is hidden when there is no install. */}
           {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
           {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
-          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add the $349 Accredited Provider fee and send the owner their quote.</Note>}
-          <OwnerQuoteCard jobId={jobId} hideStatus />
+          {/* Decision 278: the business owner's price card — the server returns nothing for team members. */}
+          {page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}
+          {showQuoteStatus && <OwnerQuoteCard jobId={jobId} hideStatus />}
           {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
           {installLine && <Row label="Install" value={installLine} last />}
         </Group>
@@ -363,7 +369,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       {page && readyCheck && (atReadyCheck || page.form.linked) && (
         <Group title="Ready Check">
           {(readyCheck.visit !== "Not booked yet" || page.channel === "hivic_sourced") && <Row label="Visit" value={readyCheck.visit} />}
-          {readyCheck.form && <Row label="Mitti form" value={page.form.linked && !page.form.completed && page.form.missing.length === 0 && page.form.stops.length === 0 && !page.readyCheck.done ? "Ready · nothing filled in yet" : readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
+          {readyCheck.form && <Row label="Mitti form" value={readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
           {page.form.linked && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
           {!page.form.linked && page.channel === "hivic_sourced" && <MittiOnly jobId={jobId} which="ready_check" />}
         </Group>
