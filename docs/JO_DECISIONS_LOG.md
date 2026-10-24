@@ -98,3 +98,4 @@ Newest first. Each line is settled; anything still open is under "Open".
     3. The owner picks one (booked) or suggests other days, back and forth like install days.
     No answer or "Not for me" goes back to the office.
 53. **Remove the owner's "pick Ready Check times" step** from Save my spot. The owner waits for the installer's times (a link by email or text; wording in the template review).
+54. **Installer's own customers: they arrange the Ready Check visit directly with the owner. Nothing is entered in the portal.** They open the Mitti form when they are there. Any "book Ready Check time" step is hidden on their own jobs.
