@@ -9,6 +9,8 @@ const ELECTRICIAN_MISSING = ELECTRICIAN_FIELDS.map((label) => `Missing: ${label}
 const LEAN_NEW_MISSING = ["Missing: Who lives at the property?", "Missing: Is there a difficult access charge?", "Missing: Difficult access fee ($ inc GST)"];
 const PRODUCT_MISSING = "Missing: What insulation product will you be using on this job?";
 const R_VALUE_MISSING = "Missing: What is the determined R value of the existing ceiling insulation?";
+/** The hazard note the lean form adds (Jo 24 Oct: Mitti cannot require a note on a photo, so it is its own question). */
+const ISSUE_NOTE_MISSING = "Missing: What is the issue, and where is it in this area?";
 const OUTCOME_MISSING = ["Missing: Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?", "Missing: Why did the property fail the ready check? Select all that apply"];
 const A2_TICK = "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.";
 const SIGN_A1 = "I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.";
@@ -126,7 +128,7 @@ describe("the real Mitti templates", () => {
     const r = validateTemplate("ready_check_priced", A1);
     // Jo 8 Oct 2026 made the extras section required; this fixture was downloaded before it existed, so the ONLY gaps are the extras questions.
     // Decision 222: this 2 Oct fixture predates the owner-contact, premises-type, access-charge, product and electrician questions.
-    expect(r.issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, PRODUCT_MISSING, ...OUTCOME_MISSING, ...ELECTRICIAN_MISSING]);
+    expect(r.issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING, ...OUTCOME_MISSING, ...ELECTRICIAN_MISSING]);
   });
   test("the evidence-only form without pricing still fails the priced validator", () => {
     const r = validateTemplate("ready_check_priced", A1.filter((i) => !/quote|included/i.test(i.label)));
@@ -178,13 +180,13 @@ describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)"
   ].map(([label, type]) => ({ label, type }));
   test("the real own-leads template passes the ready_check validator despite help-text lines", () => {
     // Decision 222: the historical fixture predates the owner-contact, premises-type, access-charge, product and A2 tick questions.
-    expect(validateTemplate("ready_check", A2).issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, PRODUCT_MISSING, `Missing: ${A2_TICK}`]);
+    expect(validateTemplate("ready_check", A2).issues).toEqual(["Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING, `Missing: ${A2_TICK}`]);
   });
   test("own-leads form has no pricing section and fails the priced validator with exactly the pricing issues", () => {
     const r = validateTemplate("ready_check_priced", A2);
     expect(r.ok).toBe(false);
     expect(r.issues).toEqual([
-      "Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, PRODUCT_MISSING,
+      "Missing: Homeowner phone", "Missing: Homeowner email", "Missing: Homeowner agrees to be contacted by Home Insulation Victoria", ...LEAN_NEW_MISSING, R_VALUE_MISSING, ISSUE_NOTE_MISSING, PRODUCT_MISSING,
       "Missing: What’s included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)", ...ELECTRICIAN_MISSING,
     ]);
   });

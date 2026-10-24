@@ -361,6 +361,8 @@ export type MittiArea = {
   rValue: number | null; rValueBand: "below_r2" | "at_or_above_r2" | null;
   removal: "yes" | "no" | null; removalM2: number | null; downlights: number | null;
   hazardFlag: boolean | null; hazardEvidence: boolean;
+  /** The installer's note: what the issue is and where it is in this area (null when not given). */
+  hazardNote: string | null;
   product: string | null; scope: string | null; sources: Record<string, never>;
 };
 export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
@@ -432,14 +434,16 @@ export function parseAudit(audit: Any) {
     const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.overviewPhoto, ...(LEAN_ALIASES.overviewPhoto ?? [])]) };
     const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
-    // Decision 222: the hazard flag and its evidence — the lean photo-with-note ("Describe the issue and add a photo"),
-    // the 7 Oct spec photo, or the 24 Oct text "Please explain" — are read per area; a flag with no evidence is an office item.
+    // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
+    // text "Please explain") and its photo ("Describe the issue and add a photo", or the 7 Oct spec photo) are read per area.
+    // The note is kept as the hazard description; only the photo is evidence. A flag without a photo is an office item.
     const hazardFlag = yesNo(val(kids, [LEAN_Q.issues, ...(LEAN_ALIASES.issues ?? [])]));
+    const hazardNote = val(kids, [LEAN_Q.issueNote, ...(LEAN_ALIASES.issueNote ?? [])])?.trim().slice(0, 2000) || null;
     const hazardEvidence = has([LEAN_Q.issuePhoto, ...(LEAN_ALIASES.issuePhoto ?? [])]);
     const downlights = count(val(kids, [LEAN_Q.downlightsCount, ...(LEAN_ALIASES.downlightsCount ?? [])]), LEAN_Q.downlightsCount).value;
-    return { parent: p, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, downlights };
+    return { parent: p, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
-  for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo or note was added – office review required.`);
+  for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo was added${r.hazardNote ? ` (installer note: ${r.hazardNote})` : ""} – office review required.`);
   if (rooms.length > 0) {
     if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
     else patch.measured_area_m2 = r2(rooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
@@ -513,7 +517,8 @@ export function parseAudit(audit: Any) {
   // Installer-flagged hazards per ceiling area (both A1 and A2 per-area questions) — flagged jobs go to office review.
   if (rooms.length && patch.hazards == null) {
     const flagged = rooms.filter((r) => { const kids = areaKids(r.parent); const a = val(kids, ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"]); return a != null && /^(yes|y|true)\b/.test(norm(a)); });
-    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s) – confirm details and evidence in office.`; issues.push("Installer flagged hazards in a ceiling area – office review required."); }
+    const notes = flagged.map((r) => r.hazardNote ? `${r.name ?? "Area"}: ${r.hazardNote}` : null).filter(Boolean).join("; ");
+    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s)${notes ? ` – ${notes}` : ""} – confirm details and evidence in office.`.slice(0, 4000); issues.push("Installer flagged hazards in a ceiling area – office review required."); }
   }
   const roof = val(entries, ["Roof type", "What type of roof does the home have?"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
   const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (Ready Check answer, pre-filled from owner's declared enquiry answer): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
@@ -586,7 +591,7 @@ export function parseAudit(audit: Any) {
     existing: r.present === true ? "present" : r.present === false ? "none" : null, present: r.present,
     rValue: r.rv, rValueBand: r.rvBand,
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
-    removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence,
+    removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote,
     product: null, scope: null, sources: {},
   }));
   // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.

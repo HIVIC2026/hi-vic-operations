@@ -148,6 +148,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['readyCheck'] = "failed";
         }
         try {
+          // Decision 246: automatic offers by coverage (installer Ready Check / PIESA electrician). Both switches OFF
+          // by default and read fail-closed; runs AFTER the offer expiry sweeps so a lapsed offer goes to the next match
+          // (or back to the office after 2 misses) in the same tick. Sends only through the existing guarded senders.
+          const { sweepAutoOffers } = await import("@/lib/auto-offer.server");
+          (out as Record<string, unknown>)['autoOffers'] = await sweepAutoOffers();
+        } catch (e) {
+          console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['autoOffers'] = "failed";
+        }
+        try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await sweepPrestart();
         } catch (e) {

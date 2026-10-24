@@ -73,13 +73,13 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 - the per-area sketch upload — A1 wording `Upload your area sketch or floor plan.` (with help text "Rough is fine. Mark this ceiling area and show the measurements used."), A2 wording `Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.` — it exists once in every one of the 22 old A1 area blocks and 21 old A2 area blocks; the software now draws the diagram itself (decision 211);
 - `What is the measured insulation depth (mm)?` (22 / 21 copies);
 - `Please describe the existing insulation type` (22 / 21 copies);
-- `Please explain` under the issues question (22 / 21 copies) — replaced by question 31 below;
+- `Please explain` under the issues question (22 / 21 copies) — replaced by questions 31 and 32 below (Mitti cannot require a note on a photo, so the note is its own question);
 - the question `How many ceiling areas need to be measured separately?` with its six branches `── Ceiling Area 1 ──` … `── Ceiling Area 6 ──` and every fixed area copy 2–22 inside them — replaced by the ONE repeating group below;
 - the A1 field `CLICK ON ME to add a ceiling area` — replaced by the repeating group's own button `Add a ceiling area`;
 - the single m² entry `Enter the measured ceiling area (m²)` (replaced by questions 17 and 18).
 Also do not carry over `What is the property type?` (the "Other" text under Property type), `Describe the roof type`,
 `Please explain why the access is difficult`, `Please explain why there is no safe access`, or `Difficult access` as an
-option inside question 36. The new group below is complete as written.
+option inside question 37. The new group below is complete as written.
 16. `Which part of the home does this ceiling area cover?` — Text — Required — help text: `Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.`
 17. `Length (m)` — Number — Required — help text (on this question only): `Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.`
 18. `Width (m)` — Number — Required
@@ -95,32 +95,33 @@ option inside question 36. The new group below is complete as written.
 28. `Are there recessed downlights in this ceiling area?` — Yes/No — Required
 29. `How many recessed downlights?` — Number — Required — only show when question 28 = `Yes`
 30. `Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards` — Yes/No — Required
-31. `Describe the issue and add a photo` — Photo with note required — Required — only show when question 30 = `Yes`
+31. `What is the issue, and where is it in this area?` — Text — Required — only show when question 30 = `Yes`
+32. `Describe the issue and add a photo` — Photo — Required — only show when question 30 = `Yes`
 
 ## Group 5: Product and result
-32. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` / `ECOWOOL R5` — Required — always shown (NOT only when the Ready Check passed)
-33. `Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?` — Pick one: `Yes - Ready Check passed` / `No - Ready Check failed` — Required — help text: `The portal also applies the eligibility rules from your answers above.`
-34. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 33 = `No - Ready Check failed`
-35. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
+33. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` / `ECOWOOL R5` — Required — always shown (NOT only when the Ready Check passed)
+34. `Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?` — Pick one: `Yes - Ready Check passed` / `No - Ready Check failed` — Required — help text: `The portal also applies the eligibility rules from your answers above.`
+35. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 34 = `No - Ready Check failed`
+36. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
 
-## Group 6: Your quote to the homeowner — **A1 only** (whole group only shows when question 33 = `Yes - Ready Check passed`)
-36. `What’s included in your quote?` — Tick all: `Ceiling insulation - supply & install` / `Removal of existing insulation` / `Other` — Required (`Difficult access` is NOT an option here — it is questions 13 and 14)
-37. `What else is included?` — Text — Required — only show when question 36 has `Other` ticked
-38. `Total quoted price (inc GST)` — Number — Required — help text: `Your whole price to the owner for the insulation work, including any difficult-access charge. Home Insulation Victoria adds the electrical safety check and its $349 fee and takes off the rebate.`
-39. `Who is doing the electrical safety check?` — Pick one: `Home Insulation Victoria electrician` / `My usual electrician` / `A different electrician` — Required
-40. `Electrician name` — Text — Required — only show when question 39 = `A different electrician`
-41. `Electrician licence number` — Text — Required — only show when question 39 = `A different electrician`
-42. `Electrician price (inc GST)` — Number — Required — only show when question 39 = `A different electrician`
+## Group 6: Your quote to the homeowner — **A1 only** (whole group only shows when question 34 = `Yes - Ready Check passed`)
+37. `What’s included in your quote?` — Tick all: `Ceiling insulation - supply & install` / `Removal of existing insulation` / `Other` — Required (`Difficult access` is NOT an option here — it is questions 13 and 14)
+38. `What else is included?` — Text — Required — only show when question 37 has `Other` ticked
+39. `Total quoted price (inc GST)` — Number — Required — help text: `Your whole price to the owner for the insulation work, including any difficult-access charge. Home Insulation Victoria adds the electrical safety check and its $349 fee and takes off the rebate.`
+40. `Who is doing the electrical safety check?` — Pick one: `Home Insulation Victoria electrician` / `My usual electrician` / `A different electrician` — Required
+41. `Electrician name` — Text — Required — only show when question 40 = `A different electrician`
+42. `Electrician licence number` — Text — Required — only show when question 40 = `A different electrician`
+43. `Electrician price (inc GST)` — Number — Required — only show when question 40 = `A different electrician`
 
 ## Group 7: Sign
-43. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
+44. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 42 questions and A2 has 36** (Group 4
-counted once; A2 = questions 1–35 and 43, A1 = questions 1–34 and 36–43), in this order; every "only show when" rule;
+Finish with a checklist I can use to verify each published template: **A1 has 43 questions and A2 has 37** (Group 4
+counted once; A2 = questions 1–36 and 44, A1 = questions 1–35 and 37–44), in this order; every "only show when" rule;
 Required exactly as marked (the three Photo questions 15, 24 and 27 are the only optional ones); location on for every
-Photo; the repeating section adds a complete copy of questions 16–31 each time; the eight product options spelled
+Photo; the repeating section adds a complete copy of questions 16–32 each time; the eight product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each
 **template ID** (in the web address when the template is open, or under the template's settings), because I must send
 both IDs to my software team. Also remind me to keep the old A1 and A2 templates unpublished but not deleted until every

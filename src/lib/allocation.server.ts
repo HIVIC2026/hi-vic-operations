@@ -159,7 +159,7 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean } = {}): Promise<PiesaAllocationResult> {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -183,7 +183,7 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     }
   }
   if (!opts.adding && !(await claimRecOfferBatch(jobId, kind))) throw new WorkflowError("Offers are already being prepared for this job. Refresh in a moment.");
-  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
+  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness, opts.auto);
   // Offers started: move the accepted-quote job to the PIESA stage so electricians can accept a time.
   if (kind === "piesa" && res.offered > 0) {
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
@@ -214,7 +214,7 @@ export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
 export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean };
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[]): Promise<OfferBatchResult> {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
   const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
@@ -240,11 +240,18 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
       if (offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm)) throw new WorkflowError(`${c.name} has no agreed electrician rate recorded. Add their rate first, or offer with rate to be confirmed.`);
       return c;
     });
-    const exp = await (await import("./offer-dispatch.server")).chosenOfferExpiry();
+    // Decision 246: an automatic electrician offer is open 24 hours (then the next match), flagged as automatic.
+    const exp = auto ? (await import("./auto-offer.core")).autoOfferExpiry() : await (await import("./offer-dispatch.server")).chosenOfferExpiry();
     await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, chosen.map((c) => c.business_id));
-    const { error } = await admin.from("partner_offers").insert(chosen.map((c) => ({ ...row(c.business_id, true), expires_at: exp })));
+    const rows = chosen.map((c) => { const r = row(c.business_id, true); return { ...r, expires_at: exp, summary: (auto ? { ...(r.summary as Record<string, unknown>), auto_offer: true } : r.summary) as Json }; });
+    const { data: inserted, error } = await admin.from("partner_offers").insert(rows).select("id, business_id");
     if (error) throw new Error(error.message);
     if (usualSel?.mode === "usual" && chosen.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
+    if (auto) {
+      const c = chosen[0]!;
+      await logEvent(jobId, actorId, "auto_offer_sent", `Automatic electrician offer: ${c.name} for the PIESA (offer ${auto.attempt} of 2, open 24 hours)`, { kind, business_id: c.business_id, business_name: c.name, offer_id: (inserted ?? []).find((x) => x.business_id === c.business_id)?.id ?? null, attempt: auto.attempt, basis: auto.basis, active_jobs: auto.activeJobs, distance_km: auto.distanceKm, expires_at: exp }, { internal: true });
+      return { offered: chosen.length, exhausted: false };
+    }
     await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${chosen.map((c) => c.name).join(", ")} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to ${chosen.length === 1 ? "them" : `these ${chosen.length}`}`, { kind, business_ids: chosen.map((c) => c.business_id), business_names: chosen.map((c) => c.name), business_id: chosen[0]?.business_id, business_name: chosen[0]?.name, expires_at: exp }, { internal: true });
     return { offered: chosen.length, exhausted: false };
   }
@@ -359,6 +366,8 @@ export async function respondToRecOffer(offerId: string, userId: string, accept:
     if (!d) throw new WorkflowError("This offer is no longer open.");
     await logEvent(o.job_id, userId, "partner_offer_declined", `Electrician declined the ${o.kind} offer`, { reason, business_id: o.business_id }, { internal: true });
     await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", null);
+    // Decision 246: with Automatic electrician offers on, the next match gets the PIESA straight away (or Needs me).
+    if (o.kind === "piesa") await (await import("./auto-offer.server")).autoOfferForJob(o.job_id, "piesa").catch((e) => console.error("automatic electrician offer skipped", (e as Error).message));
     return { ok: true };
   }
   const { data: isElec } = await admin.rpc("has_role", { _user_id: userId, _role: "electrician" });

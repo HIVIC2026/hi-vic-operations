@@ -71,6 +71,8 @@ export async function outlookHarness() {
     gt(f: string, v: unknown) { return this.filter(f, ">", v); }
     gte(f: string, v: unknown) { return this.filter(f, ">=", v); }
     lte(f: string, v: unknown) { return this.filter(f, "<=", v); }
+    contains(f: string, v: unknown) { return this.filter(f, "@>", v); }
+    ilike(f: string, v: unknown) { return this.filter(f, "ILIKE", v); }
     or(expression: string) { return this.filter("email", "EMAIL_ANY", expression.split(",").map(x => x.replace(/^email\.ilike\./, ""))); }
     order(field: string, opts: { ascending?: boolean } = {}) { this.ordering.push({ field, ascending: opts.ascending !== false }); return this; }
     limit(n: number) { this.maximum = n; return this; }
@@ -86,6 +88,7 @@ export async function outlookHarness() {
       const param = (value: unknown) => { params.push(typeof value === "object" && value !== null && !Array.isArray(value) ? JSON.stringify(value) : value); return `$${params.length}`; };
       const where = this.filters.map(({ field, op, value }) => {
         if (op === "IS") return `${quote(field)} IS NULL`;
+        if (op === "@>") return `${quote(field)} @> ${param(value)}::jsonb`;
         if (op === "IN" || op === "EMAIL_ANY") return `${op === "EMAIL_ANY" ? `lower(${quote(field)})` : quote(field)} IN (${(value as unknown[]).map(param).join(",")})`;
         return `${quote(field)} ${op} ${param(value)}`;
       }).join(" AND ");
@@ -145,7 +148,7 @@ export async function outlookHarness() {
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const module = { exports: {} }; modules.set(name, module.exports);
     const require = (path: string) => path === "@/integrations/supabase/client.server" ? { supabaseAdmin: admin }
-      : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
+      : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core" || path === "./email-intent.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
     new Function("require", "module", "exports", "process", "fetch", output)(require, module, module.exports,
       { env: { LOVABLE_API_KEY: "fixture-gateway-key", MICROSOFT_OUTLOOK_API_KEY: "fixture-connection-key" } },
       async (url: string, options: RequestInit) => { requests.push({ url, options }); return control.fetch(url, options); });
@@ -153,7 +156,7 @@ export async function outlookHarness() {
   };
   const server = load("outlook-sync.server");
   const connection = load("outlook-connection.core");
-  const counts = () => ({ fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0 });
+  const counts = () => ({ fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 });
   const state = async () => (await db.query(`SELECT * FROM outlook_sync_state WHERE id=1`)).rows[0] as any;
   return { db, server, connection, counts, state, control, operations, requests, files };
 }
