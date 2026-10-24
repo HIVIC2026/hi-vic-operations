@@ -349,7 +349,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {/* Approved M2-quote-declined: the pay line is hidden when there is no install. */}
           {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
           {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
-          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add our $349 fee and send the owner their quote.</Note>}
+          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add the $349 Accredited Provider fee and send the owner their quote.</Note>}
           <OwnerQuoteCard jobId={jobId} hideStatus />
           {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
           {installLine && <Row label="Install" value={installLine} last />}
