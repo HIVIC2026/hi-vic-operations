@@ -81,80 +81,7 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
   );
 }
 
-/**
- * The ONE normal scheduling path for assessment visits: propose / accept / suggest another time.
- * Accepting writes the real booking through the central booking gate. Rescheduling = a new proposal.
- */
-export function AppointmentPanel({ jobId, kind = "assessment" }: { jobId: string; kind?: "assessment" | "rectification" | "installation" }) {
-  const load = useServerFn(coordinationState);
-  const { data, refetch } = useQuery({ queryKey: ["coord", jobId], queryFn: () => load({ data: { jobId } }) });
-  const propose = useAction(proposeTime);
-  const respond = useAction(respondToProposal);
-  const another = useAction(requestAnotherElectrician);
-  const review = useAction(requestReassignment);
-  const cannot = useAction(markCannotAttend);
-  const [start, setStart] = useState("");
-  const [note, setNote] = useState("");
-  const [reason, setReason] = useState("");
-  const [showCantAgree, setShowCantAgree] = useState(false);
-  if (!data) return null;
-  const open = data.proposals.filter((p) => p.kind === kind && p.status === "proposed");
-  const hist = data.proposals.filter((p) => p.kind === kind && p.status !== "proposed").slice(0, data.role === "admin" ? 30 : 6);
-  const booked = data.confirmed.find((b) => b.kind === kind);
-  const sla = data.electrician?.sla ?? null;
-  const isOwner = data.role === "owner";
-  const releaseAllowed = kind === "assessment" && data.electrician && data.role !== "electrician" && (sla?.canRequestAnother || data.role === "admin");
-  const statusLine = booked ? null : isOwner && sla?.state === "attention" ? sla.message : sla && sla.state !== "ok" ? sla.message : null;
-  return (
-    <Section title="Arrange the visit" action={<SlaPill sla={booked ? { state: "booked", message: "Confirmed" } : sla} />}>
-      {!data.electrician && kind === "assessment" ? <p className="text-sm text-muted-foreground">Waiting for electrician – Home Insulation Victoria is arranging one.</p> : <>
-        {data.electrician && <p className="mb-2 text-sm">Electrician: <span className="font-medium">{data.electrician.name}</span></p>}
-        {booked && <p className="mb-2 rounded-lg bg-success-soft p-3 text-sm font-medium text-success">Confirmed: {when(booked.scheduled_start)}</p>}
-        {statusLine && <p className={`mb-2 rounded-lg p-3 text-sm font-medium ${sla?.state === "exception" ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning"}`}>{statusLine}</p>}
-        {data.openRequests.length > 0 && <p className="mb-2 rounded-lg bg-muted p-3 text-sm">Home Insulation Victoria is reviewing a request to change electrician. {data.role === "admin" ? `Reason: ${data.openRequests.map((r) => r.reason).join("; ")}` : "Your electrician stays booked in until Home Insulation Victoria decides."}</p>}
-        {open.map((p) => (
-          <div key={p.id} className="mb-2 rounded-lg border p-3">
-            <div className="font-medium">{when(p.starts_at)}</div>
-            <div className="text-xs text-muted-foreground">Suggested by {p.proposer_role === data.role ? "you" : p.proposer_role}{p.note ? ` – ${p.note}` : ""}</div>
-            {p.proposer_role !== data.role ? <div className="mt-2 grid grid-cols-2 gap-2">
-              <Button size="field" onClick={async () => { await respond({ proposalId: p.id, action: "accept" }, "Confirmed"); refetch(); }}>Accept this time</Button>
-              <Button size="field" variant="outline" onClick={async () => { await respond({ proposalId: p.id, action: "decline" }, "Declined"); refetch(); }}>Decline</Button>
-            </div> : <div className="mt-1 text-xs text-muted-foreground">Waiting for the other party to respond.</div>}
-          </div>
-        ))}
-        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <Input type="datetime-local" aria-label="Proposed time" value={start} onChange={(e) => setStart(e.target.value)} className="h-12" />
-          <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} className="h-12" />
-          <Button size="field" disabled={!start} onClick={async () => { await propose({ jobId, kind, start: new Date(start).toISOString(), note: note || null }, "Time proposed"); setStart(""); setNote(""); refetch(); }}>{open.length || booked ? "Suggest another time" : "Propose a time"}</Button>
-        </div>
-        {booked && <p className="mt-1 text-xs text-muted-foreground">Need to change the confirmed time? Suggest another time – the current booking stays until the new time is accepted.</p>}
-        {hist.length > 0 && <details className="mt-2 text-sm" open={data.role === "admin"}><summary className="cursor-pointer text-muted-foreground">{data.role === "admin" ? "Coordination history" : "Earlier times"}</summary>{hist.map((p) => <div key={p.id}>{when(p.starts_at)} – {p.status} ({p.proposer_role}){p.response_note ? ` – ${p.response_note}` : ""}</div>)}</details>}
-        {data.role === "electrician" && kind === "assessment" && !booked && (
-          <div className="mt-3 border-t pt-3">
-            <Textarea placeholder="Can't attend in time? Tell Home Insulation Victoria why" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await cannot({ jobId, reason }, "Home Insulation Victoria notified"); setReason(""); refetch(); }}>I can't attend in time</Button>
-          </div>
-        )}
-        {releaseAllowed && (
-          <div className="mt-3 border-t pt-3">
-            <Textarea placeholder="Why do you need another electrician?" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await another({ jobId, reason }, "Another electrician requested"); setReason(""); refetch(); }}>Request another electrician</Button>
-          </div>
-        )}
-        {isOwner && kind === "assessment" && data.electrician && !releaseAllowed && !booked && data.openRequests.length === 0 && (
-          <div className="mt-3 border-t pt-3">
-            {!showCantAgree ? <Button variant="ghost" className="w-full" onClick={() => setShowCantAgree(true)}>We can't agree on a suitable time</Button> : <>
-              <Textarea placeholder="Tell Home Insulation Victoria what's happening" value={reason} onChange={(e) => setReason(e.target.value)} />
-              <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 5} onClick={async () => { await review({ jobId, role: "electrician", reason, cantAgreeTime: true }, "Sent to Home Insulation Victoria for review"); setReason(""); setShowCantAgree(false); refetch(); }}>Ask Home Insulation Victoria to review</Button>
-              <p className="mt-1 text-xs text-muted-foreground">Your electrician stays assigned while Home Insulation Victoria reviews this.</p>
-            </>}
-          </div>
-        )}
-      </>}
-    </Section>
-  );
-}
-
+// "Arrange the visit" (propose/accept/decline) was removed 24 Oct 2026 (decisions 52/61/80, audit removal 2).
 /** Admin-only emergency path: set an assessment booking directly. Needs a reason; permanently audited. */
 export function AdminBookingOverride({ jobId }: { jobId: string }) {
   const book = useAction(createBooking);
@@ -173,61 +100,7 @@ export function AdminBookingOverride({ jobId }: { jobId: string }) {
   );
 }
 
-/** Admin: offer a Home Insulation Victoria job to an approved partner installer; set relationship owner. */
-export function AdminPartnerPanel({ jobId }: { jobId: string }) {
-  const offer = useAction(offerToPartner);
-  const withdraw = useAction(withdrawOffer);
-  const setOwner = useAction(setRelationshipOwner);
-  const [biz, setBiz] = useState("");
-  const [reason, setReason] = useState("");
-  const { data, refetch } = useQuery({
-    queryKey: ["partner-panel", jobId],
-    queryFn: async () => {
-      const [{ data: j }, { data: offers }, { data: partners }, { data: props }] = await Promise.all([
-        supabase.from("jobs").select("channel, customer_relationship_owner, source_system, external_refs, electrician_choice").eq("id", jobId).single(),
-        supabase.from("partner_offers").select("id, status, offered_at, responded_at, decline_reason, businesses(name)").eq("job_id", jobId).order("offered_at", { ascending: false }),
-        supabase.from("businesses").select("id, name, onboarding_status, business_type, capabilities").eq("onboarding_status", "approved"),
-        supabase.from("partner_quote_proposals").select("id, version, supplier_total_ex_gst, status, change_reason, created_at, lines").eq("job_id", jobId).order("version", { ascending: false }),
-      ]);
-      return { j, offers: offers ?? [], partners: (partners ?? []).filter((p) => p.business_type === "eec_installer" || p.capabilities?.includes("installer")), props: props ?? [] };
-    },
-  });
-  if (!data?.j) return null;
-  const pending = data.offers.find((o) => o.status === "pending");
-  return (
-    <Section title="Partner & relationship">
-      <dl className="grid grid-cols-2 gap-1 text-sm">
-        <dt className="text-muted-foreground">Acquisition channel</dt><dd>{data.j.channel === "installer_sourced" ? "Installer-sourced" : "Home Insulation Victoria-sourced"}</dd>
-        <dt className="text-muted-foreground">Customer relationship</dt><dd>{data.j.customer_relationship_owner === "installer" ? "Installer partner" : "Home Insulation Victoria"}</dd>
-        {data.j.source_system && <><dt className="text-muted-foreground">Imported from</dt><dd>{data.j.source_system}</dd></>}
-        {data.j.electrician_choice && <><dt className="text-muted-foreground">Electrician route</dt><dd>{data.j.electrician_choice.replace(/_/g, " ")}</dd></>}
-      </dl>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-        <Input placeholder="Reason to change relationship owner" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <Button variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await setOwner({ jobId, owner: data.j!.customer_relationship_owner === "installer" ? "hivic" : "installer", reason }, "Relationship owner changed"); setReason(""); refetch(); }}>Switch to {data.j.customer_relationship_owner === "installer" ? "Home Insulation Victoria" : "installer"}</Button>
-      </div>
-      {data.j.channel === "hivic_sourced" && (
-        <div className="mt-3 border-t pt-3">
-          <div className="mb-1 text-sm font-semibold">Offer to partner</div>
-          {pending ? <div className="flex items-center justify-between text-sm"><span>Pending with {(pending.businesses as { name: string } | null)?.name}</span><Button size="sm" variant="outline" onClick={async () => { await withdraw({ offerId: pending.id }, "Offer withdrawn"); refetch(); }}>Withdraw</Button></div> : (
-            <div className="flex gap-2">
-              <select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={biz} onChange={(e) => setBiz(e.target.value)}><option value="">Choose approved installer…</option>{data.partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-              <Button disabled={!biz} onClick={async () => { await offer({ jobId, businessId: biz, expiresInDays: 3 }, "Offer sent to partner dashboard"); refetch(); }}>Offer</Button>
-            </div>
-          )}
-          {data.offers.filter((o) => o.status !== "pending").map((o) => <div key={o.id} className="text-xs text-muted-foreground">{(o.businesses as { name: string } | null)?.name}: {o.status}{o.decline_reason ? ` – ${o.decline_reason}` : ""}</div>)}
-        </div>
-      )}
-      {data.props.length > 0 && (
-        <div className="mt-3 border-t pt-3 text-sm">
-          <div className="mb-1 font-semibold">Installer proposed scope / supplier price (internal)</div>
-          {data.props.map((p) => <div key={p.id}>v{p.version} · ${Number(p.supplier_total_ex_gst).toFixed(2)} ex GST · {p.status}{p.change_reason ? ` – ${p.change_reason}` : ""}</div>)}
-        </div>
-      )}
-    </Section>
-  );
-}
-
+// "Partner & relationship" / "Offer to partner" was removed 24 Oct 2026 (decisions 49/51/157, audit removals 3 and 9).
 /** Assigned installer proposes scope/supplier price using their rate card + property extras. */
 export function PartnerProposalForm({ jobId }: { jobId: string }) {
   const submit = useAction(submitPartnerProposal);

@@ -1,7 +1,7 @@
 // O2 Job page (approved mock-up + states; decisions 216, 218, 223, 227, 230, 233, 240): header with split address and
 // Last heard from us, ONE Next panel, six stage cards (each opens its working tools), Money (one invoice, four steps,
 // office-only margin, no Record payment), Contact history (+ Log a call or note), File list, More menu
-// (Hold · Mark as test · Cancel · Delete test jobs only). Presentation only — every action is an existing guarded path.
+// (Hold · Mark as test · Cancel · Delete test jobs only). Margin = the shared job-margin.core rule (decision 230). Presentation only — every action is an existing guarded path.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,8 @@ import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote,
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
+import { reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { AllDocuments, ExportJobPack, JobTimeline, SectionDocuments, useJobFile } from "@/components/portal/jobfile";
 import { ClearTimeline } from "@/components/portal/waiting";
@@ -140,6 +142,7 @@ export function StageWorkspace({ jobId, k, page }: { jobId: string; k: CardKey; 
         <SectionDocuments jobId={jobId} categories={["Ready Check"]} />
       </>;
       case "quote": return <>
+        <DeclinedQuoteReopen jobId={jobId} />
         <InstallerQuoteDraftPanel jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond={false} />
         <AdminAssignmentPanel jobId={jobId} sections={[1]} />
@@ -186,6 +189,19 @@ export function StageWorkspace({ jobId, k, page }: { jobId: string; k: CardKey; 
   );
 }
 
+/** Jo 24 Oct: a quote the owner said "Not for me" to can be reopened by the office for Send (reopenDeclinedQuote). */
+function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
+  const reopen = useAction(reopenDeclinedQuote);
+  const { data } = useQuery({ queryKey: ["declined-quote", jobId], queryFn: async () => (await supabase.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation").neq("status", "superseded").order("created_at", { ascending: false }).limit(1).maybeSingle()).data });
+  if (data?.status !== "declined") return null;
+  return (
+    <div className="rounded-[12px] border border-rose/30 bg-pink p-3 text-sm">
+      <p className="font-semibold text-rose">The owner declined this quote.</p>
+      <button type="button" className={cn(btn, "mt-2 border border-line bg-paper text-hiv-blue")} onClick={() => void reopen({ jobId, quoteId: data.id }, "Quote reopened — check it and press Send")}>Reopen the quote for Send</button>
+    </div>
+  );
+}
+
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
 const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "To book the install · bank transfer · held 48h", balance: "On install day · bank transfer" };
@@ -224,7 +240,7 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         </div>
         {showMargin && (
           <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
-            {m.lines.map((l) => <div key={l.key} className="contents"><dt>{l.label}{l.note ? <span className="text-xs text-sub"> · {l.note}</span> : null}</dt><dd className="text-right tabular-nums">{l.amount == null ? "—" : `${l.sign < 0 ? "−" : "+"}$${l.amount.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`}</dd></div>)}
+            {m.lines.map((l) => <div key={l.key} className="contents"><dt>{l.label}{l.key === "veec_value" && m.veecBasis !== "unknown" ? <span className="text-xs text-sub"> · {m.veecBasis}</span> : null}</dt><dd className="text-right tabular-nums">{l.amount == null ? "—" : `${l.amount < 0 ? "−" : l.key === "price" ? "" : "+"}$${Math.abs(l.amount).toLocaleString("en-AU", { maximumFractionDigits: 0 })}`}</dd></div>)}
             <dt className="font-semibold">Margin · office only</dt><dd className="text-right font-semibold tabular-nums">{m.margin != null ? `$${m.margin.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : "—"}</dd>
             {m.missing.length > 0 && <dd className="col-span-2 text-xs text-rose">Not worked out yet: {m.missing.join(" · ")}</dd>}
           </dl>

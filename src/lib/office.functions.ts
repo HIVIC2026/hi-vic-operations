@@ -53,30 +53,6 @@ export const listByStatus = createServerFn({ method: "GET" }).middleware([requir
     return { rows: rows.slice(0, 2000), total: rows.length, title: data.status ? OFFICE_STATUSES[data.status as StatusKey]?.label ?? data.status : data.stage ?? "All live jobs" };
   });
 
-/** One job's "Right now" card. */
-export const getJobRightNow = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
-  .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { loadOffice } = await import("./office.server");
-    const o = await loadOffice(supabaseAdmin, { includeTest: true, onlyIds: [data.jobId] });
-    const j = o.jobs[0];
-    if (!j) return null;
-    const flagged = o.needs.items.find((i) => i.jobId === data.jobId) ?? null;
-    const [{ data: q }, { data: est }, { data: inv }] = await Promise.all([
-      supabaseAdmin.from("quotes").select("id, customer_total_inc_gst, veec_discount_inc_gst, status, quote_internals(ap_margin_ex_gst, ap_fee_ex_gst)").eq("job_id", data.jobId).eq("kind", "installation").in("status", ["accepted", "issued"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabaseAdmin.from("indicative_estimates").select("*").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabaseAdmin.from("invoice_status").select("total_inc_gst, total_paid").eq("job_id", data.jobId).maybeSingle(),
-    ]);
-    const e = (est ?? {}) as Record<string, unknown>;
-    const rebate = q?.veec_discount_inc_gst != null ? Number(q.veec_discount_inc_gst) : e["applied_discount"] != null ? Number(e["applied_discount"]) : null;
-    type Int = { ap_margin_ex_gst?: number | null; ap_fee_ex_gst?: number | null };
-    const raw = (q?.quote_internals ?? null) as Int | Int[] | null;
-    const qi = Array.isArray(raw) ? raw[0] : raw;
-    const margin = qi ? (Number(qi.ap_margin_ex_gst ?? 0) + Number(qi.ap_fee_ex_gst ?? 0)) * 1.1 : null;
-    return { status: j.status, why: flagged?.why ?? null, failures: j.needs.failures, now: o.now, money: { rebate, ownerPays: q?.customer_total_inc_gst != null ? Number(q.customer_total_inc_gst) : null, paid: inv?.total_paid != null ? Number(inv.total_paid) : null, margin: margin == null ? null : Number(margin) } };
-  });
 
 /** Search by job number, owner name, email, phone or address. */
 export const searchOffice = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

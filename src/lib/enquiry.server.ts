@@ -154,7 +154,12 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
   }
 
   if (!owner) throw new Error("Owner could not be saved.");
-  const propFields = { owner_id: owner.id, address_line: preserveEntered ? enteredText(input.address_line) : properAddress(input.address_line), suburb: input.suburb ? preserveEntered ? enteredText(input.suburb) : properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
+  // Decision 216: every address is stored as street / suburb / postcode the same way for every source. A website
+  // one-line address with no suburb is split by the pure tidy (never inventing a suburb or postcode); installers'
+  // own entries are kept exactly as typed.
+  const split = !preserveEntered && !input.suburb?.trim() ? (await import("./name-address-tidy.core")).splitAddress(input.address_line, null, input.postcode ?? null) : null;
+  const splitOk = !!split && !!split.street && !!split.suburb;
+  const propFields = { owner_id: owner.id, address_line: preserveEntered ? enteredText(input.address_line) : splitOk ? split!.street : properAddress(input.address_line), suburb: input.suburb ? preserveEntered ? enteredText(input.suburb) : properAddress(input.suburb) : splitOk ? split!.suburb : null, postcode: input.postcode ?? (splitOk && split!.postcode ? split!.postcode : null), occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = facts;
   // Preliminary eligibility / life-support status are accepted only from the signed Base44 webhook.
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
@@ -235,12 +240,15 @@ async function findOpenRepeatJob(source: string, email: string, phone: string | 
   const { repeatKey, sameOwner } = await import("./enquiry-repeat.core");
   const key = repeatKey(address, suburb, postcode);
   if (!key) return null;
+  // Addresses split at intake (decision 216) store only the street: match a repeat one-line address on its street too.
+  const altKey = suburb ? null : repeatKey((await import("./name-address-tidy.core")).splitAddress(address, null, postcode).street, null, postcode);
   const { data } = await admin.from("jobs").select("id, property_id, stage, job_number, created_at, estimated_area_m2, owners(email, phone), properties!inner(address_line, suburb, postcode)")
     .eq("channel", "hivic_sourced").eq("source", source).not("stage", "in", "(cancelled,complete)").eq("properties.postcode", postcode ?? "").order("created_at", { ascending: false }).limit(200);
   const hit = (data ?? []).find((j) => {
     const o = j.owners as { email: string | null; phone: string | null } | null;
     const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
-    return !!p && repeatKey(p.address_line, p.suburb, p.postcode) === key && sameOwner({ email, phone }, o);
+    const stored = p ? repeatKey(p.address_line, p.suburb, p.postcode) : null;
+    return !!p && (stored === key || (!!altKey && stored === altKey)) && sameOwner({ email, phone }, o);
   });
   return hit ? { id: hit.id, property_id: hit.property_id, stage: hit.stage, job_number: hit.job_number, area: hit.estimated_area_m2 == null ? null : Number(hit.estimated_area_m2) } : null;
 }

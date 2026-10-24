@@ -68,7 +68,7 @@ function Row({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => v
       <span className="mt-1 md:mt-0">
         {email ? <EmailActions row={row} onDone={onDone} />
           : row.jobId && row.button.to === "job"
-            ? <Link to="/admin/jobs/$jobId" params={{ jobId: row.jobId }} hash={row.button.section ? `stage-${row.button.section}` : undefined} className={cn(btn, "w-full bg-hiv-green text-white md:w-auto")}>{row.button.label}</Link>
+            ? <Link to="/admin/jobs/$jobId" params={{ jobId: row.jobId }} {...(row.button.section ? { hash: `stage-${row.button.section}` } : {})} className={cn(btn, "w-full bg-hiv-green text-white md:w-auto")}>{row.button.label}</Link>
             : null}
       </span>
     </li>

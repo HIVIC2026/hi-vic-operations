@@ -6,7 +6,6 @@ import { nextAction } from "./job-next-action.core";
 import { jobsStage, surnameOf } from "./office-jobs.core";
 import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core";
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
-import { officeMargin } from "./office-margin.core";
 import { splitAddress } from "./name-address-tidy.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
 
@@ -156,20 +155,21 @@ export async function loadJobMoney(jobId: string) {
   const sum = (kind: string) => ((offers.data ?? []).find((o) => o.kind === kind)?.summary ?? {}) as { installer_pay_inc_gst?: number; electrician_rate_inc_gst?: number; fixes_pay_inc_gst?: number };
   const internals = (q?.quote_internals as unknown as { cost_ex_gst: number | null } | { cost_ex_gst: number | null }[] | null);
   const costEx = Number((Array.isArray(internals) ? internals[0] : internals)?.cost_ex_gst);
-  const installerPaid = paidOut(null) ?? paidOut("installation");
-  const installerPay = installerPaid ?? sum("ready_check").installer_pay_inc_gst ?? sum("installation").installer_pay_inc_gst ?? (Number.isFinite(costEx) && costEx > 0 ? Math.round(costEx * 1.1 * 100) / 100 : null);
-  const piesaCost = paidOut("assessment") ?? sum("piesa").electrician_rate_inc_gst ?? null;
+  const ex = (inc: number | null | undefined) => (inc == null ? null : Math.round((Number(inc) / 1.1) * 100) / 100);
+  // Installer pay ex GST: recorded payout, else the accepted offer's pay, else the accepted quote's agreed-rate cost.
+  const installerPayEx = ex(paidOut(null) ?? paidOut("installation") ?? sum("ready_check").installer_pay_inc_gst ?? sum("installation").installer_pay_inc_gst) ?? (Number.isFinite(costEx) && costEx > 0 ? costEx : null);
   const { electricalBillingSource } = await import("./installer-led.core");
   const piesaOwnerDirect = electricalBillingSource({ channel: job.data?.channel ?? null, choice: job.data?.electrician_choice ?? null, committedLineOnAcceptedQuote: q && q.status === "accepted" ? ((q.quote_items as { code: string | null }[] | null) ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
-  const veecCount = lodg.data?.quantity != null ? Number(lodg.data.quantity) : q?.veec_count != null ? Number(q.veec_count) : null;
-  const sold = lodg.data?.sale_price_per_veec != null;
-  const margin = officeMargin({
-    ownerPriceInc: q ? Number(q.subtotal_inc_gst) : null, ownerGstInc: q?.gst_amount != null ? Number(q.gst_amount) : null,
-    installerPay, installerPayBasis: installerPaid != null ? "payout recorded" : sum("ready_check").installer_pay_inc_gst != null ? "accepted offer" : installerPay != null ? "agreed rate on the quote" : null,
-    piesaCost, piesaOwnerDirect, fixesPriceInc: rect.data ? Number(rect.data.customer_total_inc_gst) : null, fixesCostInc: paidOut("rectification") ?? sum("rectification").fixes_pay_inc_gst ?? null,
-    veecCount, veecPrice: sold ? Number(lodg.data.sale_price_per_veec) : ws.data?.current_veec_price != null ? Number(ws.data.current_veec_price) : null, veecPriceBasis: sold ? "actual sale" : "current setting",
-    veecIncentiveInc: q ? Number(q.veec_discount_inc_gst) : null,
-  });
+  const piesaCostEx = piesaOwnerDirect ? 0 : ex(paidOut("assessment") ?? sum("piesa").electrician_rate_inc_gst ?? null);
+  const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
+  // The $100 on fixes stays ours (decision 142): without a recorded payout, the electrician's cost is the price less $100.
+  const fixesCostEx = fixesPrice == null ? 0 : ex(paidOut("rectification") ?? sum("rectification").fixes_pay_inc_gst ?? Math.max(0, fixesPrice - 100)) ?? 0;
+  const { jobMargin, veecValueReceived } = await import("./job-margin.core");
+  const veec = veecValueReceived({ lodgedQty: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null, salePrice: lodg.data?.sale_price_per_veec != null ? Number(lodg.data.sale_price_per_veec) : null, quoteCount: q?.veec_count != null ? Number(q.veec_count) : null, spotPrice: ws.data?.current_veec_price != null ? Number(ws.data.current_veec_price) : null });
+  const margin = { ...jobMargin({
+    ownerPriceInc: q ? Number(q.subtotal_inc_gst) + (fixesPrice ?? 0) : null,
+    installerPayEx, piesaCostEx, fixesCostEx, veecValue: veec.value, veecIncentive: q ? Number(q.veec_discount_inc_gst) : 0,
+  }), veecBasis: veec.basis, quoteStatus: q?.status ?? null };
   return {
     invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error } : null,
     view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: view.bank, onlineInvoiceUrl: view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,

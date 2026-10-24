@@ -5,27 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { getOfficeReadyCheckBooking, getOwnerReadyCheckBookingSetting, offerOwnerReadyCheckBooking, setOwnerReadyCheckBookingEnabled } from '@/lib/ready-check-booking-access.functions';
 
-/** Per job: offer this owner the Ready Check booking. The global on/off is on Settings, never here. */
-export function OfficeReadyCheckBooking({ jobId }: { jobId: string }) {
-  const get = useServerFn(getOfficeReadyCheckBooking);
-  const offer = useServerFn(offerOwnerReadyCheckBooking);
-  const q = useQuery({ queryKey: ['office-ready-check-booking', jobId], queryFn: () => get({ data: { jobId } }), retry: false });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (action: () => Promise<unknown>) => {
-    setBusy(true); setError(null);
-    try { await action(); await q.refetch(); } catch (e) { setError(e instanceof Error ? e.message : 'Booking control could not be saved.'); }
-    finally { setBusy(false); }
-  };
-  return <section className="mb-4 border-b border-line pb-4" aria-label="Owner Ready Check booking">
-    <Button variant="outline" disabled={busy || !q.data?.enabled || !!q.data.offeredAt} onClick={() => void run(() => offer({ data: { jobId } }))}>
-      {q.data?.offeredAt ? 'Ready Check booking offered' : 'Offer Ready Check booking'}
-    </Button>
-    {q.data && !q.data.enabled && <p className="mt-2 text-sm text-muted-foreground">Owner booking is switched off for everyone (Settings → Automatic sending rules).</p>}
-    {(error || q.error) && <p role="alert" className="mt-2 text-sm text-danger">{error ?? 'Booking controls could not load.'}</p>}
-  </section>;
-}
-
+// The job-page "Offer Ready Check booking" button was removed 24 Oct 2026 (decision 53, audit removal 5).
 /** Settings only: the one global switch for owner Ready Check booking (affects every owner). */
 export function OwnerReadyCheckBookingSetting() {
   const get = useServerFn(getOwnerReadyCheckBookingSetting);

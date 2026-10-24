@@ -1,7 +1,8 @@
 // Office navigation (decision 218, approved mock-ups O1–O7): top bar Needs me · Enquiries · Jobs · Partners · Money,
 // the rest under More (Communications · Templates · Settings · Test Centre · Sign out); phone bottom tabs mirror the
 // five headings. Presentation only: every legacy route still resolves (it redirects or stays a detail view), so
-// bookmarks and internal links keep working. Owned by office build A; Partners/Money/Settings pages are build B's.
+// bookmarks and internal links keep working. Owned by office build A; Partners/Money/Communications/Settings pages are build B's
+// (/admin/workers redirects to /admin/partners?tab=people).
 import type { LinkProps } from "@tanstack/react-router";
 
 export type OfficeSection = "needs" | "enquiries" | "jobs" | "partners" | "money" | "more";
@@ -56,31 +57,16 @@ export function tabActive(t: OfficeTab, pathname: string, search: Record<string,
   return true;
 }
 
-/**
- * More (decision 218): Communications · Templates · Settings · Test Centre (+ Sign out in the menu itself).
- * Settings lists the existing settings pages until build B's Settings screen replaces this group with one link.
- */
+/** More (decision 218): Communications · Templates · Settings · Test Centre (+ Sign out under the initials). */
 export const MORE_SECTIONS: { label: string; tabs: OfficeTab[] }[] = [
   {
-    label: "Office",
+    label: "More",
     tabs: [
       { label: "Communications", to: "/admin/communications" },
       { label: "Templates", to: "/admin/templates" },
+      { label: "Settings", to: "/admin/settings" },
+      { label: "Test Centre", to: "/admin/test-centre" },
     ],
-  },
-  {
-    label: "Settings",
-    tabs: [
-      { label: "Users & access", to: "/admin/users" },
-      { label: "Compliance setup", to: "/admin/compliance" },
-      { label: "Automatic sending rules", to: "/admin/save-my-spot-rules" },
-      { label: "3 questions reminder", to: "/admin/save-spot-reminder-blast" },
-      { label: "Deleted jobs", to: "/admin/deleted" },
-    ],
-  },
-  {
-    label: "Testing",
-    tabs: [{ label: "Test Centre", to: "/admin/test-centre" }],
   },
 ];
 
