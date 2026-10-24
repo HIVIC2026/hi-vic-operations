@@ -106,3 +106,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 57. O2 draft line **approved**: "You told us there is some existing insulation in your ceiling. Your free Ready Check checks what's there and confirms whether you qualify before anything goes ahead."
 58. O17 Spot saved text: **add "Reply STOP to opt out."**
 59. O3 and O10: Jo wants changes (details to follow).
+60. **Master touchpoint list** (62 items: enquiry → Ready Check → quote → PIESA → install → after install and aftercare → trades). Saved as docs/TOUCHPOINTS_MASTER.html. Each item gets reviewed one at a time, wording and design. Style direction for owner emails: premium, value-first, built around **"we bring the right people together so you get the rebate"** (Save my spot redesign v3).
