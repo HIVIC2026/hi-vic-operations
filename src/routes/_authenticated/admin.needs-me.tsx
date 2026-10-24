@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/portal/AppShell";
 import { OfficeSearch } from "@/components/portal/office";
 import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
-import { getNeedsMePage, resolveEmailAsk, resolveUnmatchedEmailAsk } from "@/lib/office-screens.functions";
+import { getNeedsMePage } from "@/lib/office-screens.functions";
+import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
 import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
 import { cn } from "@/lib/utils";
@@ -25,8 +26,9 @@ const btn = "inline-flex min-h-[38px] items-center justify-center whitespace-now
 
 /** Email rows (decisions 245/247): Apply / Ignore, Match / Not a customer. Nothing changes on a job without this tap. */
 function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => void }) {
-  const resolve = useServerFn(resolveEmailAsk);
-  const match = useServerFn(resolveUnmatchedEmailAsk);
+  const apply = useServerFn(applyEmailChange);
+  const ignore = useServerFn(ignoreEmailChange);
+  const match = useServerFn(matchOutlookEmail);
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -37,21 +39,21 @@ function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => void }) {
   if (row.kind === "email_change") return (
     <div className="flex gap-2">
       <button type="button" disabled={busy} className={cn(btn, "bg-hiv-green text-white")} onClick={() => void run(async () => {
-        const r = await resolve({ data: { eventId: row.eventId!, decision: "apply" } });
-        // Cancel / day change / document: the office finishes it in the job's own guarded action.
-        if (r.apply !== "update_contact" && row.jobId) void navigate({ to: "/admin/jobs/$jobId", params: { jobId: row.jobId }, search: r.apply === "open_cancel" ? { act: "cancel" } : {} });
-      }, "Applied")}>Apply</button>
-      <button type="button" disabled={busy} className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void run(() => resolve({ data: { eventId: row.eventId!, decision: "ignore" } }), "Ignored")}>Ignore</button>
+        await apply({ data: { eventId: row.eventId! } });
+        // A day change is never applied to a booking: the office rearranges it on the job's Install card.
+        if (row.intent === "reschedule" && row.jobId) void navigate({ to: "/admin/jobs/$jobId", params: { jobId: row.jobId }, hash: "stage-install" });
+      }, row.intent === "cancel" ? "Job cancelled" : row.intent === "reschedule" ? "Noted — rearrange the day on the job" : "Applied")}>Apply</button>
+      <button type="button" disabled={busy} className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void run(() => ignore({ data: { eventId: row.eventId! } }), "Ignored")}>Ignore</button>
     </div>
   );
   return (
     <div className="grid gap-2">
       <div className="flex gap-2">
-        <button type="button" disabled={busy} className={cn(btn, "bg-hiv-green text-white")} onClick={() => row.jobId && !picking ? void run(() => match({ data: { eventId: row.eventId!, decision: "match", jobId: row.jobId! } }), `Matched to ${row.jobNumber}`) : setPicking(true)}>{row.jobId ? `Match to ${row.jobNumber}` : "Match"}</button>
-        <button type="button" disabled={busy} className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void run(() => match({ data: { eventId: row.eventId!, decision: "not_customer" } }), "Marked not a customer")}>Not a customer</button>
+        <button type="button" disabled={busy} className={cn(btn, "bg-hiv-green text-white")} onClick={() => row.jobId && !picking ? void run(() => match({ data: { messageEventId: row.eventId!, jobId: row.jobId! } }), `Matched to ${row.jobNumber}`) : setPicking(true)}>{row.jobId ? `Match to ${row.jobNumber}` : "Match"}</button>
+        <button type="button" disabled={busy} className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void run(() => match({ data: { messageEventId: row.eventId!, jobId: null } }), "Marked not a customer")}>Not a customer</button>
       </div>
       {row.jobId && !picking && <button type="button" className="text-left text-xs font-semibold text-hiv-blue underline" onClick={() => setPicking(true)}>A different job…</button>}
-      {picking && <div className="w-72"><OfficeSearch onPick={(j) => void run(() => match({ data: { eventId: row.eventId!, decision: "match", jobId: j.id } }), `Matched to ${j.jobNumber}`)} /></div>}
+      {picking && <div className="w-72"><OfficeSearch onPick={(j) => void run(() => match({ data: { messageEventId: row.eventId!, jobId: j.id } }), `Matched to ${j.jobNumber}`)} /></div>}
     </div>
   );
 }

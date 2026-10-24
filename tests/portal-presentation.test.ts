@@ -41,22 +41,10 @@ describe("staff portal presentation helpers", () => {
     expect(supplementalEligibilityLabel({ eligibility_outcome: "does_not_appear_eligible" }, "Ineligible")).toBeNull();
   });
 
-  test("disclosures remain mounted and exact targets are placed on real controls", () => {
-    const row = readFileSync("src/components/portal/StaffJobRow.tsx", "utf8");
-    const workspace = readFileSync("src/components/portal/job-workspace.tsx", "utf8");
+  test("exact targets stay on real controls (the old job fold-outs and list row were replaced by the O2/O3 screens)", () => {
     const panels = readFileSync("src/components/portal/panels.tsx", "utf8");
     const intake = readFileSync("src/components/portal/intake.tsx", "utf8");
-    const detail = readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8");
-    const list = readFileSync("src/routes/_authenticated/admin.board.tsx", "utf8");
-    expect(row).toContain("supplementalEligibilityLabel(job, step.label)");
     expect(panels).toContain('id="target-deposit-request" data-portal-focus="target"');
     expect(intake).toContain('id="target-intake-consent" data-portal-focus="target"');
-    expect(workspace).toContain("new MutationObserver");
-    expect(workspace).toContain("cleanup.current?.()");
-    // One responsive filter bar for every breakpoint (replaced the duplicated mobile/desktop copies).
-    expect(list).toContain('className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3"');
-    expect(list).toContain("{filterFields}");
-    expect(workspace).toContain("{mounted && children}");
-    expect(workspace).toContain("hidden={!open}");
   });
 });

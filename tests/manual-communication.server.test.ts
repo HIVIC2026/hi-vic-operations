@@ -311,7 +311,8 @@ describe("static safety guards", () => {
   const code = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   const server = code("src/lib/manual-communication.server.ts");
   const fns = code("src/lib/manual-communication.functions.ts");
-  const ui = code("src/components/portal/manual-communication.tsx");
+  // The never-rendered ManualCommunicationActions UI was removed (office audit 24 Oct, removal 10).
+  const ui = "";
   test("no sender, provider, SMS, approval-flag or Save-my-spot write path is reachable from the manual workflow", () => {
     for (const src of [server, fns, ui]) {
       expect(src).not.toMatch(/resendSend|sendTestEmail|sendRealSms|sendOfficeEmail|adapter\.deliver|sendPreliminaryIneligibleEmail|sendExistingInsulationSaveSpot|sendAutomaticInsulationDetails|maybeAutoRouteLeadEmail|maybeAutoSendSaveSpot|sendHotLeadsBatch|sendInitialEstimateEmail/);
@@ -330,10 +331,5 @@ describe("static safety guards", () => {
       expect(c).not.toMatch(/"send"|test_to_jo|mode:\s*"send"/);
       expect(c).toContain("!!opts.issueLinks");
     }
-  });
-  test("copying stays in the browser (no server call, no record)", () => {
-    const copyFn = ui.slice(ui.indexOf("async function copyToClipboard"), ui.indexOf("function usePreparedEmail"));
-    expect(copyFn).toContain("navigator.clipboard");
-    expect(copyFn).not.toMatch(/Fn\b|useServerFn|fetch\(/);
   });
 });

@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice, type OfficeJob } from "./office.server";
 import { buildNeedsRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { sendFailedRows } from "./send-failed.core";
-import { openEmailAsks, EMAIL_ASK_EVENT_TYPES, type AskEvent } from "./email-asks.core";
+import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 
@@ -31,7 +31,6 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 
 export type GatheredNeeds = {
   now: number; jobs: OfficeJob[]; facts: Map<string, NeedsFacts>; emails: EmailRowInput[];
-  emailDetails: Map<string, { kind: string; proposed: { phone?: string; email?: string } | null; apply: string }>;
   system: SystemRow[];
 };
 
@@ -48,7 +47,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const since7 = new Date(now - 7 * DAY).toISOString();
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
 
-  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, askEvents, provisionalBookings] = await Promise.all([
+  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings] = await Promise.all([
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
     all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
@@ -58,7 +57,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("no-access reports", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "trade_couldnt_get_in").contains("details", { visit: "install", needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("VEEC day-10 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", VEEC_OFFICE_ALERT_EVENT).range(a, b)),
     all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, effective_status, total_inc_gst, total_paid, updated_at")).eq("effective_status", "overdue").range(a, b)),
-    all("email asks", (a, b) => admin.from("workflow_events").select("id, job_id, event_type, created_at, details").in("event_type", [...EMAIL_ASK_EVENT_TYPES]).order("created_at").range(a, b)),
+    // Decision 246: automatic offers that came back to the office (2 misses or no covering trade) -> "Choose again".
+    all("auto offers returned", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, summary, details")).eq("event_type", AUTO_OFFER_RETURNED_EVENT).order("created_at", { ascending: false }).range(a, b)),
     all("install bookings on hold", (a, b) => scoped(admin.from("bookings").select("job_id, created_at, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("created_at", new Date(now - 2 * DAY).toISOString()).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
   ]);
 
@@ -86,6 +86,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const r of [...q.rows, ...(qTest?.rows ?? [])]) { const x = f(r.jobId); if (x) x.quoteToCheck = { at: r.at, reason: r.kind === "ready" ? null : r.note, ready: r.kind === "ready" }; }
   for (const r of [...q.declined, ...(qTest?.declined ?? [])]) { const x = f(r.jobId); if (x && !x.quoteToCheck) x.quoteToCheck = { at: r.at, reason: `owner declined${r.reason ? ` (“${r.reason}”)` : ""} · reopen or close`, ready: false }; }
 
+  if (returned.length) {
+    const rIds = [...new Set(returned.map((r) => String(r["job_id"])).filter((id) => idSet.has(id)))];
+    const later = rIds.length ? await byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : [];
+    for (const r of returned) {
+      const x = f(String(r["job_id"])); if (!x || x.offerLapsed) continue;
+      const kind = String((r["details"] as { kind?: string } | null)?.kind ?? "ready_check");
+      // Cleared as soon as a new offer of that kind goes out after the hand-back.
+      if (later.some((o) => o["job_id"] === r["job_id"] && o["kind"] === kind && String(o["offered_at"]) > String(r["created_at"]))) continue;
+      x.offerLapsed = { role: kind === "piesa" ? "electrician" : "installer", name: null, declined: false, at: String(r["created_at"]), note: String(r["summary"] ?? "") };
+      if (kind === "ready_check") delete x.spotSaved; else delete x.electricianToChoose;
+    }
+  }
   for (const c of consents) { const x = f(String(c["job_id"])); if (x && !["cancelled", "stale", "superseded"].includes(String(c["status"]))) { const start = s(c["scheduled_start"]); x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null }; } }
   const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"]);
   if (partA.length && partA.length <= 40) {
@@ -121,26 +133,30 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const finalIds = [...facts.values()].filter((x) => x.finalCheck).map((x) => x.jobId);
   if (finalIds.length) for (const c of await byIds("final check flags", finalIds, (chunk, a, b) => admin.from("compliance_checks").select("job_id, status").in("job_id", chunk).eq("status", "fail").range(a, b))) { const x = f(String(c["job_id"])); if (x?.finalCheck) x.finalCheck.flags++; }
 
-  // Email asks (decisions 245/247). Nothing is rendered when the backend has written no such events.
-  const asks = openEmailAsks(askEvents.map((e) => ({ id: String(e["id"]), job_id: String(e["job_id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] })) as AskEvent[]);
-  const emailDetails = new Map<string, { kind: string; proposed: { phone?: string; email?: string } | null; apply: string }>();
-  const askJobIds = [...new Set([...asks.changes.map((c) => c.jobId), ...asks.unmatched.map((u) => u.guessJobId).filter((x): x is string => !!x)])];
+  // Email rows (decisions 245/247): the backend's open items (email-office.server). Renders nothing when there are none.
+  const { openEmailItems } = await import("./email-office.server");
+  const { CHANGE_LINE } = await import("./office-needs.core");
+  const items = await openEmailItems();
+  type Guess = { job_id: string; job_number: string; why?: string[] };
+  const guessOf = (u: Record<string, unknown>) => ((u["guesses"] as Guess[] | undefined) ?? [])[0] ?? null;
+  const askJobIds = [...new Set([...items.changes.map((c) => c.jobId as string | null), ...items.unmatched.map((u) => guessOf(u as Record<string, unknown>)?.job_id ?? null)].filter((x): x is string => !!x))];
   const askJobs = new Map<string, { jobNumber: string; surname: string; suburb: string | null; source: string | null }>();
   for (const r of askJobIds.length ? await byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : [])
     askJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), suburb: (r["properties"] as { suburb?: string } | null)?.suburb ?? null, source: s(r["source"]) });
   const wantJob = (id: string | null) => !opts.onlyIds || (id != null && idSet.has(id));
   const emails: EmailRowInput[] = [];
-  for (const c of asks.changes) {
+  for (const c of items.changes as unknown as { eventId: string; jobId: string; at: string; intent?: string; phrase?: string }[]) {
     const j = askJobs.get(c.jobId);
     if (!wantJob(c.jobId) || (!opts.includeTest && j?.source === "qa_test")) continue;
-    emails.push({ type: "change", eventId: c.eventId, jobId: c.jobId, jobNumber: j?.jobNumber ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null, line: `${c.line}${c.excerpt ? ` · “${c.excerpt}”` : ""}`, at: c.at });
-    emailDetails.set(c.eventId, { kind: c.kind, proposed: c.proposed, apply: c.apply });
+    const line = CHANGE_LINE[(c.intent ?? "other") as keyof typeof CHANGE_LINE] ?? CHANGE_LINE.other;
+    emails.push({ type: "change", eventId: c.eventId, jobId: c.jobId, jobNumber: j?.jobNumber ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null, line: `${line}${c.phrase ? ` · “${c.phrase}”` : ""}`, at: c.at, intent: c.intent ?? null });
   }
-  for (const u of asks.unmatched) {
-    if (!wantJob(u.guessJobId)) continue;
-    const j = u.guessJobId ? askJobs.get(u.guessJobId) : undefined;
-    emails.push({ type: "unmatched", eventId: u.eventId, guessJobId: u.guessJobId, jobNumber: j?.jobNumber ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null, line: `${u.line}${j ? ` · best guess ${j.jobNumber}${u.guessReason ? ` (${u.guessReason.toLowerCase()})` : ""}` : " · no guess"}`, at: u.at });
-    emailDetails.set(u.eventId, { kind: "unmatched", proposed: null, apply: "match" });
+  for (const u of items.unmatched as unknown as ({ eventId: string; at: string; from?: string | null; subject?: string | null } & Record<string, unknown>)[]) {
+    const g = guessOf(u);
+    if (!wantJob(g?.job_id ?? null)) continue;
+    const j = g ? askJobs.get(g.job_id) : undefined;
+    emails.push({ type: "unmatched", eventId: u.eventId, guessJobId: g?.job_id ?? null, jobNumber: j?.jobNumber ?? g?.job_number ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null,
+      line: `Email from ${u.from ?? "an unknown sender"}${u.subject ? ` · “${String(u.subject).slice(0, 60)}”` : ""}${g ? ` · best guess ${g.job_number}${g.why?.length ? ` (${g.why[0]})` : ""}` : " · no guess"}`, at: u.at });
   }
 
   // Partner & system fold (decision 221): partner items from the office rulebook + per-job system failures + quotes not drafted.
@@ -150,7 +166,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
   }
-  return { now, jobs, facts, emails, emailDetails, system };
+  return { now, jobs, facts, emails, system };
 }
 
 export type NeedsMePage = { now: number; groups: Record<"today" | "week" | "watch", NeedsRow[]>; system: SystemRow[]; total: number };

@@ -4,12 +4,12 @@ import { OFFICE_HEADINGS, sectionFor } from "../src/lib/office-nav";
 import { TEMPLATE_ENTRIES, TEMPLATE_STANDING, entriesFor, parseTemplateSearch, selectTemplate, templateStanding } from "../src/lib/template-hub.core";
 
 describe("Templates navigation", () => {
-  test("one Templates heading among the five primary workspaces", () => {
-    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["enquiries", "active", "closed", "communications", "templates"]);
-    expect(sectionFor("/admin/templates", { cat: "mitti" })).toBe("templates");
-    expect(sectionFor("/admin/communications")).toBe("communications");
+  test("Templates sits under More (decision 218), not in the top bar", () => {
+    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["needs", "enquiries", "jobs", "partners", "money"]);
+    expect(sectionFor("/admin/templates", { cat: "mitti" })).toBe("more");
+    expect(sectionFor("/admin/communications")).toBe("more");
     expect(sectionFor("/admin/compliance")).toBe("more");
-    expect(OFFICE_HEADINGS.filter((h) => h.label === "Templates").length).toBe(1);
+    expect(OFFICE_HEADINGS.filter((h) => h.label === "Templates").length).toBe(0);
   });
   test("standing separates approved, draft, reference and historical wording", () => {
     expect(TEMPLATE_STANDING.map((s) => s.key)).toEqual(["approved", "draft", "reference", "historical"]);

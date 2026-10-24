@@ -2,7 +2,7 @@
 // - Match this email (247): file a job-less `email_unmatched` email on a job (re-read from Outlook, stored with the
 //   copier's storeOnJob) or mark it "Not a customer". Append-only: the outcome is a new event, never an edit.
 // - Email asks for a change (245): Apply performs the change ONLY through existing guarded paths — cancel via the
-//   office Cancel path (applyHoldOrCancel, reason recorded), new email via the audited owner email correction,
+//   office Cancel path (cancelJobFully, decision 227: reason recorded, install day + installer released), new email via the audited owner email correction,
 //   new phone with the same before/after history, attachments → Job File documents; a reschedule is never applied to
 //   a booking (the office rearranges it on the job). Ignore records that the office looked and did nothing.
 // Nothing here drafts or sends an email or text (decision 244 waits on the connector test).
@@ -94,8 +94,9 @@ export async function applyEmailChange(eventId: string, actorId: string) {
       const { data: job } = await admin.from("jobs").select("stage, deleted_at").eq("id", jobId).maybeSingle();
       if (!job || job.deleted_at) throw new WorkflowError("That job is not available.");
       if (job.stage === "cancelled" || job.stage === "complete") throw new WorkflowError(`The job is already ${job.stage === "cancelled" ? "cancelled" : "complete"}.`);
-      const { applyHoldOrCancel } = await import("./job-disposition.server");
-      await applyHoldOrCancel(jobId, "cancel", `${d.proposed?.reason ?? "Owner asked by email not to go ahead"} — ${why}`.slice(0, 500), actorId, { source: "email_change_request", request_event_id: ev.id });
+      // Decision 227 cancel: stops reminders and texts, releases any held install day and the installer, keeps history.
+      const { cancelJobFully } = await import("./office-actions.server");
+      await cancelJobFully(jobId, `${d.proposed?.reason ?? "Owner asked by email not to go ahead"} — ${why}`.slice(0, 480), actorId, { note: `email change request ${ev.id}` });
       outcome = "cancelled";
       break;
     }

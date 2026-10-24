@@ -46,11 +46,10 @@ describe("installer job summary", () => {
     expect(s.officeActions).toEqual(["Possible duplicate of HV-2282", "Owner contact permission isn't recorded — the quote can't be sent until it is"]);
     expect(s.waitingOn).toBe("office");
   });
-  test("office page: summary on installer jobs, website checks folded away, no website estimate", () => {
-    const page = readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8");
-    expect(page).toContain("{installerJob && <InstallerJobSummary jobId={jobId} />}");
-    expect(page).toContain("<Wrap installerJob={installerJob}>");
-    expect(page).toContain("installerJob ? <p className=\"my-2 text-sm text-muted-foreground\" data-no-estimate>");
+  test("office page: the O2 Next panel replaces the summary box; installers' own jobs show no website estimate", () => {
+    const page = readFileSync("src/components/portal/office-job.tsx", "utf8");
+    expect(page).toContain("{!h.ownJob && <AdminEstimateCard jobId={jobId} />}");
+    expect(page).not.toContain("InstallerJobSummary");
     const fns = readFileSync("src/lib/installer-job-summary.functions.ts", "utf8");
     expect(fns).toContain("await requireAdmin(context.supabase)");
     expect(fns).not.toMatch(/\.insert\(|\.update\(|\.delete\(|logEvent\(/);

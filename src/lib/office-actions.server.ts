@@ -1,11 +1,11 @@
-// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, O4 inline fix, O1 email rows).
+// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, O4 inline fix). The O1 email rows use
+// the backend's email-office.server (decisions 245/247).
 // Every change is audited through workflow_events and uses the existing guarded paths; nothing here sends a message.
 // Server-only; callers (office-screens.functions.ts) have already checked requireAdmin.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fixDetailsErrors, tidyEnquiryDetails } from "./name-address-tidy.core";
 import { reopenBlocker } from "./office-jobs.core";
-import { EMAIL_CHANGE_REQUEST_EVENT, EMAIL_CHANGE_RESOLVED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_RESOLVED_EVENT, openEmailAsks, type AskEvent } from "./email-asks.core";
 
 /** Owner email / installer text on Cancel and Hold: the dialog is approved (228) but the wording is not yet (227), so the
  *  ticks are recorded for the office and NOTHING is sent until Jo approves the wording and a guarded sender exists. */
@@ -106,45 +106,4 @@ export async function saveFixDetails(jobId: string, actorId: string, v: { fullNa
   if (o.error || p.error) throw new Error(`Details could not be saved: ${(o.error ?? p.error)!.message}`);
   await logEvent(jobId, actorId, "enquiry_details_fixed", `Details fixed: ${t.fullName} · ${t.street}, ${t.suburb} ${t.postcode}`, { before, after: { name: t.fullName, address_line: t.street, suburb: t.suburb, postcode: t.postcode }, decision: 216 }, { internal: true });
   return { ok: true, fullName: t.fullName, street: t.street, suburb: t.suburb, postcode: t.postcode };
-}
-
-async function askEvent(eventId: string, type: string): Promise<AskEvent> {
-  const { data, error } = await admin.from("workflow_events").select("id, job_id, event_type, created_at, details").eq("id", eventId).maybeSingle();
-  if (error || !data || data.event_type !== type) throw new WorkflowError("That email is no longer on Needs me.");
-  const { data: all } = await admin.from("workflow_events").select("id, job_id, event_type, created_at, details").in("event_type", [EMAIL_CHANGE_RESOLVED_EVENT, EMAIL_UNMATCHED_RESOLVED_EVENT]).contains("details", type === EMAIL_CHANGE_REQUEST_EVENT ? { request_event_id: eventId } : { source_event_id: eventId });
-  const ev = data as AskEvent;
-  const open = openEmailAsks([ev, ...((all ?? []) as AskEvent[])]);
-  if (!open.changes.length && !open.unmatched.length) throw new WorkflowError("That email was already dealt with.");
-  return ev;
-}
-
-/** Decision 245: Apply / Ignore. Only contact details are changed here (the owner's new phone/email, audited); a cancel or
- *  day change is done by the office in the job's own guarded action and then recorded as applied. */
-export async function resolveEmailChange(eventId: string, decision: "apply" | "ignore", actorId: string) {
-  const ev = await askEvent(eventId, EMAIL_CHANGE_REQUEST_EVENT);
-  const row = openEmailAsks([ev]).changes[0]!;
-  if (decision === "apply" && row.apply === "update_contact" && row.proposed) {
-    const { data: job } = await admin.from("jobs").select("owner_id, owners(phone, email)").eq("id", ev.job_id).maybeSingle();
-    if (!job) throw new WorkflowError("Job not found.");
-    const { error } = await admin.from("owners").update({ ...(row.proposed.phone ? { phone: row.proposed.phone } : {}), ...(row.proposed.email ? { email: row.proposed.email.toLowerCase() } : {}) }).eq("id", job.owner_id);
-    if (error) throw new Error(error.message);
-    await logEvent(ev.job_id, actorId, "owner_contact_updated_from_email", "Owner contact details updated from their email (office applied)", { before: job.owners, after: row.proposed, request_event_id: eventId, decision: 245 }, { internal: true });
-  }
-  await logEvent(ev.job_id, actorId, EMAIL_CHANGE_RESOLVED_EVENT, decision === "apply" ? `Email request applied: ${row.line}` : `Email request ignored: ${row.line}`, { request_event_id: eventId, message_id: (ev.details as { message_id?: string } | null)?.message_id ?? null, decision: decision === "apply" ? "applied" : "ignored" }, { internal: true });
-  return { ok: true, apply: row.apply };
-}
-
-/** Decision 247: Match this email → filed on the chosen job's Contact history; or Not a customer. */
-export async function resolveUnmatchedEmail(eventId: string, decision: "match" | "not_customer", actorId: string, jobId?: string | null) {
-  const ev = await askEvent(eventId, EMAIL_UNMATCHED_EVENT);
-  const d = (ev.details ?? {}) as { message_id?: string; from?: string; subject?: string; excerpt?: string; received_at?: string };
-  if (decision === "match") {
-    if (!jobId) throw new WorkflowError("Choose the job this email belongs to.");
-    const { data: job } = await admin.from("jobs").select("id").eq("id", jobId).maybeSingle();
-    if (!job) throw new WorkflowError("Job not found.");
-    const { recordCommunication } = await import("./comms.server");
-    await recordCommunication({ jobId, direction: "inbound", channel: "email", senderText: d.from ?? null, subject: d.subject ?? null, body: d.excerpt ?? "(email matched by the office — full text in Outlook)", at: d.received_at ?? null, visibility: "customer", provider: "outlook", sourceEvent: "email_unmatched_matched", sourceReference: d.message_id ?? eventId, createdBy: actorId, deliveryStatus: "received" });
-  }
-  await logEvent(decision === "match" ? jobId! : ev.job_id, actorId, EMAIL_UNMATCHED_RESOLVED_EVENT, decision === "match" ? `Email from ${d.from ?? "unknown sender"} matched to this job` : `Email from ${d.from ?? "unknown sender"} marked not a customer`, { source_event_id: eventId, message_id: d.message_id ?? null, decision: decision === "match" ? "matched" : "not_customer", job_id: jobId ?? null }, { internal: true });
-  return { ok: true };
 }

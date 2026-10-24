@@ -24,13 +24,15 @@ export type JobSection = "ready-check" | "quote" | "piesa" | "install" | "final-
 export type NeedsRow = {
   key: string; group: NeedsGroup; kind: NeedsKind; jobId: string | null; jobNumber: string | null; surname: string; suburb: string | null;
   line: string; since: string; button: NeedsButton; secondary?: NeedsButton; eventId?: string; isTest?: boolean;
+  /** Email change rows: the backend intent (cancel · reschedule · contact_change · attachment). */
+  intent?: string;
 };
 
 /** Facts per job (any may be absent). Times are ISO strings. */
 export type NeedsFacts = {
   jobId: string; jobNumber: string; surname: string; suburb: string | null; isTest?: boolean;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
-  offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string } | null;
+  offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
   /** Spot saved, no installer chosen yet (decision 239). */
   spotSaved?: { at: string } | null;
   /** Quote accepted and $349 paid, no PIESA offer yet (decisions 157/173). */
@@ -69,7 +71,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
-  if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
+  if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
     const soon = due == null || due - now <= 48 * HOUR;
@@ -96,12 +98,21 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
 }
 
 /** Email rows (decisions 245/247) — always Today, one per email, two taps (Apply / Ignore, Match / Not a customer). */
+/** Decision 245 wording "Owner asks to …" per backend intent (email-intent.core CHANGE_INTENTS). */
+export const CHANGE_LINE = {
+  cancel: "Owner asks to cancel",
+  reschedule: "Owner can't make the day",
+  contact_change: "Owner asks to change contact details",
+  attachment: "Owner sent a photo or document",
+  other: "Owner asks for a change",
+} as const;
+
 export type EmailRowInput =
-  | { type: "change"; eventId: string; jobId: string; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string }
+  | { type: "change"; eventId: string; jobId: string; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string; intent?: string | null }
   | { type: "unmatched"; eventId: string; guessJobId: string | null; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string };
 
 export function emailRow(e: EmailRowInput): NeedsRow {
-  if (e.type === "change") return { key: `email:${e.eventId}`, group: "today", kind: "email_change", eventId: e.eventId, jobId: e.jobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Apply", to: "act", act: "apply" }, secondary: { label: "Ignore", to: "act", act: "ignore" } };
+  if (e.type === "change") return { key: `email:${e.eventId}`, group: "today", kind: "email_change", eventId: e.eventId, ...(e.intent ? { intent: e.intent } : {}), jobId: e.jobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Apply", to: "act", act: "apply" }, secondary: { label: "Ignore", to: "act", act: "ignore" } };
   return { key: `email:${e.eventId}`, group: "today", kind: "email_unmatched", eventId: e.eventId, jobId: e.guessJobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Match", to: "act", act: "match" }, secondary: { label: "Not a customer", to: "act", act: "not_customer" } };
 }
 

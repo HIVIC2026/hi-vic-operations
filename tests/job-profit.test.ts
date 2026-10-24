@@ -36,11 +36,11 @@ describe("per-job profit", () => {
     const { expected: e } = jobProfitBreakdown({ ...base, electricianPiesaRateInc: null });
     expect(e.piesaMarkupInc).toBeNull(); expect(e.totalInc).toBeNull();
   });
-  test("office only: card only on the office job page, server fn requires admin", () => {
+  test("office only: the old Profit card (with its own VEEC price entry) is gone from every page; server fn requires admin", () => {
     const fns = readFileSync("src/lib/profit.functions.ts", "utf8");
     const body = fns.slice(fns.indexOf("export const getJobProfit"));
     expect(body.slice(0, body.indexOf("export const setCurrentVeecPrice"))).toContain("requireAdmin(context.supabase)");
     const users = readdirSync("src/routes", { recursive: true }).filter((f) => String(f).endsWith(".tsx") && readFileSync(`src/routes/${f}`, "utf8").includes("OfficeJobProfitCard"));
-    expect(users).toEqual(["_authenticated/admin.jobs.$jobId.tsx"]);
+    expect(users).toEqual([]);
   });
 });

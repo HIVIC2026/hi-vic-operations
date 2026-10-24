@@ -39,7 +39,7 @@ describe("pipeline count and drilldown use the same loader and filters", () => {
   test("both handlers call loadOffice and exclude qa_test unless asked, archived always", async () => {
     const fn = await Bun.file("src/lib/office.functions.ts").text();
     const pipe = fn.slice(fn.indexOf("export const getPipeline"), fn.indexOf("export const listByStatus"));
-    const list = fn.slice(fn.indexOf("export const listByStatus"), fn.indexOf("export const getJobRightNow"));
+    const list = fn.slice(fn.indexOf("export const listByStatus"), fn.indexOf("export const searchOffice"));
     for (const h of [pipe, list]) expect(h).toContain('loadOffice(supabaseAdmin, { includeTest: data.includeTest ?? false })');
     const srv = await Bun.file("src/lib/office.server.ts").text();
     expect(srv).toContain('(opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"]');

@@ -24,7 +24,7 @@ test("Mitti's deep link is read whatever field it comes back in; nothing else is
   expect(deepLinkFromResponse(null)).toBeNull();
 });
 test("every portal 'Mitti form' button asks for the deep link (checked against job access) instead of a fixed address", () => {
-  for (const f of ["src/components/trade/MittiMissingInfo.tsx", "src/components/portal/QuotesToCheck.tsx", "src/components/portal/NewFromInstallers.tsx", "src/components/portal/InstallerJobSummary.tsx", "src/components/portal/mitti.tsx", "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/field.day.$jobId.tsx"])
+  for (const f of ["src/components/trade/MittiMissingInfo.tsx", "src/components/portal/NewFromInstallers.tsx", "src/components/portal/mitti.tsx", "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/field.day.$jobId.tsx"])
     expect(readFileSync(f, "utf8")).toContain("<MittiFormLink auditId=");
   const fn = readFileSync("src/lib/mitti-link.functions.ts", "utf8");
   expect(fn).toContain('rpc("can_access_job"');

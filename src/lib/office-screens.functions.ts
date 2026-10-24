@@ -133,19 +133,3 @@ export const saveEnquiryFixDetails = createServerFn({ method: "POST" }).middlewa
     const { saveFixDetails } = await import("./office-actions.server");
     try { return await saveFixDetails(data.jobId, context.userId, data); } catch (e) { if (e instanceof WorkflowError) throw e; throw new Error(e instanceof Error ? e.message : "Details could not be saved."); }
   });
-
-export const resolveEmailAsk = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ eventId: uuid, decision: z.enum(["apply", "ignore"]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { resolveEmailChange } = await import("./office-actions.server");
-    return resolveEmailChange(data.eventId, data.decision, context.userId);
-  });
-
-export const resolveUnmatchedEmailAsk = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ eventId: uuid, decision: z.enum(["match", "not_customer"]), jobId: uuid.optional() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { resolveUnmatchedEmail } = await import("./office-actions.server");
-    return resolveUnmatchedEmail(data.eventId, data.decision, context.userId, data.jobId ?? null);
-  });

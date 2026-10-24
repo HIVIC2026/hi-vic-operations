@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 
 const functions = readFileSync("src/lib/admin-records.functions.ts", "utf8");
 const partners = readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8");
@@ -54,7 +54,6 @@ describe("admin record reliability", () => {
 describe("single-job operations status getter", () => {
   const opsFunctions = readFileSync("src/lib/operations-preview.functions.ts", "utf8");
   const opsQuery = readFileSync("src/lib/operations-query.ts", "utf8");
-  const compact = readFileSync("src/components/portal/CompactJobStatus.tsx", "utf8");
   it("keeps the single-job getter admin-authenticated, id-validated and fail-closed", () => {
     const start = opsFunctions.indexOf("export const getOperationsJob");
     expect(start).toBeGreaterThan(-1);
@@ -70,8 +69,8 @@ describe("single-job operations status getter", () => {
     expect(opsQuery).toContain('queryKey: ["operations-preview", "job", jobId]');
     expect(opsQuery).toContain('queryKey: ["operations-preview"]');
   });
-  it("the compact job status uses the job-keyed getter, not the whole-dashboard read", () => {
-    expect(compact).toContain("operationsJobOptions(jobId)");
-    expect(compact).not.toContain("operationsOptions");
+  it("the retired compact job status box is gone; the O2 Next panel reads one job page loader", () => {
+    expect(existsSync("src/components/portal/CompactJobStatus.tsx")).toBe(false);
+    expect(readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8")).toContain("getOfficeJobPage");
   });
 });
