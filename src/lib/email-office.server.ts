@@ -5,7 +5,8 @@
 //   office Cancel path (cancelJobFully, decision 227: reason recorded, install day + installer released), new email via the audited owner email correction,
 //   new phone with the same before/after history, attachments → Job File documents; a reschedule is never applied to
 //   a booking (the office rearranges it on the job). Ignore records that the office looked and did nothing.
-// Nothing here drafts or sends an email or text (decision 244 waits on the connector test).
+// Nothing here sends an email or text. Decision 244: a matched email may get ONE Outlook reply DRAFT through the
+// copier's fileOutlookMessageOnJob (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED); Jo or Chris presses Send.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -49,7 +50,7 @@ export async function matchOutlookEmail(messageEventId: string, jobId: string | 
   const filed = await (await import("./outlook-sync.server")).fileOutlookMessageOnJob({ message_id: d.message_id, mailbox: d.mailbox ?? null }, jobId, visibility);
   await logEvent(jobId, actorId, EMAIL_UNMATCHED_MATCHED_EVENT, `Email from ${d.from ?? "unknown sender"} matched to this job by the office${filed.communicationId ? "" : " (it was already on the job)"}`,
     { unmatched_event_id: ev.id, message_id: d.message_id, communication_id: filed.communicationId, visibility, change_requests: filed.changeRequests }, { internal: true });
-  return { ok: true as const, outcome: "matched" as const, communicationId: filed.communicationId, changeRequests: filed.changeRequests };
+  return { ok: true as const, outcome: "matched" as const, communicationId: filed.communicationId, changeRequests: filed.changeRequests, replyDraftId: filed.replyDraftId };
 }
 
 async function updateOwnerPhone(jobId: string, phone: string, reason: string, actorId: string) {

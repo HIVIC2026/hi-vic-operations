@@ -407,6 +407,12 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   });
 }
 
+/** Decision 244 reply drafter: one business's own pay STATES (no amounts) for an email reply to that business.
+ *  Server-only, business-scoped by the caller (sender address = the business's own email). Read-only. */
+export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly: boolean): Promise<{ jobNumber: string; what: string; state: import("./trade-view.core").PayState; channel: string | null }[]> {
+  return (await tradeMoneyRows(bizId, kind, testOnly)).filter((r) => r.billing === "hivic").map((r) => ({ jobNumber: r.jobNumber, what: r.what, state: r.state, channel: r.channel }));
+}
+
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
   if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
