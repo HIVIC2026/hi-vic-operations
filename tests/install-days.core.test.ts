@@ -47,6 +47,14 @@ describe("install days", () => {
     expect(installDayTurn({ ...base, expired: true, rows: [] }).turn).toBe("expired");
     expect(installDayTurn({ ...base, ready: false, rows: [] }).turn).toBe("not_ready");
   });
+  test("either side can change a booked day; installer then offers new days (Jo 24 Oct)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const srv = readFileSync("src/lib/install-days.server.ts", "utf8");
+    expect(srv).toContain('transition(jobId, "installation_scheduling"');
+    expect(srv).toMatch(/update\(\{ status: "confirmed" \}\)/); // booking restored if the stage can't move back
+    expect(readFileSync("src/components/portal/install-days.tsx", "utf8")).toContain("Change day");
+    expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).toContain("ownerChangeInstallDayFn");
+  });
   test("no office step: the decline/none-suit office paths are gone", async () => {
     const { readFileSync } = await import("node:fs");
     const srv = readFileSync("src/lib/install-days.server.ts", "utf8");

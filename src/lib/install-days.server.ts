@@ -138,6 +138,32 @@ export async function ownerTakeDay(jobId: string, proposalId: string, userId: st
   return bookAgreedDay(jobId, proposalId, p.starts_at, userId, "owner (installer's offered day)");
 }
 
+/** Jo 24 Oct: either side can change a booked day. The booking is cancelled, the job goes back to scheduling and the
+ *  installer offers 3 new days inside the same 30-day window (back and forth as before). No office step. */
+export async function changeInstallDay(jobId: string, userId: string, who: "installer" | "owner") {
+  if (who === "installer") await requireInstaller(jobId, userId);
+  const c = await context(jobId);
+  if (c.turn !== "booked" || c.job?.stage !== "installation_booked") throw new WorkflowError("There is no booked install day to change.");
+  if (c.bookedAt && Date.parse(c.bookedAt) <= Date.now()) throw new WorkflowError("The install day has already started.");
+  const { data: rows, error } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").select("id");
+  if (error) throw new Error(error.message);
+  if (!rows?.length) throw new WorkflowError("There is no booked install day to change.");
+  const { transition } = await import("./workflow.server");
+  try {
+    await transition(jobId, "installation_scheduling", userId, `Install day changed by the ${who} – the installer offers new days`, { booking_ids: rows.map((r) => r.id) });
+  } catch (e) {
+    await admin.from("bookings").update({ status: "confirmed" }).in("id", rows.map((r) => r.id));
+    throw e;
+  }
+  const { clearInstallDueDate } = await import("./install-balance.server");
+  await clearInstallDueDate(jobId, userId);
+  const { regenerateEscNotification } = await import("./esc.server");
+  await regenerateEscNotification(jobId, userId);
+  await logEvent(jobId, userId, "install_day_changed", `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day"})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt }, { internal: true });
+  await admin.from("jobs").update({ next_action: "Waiting for the installer to offer new install days" }).eq("id", jobId);
+  return { ok: true };
+}
+
 /** Timer: close passed / out-of-window days; raise the 10-days-left flag once. */
 export async function sweepInstallDays(now = new Date()) {
   const { data: past } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("install_day", true).eq("status", "proposed").lt("starts_at", now.toISOString()).select("id");

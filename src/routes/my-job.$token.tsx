@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 
@@ -189,7 +189,15 @@ function AcceptQuote({ token, quote }: { token: string; quote: { id: string; ver
       <Tick on={over18} set={setOver18}>I'm 18 or older.</Tick>
       <Tick on={read} set={setRead}>I've read the consumer information.</Tick>
       <Tick on={agree} set={setAgree}>I accept this quote and the agreement.</Tick>
-      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
+      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${day(data.install.bookedAt)} (8am–4pm)` : ""}.</p>
+      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
+        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
+        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
+        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
+      </> : null}
+    </section>}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
       <button className={signBtn} disabled={busy || blocked.length > 0 || !over18 || !read || !agree || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => {
         setErr(""); setBusy(true);
         try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
@@ -232,6 +240,8 @@ function BookPickers({ token }: { token: string }) {
   const choosePiesa = useServerFn(ownerChoosePiesaFn);
   const takeDay = useServerFn(ownerTakeInstallDayFn);
   const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
+  const changeDay = useServerFn(ownerChangeInstallDayFn);
+  const [changing, setChanging] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
   const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
@@ -240,11 +250,11 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (!data) return null;
   const installMove = data.install.turn === "owner_to_answer";
-  const any = data.piesa.canPick || installMove;
+  const any = data.piesa.canPick || installMove || changing;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   return <>
-    {!any && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>

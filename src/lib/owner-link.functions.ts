@@ -92,6 +92,13 @@ export const ownerTakeInstallDayFn = createServerFn({ method: "POST" }).middlewa
     return (await import("./install-days.server")).ownerTakeDay(s.jobId, data.proposalId, s.userId);
   });
 
+export const ownerChangeInstallDayFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./install-days.server")).changeInstallDay(s.jobId, s.userId, "owner");
+  });
+
 export const ownerSuggestInstallDaysFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, session, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5) }).parse(d))
   .handler(async ({ data }) => {

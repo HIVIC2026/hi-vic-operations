@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAction } from "@/hooks/use-me";
-import { getInstallerInstallDays, getOwnerInstallDays, installerOfferInstallDays, installerTakeInstallDay, ownerSuggestInstallDays, ownerTakeInstallDay } from "@/lib/allocation.functions";
+import { getInstallerInstallDays, getOwnerInstallDays, installerChangeInstallDay, installerOfferInstallDays, installerTakeInstallDay, ownerChangeInstallDay, ownerSuggestInstallDays, ownerTakeInstallDay } from "@/lib/allocation.functions";
 import { INSTALLER_OFFER_DAYS, OWNER_SUGGEST_MAX, dayOfferBlockers, formatInstallDay } from "@/lib/install-days.core";
 import { Button } from "@/components/ui/button";
 import { Section } from "./panels";
@@ -22,6 +22,20 @@ function DayPicker({ days, max, picks, setPicks }: { days: string[]; max: number
   return <div className="mt-3 grid gap-2 sm:grid-cols-2">{days.map((d) => <Button key={d} size="field" variant={picks.includes(d) ? "default" : "outline"} aria-pressed={picks.includes(d)} className="h-auto min-h-12 whitespace-normal" onClick={() => toggle(d)}>{dayLabel(d)}</Button>)}</div>;
 }
 
+/** Booked day + "Change day" (either side). The installer then offers 3 new days inside the same 30-day window. */
+function Booked({ s, title, busy, onChange }: { s: DayState; title: string; busy: boolean; onChange: () => void }) {
+  const [sure, setSure] = useState(false);
+  return (
+    <Section title={title}>
+      <p className="text-sm">Booked: <strong>{s.bookedAt ? formatInstallDay(s.bookedAt) : "confirmed"}</strong></p>
+      {!sure ? <Button size="field" variant="outline" className="mt-3 w-full" disabled={busy} onClick={() => setSure(true)}>Change day</Button> : <div className="mt-3 space-y-2">
+        <p className="text-sm">This cancels the booked day. The installer then offers 3 new days{s.deadline ? `, on or before ${deadlineLabel(s.deadline)}` : ""}.</p>
+        <div className="flex gap-2"><Button size="field" variant="destructive" className="flex-1" disabled={busy} onClick={onChange}>Yes, change the day</Button><Button size="field" variant="ghost" disabled={busy} onClick={() => setSure(false)}>Keep it</Button></div>
+      </div>}
+    </Section>
+  );
+}
+
 const Expired = () => <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">New PIESA needed. The 30-day window to install after the Pre Insulation Electrical Safety Assessment (PIESA) has passed.</p>;
 
 /** Owner (portal): take one of the installer's 3 days, or suggest up to 5 of their own. */
@@ -30,6 +44,7 @@ export function OwnerInstallDaysCard({ jobId }: { jobId: string }) {
   const getState = useServerFn(getOwnerInstallDays);
   const take = useAction(ownerTakeInstallDay);
   const suggest = useAction(ownerSuggestInstallDays);
+  const change = useAction(ownerChangeInstallDay);
   const { data } = useQuery({ queryKey: ["install-days", jobId], queryFn: () => getState({ data: { jobId } }) as Promise<DayState> });
   const [picks, setPicks] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
@@ -37,7 +52,7 @@ export function OwnerInstallDaysCard({ jobId }: { jobId: string }) {
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); setPicks([]); setSuggesting(false); await qc.invalidateQueries({ queryKey: ["install-days", jobId] }); } finally { setBusy(false); } };
   if (!data) return null;
   if (data.turn === "expired") return <Expired />;
-  if (data.turn === "booked") return <Section title="Your installation"><p className="text-sm">Booked: <strong>{data.bookedAt ? formatInstallDay(data.bookedAt) : "confirmed"}</strong></p></Section>;
+  if (data.turn === "booked") return <Booked s={data} title="Your installation" busy={busy} onChange={() => run(() => change({ jobId }, "Your installer will offer new days"))} />;
   if (data.turn === "installer_to_offer") return <Section title="Your installation days"><Deadline s={data} /><p className="mt-1 text-sm text-muted-foreground">Your installer will offer you 3 days shortly.</p></Section>;
   if (data.turn === "installer_to_answer") return (
     <Section title="Your installation days">
@@ -68,6 +83,7 @@ export function InstallerInstallDays({ jobId }: { jobId: string }) {
   const getState = useServerFn(getInstallerInstallDays);
   const offer = useAction(installerOfferInstallDays);
   const take = useAction(installerTakeInstallDay);
+  const change = useAction(installerChangeInstallDay);
   const { data } = useQuery({ queryKey: ["installer-install-days", jobId], queryFn: () => getState({ data: { jobId } }) as Promise<DayState> });
   const [picks, setPicks] = useState<string[]>([]);
   const [offering, setOffering] = useState(false);
@@ -75,7 +91,7 @@ export function InstallerInstallDays({ jobId }: { jobId: string }) {
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); setPicks([]); setOffering(false); await qc.invalidateQueries({ queryKey: ["installer-install-days", jobId] }); await qc.invalidateQueries({ queryKey: ["job", jobId] }); } finally { setBusy(false); } };
   if (!data || data.turn === "not_ready") return null;
   if (data.turn === "expired") return <Expired />;
-  if (data.turn === "booked") return <Section title="Install day"><p className="text-sm">Booked: <strong>{data.bookedAt ? formatInstallDay(data.bookedAt) : "confirmed"}</strong></p></Section>;
+  if (data.turn === "booked") return <Booked s={data} title="Install day" busy={busy} onChange={() => run(() => change({ jobId }, "Day cancelled – offer the owner 3 new days"))} />;
   if (data.turn === "owner_to_answer") return (
     <Section title="Install day">
       <Deadline s={data} />

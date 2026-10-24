@@ -204,6 +204,21 @@ export const installerOfferInstallDays = createServerFn({ method: "POST" }).midd
     return installerOfferDays(data.jobId, context.userId, data.days);
   });
 
+export const ownerChangeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await ownerOnly(context.supabase, data.jobId, context.userId);
+    const { changeInstallDay } = await import("./install-days.server");
+    return changeInstallDay(data.jobId, context.userId, "owner");
+  });
+
+export const installerChangeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { changeInstallDay } = await import("./install-days.server");
+    return changeInstallDay(data.jobId, context.userId, "installer");
+  });
+
 export const installerTakeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
