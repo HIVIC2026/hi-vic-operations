@@ -25,6 +25,72 @@ export const SMS_MESSAGE_TYPES = {
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
+/**
+ * Decision 165 (Jo, 24 Oct 2026): a text held by a switch, quiet hours or unapproved wording must not come out later as a
+ * stale copy when the switch flips on. Every type declares how "still worth sending" is decided:
+ *  - `event`: a one-off text about something that happened (code requested, offer made, quote released, spot saved…).
+ *    The caller gives the triggering event's time (and whether it is still current); older than `maxAgeMinutes` → held.
+ *  - `window`: a scheduled/recomputed text whose key already names its window (day, attempt, step, audit). Each run
+ *    recomputes what is due, so nothing old can re-fire; it only has to not double-send inside its own window.
+ */
+export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "window" };
+export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
+  save_spot_reminder: { kind: "window" }, // own plan: activation timestamp + shared phone/job claims, recomputed per run
+  spot_saved: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner saving their spot
+  owner_code: { kind: "event", maxAgeMinutes: 10 }, // the code itself expires in 10 minutes
+  ready_check_booking: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = booking confirmed (no live caller yet)
+  quote_ready: { kind: "event", maxAgeMinutes: 72 * 60 }, // event = quote released; also needs the quote still released
+  veec_sign_request: { kind: "window" }, // step recorded once as a workflow event before any send (veec-reminders.server)
+  veec_sign_reminder: { kind: "window" }, // days 1/3/7: the due step is recomputed each tick, each step recorded once
+  usual_electrician_missing: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit that found it missing
+  ready_check_incomplete: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit with the gap list
+  job_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // offer open 24h; also needs the offer still pending
+  daily_mitti: { kind: "window" }, // one per trade per Melbourne day, trade_text_log send_key claimed first
+  daily_mitti_update: { kind: "window" }, // one per trade per day per change signature
+  esc_notice_link: { kind: "window" }, // attempts 1/2/3 planned from the recorded send history; manual re-send has its own key
+};
+
+export type SmsEventInput = {
+  /** When the thing this text is about happened (ISO). Missing for an `event` type = held. */
+  at: string | null | undefined;
+  /** Caller's check that the thing is still current (offer pending, quote released, code unexpired). Default true. */
+  current?: boolean;
+};
+
+/** Why a one-off text is too old (or no longer about anything current) to send now, or null. `window` types never go stale here. */
+export function smsStaleReason(type: string, event: SmsEventInput | null | undefined, nowIso: string): string | null {
+  const f = SMS_FRESHNESS[type as SmsMessageType];
+  if (!f) return "Unknown message type";
+  if (f.kind === "window") return null;
+  if (!event || !event.at) return "No triggering event time given – a one-off text is never sent late";
+  const at = Date.parse(event.at), now = Date.parse(nowIso);
+  if (!Number.isFinite(at) || !Number.isFinite(now)) return "Triggering event time unreadable – not sent";
+  if (event.current === false) return "What this text was about is no longer current – not sent";
+  const ageMin = (now - at) / 60_000;
+  if (ageMin > f.maxAgeMinutes) return `Too late to send – the trigger was ${Math.floor(ageMin / 60)}h ago (limit ${Math.round((f.maxAgeMinutes / 60) * 10) / 10}h)`;
+  return null;
+}
+
+/** Outcome classes of one real-send attempt (decision 165). */
+export type SmsOutcomeClass = "sent" | "failed" | "blocked";
+export type RealSmsStatus = "sent" | "blocked" | "failed" | "sent_unknown" | "already";
+export function smsOutcomeClass(status: RealSmsStatus | "queued" | "delivered" | "undelivered" | "sending"): SmsOutcomeClass {
+  switch (status) {
+    case "blocked": return "blocked";
+    case "failed": case "undelivered": return "failed";
+    default: return "sent"; // sent, sent_unknown (may have sent), queued, delivered, sending, already (handled before)
+  }
+}
+/** Only an attempt that reached (or may have reached) the gateway owns its idempotency key. Policy holds never do. */
+export const claimsIdempotencyKey = (c: SmsOutcomeClass) => c !== "blocked";
+
+/** A held (blocked) attempt is recorded under a non-claiming key so the office can still see "held: reason". */
+export const HELD_KEY_MARK = "#held:";
+export const heldAttemptKey = (idempotencyKey: string, attemptId: string) => `${idempotencyKey}${HELD_KEY_MARK}${attemptId}`;
+export const isHeldAttemptKey = (stored: string) => stored.includes(HELD_KEY_MARK);
+/** The claiming key a stored row belongs to (held rows strip their attempt suffix). */
+export const claimKeyOf = (stored: string) => { const i = stored.indexOf(HELD_KEY_MARK); return i < 0 ? stored : stored.slice(0, i); };
+
 /** Australian mobiles only, as +614XXXXXXXX. */
 export const toAuE164 = (raw: string | null | undefined) => normaliseAuMobile(raw);
 

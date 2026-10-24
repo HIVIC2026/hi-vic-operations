@@ -6,13 +6,15 @@ import { WorkflowError, logEvent } from "./workflow.server";
 
 type OwnerForCode = { email: string | null; phone: string | null };
 
-export async function deliverOwnerCode(p: { jobId: string; codeId: string; channel: "sms" | "email"; code: string; owner: OwnerForCode }) {
+export async function deliverOwnerCode(p: { jobId: string; codeId: string; channel: "sms" | "email"; code: string; owner: OwnerForCode; issuedAt?: string }) {
   if (!(await customerCommsEnabled())) throw new WorkflowError("Customer communications are switched off, so the code was not sent.");
   if (!(await hasCurrentOwnerContactConsent(p.jobId))) throw new WorkflowError("No current owner contact consent, so the code was not sent.");
   const key = ownerCodeDeliveryKey(p.codeId);
   if (p.channel === "sms") {
     const { sendRealSms } = await import("./sms.server");
-    const r = await sendRealSms({ type: "owner_code", idempotencyKey: key, to: p.owner.phone, body: ownerCodeSmsBody(p.code), jobId: p.jobId });
+    // Decision 165: the trigger is this code request (just issued by requestOwnerCode). The code dies after 10 minutes, so a
+    // held attempt can never come out later as a stale code; a new request always makes a new code and key.
+    const r = await sendRealSms({ type: "owner_code", idempotencyKey: key, to: p.owner.phone, body: ownerCodeSmsBody(p.code), jobId: p.jobId, event: { at: p.issuedAt ?? new Date().toISOString() } });
     await logEvent(p.jobId, null, "owner_code_delivery_attempted", `Owner signing code text: ${r.status}`, { code_id: p.codeId, status: r.status, detail: r.detail }, { internal: true });
     if (r.status === "sent" || r.status === "sent_unknown" || r.status === "already") return { status: r.status, detail: r.detail };
     throw new WorkflowError(`The text code was not sent: ${r.detail}`);

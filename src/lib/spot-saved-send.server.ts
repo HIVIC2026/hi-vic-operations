@@ -88,7 +88,9 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   if (plan.email.send) out.email = await sendEmail(jobId, plan.email, msgs).catch((e) => ({ status: "failed", detail: (e as Error).message }));
   if (plan.sms.send && !opts.emailOnly) {
     const { sendRealSms } = await import("./sms.server");
-    out.sms = await sendRealSms({ type: "spot_saved", idempotencyKey: plan.sms.key, to: plan.sms.to, body: msgs.sms, jobId })
+    // Decision 165: the trigger is the owner saving their spot (spot_saved_at); a switch flipped on later must not
+    // confirm spots saved more than a day earlier (SMS_FRESHNESS), and a held attempt no longer uses up the owner's key.
+    out.sms = await sendRealSms({ type: "spot_saved", idempotencyKey: plan.sms.key, to: plan.sms.to, body: msgs.sms, jobId, event: { at: resp?.spot_saved_at ?? null } })
       .then((r) => ({ status: r.status, detail: r.detail }), (e) => ({ status: "failed", detail: (e as Error).message }));
   }
   await logEvent(jobId, null, "spot_saved_confirmation_sent", `Spot saved confirmation – email: ${out.email.status}; text: ${out.sms.status}`, { email: out.email, sms: out.sms }, { internal: true }).catch(() => null);
