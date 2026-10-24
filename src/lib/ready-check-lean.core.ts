@@ -46,6 +46,8 @@ export const LEAN_Q = {
   downlights: "Are there recessed downlights in this ceiling area?",
   downlightsCount: "How many recessed downlights?",
   issues: "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+  /** Mitti cannot require a note on a media item, so the hazard description is its own required text question (Jo 24 Oct). */
+  issueNote: "What is the issue, and where is it in this area?",
   issuePhoto: "Describe the issue and add a photo",
   // Page 5 — Product and result
   product: "What insulation product will you be using on this job?",
@@ -88,8 +90,10 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   downlights: ["Recessed downlights in this area?"],
   downlightsCount: ["How many?"],
   issues: ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"],
-  /** 24 Oct live forms replaced the photo with a text "Please explain"; the 7 Oct spec said "Describe them and add a photo". */
-  issuePhoto: ["Describe them and add a photo", "Please explain"],
+  /** 24 Oct live forms asked a text "Please explain" (no photo): read as the hazard description, never as photo evidence. */
+  issueNote: ["Please explain"],
+  /** The 7 Oct spec said "Describe them and add a photo". */
+  issuePhoto: ["Describe them and add a photo"],
   product: ["Insulation product"],
   included: ["What's included in your quote?", "What's included in your price (tick all that apply)"],
   signatureA1: [LEAN_Q.signatureA2],

@@ -23,8 +23,8 @@ const it_ = (label: string, v: string | string[] | null, parent: string | null =
   ({ item_id: `i${n++}`, label, parent_id: parent, responses: v == null ? {} : Array.isArray(v) ? sel(...v) : { text: v } });
 const media = (label: string, parent: string | null, count = 1) => ({ item_id: `m${n++}`, label, parent_id: parent, media: Array.from({ length: count }, (_, i) => ({ media_id: `p${i}` })) });
 
-/** A LEAN A1 audit: two areas from the repeating group (own parent each), Length × Width, name, hazard photo. */
-function leanAudit(over: { rValue?: string; access?: string; who?: string | null; hazardEvidence?: boolean } = {}) {
+/** A LEAN A1 audit: two areas from the repeating group (own parent each), Length × Width, name, hazard note + photo. */
+function leanAudit(over: { rValue?: string; access?: string; who?: string | null; hazardEvidence?: boolean; hazardNote?: boolean } = {}) {
   n = 0;
   const areaA = { item_id: "areaA", label: "", type: "dynamicfield" }, areaB = { item_id: "areaB", label: "", type: "dynamicfield" };
   return {
@@ -40,6 +40,7 @@ function leanAudit(over: { rValue?: string; access?: string; who?: string | null
       it_(LEAN_Q.existing, ["Yes"], "areaA"), it_(LEAN_Q.existingType, ["Batts"], "areaA"), it_(LEAN_Q.rValue, [over.rValue ?? "Below R2.0"], "areaA"), media(LEAN_Q.depthPhoto, "areaA"),
       it_(LEAN_Q.existingAction, ["Remove"], "areaA"), it_(LEAN_Q.removeM2, "40", "areaA"), media(LEAN_Q.overviewPhoto, "areaA"),
       it_(LEAN_Q.downlights, ["Yes"], "areaA"), it_(LEAN_Q.downlightsCount, "6", "areaA"), it_(LEAN_Q.issues, ["Yes"], "areaA"),
+      ...(over.hazardNote === false ? [] : [it_(LEAN_Q.issueNote, "Exposed wiring near the manhole", "areaA")]),
       ...(over.hazardEvidence === false ? [] : [media(LEAN_Q.issuePhoto, "areaA")]),
       areaB,
       it_(LEAN_Q.areaName, "Garage", "areaB"), it_(LEAN_Q.lengthM, "6", "areaB"), it_(LEAN_Q.widthM, "4", "areaB"), it_(LEAN_Q.measuredHow, ["Tape measure"], "areaB"),
@@ -165,24 +166,34 @@ describe("§6.4 reader: 'Who lives at the property?' → premises type (no new t
   });
 });
 
-describe("§6.4 reader: hazard photo restored ('Describe the issue and add a photo'), 'Please explain' still accepted", () => {
-  test("flag + photo → flagged for office review, evidence present", () => {
+describe("§6.4 reader: hazard = note ('What is the issue, and where is it in this area?') + photo ('Describe the issue and add a photo')", () => {
+  test("flag + note + photo → flagged for office review, evidence present, note kept as the hazard description", () => {
     const p = parseAudit(leanAudit());
-    expect(p.areas[0]).toMatchObject({ hazardFlag: true, hazardEvidence: true });
+    expect(p.areas[0]).toMatchObject({ hazardFlag: true, hazardEvidence: true, hazardNote: "Exposed wiring near the manhole" });
+    expect(p.areas[1]).toMatchObject({ hazardFlag: false, hazardNote: null });
     expect(p.issues.some((i) => /Installer flagged hazards/.test(i))).toBe(true);
-    expect(p.issues.some((i) => /no photo or note/.test(i))).toBe(false);
+    expect(p.issues.some((i) => /no photo/.test(i))).toBe(false);
+    expect(p.patch.hazards).toContain("Main house: Exposed wiring near the manhole");
   });
   test("flag with nothing added → extra office issue naming the area", () => {
-    const p = parseAudit(leanAudit({ hazardEvidence: false }));
-    expect(p.areas[0]!.hazardEvidence).toBe(false);
-    expect(p.issues).toContain("Area 1 (Main house): issues flagged but no photo or note was added – office review required.");
+    const p = parseAudit(leanAudit({ hazardEvidence: false, hazardNote: false }));
+    expect(p.areas[0]).toMatchObject({ hazardEvidence: false, hazardNote: null });
+    expect(p.issues).toContain("Area 1 (Main house): issues flagged but no photo was added – office review required.");
   });
-  test("24 Oct live text 'Please explain' and the 7 Oct spec photo both count as evidence", () => {
+  test("note without a photo is NOT evidence: the note is kept and quoted in the office issue", () => {
+    const p = parseAudit(leanAudit({ hazardEvidence: false }));
+    expect(p.areas[0]).toMatchObject({ hazardEvidence: false, hazardNote: "Exposed wiring near the manhole" });
+    expect(p.issues).toContain("Area 1 (Main house): issues flagged but no photo was added (installer note: Exposed wiring near the manhole) – office review required.");
+  });
+  test("photo without a note (22 Oct form) is evidence", () => {
+    const p = parseAudit(leanAudit({ hazardNote: false }));
+    expect(p.areas[0]).toMatchObject({ hazardEvidence: true, hazardNote: null });
+  });
+  test("24 Oct live text 'Please explain' is read as the note (not evidence); the 7 Oct spec photo still counts as evidence", () => {
     n = 0;
-    for (const label of ["Please explain", "Describe them and add a photo"]) {
-      const p = parseAudit({ audit_id: "h", items: [{ item_id: "A", label: "", type: "dynamicfield" }, it_(LEAN_Q.measuredM2, "50", "A"), it_(LEAN_Q.issues, ["Yes"], "A"), label === "Please explain" ? it_(label, "Rats in the roof", "A") : media(label, "A")] });
-      expect(p.areas[0]!.hazardEvidence).toBe(true);
-    }
+    const area = (last: object) => parseAudit({ audit_id: "h", items: [{ item_id: "A", label: "", type: "dynamicfield" }, it_(LEAN_Q.measuredM2, "50", "A"), it_(LEAN_Q.issues, ["Yes"], "A"), last] }).areas[0]!;
+    expect(area(it_("Please explain", "Rats in the roof", "A"))).toMatchObject({ hazardEvidence: false, hazardNote: "Rats in the roof" });
+    expect(area(media("Describe them and add a photo", "A"))).toMatchObject({ hazardEvidence: true, hazardNote: null });
   });
 });
 
@@ -206,13 +217,13 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
   test("A1 (ready_check_priced) and A2 (ready_check) lean templates pass with no issues; counts match the prompt", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
-    expect(leanQuestionCount("ready_check_priced")).toBe(42);
-    expect(leanQuestionCount("ready_check")).toBe(36);
+    expect(leanQuestionCount("ready_check_priced")).toBe(43);
+    expect(leanQuestionCount("ready_check")).toBe(37);
   });
   test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
     const f = FORMS.ready_check.fields;
     const perArea = f.filter((x) => x.perArea).map((x) => x.label);
-    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.overviewPhoto, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issuePhoto]);
+    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.overviewPhoto, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
     expect([m2.required, m2.portalOnly]).toEqual([false, true]);
@@ -227,8 +238,10 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     for (const gone of ["Assessor", "Are these details correct?", "Are the property details provided above correct?", "What needs correcting?", "Are any extras needed beyond the standard install and removal?", "Describe each extra and why it is needed", "Photos of each extra", "Upgrade area diagram or floor plan", LEAN_REMOVE.sketchA1, LEAN_REMOVE.sketchA2, LEAN_REMOVE.depthMm, LEAN_REMOVE.describeType, LEAN_REMOVE.howMany, LEAN_REMOVE.clickOnMe, LEAN_REMOVE.propertyTypeOther, LEAN_REMOVE.describeRoof, LEAN_REMOVE.explainDifficult, LEAN_REMOVE.explainNoSafe, "Anything else the office should know?", "Depth (mm)", "No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate"]) {
       expect(labels, gone).not.toContain(gone);
     }
-    // "Please explain" survives only as an accepted alias of the restored hazard photo, never as its own question.
-    expect(FORMS.ready_check.fields.find((f) => f.label === LEAN_Q.issuePhoto)!.aliases).toContain("Please explain");
+    // "Please explain" survives only as an accepted alias of the hazard note (never of the photo), never as its own question.
+    expect(FORMS.ready_check.fields.find((f) => f.label === LEAN_Q.issueNote)!.aliases).toContain("Please explain");
+    expect(FORMS.ready_check.fields.find((f) => f.label === LEAN_Q.issuePhoto)!.aliases ?? []).not.toContain("Please explain");
+    for (const l of [LEAN_Q.issueNote, LEAN_Q.issuePhoto]) expect(FORMS.ready_check.fields.find((f) => f.label === l)).toMatchObject({ required: true, perArea: true, when: `${LEAN_Q.issues} = Yes` });
     expect(PRICING_FIELDS[0]!.choices).toEqual([...INCLUDED_OPTIONS]);
     expect(PRICING_FIELDS[0]!.choices).not.toContain("Difficult access");
   });
@@ -258,7 +271,7 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
   const A1 = load("a1-published-r35.json"), A2 = load("a2-published-r13.json"), A1_OLD = load("a1-old-r34.json"), A2_OLD = load("a2-old-r12.json");
   test("22 Oct A1: every old wording is recognised; only questions the lean form ADDS are reported missing", () => {
     expect(validateTemplate("ready_check_priced", flattenDefinition(A1)).issues).toEqual([
-      `Missing: ${LEAN_Q.builtLast5}`, `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.accessCharge}`, `Missing: ${LEAN_Q.accessFee}`, `Missing: ${LEAN_Q.product}`,
+      `Missing: ${LEAN_Q.builtLast5}`, `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.accessCharge}`, `Missing: ${LEAN_Q.accessFee}`, `Missing: ${LEAN_Q.issueNote}`, `Missing: ${LEAN_Q.product}`,
     ]);
   });
   test("22 Oct A2 (fixture carries only the first-branch items): no 'Wrong type' or 'Duplicate', only genuinely absent questions", () => {
@@ -272,7 +285,7 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
   test("older template versions: no false Wrong type / Duplicate either", () => {
     for (const [t, k] of [[A1_OLD, "ready_check_priced"], [A2_OLD, "ready_check"]] as const) expect(validateTemplate(k, flattenDefinition(t)).issues.every((i) => i.startsWith("Missing: "))).toBe(true);
   });
-  test("the 24 Oct live A1 wording (per the live audit) passes except for the two questions the lean form adds", () => {
+  test("the 24 Oct live A1 wording (per the live audit) passes except for the questions the lean form adds", () => {
     // Flattened as Mitti reports a 22-copy fixed-branch form: the area block repeated, help text after a line break.
     const area = [
       ["Which part of the home does this ceiling area cover?\ne.g. Main house – bedrooms and hallway", "textsingle"], ["How was this ceiling area measured?", "question"], ["Tell us how you measured it ", "textsingle"],
@@ -297,9 +310,10 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
       ["What insulation product will you be using on this job?", "question"],
       ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
     ].map(([label, type]) => ({ label: label!, type: type! }));
-    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`]);
+    // "Please explain" is accepted as the hazard NOTE; the hazard photo is genuinely absent from the 24 Oct form.
+    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`]);
     // Form health tells the office exactly which lean question a live form lacks (the audit's problem 3).
-    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.product}`]);
+    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`, `Missing: ${LEAN_Q.product}`]);
   });
   test("prefill still lands on both 22 Oct templates and both older versions", () => {
     const ctx = { jobNumber: "HV-TEST-1", address: "1 Test St", ownerName: "Test Owner", ownerEmail: "jolowexo@hotmail.com", ownerPhone: "0400000000", assessorName: "Test Installer", lifeSupport: "None recorded by office", propertyType: "House", builtLast5Years: "No", occupancy: "owner occupied" };
@@ -326,7 +340,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
     const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessCharge", "accessFee", "accessPhoto",
-      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "overviewPhoto", "downlights", "downlightsCount", "issues", "issuePhoto",
+      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "overviewPhoto", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "included", "includedOther", "totalPrice", "electrician", "electricianName", "electricianLicence", "electricianPrice", "signatureA1", "signatureA2"];
     expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1); // every LEAN_Q key but the legacy m² entry
     for (const k of order) {
@@ -370,6 +384,6 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
     expect(body).toContain("A1 only");
   });
   test("old wording the readers still accept is never asked for as a question", () => {
-    for (const old of [R_ABOVE_LEGACY, ...(LEAN_ALIASES.issuePhoto ?? []), ...(LEAN_ALIASES.areaName ?? []), ...(LEAN_ALIASES.access ?? [])]) expect(body).not.toContain(`\`${old}\` —`);
+    for (const old of [R_ABOVE_LEGACY, ...(LEAN_ALIASES.issuePhoto ?? []), ...(LEAN_ALIASES.issueNote ?? []), ...(LEAN_ALIASES.areaName ?? []), ...(LEAN_ALIASES.access ?? [])]) expect(body).not.toContain(`\`${old}\` —`);
   });
 });
