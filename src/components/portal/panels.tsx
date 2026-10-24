@@ -254,7 +254,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
 }
 
 // ---------------- Messages / history ----------------
-export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin: boolean; role?: "owner" | "electrician" | "installer" }) {
+export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin: boolean; role?: "owner" | "electrician" }) {
   const [body, setBody] = useState("");
   const [internal, setInternal] = useState(false);
   const send = useAction(sendMessage);
