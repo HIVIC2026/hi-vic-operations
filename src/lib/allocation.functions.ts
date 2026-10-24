@@ -158,7 +158,8 @@ export const getInstallHold = createServerFn({ method: "POST" }).middleware([req
     return (await getActiveHold(data.jobId)) ?? null;
   });
 
-// ---------- Owner install days + quoted installer one-tap booking ----------
+// ---------- Install days: installer offers 3, owner takes one or suggests days, back and forth (Jo 24 Oct) ----------
+const ymdList = (max: number) => z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(max);
 const ownerOnly = async (supabase: Parameters<typeof requireJobRole>[0], jobId: string, userId: string) => {
   await requireJobRole(supabase, jobId, ["owner"]);
   const { data: isOwner } = await supabase.rpc("is_job_owner", { _job: jobId, _user: userId });
@@ -173,20 +174,34 @@ export const getOwnerInstallDays = createServerFn({ method: "POST" }).middleware
     return ownerInstallDayState(data.jobId);
   });
 
-export const chooseOwnerInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5) }).parse(d))
+export const ownerTakeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await ownerOnly(context.supabase, data.jobId, context.userId);
-    const { submitOwnerInstallDays } = await import("./install-days.server");
-    return submitOwnerInstallDays(data.jobId, context.userId, data.days);
+    const { ownerTakeDay } = await import("./install-days.server");
+    return ownerTakeDay(data.jobId, data.proposalId, context.userId);
   });
 
-export const ownerNoneInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+export const ownerSuggestInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, days: ymdList(5) }).parse(d))
   .handler(async ({ data, context }) => {
     await ownerOnly(context.supabase, data.jobId, context.userId);
-    const { ownerNoInstallDays } = await import("./install-days.server");
-    return ownerNoInstallDays(data.jobId, context.userId);
+    const { ownerSuggestDays } = await import("./install-days.server");
+    return ownerSuggestDays(data.jobId, context.userId, data.days);
+  });
+
+export const getInstallerInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { installerInstallDayState } = await import("./install-days.server");
+    return installerInstallDayState(data.jobId, context.userId);
+  });
+
+export const installerOfferInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, days: ymdList(3) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { installerOfferDays } = await import("./install-days.server");
+    return installerOfferDays(data.jobId, context.userId, data.days);
   });
 
 export const installerTakeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -194,13 +209,6 @@ export const installerTakeInstallDay = createServerFn({ method: "POST" }).middle
   .handler(async ({ data, context }) => {
     const { installerTakeDay } = await import("./install-days.server");
     return installerTakeDay(data.jobId, data.proposalId, context.userId);
-  });
-
-export const installerDeclineInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().max(500).nullable() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { installerDeclineDays } = await import("./install-days.server");
-    return installerDeclineDays(data.jobId, context.userId, data.reason || null);
   });
 
 // ---------- Step 10: ESC AP task + pre-start check ----------

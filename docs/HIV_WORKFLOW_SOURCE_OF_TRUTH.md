@@ -95,7 +95,16 @@ Xero invoice and all customer/trade/financial-facing references use "Home Insula
 - Enforced by `offerRateBlocker` / `electricianRateText` (allocation.core.ts), the retired-term scan, and tests/allocation.core.test.ts.
 
 
-## Payment rule (Jo, 7 Oct 2026) — supersedes 10%/5% deposit and the 3-instalment plan
+## Payment rule (Jo, 24 Oct 2026) — supersedes the 7 Oct rule below (BEING BUILT; Stripe card, fee absorbed)
+- Owner accepts the quote and pays the $349 safety check in one step (Stripe). Switched on straight away (Jo's call; lawyer still to confirm cooling-off and deposit limits).
+- Booking the install day: 10% of what is left on the invoice after the $349, paid when the day is booked. When the owner taps one of the installer's days they pay on the same screen; when the installer accepts a day the owner suggested, the day is held 48 hours for the 10%, then released and the installer told.
+- Remainder on install day; the owner can always pay the full balance now.
+- Electrical fixes: the office checks the fixes quote; the owner approves it, pays in full and picks one of the electrician's times in one step; if none suit, owner and electrician go back and forth (no office).
+
+## Install days (Jo, 24 Oct 2026)
+Once electrical clearance is in (PIESA pass, or fixes done + Section C), the quoted installer offers 3 days inside the 30-day window (or every day left if fewer). The owner taps one (booked) or suggests 1–5 of their own; the installer takes one (booked) or offers 3 new ones; back and forth until agreed. The office is never involved, except one alert when 10 days are left with nothing booked. Both screens show the last day and days left. Rules: `install-days.core.ts` (`installDayTurn`, `dayOfferBlockers`); server: `install-days.server.ts`.
+
+## Payment rule (Jo, 7 Oct 2026) — superseded 24 Oct (above); kept for history
 - Safety check payment (default $349, `workflow_settings.safety_check_payment_inc_gst`) is paid after Step B and before the PIESA can be booked. Kept once the check is done (even if the job can't go ahead); refunded in full if the check never happens.
 - Balance = total after VEU discount − safety check payment. Owner chooses at Step B: two instalments (half when install is booked, half on install day) or pay the full total now. If the job can't go ahead after the check, refund everything except the safety check payment.
 - Step B payment wording is DRAFT (`draft-2026-10-07`) pending lawyer; blocks real jobs until Jo approves it in Settings.

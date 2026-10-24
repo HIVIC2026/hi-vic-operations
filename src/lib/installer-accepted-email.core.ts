@@ -15,7 +15,7 @@ export function renderInstallerAcceptedEmail(i: { installerFirstName: string | n
     "What happens next",
     `1. ${first} pays the $349 electrical safety check.`,
     `2. We arrange the licensed electrician and ${first} picks a time. You don't need to do anything for this.`,
-    `3. Once the safety check is done, ${first} chooses several days that work for them. You'll see them in your portal: accept one, or if none of them suit, suggest another day and we'll sort it out with ${first}. The install must happen within 30 days of the safety check.`,
+    `3. Once the safety check is done, you'll be asked in your portal to offer ${first} 3 install days. ${first} picks one and it's booked, or suggests other days, and you accept one or offer new ones until you agree. The install must happen within 30 days of the safety check, and your portal shows how many days are left.`,
   ];
   const mail = simpleEmail(`Hi ${i.installerFirstName?.trim() || "there"},`, lines, { label: "Open the job in the portal", url: i.jobUrl }, { testLabel: i.test === true });
   return { subject, html: mail.html, text: mail.text };
