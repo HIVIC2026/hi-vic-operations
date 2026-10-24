@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   INSTALLER_TEXT_EVENT, INSTALL_TOMORROW_FROM_HM, bookedStillCurrent, daysSuggestedStillCurrent, installTomorrowDue, installTomorrowKey, installTomorrowText, installerTextAddress,
   melbourneClock, melbourneDayDate, readyCheckBookedInstallerKey, readyCheckBookedInstallerText, readyCheckDaysSuggestedKey, readyCheckDaysSuggestedText, tomorrowMelbourneYmd,
+  teamMemberInviteKey, teamMemberInviteText, teamMemberJoinLink,
 } from "../src/lib/installer-texts.core";
 import { readyCheckIncompleteText } from "../src/lib/ready-check-chase.core";
 import { dailyText, type DayJob } from "../src/lib/daily-mitti-text.core";
@@ -151,4 +152,43 @@ describe("wiring: triggers, tick, guarded senders only", () => {
     expect(readFileSync("src/lib/sms.server.ts", "utf8")).not.toMatch(/retry|fallback connection/i);
   });
   test("brand prefix constant unchanged", () => expect(SMS_BRAND_PREFIX).toBe("Home Insulation Victoria: "));
+});
+
+describe("decision 251: team member added → their single-use login link (wording approved as written, decision 252)", () => {
+  const JOIN = "https://estimate.homeinsulationvictoria.com.au/join/abc123";
+  test("wording verbatim from decision 251 (brand prefix added by the sender)", () => {
+    const t = teamMemberInviteText({ business: "Singh Insulation", link: JOIN });
+    expect(t).toBe(`Singh Insulation added you to Home Insulation Victoria. Set up your login: ${JOIN}`);
+    expect(brandSmsBody(t)).toBe(`Home Insulation Victoria: Singh Insulation added you to Home Insulation Victoria. Set up your login: ${JOIN}`);
+    expect(log).toContain('"{Business} added you to Home Insulation Victoria. Set up your login: {link}"');
+    expect(gsm(brandSmsBody(t))).toBe(true);
+    expect(teamMemberInviteText({ business: " ", link: JOIN })).toStartWith("Your business added you");
+    expect(teamMemberJoinLink("https://estimate.homeinsulationvictoria.com.au/", "abc123")).toBe(JOIN);
+  });
+  test("registry: partner audience, approved, quiet hours, one-off event (24h, invite still active), key per link + mobile", () => {
+    expect(SMS_MESSAGE_TYPES.team_member_invite).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
+    const base = { type: "team_member_invite", to: "0466 777 888", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-26T02:00:00.000Z" };
+    expect(smsBlocker(base)).toBeNull();
+    expect(smsBlocker({ ...base, typeSwitchOn: false })).toContain("switched off");
+    expect(smsBlocker({ ...base, commsEnabled: false })).toContain("switched off");
+    expect(smsBlocker({ ...base, isTestRecord: true })).toContain("TEST");
+    expect(SMS_FRESHNESS.team_member_invite).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
+    expect(smsStaleReason("team_member_invite", { at: "2026-10-26T01:59:00.000Z", current: false }, "2026-10-26T02:00:00.000Z")).toMatch(/no longer current/);
+    expect(teamMemberInviteKey("inv-1", "+61466777888")).toBe("team-member-invite:v1:inv-1:+61466777888");
+    expect(teamMemberInviteKey("inv-1", "+61466777888")).not.toBe(teamMemberInviteKey("inv-2", "+61466777888"));
+  });
+  test("wiring: createWorkerInvite texts only when a mobile is given and still returns the token; TEST → test-send; guarded sender only", () => {
+    const fn = readFileSync("src/lib/worker-invite.functions.ts", "utf8");
+    const create = fn.slice(fn.indexOf("export const createWorkerInvite"), fn.indexOf("export const revokeWorkerInvite"));
+    expect(create).toContain("data.mobile?.trim()");
+    expect(create).toContain("textTeamMemberInvite(");
+    expect(create).toContain("return { token, text }");
+    expect(create.indexOf("requireMember(")).toBeLessThan(create.indexOf("textTeamMemberInvite("));
+    const srv = readFileSync("src/lib/installer-texts.server.ts", "utf8");
+    const body = srv.slice(srv.indexOf("export async function textTeamMemberInvite"), srv.indexOf("/** 15-minute tick"));
+    expect(body.indexOf("isTestPartner(")).toBeLessThan(body.indexOf("sendRealSms("));
+    expect(body).toContain("sendTestSms(");
+    expect(body).toContain('type: "team_member_invite", idempotencyKey: teamMemberInviteKey(p.inviteId, to)');
+    expect(body).not.toMatch(/fetch\(|twilio/i);
+  });
 });

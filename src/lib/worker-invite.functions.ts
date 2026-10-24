@@ -21,19 +21,24 @@ export const listWorkerInvites = createServerFn({ method: "GET" }).middleware([r
   });
 
 export const createWorkerInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), contact: z.string().trim().max(254).optional().nullable(), trade }).parse(d))
+  .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), contact: z.string().trim().max(254).optional().nullable(), mobile: z.string().trim().max(30).optional().nullable(), trade }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireMember } = await import("./pilot.server");
     const { data: isAdmin } = await context.supabase.rpc("is_admin");
     if (isAdmin !== true) await requireMember(context.userId, data.businessId, true);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const token = newToken();
-    const { error } = await admin.from("partner_worker_invites").insert({
+    const { data: row, error } = await admin.from("partner_worker_invites").insert({
       business_id: data.businessId, created_by: context.userId, invitee_name: data.name, invitee_contact: data.contact ?? null,
       trade_role: data.trade, token_hash: await hashToken(token), expires_at: inviteExpiry(Date.now()),
-    });
-    if (error) throw new Error(`Could not create invite: ${error.message}`);
-    return { token };
+    }).select("id, created_at").single();
+    if (error || !row) throw new Error(`Could not create invite: ${error?.message ?? "no row"}`);
+    // Decision 251: text the new person their link when a mobile is given (guarded sender; TEST → test-send). The token
+    // is still returned so the owner can pass the link on themself whenever the text does not go.
+    const text = data.mobile?.trim()
+      ? await (await import("./installer-texts.server")).textTeamMemberInvite({ inviteId: row.id, businessId: data.businessId, mobile: data.mobile, token, createdAt: row.created_at })
+      : null;
+    return { token, text };
   });
 
 export const revokeWorkerInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

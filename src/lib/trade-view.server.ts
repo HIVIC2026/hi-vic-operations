@@ -705,6 +705,23 @@ async function rebateSignedByInstaller(jobId: string): Promise<boolean> {
 }
 
 /** Job page facts (M2): Ready Check visit, quote status, own pay, PIESA/clearance, install form, rebate signing. */
+/** Decision 251: the owner's side of a booked install for the installer's job page — consent signed? 10% deposit paid?
+ *  Read-only, server-side, after `requireTradeJob` has scoped the job to the caller's business. Returns states only:
+ *  no amounts, no owner prices, no ledger rows leave this function. Unknown → null (the page shows nothing for it). */
+async function ownerReadyFacts(jobId: string): Promise<import("./installer-screens.core").OwnerReadyFacts> {
+  const [{ data: consent }, deposit] = await Promise.all([
+    admin.from("owner_esc_consents").select("owner_signed_at").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    (async () => {
+      const { jobPaymentView } = await import("./payments.server");
+      const v = await jobPaymentView(jobId);
+      if (!v) return null;
+      const { isStepPaid } = await import("./payments.core");
+      return isStepPaid(v.steps, "install_deposit") ? "paid" as const : "waiting" as const;
+    })().catch(() => null),
+  ]);
+  return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
+}
+
 export async function tradeJobPage(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti] = await Promise.all([
@@ -746,10 +763,12 @@ export async function tradeJobPage(jobId: string, userId: string) {
   const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
   const payRows = c.boss ? (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.jobId === jobId && r.kind === "installation") : [];
   const payRow = payRows[0] ?? null;
+  // Decision 251: only once the install is booked (the M2-install-booked state); nothing is read before that.
+  const ownerReady = inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null;
   return {
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
-    install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew },
+    install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
       ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null }
       : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null },

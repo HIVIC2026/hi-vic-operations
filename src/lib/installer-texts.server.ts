@@ -92,6 +92,37 @@ export async function textInstallerInstallTomorrow(jobId: string, booking: { id:
   return deliver({ type: "install_tomorrow", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: recipient.phone, body, label: `install_tomorrow:${booking.id}` });
 }
 
+/** Decision 251: a business owner added a team member with a mobile → text that person their single-use /join link.
+ *  Called once by `createWorkerInvite` right after the invite row exists. TEST businesses → test-send only; real ones →
+ *  the ONE real sender behind `customer_comms_enabled` + the `team_member_invite` switch, idempotent per invite link +
+ *  mobile. Never throws: the owner always keeps the link on screen to pass on (the existing fallback). Never stores the token. */
+export async function textTeamMemberInvite(p: { inviteId: string; businessId: string; mobile: string | null; token: string; createdAt: string }): Promise<{ status: "sent" | "not_sent" | "no_mobile"; detail: string }> {
+  const { toAuE164 } = await import("./sms.core");
+  const to = toAuE164(p.mobile);
+  if (!to) return { status: "no_mobile", detail: p.mobile?.trim() ? "Not an Australian mobile number" : "No mobile given" };
+  try {
+    const [{ data: biz }, { data: inv }] = await Promise.all([
+      admin.from("businesses").select("id, name, trading_name, onboarding_notes").eq("id", p.businessId).maybeSingle(),
+      admin.from("partner_worker_invites").select("id, business_id, expires_at, used_at, revoked_at").eq("id", p.inviteId).maybeSingle(),
+    ]);
+    if (!inv || inv.business_id !== p.businessId) return { status: "not_sent", detail: "Invite not found" };
+    const { inviteState } = await import("./worker-invite.core");
+    const current = inviteState(inv, Date.now()) === "active";
+    const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
+    const { teamMemberInviteKey, teamMemberInviteText, teamMemberJoinLink } = await import("./installer-texts.core");
+    const body = teamMemberInviteText({ business: (biz as { trading_name?: string | null; name?: string | null } | null)?.trading_name || biz?.name || null, link: teamMemberJoinLink(SET_PASSWORD_BASE, p.token) });
+    const { isTestPartner } = await import("./test-send.core");
+    if (isTestPartner(biz ?? {})) {
+      const { sendTestSms } = await import("./test-send.server");
+      const r = await sendTestSms({ jobId: null, jobSource: null, partnerIsTest: true, label: `team_member_invite:${p.inviteId}`, actorId: null }, to, body);
+      return { status: r.status === "sent" ? "sent" : "not_sent", detail: `test ${r.status}: ${r.detail}` };
+    }
+    const { sendRealSms } = await import("./sms.server");
+    const r = await sendRealSms({ type: "team_member_invite", idempotencyKey: teamMemberInviteKey(p.inviteId, to), to, body, businessId: p.businessId, event: { at: p.createdAt, current } });
+    return { status: r.status === "sent" || r.status === "already" ? "sent" : "not_sent", detail: r.detail };
+  } catch (e) { return { status: "not_sent", detail: (e as Error).message }; }
+}
+
 /** 15-minute tick: tomorrow's installs (from the afternoon before), plus a 24h catch-up for 79/82 triggers missed live. */
 export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; daysSuggested: number; booked: number }> {
   const out = { installTomorrow: 0, daysSuggested: 0, booked: 0 };

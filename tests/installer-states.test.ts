@@ -4,13 +4,13 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   allocationSheet, completeView, couldntGetInSheet, dayChecks, dayNext, electricianRow, installRow, jobNext, leadInstallerDeclaration, moneyJobDetail, needsFinishingList,
-  NOT_FOR_ME_SHEET, offerAcceptedView, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
+  NOT_FOR_ME_SHEET, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
 import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, bankOnFileRows, escNoticeRowLine, inviteContact, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, bankOnFileRows, escNoticeRowLine, inviteContact, inviteTextLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
@@ -78,6 +78,32 @@ describe("M2 states", () => {
     const n = jobNext({ ...base, stage: "installation_booked", installTurn: "booked", installBookedAt: "2026-10-26T20:30:00Z", installDeadline: "2026-11-21", installDaysLeft: 25 });
     expect(n).toMatchObject({ panel: "install_booked", title: "Install booked · Tue 27 Oct at 7:30am", sub: "Install by Sat 21 Nov · 25 days left.", yours: false });
     expect(JSON.stringify(n)).not.toMatch(/rebate/i);
+    expect(n.ownerReady ?? null).toBeNull(); // nothing read → nothing shown, never a guess
+  });
+  test("install booked: owner consent + 10% deposit line from recorded facts only (decision 251), no amounts", () => {
+    const booked = { ...base, stage: "installation_booked", installTurn: "booked" as const, installBookedAt: "2026-10-26T20:30:00Z" };
+    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent signed ✓ · 10% deposit paid ✓", done: true });
+    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "waiting" } }).ownerReady).toEqual({ text: "Consent signed ✓ · 10% deposit not paid yet", done: false });
+    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent not signed yet · 10% deposit paid ✓", done: false });
+    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "waiting" } }).ownerReady!.text).toBe("Consent not signed yet · 10% deposit not paid yet");
+    // Unknown parts are left out (no consent record yet / no invoice to read), never shown as done.
+    expect(ownerReadyLine({ consent: "signed", deposit: null })).toEqual({ text: "Consent signed ✓", done: false });
+    expect(ownerReadyLine({ consent: null, deposit: "paid" })).toEqual({ text: "10% deposit paid ✓", done: false });
+    expect(ownerReadyLine({ consent: null, deposit: null })).toBeNull();
+    expect(ownerReadyLine(null)).toBeNull();
+    // Only the install-booked panel carries it.
+    expect(jobNext({ ...base, installTurn: "owner_to_answer", ownerReady: { consent: "signed", deposit: "paid" } }).ownerReady).toBeUndefined();
+    for (const c of ["signed", "waiting", null] as const) for (const d of ["paid", "waiting", null] as const) expect(JSON.stringify(ownerReadyLine({ consent: c, deposit: d }))).not.toMatch(/\$|\d{3,}|price|total/i);
+  });
+  test("install booked: the server reads consent + deposit business-scoped and returns states only", () => {
+    const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    const fn = srv.slice(srv.indexOf("async function ownerReadyFacts"), srv.indexOf("export async function tradeJobPage"));
+    expect(fn).toContain('from("owner_esc_consents")');
+    expect(fn).toContain('isStepPaid(v.steps, "install_deposit")');
+    expect(fn).not.toMatch(/amountCents|outstandingCents|plan\.|ledger/);
+    const page = srv.slice(srv.indexOf("export async function tradeJobPage"), srv.indexOf("export async function tradeDayExtras"));
+    expect(page.indexOf("requireTradeJob(userId, jobId)")).toBeLessThan(page.indexOf("ownerReadyFacts(jobId)"));
+    expect(page).toContain('inBook?.status === "confirmed" ? await ownerReadyFacts(jobId)');
   });
   test("sign the rebate form after Mitti Complete (decision 213): approved sub, recorded ticks only, Install row", () => {
     const n = jobNext({ ...base, stage: "installation_booked", installTurn: "booked", installBookedAt: "2026-10-26T20:30:00Z", installFormComplete: true, installationRecorded: true, installFormCompletedAt: "2026-10-27T03:40:00Z", evidenceChecked: true, crew: ["Raj Kumar", "Deep Singh"] });
@@ -187,7 +213,16 @@ describe("M6 states", () => {
 });
 
 describe("M7 sub-page states", () => {
-  test("team add sheet creates the existing /join invite; nothing is texted from here", () => {
+  test("team add: the person is texted their link when a mobile is given (decision 251); the link stays on screen to pass on", () => {
+    expect(inviteTextLine({ status: "sent", detail: "ok" }, " 0466 777 888 ")).toEqual({ text: "We texted the link to 0466 777 888. You can also send it yourself:", sent: true });
+    expect(inviteTextLine({ status: "not_sent", detail: "switched off" }, "0466 777 888")).toEqual({ text: `We couldn't text it to 0466 777 888 just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false });
+    expect(inviteTextLine({ status: "no_mobile", detail: "No mobile given" }, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
+    expect(inviteTextLine(null, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
+    const route = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
+    expect(route).toContain("mobile: f.mobile.trim() || null");
+    expect(route).toContain("{link}</p>"); // the link itself is always shown (fallback)
+  });
+  test("team add sheet creates the existing /join invite", () => {
     expect(TEAM_ADD_SHEET.button).toBe("Create the invite link");
     expect(inviteContact({ mobile: " 0466 777 888 ", email: "p@x.com" })).toBe("0466 777 888");
     expect(inviteContact({ mobile: "", email: "p@x.com" })).toBe("p@x.com");

@@ -68,11 +68,34 @@ export type JobNextFacts = {
   installFormCompletedAt?: string | null;
   evidenceChecked?: boolean;
   crew?: string[];
+  /** Decision 251: the owner's side of an install booking (consent + 10% deposit), read-only facts; null = not read. */
+  ownerReady?: OwnerReadyFacts | null;
 };
 export type JobNextPanel =
   | "sign_rebate" | "install_done" | "offer_install_days" | "install_answer_owner" | "install_waiting_owner" | "install_booked" | "install_expired"
   | "ready_check_offer_times" | "ready_check_answer_owner" | "ready_check_waiting_owner" | "ready_check_set_time" | "form_coming" | "mitti_form" | "quote_status" | "waiting";
-export type JobNext = { panel: JobNextPanel; title: string; sub: string | null; yours: boolean; /** Bulleted lines under the sub (needs-finishing items). */ items?: string[]; /** Green ticks (sign the rebate form). */ checks?: string[]; /** Quiet line under the button. */ note?: string | null };
+export type JobNext = { panel: JobNextPanel; title: string; sub: string | null; yours: boolean; /** Bulleted lines under the sub (needs-finishing items). */ items?: string[]; /** Green ticks (sign the rebate form). */ checks?: string[]; /** Quiet line under the button. */ note?: string | null; /** Install booked: the owner's consent + deposit line (decision 251). */ ownerReady?: OwnerReadyLine | null };
+
+/** Decision 251 (Jo 24 Oct 2026): the owner's side of an install booking, as recorded facts only — never amounts or prices.
+ *  consent: the current owner ESC consent (`owner_esc_consents`, not stale/cancelled) — "signed" once the owner has signed,
+ *  "waiting" while a consent exists unsigned, null when none is recorded yet (nothing shown rather than a guess).
+ *  deposit: the `install_deposit` step from the payment ledger (`owner_payment_recorded` → payments.core step state) —
+ *  "paid" when the step is paid, "waiting" when requested/overdue/not yet, null when there is no invoice to read. */
+export type OwnerReadyFacts = { consent: "signed" | "waiting" | null; deposit: "paid" | "waiting" | null };
+export type OwnerReadyLine = { text: string; done: boolean };
+export const OWNER_READY_CONSENT_DONE = "Consent signed ✓";
+export const OWNER_READY_CONSENT_WAITING = "Consent not signed yet";
+export const OWNER_READY_DEPOSIT_DONE = "10% deposit paid ✓";
+export const OWNER_READY_DEPOSIT_WAITING = "10% deposit not paid yet";
+/** "Consent signed ✓ · 10% deposit paid ✓", or which part is still outstanding. Null when neither fact is known. */
+export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerReadyLine | null {
+  if (!f) return null;
+  const parts: string[] = [];
+  if (f.consent) parts.push(f.consent === "signed" ? OWNER_READY_CONSENT_DONE : OWNER_READY_CONSENT_WAITING);
+  if (f.deposit) parts.push(f.deposit === "paid" ? OWNER_READY_DEPOSIT_DONE : OWNER_READY_DEPOSIT_WAITING);
+  if (!parts.length) return null;
+  return { text: parts.join(" · "), done: f.consent === "signed" && f.deposit === "paid" };
+}
 
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
@@ -124,7 +147,7 @@ export function jobNext(f: JobNextFacts): JobNext {
   if (f.rebateSigned) return { panel: "install_done", title: "All done — your part of the rebate form is signed", sub: "We check the photos and sign it off. Your pay shows under Money.", yours: false };
   if (f.installFormComplete) return { panel: "sign_rebate", title: "Sign the rebate form", sub: f.installationRecorded ? SIGN_REBATE_SUB : SIGN_REBATE_FIRST_CONFIRM, yours: true, checks: signRebateChecks({ installFormCompletedAt: f.installFormCompletedAt ?? null, evidenceChecked: f.evidenceChecked === true, crew: f.crew ?? [] }) };
   // Approved state M2-install-booked: "Install booked · Tue 27 Oct at 7:30am" / "Install by Fri 21 Nov · 25 days left."
-  if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished." };
+  if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", ownerReady: ownerReadyLine(f.ownerReady) };
   if (f.installTurn === "expired") return { panel: "install_expired", title: "A new safety check is needed", sub: "The 30-day window after the safety check has passed. Home Insulation Victoria arranges the new check.", yours: false };
   if (f.installTurn === "installer_to_offer") return { panel: "offer_install_days", title: `Offer ${owner} 3 install days`, sub: window, yours: true };
   if (f.installTurn === "installer_to_answer") return { panel: "install_answer_owner", title: `${owner} suggested other days — pick one or offer 3 new days`, sub: window, yours: true };

@@ -7,7 +7,7 @@ import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/bus
 import { getTradeBusiness, requestTeamLoginInvite } from "@/lib/trade-view.functions";
 import { createWorkerInvite } from "@/lib/worker-invite.functions";
 import { useBizFile } from "@/components/trade/business-pages";
-import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_RULE, inviteContact, teamCiiLine, teamCountLine, teamFactsLine } from "@/lib/trade-view.core";
+import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_RULE, inviteContact, inviteTextLine, teamCiiLine, teamCountLine, teamFactsLine, type InviteTextResult } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { CertLinkInline, SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 
@@ -58,7 +58,8 @@ function Team() {
 }
 
 /** Approved state M7-team-add (decisions 153/161/130): name · mobile · email → the existing single-use /join invite link
- *  (createWorkerInvite, business owner only). Nothing is texted from here: the owner passes the link on themself. */
+ *  (createWorkerInvite, business owner only). Decision 251: with a mobile, the server texts the person their link
+ *  (`team_member_invite`, guarded sender, TEST → test-send); the link stays on screen so the owner can pass it on. */
 function AddTeamMember({ count }: { count: number }) {
   const { data: file } = useBizFile();
   const create = useServerFn(createWorkerInvite);
@@ -66,6 +67,7 @@ function AddTeamMember({ count }: { count: number }) {
   const [f, setF] = useState({ name: "", mobile: "", email: "" });
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
+  const [texted, setTexted] = useState<InviteTextResult>(null);
   const [err, setErr] = useState<string | null>(null);
   const businessId = file?.businessId;
   if (!businessId) return null;
@@ -85,7 +87,7 @@ function AddTeamMember({ count }: { count: number }) {
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-[#8A3B4A]">{err}</p>}
           <button type="button" disabled={busy || f.name.trim().length < 2} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
             setBusy(true); setErr(null);
-            try { const r = await create({ data: { businessId, name: f.name.trim(), contact: inviteContact(f), trade: "installer" } }); setLink(`${window.location.origin}/join/${r.token}`); setOpen(false); }
+            try { const r = await create({ data: { businessId, name: f.name.trim(), contact: inviteContact(f), mobile: f.mobile.trim() || null, trade: "installer" } }); setTexted(r.text ?? null); setLink(`${window.location.origin}/join/${r.token}`); setOpen(false); }
             catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
           }}>{busy ? "Creating…" : TEAM_ADD_SHEET.button}</button>
           <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub" onClick={() => setOpen(false)}>{TEAM_ADD_SHEET.cancel}</button>
@@ -94,9 +96,9 @@ function AddTeamMember({ count }: { count: number }) {
       {link && (
         <section className="mt-2 rounded-[18px] bg-estimate-green-soft p-4" data-add-team-link>
           <p className="text-sm font-bold text-estimate-green">Invite link for {f.name.trim()}</p>
+          <p className={`mt-1 text-[13px] ${inviteTextLine(texted, f.mobile).sent ? "font-semibold text-estimate-green" : "text-estimate-sub"}`} data-invite-texted>{inviteTextLine(texted, f.mobile).text}</p>
           <p className="mt-1 break-all text-sm">{link}</p>
-          <p className="mt-2 text-[13px] text-estimate-sub">{TEAM_ADD_SHEET.linkNote}</p>
-          <button type="button" className="mt-2 min-h-11 text-[15px] font-semibold text-estimate-blue" onClick={() => { setLink(null); setF({ name: "", mobile: "", email: "" }); }}>Add another</button>
+          <button type="button" className="mt-2 min-h-11 text-[15px] font-semibold text-estimate-blue" onClick={() => { setLink(null); setTexted(null); setF({ name: "", mobile: "", email: "" }); }}>Add another</button>
         </section>
       )}
     </div>
