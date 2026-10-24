@@ -161,6 +161,8 @@ export const officeVerifyEec = createServerFn({ method: "POST" }).middleware([re
     }).eq("id", w.id);
     if (error) throw new Error("Couldn't verify the certificate. Please try again.");
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "eec_certificate_verified", summary: `EEC/CII certificate verified (${data.level}, expires ${data.expiresOn})`, details: { worker_id: w.id, certification_id: cert.id, level: data.level, expires_on: data.expiresOn } });
+    // Decision 188: a CII-verified installer → Mitti auto-invite (switch MITTI_AUTO_INVITE_ENABLED, off = no-op). Never fails the check.
+    await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(w.id, context.userId)).catch((e) => console.error("Mitti auto-invite skipped", (e as Error).message));
     return { ok: true };
   });
 

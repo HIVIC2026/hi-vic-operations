@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAction } from "@/hooks/use-me";
 import { getPrestartSummary, rerunPrestart } from "@/lib/allocation.functions";
-import { recordEscSubmissionFn, regenerateEscNotificationFn, withdrawEscNotificationFn } from "@/lib/portal.functions";
+import { recordEscRegistryUpdateFn, recordEscSubmissionFn, regenerateEscNotificationFn, withdrawEscNotificationFn } from "@/lib/portal.functions";
 import { VEU_REGISTRY_URL } from "@/lib/esc.core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
   const regen = useAction(regenerateEscNotificationFn);
   const record = useAction(recordEscSubmissionFn);
   const withdraw = useAction(withdrawEscNotificationFn);
+  const recordUpdate = useAction(recordEscRegistryUpdateFn);
   const q = useQuery({ queryKey: ["prestart", jobId], queryFn: () => load({ data: { jobId } }) });
   const [ref, setRef] = useState(""); const [at, setAt] = useState(""); const [confirm, setConfirm] = useState(false);
   const [reason, setReason] = useState(""); const [withdrawing, setWithdrawing] = useState(false);
@@ -37,7 +38,12 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
         {d.task ? <p className={`rounded border p-2 font-medium ${d.task.code === "esc_submit_due" ? "border-warning/40 bg-warning-soft" : "border-danger/40 bg-danger-soft text-danger"}`}>{d.task.detail}</p> : !d.sentLine && <p className="text-muted-foreground">No ESC action needed right now{n?.earliest ? ` — the Registry window opens ${when(n.earliest)}` : ""}.</p>}
         {dateMoved && d.previousSent && (
           <div className="rounded border border-danger/40 p-2">
-            <p className="text-xs">Earlier notification for {when(d.previousSent.scheduled_start)}: {d.previousSent.sentLine}. {d.task?.code === "esc_update_registry" ? "Update it in the Registry and record the update below, or withdraw it and resubmit." : "Withdraw it in the Registry, then submit and record a new one below."}</p>
+            <p className="text-xs">Earlier notification for {when(d.previousSent.scheduled_start)}: {d.previousSent.sentLine}. {d.change?.action === "update_same_id" ? "Update it in the Registry (Update Install notification — the ID stays the same) and record the update below." : d.change?.action === "withdraw_and_resubmit" ? "Withdraw it in the Registry, then submit and record a new one below." : d.task?.code === "esc_update_registry" ? "Update it in the Registry and record the update below, or withdraw it and resubmit." : "Withdraw it in the Registry, then submit and record a new one below."}</p>
+            {!!d.change?.changed.length && <p className="text-xs text-muted-foreground">Changed: {d.change.changed.map((k) => reg?.rows.find((r) => r.key === k)?.label ?? k).join(", ")}.</p>}
+            {d.change?.action === "withdraw_and_resubmit" && !!d.change.reasons.length && <p className="text-xs text-danger">{d.change.reasons.join(" ")}</p>}
+            {d.change?.action === "update_same_id" && n?.canRecord && d.previousSent.reference && (
+              <Button size="sm" className="mt-1 mr-2" onClick={async () => { await recordUpdate({ notificationId: n.id, reference: d.previousSent!.reference!, updatedAt: new Date().toISOString(), confirmed: true }, "Registry update recorded (same ID)"); await q.refetch(); }}>I updated it in the Registry — record update (same ID {d.previousSent.reference})</Button>
+            )}
             {!withdrawing ? <Button size="sm" variant="outline" className="mt-1" onClick={() => setWithdrawing(true)}>Withdraw / resubmit</Button> : (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Input className="max-w-sm" placeholder="Why it was withdrawn (e.g. install moved outside the 5-day window)" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -57,9 +63,9 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
               </div>
             </div>
             <dl className="grid grid-cols-[13rem_1fr] gap-x-2 text-xs">{reg.rows.flatMap((r) => [<dt key={`${r.key}-k`} className="text-muted-foreground">{r.label}</dt>, <dd key={`${r.key}-v`} className={r.value ? "" : "text-danger"}>{r.value ?? (r.optional ? "— not recorded" : "— missing")}</dd>])}</dl>
-            {reg.missing.length > 0 && <p className="mt-1 text-xs text-danger">Missing before it can be recorded: {reg.missing.join(", ")}.</p>}
+            {reg.missingFacts.length > 0 && <div className="mt-1 text-xs text-danger"><p>Missing before it can be recorded:</p><ul className="list-disc pl-5">{reg.missingFacts.map((m) => <li key={m.label}>{m.label}{m.source ? <span className="text-muted-foreground"> — from {m.source}</span> : null}</li>)}</ul></div>}
             {n.last_error && !reg.missing.length && <p className="mt-1 text-xs text-danger">{n.last_error}</p>}
-            <p className="mt-1 text-xs text-muted-foreground">Registry: Activities → Install notification form. Fill it by hand from the block above, then record the reference and time here.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Registry: Activities → Submit a new install notification. Fill it from the block above, then record the notification ID and time here.</p>
             {n.canRecord && !d.sentLine && (
               <div className="mt-2 space-y-2">
                 <div className="grid gap-2 sm:grid-cols-3"><Input placeholder="Registry reference" value={ref} onChange={(e) => setRef(e.target.value)} /><Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
