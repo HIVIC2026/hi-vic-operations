@@ -78,3 +78,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 39. Staff job links ("Create job link") go behind a "More" button.
 40. Ready-made messages must match the new install-day flow (wording to be refined in the template review).
 41. **Installer portal look: Style A, calm and light.** White background, thin divider lines, small soft text (Inter, 15–19 px, weight 400–600), one blue button per screen and no big bold type. Each screen says one thing first ("Next: …") with one button. Mock-ups: https://claude.ai/artifact/DE3FdfTaYmnNkQ9kMyFd1e
+42. **No spreadsheet upload for installers.** They add jobs one at a time with a picked address. Bulk import is for the office only: a new installer sends us their list, and the office imports it and checks every address.
