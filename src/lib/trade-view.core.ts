@@ -320,7 +320,7 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 }
 
 // ---------- M7 sub-page states (approved 24 Oct 2026, decision 236). PURE words over recorded facts. ----------
-/** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); nothing is texted from here. */
+/** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); with a mobile the server also texts it to the person (decision 251, team_member_invite). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
   body: "They get a link to set up their login, the ESC privacy notice to tick, and a place to upload their CII certificate. The office checks it before they can be on an install.",
@@ -329,6 +329,15 @@ export const TEAM_ADD_SHEET = {
   cancel: "Cancel",
   linkNote: "Send this link to them yourself (text or email). It is single use and lasts 14 days; you won't see it again.",
 } as const;
+/** Decision 251: after "Create the invite link" — did the new person get the link by text? The link itself always stays
+ *  on screen for the owner to pass on (the fallback when there is no mobile or the text did not go). */
+export type InviteTextResult = { status: "sent" | "not_sent" | "no_mobile"; detail: string } | null;
+export function inviteTextLine(r: InviteTextResult, mobile: string): { text: string; sent: boolean } {
+  const m = mobile.trim();
+  if (r?.status === "sent") return { text: `We texted the link to ${m}. You can also send it yourself:`, sent: true };
+  if (r?.status === "not_sent") return { text: `We couldn't text it to ${m} just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false };
+  return { text: TEAM_ADD_SHEET.linkNote, sent: false };
+}
 export function teamCountLine(n: number): string { return `${n} ${n === 1 ? "person" : "people"}`; }
 /** Invite contact: the mobile when given, else the email, else nothing (the link is still created). */
 export function inviteContact(f: { mobile: string; email: string }): string | null {

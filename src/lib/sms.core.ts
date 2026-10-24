@@ -33,6 +33,9 @@ export const SMS_MESSAGE_TYPES = {
   ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
   ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
   install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
+  // Decision 251: a business owner adds a team member → text that person their single-use /join login link. Wording
+  // approved by Jo 24 Oct 2026 (decision 252, relayed by the coordinator): teamMemberInviteText in installer-texts.core.ts.
+  team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
@@ -69,6 +72,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
   ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
   install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
+  team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
 };
 
 export type SmsEventInput = {

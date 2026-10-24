@@ -292,7 +292,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     installFormComplete: page.install.form.complete, installationRecorded: !!page.install.recordedAt, rebateSigned: page.install.rebateSigned,
     quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
     piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
-    installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew,
+    installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
   }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length }) : null;
   const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
@@ -326,6 +326,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <NextPanel title={next.title} sub={next.sub}>
           {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
           {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
+          {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
