@@ -86,3 +86,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 47. **Installer mock-up screens 1–7 approved**: build them in Style A (mock-ups at the link in 41; source in the session scratchpad mock/project/*.dc.html).
 
 **Working rule (Jo):** ask every question as tap-boxes, always.
+48. Each installer job shows a small quiet grey label under the address: **"Your customer"** (their own job) or **"Home Insulation Victoria lead"** (our lead). It appears on the My work list and the job page.
