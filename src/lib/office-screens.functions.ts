@@ -8,6 +8,13 @@ import { HEARD_CHIPS, INSULATION_CHIPS, REGION_CHIPS, SIZE_CHIPS, SOURCE_CHIPS }
 import { JOBS_STAGE_KEYS } from "./office-jobs.core";
 
 const uuid = z.string().uuid();
+const range = z.object({ min: z.number().finite().min(0).optional(), max: z.number().finite().min(0).optional() }).optional();
+/** Decision 286: per-column filters on Enquiries (text / min–max / picks). */
+const columnFilters = z.object({
+  job: z.string().max(40).optional(), owner: z.string().max(80).optional(), address: z.string().max(120).optional(),
+  size: range, estimate: range,
+  insulation: z.array(z.enum(INSULATION_CHIPS)).max(3).optional(), heard: z.array(z.enum(HEARD_CHIPS)).max(4).optional(),
+}).default({});
 const chips = z.object({
   insulation: z.array(z.enum(INSULATION_CHIPS)).max(3).optional(),
   size: z.array(z.enum(SIZE_CHIPS)).max(4).optional(),
@@ -48,8 +55,11 @@ export const getOfficeJobMoney = createServerFn({ method: "POST" }).middleware([
 
 export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    pile: z.enum(["fix_details", "waiting_owner"]).default("waiting_owner"), search: z.string().max(120).default(""),
-    sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("asc"), page: z.number().int().min(1).max(10_000).default(1), filters: chips,
+    // Decisions 281/285/286: one list, one search box (owner name, address, job number) and column headings that sort
+    // AND filter (text / min–max / picks); no pile, no chip panel.
+    search: z.string().max(120).default(""),
+    sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("asc"), page: z.number().int().min(1).max(10_000).default(1),
+    filters: columnFilters,
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -126,10 +136,3 @@ export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware
     return logCallOrNote(data.jobId, context.userId, { what: data.what, who: data.who, party: data.party ?? null, said: data.said, waitingFor: data.waitingFor });
   });
 
-export const saveEnquiryFixDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, fullName: z.string().trim().max(200), street: z.string().trim().max(300), suburb: z.string().trim().max(100), postcode: z.string().trim().max(10) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { saveFixDetails } = await import("./office-actions.server");
-    try { return await saveFixDetails(data.jobId, context.userId, data); } catch (e) { if (e instanceof WorkflowError) throw e; throw new Error(e instanceof Error ? e.message : "Details could not be saved."); }
-  });

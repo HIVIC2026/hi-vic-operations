@@ -1,8 +1,8 @@
-// O3 Jobs + O4 Enquiries structure (decisions 226, 238, 239; one pile per job, Jo 21 Oct).
-// Enquiries = every job BEFORE a spot is saved, in exactly one of two piles: Fix details · Waiting on owner.
+// O3 Jobs + O4 Enquiries structure (decisions 226, 238, 239, 281; one pile per job, Jo 21 Oct).
+// Enquiries = every job BEFORE a spot is saved, in ONE list (decision 281: the Fix details pile is gone — the portal
+// completes addresses itself; every enquiry is "Waiting on owner").
 // Jobs = six stages from a saved spot: Choose installer · Ready Check · Quote · PIESA · Install · Final check,
 // plus Closed (Completed · Cancelled · Ineligible · Removed / test). PURE: labels and piles only, never moves a job.
-import { needsFixDetails } from "./name-address-tidy.core";
 
 export type JobsStage = "choose_installer" | "ready_check" | "quote" | "piesa" | "install" | "final_check";
 export const JOBS_STAGES: { key: JobsStage; label: string }[] = [
@@ -40,19 +40,13 @@ export function jobsStage(j: { stage: string | null; priorStage?: string | null;
   return null;
 }
 
-export type EnquiryPile = "fix_details" | "waiting_owner";
-export const ENQUIRY_PILES: { key: EnquiryPile; label: string }[] = [
-  { key: "fix_details", label: "Fix details" },
-  { key: "waiting_owner", label: "Waiting on owner" },
-];
-
 /**
- * The one Enquiries pile (decision 239). Only enquiries (before a spot is saved) belong here; every one of them is in
- * exactly one pile: names/addresses the portal's tidy cannot fix → Fix details, everything else → Waiting on owner.
+ * Enquiries is ONE list (decision 281). Only enquiries (before a spot is saved) belong here and every one of them is
+ * "Waiting on owner": reminders are automatic, addresses complete themselves, nothing for the office until they answer.
  */
-export function enquiryPile(e: { fullName: string | null; addressLine: string | null; suburb: string | null; postcode: string | null }): EnquiryPile {
-  return needsFixDetails(e) ? "fix_details" : "waiting_owner";
-}
+export const ENQUIRY_LIST = { key: "waiting_owner", label: "Waiting on owner" } as const;
+export type EnquiryPile = typeof ENQUIRY_LIST.key;
+export const enquiryPile = (): EnquiryPile => ENQUIRY_LIST.key;
 
 /** "Waiting on" column (decision 238: spot offered / 3 questions asked; reminders automatic). */
 export type WaitingOnFacts = {

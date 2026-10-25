@@ -6,7 +6,7 @@
 // - Dedupe: an owner already on file with this email address is LINKED (their latest live job), never duplicated.
 // - Facts: name = the From display name tidied, the email address, a phone only when exactly one is written, and an
 //   address only when a COMPLETE Victorian street address is written (pure email-enquiry.core) — never guessed. No
-//   address → the job lands in Enquiries › Fix details and the reply asks for it.
+//   address → the enquiry sits in Enquiries without one and the reply asks for it (decision 281: no Fix details pile).
 // - Consent: the email is consent to reply to that email only. No `owner_contact_consents` row is written here; the
 //   homeowner page captures the VEU consent as for every enquiry. The sentence is recorded on the event.
 // - Idempotent per Outlook message: one `email_enquiry_created` event (and one external enquiry id) per message.
@@ -80,7 +80,7 @@ export async function enquiryFromEmail(m: MailMessage, opts: { testOnly: boolean
   } as never, source, null, { channel: "hivic_sourced" }, { emailIntake: true });
 
   await logEvent(created.job_id, null, EMAIL_ENQUIRY_CREATED_EVENT,
-    `Enquiry created from ${plan.fullName || "the sender"}'s email (${plan.email})${a ? "" : " — no street address in the email, so it is in Enquiries › Fix details"}. ${EMAIL_ENQUIRY_CONSENT_SENTENCE}`,
+    `Enquiry created from ${plan.fullName || "the sender"}'s email (${plan.email})${a ? "" : " — no street address in the email; the reply asks for it"}. ${EMAIL_ENQUIRY_CONSENT_SENTENCE}`,
     {
       message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, from: plan.email, from_name: m.fromName,
       subject: m.subject, received_at: m.at, source, address_found: !!a, address: a, phone_found: !!plan.phone, name_from: plan.fullName ? "from_display_name" : null,

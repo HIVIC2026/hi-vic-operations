@@ -131,6 +131,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
         }
         try {
+          // Decision 281: enquiries missing a suburb / postcode are completed from the address lookup (same provider as
+          // Add a job), 50 per tick oldest first, one lookup per job per 7 days recorded as a workflow event. No sends.
+          const { completeEnquiryAddresses } = await import("@/lib/address-complete.server");
+          (out as Record<string, unknown>)['addressCompletion'] = await completeEnquiryAddresses();
+        } catch (e) {
+          console.error("allocation tick: address completion sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['addressCompletion'] = "failed"; // a lookup outage must not fail the whole tick
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");

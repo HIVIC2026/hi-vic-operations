@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { completeVicAddress, latestText, phoneIn, planEmailEnquiry, EMAIL_ENQUIRY_CONSENT_SENTENCE } from "../src/lib/email-enquiry.core";
-import { needsFixDetails } from "../src/lib/name-address-tidy.core";
+import { tidyEnquiryDetails } from "../src/lib/name-address-tidy.core";
 import { intakeJobFacts } from "../src/lib/enquiry.server";
 
 describe("complete Victorian street address", () => {
@@ -39,11 +39,12 @@ describe("phone and name", () => {
   });
 });
 
-test("no address → the enquiry lands in Enquiries › Fix details", () => {
+test("no address → the enquiry is created without one (decision 281: no Fix details pile; the reply asks for it)", () => {
   const p = planEmailEnquiry({ from: "sam@example.org", fromName: "Sam Person", subject: "Rebate", body: "How much is the rebate?" })!;
-  expect(needsFixDetails({ fullName: p.fullName, addressLine: p.address?.street ?? "", suburb: p.address?.suburb ?? null, postcode: p.address?.postcode ?? null })).toBe(true);
+  expect(p.address).toBeNull();
+  expect(tidyEnquiryDetails({ fullName: p.fullName, addressLine: "", suburb: null, postcode: null }).problems).toEqual(["street_missing", "suburb_missing", "postcode_missing"]);
   const q = planEmailEnquiry({ from: "sam@example.org", fromName: "Sam Person", subject: "Quote", body: "We're at 14 Example Street, Ringwood 3134" })!;
-  expect(needsFixDetails({ fullName: q.fullName, addressLine: q.address!.street, suburb: q.address!.suburb, postcode: q.address!.postcode })).toBe(false);
+  expect(tidyEnquiryDetails({ fullName: q.fullName, addressLine: q.address!.street, suburb: q.address!.suburb, postcode: q.address!.postcode }).problems).toEqual([]);
 });
 
 test("intake: an email enquiry records an unknown ceiling size; other sources keep their rules", () => {

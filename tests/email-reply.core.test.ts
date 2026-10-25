@@ -53,7 +53,7 @@ describe("the sample drafts (shown to Jo)", () => {
     expect(newPrice!.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3/campaign");
     expect(newPrice!.text).toContain("street address and suburb");
     expect(newPrice!.text).not.toMatch(/\$\d/);
-    expect(newPrice!.flags.join(" ")).toContain("Fix details");
+    expect(newPrice!.flags.join(" ")).toContain("no address yet");
     expect(price!.text).toContain("$4,050");
     expect(price!.text).toContain("$1,850 VEU rebate");
     expect(price!.text).toContain("you pay $2,200");
@@ -165,12 +165,12 @@ describe("new_enquiry", () => {
     subject: "Ceiling insulation", body: "Hi, I'd like a quote for ceiling insulation please.", from: "new.person@example.org", fromName: "New Person", fromPartner: false, now: SAMPLE_NOW,
     owner: newSenderEnquiry({ ownerFullName: "New Person", ...o }), emailEnquiry: { created: true, addressFound },
   });
-  test("decision 255: new sender, no address → page link AND asks for street address and suburb (Fix details flag)", () => {
+  test("decision 255: new sender, no address → page link AND asks for street address and suburb (no-address flag)", () => {
     const d = draft(newSender({}, false));
     expect(d.type).toBe("new_enquiry");
     expect(d.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN/campaign");
     expect(d.text).toContain("Could you reply with your home's street address and suburb");
-    expect(d.flags.join(" ")).toContain("Enquiries › Fix details");
+    expect(d.flags.join(" ")).toContain("no address yet; this reply asks for it");
     expect(d.checkBeforeSending).toBe(true);
     wellFormed(d, "New");
   });

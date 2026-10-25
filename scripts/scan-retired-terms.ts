@@ -50,6 +50,10 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
     re: /portal-only chat required/gi,
     action: "Direct contact with portal booking record",
   },
+  // Decision 281 (Jo 25 Oct 2026): no "Fix details" pile or buttons — the portal completes addresses itself.
+  { term: "Fix details pile / button", re: /Fix details/g, action: "Decision 281: one Enquiries list; addresses complete automatically (address-complete.core)" },
+  // Decisions 283/285 (Jo 25 Oct 2026): no priority number and no chip panel on Enquiries.
+  { term: "Enquiries priority number / chip panel", re: /1 = hottest|Pick as many as you like · every column is sortable · 1/g, action: "Decisions 283/285: sort hottest first silently; headings filter (286)" },
   {
     term: "$220 lead fee",
     re: /\$220 lead fee/gi,

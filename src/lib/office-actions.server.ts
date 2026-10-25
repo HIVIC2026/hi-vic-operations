@@ -1,10 +1,10 @@
-// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, O4 inline fix). The O1 email rows use
+// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, the audited enquiry details save). The O1 email rows use
 // the backend's email-office.server (decisions 245/247).
 // Every change is audited through workflow_events and uses the existing guarded paths; nothing here sends a message.
 // Server-only; callers (office-screens.functions.ts) have already checked requireAdmin.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { fixDetailsErrors, tidyEnquiryDetails } from "./name-address-tidy.core";
+import { tidyEnquiryDetails } from "./name-address-tidy.core";
 import { reopenPlan } from "./office-jobs.core";
 
 /** Owner email / installer text on Cancel and Hold: the dialog is approved (228) but the wording is not yet (227), so the
@@ -120,19 +120,26 @@ export async function logCallOrNote(jobId: string, actorId: string, i: { what: L
   return { id };
 }
 
-/** O4 inline fix (decision 216/238): the tidy runs on save; only a complete, valid name + split address is accepted. */
-export async function saveFixDetails(jobId: string, actorId: string, v: { fullName: string; street: string; suburb: string; postcode: string }) {
-  const errors = fixDetailsErrors(v);
-  if (errors.length) throw new WorkflowError(`Still to fix: ${errors.join(", ")}.`);
+/**
+ * The one audited save for an enquiry's name / street / suburb / postcode (decision 216 tidy on save; decision 281: used
+ * by the automatic address completion — the inline form on Enquiries is gone). Nothing is required beyond a street: a
+ * first-name-only or odd name is stored tidied, as it is, and is editable on the job page like any other field.
+ * `event` lets the completion record its own workflow event type, summary and details.
+ */
+export async function saveEnquiryDetails(jobId: string, actorId: string | null, v: { fullName: string; street: string; suburb: string; postcode: string },
+  event: { type?: string; summary?: string; details?: Record<string, unknown> } = {}) {
   const t = tidyEnquiryDetails({ fullName: v.fullName, addressLine: v.street, suburb: v.suburb, postcode: v.postcode });
+  if (!t.street) throw new WorkflowError("A street address is needed.");
+  if (t.postcode && !/^[38]\d{3}$/.test(t.postcode)) throw new WorkflowError("The postcode must be a Victorian postcode.");
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, owners(full_name), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) throw new WorkflowError("Job not found.");
   const before = { name: (job.owners as { full_name?: string } | null)?.full_name ?? null, ...(job.properties as Record<string, unknown> | null) };
   const [o, p] = await Promise.all([
     admin.from("owners").update({ full_name: t.fullName }).eq("id", job.owner_id),
-    admin.from("properties").update({ address_line: t.street, suburb: t.suburb, postcode: t.postcode, state: "VIC" }).eq("id", job.property_id),
+    admin.from("properties").update({ address_line: t.street, suburb: t.suburb || null, postcode: t.postcode || null, state: "VIC" }).eq("id", job.property_id),
   ]);
   if (o.error || p.error) throw new Error(`Details could not be saved: ${(o.error ?? p.error)!.message}`);
-  await logEvent(jobId, actorId, "enquiry_details_fixed", `Details fixed: ${t.fullName} · ${t.street}, ${t.suburb} ${t.postcode}`, { before, after: { name: t.fullName, address_line: t.street, suburb: t.suburb, postcode: t.postcode }, decision: 216 }, { internal: true });
+  await logEvent(jobId, actorId, event.type ?? "enquiry_details_fixed", event.summary ?? `Details fixed: ${t.fullName} · ${t.street}, ${t.suburb} ${t.postcode}`,
+    { before, after: { name: t.fullName, address_line: t.street, suburb: t.suburb, postcode: t.postcode }, decision: 216, ...(event.details ?? {}) }, { internal: true });
   return { ok: true, fullName: t.fullName, street: t.street, suburb: t.suburb, postcode: t.postcode };
 }

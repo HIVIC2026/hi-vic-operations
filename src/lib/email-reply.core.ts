@@ -339,7 +339,7 @@ const campaignLink = (ownerLink: string) => `${ownerLink.replace(/\/$/, "")}/cam
 function emailEnquiryFlags(f: OwnerFacts | null, e: EmailEnquiryFacts | null): string[] {
   if (!f || !e) return ["No enquiry could be created from this email — create it by hand, then add their homeowner page link"];
   const flags = [`New enquiry ${f.jobNumber} created from this email — check before sending (decision 255)`];
-  if (!e.addressFound) flags.push("No complete street address in the email — the enquiry is in Enquiries › Fix details");
+  if (!e.addressFound) flags.push("No complete street address in the email — the enquiry has no address yet; this reply asks for it");
   if (!f.ownerLink) flags.push("No homeowner page link yet — add it before sending");
   return flags;
 }
