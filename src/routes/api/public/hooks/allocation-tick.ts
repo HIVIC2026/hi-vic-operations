@@ -279,11 +279,23 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['escNoticeLinks'] = "failed";
         }
         try {
-          const { sweepVisitReminders } = await import("@/lib/daily-brief.server");
-          (out as Record<string, unknown>)['reminders'] = await sweepVisitReminders();
+          // Decision 326: the approved owner texts (78 Ready Check times, 82 booked + see you tomorrow, 89 quote reminders,
+          // 93 safety check booked + see you tomorrow, 99 install see you tomorrow, 135 install moved). Replaces the old
+          // queued-only 24h/2h visit reminders (no approved 2h or trade day-before wording). One event per text; TEST → test-send.
+          const { sweepApprovedTexts } = await import("@/lib/approved-texts.server");
+          (out as Record<string, unknown>)['approvedTexts'] = await sweepApprovedTexts();
         } catch (e) {
-          console.error("allocation tick: visit reminder sweep failed", (e as Error).message);
-          out['ok'] = false;
+          console.error("allocation tick: approved texts sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['approvedTexts'] = "failed";
+        }
+        try {
+          // Decision 326: electrician PIESA offer text (93) + email (E1), installer "owner declined" email (I24) and the
+          // applicant "We've got your application" email (I53) — catch-up for anything the live triggers missed.
+          const { sweepTradeMessages } = await import("@/lib/trade-messages.server");
+          (out as Record<string, unknown>)['tradeMessages'] = await sweepTradeMessages();
+        } catch (e) {
+          console.error("allocation tick: trade messages sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['tradeMessages'] = "failed";
         }
         try {
           const { sweepDailyBrief } = await import("@/lib/daily-brief.server");

@@ -239,7 +239,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     // Compare revisions as instants (PostgREST and the tab may format the same timestamp differently).
     const same = Date.parse(data.expected_updated_at) === Date.parse(app.updated_at);
     const { token: _t, ...input } = data;
-    return performInstallerSign(app as never, { ...input, expected_updated_at: same ? app.updated_at : data.expected_updated_at }, { ip: context.ip, userAgent: context.userAgent }, {
+    const signed = await performInstallerSign(app as never, { ...input, expected_updated_at: same ? app.updated_at : data.expected_updated_at }, { ip: context.ip, userAgent: context.userAgent }, {
       sha256,
       signAtomic: async (a) => {
         const { data: rows, error } = await db.rpc("sign_installer_application" as never, {
@@ -252,4 +252,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
         return r;
       },
     });
+    // I53 (decision 326): "We've got your application", once per application (best-effort; the 15-minute tick catches up a miss).
+    if (signed.ok) await (await import("./trade-messages.server")).emailApplicationReceived((app as { id: string }).id).catch((e) => console.error("application received email skipped", (e as Error).message));
+    return signed;
   });

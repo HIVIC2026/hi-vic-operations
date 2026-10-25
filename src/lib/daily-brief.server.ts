@@ -1,46 +1,10 @@
-// Visit reminders (queued only) and the stored 7am daily brief. Rules: daily-brief.core.ts.
+// The stored 7am daily brief. Rules: daily-brief.core.ts.
+// Decision 326 (25 Oct 2026): the old queued-only 24h/2h visit reminders (owner + trade outbox rows that the dispatcher
+// could never deliver) are gone. The owner "see you tomorrow" texts with approved wording (decisions 82, 93, 99) are sent
+// by approved-texts.server.ts; the installer's day-before text is install_tomorrow (installer-texts.server.ts); 2-hour
+// reminders and trade day-before reminders for Ready Checks / safety checks have no approved wording and are not sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { logEvent } from "./workflow.server";
-import { briefDueFor, buildDailyBrief, prestartNotPassed, reminderDue, reminderKey, yesterdayBounds, type BriefRisk } from "./daily-brief.core";
-import { VISIT_LABEL, type VisitKind } from "./visit-events.core";
-
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
-
-/** Timer: queue the 24h and 2h reminder to the owner and the trade for every booked visit. Never sends. */
-export async function sweepVisitReminders(now = new Date()) {
-  const n = now.getTime();
-  const { data, error } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, assignment_id, jobs!inner(deleted_at, source, stage)").is("jobs.deleted_at", null)
-    .eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", new Date(n + 24 * 3_600_000).toISOString());
-  if (error) throw new Error(error.message);
-  let queued = 0;
-  for (const b of data ?? []) {
-    const job = b.jobs as { source: string | null; stage: string } | null;
-    if (!job || job.source === "qa_test" || ["cancelled", "complete", "on_hold"].includes(job.stage)) continue;
-    const slot = reminderDue(b.scheduled_start, n);
-    if (!slot) continue;
-    const startMs = Date.parse(b.scheduled_start);
-    const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", b.job_id).eq("event_type", "visit_reminder_queued").contains("details", { booking_id: b.id, slot, start_ms: startMs }).limit(1).maybeSingle();
-    if (prior) continue;
-    const label = VISIT_LABEL[b.kind as VisitKind] ?? "Visit";
-    await logEvent(b.job_id, null, "visit_reminder_queued", `${label}: ${slot} reminder prepared for the owner and the trade (delivery follows the sending switches)`, { booking_id: b.id, slot, start_ms: startMs, kind: b.kind }, { internal: true });
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", b.job_id).eq("event_type", "visit_reminder_queued").contains("details", { booking_id: b.id, slot, start_ms: startMs }).limit(1).maybeSingle();
-    if (!ev) continue;
-    const targets: Array<["owner" | "trade", string, string]> = [["owner", "customer_email", `job:${b.job_id}`]];
-    if (b.assignment_id) targets.push(["trade", "partner_notifications", `job_assignment:${b.assignment_id}`]);
-    for (const [who, action, target] of targets) {
-      const key = reminderKey(b.id, slot, who, b.scheduled_start);
-      const { error: e } = await admin.rpc("enqueue_external_action", {
-        _job: b.job_id, _event: ev.id, _action: action, _target: target, _basis: "transactional_job_coordination",
-        _version: "visit-reminder-v1", _payload: `visit_reminder:${b.kind}-${slot}-${who}`, _facts: await sha256Hex(key), _key: key,
-      });
-      if (e) console.error("visit reminder enqueue skipped", e.message); else queued++;
-    }
-  }
-  return { queued };
-}
+import { briefDueFor, buildDailyBrief, prestartNotPassed, yesterdayBounds, type BriefRisk } from "./daily-brief.core";
 
 /** Facts for one brief. Read-only. QA jobs are left out. */
 export async function collectBrief(date: string, now = new Date()) {

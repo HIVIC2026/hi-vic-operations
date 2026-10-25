@@ -538,7 +538,9 @@ export async function currentWindowRound(jobId: string) {
   return { round, roundStart, futureOpen };
 }
 
-/** Nobody took the owner's times: round 1 -> ask the owner for more times (queued only); round 2 -> needs attention. Idempotent per round. */
+/** Nobody took the owner's times: round 1 -> the owner's picker reopens for more times (recorded only: decision 326 — there
+ *  is no approved "pick more safety check times" wording, so nothing is queued or sent; the owner sees the picker on My
+ *  job); round 2 -> needs attention. Idempotent per round. */
 async function windowsNoTaker(jobId: string, actorId: string | null, round: number): Promise<boolean> {
   const { noTakerStep, PIESA_NO_TAKER_DETAIL } = await import("./piesa-windows.core");
   const step = noTakerStep(round);
@@ -548,15 +550,7 @@ async function windowsNoTaker(jobId: string, actorId: string | null, round: numb
     if (count) return true;
     await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", jobId).eq("kind", "piesa").eq("status", "pending");
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("piesa_window_round", round).eq("status", "proposed");
-    await logEvent(jobId, actorId, "piesa_more_times_requested", "No electrician could take the owner's PIESA times — owner asked to pick more times (prepared; delivery follows the sending switches)", { round }, { internal: true });
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "piesa_more_times_requested").contains("details", { round }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ev) {
-      const { error } = await admin.rpc("enqueue_external_action", {
-        _job: jobId, _event: ev.id, _action: "customer_email", _target: `job:${jobId}`, _basis: "transactional_job_coordination",
-        _version: "piesa-more-times-v1", _payload: `piesa_windows:round${round}`, _facts: await sha256Hex(`${jobId}-piesa-more-times-${round}`), _key: `piesa-more-times-${jobId}-r${round}`,
-      });
-      if (error) console.error("more-times outbox enqueue skipped", error.message); // e.g. TEST job suppression
-    }
+    await logEvent(jobId, actorId, "piesa_more_times_requested", "No electrician could take the owner's PIESA times — the owner's picker is open for more times (recorded only — no approved wording, no message sent)", { round, sent: false }, { internal: true });
     await admin.from("jobs").update({ next_action: "Waiting for the owner to pick more PIESA times" }).eq("id", jobId);
     return true;
   }

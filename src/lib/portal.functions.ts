@@ -734,6 +734,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (!data.accept) {
       await admin.from("quotes").update({ status: "declined" }).eq("id", q.id);
       await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined by the owner${data.reason ? ` — ${data.reason}` : ""}`, { reason: data.reason, quote_id: q.id, needs_office: true });
+      // I24 (decision 326): tell the installer (best-effort, once per quote; the 15-minute tick catches up a miss).
+      await (await import("./trade-messages.server")).tellInstallerOwnerDeclined(q.job_id, q.id, data.reason ?? null).catch((e) => console.error("owner declined installer email skipped", (e as Error).message));
       return { ok: true };
     }
     // Installation acceptance is the commercial agreement only. ESC consent and VEEC assignment are later forms.

@@ -37,6 +37,9 @@ export const PURPOSE_LABEL: Record<string, string> = {
   veec_sign_request: "Rebate form request text", veec_sign_reminder: "Rebate form reminder text", three_questions_reminder_sms: "3 questions reminder text",
   job_offer: "Job offer text", install_clearance: "Install clearance text", install_window_reminder: "30-day reminder text", install_window_reminder_installer: "30-day reminder text (installer)",
   daily_mitti: "Morning Mitti text", daily_mitti_update: "Mitti update text", esc_notice_link: "ESC notice link text", usual_electrician_missing: "Usual electrician text", ready_check_incomplete: "Ready Check incomplete text",
+  // Decision 326
+  ready_check_times_owner: "Ready Check times text", ready_check_booked_owner: "Ready Check booked text", visit_tomorrow_owner: "See you tomorrow text",
+  safety_check_booked_owner: "Safety check booked text", quote_reminder_sms: "Quote reminder text", install_moved: "Install moved text", piesa_offer: "Safety check job offer text",
 };
 
 export function sendLabel(key: string, channel: "email" | "sms"): string {
