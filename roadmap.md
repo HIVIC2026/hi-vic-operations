@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 25 Oct 09:28 read-only counts
+- [ ] Count all estimate-stage leads with the real read-facts loader and pure decisions; count tomorrow's daily Mitti recipients and first-day Ready Check effects with sending/writes blocked; delete the temporary script.
+- [ ] Finish the interrupted Outlook archive action after fresh checks; last read batch was cancelled before execution and no messages have been moved.
 ## Monitoring findings (Jo 23 Oct 21:24 UTC)
 - [ ] Restore owner insulation-question saving without bypassing pending persistence activation; confirmed real-owner gate blocks submission. Await approval of the repair plan; no live writes or sends.
 - [ ] Make explicit photo-review closure record the audited Office ineligible decision, preserving rank-only buttons and optional guarded email. Await approval of the repair plan; existing eligibility setter invokes automation and must not be called unchanged.
