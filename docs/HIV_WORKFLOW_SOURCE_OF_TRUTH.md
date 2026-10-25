@@ -205,3 +205,6 @@ If the completion pack went without a product's manufacturer warranty because th
 - **One-screen Final check (372):** every pre-computed check with a tick/cross, why and an evidence link; Approve enabled only when all pass; the human authorised action and every existing guard stay; no auto-approve.
 ## Crew safety plan links by text (decision 377, 25 Oct 2026)
 The business owner adds each team member's mobile once on My business › Team. When an install is booked, each crew member who hasn't signed the safety plan is texted their own sign link, and again the afternoon before the install if still unsigned; nothing once they have signed. The lead's install texts list those people by name only and keep the "<name>: <link>" line for anyone without a mobile. The wording is a draft awaiting Jo's approval; until then nothing goes to real crew (TEST jobs/partners use the test sender).
+
+## Staff address (decision 381, Jo 25 Oct 2026)
+- portal.homeinsulationvictoria.com.au is the staff address: its bare address opens sign-in (`/auth`, which sends signed-in staff on to the portal). Every customer host keeps the public calculator at `/`; all other paths are unchanged. Rule in pure `staff-host.core.ts`, applied in `src/server.ts` (page loads) and the `/` route (in-app navigation). Jo adds the domain in Lovable › Settings › Domains.

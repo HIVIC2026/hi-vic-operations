@@ -5,6 +5,7 @@ import { requestContext } from "./lib/background.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
 import { isConnectionTeardown } from "./lib/http-abort";
+import { staffHostRedirect } from "./lib/staff-host.core";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -76,6 +77,9 @@ function detachedGetRequest(request: Request, url: string): Request {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // Decision 381: the staff address opens sign-in, not the public calculator.
+    const staffTo = request.method === "GET" || request.method === "HEAD" ? staffHostRedirect(request.url) : null;
+    if (staffTo) return new Response(null, { status: 302, headers: { location: staffTo, "cache-control": "no-store" } });
     try {
       const incoming = detachedPageRequest(request);
       const handler = await getServerEntry();
