@@ -4,6 +4,18 @@
 // completion pack still attaches it after full payment but never records it a second time.
 // Decision 322: the Certificate of Electrical Safety file the electrician uploaded in the A4 fixes form (kept on the job by
 // fixes-day.server.ts) is attached to the completion pack when present. No I/O here.
+import type { SendEventNames } from "./send-outcome.core";
+
+/** The completion pack email's provider idempotency key (also the guarded sender's reservation key). */
+export const COMPLETION_PACK_EMAIL_KEY = (jobId: string) => `completion-pack:v1:${jobId}`;
+/** Written only after a confirmed send (completion-pack.server). */
+export const COMPLETION_PACK_SENT_EVENT = "completion_pack_sent";
+/** Review R04: a definite delivery failure (retried later, same key) and an unknown outcome (never resent; Needs me). */
+export const COMPLETION_PACK_SEND_FAILED_EVENT = "completion_pack_send_failed";
+export const COMPLETION_PACK_SEND_UNKNOWN_EVENT = "completion_pack_send_unknown";
+/** The pack's reservation is the guarded sender's own (no separate attempt event), so it has no "pending" state. */
+export const COMPLETION_PACK_SEND_EVENTS: SendEventNames = { attempt: null, sent: COMPLETION_PACK_SENT_EVENT, failed: COMPLETION_PACK_SEND_FAILED_EVENT, unknown: COMPLETION_PACK_SEND_UNKNOWN_EVENT };
+export const COMPLETION_PACK_UNKNOWN_LINE = "Completion pack email · no clear answer from the email service · not resent · check the email service and the owner";
 
 /** A guarded owner send (sendOwnerTemplateEmail / test-send) went out. */
 export const ownerEmailSent = (result: string) => result === "sent" || /^sent\b/.test(result);

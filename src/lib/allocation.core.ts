@@ -261,7 +261,9 @@ export type ClearanceFacts = {
   /** Decision 314 follow-up (decision 315 commit): the A3's ONLY repair tick is "Be on site at the start of the install
    *  day" (fixes-times.core `onsiteStartOnly`) — no fixes visit and no Section C ever happen. Absent = false. */
   onsiteStartOnly?: boolean;
-  /** The approved payment rule has cleared for the accepted fixes quote (workflow.server `paymentGate`). Absent = false. */
+  /** Review R08: the approved payment rule has cleared (workflow.server `paymentGate`) AND the FULL accepted onsite
+   *  electrical (fixes) charge has been received on top of the safety check payment (payments.core `onsiteChargePaid`,
+   *  read by electrical-clearance.server). The safety check payment alone is never enough. Absent = false. */
   fixesPaymentCleared?: boolean;
 };
 export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";

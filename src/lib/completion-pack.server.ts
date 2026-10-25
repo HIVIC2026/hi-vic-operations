@@ -10,13 +10,17 @@
 // When: install recorded complete AND the installation invoice paid in full (O45 wording: "Once it's paid, we'll send your
 // completion pack"). Once per job (`completion_pack_sent` event, written only after a confirmed send). Delivery stays behind
 // COMPLETION_EMAILS_APPROVED + customer_comms_enabled + consent through sendOwnerTemplateEmail; TEST jobs use test-send.
+// Review R04: the pack shared the "a failed send is consumed for good" defect through the guarded sender's reservation —
+// a definite failure now re-claims it and retries with the SAME key after a growing wait (`completion_pack_send_failed`),
+// an unknown outcome is never resent and raises one Needs me row (`completion_pack_send_unknown`); send-outcome.core.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { WARRANTY_COPY_PROVIDED_EVENT, warrantyProvidedSummary, type ProductWarranty, type WarrantyAttachDecision } from "./product-warranty.core";
-import { WARRANTY_VIA_LABEL, coesAttachmentPlan, invoiceFullyPaid, ownerEmailSent, shouldRecordWarrantyProvided, type WarrantyRecordVia } from "./completion-pack.core";
+import { COMPLETION_PACK_EMAIL_KEY, COMPLETION_PACK_SENT_EVENT, COMPLETION_PACK_SEND_EVENTS, COMPLETION_PACK_SEND_FAILED_EVENT, COMPLETION_PACK_SEND_UNKNOWN_EVENT, WARRANTY_VIA_LABEL, coesAttachmentPlan, invoiceFullyPaid, ownerEmailSent, shouldRecordWarrantyProvided, type WarrantyRecordVia } from "./completion-pack.core";
 import type { EmailAttachment } from "./email-kit.core";
+import { classifyEmailLogStatus, classifyTemplateSendResult, deliveryFromEvents, retryWaitBlocker, type SendEvent, type SendOutcome } from "./send-outcome.core";
 
-export const COMPLETION_PACK_SENT_EVENT = "completion_pack_sent";
+export { COMPLETION_PACK_SENT_EVENT, COMPLETION_PACK_SEND_FAILED_EVENT, COMPLETION_PACK_SEND_UNKNOWN_EVENT, COMPLETION_PACK_SEND_EVENTS };
 export const COMPLETION_PACK_NOT_SENT_EVENT = "completion_pack_email_not_sent";
 /** Only jobs completed this recently are swept (older completions were handled before this sender existed). */
 const SWEEP_WINDOW_MS = 60 * 86400_000;
@@ -74,14 +78,25 @@ export async function coesAttachmentsFor(jobId: string): Promise<{ attachments: 
 
 export type CompletionPackResult = { outcome: "sent" | "skipped" | "not_sent"; detail: string; warranties: { attached: string[]; missing: string[]; recorded: boolean }; coes?: string[] };
 
+async function packSendEvents(jobId: string): Promise<SendEvent[]> {
+  const { data, error } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [COMPLETION_PACK_SENT_EVENT, COMPLETION_PACK_SEND_FAILED_EVENT, COMPLETION_PACK_SEND_UNKNOWN_EVENT]).order("created_at", { ascending: true });
+  if (error) throw new Error(`Completion pack could not read its earlier attempts: ${error.message}`);
+  return (data ?? []) as SendEvent[];
+}
+
 /** Sends the completion pack for one job when due. Idempotent. Never throws for a business reason. */
-export async function sendCompletionPack(jobId: string, actorId: string | null = null): Promise<CompletionPackResult> {
+export async function sendCompletionPack(jobId: string, actorId: string | null = null, now = new Date()): Promise<CompletionPackResult> {
   const none = { attached: [] as string[], missing: [] as string[], recorded: false };
-  const { data: job } = await admin.from("jobs").select("installation_completed_at, deleted_at").eq("id", jobId).maybeSingle();
+  const { data: job } = await admin.from("jobs").select("installation_completed_at, deleted_at, source").eq("id", jobId).maybeSingle();
   if (!job || job.deleted_at) return { outcome: "skipped", detail: "no job", warranties: none };
   if (!job.installation_completed_at) return { outcome: "skipped", detail: "install not recorded complete", warranties: none };
   if (await alreadySent(jobId)) return { outcome: "skipped", detail: "already sent", warranties: none };
   if (!(await invoicePaidInFull(jobId))) return { outcome: "skipped", detail: "invoice not paid in full", warranties: none };
+  // Review R04: an unknown outcome is never resent (office row); a definite failure waits 1h, 2h, 4h … before the retry.
+  const delivery = deliveryFromEvents(await packSendEvents(jobId), COMPLETION_PACK_SEND_EVENTS);
+  if (delivery.state === "unknown") return { outcome: "skipped", detail: "delivery uncertain — not resent; office to check", warranties: none };
+  const wait = retryWaitBlocker(delivery, now.toISOString());
+  if (wait) return { outcome: "skipped", detail: wait, warranties: none };
 
   const { warrantyDecisionFor, prepareWarrantyCopies } = await import("./product-warranty.server");
   const decision = await warrantyDecisionFor(jobId);
@@ -94,10 +109,29 @@ export async function sendCompletionPack(jobId: string, actorId: string | null =
   const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
   const downloads = { certificateUrl: null, invoiceUrl: null, warrantiesUrl: link ? `${link}?screen=done` : null, signedFormsUrl: link ? `${link}?screen=done` : null };
   const coes = await coesAttachmentsFor(jobId);
-  const r = await emailOwnerCompletionPack(jobId, downloads, undefined, { attachments: [...copies.attachments, ...coes.attachments], attachedWarranties: attachedNames, attachedCoes: coes.names.length > 0 });
-  const sent = ownerEmailSent(r);
+  const test = job.source === "qa_test";
+  const { classifyProviderStatus } = await import("./save-spot-delivery.core");
+  const key = COMPLETION_PACK_EMAIL_KEY(jobId);
+  const emailLog = async () => classifyEmailLogStatus(await (await import("./owner-email-send.server")).guardedOwnerEmailStatus(key));
+  // Review R04: a DEFINITE failure re-claims the guarded sender's reservation and resends with the same key (real owners);
+  // TEST sends reuse test-send's content key. Holds (approval, link, consent, no email) are not attempts.
+  let r: string;
+  let o: SendOutcome | "held";
+  try {
+    r = await emailOwnerCompletionPack(jobId, downloads, undefined, { attachments: [...copies.attachments, ...coes.attachments], attachedWarranties: attachedNames, attachedCoes: coes.names.length > 0, retryAfterDefiniteFailure: true });
+    o = classifyTemplateSendResult(r, test, classifyProviderStatus) ?? await emailLog(); // "already attempted" → the email log decides
+  } catch (e) {
+    // Real owners: the email log says whether anything reached the email service; TEST sends record every provider answer
+    // themselves, so an exception escaping them happened before the provider took the email.
+    r = `failed: ${(e as Error).message}`;
+    const log = test ? { outcome: "failed" as const, detail: r } : await emailLog().catch(() => ({ outcome: "unknown" as const, detail: "The email log could not be read" }));
+    o = log.outcome === "failed" ? { outcome: "failed", detail: r } : log;
+  }
   const warranties = { attached: attachedNames, missing: missingProducts, recorded: false };
-  if (!sent) return { outcome: "not_sent", detail: r, warranties, coes: coes.names };
+  if (o !== "held" && o.outcome === "failed") await logEvent(jobId, actorId, COMPLETION_PACK_SEND_FAILED_EVENT, "Completion pack email not sent (definite failure) — it will be tried again", { key, detail: o.detail.slice(0, 500) }, { internal: true });
+  if (o !== "held" && o.outcome === "unknown") await logEvent(jobId, actorId, COMPLETION_PACK_SEND_UNKNOWN_EVENT, "Completion pack email: no clear answer from the email service — not resent; office to check", { key, detail: o.detail.slice(0, 500), needs_office: true }, { internal: true });
+  if (o === "held" || o.outcome !== "delivered") return { outcome: "not_sent", detail: r, warranties, coes: coes.names };
+  if (!ownerEmailSent(r)) r = "sent"; // confirmed from the email log
 
   await logEvent(jobId, actorId, COMPLETION_PACK_SENT_EVENT, `Completion pack emailed to the owner${attachedNames.length ? ` with the ${attachedNames.join(" and ")} manufacturer warranty attached` : ""}${coes.names.length ? `${attachedNames.length ? " and" : " with"} the Certificate of Electrical Safety attached` : ""}`, { result: r, attached: attachedNames, missing: missingProducts, products: decision.products, coes_attached: coes.names, coes_not_attached: coes.skipped });
   // Decision 321: normally already recorded by the All done email at install complete — recorded here only if it was not.

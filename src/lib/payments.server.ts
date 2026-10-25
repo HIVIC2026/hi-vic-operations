@@ -7,14 +7,15 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
-  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
-  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
+  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
   provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
 } from "./payments.core";
 
-export const PAYMENT_EVENT = "owner_payment_recorded";
-/** Audit F01: a recorded Xero payment that Xero later shows DELETED/VOIDED (or no longer lists). One per PaymentID. */
-export const PAYMENT_REVERSED_EVENT = "owner_payment_reversed";
+// Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
+// without this module's senders); re-exported here unchanged.
+import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger } from "./payment-ledger.server";
+export { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger };
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
 
@@ -27,14 +28,6 @@ export function bankDetails(): BankDetails {
   return { accountName, bsb, accountNumber, payId, configured: !!((bsb && accountNumber) || payId) };
 }
 
-type LedgerRow = { id: string; event_type: string; created_at: string; actor_id: string | null; details: Record<string, unknown> };
-/** Every payment + reversal row for the invoice, as recorded (append-only). Use `paymentLedger` for money received. */
-export async function rawPaymentLedger(jobId: string, invoiceId?: string): Promise<(PaymentRecord & { id: string; createdAt: string })[]> {
-  const { data } = await admin.from("workflow_events").select("id, event_type, created_at, actor_id, details").eq("job_id", jobId).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at");
-  return ((data ?? []) as unknown as LedgerRow[])
-    .filter((r) => !invoiceId || r.details["invoice_id"] === invoiceId)
-    .map((r) => ({ id: r.id, createdAt: r.created_at, ...ledgerRecordFromEvent(r.event_type, r.created_at, r.actor_id, r.details) }));
-}
 /** Money actually received (audit F01): live Xero payments + card/office records not yet matched in Xero — no reversed
  *  or duplicated rows, so cumulativePaidCents(paymentLedger(...)) is the reconciled amount. */
 export async function paymentLedger(jobId: string, invoiceId?: string) {

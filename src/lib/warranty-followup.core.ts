@@ -6,15 +6,45 @@
 // WARRANTY_FOLLOWUP_APPROVED stays false until Jo approves it — real owners get nothing and nothing is recorded while it is
 // false; TEST (qa_test) jobs use test-send. PURE: rules, key and the renderer. No I/O.
 import * as K from "./email-kit.core";
+import { deliveryFromEvents, retryWaitBlocker, unknownSendOpen, type DeliveryState, type SendEvent, type SendEventNames } from "./send-outcome.core";
 
 export const WARRANTY_FOLLOWUP_APPROVED = true as boolean; // Jo approved O73 as drafted, 25 Oct 2026 (decision 375)
 export const WARRANTY_FOLLOWUP_TEMPLATE_CODE = "O73";
 export const WARRANTY_FOLLOWUP_PURPOSE = "warranty_followup";
-/** Recorded once per job BEFORE the email is sent (so a tick never sends twice). */
+// Review R04 (audit F16): the old single marker was written BEFORE delivery, so a failed send consumed it for good and
+// `warranty_copy_provided` was never recorded. Each attempt now has a reservation and exactly one outcome:
+//   ATTEMPT  — written before the send (key, attempt number) so an interrupted send is never silently repeated;
+//   SENT     — the email service ACCEPTED it (details.confirmed = true); then `warranty_copy_provided` is recorded;
+//   FAILED   — a DEFINITE failure (refused, blocked, or never handed over): a later tick retries with the SAME provider
+//              idempotency key, after a growing wait (1h, 2h, 4h … max 24h);
+//   UNKNOWN  — no clear answer (timeout, 5xx, lost connection, an attempt with no recorded outcome): NEVER resent; the
+//              office sees one Needs me row (`warrantyFollowupUnknownOpen`) until the copy is recorded.
+// A `warranty_followup_sent` row WITHOUT details.confirmed is the pre-R04 marker (written before delivery): treated as an
+// attempt with no recorded outcome — the email log decides it, else it is UNKNOWN.
+export const WARRANTY_FOLLOWUP_ATTEMPT_EVENT = "warranty_followup_attempt";
+/** Confirmed delivery (details.confirmed = true). Before review R04 the same name was written BEFORE sending. */
 export const WARRANTY_FOLLOWUP_SENT_EVENT = "warranty_followup_sent";
+export const WARRANTY_FOLLOWUP_FAILED_EVENT = "warranty_followup_failed";
+export const WARRANTY_FOLLOWUP_UNKNOWN_EVENT = "warranty_followup_unknown";
+export const WARRANTY_FOLLOWUP_EVENTS = [WARRANTY_FOLLOWUP_ATTEMPT_EVENT, WARRANTY_FOLLOWUP_SENT_EVENT, WARRANTY_FOLLOWUP_FAILED_EVENT, WARRANTY_FOLLOWUP_UNKNOWN_EVENT] as const;
+
 /** Recorded by the completion pack when an installed product's warranty PDF was not on file. */
 export const PRODUCT_WARRANTY_MISSING_EVENT = "product_warranty_missing";
 export const warrantyFollowupKey = (jobId: string) => `warranty-followup:v1:${jobId}`;
+
+export type WarrantyFollowupEvent = SendEvent;
+export type WarrantyFollowupDelivery = DeliveryState;
+export const WARRANTY_FOLLOWUP_EVENT_NAMES: SendEventNames = { attempt: WARRANTY_FOLLOWUP_ATTEMPT_EVENT, sent: WARRANTY_FOLLOWUP_SENT_EVENT, failed: WARRANTY_FOLLOWUP_FAILED_EVENT, unknown: WARRANTY_FOLLOWUP_UNKNOWN_EVENT, sentNeedsConfirmed: true };
+
+/** Where the follow-up stands, from its own events (any order). Pure. */
+export const warrantyFollowupDelivery = (events: readonly WarrantyFollowupEvent[]): WarrantyFollowupDelivery => deliveryFromEvents(events, WARRANTY_FOLLOWUP_EVENT_NAMES);
+
+/** Needs me (review R04): ONE open row per job while a follow-up outcome is unknown and no warranty copy is recorded. */
+export const WARRANTY_FOLLOWUP_UNKNOWN_LINE = "Warranty email · no clear answer from the email service · not resent · check the email service and the owner";
+export function warrantyFollowupUnknownOpen(events: readonly WarrantyFollowupEvent[], copyProvided: boolean): { at: string; text: string } | null {
+  const o = unknownSendOpen(events, WARRANTY_FOLLOWUP_EVENT_NAMES, copyProvided);
+  return o ? { at: o.at, text: WARRANTY_FOLLOWUP_UNKNOWN_LINE } : null;
+}
 
 export type WarrantyFollowupFacts = {
   installCompleted: boolean; deleted: boolean;
@@ -22,10 +52,12 @@ export type WarrantyFollowupFacts = {
   missingRecorded: boolean;
   /** `warranty_copy_provided` already recorded (by O44, O47 or an earlier follow-up). */
   provided: boolean;
-  /** A follow-up was already sent for this job (key used). */
+  /** The follow-up was confirmed delivered for this job (review R04: only after the email service accepted it). */
   alreadySent: boolean;
   /** Installed products, and whether every one now has its PDF on file. */
   products: string[]; allOnFile: boolean;
+  /** Review R04: earlier attempts (`warrantyFollowupDelivery`) and the time now — absent = never tried. */
+  delivery?: WarrantyFollowupDelivery; now?: string;
 };
 
 /** Why nothing happens now, or null when the follow-up email is due. */
@@ -34,10 +66,12 @@ export function warrantyFollowupBlocker(f: WarrantyFollowupFacts): string | null
   if (!f.installCompleted) return "install not recorded complete";
   if (!f.missingRecorded) return "no warranty was missing";
   if (f.provided) return "warranty copy already provided";
-  if (f.alreadySent) return "follow-up already sent";
+  if (f.alreadySent || f.delivery?.state === "delivered") return "follow-up already sent";
+  if (f.delivery?.state === "unknown") return "follow-up delivery outcome unknown — not resent; office to check";
+  if (f.delivery?.state === "pending") return "follow-up attempt has no recorded outcome — not resent; office to check";
   if (!f.products.length) return "installed product not known";
   if (!f.allOnFile) return "warranty PDF still not on file";
-  return null;
+  return f.delivery ? retryWaitBlocker(f.delivery, f.now ?? new Date().toISOString()) : null;
 }
 
 export type WarrantyFollowupEmailInput = { firstName: string | null; products: string[]; unsubscribeUrl: string | null; test?: boolean };
