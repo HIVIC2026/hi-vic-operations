@@ -68,6 +68,9 @@ function orSql(expr: string, ph: (v: unknown) => string, join = "OR"): string {
 export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Record<string, string[]> } = {}) {
   const q = (c: string) => `"${c}"`;
   let n = 0;
+  // Postgres array columns (text[] etc.): a JS array is written as a Postgres array, as PostgREST does — not as JSON text.
+  let arrayCols: Promise<Set<string>> | null = null;
+  const arrayColumns = () => (arrayCols ??= db.query<{ k: string }>("select table_name || '.' || column_name as k from information_schema.columns where table_schema = 'public' and data_type = 'ARRAY'").then((r) => new Set(r.rows.map((x) => x.k))));
   const rel = (table: string, e: { alias: string; key: string }) => {
     const r = rels[table]?.[e.alias] ?? rels[table]?.[e.key] ?? Object.values(rels[table] ?? {}).find((x) => x.fk === e.key);
     if (!r) throw new Error(`embed shim: no relationship declared for ${table}.${e.alias}`);
@@ -133,7 +136,8 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
         async run() {
           const vals: unknown[] = [];
           const ph = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-          const enc = (k: string, v: unknown) => (v !== null && (typeof v === "object" || options.jsonColumns?.[table]?.includes(k)) ? JSON.stringify(v) : v);
+          const arrays = op === "insert" || op === "update" ? await arrayColumns() : new Set<string>();
+          const enc = (k: string, v: unknown) => (Array.isArray(v) && arrays.has(`${table}.${k}`) ? v : v !== null && (typeof v === "object" || options.jsonColumns?.[table]?.includes(k)) ? JSON.stringify(v) : v);
           const parts = op === "select" ? parseSelect(selectStr) : [];
           const embeds = parts.filter((p): p is Extract<Part, { kind: "embed" }> => p.kind === "embed");
           const where = (phFn: (v: unknown) => string = ph) => {

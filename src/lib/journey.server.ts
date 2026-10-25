@@ -9,7 +9,6 @@ export const TEST_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
 export const TEST_ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
 export const TEST_WORKER_EMAIL = "qa.worker.alpha@hivic-test.example";
 const TEST_DOMAIN = "@hivic-test.example";
-const JOURNEY_POSTCODE = "3199";
 
 export type JourneyCtx = {
   runId: string; startedAt: string; actorId: string; jobId: string | null; jobNumber: string | null; token: string | null;
@@ -234,8 +233,9 @@ const s4: StepFn = async (ctx, r) => {
   check(r, "offer hides owner contact before it's taken", !before.includes(ctx.ownerEmail) && !/Journey Test Street/.test(before));
   // Installer accepts by offering the owner 3 times; the owner taps the first one (booked through confirmBooking).
   const rct = await import("./ready-check-times.core");
+  // Each time 24h+ ahead (installerTimesBlockers): 10:00 where still allowed, else that day's first allowed time.
   const days = rct.allowedReadyCheckDays().slice(0, 3);
-  await tv.tradeOfferReadyCheckTimes(offerId, ctx.installer.id, days.map((day) => ({ day, time: "10:00" })));
+  await tv.tradeOfferReadyCheckTimes(offerId, ctx.installer.id, days.map((day) => { const ok = rct.allowedReadyCheckTimes(day); return { day, time: ok.includes("10:00") ? "10:00" : ok[0]! }; }));
   const { data: offered } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("note", rct.READY_CHECK_TIME_NOTE).eq("status", "proposed").order("starts_at").limit(1).single();
   check(r, "installer offered the owner 3 Ready Check times", !!offered);
   const { data: jo0 } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
@@ -252,6 +252,8 @@ const s4: StepFn = async (ctx, r) => {
   const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, insulation_present: false, access_difficulty: "easy", measurement_method: "laser",
     completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" } } as never);
   check(r, "Ready Check recorded", !me, me?.message);
+  // The insulation product answer on the form, recorded the way the Mitti sync records it (declared, not verified).
+  await (await import("./insulation-product.server")).mittiProductForJob(ctx.jobId!, ctx.installer.id, [{ label: "What insulation product will you be using on this job?", value: "Bradford Gold R5" }], `sim-${ctx.runId}`);
   for (const c of ["before_ceiling_space", "access_manhole", "existing_insulation_r_value", "identity_front_of_property"]) await uploadEvidence(ctx, c, ctx.installer.id);
   const { recordPriorActivityCheck } = await import("./verified-eligibility.server");
   await recordPriorActivityCheck(ctx.jobId!, ctx.actorId, "none_known" as never, null);
@@ -290,7 +292,8 @@ async function stageOf(ctx: JourneyCtx) { return (await admin.from("jobs").selec
 const s5: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
   const { data: q0 } = await admin.from("quotes").select("id, status, release_state, version").eq("id", ctx.quoteId!).single();
-  if (q0?.status === "draft") { const { approveHeldQuote } = await import("./quotes.server"); await act(r, "office approves the held quote", () => approveHeldQuote(ctx.quoteId!, ctx.actorId)); }
+  // Ready Check quotes wait on Quotes to check; the office presses Send (installer quote approval retired, Jo 24 Oct 2026).
+  if (q0?.status === "draft") { const { sendOfficeReviewedQuote } = await import("./office-quote-review.server"); await act(r, "office checks the quote and presses Send", () => sendOfficeReviewedQuote(ctx.jobId!, ctx.quoteId!, ctx.actorId)); }
   const og = await import("./owner-gates.server");
   const pw = await og.ownerPaperworkToSign(ctx.jobId!);
   const line = pw.todo.find((t) => t.key === "quote_acceptance");
@@ -344,9 +347,9 @@ const s6: StepFn = async (ctx, r) => {
   check(r, "TEST Delta has an open Pre Insulation Electrical Safety Assessment (PIESA) offer", !!mine);
   // Decision 333: the electrician accepts by offering the owner 3 times; the owner taps one (30-day box ticked) = booked.
   const pt = await import("./piesa-times.server");
-  const { allowedPiesaTimeDays } = await import("./piesa-times.core");
+  const { allowedPiesaTimeDays, allowedPiesaTimes } = await import("./piesa-times.core");
   const tdays = allowedPiesaTimeDays().slice(1, 4);
-  await act(r, "electrician accepts and offers the owner 3 safety check times", () => pt.acceptPiesaOfferWithTimes(mine!.id, ctx.electrician.id, tdays.map((day) => ({ day, time: "10:00" }))));
+  await act(r, "electrician accepts and offers the owner 3 safety check times", () => pt.acceptPiesaOfferWithTimes(mine!.id, ctx.electrician.id, tdays.map((day) => { const ok = allowedPiesaTimes(day); return { day, time: ok.includes("10:00" as never) ? "10:00" : ok[0]! }; })));
   const ost = await pt.ownerPiesaTimesState(ctx.jobId!);
   check(r, "owner sees the electrician's 3 times", ost.turn === "owner_to_answer" && ost.open.length === 3, ost.turn);
   await act(r, "owner ticks the 30-day box and takes the first time", () => pt.ownerTakePiesaTime(ctx.jobId!, ost.open[0]!.id, ctx.actorId, { understandsThirtyDays: true, ip: null, userAgent: null }));
@@ -532,47 +535,15 @@ export async function cleanupJourney(ctx: JourneyCtx) {
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
 }
 
-/** TEST trade setup the journey depends on (TEST Alpha's field worker holds a Full, current EEC certification).
- *  Only ever touches TEST-domain workers in businesses named "TEST …". Append-only, idempotent. */
-async function ensureTestTrades(actorId: string, installerBiz: string, electricianBiz: string) {
-  const before: Record<string, unknown>[] = [];
-  for (const id of [installerBiz, electricianBiz]) {
-    const { data: biz } = await admin.from("businesses").select("name, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads").eq("id", id).single();
-    if (!biz?.name?.startsWith("TEST ")) throw new Error("SAFETY STOP: a journey trade is not a TEST business.");
-    before.push({ id, service_postcodes: biz.service_postcodes ?? [], coverage_verified_at: biz.coverage_verified_at, free_measureups_for_hivic_quote_leads: biz.free_measureups_for_hivic_quote_leads });
-    const pcs = biz.service_postcodes ?? [];
-    await admin.from("businesses").update({
-      service_postcodes: pcs.includes(JOURNEY_POSTCODE) ? pcs : [...pcs, JOURNEY_POSTCODE], coverage_verified_at: biz.coverage_verified_at ?? new Date().toISOString(),
-      ...(id === installerBiz ? { free_measureups_for_hivic_quote_leads: true } : {}),
-    }).eq("id", id);
-  }
-  const { data: workers } = await admin.from("partner_workers").select("id, email").eq("business_id", installerBiz).eq("trade_role", "installer").is("removed_at", null); // decision 153: clearance comes from the certification, not approval_status
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
-  for (const w of (workers ?? []).filter((x) => x.email.endsWith(TEST_DOMAIN))) {
-    const { data: c } = await admin.from("partner_worker_certifications").select("id, status").or(`worker_id.eq.${w.id},worker_email.eq.${w.email}`).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-    let certId = c?.status === "verified" ? c.id : null;
-    if (!certId) {
-      const { data: ins, error } = await admin.from("partner_worker_certifications").insert({ worker_id: w.id, worker_email: w.email, status: "verified", evidence_source: "certificate_sighted", evidence_note: "TEST journey: fake certificate for a TEST worker", certificate_number: "TEST-EEC-0001", issuer: "TEST", recorded_by: actorId }).select("id").single();
-      if (error) throw new Error(`TEST certification setup: ${error.message}`);
-      certId = ins.id;
-    }
-    const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", certId).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-    if (!(lv?.level === "full" && lv.expires_on >= today)) {
-      const exp = new Date(Date.now() + 730 * 86_400_000).toISOString().slice(0, 10);
-      const { error } = await admin.from("worker_certification_levels").insert({ certification_id: certId, worker_email: w.email, level: "full", expires_on: exp, recorded_by: actorId });
-      if (error) throw new Error(`TEST certification level setup: ${error.message}`);
-    }
-  }
-  return before;
-}
-
 export async function newJourneyCtx(): Promise<JourneyCtx> {
   const runId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
   const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
-  const bizBefore = await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
-  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: bizBefore }, screens: [] };
+  // Bring the TEST trades up to every current gate (TEST identities only, idempotent): journey-setup.server.ts.
+  const { ensureJourneyTestTrades } = await import("./journey-setup.server");
+  const setup = await ensureJourneyTestTrades(actor!.id, installer, { ...electrician, email: TEST_ELECTRICIAN_EMAIL });
+  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: setup.before, setup: setup.log }, screens: [] };
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */

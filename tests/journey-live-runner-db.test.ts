@@ -17,7 +17,18 @@ for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API
 const tplItem = (item_id: string, label: string, type = "textsingle"): MittiItem => ({ item_id, label, type });
 const basic = { items: [tplItem("i_addr", "Site address", "address"), tplItem("i_owner", "Owner name"), tplItem("i_phone", "Homeowner phone"), tplItem("i_email", "Homeowner email"), tplItem("i_when", "Assessment date/time", "datetime")] };
 const providers = fakeProviders({ mittiTemplates: { [TPL_A1]: basic, [TPL_A2]: basic, [TPL_A3]: basic, [TPL_A4]: basic, [TPL_A5]: basic } });
-globalThis.fetch = providers.fetchImpl as typeof fetch;
+// The Xero Demo Company TEST payment (xero.server recordDemoTestPayment) also reads the bank accounts and PUTs a payment.
+globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  if (url.host === "connector-gateway.lovable.dev" && url.pathname.startsWith("/xero/api.xro/2.0/Accounts")) return new Response(JSON.stringify({ Accounts: [{ AccountID: "acc-demo-bank", Type: "BANK" }] }), { status: 200, headers: { "content-type": "application/json" } });
+  if (url.host === "connector-gateway.lovable.dev" && url.pathname === "/xero/api.xro/2.0/Payments" && (init?.method ?? "GET").toUpperCase() === "PUT") {
+    const b = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    const p = { ...b, PaymentID: `xero-pay-${providers.xero.payments.length + 1}`, Status: "AUTHORISED", Date: "/Date(1761523200000+0000)/" };
+    providers.xero.payments.push(p);
+    return new Response(JSON.stringify({ Payments: [p] }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  return providers.fetchImpl(input, init);
+}) as typeof fetch;
 
 const j = await journeyDb();
 await loadPendingFunctions(j);
@@ -80,6 +91,20 @@ await q(`insert into user_roles (user_id, role) values ($1,'admin')`, [OFFICE]);
 authUsers.set(OFFICE, { id: OFFICE, email: "admin@hivic.test", user_metadata: {} });
 
 const officeCtx = { userId: OFFICE, supabase: admin, claims: {} };
+// Live office one-off settings (global, not TEST data — every real owner needs them too): the approved owner documents
+// and ESC wording, loaded through the office server functions exactly as the A1/A2 journey tests do.
+{
+  const pf = await import("../src/lib/portal.functions");
+  for (const [key, body] of [["consumer_rights", "TEST VEU consumer information and consumer rights (fixture text)."], ["customer_agreement", "TEST customer agreement wording (fixture text)."],
+    ["esc_consent", "TEST ESC information-sharing consent (fixture text)."], ["installer_declaration", "TEST Activity 48 installer declaration (fixture text)."]] as const) {
+    await pf.addComplianceTemplate({ data: { template_key: key, version: "live-1", body }, context: officeCtx });
+    const [t] = await q<{ id: string }>("select id from compliance_templates where template_key=$1 and version='live-1'", [key]);
+    await pf.approveComplianceTemplate({ data: { id: t!.id }, context: officeCtx });
+  }
+  await pf.addEscConfig({ data: { version: "live-esc-config-1", fields: [], source_note: "ESC notification fields" }, context: officeCtx });
+  const [cfg] = await q<{ id: string }>("select id from esc_notification_config where version='live-esc-config-1'");
+  await pf.approveEscConfig({ data: { id: cfg!.id }, context: officeCtx });
+}
 const ta = await import("../src/lib/test-accounts.functions");
 const created = await ta.createTestTradeAccounts({ data: {}, context: officeCtx }) as { results: { status: string }[] };
 // "Prepare TEST access" on an earlier TEST job adds the TEST Alpha field worker (pending, unverified) — as on the live database.
@@ -107,6 +132,7 @@ describe("live journey runner — TEST setup from a fresh live database", () => 
   let run: Awaited<ReturnType<typeof import("../src/lib/journey.server").runServerJourney>>;
   test("runServerJourney: every step (1–10) passes", async () => {
     const jr = await import("../src/lib/journey.server");
+    if (process.env["JOURNEY_DEBUG"]) { const c = await jr.newJourneyCtx(); console.log("BIZ", await q("select name, free_measureups_for_hivic_quote_leads, service_postcodes, coverage_verified_at from businesses"), c.installer); }
     run = await jr.runServerJourney({ cleanup: false, afterStep: async () => { while (pending.length) await Promise.all(pending.splice(0)); } });
     for (const s of run.result.steps) {
       if (!s.passed || process.env["JOURNEY_DEBUG"]) console.log(`${s.passed ? "PASS" : "FAIL"} ${s.label}${s.error ? ` — ${s.error}` : ""}`, s.passed ? "" : JSON.stringify(s.checks.filter((c) => !c.ok)));
