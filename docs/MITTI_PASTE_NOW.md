@@ -1,6 +1,6 @@
 # Mitti: the four pastes still to do (25 Oct 2026)
 
-Paste each block into ChatGPT on its own. Blocks 1–3 each change one template; block 4 adds the same four questions to
+Paste each block into ChatGPT on its own. Blocks 1–3 each change one template; block 4 adds the same five questions to
 both Ready Check templates (A1 and A2).
 
 ## 1. A3 – Install day
@@ -93,11 +93,15 @@ Edit the Mitti template "A5 – Electrical fixes". Make ONLY these changes, then
 Change nothing else. Publish.
 ```
 
-## 4. A1 and A2 – Ready Check: existing insulation facts for the official PIISA (decision 359)
+## 4. A1 and A2 – Ready Check: existing insulation facts for the official PIISA (decisions 359 and 375)
 
 The official PIISA Part 6 needs these facts whenever the ceiling already has insulation. The portal reads them from the
-Ready Check by their exact wording (`LEAN_Q.existingSuitable`, `existingConductive`, `existingConductivePhoto`,
+Ready Check by their exact wording (`LEAN_Q.existingDepthMm`, `existingSuitable`, `existingConductive`, `existingConductivePhoto`,
 `existingKeepReason` in `src/lib/ready-check-lean.core.ts`; `tests/lean-ready-check.test.ts` fails if this block drifts).
+Decision 375: the average depth (official Part 6 "average height of the existing insulation", mm) is one number per ceiling
+area, asked only when that area's insulation is kept (Top up or Not sure). It REPLACES the old free-text question
+"What is the measured insulation depth (mm)?" (still on the 25 Oct templates; the portal reads its answer on forms
+already done, so nothing is lost).
 Forms finished before this change stay readable: a top-up on an old form is listed as "not recorded" for the office.
 When every area is Removed the portal fills Part 6 itself (decision 360), so these questions only matter for a top-up,
 but the foil question and photo are asked whenever there is existing insulation.
@@ -105,17 +109,25 @@ but the foil question and photo are asked whenever there is existing insulation.
 ```
 Edit the Mitti templates "A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | HIVIC Sourced Customer". Make the SAME change on both, then publish both.
 
-In the repeating ceiling-area section (the "Add a ceiling area" group), straight after the question "How much existing insulation needs to be removed? (m²)" and before "Slow 360° video of this ceiling area, lit, saying its name", add these four questions, in this order. Copy every question exactly, character for character:
+In the repeating ceiling-area section (the "Add a ceiling area" group):
+
+A. Delete the question "What is the measured insulation depth (mm)?" (a new depth question replaces it in step B).
+
+B. Straight after the question "What is required for the existing insulation?" and before "How much existing insulation needs to be removed? (m²)", add this question. Copy it exactly, character for character:
+
+"Average depth of the existing insulation (mm)" — Number — Required — only show when "What is required for the existing insulation?" = Top up or Not sure (never when it is Remove)
+
+C. Straight after the question "How much existing insulation needs to be removed? (m²)" and before "Slow 360° video of this ceiling area, lit, saying its name", add these four questions, in this order. Copy every question exactly, character for character:
 
 1. "Is the existing insulation in good enough condition to lay new insulation over?" — Yes/No — Required — only show when "What is required for the existing insulation?" = Top up — Yes green, No red
 2. "Is the existing insulation foil-backed, metallic or electrically conductive?" — Yes/No — Required — only show when "Is there existing insulation in this ceiling area?" = Yes — No green, Yes red
 3. "Photo showing whether it is foil-backed or conductive" — Photo, location on — Required — only show when "Is there existing insulation in this ceiling area?" = Yes
 4. "Why is the existing insulation being kept?" — Text — Required — only show when "What is required for the existing insulation?" = Top up
 
-They must be inside the repeating section, so every ceiling area gets its own answers. Do not add them anywhere else.
+All five must be inside the repeating section, so every ceiling area gets its own answers. Do not add them anywhere else.
 
 Change nothing else. Publish both.
 ```
 
 After publishing all four, tell Claude "published" and the portal will re-read the templates to check them (after block 4,
-A1 has 38 questions and A2 has 39, the ceiling-area section counted once).
+A1 has 39 questions and A2 has 40, the ceiling-area section counted once).

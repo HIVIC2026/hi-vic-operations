@@ -373,6 +373,8 @@ export type MittiArea = {
   suitable?: boolean | null; conductive?: boolean | null;
   /** Reference to this area's foil/conductive photo on the Ready Check audit (`mitti:{auditId}:item:{itemId}`), null when none. */
   conductiveEvidence?: string | null; keepReason?: string | null;
+  /** Decision 375: average depth of this area's existing insulation in mm (official PIISA Part 6 height); null = not recorded. */
+  depthMm?: number | null;
   product: string | null; scope: string | null; sources: Record<string, never>;
 };
 export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
@@ -457,7 +459,15 @@ export function parseAudit(audit: Any) {
     const condPhoto = present === true ? find(kids, [LEAN_Q.existingConductivePhoto], { withValue: true }) : undefined;
     const conductiveEvidence = condPhoto ? `mitti:${auditId}:item:${condPhoto.id}` : null;
     const keepReason = present === true ? val(kids, [LEAN_Q.existingKeepReason])?.trim().slice(0, 2000) || null : null;
-    return { parent: p, suitable, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
+    // Decision 375: average depth of the existing insulation (mm) → official PIISA Part 6 height. The Number question is
+    // checked like any measure; the old live free-text depth (LEAN_ALIASES) is read only when it is a clean number.
+    let depthMm: number | null = null;
+    if (present === true) {
+      const d = physical(val(kids, [LEAN_Q.existingDepthMm]), LEAN_Q.existingDepthMm);
+      if (d.issue) issues.push(d.issue);
+      depthMm = d.value ?? (() => { const x = num(val(kids, [...(LEAN_ALIASES.existingDepthMm ?? [])])); return x != null && x >= 0 ? x : null; })();
+    }
+    return { parent: p, suitable, depthMm, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
   for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo was added${r.hazardNote ? ` (installer note: ${r.hazardNote})` : ""} – office review required.`);
   if (rooms.length > 0) {
@@ -612,7 +622,7 @@ export function parseAudit(audit: Any) {
     rValue: r.rv, rValueBand: r.rvBand,
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
     removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
-    suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason,
+    suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason, depthMm: r.depthMm,
     product: null, scope: null, sources: {},
   }));
   // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.

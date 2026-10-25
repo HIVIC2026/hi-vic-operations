@@ -69,7 +69,7 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 ## Group 4: Ceiling areas (repeating section, button `Add a ceiling area`; the installer adds one per area)
 **REMOVE, and do not carry over from the old templates (both A1 and A2):**
 - the per-area sketch upload — A1 wording `Upload your area sketch or floor plan.` (with help text "Rough is fine. Mark this ceiling area and show the measurements used."), A2 wording `Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.` — it exists once in every one of the 22 old A1 area blocks and 21 old A2 area blocks; the software now draws the diagram itself (decision 211);
-- `What is the measured insulation depth (mm)?` (22 / 21 copies);
+- `What is the measured insulation depth (mm)?` (22 / 21 copies) — replaced by question 23a (decision 375);
 - `Please describe the existing insulation type` (22 / 21 copies);
 - `Please explain` under the issues question (22 / 21 copies) — replaced by questions 29 and 30 below (Mitti cannot require a note on a photo, so the note is its own question);
 - the question `How many ceiling areas need to be measured separately?` with its six branches `── Ceiling Area 1 ──` … `── Ceiling Area 6 ──` and every fixed area copy 2–22 inside them — replaced by the ONE repeating group below;
@@ -89,6 +89,7 @@ option anywhere. The new group below is complete as written.
 21. `What is the determined R value of the existing ceiling insulation?` — Pick one: `Below R2.0` / `R2.0 or above` — Required — only show when question 19 = `Yes` — help text: `R2.0 exactly counts as "R2.0 or above". Typical old 50–70 mm batts or thin loose fill are Below R2.0.`
 22. `Upload a photo clearly showing the measured insulation depth` — Photo — Not required — only show when question 19 = `Yes`
 23. `What is required for the existing insulation?` — Pick one: `Remove` / `Top up` / `Not sure` — Required — only show when question 19 = `Yes`
+23a. `Average depth of the existing insulation (mm)` — Number — Required — only show when question 23 = `Top up` or `Not sure` (never when it is `Remove`)
 24. `How much existing insulation needs to be removed? (m²)` — Number — Required — only show when question 23 = `Remove`
 24a. `Is the existing insulation in good enough condition to lay new insulation over?` — Yes/No — Required — only show when question 23 = `Top up`
 24b. `Is the existing insulation foil-backed, metallic or electrically conductive?` — Yes/No — Required — only show when question 19 = `Yes`
@@ -118,10 +119,10 @@ portal, never in Mitti (**A1 only** difference: A1 simply has no question 34 and
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 38 questions and A2 has 39** (Group 4
-counted once; A2 = questions 1–35 plus 24a–24d, A1 = questions 1–33, 24a–24d and 35), in this order; every "only show when" rule;
+Finish with a checklist I can use to verify each published template: **A1 has 39 questions and A2 has 40** (Group 4
+counted once; A2 = questions 1–35 plus 23a and 24a–24d, A1 = questions 1–33, 23a, 24a–24d and 35), in this order; every "only show when" rule;
 Required exactly as marked (the Photo questions 13 and 22 are the only optional ones); location on for every
-Photo; the repeating section adds a complete copy of questions 14–30 (with 24a–24d) each time; the eight product options spelled
+Photo; the repeating section adds a complete copy of questions 14–30 (with 23a and 24a–24d) each time; the eight product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each
 **template ID** (in the web address when the template is open, or under the template's settings), because I must send
 both IDs to my software team. Also remind me to keep the old A1 and A2 templates unpublished but not deleted until every

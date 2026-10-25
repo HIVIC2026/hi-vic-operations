@@ -363,8 +363,8 @@ export const strictPresent = (v: unknown): boolean | null => typeof v === "boole
 /**
  * Areas from the CANONICAL persisted Ready Check record. Mitti syncs store raw_snapshot as a flat entry list
  * (id/label/section/value) and the canonical parser's per-room results are written to the row columns, so the row
- * columns are the source. Structured per-area zones are used only when present as objects. Depth is not captured
- * canonically -> null. Removal/top-up only when actually recorded; never inferred from absence.
+ * columns are the source. Structured per-area zones are used only when present as objects; only they carry the
+ * existing-insulation depth (decision 375, `depthMm`), the row columns never do -> null. Removal/top-up only when actually recorded; never inferred from absence.
  */
 export function rcAreasFromRecord(m: { insulation_present: unknown; existing_r_value: unknown; removal_required?: unknown; zones?: unknown } | null, downlightsQty: number | null): RcArea[] {
   if (!m) return [];
@@ -409,7 +409,7 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
  * install day form no longer asks it. Decision 359: condition (suitable to lay over), reason kept, foil/metallic/conductive
  * and its photo come from each area's Ready Check answers (`RcArea`); `extra` (when non-null) overrides them. Decision 360:
  * when every area with existing insulation is Removed, Part 6 is filled by the portal (suitable = No, no reason, the foil
- * note satisfied by removal). Every fact the record does not establish is listed in `missing` (a pre-start blocker), never guessed.
+ * note satisfied by removal). Decision 375: the height (p6.height) comes from each kept area's depth answer. Every fact the record does not establish is listed in `missing` (a pre-start blocker), never guessed.
  */
 export type Part6Extra = { suitable: boolean | null; conductive: boolean | null; reason: string | null; conductiveEvidence?: string | null };
 export type Part6Result = {
@@ -422,6 +422,9 @@ export type Part6Result = {
   fullRemoval: boolean;
 };
 const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
+/** Decision 375: the official PIISA Part 6 asks "What is the average height of the existing insulation?" whenever
+ *  insulation is present, with no exception for a complete removal, while the Ready Check does not ask it for removed areas. */
+export const EXISTING_DEPTH_FULL_REMOVAL_MISSING = "Ready Check: existing insulation depth (mm) not recorded — the official PIISA Part 6 asks for it even when all the existing insulation is removed";
 export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_EXTRA): Part6Result {
   const answers: Record<string, string | string[]> = {}, missing: string[] = [];
   const none = { conductive: null, conductiveEvidence: null, fullRemoval: false };
@@ -432,9 +435,19 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
   answers["p6.present"] = present ? "Yes" : "No";
   if (!present) return { answers, missing, ...none };
   const withIns = areas.filter((a) => a.present === true);
-  const depths = [...new Set(withIns.map((a) => a.depthMm).filter((x): x is number => x != null && Number.isFinite(x)))];
-  if (depths.length === 1 && withIns.every((a) => a.depthMm != null)) answers["p6.height"] = String(depths[0]);
-  else missing.push(depths.length > 1 ? `Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average` : "Ready Check: existing insulation depth (mm) not recorded");
+  // Decision 375: the depth is asked per area only where the existing insulation is kept (Top up / Not sure), so it is
+  // required for every such area; a removed area adds its depth when one was recorded (older live forms asked it for every
+  // area). The official form asks the height whenever insulation is present — even on a complete removal — so a full
+  // removal with no depth recorded stays missing (never invented).
+  const hasDepth = (a: RcArea) => a.depthMm != null && Number.isFinite(a.depthMm);
+  const depths = [...new Set(withIns.filter(hasDepth).map((a) => a.depthMm as number))];
+  const kept = withIns.filter((a) => a.removal !== true);
+  const keptNoDepth = kept.filter((a) => !hasDepth(a));
+  const areaName = (a: RcArea) => a.name?.trim() || `Area ${areas.indexOf(a) + 1}`;
+  if (depths.length > 1) missing.push(`Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average`);
+  else if (keptNoDepth.length) missing.push(`Ready Check: existing insulation depth (mm) not recorded${kept.length > 1 ? ` (${keptNoDepth.map(areaName).join(", ")})` : ""}`);
+  else if (depths.length === 1) answers["p6.height"] = String(depths[0]);
+  else missing.push(EXISTING_DEPTH_FULL_REMOVAL_MISSING);
   const rs = [...new Set(withIns.map((a) => a.rValue).filter((x): x is number => x != null && Number.isFinite(x)))];
   if (rs.length === 1) answers["p6.rValue"] = String(rs[0]);
   if (!withIns.every((a) => a.removal != null)) {
