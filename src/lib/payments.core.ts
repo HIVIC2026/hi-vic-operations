@@ -4,8 +4,9 @@
 //
 // Money: ONE full Xero invoice per accepted quote (xero.core / invoice.lifecycle). Every payment step below is paid
 // AGAINST THAT SAME INVOICE; nothing here creates a second invoice. A step is "paid" when the cumulative amount
-// received on the invoice reaches the step's running threshold. Xero is the system of record; the office may record a
-// bank transfer it has seen (manual), and the next Xero sync reconciles.
+// received on the invoice reaches the step's running threshold. Xero is the system of record; card (Stripe) payments
+// count until Xero shows the same money (`reconciledPaidCents`, audit F01). The office never types a payment in
+// (decision 368): payments arrive only from Xero and Stripe.
 //
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.

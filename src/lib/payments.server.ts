@@ -75,20 +75,8 @@ export async function reconciledInvoicePaidCents(jobId: string, invoiceId: strin
   return raw.some((r) => r.source === "xero") ? fromLedger : Math.max(fromLedger, toCents(opts.totalPaid ?? 0));
 }
 
-/** Office "Record payment": a bank transfer / card payment the office has confirmed (statement or Xero) before the sync shows it. */
-export async function recordManualPayment(i: { invoiceId: string; amountCents: number; source: Exclude<PaymentSource, "xero">; paidAt: string; note: string | null; actorId: string }) {
-  if (!Number.isInteger(i.amountCents) || i.amountCents <= 0) throw new Error("Amount must be a positive amount.");
-  const { data: inv } = await admin.from("invoices").select("id, job_id, total_inc_gst, total_paid").eq("id", i.invoiceId).single();
-  if (!inv) throw new Error("Invoice not found");
-  await logEvent(inv.job_id, i.actorId, PAYMENT_EVENT, `Office recorded a ${i.source} payment of $${(i.amountCents / 100).toFixed(2)}${i.note ? ` – ${i.note}` : ""}`, { invoice_id: inv.id, amount_cents: i.amountCents, source: i.source, paid_at: i.paidAt, note: i.note }, { internal: true });
-  // Gates read invoices.total_paid: lift it to the ledger total so the recorded transfer counts now; Xero reconciles on the next sync.
-  const paid = await reconciledInvoicePaidCents(inv.job_id, inv.id, { totalPaid: inv.total_paid });
-  if (paid !== toCents(inv.total_paid)) {
-    const { applyPaidAmount } = await import("./xero.server");
-    await applyPaidAmount(inv.id, paid / 100, i.actorId);
-  }
-  await afterPaymentsChanged(inv.job_id, inv.id, i.actorId);
-}
+// Decision 368 (audit F18): the office "Record payment" entry (recordManualPayment) is removed. Old office rows stay in
+// the ledger as history and are reconciled like card rows (matched once Xero shows the same money).
 
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. */
 export async function jobPaymentView(jobId: string, now = new Date()) {
