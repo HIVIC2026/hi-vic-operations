@@ -15,6 +15,8 @@
 // Card (decision 144) = Stripe Checkout for exactly the step amount (stripe.core.ts); Xero stays the invoice,
 // bank-transfer reference and reconciliation side. All amounts are integer cents.
 
+import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
+
 export const PAYMENT_DECISION = "Jo 24 Oct 2026 (decisions 139, 140, 141, 144)";
 export const SAFETY_CHECK_CENTS = 34_900;
 export const INSTALL_DEPOSIT_RATE = 0.10;
@@ -141,15 +143,36 @@ export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paidCents: n
   return { step: due, dueNowCents: due ? due.outstandingCents : 0, remainingCents, cardAvailable: !!due && cardAllowedFor(due.key) };
 }
 
-// ---------- Provisional install booking (48h) ----------
-export const provisionalHoldExpiresAt = (bookedAtIso: string) => new Date(Date.parse(bookedAtIso) + PROVISIONAL_HOLD_MS).toISOString();
+// ---------- Provisional install booking (decision 367: 48h, or noon the day before the install if sooner) ----------
+/** Decision 367 (Jo 25 Oct 2026, "48h or noon day before"): the 10% deposit hold ends at 12:00 Melbourne the day before. */
+export const DEPOSIT_DEADLINE_HOUR = 12;
+export const INSTALL_DEPOSIT_NOT_PAID = "Install deposit not paid";
+const ymdMinus1 = (ymd: string) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+/** Noon Melbourne on the day before the install start. */
+export const depositDeadlineBeforeStart = (installStartIso: string) => melbourneAt(ymdMinus1(melbourneYmd(new Date(installStartIso))), DEPOSIT_DEADLINE_HOUR).toISOString();
+/** When an unpaid provisional booking is released: min(booked + 48h, noon Melbourne the day before the install). Without
+ *  a start (older callers) it is booked + 48h. A booking made after that noon expires at once unless the deposit is in. */
+export function provisionalHoldExpiresAt(bookedAtIso: string, installStartIso?: string | null): string {
+  const hold = Date.parse(bookedAtIso) + PROVISIONAL_HOLD_MS;
+  if (!installStartIso) return new Date(hold).toISOString();
+  return new Date(Math.min(hold, Date.parse(depositDeadlineBeforeStart(installStartIso)))).toISOString();
+}
 export type ProvisionalDecision = "confirmed" | "provisional" | "release" | "not_applicable";
-/** Booking stays provisional until the deposit step is paid; unpaid after 48h → release. Jobs outside the payment rule are untouched. */
-export function provisionalBookingDecision(f: { bookedAt: string | null; now: string; depositCleared: boolean; gateEnabled: boolean; hasInvoice: boolean }): ProvisionalDecision {
+/** Booking stays provisional until the deposit step is paid; unpaid at the hold expiry → release. Jobs outside the payment rule are untouched. */
+export function provisionalBookingDecision(f: { bookedAt: string | null; now: string; depositCleared: boolean; gateEnabled: boolean; hasInvoice: boolean; installStart?: string | null }): ProvisionalDecision {
   if (!f.bookedAt || !f.gateEnabled || !f.hasInvoice) return "not_applicable";
   if (f.depositCleared) return "confirmed";
-  return Date.parse(f.now) >= Date.parse(provisionalHoldExpiresAt(f.bookedAt)) ? "release" : "provisional";
+  return Date.parse(f.now) >= Date.parse(provisionalHoldExpiresAt(f.bookedAt, f.installStart)) ? "release" : "provisional";
 }
+/** What the 15-minute sweep does with one confirmed install booking (decision 367). An unpaid booking whose start has
+ *  already passed is never silently skipped or released mid-job: the office gets ONE Needs me row. */
+export function depositSweepAction(f: { decision: ProvisionalDecision; installStart: string; now: string }): "release" | "office_alert" | "none" {
+  if (f.decision !== "release") return "none";
+  return Date.parse(f.installStart) > Date.parse(f.now) ? "release" : "office_alert";
+}
+/** Pre-start fact (decision 367): the install cannot start while the deposit for this booking is unpaid. */
+export const installDepositPrestartBlocker = (decision: ProvisionalDecision | null | undefined): string | null =>
+  decision === "provisional" || decision === "release" ? INSTALL_DEPOSIT_NOT_PAID : null;
 
 // ---------- Ledger (append-only payment records → cumulative) ----------
 // Audit F01: the ledger holds Xero payments (one per PaymentID), card payments (one per Stripe PaymentIntent) and old
@@ -296,7 +319,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
-    `${aud(plan.installDepositCents)} (10%) to book your install day, by bank transfer or PayID — your day is held for ${PROVISIONAL_HOLD_HOURS} hours while you pay`,
+    `${aud(plan.installDepositCents)} (10%) to book your install day, by bank transfer or PayID — your day is held for ${PROVISIONAL_HOLD_HOURS} hours (or until noon the day before your install, if that's sooner) while you pay`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];

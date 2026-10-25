@@ -5,6 +5,7 @@ import {
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
   paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
   effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
+  INSTALL_DEPOSIT_NOT_PAID, depositDeadlineBeforeStart, depositSweepAction, installDepositPrestartBlocker,
 } from "../src/lib/payments.core";
 import { paymentPatch } from "../src/lib/invoice.lifecycle";
 
@@ -143,6 +144,37 @@ describe("Xero payment ledger", () => {
   test("Xero /Date()/ and ISO dates both parse", () => {
     expect(xeroDateIso("/Date(1761300000000+0000)/")).toBe(new Date(1761300000000).toISOString());
     expect(xeroDateIso("2026-10-26T00:00:00Z")).toBe("2026-10-26T00:00:00.000Z");
+  });
+});
+
+describe("decision 367: deposit hold = min(booked + 48h, noon Melbourne the day before the install)", () => {
+  // AEDT (UTC+11) in late Oct 2026: noon Melbourne = 01:00Z.
+  test("install far away → 48h after booking", () => {
+    const booked = "2026-10-26T00:00:00.000Z", start = "2026-11-10T21:00:00.000Z";
+    expect(provisionalHoldExpiresAt(booked, start)).toBe(plus(booked, 48));
+  });
+  test("install soon → noon the day before wins", () => {
+    const booked = "2026-10-26T00:00:00.000Z"; // 11am Mon Melbourne
+    const start = "2026-10-27T21:00:00.000Z"; // 8am Wed 28 Oct Melbourne
+    expect(depositDeadlineBeforeStart(start)).toBe("2026-10-27T01:00:00.000Z"); // noon Tue 27 Oct Melbourne
+    expect(provisionalHoldExpiresAt(booked, start)).toBe("2026-10-27T01:00:00.000Z");
+    expect(provisionalBookingDecision({ bookedAt: booked, now: "2026-10-27T00:59:00.000Z", depositCleared: false, gateEnabled: true, hasInvoice: true, installStart: start })).toBe("provisional");
+    expect(provisionalBookingDecision({ bookedAt: booked, now: "2026-10-27T01:00:00.000Z", depositCleared: false, gateEnabled: true, hasInvoice: true, installStart: start })).toBe("release");
+    expect(provisionalBookingDecision({ bookedAt: booked, now: "2026-10-27T01:00:00.000Z", depositCleared: true, gateEnabled: true, hasInvoice: true, installStart: start })).toBe("confirmed");
+  });
+  test("sweep: unpaid before the start → release; unpaid after the start → one office alert, never a silent skip", () => {
+    expect(depositSweepAction({ decision: "release", installStart: plus(T0, 5), now: T0 })).toBe("release");
+    expect(depositSweepAction({ decision: "release", installStart: plus(T0, -1), now: T0 })).toBe("office_alert");
+    expect(depositSweepAction({ decision: "provisional", installStart: plus(T0, 5), now: T0 })).toBe("none");
+    expect(depositSweepAction({ decision: "confirmed", installStart: plus(T0, -1), now: T0 })).toBe("none");
+    expect(depositSweepAction({ decision: "not_applicable", installStart: plus(T0, -1), now: T0 })).toBe("none");
+  });
+  test("pre-start fact: unpaid (provisional or past the hold) blocks with 'Install deposit not paid'", () => {
+    expect(installDepositPrestartBlocker("provisional")).toBe(INSTALL_DEPOSIT_NOT_PAID);
+    expect(installDepositPrestartBlocker("release")).toBe("Install deposit not paid");
+    expect(installDepositPrestartBlocker("confirmed")).toBeNull();
+    expect(installDepositPrestartBlocker("not_applicable")).toBeNull();
+    expect(installDepositPrestartBlocker(undefined)).toBeNull();
   });
 });
 

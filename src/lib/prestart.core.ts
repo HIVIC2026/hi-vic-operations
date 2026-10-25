@@ -79,6 +79,9 @@ export type PrestartFacts = {
   swmsBlocker?: string | null | undefined;
   /** Decision 319: when this installation booking was made. Bookings made before `WHITE_CARD_ENFORCED_FROM` are never blocked by the White Card rule. */
   bookingCreatedAt?: string | null | undefined;
+  /** Decision 367: "Install deposit not paid" while the 10% deposit for this booking is unpaid (payment rule jobs);
+   *  null = paid / not under the payment rule; undefined = not loaded (older callers, never blocks). */
+  installDepositBlocker?: string | null | undefined;
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -104,6 +107,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   for (const b of f.siteHoldBlockers ?? []) out.push(b);
   if (f.publicLiabilityBlocker) out.push(`Installer business: ${f.publicLiabilityBlocker}`);
   if (f.swmsBlocker) out.push(f.swmsBlocker);
+  if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   return out;
 }
 

@@ -7,8 +7,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
-  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
-  cumulativePaidCents, effectiveLedger, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
+  cumulativePaidCents, depositSweepAction, effectiveLedger, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
   provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
 } from "./payments.core";
 
@@ -104,10 +104,13 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const ledger = effectiveLedger(raw);
   const paidCents = raw.some((r) => r.source === "xero") ? cumulativePaidCents(ledger) : Math.max(cumulativePaidCents(ledger), toCents(inv.total_paid));
   const bookedAt = installBooking?.created_at ?? null;
+  const installStart = installBooking?.scheduled_start ?? null;
+  // Decision 367: the deposit hold ends at min(booked + 48h, noon Melbourne the day before the install).
+  const holdExpiresAt = bookedAt ? provisionalHoldExpiresAt(bookedAt, installStart) : null;
   const facts: Partial<Record<PaymentStepKey, PaymentStepFacts>> = {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },
     fixes: { requestedAt: rect?.accepted_at ?? null },
-    install_deposit: { requestedAt: bookedAt, dueAt: bookedAt ? provisionalHoldExpiresAt(bookedAt) : null },
+    install_deposit: { requestedAt: bookedAt, dueAt: holdExpiresAt },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
@@ -115,7 +118,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const reference = inv.xero_invoice_number ?? inv.xero_reference ?? (job?.job_number ? `Home Insulation Victoria ${job.job_number}` : null);
   const bank = bankDetails();
   const gateEnabled = await paymentGateActiveForJob(jobId);
-  const provisional = provisionalBookingDecision({ bookedAt, now: now.toISOString(), depositCleared: isStepCleared(steps, "install_deposit"), gateEnabled, hasInvoice: true });
+  const provisional = provisionalBookingDecision({ bookedAt, now: now.toISOString(), depositCleared: isStepCleared(steps, "install_deposit"), gateEnabled, hasInvoice: true, installStart });
   // Decision 144: card = Stripe Checkout, only for the $349 / fixes, only when the key + switch allow it for this job's mode.
   const { stripeBlocker } = await import("./stripe.core");
   const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: process.env["STRIPE_SECRET_KEY"], jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
@@ -123,7 +126,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     invoiceId: inv.id, plan, steps, paidCents, due, reference, bank, onlineInvoiceUrl: inv.xero_online_url ?? null, jobSource: job?.source ?? null, safetyCheckSource: safety.source,
     stripe: { available: stripeBlock === null, blocker: stripeBlock },
     payNow: payNowBlock({ step: due.step, cardAvailable: stripeBlock === null, bank, reference, remainingCents: due.remainingCents }),
-    provisional: { decision: provisional, bookedAt, expiresAt: bookedAt ? provisionalHoldExpiresAt(bookedAt) : null },
+    provisional: { decision: provisional, bookedAt, installStart, expiresAt: holdExpiresAt },
     ledger,
   };
 }
@@ -154,28 +157,45 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
 export async function noteProvisionalBooking(jobId: string, actorId: string | null) {
   const v = await jobPaymentView(jobId);
   if (!v || v.provisional.decision !== "provisional") return;
-  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due by bank transfer within 48 hours (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
+  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due by bank transfer within 48 hours or by noon the day before the install, whichever is sooner (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
 }
 
-/** 15-minute tick: release install bookings whose 10% deposit is still unpaid 48h after booking (decision 139).
- *  Only jobs under the payment rule with an invoice. The office is alerted and the owner is told once per released
- *  booking (decision 170, deposit-release-notice.server.ts: text + email, TEST → test-send). With the booking cancelled
- *  and the job back in installation_scheduling, `installDayTurn` is the installer's move again (installer_to_offer), so
- *  the installer's job screen asks for 3 new days; the owner wording says that happens once the deposit is paid. */
+/** Decision 367: ONE office row per booking whose install start passed with the deposit still unpaid. */
+export const DEPOSIT_UNPAID_AT_START_EVENT = "install_deposit_unpaid_at_start";
+
+/** 15-minute tick: release install bookings whose 10% deposit is still unpaid when the hold ends — min(booked + 48h,
+ *  noon Melbourne the day before the install) (decisions 139/367). Only jobs under the payment rule with an invoice. The
+ *  office is alerted and the owner is told once per released booking (decision 170, deposit-release-notice.server.ts:
+ *  text + email, TEST → test-send). With the booking cancelled and the job back in installation_scheduling,
+ *  `installDayTurn` is the installer's move again (installer_to_offer), so the installer's job screen asks for 3 new days;
+ *  the owner wording says that happens once the deposit is paid. A booking whose start already passed unpaid is never
+ *  skipped silently or released mid-job: it raises ONE `install_deposit_unpaid_at_start` Needs me row (the pre-start
+ *  check already locks the install with "Install deposit not paid"). */
 export async function sweepProvisionalBookings(now = new Date()) {
+  // Candidates: booked ≥48h ago, or starting within 48h (noon the day before can come first), or already started.
   const cutoff = new Date(now.getTime() - 48 * 3_600_000).toISOString();
-  const { data: bookings } = await admin.from("bookings").select("id, job_id, created_at, scheduled_start").eq("kind", "installation").eq("status", "confirmed").lt("created_at", cutoff).gt("scheduled_start", now.toISOString()).limit(200);
-  let released = 0, checked = 0;
+  const soon = new Date(now.getTime() + 48 * 3_600_000).toISOString();
+  const { data: bookings } = await admin.from("bookings").select("id, job_id, created_at, scheduled_start").eq("kind", "installation").eq("status", "confirmed").or(`created_at.lt.${cutoff},scheduled_start.lt.${soon}`).limit(300);
+  let released = 0, checked = 0, alerted = 0;
   for (const b of bookings ?? []) {
     const v = await jobPaymentView(b.job_id, now).catch(() => null);
     if (!v) continue;
     checked++;
-    if (v.provisional.decision !== "release") continue;
+    const action = depositSweepAction({ decision: v.provisional.decision, installStart: b.scheduled_start, now: now.toISOString() });
+    if (action === "none") continue;
+    if (action === "office_alert") {
+      const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", b.job_id).eq("event_type", DEPOSIT_UNPAID_AT_START_EVENT).contains("details", { booking_id: b.id });
+      if (!count) {
+        await logEvent(b.job_id, null, DEPOSIT_UNPAID_AT_START_EVENT, `Install day ${b.scheduled_start} has started but the ${(v.plan.installDepositCents / 100).toFixed(2)} install deposit is still not paid – the install is locked. Needs Home Insulation Victoria`, { invoice_id: v.invoiceId, booking_id: b.id, scheduled_start: b.scheduled_start, deposit_cents: v.plan.installDepositCents, needs_office: true }, { internal: true });
+        alerted++;
+      }
+      continue;
+    }
     const { data: rows, error } = await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id).eq("status", "confirmed").select("id");
     if (error || !rows?.length) continue;
     try {
       const { transition } = await import("./workflow.server");
-      await transition(b.job_id, "installation_scheduling", null, "Install booking released – 10% deposit not received within 48 hours; the installer offers new days", { booking_ids: [b.id] });
+      await transition(b.job_id, "installation_scheduling", null, "Install booking released – 10% deposit not received in time (48 hours, or noon the day before the install if sooner); the installer offers new days", { booking_ids: [b.id] });
     } catch (e) {
       await admin.from("bookings").update({ status: "confirmed" }).eq("id", b.id);
       console.error("provisional booking release failed", b.job_id, (e as Error).message);
@@ -183,7 +203,7 @@ export async function sweepProvisionalBookings(now = new Date()) {
     }
     const { clearInstallDueDate } = await import("./install-balance.server");
     await clearInstallDueDate(b.job_id, null).catch(() => undefined);
-    await logEvent(b.job_id, null, "install_booking_released_unpaid", `Install booking released: the ${v.plan.installDepositCents / 100} install deposit was not received within 48 hours. Needs Home Insulation Victoria`, { invoice_id: v.invoiceId, booking_id: b.id, was: b.scheduled_start }, { internal: true });
+    await logEvent(b.job_id, null, "install_booking_released_unpaid", `Install booking released: the ${v.plan.installDepositCents / 100} install deposit was not received by ${v.provisional.expiresAt} (48 hours, or noon the day before the install if sooner). Needs Home Insulation Victoria`, { invoice_id: v.invoiceId, booking_id: b.id, was: b.scheduled_start, expired_at: v.provisional.expiresAt }, { internal: true });
     // Decision 170: owner told by text + email, once per released booking (best-effort; never undoes the release).
     try {
       const { sendDepositReleaseNotice } = await import("./deposit-release-notice.server");
@@ -192,8 +212,8 @@ export async function sweepProvisionalBookings(now = new Date()) {
     } catch (e) {
       await logEvent(b.job_id, null, "install_booking_released_owner_notice_result", `Owner notice about the released install day failed: ${(e as Error).message}`, { booking_id: b.id }, { internal: true });
     }
-    await admin.from("jobs").update({ next_action: "Install day released (deposit unpaid after 48h) – owner told; the installer offers 3 new days once the deposit is paid" }).eq("id", b.job_id);
+    await admin.from("jobs").update({ next_action: "Install day released (deposit unpaid by the hold deadline) – owner told; the installer offers 3 new days once the deposit is paid" }).eq("id", b.job_id);
     released++;
   }
-  return { checked, released };
+  return { checked, released, alerted };
 }
