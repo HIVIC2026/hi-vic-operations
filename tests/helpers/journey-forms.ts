@@ -130,3 +130,25 @@ export function completedA5(o: { q: Record<string, string>; capturedAt: string; 
   const photos = ["lead-id", "isolation", "product", "signature-start", "switchboard-on", "signature-end"].map(m).concat(depth);
   return { items, mediaIds: photos, videoIds: videos };
 }
+
+/** The electrician's A3 PIESA with NO repair work: mains, solar and wiring safe, no downlights, no hazards → "Is any
+ *  electrical repair work needed …?" = No. Evidence: switchboard + on-site photos, geotagged; signature image. */
+export function completedA3Pass(o: { inspectionDate: string; capturedAt: string; mediaPrefix: string }): { items: MittiItem[]; mediaIds: string[] } {
+  const m = (n: string) => mediaId(`${o.mediaPrefix}-${n}`);
+  const items: MittiItem[] = [
+    pick(NO_PRICE_TALK_LABEL, "Yes"),
+    text("Date of inspection", o.inspectionDate),
+    pick(LIFE_SUPPORT_PRESENT, "No"),
+    pick("Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.", "Yes"),
+    pick("Is there solar, a battery or a generator at the property?", "No"),
+    pick("Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?", "Yes"),
+    pick("Are there any downlights or other recessed lights in the ceiling?", "No"),
+    pick("Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?", "No"),
+    pick("Is any electrical repair work needed before insulation can be installed?", "No"),
+    photo(PIESA_EVIDENCE_BY_ID.switchboard_photo.label, [m("switchboard")], o.capturedAt),
+    photo(PIESA_EVIDENCE_BY_ID.onsite_photo.label, [m("onsite")], o.capturedAt),
+    pick("I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission", "Yes"),
+    signature("Electrician signature", m("signature"), o.capturedAt, "Eddie Electrician"),
+  ];
+  return { items, mediaIds: ["switchboard", "onsite", "signature"].map(m) };
+}
