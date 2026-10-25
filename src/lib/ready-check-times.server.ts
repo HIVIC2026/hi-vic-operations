@@ -314,6 +314,11 @@ export async function ownerChangeReadyCheck(jobId: string, userId: string) {
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed");
   await logEvent(jobId, userId, "ready_check_changed", "Owner changed the booked Ready Check time — back to the installer to offer 3 new times", { by: "owner", booking_ids: rows.map((r) => r.id), was: c.bookedAt, business_id: c.asg.business_id }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to offer the owner new Ready Check times" }).eq("id", jobId);
+  // Decision 337: the installer is told straight away (once per change; best-effort, never undoes the change).
+  try {
+    const { data: ev } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "ready_check_changed").contains("details", { by: "owner" }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ev) await (await import("./installer-texts.server")).textTradeOwnerChangedVisit({ jobId, kind: "ready_check", triggerEventId: ev.id, changedAt: ev.created_at, wasIso: c.bookedAt ?? null });
+  } catch (e) { console.error("owner changed Ready Check installer text skipped", (e as Error).message); }
   return { ok: true };
 }
 

@@ -75,8 +75,19 @@ export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware
     if (!jobId) return null;
     const [{ ownerPiesaWindowState }, { ownerInstallDayState }] = await Promise.all([import("./allocation.server"), import("./install-days.server")]);
     const { ownerThirtyDayAckState } = await import("./thirty-day-ack.server");
-    const [piesa, install, ack] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId)]);
-    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording } }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
+    const { ownerPiesaBookingState } = await import("./visit-events.server");
+    const [piesa, install, ack, piesaBooked] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId), ownerPiesaBookingState(jobId)]);
+    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording }, booked: piesaBooked }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
+  });
+
+/** Decision 337: the owner changes the booked safety check (PIESA) from My job → the electrician is told, new times go
+ *  out as a new offer. Same 6-digit code session as the other booking actions. */
+export const ownerChangePiesaFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const r = await (await import("./visit-events.server")).ownerChangeBookedPiesa(s.jobId, s.userId);
+    return JSON.parse(JSON.stringify(r));
   });
 
 /** Decision 307 (Jo 25 Oct 2026): the owner must tick the 30-day-rule box (`understandsThirtyDays: true`) before the

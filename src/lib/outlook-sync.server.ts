@@ -4,7 +4,9 @@
 // `email_unmatched` event (snippet + best-guess jobs) for Needs me "Match this email"; nothing is stored on a job
 // until the office matches it (email-office.server). Decision 245: a matched inbound email that asks for a change
 // (cancel, can't make it, new contact details, a photo/document) raises `email_change_request` on the job; the
-// office applies or ignores it. Neither ever sends, closes or moves anything. Decision 244: new inbound mail may get ONE
+// office applies or ignores it. Decision 337: a date/time change or cancel from the matched owner instead gets ONE sent
+// reply with their own My job link (email-change-reply.server, guarded owner email path, TEST → test-send); the row then
+// stays only for a cancel the owner can't do on My job. None of this ever closes or moves anything. Decision 244: new inbound mail may get ONE
 // Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent). Decision 292 (replaces 255):
 // an unmatched NEW human sender asking an enquiry / price / rebate / eligibility question is SENT one website reply
 // (new-sender-reply.server: TEST mode → allow-list only via test-send; live only behind the approved flag +
@@ -20,7 +22,7 @@ import {
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
 } from "./outlook-correspondence.core";
 import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
-import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, proposedChanges, recentEnoughForAction } from "./email-intent.core";
+import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, officeRowNeeded, proposedChanges, recentEnoughForAction } from "./email-intent.core";
 import { EMAIL_REPLY_DRAFTS_ENABLED } from "./outlook-reply-drafts.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
@@ -404,9 +406,23 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   if (m.direction !== "inbound" || !jobIds.length || !recentEnoughForAction(m.at)) return 0;
   let raised = 0;
   try {
+    const partner = await fromPartner(m.from);
     const changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
-      attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: await fromPartner(m.from) });
+      attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: partner });
+    // Decision 337: a date/time change or cancel from the matched owner gets ONE automatic reply with their My job link;
+    // the Apply/Ignore row is then raised only for a cancel the owner can't do themselves (or when the reply didn't go).
+    const replied = new Map<string, { sent: boolean; keepOfficeRow: boolean }>();
+    for (const c of changes) {
+      if (c.intent !== "reschedule" && c.intent !== "cancel") continue;
+      try {
+        const r = await (await import("./email-change-reply.server")).replyToChangeRequest({ jobIds, message: m, intent: c.intent, fromPartner: partner });
+        replied.set(c.intent, { sent: r.sent, keepOfficeRow: r.keepOfficeRow });
+      } catch (e) {
+        console.error("email change reply skipped", e instanceof Error ? e.message : e); // the office row is raised as before
+      }
+    }
     for (const jobId of jobIds) for (const c of changes) {
+      if (!officeRowNeeded(c.intent, replied.get(c.intent) ?? null)) continue;
       const { data: dup, error: de } = await syncAdmin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", EMAIL_CHANGE_REQUEST_EVENT).contains("details", { message_id: m.providerMessageId, intent: c.intent }).limit(1);
       if (de) throw new Error(de.message);
       if ((dup ?? []).length) continue;

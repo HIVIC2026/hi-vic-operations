@@ -102,6 +102,35 @@ export async function ownerChangeVisit(jobId: string, kind: VisitKind, action: "
   return { late: false, outcome: "cancelled" as const };
 }
 
+/** Decision 337: the booked safety check as the owner's secure My job link shows it (times only), or null. */
+export async function ownerPiesaBookingState(jobId: string, now = new Date()) {
+  const [b, { data: job }] = await Promise.all([currentBooking(jobId, "assessment"), admin.from("jobs").select("stage").eq("id", jobId).maybeSingle()]);
+  if (!b || job?.stage !== BOOKED_STAGE.assessment) return null;
+  const started = Date.parse(b.scheduled_start) <= now.getTime();
+  return { startsAt: b.scheduled_start, canChange: !started, late: !started && !ownerChangeAllowed(b.scheduled_start, now) };
+}
+
+/** Decision 337: the owner changes the booked safety check from their secure My job link. Same rules as the signed-in
+ *  owner page (`ownerChangeVisit` reschedule: within 24h = one free rebook, a second miss = office), then the electrician
+ *  business that held the booking (read BEFORE it is released) is told once. New times go out as a new PIESA offer. */
+export async function ownerChangeBookedPiesa(jobId: string, actorId: string | null, now = new Date()) {
+  const b = await currentBooking(jobId, "assessment");
+  if (!b) throw new WorkflowError("There is no booked safety check to change.");
+  const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).single();
+  if (job?.stage !== BOOKED_STAGE.assessment) throw new WorkflowError("Your safety check can't be changed here right now.");
+  let electricianBusinessId = b.business_id;
+  if (!electricianBusinessId && b.assignment_id) {
+    const { data: a } = await admin.from("job_assignments").select("business_id").eq("id", b.assignment_id).maybeSingle();
+    electricianBusinessId = a?.business_id ?? null;
+  }
+  const r = await ownerChangeVisit(jobId, "assessment", "reschedule", actorId, "Owner changed the safety check time on My job", now);
+  try {
+    const { data: ev } = await admin.from("visit_events").select("id, created_at").eq("booking_id", b.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ev) await (await import("./installer-texts.server")).textTradeOwnerChangedVisit({ jobId, kind: "assessment", triggerEventId: ev.id, changedAt: ev.created_at, wasIso: b.scheduled_start, electricianBusinessId });
+  } catch (e) { console.error("owner changed safety check electrician text skipped", (e as Error).message); }
+  return r;
+}
+
 async function requireBookingTrade(b: Booking, userId: string) {
   if (b.contractor_id === userId) return;
   const { data: m } = await admin.from("business_members").select("id").eq("business_id", b.business_id ?? "").eq("user_id", userId).eq("active", true).maybeSingle();

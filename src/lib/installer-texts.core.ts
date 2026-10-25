@@ -84,6 +84,24 @@ export function teamMemberInviteText(f: { business: string | null; link: string 
 /** The /join link the invitee opens (same route the owner's copy of the link uses). */
 export const teamMemberJoinLink = (base: string, token: string) => `${base.replace(/\/+$/, "")}/join/${token}`;
 
+// ---- Decision 337 (Jo 25 Oct 2026, route approved): the owner changed a booked visit on My job → the trade is told ----
+/** Which visit the owner changed: the Ready Check or install day (the installer offers new times/days) or the safety
+ *  check (the booked electrician is released; new times go out as a new offer). */
+export type OwnerChangedVisitKind = "ready_check" | "installation" | "assessment";
+export const OWNER_CHANGED_VISIT_SMS_TYPE = "owner_changed_visit" as const;
+/** One text per trigger event (the owner's change). */
+export const ownerChangedVisitKey = (jobId: string, triggerEventId: string) => `owner-changed-visit:v1:${jobId}:${triggerEventId}`;
+
+/** Decision 337 wording (plain; the sender adds "Home Insulation Victoria: "). */
+export function ownerChangedVisitText(f: { kind: OwnerChangedVisitKind; suburb: string | null; jobNumber: string; wasIso: string | null; link: string | null }): string {
+  const place = `${f.suburb?.trim() || "the property"} (${f.jobNumber})`;
+  const was = f.wasIso ? ` on ${melbourneDayDate(f.wasIso)} ${melbourneClock(f.wasIso)}` : "";
+  if (f.kind === "assessment") return `The owner at ${place} changed their electrical safety check time, so the booking${was} is cancelled. You don't need to go.`;
+  const tail = f.link ? `: ${f.link}` : ".";
+  if (f.kind === "ready_check") return `The owner at ${place} changed their Ready Check time, so the booking${was} is cancelled. Please offer them 3 new times${tail}`;
+  return `The owner at ${place} changed their install day, so the booking${was} is cancelled. Please offer them 3 new days${tail}`;
+}
+
 /** Decision 79 is still worth sending only while it is the installer's move on the owner's days. */
 export const daysSuggestedStillCurrent = (turn: string) => turn === "installer_to_answer";
 /** Decision 82 is still worth sending only while that start time is the confirmed booking. */
