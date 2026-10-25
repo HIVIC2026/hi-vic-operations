@@ -8,6 +8,7 @@ import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core"
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
 import { splitAddress } from "./name-address-tidy.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
+import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -56,7 +57,7 @@ export async function loadJobPage(jobId: string) {
     admin.from("owner_esc_consents").select("status, owner_signed_at, ap_signed_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("esc_notifications").select("status, sent_at, due_by").eq("job_id", jobId).not("status", "in", "(cancelled,stale)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("status, installer_signed_at, ap_signed_at, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("evidence_requirements").select("status").eq("job_id", jobId).eq("required", true).eq("status", "outstanding"),
+    admin.from("evidence_requirements").select("status, category, gate, label").eq("job_id", jobId).eq("required", true).eq("status", "outstanding"),
     admin.from("veec_lodgements").select("status, submitted_date").eq("job_id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("saved_total, saved_veu_discount, spot_saved_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_estimate_links").select("created_at, last_viewed_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -111,7 +112,7 @@ export async function loadJobPage(jobId: string) {
       installAt: book("installation"), daysOffered: proposals.count ?? 0,
       consent: escConsent.data ? (escConsent.data.ap_signed_at ? `Signed ${day(escConsent.data.ap_signed_at)}` : escConsent.data.owner_signed_at ? "Owner signed · AP to sign" : "Waiting for the owner") : null,
       escNotice: escNotice.data ? (escNotice.data.sent_at ? `Submitted ${day(escNotice.data.sent_at)}` : `Due by ${dayTime(escNotice.data.due_by)}`) : null },
-    finalCheck: { installedAt: s(job.installation_completed_at), evidenceMissing: job.installation_completed_at ? (evidence.data ?? []).length : null,
+    finalCheck: { installedAt: s(job.installation_completed_at), evidenceMissing: job.installation_completed_at ? withoutRetiredInstallDayPhotos(evidence.data ?? []).length : null,
       veecForm: assignment.data ? [assignment.data.installer_signed_at ? "Installer ✓" : "Installer —", assignment.data.ap_signed_at ? "AP ✓" : "AP —", assignment.data.consumer_signed_at ? "Owner ✓" : "Owner —"].join(" · ") : null,
       readyForVeecAt: s(readyForVeec.data?.created_at), lodged: veec.data?.submitted_date ? `VEEC lodged ${day(veec.data.submitted_date)}` : null },
   };

@@ -47,16 +47,19 @@ export type InstallDayFormInput = {
   /** The single-job A5 sync outcome: the signed installer declaration saved (saved / already) or why not. */
   declaration: { ok: boolean; message: string };
   /** The install-day evidence read from the same audit (null = not read). */
-  summary: Pick<InstallEvidenceSummary, "applies" | "blockers"> | null;
+  summary: Pick<InstallEvidenceSummary, "applies" | "blockers" | "rulerBlockers"> | null;
 };
 export type InstallDayFormResult = { state: InstallDayFormState; missing: string[] };
 
-/** Pure: is the Complete A5 really all filled in? Evidence first, then the declaration, then the final tick. */
+/** Pure: is the Complete A5 really all filled in? Evidence first, then the declaration, then the final tick.
+ *  Decision 396: "All filled in ✓ You can leave site" depends ONLY on the A5 itself (its evidence read, its signed
+ *  declaration, its final tick) — never on job-page photo requirements; the ruler photos are A5 evidence, so they count
+ *  even before the effective date (`rulerBlockers`). */
 export function installDayFormResult(i: InstallDayFormInput): InstallDayFormResult {
   if (!i.formCompleted) return { state: "not_complete", missing: [] };
   const missing: string[] = [];
   if (!i.summary) missing.push("The portal couldn't read the form yet");
-  else if (i.summary.applies) missing.push(...i.summary.blockers);
+  else missing.push(...(i.summary.applies ? i.summary.blockers : i.summary.rulerBlockers ?? []));
   if (!i.declaration.ok) missing.push(...i.declaration.message.split(" • ").map((s) => s.trim()).filter(Boolean));
   if (i.installDayForm && !i.finalTickTicked) missing.push(FINAL_TICK_MISSING);
   const uniq = [...new Set(missing)];

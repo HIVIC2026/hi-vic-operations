@@ -35,6 +35,7 @@ import { openFileViewer } from "@/components/portal/file-viewer";
 import { allowedUpload } from "@/lib/upload-safety.core";
 import { useReasonDialog } from "./reason-dialog";
 import { officeQuoteStatusLabel } from "@/lib/office-quote-status.core";
+import { isRetiredInstallDayPhotoRow } from "@/lib/ready-check-chase.core";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -112,7 +113,8 @@ export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: str
   });
   if (isError) return <Section title="Evidence"><p role="alert" className="text-sm text-destructive">Evidence could not be loaded. {error.message}</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></Section>;
   if (isPending) return <Section title="Evidence"><p role="status" className="text-sm text-muted-foreground">Loading evidence…</p></Section>;
-  const reqs = (data ?? []).filter((r) => (!gates || gates.includes(r.gate)) && !excludeGates?.includes(r.gate));
+  // Decision 396: requirement rows the retired install-day photo chase created are not shown or counted.
+  const reqs = (data ?? []).filter((r) => (!gates || gates.includes(r.gate)) && !excludeGates?.includes(r.gate) && !isRetiredInstallDayPhotoRow(r));
   const done = reqs.filter((r) => r.required && ["uploaded", "verified"].includes(r.status)).length;
   const total = reqs.filter((r) => r.required).length;
   return (

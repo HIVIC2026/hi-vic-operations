@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { limits, officeStatus, type JobFacts, type OfficeStatus } from "./office-status.core";
 import { buildNeedsMe, type NeedsJob, type PartnerItem, type Snooze } from "./needs-me.core";
+import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 
 type Admin = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
@@ -73,7 +74,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("payments", (c) => admin.from("invoice_status").select("job_id, deposit_cleared, effective_status").in("job_id", c)),
     scoped("PIESAs", (c) => admin.from("piesa_records").select("job_id, outcome, completed_date, section_c_signed_at").eq("is_current", true).in("job_id", c)),
     scoped("Ready Checks", (c) => admin.from("ready_checks").select("job_id, submitted_at").in("job_id", c)),
-    scoped("evidence", (c) => admin.from("evidence_requirements").select("job_id, status, required").eq("required", true).eq("status", "outstanding").in("job_id", c)),
+    scoped("evidence", (c) => admin.from("evidence_requirements").select("job_id, status, required, category, gate, label").eq("required", true).eq("status", "outstanding").in("job_id", c)),
     scoped("VEECs", (c) => admin.from("veec_lodgements").select("job_id, status, submitted_date").in("job_id", c)),
     scoped("payouts", (c) => admin.from("workflow_events").select("job_id, created_at").eq("event_type", "payout_marked_paid").in("job_id", c)),
     // Only a set deadline is used (deadline.get(id) ?? null), and the view's PIESA lookup now runs for these ids only.
@@ -193,7 +194,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const pie = new Map(piesa.map((p) => [String(p["job_id"]), p]));
   const rcSub = new Map<string, string>(); for (const r of rcs) latest(rcSub, String(r["job_id"]), s(r["submitted_at"]));
   const measAt = new Map<string, string>(); for (const r of meas) { const k = String(r["job_id"]), v = String(r["created_at"]); if (!measAt.has(k) || v < measAt.get(k)!) measAt.set(k, v); }
-  const evMissing = by(ev, () => 1);
+  // Decision 396: rows the retired install-day photo chase created are not missing evidence.
+  const evMissing = by(withoutRetiredInstallDayPhotos(ev as { category?: string | null; gate?: string | null; label?: string | null }[]) as typeof ev, () => 1);
   const veecAt = new Map<string, string>(); for (const v of veec) if (v["submitted_date"]) latest(veecAt, String(v["job_id"]), s(v["submitted_date"]));
   const payoutPaid = new Set(payoutEv.map((p) => String(p["job_id"])));
   const deadline = new Map(deadlines.map((d) => [String(d["job_id"]), s(d["install_deadline"])]));

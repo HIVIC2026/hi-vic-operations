@@ -11,7 +11,7 @@ Status: PLAN. Installer bulk upload was switched off on 23 Oct (`bulk-upload-swi
 - Bulk upload is rebuilt (not retired): each row is treated exactly like a single portal-started job.
 - Office keeps portal Add job for itself (e.g. phone enquiries).
 - (Later 23 Oct) The automatic quote sends only once the installer marks the Mitti form **Complete** and the basics are in; photos may still be missing.
-- Missing Ready Check photos stay install-day photos (existing rule): the quote may go before the existing-insulation photo; "Installation complete" stays locked until the install-day photos are in. Jo accepts the risk that an install-day photo shows R2.0+ after acceptance.
+- Decision 396 (Jo 26 Oct 2026): missing Ready Check photos are no longer carried to install day. The A5 Install day form asks the legally required ruler photos per ceiling area (existing insulation depth where there was insulation, new insulation depth after install); "Installation complete" stays locked until they are in. The quote may still go before any existing-insulation photo.
 - Forms started straight in Mitti are still picked up, matched to the installer's own jobs by owner details, and flagged to the office. Never duplicated.
 
 ## The workflow
@@ -34,7 +34,7 @@ Status: PLAN. Installer bulk upload was switched off on 23 Oct (`bulk-upload-swi
 
 ## Incomplete Ready Checks
 - Quote basics: ceiling area, product, installer price, owner mobile + email + permission, no hard stop. Missing basic → quote held, installer sees "Needs finishing: …", office sees "Ready Check missing: …"; he can finish the form later from anywhere.
-- Photos are optional at the Ready Check; each missing one becomes a required install-day photo (`ensureInstallDayPhotos`), and "Installation complete" is blocked until they are in (`installDayPhotoBlocker`).
+- Photos are optional at the Ready Check (the access hatch photo is kept but not mandatory, Jo 26 Oct). Decision 396: the A5 ruler photos per area (`install-evidence.core` `rulerPhotoEvaluation`) hold "Installation complete"; requirement rows from the retired install-day photo chase are ignored (`ready-check-chase.core` `isRetiredInstallDayPhotoRow`).
 
 ## Mitti template changes (A1 – Ready Check | Installer-Supplied Customer)
 Done 23 Oct (published): Portal Job Number is the first Title Page question (short text, not mandatory); difficult access Yes/No + "Difficult access fee ($ inc GST)" added; "Difficult access" removed from "What's included in your quote?"; inspection title format = Portal Job Number.

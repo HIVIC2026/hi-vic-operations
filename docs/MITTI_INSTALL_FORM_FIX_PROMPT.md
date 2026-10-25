@@ -85,6 +85,12 @@ Q32: `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required �
 ## Group 6: Product
 Q33: `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
 
+## Page between Group 6 and Group 7: Ruler photos (each ceiling area) — decision 396
+One repeating section, button `Add a ceiling area`, help text on the section: `Add one for each ceiling area, in the same order as the Ready Check areas.` Inside it, in this order (not numbered — they are not part of Q1–Q48):
+- `Existing insulation depth — photo with a ruler standing upright in it` — Photo — NOT required (the portal requires it for each area that had insulation, from the Ready Check) — help text: `Only if this area had insulation before. Take it before any work starts.`
+- `New insulation depth after install — photo with a ruler standing upright in it` — Photo — Required — help text: `Come back to this page when the insulation is in. Don't squash it.`
+(Already-built forms: add it with docs/mitti-paste-A5-ruler-photos.md.)
+
 ## Group 7: Declaration (sign before you start)
 Q34: Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
 Q35: `Everything on this form is true and complete` — Checkbox — Required

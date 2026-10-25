@@ -487,9 +487,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
         if (plan.completed) {
-          // Jo 23 Oct: photos missing from the form become required install-day photos (already on the form = not asked again).
-          try { await ensureInstallDayPhotos(jobId, plan.photoGaps); }
-          catch (e) { issues = [...issues, `Install-day photo list not updated: ${e instanceof Error ? e.message : "error"}`]; }
+          // Decision 396: missing Ready Check photos are no longer carried to install day (the A5 asks the ruler photos).
           // Hard stops on our leads too (installer jobs record them in the quote step): no quote, office list.
           if (job.channel !== "installer_sourced") {
             const ra = await import("./ready-check-answers.core");
@@ -623,7 +621,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
     await logEvent(jobId, actorId, "mitti_piisa_audit_reshared", `Installer safety form re-shared with ${email}`, { audit_id: prevId });
     return { auditId: prevId, reused: true, skipped: [] as string[] };
   }
-  const hints = piisaPrefill(await officialPrefillContext(jobId, todayMelbourne(), asg.user_id));
+  const piisaCtx = await officialPrefillContext(jobId, todayMelbourne(), asg.user_id);
+  const hints = piisaPrefill(piisaCtx);
   const items = OFFICIAL_ITEMS.piisa;
   const isA3 = sameMittiTemplateId(MITTI_PIISA_TEMPLATE_ID, PIISA_A3_TEMPLATE_ID);
   type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number; row: number };
@@ -671,6 +670,11 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
       const hv = (itemId: string) => hints.find((h) => h.itemId === itemId)?.value ?? null;
       const yes = (v: string | null) => (v == null ? null : /^\s*yes\b/i.test(v) ? true : /^\s*no\b/i.test(v) ? false : null);
       const { a3Ctx } = await import("./piisa-prestart.server");
+      // Life support (Q18) and solar (Q23) from the PIESA: the signed official answers, else the stored A3 short answers.
+      const { data: asmt } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
+      const a3Entries = Array.isArray(asmt?.mitti_raw_snapshot) ? (asmt!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
+      const a3Short = a3Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a3Entries) : null;
+      const piesaFacts = id.installDayPiesaFacts({ piesaAnswers: piisaCtx.piesaAnswers as Record<string, unknown> | null, a3Short, lifeSupportDeclared: piisaCtx.lifeSupportDeclared });
       const facts = {
         jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
         leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
@@ -683,7 +687,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
           const [c2, c3] = (selection.additional ?? []).map(pick);
           return { secondName: c2?.name ?? null, secondCii: c2?.cii ?? null, thirdName: c3?.name ?? null, thirdCii: c3?.cii ?? null };
         })(),
-        lifeSupport: yes(hv("lifeSupport")), solarPresent: yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
+        lifeSupport: piesaFacts.lifeSupport ?? yes(hv("lifeSupport")), solarPresent: piesaFacts.solarPresent ?? yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
       };
       const prefill = id.installDayPrefillItems(template, facts, (await import("./mitti.core")).choiceOption);
       const headerIds = new Set((await import("./mitti.core")).flatten(template).filter((e) => e.header).map((e) => String(e.id)));
@@ -745,18 +749,6 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
   await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes, native_version: resolved?.version ?? null });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };
-}
-
-/** Idempotent: one required install-day requirement per missing Ready Check photo, matched by label. */
-async function ensureInstallDayPhotos(jobId: string, gaps: import("./ready-check-chase.core").PhotoGaps) {
-  const { installDayPhotoNeeds } = await import("./ready-check-chase.core");
-  const needs = installDayPhotoNeeds(gaps);
-  if (!needs.length) return;
-  const { data: have, error } = await admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("gate", "installation");
-  if (error) throw new Error(error.message);
-  const labels = new Set((have ?? []).map((r) => r.label));
-  const rows = needs.filter((n) => !labels.has(n.label)).map((n) => ({ job_id: jobId, category: n.category, label: n.label, gate: "installation", required: true, status: "outstanding" as const, responsible_role: "installer" as const }));
-  if (rows.length) { const { error: ie } = await admin.from("evidence_requirements").insert(rows as never); if (ie) throw new Error(ie.message); }
 }
 
 // ---------- visit allocation (decision 161, Jo 24 Oct 2026) ----------

@@ -2,7 +2,7 @@
 import { flattenDefinition, definitionReadable, validateTemplate, type FormKey } from "./mitti-forms.core";
 import { a3MissingFields, A3_NATIVE_IDS } from "./piisa-a3.core";
 import { flatten } from "./mitti.core";
-import { installDayMissingQuestions, isInstallDayDoc } from "./install-day.core";
+import { installDayMissingQuestions, installDayRulerMissingQuestions, isInstallDayDoc } from "./install-day.core";
 import { INSTALL_EVIDENCE_EFFECTIVE_DATE, installEvidenceMissingQuestions } from "./install-evidence.core";
 import { fixesDayMissingQuestions } from "./fixes-day.core";
 
@@ -13,7 +13,10 @@ export function validateSavedDefinition(form: FormKey, definition: unknown): { o
   // Decision 262: the "A5 – Install day" template, checked by its exact wording (install-day.core).
   if (form === "piisa" && isInstallDayDoc(definition)) {
     const missing = installDayMissingQuestions(definition);
-    return { ok: missing.length === 0, issues: missing.map((q) => `Install day form: "${q}" not found (exact wording)`), basis: "install day form — every question by exact wording (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md)" };
+    // Decision 396: the ruler photo section is listed too (advisory here — the form stays usable; Installation complete
+    // holds until every area's ruler photos are in).
+    const ruler = installDayRulerMissingQuestions(definition);
+    return { ok: missing.length === 0, issues: [...missing.map((q) => `Install day form: "${q}" not found (exact wording)`), ...ruler.map((q) => `Install day form: ruler photo question "${q}" not added yet (docs/mitti-paste-A5-ruler-photos.md) — Installation complete holds until it is`)], basis: "install day form — every question by exact wording (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md)" };
   }
   // Decision 293: the "A4 – Electrical fixes" template, checked by its exact wording (fixes-day.core).
   if (form === "fixes") {
