@@ -2,10 +2,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, RESPONSE_DUE_DAYS, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installerInstallWindowEmail, installerInstallWindowText,
-  ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent,
+  ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaCharge, repeatPiesaNextAction, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent,
 } from "../src/lib/thirty-day-rule.core";
 import { SMS_MESSAGE_TYPES, SMS_BRAND_PREFIX, brandSmsBody } from "../src/lib/sms.core";
 import { shouldFlagTenDaysLeft, installWindowDeadline } from "../src/lib/install-days.core";
+import { safetyCheckCentsFor } from "../src/lib/safety-check-amount.core";
+import { readFileSync } from "node:fs";
 
 const clearance = "2026-10-01";
 const deadline = installWindowDeadline(clearance, null)!; // 2026-10-31
@@ -120,5 +122,39 @@ describe("who pays the repeat PIESA (decision 158)", () => {
   test("events after the deadline are ignored", () => {
     const d = lapsed([ev("install_days_offered_by_installer", "2026-11-05")]);
     expect(d.basis).toBe("installer_never_offered");
+  });
+});
+
+describe("decision 342: owner pays the same amount as their first safety check", () => {
+  const owner = { payer: "owner" as const, reason: "r", basis: "owner_no_answer" };
+  test("our electrician: the $349 quote line", () => {
+    const c = repeatPiesaCharge(owner, safetyCheckCentsFor({ lines: [{ code: "PIESA", line_total_inc_gst: 349 }] }));
+    expect(c).toEqual({ payer: "owner", ownerChargeIncGst: 349, firstSafetyCheckIncGst: 349, firstSafetyCheckSource: "quote_line" });
+    expect(repeatPiesaNextAction(c)).toBe("New PIESA needed: 30-day window lapsed — repeat PIESA payable by the owner ($349 inc GST, same as their first safety check)");
+  });
+  test("approved REC: that REC's rate on the quote (e.g. $220), never $349", () => {
+    const c = repeatPiesaCharge(owner, safetyCheckCentsFor({ lines: [{ code: "PIESA", line_total_inc_gst: "220.00" }], settingIncGst: 349 }));
+    expect(c.ownerChargeIncGst).toBe(220);
+    expect(repeatPiesaNextAction(c)).toContain("($220 inc GST, same as their first safety check)");
+  });
+  test("installer-caused or undetermined: nothing charged to the owner; first amount kept for reference", () => {
+    const first = { cents: 22_000, source: "quote_line" as const };
+    const inst = repeatPiesaCharge({ payer: "installer", reason: "r", basis: "installer_never_offered" }, first);
+    expect(inst).toEqual({ payer: "installer", ownerChargeIncGst: null, firstSafetyCheckIncGst: 220, firstSafetyCheckSource: "quote_line" });
+    expect(repeatPiesaNextAction(inst)).toBe("New PIESA needed: 30-day window lapsed — repeat PIESA payable by the installer");
+    const und = repeatPiesaCharge({ payer: "undetermined", reason: "r", basis: "both_contributed" }, first);
+    expect(und.ownerChargeIncGst).toBeNull();
+    expect(repeatPiesaNextAction(und)).toContain("office to decide");
+  });
+  test("no accepted quote amount known: owner still payer, office confirms the figure", () => {
+    const c = repeatPiesaCharge(owner, null);
+    expect(c.ownerChargeIncGst).toBeNull();
+    expect(repeatPiesaNextAction(c)).toContain("office to confirm the figure");
+  });
+  test("the expiry record reads the accepted quote's PIESA line and stores the amount on the event", () => {
+    const src = readFileSync("src/lib/thirty-day-rule.server.ts", "utf8");
+    expect(src).toContain("quoteSafetyCheck(acc.id)");
+    expect(src).toContain("owner_charge_inc_gst: charge.ownerChargeIncGst");
+    expect(src).toContain("next_action: repeatPiesaNextAction(charge)");
   });
 });

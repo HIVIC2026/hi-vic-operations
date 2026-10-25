@@ -81,7 +81,7 @@ Then set `MITTI_USER_API_VERIFIED = true`.
   completing a shared form does not count, but no source confirms it. **Confirm on the probe.**
 - **Installers who start their own A1 in Mitti** (Mitti-first pickup) start inspections themselves. On a lite seat that is
   one a month, so busy installers may need **full** seats. Electricians (A4/A5 are always made by the portal) should be
-  fine on lite. Change `MITTI_SEAT_FOR_ROLE` once Jo decides.
+  fine on lite. Jo decided Lite for all trades (decision 340, below).
 - **Cost:** lite seats have been quoted at about $5 per user per month on paid plans (third-party review). Full seats cost
   much more. Adding or changing seats is charged pro rata to the end of the billing period
   (https://help.safetyculture.com/000130). Changing seat types needs a Premium or Enterprise plan
@@ -93,9 +93,13 @@ Then set `MITTI_USER_API_VERIFIED = true`.
 - **Templates:** share the A1–A5 templates once with the **HIV trades** group, so group members can open them (needed for
   installers who start A1 themselves).
 
-## What Jo must decide
+## Decided — Decision 340 (Jo, 25 Oct 2026)
 
-1. **Seat type per trade:** lite for everyone (cheapest), or full for installers who start A1 in Mitti.
-2. **Who pays for trade seats:** Home Insulation Victoria absorbs them, or they are charged back to the partner business.
-3. **Licence count / auto-purchase:** whether new trades may buy seats automatically, or the office keeps a fixed count.
-4. When the probe has passed, switch on `MITTI_AUTO_INVITE_ENABLED` and set `MITTI_TRADES_GROUP_ID`.
+- **Seat type:** Lite seats for trades — installers and electricians alike (`MITTI_SEAT_FOR_ROLE` = lite for both).
+- **Who pays: we pay.** Home Insulation Victoria pays for every trade seat (`MITTI_SEATS_PAID_BY`). Seats are not charged
+  back to the partner business, and nothing in the portal bills a trade for Mitti access.
+
+## Still for Jo
+
+1. **Licence count / auto-purchase:** whether new trades may buy seats automatically, or the office keeps a fixed count.
+2. When the probe has passed, switch on `MITTI_AUTO_INVITE_ENABLED` and set `MITTI_TRADES_GROUP_ID`.

@@ -200,7 +200,8 @@ describe("wiring (source facts)", () => {
   test("decision 290: the A2 quote never reads an access fee from the form; A1 keeps reading a legacy fee answer only", () => {
     const a2 = read("src/lib/quotes.server.ts");
     expect(a2).not.toContain("difficultAccessFee(");
-    expect(a2).toContain("difficultAccessFeeIncGst: accessFee.amountIncGst"); // the office adjustment input still exists
+    // Decision 341: the only access line is the installer's agreed DIFFICULT_ACCESS rate on a "Difficult" rating.
+    expect(a2).toContain('installerDifficultAccessExGst: rate("DIFFICULT_ACCESS")');
     expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
   });
 });

@@ -62,12 +62,12 @@ describe("6 difficult access charge", () => {
     expect(d.subtotal).toBe(3000 + 349 + 349);
     expect(a1DifficultAccessIncluded([e("What's included in your quote?", "Ceiling insulation - supply & install")])).toBe(false);
   });
-  test("A2: added to the owner's rate-card total as its own line", () => {
-    const base = { areaM2: 100, removalM2: 0, accessMultiplier: 1.25, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 20, installerRemovalExPerM2: null, installerTravelEx: null };
-    const without = priceHivQuote(base), withFee = priceHivQuote({ ...base, difficultAccessFeeIncGst: 250 });
+  test("A2 (decision 341): Difficult rating + the installer's agreed rate is added as its own pass-through line", () => {
+    const base = { areaM2: 100, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 20, installerRemovalExPerM2: null, installerTravelEx: null };
+    const without = priceHivQuote({ ...base, accessRating: "Difficult" }), withFee = priceHivQuote({ ...base, accessRating: "Difficult", installerDifficultAccessExGst: 250 });
     const sum = (q: typeof without) => q.lines.reduce((a, l) => a + l.line_total_inc_gst, 0);
-    expect(withFee.lines.find((l) => l.code === "DIFFICULT_ACCESS")).toMatchObject({ description: "Difficult access fee", line_total_inc_gst: 250 });
-    expect(sum(withFee) - sum(without)).toBe(250);
+    expect(withFee.lines.find((l) => l.code === "DIFFICULT_ACCESS")).toMatchObject({ description: "Difficult ceiling access", line_total_inc_gst: 275 });
+    expect(sum(withFee) - sum(without)).toBe(275);
   });
 });
 

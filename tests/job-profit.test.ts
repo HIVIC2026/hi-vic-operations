@@ -4,7 +4,7 @@ import { jobProfitBreakdown, veecCount } from "../src/lib/job-profit.core";
 
 // 150 m² metro Melbourne (3000) HIV job, TEST Alpha R5 $11.50 ex = $12.65 inc, electrician PIESA rate $250 inc.
 const base = {
-  hivJob: true, postcode: "3000", estimateAreaM2: 150, measuredAreaM2: null, removalM2: 0, accessMultiplier: 1,
+  hivJob: true, postcode: "3000", estimateAreaM2: 150, measuredAreaM2: null, removalM2: 0,
   ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, installerR5IncPerM2: 12.65, installerRemovalIncPerM2: 4.4,
   apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: 250, currentVeecPrice: 83,
   acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: null, saleVeecPrice: null,

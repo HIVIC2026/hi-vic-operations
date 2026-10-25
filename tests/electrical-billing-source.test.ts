@@ -12,7 +12,7 @@ describe("electrical billing source", () => {
   test("accepted quote without PIESA line + own → owner direct", () => expect(electricalBillingSource({ ...inst, choice: "installer_own", committedLineOnAcceptedQuote: false })).toBe("owner_direct"));
 });
 
-const base = { hivJob: false, postcode: "3000", estimateAreaM2: 100, measuredAreaM2: null, removalM2: 0, accessMultiplier: 1, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 10, installerR5IncPerM2: null, installerRemovalIncPerM2: null, apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: null, veecBuyPrice: 30, currentVeecPrice: 83, acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: null, saleVeecPrice: null };
+const base = { hivJob: false, postcode: "3000", estimateAreaM2: 100, measuredAreaM2: null, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 10, installerR5IncPerM2: null, installerRemovalIncPerM2: null, apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: null, veecBuyPrice: 30, currentVeecPrice: 83, acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: null, saleVeecPrice: null };
 describe("office profit", () => {
   test("own electrician: PIESA markup 0, no 'rate to be confirmed'", () => {
     const r = jobProfitBreakdown({ ...base, piesaOwnerDirect: true } as never) as unknown as { forecast: { piesaMarkupInc: number; notes: string[] } };
