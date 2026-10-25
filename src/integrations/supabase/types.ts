@@ -12725,6 +12725,7 @@ export type Database = {
           due_owner_reminder_days: number
           due_trade_reply_exception_hours: number
           due_trade_reply_warn_hours: number
+          esc_registry_robot_enabled: boolean
           id: number
           installer_quote_max_inc_gst_per_m2: number | null
           installer_quote_min_inc_gst_per_m2: number | null
@@ -12779,6 +12780,7 @@ export type Database = {
           due_owner_reminder_days?: number
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
+          esc_registry_robot_enabled?: boolean
           id?: number
           installer_quote_max_inc_gst_per_m2?: number | null
           installer_quote_min_inc_gst_per_m2?: number | null
@@ -12833,6 +12835,7 @@ export type Database = {
           due_owner_reminder_days?: number
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
+          esc_registry_robot_enabled?: boolean
           id?: number
           installer_quote_max_inc_gst_per_m2?: number | null
           installer_quote_min_inc_gst_per_m2?: number | null
