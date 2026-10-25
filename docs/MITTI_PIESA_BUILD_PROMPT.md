@@ -44,6 +44,7 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 15. `Are there any downlights or other recessed lights in the ceiling?` — Yes/No — Required
 16. `How many are there?` — Number — Required — only show when question 15 = Yes
 17. `Are any of them not IC or IC-4 rated?` — Yes/No — Required — only show when question 15 = Yes
+17a. `How many are not IC or IC-4 rated?` — Number — Required — only show when question 17 = Yes
 18. `Are there any appliances, exhaust fans or flues in the ceiling space?` — Yes/No — Required
 19. `Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.` — Text (long text is fine) — Required — only show when question 18 = Yes
 19a. `Does the action you described effectively reduce the risk from each hazard listed?` — Yes/No — Required — only show when question 18 = Yes
@@ -86,7 +87,7 @@ Note: questions 23–27 and 33–37 deliberately repeat the same labels. They ar
 44. `Photo of each hazard listed (one per hazard; geotagged)` — Photo, location on, allow several photos — Required — only show when ANY of: question 8 = No, question 11 = No, question 13 = No, question 17 = Yes, question 18 = Yes
 45. `Certificate of Electrical Safety (photo or PDF)` — Photo/attachment, PDF allowed — Required — only show when question 30 = Yes
 
-**Colours:** Yes/No questions 8, 11, 13 — No is the bad answer (red), Yes neutral. Questions 15, 17, 18 — Yes is the bad answer (red). Everything else neutral.
+**Colours:** Yes/No questions 8, 11, 13 — No is the bad answer (red), Yes neutral. Questions 17 and 18 — Yes is the bad answer (red). Question 15 and everything else neutral.
 **Settings:** turn ON mandatory mark-as-complete. Location/GPS on for 42–44.
 
 When published, reply with: the template ID, the question count (46 with 19a), and confirmation of every "only show when" rule above.

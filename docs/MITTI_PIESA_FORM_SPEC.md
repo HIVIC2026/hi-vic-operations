@@ -43,6 +43,7 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 15 | Are there any downlights or other recessed lights in the ceiling? | Yes / No: Yes / No | Required |
 | 16 | How many are there? | Number | Required · only show when: downlightsPresent = Yes |
 | 17 | Are any of them not IC or IC-4 rated? | Yes / No: Yes / No | Required · only show when: downlightsPresent = Yes |
+| 17a | How many are not IC or IC-4 rated? | Number | Required · only show when: question 17 = Yes |
 | 18 | Are there any appliances, exhaust fans or flues in the ceiling space? | Yes / No: Yes / No | Required |
 | 19 | Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it. | Text answer | Required · only show when: appliancesPresent = Yes |
 | 19a | Does the action you described effectively reduce the risk from each hazard listed? | Yes / No: Yes / No | Required · only show when: appliancesPresent = Yes · decision 210: fills official Part 7 "effective" (`p7.effective`), so the printed P7 rule can pass without a rectification record for every hazard |

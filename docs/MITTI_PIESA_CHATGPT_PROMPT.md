@@ -42,6 +42,7 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 15. `Are there any downlights or other recessed lights in the ceiling?` — Yes/No — Required
 16. `How many are there?` — Number — Required — only show when question 15 = Yes
 17. `Are any of them not IC or IC-4 rated?` — Yes/No — Required — only show when question 15 = Yes
+17a. `How many are not IC or IC-4 rated?` — Number — Required — only show when question 17 = Yes
 18. `Are there any appliances, exhaust fans or flues in the ceiling space?` — Yes/No — Required
 19. `Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.` — Text (long text is fine) — Required — only show when question 18 = Yes
 

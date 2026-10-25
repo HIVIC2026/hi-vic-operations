@@ -72,6 +72,8 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   yn("downlightsPresent", "Are there any downlights or other recessed lights in the ceiling?"),
   { id: "downlightCount", label: "How many are there?", type: "number", required: true, when: "downlightsPresent = Yes", source: "short onsite form" },
   yn("downlightsNonIc", "Are any of them not IC or IC-4 rated?", "downlightsPresent = Yes"),
+  // Jo 25 Oct 2026: the fixes quote needs the number of fittings to replace, not just that some are not IC rated.
+  { id: "downlightsNonIcCount", label: "How many are not IC or IC-4 rated?", type: "number", required: true, when: "downlightsNonIc = Yes", source: "short onsite form" },
   yn("appliancesPresent", "Are there any appliances, exhaust fans or flues in the ceiling space?"),
   { id: "applianceDetails", label: "Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.", type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
   // Decision 210 (audit P-1): the official Part 7 "effective" question, asked on site so the printed P7 rule can pass.
