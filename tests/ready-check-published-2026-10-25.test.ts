@@ -128,16 +128,14 @@ describe("portal validators on the published definitions", () => {
       expect(flat.some((i) => i.label === AREA_GROUP_BUTTON || /Longest length of this ceiling area/.test(i.label))).toBe(false);
     }
   });
-  it("validateTemplate: the ONLY issues are the build sheet still listing the deleted difficult-access pair (item 9) and questions the live forms never had", () => {
-    // A1: the access charge/fee pair was deleted by Jo's item 9 but mitti-forms.core READY_CHECK_FIELDS still requires it;
-    // "Who lives at the property?" (decision 222 premises type) was never built on either live template.
-    expect(validateTemplate("ready_check_priced", flattenDefinition(A1)).issues).toEqual([
-      `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.accessCharge}`, `Missing: ${LEAN_Q.accessFee}`,
-    ]);
+  it("validateTemplate: the ONLY issues are questions the live forms never had", () => {
+    // "Who lives at the property?" (decision 222 premises type) was never built on either live template; the difficult-access
+    // pair left the contract with decision 290.
+    expect(validateTemplate("ready_check_priced", flattenDefinition(A1)).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`]);
     // A2 (our lead): phone/email/permission/life support/5-year come from the website answers and were never on the live A2.
     expect(validateTemplate("ready_check", flattenDefinition(A2)).issues).toEqual([
       `Missing: ${LEAN_Q.ownerPhone}`, `Missing: ${LEAN_Q.ownerEmail}`, `Missing: ${LEAN_Q.contactPermission}`, `Missing: ${LEAN_Q.lifeSupport}`, `Missing: ${LEAN_Q.builtLast5}`,
-      `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.accessCharge}`, `Missing: ${LEAN_Q.accessFee}`,
+      `Missing: ${LEAN_Q.premisesType}`,
     ]);
   });
 });
