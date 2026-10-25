@@ -1,7 +1,8 @@
 // Safety plan (SWMS) persistence — decision 261. Facts come from the job (business, crew chosen for the install, address,
 // house age, Ready Check / PIESA hazard note); the crew sign on the installer's job page; every signature and the optional
 // site note are append-only workflow events; once everyone listed has signed, the plan is filed as a PDF in the WorkSafe
-// Victoria sample-template layout (documents kind "swms", one file per signature set). Pure rules in swms.core.ts.
+// Victoria sample-template layout (documents kind "swms", one file per signature set; layout swms-pdf.server.ts,
+// decision 358). Pure rules in swms.core.ts.
 // Never sends anything and never moves a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -95,8 +96,10 @@ export async function fileSwms(jobId: string, actorId: string | null): Promise<{
   const key = `swms:${sha.slice(0, 32)}`;
   const { data: ex } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("source_system", "portal").eq("external_id", key).maybeSingle();
   if (ex) return { filed: false, path: ex.storage_path };
-  const { textToPdf } = await import("./signed-pdf.server");
-  const pdf = await textToPdf(`Safe Work Method Statement — Job ${plan.jobNumber}`, text);
+  // Decision 358: the PDF is drawn in the WorkSafe sample-template layout; the key stays the hash of the same canonical
+  // text (swmsRecordText), so plans already filed as plain text are not filed again.
+  const { buildSwmsPdf } = await import("./swms-pdf.server");
+  const { bytes: pdf } = await buildSwmsPdf(plan, signatures, { recordRef: key });
   const path = `${jobId}/official/swms-${sha.slice(0, 16)}.pdf`;
   const up = await admin.storage.from("job-files").upload(path, pdf, { contentType: "application/pdf", upsert: false });
   if (up.error && !/exists/i.test(up.error.message)) throw new Error(`Safety plan could not be stored: ${up.error.message}`);

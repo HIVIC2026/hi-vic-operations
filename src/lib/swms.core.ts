@@ -151,3 +151,22 @@ export function swmsRecordText(plan: SwmsPlan, sigs: SwmsSignature[]): string {
   }
   return L.join("\n");
 }
+
+const SWMS_TZ = "Australia/Melbourne";
+/** Decision 358: a signature time on the filed SWMS — DD/MM/YYYY h:mma, Melbourne time (e.g. 02/11/2026 7:00pm). */
+export function swmsDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-AU", { timeZone: SWMS_TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(t))) p[x.type] = x.value;
+  const h24 = Number(p["hour"]) % 24;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${p["day"]}/${p["month"]}/${p["year"]} ${h12}:${p["minute"]}${h24 < 12 ? "am" : "pm"}`;
+}
+/** Decision 358: the install date (YYYY-MM-DD, already a Melbourne day) as DD/MM/YYYY; anything else is printed as stored. */
+export function swmsDate(ymd: string | null | undefined): string {
+  if (!ymd || !ymd.trim()) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ymd.trim();
+}
