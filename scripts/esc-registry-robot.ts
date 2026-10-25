@@ -5,8 +5,13 @@
 // Why a script: the deployed portal is a Cloudflare-style worker (nitro) that cannot run a browser. This script needs
 // Node/Bun + Playwright + Chromium on the machine that runs it (an office PC, a small VM or a scheduled job):
 //   bun add -d playwright && bunx playwright install chromium     (not added to package.json: the worker must not pull it)
-// plus the portal's SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY and the Registry login VEU_REGISTRY_USERNAME /
-// VEU_REGISTRY_PASSWORD in the environment (never logged, never stored).
+// plus the Registry login VEU_REGISTRY_USERNAME / VEU_REGISTRY_PASSWORD in the environment (never logged, never stored,
+// never sent to the portal) and ONE way to reach the portal:
+//   - API mode (decision 385, the normal way): ESC_ROBOT_TOKEN (+ optional PORTAL_URL, default the estimate host) – the
+//     robot calls /api/public/hooks/esc-robot through scripts/esc-registry-robot.client.ts and never holds the database
+//     key; no Supabase module is loaded. Setup: docs/esc-robot-cloud-setup.md.
+//   - Direct mode (fallback, a machine the office controls): no ESC_ROBOT_TOKEN, the portal's SUPABASE_URL /
+//     SUPABASE_SERVICE_ROLE_KEY, and the server module imported directly.
 //
 // Locks (all fail closed): Settings › Switches › ESC Registry robot (workflow_settings.esc_registry_robot_enabled,
 // pending migration) AND ESC_REGISTRY_ROBOT_ENABLED=true. ESC_REGISTRY_ROBOT_MODE=live submits; anything else dry-runs
@@ -17,16 +22,25 @@
 import { INSTALL_NOTIFICATION, INSTALL_NOTIFICATION_UPDATE, VEEC_CREATION } from "../src/lib/esc-registry-selectors";
 import { RobotStepError, fillInstallNotification, fillInstallNotificationUpdate, fillVeecCreation, login, submitAndReadReference, type RobotPage } from "../src/lib/esc-registry-robot.browser";
 import { runSummary, type RobotMode, type RobotTask } from "../src/lib/esc-registry-robot.core";
-import {
-  noticeWork, recordRobotAttempt, recordRobotDryRun, recordRobotFailure, recordRobotNotificationSubmitted, recordRobotNotificationUpdated, recordRobotVeecSubmitted, robotSettings, storeRobotScreenshot, veecWork,
-} from "../src/lib/esc-registry-robot.server";
 import { melbourneToday } from "../src/lib/melbourne-time.core";
+import type { RobotApiClient } from "./esc-registry-robot.client";
+
+// API mode when ESC_ROBOT_TOKEN is set (the server module – and with it the Supabase client – is never loaded);
+// otherwise the direct database helpers. Both have the same signatures.
+const apiMode = !!process.env["ESC_ROBOT_TOKEN"];
+const robot: Pick<RobotApiClient, keyof RobotApiClient> = apiMode
+  ? (await import("./esc-registry-robot.client")).robotApiClient()
+  : await import("../src/lib/esc-registry-robot.server");
+const {
+  noticeWork, recordRobotAttempt, recordRobotDryRun, recordRobotFailure, recordRobotNotificationSubmitted, recordRobotNotificationUpdated, recordRobotVeecSubmitted, robotSettings, storeRobotScreenshot, veecWork,
+} = robot;
 
 const args = process.argv.slice(2);
 const onlyJob = args.includes("--job") ? args[args.indexOf("--job") + 1] ?? null : null;
 const planOnly = args.includes("--plan");
 const log = (...a: unknown[]) => console.log(`[esc-registry-robot ${new Date().toISOString()}]`, ...a);
 
+log(apiMode ? "talking to the portal through the robot API (ESC_ROBOT_TOKEN)" : "direct database mode (no ESC_ROBOT_TOKEN)");
 const settings = await robotSettings();
 log(`mode ${settings.mode}: ${settings.reason}`);
 const counts = { notices: { planned: 0, submitted: 0, updated: 0, dryRuns: 0, failed: 0, skipped: 0 }, veecs: { planned: 0, submitted: 0, dryRuns: 0, failed: 0, skipped: 0 } };

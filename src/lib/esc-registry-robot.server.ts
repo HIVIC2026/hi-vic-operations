@@ -25,14 +25,19 @@ export type RobotSettings = { mode: RobotMode; reason: string; switchOn: boolean
 /** Switch (fail closed while the column is missing) + env flags + login presence. The password is returned ONLY to the
  *  caller that types it into the page; it is never logged or stored. */
 export async function robotSettings(env: NodeJS.ProcessEnv = process.env): Promise<RobotSettings> {
-  const { data, error } = await db.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
-  if (error) throw new Error(`Settings could not be read: ${error.message}`);
-  const row = (data ?? null) as Record<string, unknown> | null;
-  const switchOn = row && ESC_ROBOT_SWITCH_COLUMN in row ? row[ESC_ROBOT_SWITCH_COLUMN] === true : null;
+  const switchOn = await robotSwitch();
   const username = (env[ESC_ROBOT_USERNAME_ENV] ?? "").trim(), password = env[ESC_ROBOT_PASSWORD_ENV] ?? "";
   const credentials = username && password ? { username, password } : null;
   const m = robotMode({ switchOn, envOn: env[ESC_ROBOT_ENV_FLAG] === "true", modeEnv: env[ESC_ROBOT_MODE_ENV], credentials: !!credentials, selectorsVerified: SELECTOR_MAP_VERIFIED });
   return { ...m, switchOn, credentials: m.mode === "off" ? null : credentials };
+}
+
+/** Settings › Switches › ESC Registry robot: true/false, or null while the pending column is missing (fail closed). */
+export async function robotSwitch(): Promise<boolean | null> {
+  const { data, error } = await db.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  if (error) throw new Error(`Settings could not be read: ${error.message}`);
+  const row = (data ?? null) as Record<string, unknown> | null;
+  return row && ESC_ROBOT_SWITCH_COLUMN in row ? row[ESC_ROBOT_SWITCH_COLUMN] === true : null;
 }
 
 // ---- Shared reads ------------------------------------------------------------------------------------------------

@@ -1,0 +1,121 @@
+// Decision 385: the robot API's server operations keep every existing guard. With the robot server module mocked:
+// robotSettings never returns the Registry login, the asked mode is capped by the switch + selector map, "submitted"
+// records and live attempts are refused unless the portal is live and the job is not a TEST job, and guard errors
+// become 409 refusals.
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+
+class WorkflowError extends Error {}
+mock.module("../src/lib/workflow.server", () => ({ WorkflowError }));
+mock.module("../src/lib/esc-registry-selectors", () => ({ SELECTOR_MAP_VERIFIED: true }));
+
+const JOB = "11111111-1111-4111-8111-111111111111";
+const TEST_JOB = "44444444-4444-4444-8444-444444444444";
+const NOTICE = "22222222-2222-4222-8222-222222222222";
+const state = { switchOn: true as boolean | null, settingsEnv: null as NodeJS.ProcessEnv | null, calls: [] as { op: string; args: unknown[] }[], throwOn: null as string | null };
+const rec = (op: string, ret: unknown = undefined) => async (...args: unknown[]) => {
+  state.calls.push({ op, args });
+  if (state.throwOn === op) throw new WorkflowError(`${op} refused by guard`);
+  return ret;
+};
+mock.module("../src/lib/esc-registry-robot.server", () => ({
+  robotSwitch: async () => state.switchOn,
+  robotSettings: async (env: NodeJS.ProcessEnv) => {
+    state.settingsEnv = env;
+    const { robotMode } = await import("../src/lib/esc-registry-robot.core");
+    const m = robotMode({ switchOn: state.switchOn, envOn: env["ESC_REGISTRY_ROBOT_ENABLED"] === "true", modeEnv: env["ESC_REGISTRY_ROBOT_MODE"], credentials: !!(env["VEU_REGISTRY_USERNAME"] && env["VEU_REGISTRY_PASSWORD"]), selectorsVerified: true });
+    return { ...m, switchOn: state.switchOn, credentials: m.mode === "off" ? null : { username: env["VEU_REGISTRY_USERNAME"], password: env["VEU_REGISTRY_PASSWORD"] } };
+  },
+  noticeWork: rec("noticeWork", []),
+  veecWork: rec("veecWork", []),
+  recordRobotAttempt: rec("recordRobotAttempt"),
+  recordRobotDryRun: rec("recordRobotDryRun"),
+  recordRobotFailure: rec("recordRobotFailure"),
+  recordRobotNotificationSubmitted: rec("recordRobotNotificationSubmitted"),
+  recordRobotNotificationUpdated: rec("recordRobotNotificationUpdated"),
+  recordRobotVeecSubmitted: rec("recordRobotVeecSubmitted"),
+  storeRobotScreenshot: rec("storeRobotScreenshot", "path.png"),
+}));
+const rows: Record<string, Record<string, { source?: string; job_id?: string }>> = {
+  jobs: { [JOB]: { source: "website" }, [TEST_JOB]: { source: "qa_test" } },
+  esc_notifications: { [NOTICE]: { job_id: JOB } },
+};
+mock.module("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    from: (table: string) => ({ select: () => ({ eq: (_c: string, id: string) => ({ maybeSingle: async () => ({ data: rows[table]?.[id] ?? null, error: null }) }) }) }),
+  },
+}));
+
+const { robotApiOps, serverModeCap } = await import("../src/lib/esc-robot-api.server");
+const { RobotApiRefused } = await import("../src/lib/esc-robot-api.core");
+
+beforeEach(() => { state.switchOn = true; state.calls = []; state.throwOn = null; rows.esc_notifications![NOTICE] = { job_id: JOB }; });
+const submitted = { notificationId: NOTICE, reference: "ESC-123", sentAt: "2026-10-25T01:00:00.000Z", screenshotPath: null, registryUrl: null };
+const veec = { jobId: JOB, reference: "VEEC-1", quantity: 3, submittedDate: "2026-10-25", screenshotPath: null, registryUrl: null };
+
+describe("robotSettings", () => {
+  test("uses the robot's flags, never returns credentials, fails closed while the switch is missing", async () => {
+    const s = await robotApiOps.robotSettings({ envOn: true, modeEnv: "live", hasCredentials: true });
+    expect(s).toEqual({ mode: "live", reason: expect.any(String), switchOn: true });
+    expect(JSON.stringify(s)).not.toContain("robot-local");
+    expect(state.settingsEnv!["ESC_REGISTRY_ROBOT_MODE"]).toBe("live");
+    expect((await robotApiOps.robotSettings({ envOn: false, modeEnv: "live", hasCredentials: true })) as { mode: string }).toMatchObject({ mode: "off" });
+    expect((await robotApiOps.robotSettings({ envOn: true, modeEnv: null, hasCredentials: false })) as { mode: string }).toMatchObject({ mode: "off" });
+    state.switchOn = null;
+    expect((await robotApiOps.robotSettings({ envOn: true, modeEnv: "live", hasCredentials: true })) as { mode: string }).toMatchObject({ mode: "off" });
+  });
+});
+
+describe("mode cap", () => {
+  test("switch off / missing → off; on → the asked mode", async () => {
+    expect(await serverModeCap()).toBe("live");
+    await robotApiOps.noticeWork({ mode: "live" });
+    state.switchOn = false;
+    expect(await serverModeCap()).toBe("off");
+    await robotApiOps.noticeWork({ mode: "live" });
+    await robotApiOps.veecWork({ mode: "dry_run" });
+    state.switchOn = null;
+    await robotApiOps.veecWork({ mode: "live" });
+    expect(state.calls.map((c) => [c.op, c.args[0]])).toEqual([["noticeWork", "live"], ["noticeWork", "off"], ["veecWork", "off"], ["veecWork", "off"]]);
+  });
+});
+
+describe("live records", () => {
+  test("allowed when live and a real job", async () => {
+    await robotApiOps.recordRobotNotificationSubmitted(submitted);
+    await robotApiOps.recordRobotNotificationUpdated({ ...submitted, previousNotificationId: NOTICE, updatedAt: submitted.sentAt });
+    await robotApiOps.recordRobotVeecSubmitted(veec);
+    await robotApiOps.recordRobotAttempt({ jobId: JOB, task: "veec_creation", notificationId: null, mode: "live", plan: "submit" });
+    expect(state.calls.map((c) => c.op)).toEqual(["recordRobotNotificationSubmitted", "recordRobotNotificationUpdated", "recordRobotVeecSubmitted", "recordRobotAttempt"]);
+  });
+
+  test("refused when the switch is off, for TEST jobs, and for unknown notices — nothing recorded", async () => {
+    state.switchOn = false;
+    await expect(robotApiOps.recordRobotNotificationSubmitted(submitted)).rejects.toBeInstanceOf(RobotApiRefused);
+    await expect(robotApiOps.recordRobotVeecSubmitted(veec)).rejects.toThrow("not in live mode");
+    await expect(robotApiOps.recordRobotAttempt({ jobId: JOB, task: "veec_creation", notificationId: null, mode: "live", plan: "submit" })).rejects.toBeInstanceOf(RobotApiRefused);
+    state.switchOn = true;
+    await expect(robotApiOps.recordRobotVeecSubmitted({ ...veec, jobId: TEST_JOB })).rejects.toThrow("TEST jobs are always dry-run");
+    rows.esc_notifications![NOTICE] = { job_id: TEST_JOB };
+    await expect(robotApiOps.recordRobotNotificationSubmitted(submitted)).rejects.toThrow("TEST jobs");
+    delete rows.esc_notifications![NOTICE];
+    await expect(robotApiOps.recordRobotNotificationUpdated({ ...submitted, previousNotificationId: NOTICE, updatedAt: submitted.sentAt })).rejects.toThrow("job not found");
+    expect(state.calls).toEqual([]);
+    // Dry-run trail is always allowed (TEST jobs included).
+    await robotApiOps.recordRobotAttempt({ jobId: TEST_JOB, task: "veec_creation", notificationId: null, mode: "dry_run", plan: "submit" });
+    expect(state.calls.map((c) => c.op)).toEqual(["recordRobotAttempt"]);
+  });
+
+  test("a guard WorkflowError from the record helper becomes a 409 refusal", async () => {
+    state.throwOn = "recordRobotNotificationSubmitted";
+    await expect(robotApiOps.recordRobotNotificationSubmitted(submitted)).rejects.toBeInstanceOf(RobotApiRefused);
+  });
+});
+
+test("screenshot and trail records pass straight through", async () => {
+  const png = new Uint8Array([1, 2, 3]);
+  expect(await robotApiOps.storeRobotScreenshot({ jobId: JOB, jobNumber: "HV-1", task: "veec_creation", ref: null, outcome: "dry_run", png })).toBe("path.png");
+  await robotApiOps.recordRobotDryRun({ jobId: JOB, task: "veec_creation", notificationId: null, screenshotPath: null, filled: [], blank: [], unmapped: [], registryUrl: null });
+  await robotApiOps.recordRobotFailure({ jobId: JOB, task: "veec_creation", notificationId: null, mode: "dry_run", step: "login", error: "x", screenshotPath: null, registryUrl: null });
+  expect(state.calls.map((c) => c.op)).toEqual(["storeRobotScreenshot", "recordRobotDryRun", "recordRobotFailure"]);
+  expect((state.calls[0]!.args[0] as { png: Uint8Array }).png).toBe(png);
+});
