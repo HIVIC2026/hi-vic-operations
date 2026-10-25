@@ -50,13 +50,14 @@ describe("Install day prompt equals install-day.core (drift)", () => {
       expect(!!c.prefill, `Q${p.n} prefill`).toBe(p.prefill);
       if (p.options?.length) expect([...(c.options ?? [])], `Q${p.n} options`).toEqual(p.options);
     }
-    expect(INSTALL_DAY_QUESTIONS.at(-1)!.n).toBe(45);
+    expect(INSTALL_DAY_QUESTIONS.at(-1)!.n).toBe(47);
   });
 });
 
 // ---- audit helpers -------------------------------------------------------------------------------
 let i = 0;
 const item = (label: string, x: Record<string, unknown> = {}) => ({ item_id: `it${i++}`, label, ...x });
+const pickOne = (label: string, v: string) => item(label, { type: "question", responses: { selected: [{ label: v }] } });
 const yn = (label: string, v: "Yes" | "No") => item(label, { type: "question", responses: { selected: [{ label: v }] } });
 const pick = (label: string, v: string) => item(label, { type: "question", responses: { selected: [{ label: v }] } });
 const txt = (label: string, v: string) => item(label, { type: "text", responses: { text: v } });
@@ -73,11 +74,11 @@ export function installDayAudit(o: { crew?: 1 | 2 | 3; needed?: "Yes" | "No"; he
     yn(Q.anyoneElse, crew > 1 ? "Yes" : "No"),
     ...(crew > 1 ? [txt(Q.second, "Dominic Doherty"), txt(Q.secondCii, "CII-002"), yn(Q.third3, crew > 2 ? "Yes" : "No")] : []),
     ...(crew > 2 ? [txt(Q.third, "Third Person"), txt(Q.thirdCii, "CII-003")] : []),
-    photo(Q.installerPhotos, "inst"), yn(Q.powerInformed, "Yes"), yn(Q.lifeSupport, "No"), yn(Q.swmsSigned, "Yes"), yn(Q.hazardsCovered, "Yes"), yn(Q.isolated, "Yes"), photo(Q.isolationPhoto, "iso"),
+    photo(Q.leadPhoto, "inst"), ...(crew > 1 ? [photo(Q.secondPhoto, "inst2")] : []), ...(crew > 2 ? [photo(Q.thirdPhoto, "inst3")] : []), yn(Q.powerInformed, "Yes"), yn(Q.lifeSupport, "No"), yn(Q.swmsSigned, "Yes"), yn(Q.hazardsCovered, "Yes"), yn(Q.isolated, "Yes"), photo(Q.isolationPhoto, "iso"),
     yn(Q.solar, "No"), yn(Q.piesaRead, "Yes"), yn(Q.electricianNeeded, o.needed ?? "No"), ...(o.here ? [yn(Q.electricianHere, o.here)] : []), ...(o.here === "Yes" ? [photo(Q.electricianPhoto, "elec")] : []),
     yn(Q.ceilingEntered, o.entered ?? "No"),
     photo(Q.productPhotos, "prod"), tick(Q.declaration), sign("2026-11-03T19:45:00Z"),
-    ...(o.done ? [photo(Q.afterVideos, "av1", "av2"), photo(Q.depthPhotos, "dp1", "dp2"), yn(Q.multiDay, "No"), yn(Q.lockoutOff, "Yes"), txt(Q.lockoutBy, "Bhavdeep Singh, installer"), photo(Q.switchboardOn, "sw"), pick(Q.solarBack, "There isn't one"), tick(Q.supervised), sign("2026-11-04T04:06:00Z")]
+    ...(o.done ? [photo(Q.afterVideos, "av1", "av2"), photo(Q.depthPhotos, "dp1", "dp2"), yn(Q.multiDay, "No"), yn(Q.lockoutOff, "Yes"), pickOne(Q.lockoutBy, "Lead installer"), photo(Q.switchboardOn, "sw"), pick(Q.solarBack, "There isn't one"), tick(Q.supervised), sign("2026-11-04T04:06:00Z")]
       : [item(Q.afterVideos, { type: "media" }), item(Q.signature, { type: "signature", responses: {} })]),
   ];
   return { audit_id: "a1", items };
@@ -90,7 +91,7 @@ describe("reading an Install day audit", () => {
     const built = { items: INSTALL_DAY_QUESTIONS.map((q) => item(q.label)) };
     expect(installDayMissingQuestions(built)).toEqual([]);
     const oneSig = { items: built.items.filter((x, idx, all) => !(x.label === Q.signature && all.findIndex((y) => y.label === Q.signature) !== idx)) };
-    expect(installDayMissingQuestions(oneSig)).toEqual([`${Q.signature} (Q45)`]);
+    expect(installDayMissingQuestions(oneSig)).toEqual([`${Q.signature} (Q47)`]);
   });
   test("maps every asked answer to the official PIISA item; Part 5 lights/cables and Part 6 are never read from the form", () => {
     const { answers, crew } = installDayOfficialAnswers(installDayAudit({ crew: 3 }));

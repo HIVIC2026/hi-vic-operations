@@ -21,6 +21,7 @@ Build it as a NEW template. The existing "A3 - PIISA + AP Evidence" stays as it 
 **Inspection title:** Portal Job Number + Site address (Q1 and Q2).
 **Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for every Photo and Video question.
 **Pages:** one page per ## group below.
+**Colours (decision 304):** a Yes/No answer that means safe or done = GREEN; an answer with a stop line, or a problem = RED; plain facts (is there solar, anyone else installing, more than one day, who turned it back on) = grey. No other colours.
 **Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
 editable items so the installer can correct them.
 **Stop lines** are short red text items that only show when the answer before them is `No`; they are not questions.
@@ -40,60 +41,62 @@ Q4: `Accredited person` — Text — Required — portal fills this in
 Q5: `Installer business` — Text — Required — portal fills this in
 Q6: `Lead installer` — Text — Required — portal fills this in
 Q7: `Lead installer's CII number` — Text — Required — portal fills this in
-Q8: `Is anyone else installing today?` — Yes/No — Required
-Q9: `Second installer` — Text — Required — only show when Q8 = `Yes`
-Q10: `Second installer's CII number` — Text — Required — only show when Q8 = `Yes`
-Q11: `Is there a third installer?` — Yes/No — Required — only show when Q8 = `Yes`
-Q12: `Third installer` — Text — Required — only show when Q11 = `Yes`
-Q13: `Third installer's CII number` — Text — Required — only show when Q11 = `Yes`
-Q14: `Photo of each installer at the front door, showing photo ID` — Photo — Required — help text: `One photo per person.`
+Q8: `Photo of the lead installer at the front door, showing photo ID` — Photo — Required — help text: `Photo ID readable.`
+Q9: `Is anyone else installing today?` — Yes/No — Required — portal fills this in
+Q10: `Second installer` — Text — Required — only show when Q9 = `Yes` — portal fills this in
+Q11: `Second installer's CII number` — Text — Required — only show when Q9 = `Yes` — portal fills this in
+Q12: `Photo of the second installer at the front door, showing photo ID` — Photo — Required — only show when Q9 = `Yes` — help text: `Photo ID readable.`
+Q13: `Is there a third installer?` — Yes/No — Required — only show when Q9 = `Yes` — portal fills this in
+Q14: `Third installer` — Text — Required — only show when Q13 = `Yes` — portal fills this in
+Q15: `Third installer's CII number` — Text — Required — only show when Q13 = `Yes` — portal fills this in
+Q16: `Photo of the third installer at the front door, showing photo ID` — Photo — Required — only show when Q13 = `Yes` — help text: `Photo ID readable.`
 
 ## Group 3: Before anyone goes up
-Q15: `Does the household know the power will be off today?` — Yes/No — Required — stop line when No: `Stop. Tell them before you go on.`
-Q16: `Does anyone here rely on life support?` — Yes/No — Required — portal fills this in
-Q17: `Do you have their written consent or medical plan?` — Yes/No — Required — only show when Q16 = `Yes` — stop line when No: `Stop. You need it before starting.`
-Q18: `Upload the consent or medical plan` — Photo — Required — only show when Q17 = `Yes` — help text: `Every page readable.`
-Q19: `Is the safety plan for this job signed?` — Yes/No — Required — help text: `It's on your job page.` — stop line when No: `Stop. Sign it on your job page first.`
-Q20: `Are all the common hazards covered in it?` — Yes/No — Required — stop line when No: `Stop.`
-Q21: `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
-Q22: `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `Solar and battery isolators off too, if the home has them.`
+Q17: `Does the household know the power will be off today?` — Yes/No — Required — stop line when No: `Stop. Tell them before you go on.`
+Q18: `Does anyone here rely on life support?` — Yes/No — Required — portal fills this in
+Q19: `Do you have their written consent or medical plan?` — Yes/No — Required — only show when Q18 = `Yes` — stop line when No: `Stop. You need it before starting.`
+Q20: `Upload the consent or medical plan` — Photo — Required — only show when Q19 = `Yes` — help text: `Every page readable.`
+Q21: `Is the safety plan for this job signed?` — Yes/No — Required — help text: `It's on your job page.` — stop line when No: `Stop. Sign it on your job page first.`
+Q22: `Are all the common hazards covered in it?` — Yes/No — Required — stop line when No: `Stop.`
+Q23: `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
+Q24: `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `Solar and battery isolators off too, if the home has them.`
 
 ## Group 4: Solar, battery or generator
-Q23: `Is there solar, a battery or a generator?` — Yes/No — Required — portal fills this in
-Q24: `Do you have the shutdown and restart instructions?` — Yes/No — Required — only show when Q23 = `Yes` — stop line when No: `Stop. An electrician must isolate it.`
-Q25: `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when Q23 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
+Q25: `Is there solar, a battery or a generator?` — Yes/No — Required — portal fills this in
+Q26: `Do you have the shutdown and restart instructions?` — Yes/No — Required — only show when Q25 = `Yes` — stop line when No: `Stop. An electrician must isolate it.`
+Q27: `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when Q25 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
 
 ## Group 5: The electrician's check (PIESA)
 The portal has the PIESA already: it fills in the light, cable and downlight answers on the official form itself, so none of
 them are asked here.
-Q26: `Have you read the PIESA and is it safe to start?` — Yes/No — Required — stop line when No: `Stop.`
-Q27: `Does the PIESA need an electrician here at the start?` — Yes/No — Required — portal fills this in
-Q28: `Is the electrician here?` — Yes/No — Required — only show when Q27 = `Yes` — stop line when No: `Stop. Wait for the electrician.`
-Q29: `Photo of the electrician at the front door, showing photo ID` — Photo — Required — only show when Q28 = `Yes`
-Q30: `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required — help text: `Ask the owner.` — stop line when Yes: `Stop. An electrician must check again.`
+Q28: `Have you read the PIESA and is it safe to start?` — Yes/No — Required — stop line when No: `Stop.`
+Q29: `Does the PIESA need an electrician here at the start?` — Yes/No — Required — portal fills this in
+Q30: `Is the electrician here?` — Yes/No — Required — only show when Q29 = `Yes` — stop line when No: `Stop. Wait for the electrician.`
+Q31: `Photo of the electrician at the front door, showing photo ID` — Photo — Required — only show when Q30 = `Yes`
+Q32: `Has anyone been in the ceiling since the PIESA?` — Yes/No — Required — help text: `Ask the owner.` — stop line when Yes: `Stop. An electrician must check again.`
 
 ## Group 6: Product
-Q31: `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
+Q33: `Photo of the packaging showing brand, model and R-value` — Photo — Required — help text: `One per product.`
 
 ## Group 7: Declaration (sign before you start)
-Q32: Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
-Q33: `Everything on this form is true and complete` — Checkbox — Required
-Q34: `Lead installer's signature` — Signature — Required
-Q35: Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
+Q34: Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
+Q35: `Everything on this form is true and complete` — Checkbox — Required
+Q36: `Lead installer's signature` — Signature — Required
+Q37: Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
 
 ## Group 8: Videos and photos (after the install)
 The before video of each area was taken at the Ready Check, so it is not asked again.
-Q36: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
-Q37: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
-Q38: `Did the install take more than one day?` — Yes/No — Required
-Q39: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q38 = `Yes`
+Q38: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
+Q39: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
+Q40: `Did the install take more than one day?` — Yes/No — Required
+Q41: `I checked every item on this form again before starting each day` — Checkbox — Required — only show when Q40 = `Yes`
 
 ## Group 9: Finishing up
-Q40: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
-Q41: `Who turned it back on?` — Text — Required — only show when Q40 = `Yes` — help text: `Name, and whether it was the installer who locked it or the electrician.`
-Q42: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q40 = `Yes`
-Q43: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
-Q44: `I was here the whole time and supervised everyone` — Checkbox — Required
-Q45: `Lead installer's signature` — Signature — Required
+Q42: `Is the lock-out off and the power back on?` — Yes/No — Required — stop line when No: `Don't leave until it is.`
+Q43: `Who turned it back on?` — Pick one: `Lead installer` / `Second installer` / `Third installer` / `The electrician` — Required — only show when Q42 = `Yes`
+Q44: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q42 = `Yes`
+Q45: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
+Q46: `I was here the whole time and supervised everyone` — Checkbox — Required
+Q47: `Lead installer's signature` — Signature — Required
 
 Publish.

@@ -647,6 +647,15 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
       const facts = {
         jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
         leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
+        // Decision 299: the rest of the crew pre-filled from the booking's crew picks (staff row, or an "Other" entry).
+        ...(() => {
+          const pick = (x: unknown): { name: string | null; cii: string | null } | null => {
+            if (typeof x === "string") { const w = staff.find((o) => o.workerId === x); return w ? { name: w.name, cii: w.eecVerified ? w.eec : null } : null; }
+            const o = (x as { other?: { name?: string; eec?: string } } | null)?.other; return o ? { name: o.name ?? null, cii: null } : null;
+          };
+          const [c2, c3] = (selection.additional ?? []).map(pick);
+          return { secondName: c2?.name ?? null, secondCii: c2?.cii ?? null, thirdName: c3?.name ?? null, thirdCii: c3?.cii ?? null };
+        })(),
         lifeSupport: yes(hv("lifeSupport")), solarPresent: yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
       };
       const prefill = id.installDayPrefillItems(template, facts, (await import("./mitti.core")).choiceOption);

@@ -78,7 +78,7 @@ export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
 
 /** The four A3 photo items: the "A3 – Install day" wording. */
 export const INSTALL_EVIDENCE_RELABELS = {
-  installer_photos: ID.installerPhotos,
+  installer_photos: ID.leadPhoto, // decision 300: one photo per installer (lead / second / third items), all read as installer_photos
   electrician_photo: ID.electricianPhoto,
   isolation_photo: ID.isolationPhoto,
   product_photos: ID.productPhotos,
