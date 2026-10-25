@@ -182,7 +182,9 @@ describe("wiring (source facts)", () => {
     expect(page).not.toContain("Your price goes in the Mitti form");
     expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.boss ? pay : null");
     // The owner's quote (with the boss's figures) is status-only for team members on installer jobs.
-    expect(read("src/lib/installer-quote-status.functions.ts")).toContain("if (!ctx?.boss) return { applies: true as const, priceHidden: true as const");
+    // (Speed, decision 280: the read body lives in my-owner-quote.server.ts so the installer job bundle shares it.)
+    expect(read("src/lib/installer-quote-status.functions.ts")).toContain("myOwnerQuoteFor(");
+    expect(read("src/lib/my-owner-quote.server.ts")).toContain("if (!ctx?.boss) return { applies: true as const, priceHidden: true as const");
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("if (!view?.canSet) return null;");
     expect(card).not.toMatch(/Who is doing the electrical safety check\?|ip-electrician|setElectrician|Electrician licence number/);

@@ -74,7 +74,7 @@ export function WorkerLinksPanel({ jobId }: { jobId: string }) {
   const load = useServerFn(jobWorkerLinks);
   const create = useServerFn(createWorkerJobLink);
   const revoke = useServerFn(revokeWorkerJobLink);
-  const { data, refetch } = useQuery({ queryKey: ["worker-links", jobId], queryFn: () => load({ data: { jobId } }) });
+  const { data, refetch } = useQuery({ queryKey: ["worker-links", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const [fresh, setFresh] = useState<{ workerId: string; url: string } | null>(null);
   if (!data) return null;
   if (!data.assignedBusinesses) return <Section title="Staff job links"><p className="text-sm text-muted-foreground">Assign an installer or electrician company to this job first — then you can send one of their approved staff members a job link.</p></Section>;

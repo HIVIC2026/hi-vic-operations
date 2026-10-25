@@ -19,7 +19,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getTradeSwms);
   const qc = useQueryClient();
   const key = ["trade-swms", jobId];
-  const { data } = useQuery({ queryKey: key, queryFn: () => load({ data: { jobId } }), retry: false });
+  const { data } = useQuery({ queryKey: key, queryFn: () => load({ data: { jobId } }), retry: false, staleTime: 20_000 });
   const saveNote = useAction(saveTradeSwmsNote);
   const sign = useAction(signTradeSwms);
   const [note, setNote] = useState<string | null>(null);

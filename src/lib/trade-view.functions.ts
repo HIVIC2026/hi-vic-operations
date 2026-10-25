@@ -155,6 +155,12 @@ export const getTradeJobPage = createServerFn({ method: "POST" }).middleware([re
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeJobPage(data.jobId, context.userId)));
 
+/** Speed (decision 280): the installer job page's first paint in ONE call — every section the page's cards read, each
+ *  through the same server helper and role rule as its own server function (`trade-job-bundle.server.ts`). */
+export const getTradeJobBundle = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-job-bundle.server")).tradeJobBundle(context.supabase, context.userId, data.jobId)));
+
 export const getTradeDayExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDayExtras(data.jobId, context.userId)));

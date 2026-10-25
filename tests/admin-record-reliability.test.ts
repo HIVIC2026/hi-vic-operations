@@ -46,7 +46,9 @@ describe("admin record reliability", () => {
 
   it("keeps a failed job read distinct from a missing job", () => {
     expect(functions).toContain("export const getJobOverview");
-    expect(functions).toContain("await requireJobRole(context.supabase");
+    // Speed (decision 280): the read body lives in job-overview.server.ts so the installer job bundle shares it; the role check is unchanged.
+    expect(functions).toContain("jobOverviewFor(context.supabase, context.userId, data.jobId)");
+    expect(readFileSync("src/lib/job-overview.server.ts", "utf8")).toContain('await requireJobRole(sb, jobId, ["admin", "owner", "electrician", "installer"])');
     expect(job).toContain("Its records have not been deleted");
     expect(job).toContain("Try again");
   });

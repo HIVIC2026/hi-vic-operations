@@ -44,8 +44,8 @@ export async function visitFormAuditId(jobId: string, kind: VisitKind): Promise<
 }
 
 /** Job screen: which visits this job shows, who is on each, and the picker list with grey-out reasons. */
-export async function visitAllocationView(jobId: string, userId: string) {
-  const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId);
+export async function visitAllocationView(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
+  const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId, pre);
   const { data: job } = await db.from("jobs").select("stage").eq("id", jobId).maybeSingle();
   const kinds = visitsForStage(job?.stage ?? null);
   if (!kinds.length || c.kind !== "installer") return { canAllocate: false, visits: [] as { kind: VisitKind; label: string; current: { workerId: string; name: string } | null; hasForm: boolean; options: ReturnType<typeof allocationOptions> }[] };

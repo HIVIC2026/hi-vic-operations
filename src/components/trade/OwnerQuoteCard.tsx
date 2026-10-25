@@ -11,7 +11,7 @@ const aud = (n: number) => n.toLocaleString("en-AU", { style: "currency", curren
  *  step for installer jobs (A1) or our leads (A2) — the installer presses Complete in Mitti and the office sends. */
 export function OwnerQuoteCard({ jobId, hideStatus = false }: { jobId: string; hideStatus?: boolean }) {
   const load = useServerFn(getMyOwnerQuote);
-  const q = useQuery({ queryKey: ["my-owner-quote", jobId], queryFn: () => load({ data: { jobId } }) });
+  const q = useQuery({ queryKey: ["my-owner-quote", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const [open, setOpen] = useState(false);
   const d = q.data;
   if (!d || !d.applies) return null;
