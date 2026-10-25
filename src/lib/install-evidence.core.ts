@@ -15,7 +15,7 @@
 import { norm } from "./mitti.core";
 import { melbourneToday } from "./melbourne-time.core";
 import type { MittiMediaFile } from "./piesa-evidence.core";
-import { INSTALL_DAY_Q as ID, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, isInstallDayDoc, labelKey as key, labelledItems, NO_SIGNATURE, type Labelled, type ReadSignature } from "./install-day.core";
+import { INSTALL_DAY_Q as ID, INSTALL_DAY_RULER_Q, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, installDayRulerPhotos, isInstallDayDoc, labelKey as key, labelledItems, NO_SIGNATURE, type InstallDayRulerRead, type Labelled, type ReadSignature } from "./install-day.core";
 import { activity48ProductProblems, modelsForMittiOption } from "./esc-approved-products.core";
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
 import { FINAL_TICK_MISSING } from "./install-day-confirm.core";
@@ -211,6 +211,7 @@ export type InstallEvidenceZoneRead = { zone: number; name: string | null; under
 export type AfterInstallRead = { onForm: boolean; /** Decision 328: the final "Every answer, photo and video … filled in" tick. null = not on this form (old A3). */ allFilledIn?: boolean | null; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
 export type InstallEvidenceRead = { /** The "A5 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
+  /** Decision 396: the per-area ruler photos (install day form only; undefined on reads made before decision 396). */ ruler?: InstallDayRulerRead;
   /** Install day form (decisions 263/264): the two multi-file items. Empty on the old A3. */ files: { afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
@@ -235,7 +236,8 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), allFilledIn: isInstallDayDoc(audit) ? !!finalTick?.value : null, lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
   const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
-  return { installDay: isInstallDayDoc(audit), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
+  const installDay = isInstallDayDoc(audit);
+  return { installDay, ...(installDay ? { ruler: installDayRulerPhotos(audit) } : {}), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
 /**
@@ -290,7 +292,13 @@ export type InstallEvidenceSummary = {
   zoneProducts: { zone: number; name: string | null; product: string | null; areaM2: number | null }[];
   /** Foil / conductive answer for the official P6 rule: true / false / null (not answered or not asked). */
   foil: boolean | null; foilPhotoMediaId: string | null;
+  /** Decision 396: the ruler photos read per Ready Check area (install day form only). Kept for the job file copy. */
+  rulerPhotos?: RulerAreaFiles[];
+  /** Decision 396: the ruler photo lines (also inside `blockers`). They hold completion even when `applies` is false
+   *  (before the effective date); absent = none / summary from before decision 396. */
+  rulerBlockers?: string[];
 };
+export type RulerAreaFiles = { zone: number; name: string; existingRequired: boolean; existing: MittiMediaFile[]; after: MittiMediaFile[] };
 
 type Phase = "before" | "after";
 function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: number; video: boolean; workStartAt?: string | null | undefined; phase: Phase }): { state: InstallEvidenceItem["state"]; problems: string[] } {
@@ -347,6 +355,55 @@ export function foilBlockers(f: FoilRead, existingInsulation: boolean, workStart
   return mediaProblems("Existing insulation facing photo (foil / conductive)", f.foilPhoto, { min: 1, video: false, workStartAt, phase: "before" }).problems;
 }
 
+// ======================================================================================================
+// Decision 396 (Jo, 26 Oct 2026): the A5 asks both ruler photos per ceiling area
+// ======================================================================================================
+export const RULER_LOCK = "Installation complete stays locked until the install day form has every ruler photo";
+export const RULER_SECTION_MISSING = `The install day form has no ruler photo questions yet ("${INSTALL_DAY_RULER_Q.newDepth}") — the office must add them to the A5 in Mitti (docs/mitti-paste-A5-ruler-photos.md) and send a new form`;
+const areaName = (z: JobZone, i: number) => z.name?.trim() || (i === 0 ? DEFAULT_SINGLE_AREA_NAME : `Area ${i + 1}`);
+/** Activity Guide v1.2 Table 4, per Ready Check area (copy i of the A5 repeat section = area i): the existing-depth photo
+ *  when the area had existing insulation (unknown = required, never silently exempt), the new-depth photo always. Each
+ *  photo needs its location and capture time, exactly like the other A5 photos (mediaProblems); the existing one must
+ *  be taken before work starts, the new one after. Applies to every install day form whatever the install date. */
+export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zones: JobZone[], workStartAt?: string | null): { items: InstallEvidenceItem[]; blockers: string[]; files: RulerAreaFiles[] } {
+  const items: InstallEvidenceItem[] = [];
+  const blockers: string[] = [];
+  const files: RulerAreaFiles[] = [];
+  if (!ruler?.onForm) return { items, blockers: [RULER_SECTION_MISSING], files };
+  const list: JobZone[] = zones.length ? zones : [{ name: null, underInsulated: null }];
+  list.forEach((z, i) => {
+    const name = areaName(z, i);
+    const copy = ruler.areas[i] ?? { existing: [], after: [] };
+    const existingRequired = z.underInsulated !== false;
+    files.push({ zone: i + 1, name, existingRequired, existing: copy.existing, after: copy.after });
+    const check = (id: string, label: string, what: string, fs: MittiMediaFile[], phase: Phase) => {
+      if (!fs.length) {
+        const line = `${name}: ${what} photo with a ruler is missing`;
+        items.push({ id, zone: i + 1, label, state: "missing", count: 0, problems: [line] });
+        blockers.push(line);
+        return;
+      }
+      const r = mediaProblems(`${name}: ${what} photo with a ruler`, fs, { min: 1, video: false, workStartAt, phase });
+      if (phase === "after" && workStartAt) {
+        const early = fs.filter((f) => f.capturedAt && Date.parse(f.capturedAt) < Date.parse(workStartAt)).length;
+        if (early) r.problems.push(`${name}: ${what} photo with a ruler: taken before work started — take it when the insulation is in`);
+      }
+      items.push({ id, zone: i + 1, label, state: r.problems.length ? "review" : "met", count: fs.length, problems: r.problems });
+      blockers.push(...r.problems);
+    };
+    if (existingRequired) check("ruler_existing", INSTALL_DAY_RULER_Q.existingDepth, "existing insulation depth", copy.existing, "before");
+    else items.push({ id: "ruler_existing", zone: i + 1, label: INSTALL_DAY_RULER_Q.existingDepth, state: "not_required", count: copy.existing.length, problems: [] });
+    check("ruler_new", INSTALL_DAY_RULER_Q.newDepth, "new insulation depth", copy.after, "after");
+  });
+  return { items, blockers, files };
+}
+
+/** Decision 396: the ruler photo lines of a stored summary (null/old A3 summary = none). The Installation complete
+ *  button path refuses on these, naming the area. */
+export function rulerPhotoBlockersOf(summary: Pick<InstallEvidenceSummary, "rulerBlockers"> | null | undefined): string[] {
+  return [...new Set(summary?.rulerBlockers ?? [])];
+}
+
 /**
  * Required items for the job's zones against what the form holds. Every applicable item is listed with its real state;
  * `blockers` are the plain-words lines the office sees (missing / not geotagged / oversized / not answered).
@@ -359,8 +416,10 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
   const zoneProducts = read.installDay
     ? ctx.zones.map((z, i) => ({ zone: i + 1, name: z.name, product: z.product ?? null, areaM2: z.areaM2 ?? null }))
     : read.zones.slice(0, Math.min(zoneCount, MAX_FORM_ZONES)).map((z) => ({ zone: z.zone, name: z.name, product: z.product, areaM2: z.areaM2 }));
-  const base = { rule: INSTALL_EVIDENCE_RULE, applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null } as const;
-  if (!applies) return { ...base, items: [], blockers: [], prestartBlockers: [] };
+  // Decision 396: the ruler photos are required on every install day form, before or after the effective date.
+  const ruler = read.installDay ? rulerPhotoEvaluation(read.ruler, ctx.zones, workStartAt) : null;
+  const base = { rule: INSTALL_EVIDENCE_RULE, applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null, ...(ruler ? { rulerPhotos: ruler.files, rulerBlockers: [...new Set(ruler.blockers)] } : {}) } as const;
+  if (!applies) return { ...base, items: ruler?.items ?? [], blockers: [...new Set(ruler?.blockers ?? [])], prestartBlockers: [] };
   const items: InstallEvidenceItem[] = [];
   const before: string[] = [], after: string[] = [];
   if (read.installDay) {
@@ -381,6 +440,8 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
       if (z.areaM2 === null) after.push(`${lbl}: m² not recorded`);
     });
     if (!ctx.zones.length) before.push("No Ready Check areas are recorded for this job — the before / after videos and depth photos can't be checked; office review");
+    // Decision 396: completion items (the existing-depth photo's before-work timing is checked here, never at prestart).
+    if (ruler) { items.push(...ruler.items); after.push(...ruler.blockers); }
   } else if (!read.questionsOnForm) before.push(`The Mitti Install day form has no "${Q.zoneCount}" question yet — build the "A5 – Install day" template (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md).`);
   else {
     if (zoneCount > MAX_FORM_ZONES) before.push(`This job records ${zoneCount} upgrade zones but the Mitti form holds ${MAX_FORM_ZONES} — office review (extra zones need their own evidence).`);
@@ -432,9 +493,10 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
 
 /** Lines for the stage gate. `summary` null = never read from Mitti; blocks only when the rule applies. */
 export function installEvidenceGateLines(summary: InstallEvidenceSummary | null | undefined, installDate: string | null): string[] {
+  // Decision 396: where the decision-205 rule does not apply, the ruler photo lines still block.
+  if (summary && !summary.applies) return rulerPhotoBlockersOf(summary).map((b) => `Install evidence: ${b}`);
   if (!installEvidenceApplies(installDate)) return [];
   if (!summary) return ["Install-day evidence (Activity Guide Table 4 and sign-off) has not been read from the Mitti Install day form yet — sync the PIISA."];
-  if (!summary.applies) return [];
   return summary.blockers.map((b) => `Install evidence: ${b}`);
 }
 
@@ -511,7 +573,12 @@ export function installCompletionDecision(i: InstallCompletionInput): InstallCom
   if (i.allFilledInTicked === false) return { record: false, reason: "Final tick not ticked on the Install day form", nextLine: `Install day form: ${FINAL_TICK_MISSING}`, outstanding: [FINAL_TICK_MISSING] };
   if (!i.declarationSaved) return { record: false, reason: "Signed installer declaration not saved yet", nextLine: "Sign the safety form (PIISA) in Mitti — the portal has not got a signed copy yet", outstanding: [] };
   if (!i.summary) return { record: false, reason: "Install-day evidence not read yet", nextLine: "Sync the Install day form — the evidence has not been read yet", outstanding: [] };
-  if (!i.summary.applies) return { record: true, reason: "Install before the evidence effective date — original checks only", nextLine: null, outstanding: [] };
+  // Decision 396: before the effective date the summary's blockers are the ruler photos only — they still hold completion.
+  if (!i.summary.applies) {
+    const ruler = rulerPhotoBlockersOf(i.summary);
+    if (!ruler.length) return { record: true, reason: "Install before the evidence effective date — original checks only", nextLine: null, outstanding: [] };
+    return { record: false, reason: `${ruler.length} ruler photo item(s) outstanding (decision 396)`, nextLine: installerNextLine({ ...i.summary, blockers: ruler }), outstanding: ruler };
+  }
   if (i.summary.blockers.length) return { record: false, reason: `${i.summary.blockers.length} evidence item(s) outstanding`, nextLine: installerNextLine(i.summary), outstanding: i.summary.blockers };
   return { record: true, reason: "Install day form Complete and every evidence check passed", nextLine: null, outstanding: [] };
 }

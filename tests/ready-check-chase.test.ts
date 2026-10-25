@@ -1,8 +1,8 @@
-// Mitti Ready Check build Stages 7–8 (Jo 22 Oct 2026): incomplete-form chase, install-day photo lock,
+// Mitti Ready Check build Stages 7–8 (Jo 22 Oct 2026): incomplete-form chase, the retired install-day photo lock (decision 396),
 // "Office needs to…" Mitti items and the waiting status for saved spots while booking is OFF.
 import { describe, expect, test } from "bun:test";
 import {
-  incompleteDecision, installDayPhotoBlocker, installerMissing, missingSignature, mittiOfficeItems, readyCheckIncompleteText, type Ev,
+  incompleteDecision, installerMissing, isRetiredInstallDayPhotoRow, withoutRetiredInstallDayPhotos, missingSignature, mittiOfficeItems, readyCheckIncompleteText, type Ev,
 } from "../src/lib/ready-check-chase.core";
 import type { ReadyCheckFacts } from "../src/lib/ready-check-complete.core";
 import { officeStatus } from "../src/lib/office-status.core";
@@ -43,17 +43,20 @@ describe("Stage 7: incomplete Ready Check form", () => {
   });
 });
 
-describe("Stage 7: install-day photo lock", () => {
-  const req = (category: string, status: string, gate = "installation", required = true) => ({ category, label: category === "access_manhole" ? "Access / manhole photo" : "Before photo of ceiling space", gate, required, status });
-  test("outstanding access + before photos lock Installation complete", () => {
-    expect(installDayPhotoBlocker([req("access_manhole", "outstanding"), req("before_ceiling_space", "rejected")]))
-      .toBe("Installation complete stays locked until these install-day photos are in: Access / manhole photo, Before photo of ceiling space.");
+describe("decision 396: the install-day photo chase is retired — its old rows never block", () => {
+  const req = (category: string, label: string, gate = "installation", status = "outstanding") => ({ category, label, gate, required: true, status });
+  test("decision 396: rows the chase created (installation gate, chased category, 'Install day:' label) are ignored", () => {
+    const old = [req("access_manhole", "Install day: ceiling access photo"), req("before_ceiling_space", "Install day: Area 1 overview photo"), req("existing_insulation_r_value", "Install day: Area 2 existing insulation depth photo")];
+    expect(old.every(isRetiredInstallDayPhotoRow)).toBe(true);
+    expect(withoutRetiredInstallDayPhotos(old)).toEqual([]);
   });
-  test("uploaded photos unlock it", () => {
-    expect(installDayPhotoBlocker([req("access_manhole", "uploaded"), req("before_ceiling_space", "verified")])).toBeNull();
+  test("decision 396: the job's own checklist rows of the same categories, and other evidence, still count", () => {
+    const keep = [req("access_manhole", "Access / manhole"), req("before_ceiling_space", "Before: ceiling space"), req("existing_insulation_r_value", "Install day: depth", "assessment"), req("completed_installation", "Install day: Area 1 completed")];
+    expect(keep.some(isRetiredInstallDayPhotoRow)).toBe(false);
+    expect(withoutRetiredInstallDayPhotos(keep)).toHaveLength(4);
   });
-  test("after-work photos and non-required items never lock completion", () => {
-    expect(installDayPhotoBlocker([req("completed_installation", "outstanding"), req("access_manhole", "outstanding", "installation", false), req("before_ceiling_space", "outstanding", "assessment")])).toBeNull();
+  test("decision 396 / Jo 26 Oct: the access hatch photo is never chased as missing on the Ready Check", () => {
+    expect(installerMissing({ ...clean, depthPhoto: false, overviewPhoto: false })).toEqual([]);
   });
 });
 

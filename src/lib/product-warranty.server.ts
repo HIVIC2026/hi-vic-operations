@@ -8,7 +8,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { EmailAttachment } from "./email-kit.core";
 import {
-  PRODUCT_WARRANTY_DOC_KIND, type ProductWarranty, type WarrantyAttachDecision, decideWarrantyAttachment, installedProductOptions, looksLikePdf,
+  PRODUCT_WARRANTY_DOC_KIND, type ProductWarranty, type WarrantyAttachDecision, confirmedProductNames, decideWarrantyAttachment, installedProductOptions, looksLikePdf,
   warrantyDocumentTitle, warrantyForOption,
 } from "./product-warranty.core";
 import { PRODUCT_WARRANTY_PDFS } from "./product-warranty.data";
@@ -24,11 +24,13 @@ export function warrantyPdfBytes(w: Pick<ProductWarranty, "pdfPath">): Uint8Arra
 
 export const warrantyOnFile = (pdfPath: string) => !!PRODUCT_WARRANTY_PDFS[pdfPath] && warrantyPdfBytes({ pdfPath }) !== null;
 
-/** Installed product option(s) for the job: Install day form per-area answers first, else the Ready Check (Mitti) product. */
+/** Installed product(s) for the job: the office-confirmed actual products (product-label review) first, then the Install
+ *  day form per-area answers, else the Ready Check (Mitti) product. */
 export async function installedProductsFor(jobId: string): Promise<string[]> {
-  const [{ latestInstallEvidence }, { productForHivQuote }] = await Promise.all([import("./install-evidence.server"), import("./insulation-product.server")]);
-  const [evidence, ready] = await Promise.all([latestInstallEvidence(jobId).catch(() => null), productForHivQuote(jobId).catch(() => ({ product: null }))]);
-  return installedProductOptions({ installDayProducts: (evidence?.zoneProducts ?? []).map((z) => z.product), readyCheckProduct: ready.product?.option ?? null });
+  const [{ latestInstallEvidence }, { productForHivQuote }, { verifiedInstalledProductAnswers }] = await Promise.all([import("./install-evidence.server"), import("./insulation-product.server"), import("./piisa-products.server")]);
+  const [evidence, ready, actual] = await Promise.all([latestInstallEvidence(jobId).catch(() => null), productForHivQuote(jobId).catch(() => ({ product: null })), verifiedInstalledProductAnswers(jobId).catch(() => null)]);
+  const confirmedProducts = actual && !actual.blockers.length ? confirmedProductNames((actual.answers as Record<string, string>)["p7.products"]) : [];
+  return installedProductOptions({ installDayProducts: (evidence?.zoneProducts ?? []).map((z) => z.product), readyCheckProduct: ready.product?.option ?? null, confirmedProducts });
 }
 
 /** What the completion pack can attach for this job, and what is missing. */

@@ -37,7 +37,7 @@ export function addCustomerProblems(x: AddCustomerInput): string[] {
   });
   if (!x.how) p.push("How you measured");
   if (!x.sketch) p.push("Area sketch or floor plan");
-  if (!x.access) p.push("Ceiling access photo");
+  // Jo 26 Oct 2026: the ceiling access (hatch) photo is kept but not mandatory — never listed as missing.
   if (x.roof5 === null) p.push("Roof built or replaced in the last 5 years");
   const codes = x.lines.filter((l) => l.code && l.qty > 0).map((l) => l.code);
   if (!codes.some((c) => /R5/i.test(c))) p.push("An R5.0 price line");

@@ -176,9 +176,12 @@ async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" 
 const s3: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
   const { launchCampaignOffice } = await import("./launch-campaign.server");
+  // The office Spots saved list hides TEST jobs on purpose (jobs.source <> 'qa_test'), so the TEST job is checked directly
+  // and its absence from the office list is the expected result.
   const office = await launchCampaignOffice();
-  const row = office.rows.find((x) => x.jobId === ctx.jobId);
-  check(r, "job shows in office Spot saved list", !!row?.spotSavedAt, row ? "row without saved time" : `${office.rows.length} rows, not this job`);
+  const { data: saved } = await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx.jobId!).maybeSingle();
+  check(r, "spot saved for the TEST job", !!saved?.spot_saved_at, saved ? "no saved time" : "no campaign row");
+  check(r, "TEST job kept out of the office Spots saved list", !office.rows.some((x) => x.jobId === ctx.jobId), `${office.rows.length} real rows`);
   // Jo 24 Oct 2026: the owner gives no Ready Check times; the office picks the TEST installer, who offers the owner 3 times.
   await ownerSignGates(ctx, r, ["A"]);
   const { startReadyCheckOffers } = await import("./readycheck-booking.server");

@@ -156,7 +156,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
       admin.from("quotes").select("status, created_at, release_state, release_hold_reason, sent_at").eq("job_id", id).eq("kind", "installation"),
       admin.from("piesa_records").select("outcome, signed_off_by, created_at").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
       admin.from("bookings").select("kind, status, scheduled_start, created_at").eq("job_id", id).neq("status", "cancelled").order("created_at", { ascending: false }),
-      admin.from("evidence_requirements").select("label, status, responsible_role, gate, verified_at").eq("job_id", id).eq("required", true),
+      admin.from("evidence_requirements").select("label, status, responsible_role, gate, verified_at, category").eq("job_id", id).eq("required", true),
       admin.from("workflow_events").select("created_at").eq("job_id", id).eq("event_type", "ap_approved").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("veec_lodgements").select("status").eq("job_id", id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("job_piesa_deadlines").select("piesa_expired").eq("job_id", id).maybeSingle(),
@@ -164,7 +164,9 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const core = await import("./installer-progress.core");
     const job = core.requireJobRead(jobR);
     core.requireReads([qsR, prR, bksR, evR, apR, veecR, dlR]);
-    const { data: qs } = qsR, { data: pr } = prR, { data: bks } = bksR, { data: ev } = evR, { data: ap } = apR, { data: veec } = veecR, { data: dl } = dlR;
+    const { data: qs } = qsR, { data: pr } = prR, { data: bks } = bksR, { data: evAll } = evR, { data: ap } = apR, { data: veec } = veecR, { data: dl } = dlR;
+    // Decision 396: rows the retired install-day photo chase created are not missing evidence.
+    const ev = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(evAll ?? []);
     const { evidenceApplicability } = await import("./operations-preview.core");
     const stage = job?.stage ?? "";
     const book = (k: string) => (bks ?? []).find((b) => b.kind === k) ?? null;

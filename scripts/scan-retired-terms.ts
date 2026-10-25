@@ -50,6 +50,9 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
     re: /portal-only chat required/gi,
     action: "Direct contact with portal booking record",
   },
+  // Decision 396 (Jo 26 Oct 2026): missing Ready Check photos are no longer chased as install-day photos; the A5 asks the
+  // legally required ruler photos itself (install-evidence.core rulerPhotoEvaluation).
+  { term: "install-day photo chase", re: /installDayPhotoNeeds|installDayPhotoBlocker|INSTALL_PHOTO_LOCK|ensureInstallDayPhotos/g, action: "Decision 396: the A5 ruler photos (rulerPhotoEvaluation); old chase rows are ignored (isRetiredInstallDayPhotoRow)", strict: true },
   // Decision 281 (Jo 25 Oct 2026): no "Fix details" pile or buttons — the portal completes addresses itself.
   { term: "Fix details pile / button", re: /Fix details/g, action: "Decision 281: one Enquiries list; addresses complete automatically (address-complete.core)" },
   { term: "Office tells the trades the electrician-at-start day", re: /tell the installer and electrician the day/g, action: "Decision 327: the electrician is asked automatically once the install day is booked (install-attendance.core)" },
