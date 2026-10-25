@@ -9,7 +9,7 @@
 // tests/fixes-day.test.ts fails if the two drift apart (same pattern as the Install day form, install-day.core.ts).
 import { norm } from "./mitti.core";
 import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./piesa-evidence.core";
-import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS } from "./official-short.core";
+import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
 
 export const FIXES_DAY_TEMPLATE_NAME = "A5 – Electrical fixes";
@@ -169,7 +169,11 @@ const REPAIR_NEEDED = RECTIFICATION_OUTCOMES[1];
 /** Does this job need the fixes form? PIESA q20 = repair work needed and q30 (fixed on the same visit) not Yes.
  *  Reads the PIESA short answers (official-short.core `shortAnswersFromEntries("piesa", …)`). */
 export function fixesFormNeeded(short: Record<string, string | null | undefined>): boolean {
-  return String(short["rectificationOutcome"] ?? "").trim() === REPAIR_NEEDED && yesNo(short["rectificationComplete"] ?? null) !== "Yes";
+  const outcome = String(short["rectificationOutcome"] ?? "").trim();
+  if (yesNo(short["rectificationComplete"] ?? null) === "Yes") return false;
+  if (outcome === REPAIR_NEEDED) return true;
+  // Decision 314: "Be on site at the start of the install day" ALONE needs no fixes visit; other ticks still do.
+  return outcome === RECTIFICATION_OUTCOMES[2] && repairWorkBesidesOnsite(short);
 }
 /** The repair work the PIESA listed (q21 ticks in the official wording, plus the q22 "Other" text), one line each. */
 export function repairWorkList(short: Record<string, string | null | undefined>): string[] {

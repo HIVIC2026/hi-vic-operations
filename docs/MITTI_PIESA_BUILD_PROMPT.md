@@ -19,6 +19,8 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 ## Group 1: Job
 1. `Job Reference ID` — Text — Required — portal fills this in
 2. `Address including postcode` — Text — Required — portal fills this in
+2a. `Whose customer is this?` — Pick one: `Home Insulation Victoria` / `The installer's customer` — Required — portal fills this in — help text: `Filled in by the portal. Don't change it.` — Mitti colours: both grey (decision 312, not part of the official form)
+2b. `I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.` — Checkbox (must tick) — Required — only show when question 2a = `Home Insulation Victoria` (decision 312, not part of the official form)
 3. `Date of inspection` — Date — Required
 3a. `Photo showing you on site at the property, holding your licence / photo ID (geotagged)` — Photo, location on — Required
 
@@ -59,11 +61,17 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 
 ## Group 7: Repair work
 20. `Is any electrical repair work needed before insulation can be installed?` — Yes/No — Required — Yes red
-20b. `Can the repair work be done before installation?` — Yes/No — Required — only show when question 20 = Yes — No red — help text: `No means an electrician must be present on installation day instead.`
+   - Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation (same visit or the A5 fixes visit). Do NOT ask `Can the repair work be done before installation?` and do NOT add the instruction `No means an electrician must be present on installation day instead.` — delete both if they are on the form.
 21. `Please tick the repair work that is required.` — Tick all: `Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights.` / `Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated)` / `Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000` / `Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000` / `Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000.` / `Other (indicate below):` — Required — only show when question 20 = Yes
 22. `Please describe the other repair work.` — Text — Required — only show when question 21 has `Other (indicate below):` ticked
 22a. `Your total price for all the repair work, including GST` — Number — Required — only show when question 20 = Yes — for the owner's fixes quote only, not part of the official form (decision 305)
-22b. `What's included in that price?` — Text — Required — only show when question 20 = Yes — help text: `List each thing you'll do, e.g. replace 6 downlights with IC-4 LEDs, install 1 RCD.` — for the owner's fixes quote only, not part of the official form (decision 305)
+22b. `What will you do? Tick everything included in your price.` — Tick all: `Replace downlights with IC-4 rated LED downlights` / `Install RCD safety switches` / `Upgrade circuit protection (breakers) for insulation` / `Replace old cables with TPS cable` / `Secure and support loose cables in the ceiling` / `Repair or replace damaged connections or junction boxes` / `Identify and mark the mains cable in the ceiling` / `Remove or make safe old unused cables` / `Label and protect solar or battery cables in the ceiling` / `Be on site at the start of the install day` / `Other` — Required — only show when question 20 = Yes — Mitti colours: all these grey — for the owner's fixes quote only, not part of the official form (decision 308: no free text)
+22c. `How many downlights are you replacing?` — Number — Required — only show when question 22b has `Replace downlights with IC-4 rated LED downlights` ticked (decision 308)
+22d. `How many RCD safety switches are you installing?` — Number — Required — only show when question 22b has `Install RCD safety switches` ticked (decision 308)
+22e. `Describe the other work` — Text — Required — only show when question 22b has `Other` ticked — help text: `Say exactly what you'll do, where, and how many.` (decision 308)
+   - If Mitti can't show a question based on one tick-all option, make it not Required with help text `Only if you ticked …` (naming the option).
+   - Decision 314: `Be on site at the start of the install day` is priced inside the same total. When it is ticked the portal records the official "electrician present at the start of installation" outcome, and if it is the ONLY tick no fixes visit (A5 form) is needed.
+   - Decision 308 replaces the old `What's included in that price?` text question — delete it from the form (old answers are still read).
 
 ## Group 8: Electrician declaration
 23. `Electrician licence number` — Text — Required — portal fills this in

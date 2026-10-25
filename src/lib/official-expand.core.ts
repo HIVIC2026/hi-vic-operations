@@ -5,7 +5,7 @@
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
 import { applianceRows } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
-import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, REPAIR_LEGACY_NOT_BEFORE_FLAG, SOLAR_PROBLEMS } from "./official-short.core";
 import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
 
 export type ShortAnswers = Record<string, Value>;
@@ -167,10 +167,15 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   } else flagged.push("Appliances and flues: not answered.");
 
   // B1/B2 outcome.
+  // Decision 309 (Jo 25 Oct 2026): an OLD form's "can't be done before installation" was read as the before-installation
+  // outcome (deriveRectificationOutcome) and is flagged once for the office. Decision 314: the third outcome (electrician
+  // present at the start of installation) comes only from the "Be on site at the start of the install day" tick.
   const outcome = txt(short["rectificationOutcome"]);
+  const legacyNotBefore = isYes(short[REPAIR_LEGACY_NOT_BEFORE]);
   if (outcome === RECTIFICATION_OUTCOMES[0]) out["b1"] = B1_OPTIONS[0];
   else if (outcome === RECTIFICATION_OUTCOMES[1]) {
     out["b1"] = B1_OPTIONS[1];
+    if (legacyNotBefore) flagged.push(REPAIR_LEGACY_NOT_BEFORE_FLAG);
     const work = list(short["rectificationWork"]);
     if (work.length) out["b2"] = work;
     else flagged.push("Electrical fixes: the required work isn't ticked.");
