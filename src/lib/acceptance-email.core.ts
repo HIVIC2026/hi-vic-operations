@@ -13,6 +13,8 @@ export type AcceptanceEmailInput = {
   firstName: string | null; rebate: number | null; totalIncGst: number;
   payment: { amount: number; paidOn: string; cardLast4?: string | null; label?: string } | null;
   installerName: string | null; myJobUrl: string; test?: boolean;
+  /** Decision 320: the ESC VEU consumer factsheet PDF goes with this email (only when it is on file). */
+  factsheetAttached?: boolean;
 };
 
 export function renderYoureInEmail(i: AcceptanceEmailInput) {
@@ -37,7 +39,9 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
     { title: "Only if something needs fixing", detail: "We'll send you a separate quote. Nothing is done without your OK." },
     { title: "Book your install day", detail: `${installer} offers you 3 days. Your install is done within 30 days of the safety check.` },
   ];
-  const closing = "Your signed acceptance and receipt are attached, and always on your job page. Questions? Just reply to this email.";
+  const closing = i.factsheetAttached
+    ? "Your signed acceptance and receipt are attached, with the Victorian Energy Upgrades consumer factsheet, and always on your job page. Questions? Just reply to this email."
+    : "Your signed acceptance and receipt are attached, and always on your job page. Questions? Just reply to this email.";
   const body = [K.h1(headline, 8), K.p(intro), payCard, K.sectionTitle("What happens next", "24px 0 12px"), K.numberedSteps(steps), K.button(i.myJobUrl, "See my job", "6px 0 4px"), K.small(closing)].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([

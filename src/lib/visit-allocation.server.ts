@@ -21,8 +21,15 @@ export async function allocationCandidates(businessId: string): Promise<Allocati
     return {
       workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
+      whiteCard: s?.whiteCard ?? null,
     };
   });
+}
+
+/** Decision 319: when the job's current installation booking was made (null = not booked yet → the White Card rule applies). */
+async function installBookingCreatedAt(jobId: string): Promise<string | null> {
+  const { data } = await db.from("bookings").select("created_at").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return (data as { created_at?: string | null } | null)?.created_at ?? null;
 }
 
 async function allocationEvents(jobId: string) {
@@ -51,10 +58,12 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   if (!kinds.length || c.kind !== "installer") return { canAllocate: false, visits: [] as { kind: VisitKind; label: string; current: { workerId: string; name: string } | null; hasForm: boolean; options: ReturnType<typeof allocationOptions> }[] };
   const [events, candidates] = await Promise.all([allocationEvents(jobId), c.boss ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[])]);
   const today = melbourneToday();
+  // Decision 319: install days also need a verified White Card unless the installation was booked before the cutoff.
+  const install = kinds.includes("install") ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined;
   const visits = [];
   for (const kind of kinds) {
     const cur = currentAllocation(events, kind);
-    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!(await visitFormAuditId(jobId, kind)), options: c.boss ? allocationOptions(kind, candidates, today) : [] });
+    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!(await visitFormAuditId(jobId, kind)), options: c.boss ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
   }
   return { canAllocate: c.boss, visits };
 }
@@ -73,7 +82,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   if (!visitsForStage(job?.stage ?? null).includes(kind)) throw new WorkflowError(`This job isn't at its ${VISIT_LABEL[kind]} yet.`);
   const cand = (await allocationCandidates(c.biz.id)).find((x) => x.workerId === workerId);
   if (!cand) throw new WorkflowError("That person isn't on your staff list.");
-  const why = allocationBlocker(kind, cand, melbourneToday());
+  const why = allocationBlocker(kind, cand, melbourneToday(), kind === "install" ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined);
   if (why) throw new WorkflowError(`${cand.name} can't take this ${VISIT_LABEL[kind]}: ${why}`);
   const mitti = await import("./mitti.server");
   const useCall = call ?? mitti.realMittiCall;

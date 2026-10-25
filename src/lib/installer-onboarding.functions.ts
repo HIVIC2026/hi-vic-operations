@@ -45,7 +45,7 @@ const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
-  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional(), piisa_done: z.enum(["yes", "no"]).nullable().optional(), piisa_date: s(10), piisa_uploaded: z.boolean().optional(),
+  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional(), piisa_done: z.enum(["yes", "no"]).nullable().optional(), piisa_date: s(10), piisa_uploaded: z.boolean().optional(), white_card_uploaded: z.boolean().optional(),
     // ESC collection notice: only the tick is taken from the browser; esc_notice_ack is re-stamped server-side (stampOnboardingNoticeAcks).
     esc_notice_ticked: z.boolean().optional(), esc_notice_ack: z.object({ at: z.string().max(40), by_name: z.string().max(200), kind: z.enum(["acknowledged", "given"]), notice_version: z.string().max(20), notice_sha256: z.string().max(64) }).nullable().optional() })).max(50).optional(),
   self_is_installer: z.boolean().nullable().optional(),
@@ -63,10 +63,10 @@ const dataSchema = z.object({
   electrician_contact_consent: z.boolean().optional(),
 }).strict();
 
-/** Applicants see only "uploaded"; certificate paths stay server-side in data.piisa_files (keyed by lower-case email). */
-function piisaView(d: InstData & { piisa_files?: Record<string, string> }, insurance: boolean) {
-  const { piisa_files: files = {}, ...rest } = d;
-  return { ...rest, insurance_uploaded: insurance, installers: (rest.installers ?? []).map((x) => ({ ...x, piisa_uploaded: !!files[(x.email ?? "").trim().toLowerCase()] })) } as InstData;
+/** Applicants see only "uploaded"; certificate paths stay server-side in data.piisa_files / data.white_card_files (keyed by lower-case email). */
+function piisaView(d: InstData & { piisa_files?: Record<string, string>; white_card_files?: Record<string, string> }, insurance: boolean) {
+  const { piisa_files: files = {}, white_card_files: cards = {}, ...rest } = d;
+  return { ...rest, insurance_uploaded: insurance, installers: (rest.installers ?? []).map((x) => { const k = (x.email ?? "").trim().toLowerCase(); return { ...x, piisa_uploaded: !!files[k], white_card_uploaded: !!cards[k] }; }) } as InstData;
 }
 
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean | null }) {
@@ -114,13 +114,14 @@ export const saveInstallerOnboarding = createServerFn({ method: "POST" })
     // Compare-and-swap: a save from a tab holding an older revision never overwrites newer answers.
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error("Your application changed in another tab. Reload to continue.");
     const prevFiles = (app.data as { piisa_files?: Record<string, string> } | null)?.piisa_files;
+    const prevCards = (app.data as { white_card_files?: Record<string, string> } | null)?.white_card_files;
     // The ESC notice record is stamped here (never trusted from the browser) before the material-change check, so an unchanged
     // echo of the stamp does not reset the agreement review.
     const prevData = app.data as InstData;
     const incoming = { ...(data.data as InstData), installers: stampOnboardingNoticeAcks(prevData.installers, (data.data as InstData).installers) };
-    const next = { ...normaliseInstallerDraft(applyMaterialReset(prevData, incoming)), piisa_files: prevFiles ?? {} } as InstData;
-    // The "uploaded" tick is never trusted from the browser; it is derived from piisa_files.
-    next.installers = (next.installers ?? []).map(({ piisa_uploaded: _p, ...x }) => x);
+    const next = { ...normaliseInstallerDraft(applyMaterialReset(prevData, incoming)), piisa_files: prevFiles ?? {}, ...(prevCards ? { white_card_files: prevCards } : {}) } as InstData;
+    // The "uploaded" ticks are never trusted from the browser; they are derived from piisa_files / white_card_files.
+    next.installers = (next.installers ?? []).map(({ piisa_uploaded: _p, white_card_uploaded: _w, ...x }) => x);
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "installer");
     if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "installer", contact); // office/test links are staff-cleared
@@ -178,6 +179,34 @@ export const confirmInstallerPiisaUpload = createServerFn({ method: "POST" })
     // page validation only accepts it once a saved installer row carries that same email.
     const { finalPath } = await sec.verifyAndStoreDoc(db as never, "installer-onboarding", app.id, data.path, data.content_type, "piisa");
     const next = { ...d, piisa_files: { ...(d.piisa_files ?? {}), [data.email]: finalPath } };
+    const { data: row } = await db.from("rec_onboarding_applications").update({ data: next as never } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("updated_at").maybeSingle();
+    if (!row) { await db.storage.from("partner-files").remove([finalPath]); throw new Error(sec.UPLOAD_STALE_MESSAGE); }
+    return { ok: true, updated_at: String((row as { updated_at: string }).updated_at) };
+  });
+
+// White Card (decision 319, per installer person, optional at onboarding): same quarantine + byte checks as PIISA; path kept
+// server-side in data.white_card_files and carried onto the person's staff row at activation for the office to verify.
+export const installerWhiteCardUploadUrl = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema, content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(10 * 1024 * 1024), filename: z.string().max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const { db, app } = await findApp(data.token);
+    if (app.status !== "draft") throw new Error("Already submitted.");
+    const { safeOriginalName } = await import("./onboarding-security.core");
+    if (!safeOriginalName(data.filename)) throw new Error("Please upload a single PDF, PNG or JPEG file.");
+    const sec = await import("./onboarding-security.server");
+    return sec.quarantineSlot(db as never, "installer-onboarding", app.id);
+  });
+
+export const confirmInstallerWhiteCardUpload = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema, path: z.string().max(300), content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), email: z.string().trim().toLowerCase().email().max(320), base_updated_at: z.string().max(40).refine(isInstallerRevisionTimestamp) }).parse(d))
+  .handler(async ({ data }) => {
+    const { db, app } = await findApp(data.token);
+    if (app.status !== "draft") throw new Error("Already submitted.");
+    const sec = await import("./onboarding-security.server");
+    if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
+    const d = app.data as InstData & { white_card_files?: Record<string, string> };
+    const { finalPath } = await sec.verifyAndStoreDoc(db as never, "installer-onboarding", app.id, data.path, data.content_type, "white-card");
+    const next = { ...d, white_card_files: { ...(d.white_card_files ?? {}), [data.email]: finalPath } };
     const { data: row } = await db.from("rec_onboarding_applications").update({ data: next as never } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("updated_at").maybeSingle();
     if (!row) { await db.storage.from("partner-files").remove([finalPath]); throw new Error(sec.UPLOAD_STALE_MESSAGE); }
     return { ok: true, updated_at: String((row as { updated_at: string }).updated_at) };

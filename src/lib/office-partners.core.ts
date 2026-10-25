@@ -134,3 +134,12 @@ export function missingItemsMessage(checks: readonly ApplicationCheck[]): string
   const lines = checks.filter((c) => c.mark !== "ok").map((c) => `• ${c.text}`);
   return lines.length ? `Thanks for your application. Before we can approve it, please send us:\n${lines.join("\n")}` : "";
 }
+
+/** Decision 319: the People table's White Card cell (installers only). "missing" on existing people is an office item to chase, not a block on installs booked before 26 Oct 2026. */
+export function whiteCardCell(state: string | null | undefined): { label: string; tone: "green" | "rose" | "amber" | "plain"; canDecide: boolean } {
+  if (state === "verified") return { label: "Verified", tone: "green", canDecide: false };
+  if (state === "awaiting_check") return { label: "To verify", tone: "amber", canDecide: true };
+  if (state === "rejected") return { label: "Not accepted", tone: "rose", canDecide: false };
+  if (state === "missing") return { label: "Missing", tone: "rose", canDecide: false };
+  return { label: "—", tone: "plain", canDecide: false };
+}

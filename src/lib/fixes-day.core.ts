@@ -26,6 +26,10 @@ export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
 export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
+/** Job-file title of the CoES file(s) kept from the A5 form (documents kind piesa_evidence, source mitti). Decision 322:
+ *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
+export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
+export const FIXES_COES_DOC_KIND = "piesa_evidence";
 
 /** Every label, by key. Q8 is a read-only list the portal fills in; Q15 the electrician's signature. */
 export const FIXES_DAY_Q = {

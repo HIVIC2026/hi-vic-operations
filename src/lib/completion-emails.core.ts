@@ -29,7 +29,15 @@ const installerLine = (ins: Installer | null | undefined, action: string) => {
 export type InstallCompleteInput = {
   firstName: string | null; installer: Installer | null; product: string | null; areaM2: number | null; rebate: number | null;
   balancePaid: boolean; signRebateFormUrl: string | null; test?: boolean;
+  /** Decision 321: product names whose manufacturer warranty PDF is attached to this email; [] / omitted = none attached. */
+  attachedWarranties?: string[];
 };
+
+/** Decision 321: the one line O44 / O47 print when a manufacturer warranty PDF is attached (null = none attached). */
+export function attachedWarrantyLine(names: readonly string[] | null | undefined): string | null {
+  const n = (names ?? []).map((s) => s.trim()).filter(Boolean);
+  return n.length ? `Attached: your ${n.join(" and ")} manufacturer's warranty (PDF). Keep it with your home's paperwork.` : null;
+}
 
 /** Decision 101/119: "All done, {First}. Enjoy a warmer home!" with the rebate-form signing request. */
 export function renderInstallCompleteEmail(i: InstallCompleteInput) {
@@ -48,13 +56,14 @@ export function renderInstallCompleteEmail(i: InstallCompleteInput) {
     { title: "A copy of your signed rebate form", detail: "Emailed to you as soon as you sign." },
   ];
   const closing = installerLine(i.installer, ". Not sorted? Reply to this email and we'll help.");
+  const warrantyLine = attachedWarrantyLine(i.attachedWarranties);
   const body = [
-    K.h1(subject, 8), K.p(intro), K.resultCard({ rows }),
+    K.h1(subject, 8), K.p(intro), K.resultCard({ rows }), warrantyLine ? K.small(warrantyLine, "10px 0 0") : "",
     i.signRebateFormUrl ? K.amberBox("One last thing: sign your rebate form", `<div style="font-size:14px;color:${K.KIT.NAVY};line-height:1.5;margin:4px 0 12px;">${K.esc(signBody)}</div>\n${K.button(i.signRebateFormUrl, "Sign your rebate form", "0")}`, 16) : "",
     K.sectionTitle("What you'll get from us", "24px 0 12px"), K.numberedSteps(steps), K.small(closing, "6px 0 0"),
   ].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", ...rows.map((r) => `${r.k}: ${r.v}`), "", ...(i.signRebateFormUrl ? ["ONE LAST THING: SIGN YOUR REBATE FORM", signBody, `Sign your rebate form: ${i.signRebateFormUrl}`, ""] : []), "WHAT YOU'LL GET FROM US", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, "", ...rows.map((r) => `${r.k}: ${r.v}`), ...(warrantyLine ? [warrantyLine] : []), "", ...(i.signRebateFormUrl ? ["ONE LAST THING: SIGN YOUR REBATE FORM", signBody, `Sign your rebate form: ${i.signRebateFormUrl}`, ""] : []), "WHAT YOU'LL GET FROM US", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
@@ -112,6 +121,8 @@ export type CompletionPackInput = {
   installed?: InstalledLine | null;
   /** VEU checklist G1: product names whose manufacturer warranty PDF is attached to this email (completion-pack.server.ts); [] = none attached. */
   attachedWarranties?: string[];
+  /** Decision 322: the electrician's Certificate of Electrical Safety (A5 fixes form) is attached to this email. */
+  attachedCoes?: boolean;
 };
 
 /** Decision 103: downloads, "Something not right?" (installer → us → ESC), care tips. */
@@ -126,6 +137,7 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     { title: "Tax invoice", detail: "Paid in full", href: i.downloads.invoiceUrl },
     { title: "Your warranties", detail: warrantyDetail, href: i.downloads.warrantiesUrl },
     { title: "Signed forms", detail: "Acceptance, install consent, rebate form, safety check", href: i.downloads.signedFormsUrl },
+    ...(i.attachedCoes ? [{ title: "Certificate of Electrical Safety", detail: "From your electrician's fixes visit, attached to this email", href: null as string | null }] : []),
   ];
   const ins = i.installer?.name?.trim() || "your installer";
   const steps: K.Step[] = [

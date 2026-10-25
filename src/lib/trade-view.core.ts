@@ -211,7 +211,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
 import { isPriceNextAction } from "./ready-check-basics.core";
-import { crewClearance, CREW_CLEARANCE_REASON } from "./worker-compliance.core";
+import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
 
 const MEL = "Australia/Melbourne";
 const asDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00+10:00` : iso);
@@ -237,6 +237,8 @@ export type TeamMemberView = {
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */
   cii: { certStatus: string | null; level: string | null; expiresOn: string | null } | null;
+  /** Decision 319: White Card state for installers with a staff row (optional so older callers compile). null/undefined = not applicable. */
+  whiteCard?: WhiteCardState | null;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
@@ -255,6 +257,12 @@ export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: 
   if (c.cleared) return { text: `CII cleared${cii.expiresOn ? ` · expires ${shortDate(cii.expiresOn)}` : ""}`, tone: "green" };
   const why = c.reason === CREW_CLEARANCE_REASON.expired ? "CII expired" : c.reason === CREW_CLEARANCE_REASON.withdrawn ? "CII not accepted" : "CII being checked";
   return { text: `${why} · not on installs yet`, tone: "rose" };
+}
+
+/** Decision 319: White Card line for an installer row. Green when verified, rose otherwise; null when not applicable. */
+export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { text: string; tone: "green" | "rose"; canUpload: boolean } | null {
+  if (!state || state === "not_applicable") return null;
+  return { text: WHITE_CARD_TEAM_LABEL[state], tone: state === "verified" ? "green" : "rose", canUpload: state === "missing" || state === "rejected" };
 }
 
 /** Decision 161 in one line under the team list. */

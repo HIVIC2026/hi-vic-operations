@@ -5,7 +5,7 @@
 // Saving is an append-only `visit_allocated` workflow event (latest per visit kind wins); the server re-assigns the
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
-import { crewClearance, type CrewClearanceFacts } from "./worker-compliance.core";
+import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
 export type VisitKind = "ready_check" | "install";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -21,6 +21,8 @@ export type AllocationCandidate = {
   removedAt?: string | null;
   /** Clearance facts for installers (decision 153). Omitted/undefined = not loaded → never cleared for install days. */
   clearance?: CrewClearanceFacts | null;
+  /** Decision 319: White Card state (installers). Undefined = not loaded → the White Card rule is not applied. */
+  whiteCard?: WhiteCardState | null;
 };
 
 export type AllocationOption = { workerId: string; name: string; mobile: string | null; allowed: boolean; reason: string | null; note: string | null };
@@ -31,19 +33,22 @@ export const ALLOCATION_REASON = {
   noMobile: "No mobile on file – the 6:30am text will go to you.",
 } as const;
 
-/** Why this person can't take this visit (null = allowed). Fails closed for install days. */
-export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today: string): string | null {
+/** Why this person can't take this visit (null = allowed). Fails closed for install days.
+ *  `install.bookingCreatedAt` (decision 319): when given, an install day also needs a verified White Card unless the
+ *  installation was booked before `WHITE_CARD_ENFORCED_FROM` (null = not booked yet = enforced). */
+export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today: string, install?: { bookingCreatedAt: string | null }): string | null {
   if (c.removedAt) return ALLOCATION_REASON.removed;
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
-  return cl.cleared ? null : cl.reason;
+  if (!cl.cleared) return cl.reason;
+  return install ? whiteCardBlocker(c.whiteCard, install.bookingCreatedAt) : null;
 }
 
 /** The picker list: everyone still on the list, greyed out with the reason when not allowed for this visit. */
-export function allocationOptions(kind: VisitKind, candidates: AllocationCandidate[], today: string): AllocationOption[] {
+export function allocationOptions(kind: VisitKind, candidates: AllocationCandidate[], today: string, install?: { bookingCreatedAt: string | null }): AllocationOption[] {
   return candidates.filter((c) => !c.removedAt).map((c) => {
-    const reason = allocationBlocker(kind, c, today);
+    const reason = allocationBlocker(kind, c, today, install);
     return { workerId: c.workerId, name: c.name, mobile: c.mobile, allowed: reason === null, reason, note: reason === null && !c.mobile ? ALLOCATION_REASON.noMobile : null };
   }).sort((a, b) => Number(b.allowed) - Number(a.allowed) || a.name.localeCompare(b.name));
 }
