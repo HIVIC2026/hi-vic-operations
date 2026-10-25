@@ -21,7 +21,7 @@ import { useAction } from "@/hooks/use-me";
 import { COULDNT_GET_IN, couldntGetInMessage } from "@/lib/trade-view.core";
 import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, couldntGetInSheet, dayNext, electricianOnSite, leadInstallerDeclaration, payNote, signRebateChecks, signRebateThen, sourceLabel, whatWeKnow } from "@/lib/installer-screens.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
-import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
+import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -87,7 +87,7 @@ function DayPage() {
             <NextPanel title={next.title} sub={next.sub}>
               {next.signRebate ? signRebate
                 : data.mittiId ? (started
-                  ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note></div>
+                  ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note>{data.kind !== "ready_check" && <NoFormNoPay className="mt-3" />}</div>
                   : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
                 : <div className="mt-3" data-mitti-setup>
                     <p className="text-sm font-semibold">Your form is being set up.</p>

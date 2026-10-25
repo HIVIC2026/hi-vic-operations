@@ -31,6 +31,7 @@ and `No`; Photo = photo with location on ("several files allowed" = let the elec
 allowed" = the item must also accept a PDF file); Signature = signature capture.
 
 ## Group 1: Job
+Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
 Q1: `Job number` — Text — Required — portal fills this in
 Q2: `Address` — Text — Required — portal fills this in
 

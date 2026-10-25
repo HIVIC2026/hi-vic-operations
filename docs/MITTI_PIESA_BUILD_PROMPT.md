@@ -17,6 +17,7 @@ Build it as a NEW template in Mitti yourself and publish it; do not change A1, A
 Answer-type key: Text = single line text; Date = date picker; Yes/No = two choices "Yes" and "No"; Pick one = single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice with the exact options listed; Number = numeric; Photo = photo/attachment; Checkbox = single checkbox that must be ticked; Signature = signature capture.
 
 ## Group 1: Job
+Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
 1. `Job Reference ID` — Text — Required — portal fills this in
 2. `Address including postcode` — Text — Required — portal fills this in
 2a. `Whose customer is this?` — Pick one: `Home Insulation Victoria` / `The installer's customer` — Required — portal fills this in — help text: `Filled in by the portal. Don't change it.` — Mitti colours: both grey (decision 312, not part of the official form)

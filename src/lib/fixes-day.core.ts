@@ -182,6 +182,27 @@ export function repairWorkList(short: Record<string, string | null | undefined>)
   return out;
 }
 
+export type FixesFormEvent = { event_type: string; created_at: string; summary?: string | null; details: unknown };
+export type FixesFormOutcome = { auditId: string | null; createdAt: string | null; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null };
+/** The job's latest fixes form and what happened to it, from its append-only events (NEWEST FIRST). Pure; shared by
+ *  `fixesFormState` (trade/office card) and the decision-318 payout gate. */
+export function fixesFormOutcome(evs: FixesFormEvent[]): FixesFormOutcome {
+  const det = (e: FixesFormEvent | undefined) => (e?.details ?? null) as { audit_id?: string; reason?: string; text?: string } | null;
+  const created = evs.find((e) => e.event_type === FIXES_FORM_CREATED_EVENT);
+  const auditId = det(created)?.audit_id ?? null;
+  if (!auditId) {
+    const held = evs.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
+    return { auditId: null, createdAt: null, outcome: held ? "held" : null, detail: held ? det(held)?.reason ?? held.summary ?? null : null };
+  }
+  const later = evs.filter((e) => det(e)?.audit_id === auditId && e.event_type !== FIXES_FORM_CREATED_EVENT);
+  const done = later.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT);
+  const notDone = later.find((e) => e.event_type === FIXES_FORM_NOT_DONE_EVENT);
+  const held = later.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
+  const outcome = done ? "done" : notDone && (!held || notDone.created_at > held.created_at) ? "not_done" : held ? "held" : "open";
+  const detail = done ? null : notDone && outcome === "not_done" ? det(notDone)?.text ?? null : held && outcome === "held" ? det(held)?.reason ?? null : null;
+  return { auditId, createdAt: created!.created_at, outcome, detail };
+}
+
 export type FixesCompletionPlan =
   | { kind: "waiting"; reason: string }
   | { kind: "not_done"; text: string }

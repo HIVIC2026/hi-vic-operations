@@ -6,6 +6,8 @@ import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
 import { electricalBillingSource } from "./installer-led.core";
+import { payoutGateFacts } from "./trade-payout-gate.server";
+import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -136,8 +138,12 @@ export async function moneyPayouts() {
       if (quotes.some((q) => q.job_id === id && q.kind === "rectification")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt, paidAt: paidFor("rectification") });
     }
   }
+  // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.
+  const unpaidJobs = [...new Set(lines.filter((l) => !l.paidAt).map((l) => l.jobId))];
+  const facts = await payoutGateFacts(unpaidJobs);
+  for (const l of lines) if (!l.paidAt) { const f = facts.get(l.jobId); l.held = f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]; }
   const g = groupPayouts(lines);
-  return { due: g.due, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
+  return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }
 
 /** Invoices (decisions 139–144, 240): one Xero invoice per job; steps derived by payments.server jobPaymentView. Read-only. */
