@@ -835,6 +835,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
     // Decision 296: whether the owner has confirmed the current PIESA on their secure link (null = no PIESA record yet). Read only once cleared.
     ownerPiesaConfirmed: clearance.cleared ? await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null,
+    // Decision 327: electrician at the start of the install day — one line (confirmed / waiting) or the "can't make it" alert.
+    electricianAttendance: clearance.cleared ? await installerAttendanceView(jobId).catch(() => null) : null,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,
@@ -1006,6 +1008,69 @@ export async function tradeSaveFixesTimes(jobId: string, userId: string, hours: 
   // The same shared write as the old portal PIESA submit (same validation, rows and `rectification_windows_given` event).
   await (await import("./rectification.server")).recordRectificationWindows(jobId, userId, hours, windows);
   return { ok: true };
+}
+
+// ---- Decision 327: electrician on site at the start of the install day. The electrician's card (/field/{jobId}#install-
+// attendance) is electricians only, business-scoped through requireJobElectrician; the installer reads one line via
+// tradeJobPage. Rules + wording in pure install-attendance.core / trade-view.core; writes in install-attendance.server. ----
+async function attendanceFacts(jobId: string) {
+  const ia = await import("./install-attendance.server");
+  const [booking, events, { data: j }] = await Promise.all([
+    ia.currentInstallBooking(jobId), ia.attendanceEvents(jobId),
+    admin.from("jobs").select("properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+  ]);
+  const p = (j as unknown as { properties: { address_line: string | null; suburb: string | null } | null } | null)?.properties ?? null;
+  const { installerTextAddress } = await import("./installer-texts.core");
+  return { booking, events, address: installerTextAddress(p?.address_line, p?.suburb) };
+}
+
+async function installerAttendanceView(jobId: string): Promise<{ line: string | null; alert: string | null } | null> {
+  const core = await import("./install-attendance.core");
+  const { installerAttendanceLine } = await import("./trade-view.core");
+  const f = await attendanceFacts(jobId);
+  if (f.booking) {
+    const line = installerAttendanceLine(core.attendanceState(f.events, f.booking.id)?.state ?? null);
+    return line ? { line, alert: null } : null;
+  }
+  // Released by the electrician: the same words the installer was texted, until a day is booked.
+  const limit = core.canDoRestriction(f.events);
+  const decl = limit ? [...f.events].reverse().find((e) => e.event_type === core.ATTENDANCE_DECLINED_EVENT) : null;
+  if (!limit || !decl) return null;
+  const d = decl.details ?? {};
+  const reason = core.isAttendanceReason(d["reason"]) ? core.attendanceReasonLabel(d["reason"], (d["reason_text"] as string | null) ?? null) : "unavailable";
+  return { line: null, alert: core.installerCantAttendText({ wasStartIso: String(d["was"] ?? decl.created_at), reason, days: limit.days }) };
+}
+
+export async function tradeInstallAttendance(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const core = await import("./install-attendance.core");
+  const f = await attendanceFacts(jobId);
+  const s = f.booking ? core.attendanceState(f.events, f.booking.id) : null;
+  if (f.booking && s) {
+    // The days they could do instead ("Can't make it"): inside the 30-day window, never the booked day.
+    const [{ installDayContext }, { allowedInstallDays }, { melbourneYmd }] = await Promise.all([import("./install-days.server"), import("./install-days.core"), import("./piesa-windows.core")]);
+    const ctx = await installDayContext(jobId);
+    const booked = melbourneYmd(new Date(f.booking.scheduled_start));
+    const days = allowedInstallDays({ deadline: ctx.deadline }).filter((d) => d !== booked);
+    return { show: true as const, bookingId: f.booking.id, line: core.attendancePageLine({ address: f.address, startIso: f.booking.scheduled_start }), state: s.state, auto: s.auto, days, deadline: ctx.deadline, released: null as string | null };
+  }
+  const decl = [...f.events].reverse().find((e) => e.event_type === core.ATTENDANCE_DECLINED_EVENT);
+  if (!f.booking && decl) {
+    const d = decl.details ?? {};
+    const days = Array.isArray(d["can_do_days"]) ? (d["can_do_days"] as unknown[]).map(String) : [];
+    const released = d["no_days"] === true ? "Thanks — you can't make the install day. Home Insulation Victoria will be in touch." : `Thanks — the install day is released. The installer is offering the owner the days you can do: ${core.canDoDaysLabel(days)}. You'll get a text when one is booked.`;
+    return { show: true as const, bookingId: null, line: null, state: "declined" as const, auto: false, days: [] as string[], deadline: null as string | null, released };
+  }
+  return { show: false as const };
+}
+
+export async function tradeAnswerInstallAttendance(jobId: string, userId: string, a: { bookingId: string; answer: "yes" } | { bookingId: string; answer: "no"; reason: import("./install-attendance.core").AttendanceReason; otherText: string | null; days: string[]; noDays: boolean }) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can answer.");
+  const ia = await import("./install-attendance.server");
+  if (a.answer === "yes") return ia.confirmAttendance(jobId, userId, a.bookingId);
+  return ia.declineAttendance(jobId, userId, { bookingId: a.bookingId, reason: a.reason, otherText: a.otherText, days: a.days, noDays: a.noDays });
 }
 
 // ---- Decision 317: the electrician's "Safety check (PIESA)" document row (/field/{jobId}). Electricians only,

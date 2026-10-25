@@ -71,8 +71,7 @@ export function installDayPhotoBlocker(reqs: Req[]): string | null {
 // ---------- Stage 8: "Office needs to…" Mitti items ----------
 export type MittiOfficeCode =
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review"
-  | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held" | "xero_invoice_product_unconfirmed"
-  | "electrician_onsite_install_start";
+  | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held" | "xero_invoice_product_unconfirmed";
 export type Ev = { job_id: string | null; event_type: string; created_at: string; details?: Record<string, unknown> | null; summary?: string | null };
 export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; since: string; detail: string | null; key: string };
 
@@ -87,8 +86,9 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_access_override", "mitti_audit_linked", "mitti_synced", "mitti_measureup_synced"], detail: (e) => e.summary ?? null },
   // Decision 209: the Xero invoice went out with the rate-card wording because the product or measured area was unknown.
   { code: "xero_invoice_product_unconfirmed", raise: (e) => e.event_type === "xero_invoice_product_unconfirmed", clear: ["xero_invoice_product_confirmed"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
-  // Decision 314: the A4 says the electrician must be on site at the start of the install day (mitti.server syncOnsiteStartItem).
-  { code: "electrician_onsite_install_start", raise: (e) => e.event_type === "electrician_onsite_install_start", clear: ["electrician_onsite_install_start_cleared"], detail: () => null },
+  // Decision 327 replaced the decision-314 "Electrician must be on site … tell the installer and electrician" line: the
+  // electrician is asked automatically once the day is booked (install-attendance.core); the office sees only
+  // `electrician_install_attendance` (no answer after 48h, or no day inside the window). Old events stay as history.
 ];
 
 export function mittiOfficeItems(events: Ev[], now: Date): MittiOfficeItem[] {

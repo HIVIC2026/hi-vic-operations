@@ -10,7 +10,7 @@ import { buildPrefill } from "../src/lib/mitti.core";
 import { mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
 import { readFileSync } from "node:fs";
-import { FIXES_WORK_LABEL, ONSITE_START_OFFICE_TEXT } from "../src/lib/official-short.core";
+import { FIXES_WORK_LABEL, ONSITE_START_HISTORY_TEXT } from "../src/lib/official-short.core";
 import { fixesFormNeeded } from "../src/lib/fixes-day.core";
 import { mittiOfficeItems } from "../src/lib/ready-check-chase.core";
 import { NEEDS_TEXT } from "../src/lib/allocation.core";
@@ -118,11 +118,14 @@ describe("decision 314: be on site at the start of the install day", () => {
     expect(fixesFormNeeded(sync(`Replace downlights with IC-4 rated LED downlights, ${ONSITE}`))).toBe(true);
     expect(fixesFormNeeded(sync("Install RCD safety switches"))).toBe(true);
   });
-  test("one Needs me line, exact wording, cleared by the clear event", () => {
-    expect(ONSITE_START_OFFICE_TEXT).toBe("Electrician must be on site at the start of the install day — tell the installer and electrician the day once booked");
-    expect(NEEDS_TEXT.electrician_onsite_install_start.why).toBe(ONSITE_START_OFFICE_TEXT);
+  test("decision 327 replaced the decision-314 office line: the tick is history only, no Needs me row from it", () => {
+    expect(ONSITE_START_HISTORY_TEXT).not.toMatch(/tell the installer and electrician/);
+    expect("electrician_onsite_install_start" in NEEDS_TEXT).toBe(false);
+    expect(NEEDS_TEXT.electrician_install_attendance.why).toBe("Electrician can't attend / hasn't confirmed install-day attendance");
     const raise = { job_id: "j1", event_type: "electrician_onsite_install_start", created_at: "2026-10-25T01:00:00Z" };
-    expect(mittiOfficeItems([raise], new Date("2026-10-25T02:00:00Z")).map((i) => i.code)).toEqual(["electrician_onsite_install_start"]);
-    expect(mittiOfficeItems([raise, { job_id: "j1", event_type: "electrician_onsite_install_start_cleared", created_at: "2026-10-25T01:30:00Z" }], new Date("2026-10-25T02:00:00Z"))).toEqual([]);
+    expect(mittiOfficeItems([raise], new Date("2026-10-25T02:00:00Z"))).toEqual([]);
+    const mitti = readFileSync("src/lib/mitti.server.ts", "utf8");
+    expect(mitti).toContain("ONSITE_START_HISTORY_TEXT");
+    expect(mitti).not.toMatch(/ONSITE_START_EVENT, ONSITE_START_HISTORY_TEXT, \{ needs_office: true/);
   });
 });

@@ -11,7 +11,9 @@ import { thirtyDayLine, ymdShort } from "@/lib/installer-screens.core";
 
 const dayLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
 const deadlineLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
-export type DayState = { turn: string; deadline: string | null; daysLeft: number | null; bookedAt: string | null; open: { id: string; starts_at: string; by: "installer" | "owner" }[]; days: string[] };
+export type DayState = { turn: string; deadline: string | null; daysLeft: number | null; bookedAt: string | null; open: { id: string; starts_at: string; by: "installer" | "owner" }[]; days: string[];
+  /** Decision 327: the electrician can't make the booked day and gave the days they can do — only those are listed. */
+  electricianDays?: string[] | null };
 
 function Deadline({ s }: { s: DayState }) {
   if (!s.deadline) return null;
@@ -134,6 +136,7 @@ export function InstallerInstallDays({ jobId, ownerFirstName }: { jobId: string;
   const chosen = [...picks].sort();
   const timesMissing = chosen.some((d) => !times[d]);
   const offerForm = <div data-install-offer-form>
+    {data.electricianDays && <p className="mt-2 text-[13px] font-semibold text-ink" data-electrician-days>Only the days the electrician can do are shown.</p>}
     {data.days.length ? <DayGrid days={data.days} picked={picks} label={dayTileLabel} onToggle={(d) => setPicks(picks.includes(d) ? picks.filter((x) => x !== d) : picks.length >= need ? picks : [...picks, d])} /> : <p className="mt-2 text-sm text-sub">There are no days left inside the 30-day window.</p>}
     <TimeRows rows={chosen.map((d) => ({ key: d, label: dayTileLabel(d), value: times[d] ?? "", options: INSTALL_TIMES, optionLabel: installTimeLabel, onChange: (t: string) => setTimes({ ...times, [d]: t }) }))} />
     {chosen.length > 0 && <p className="mt-1.5 text-[13px] text-sub">{owner} sees the exact time, e.g. {dayTileLabel(chosen[0]!)}{times[chosen[0]!] ? ` at ${installTimeLabel(times[chosen[0]!]!)}` : ""}. {ownerFirstName ? "She picks" : "They pick"} one or suggests other days.</p>}

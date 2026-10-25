@@ -435,3 +435,13 @@ export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes
   const d = shortDate(x.signatureDate);
   return [d ? `Signed ${d}` : "Official copy", x.afterFixes ? "includes your fixes and CoES" : null, "Download PDF"].filter(Boolean).join(" · ");
 }
+
+// ---- Decision 327: electrician on site at the start of the install day (installer job page line) ----
+export const ELECTRICIAN_ATTENDANCE_CONFIRMED = "Electrician confirmed for the start of the install";
+export const ELECTRICIAN_ATTENDANCE_WAITING = "Waiting for the electrician to confirm";
+/** The installer's one line for the current install booking: null = the electrician isn't needed at the start (never asked).
+ *  A "Can't make it" stays "Waiting…" for the installer — the office sorts it out from Needs me. */
+export function installerAttendanceLine(state: "confirmed" | "declined" | "waiting" | null | undefined): string | null {
+  if (!state) return null;
+  return state === "confirmed" ? ELECTRICIAN_ATTENDANCE_CONFIRMED : ELECTRICIAN_ATTENDANCE_WAITING;
+}

@@ -73,6 +73,8 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   team_member_invite: "251 (draft) / 252 (approved as written)",
   boss_price_link: "288 (boss price link; wording in boss-price-link.core.ts)",
   fixes_times_link: "315 (electrician fixes times link; wording in fixes-times.core.ts)",
+  electrician_install_attendance: "327 (electrician at the start of the install; wording in install-attendance.core.ts)",
+  electrician_cant_attend_installer: "327 (installer told the electrician can't make the day; wording in install-attendance.core.ts)",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {

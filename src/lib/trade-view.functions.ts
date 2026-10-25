@@ -187,6 +187,22 @@ export const saveTradeFixesTimes = createServerFn({ method: "POST" }).middleware
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows));
 
+/** Decision 327: the electrician's "Start of the install day" card (electricians only; business-scoped read). */
+export const getTradeInstallAttendance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeInstallAttendance(data.jobId, context.userId)));
+
+/** Decision 327: "I'll be there" / "Can't make it" (reason + 1–5 days they can do, or none) for the current install booking. */
+export const answerTradeInstallAttendance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.discriminatedUnion("answer", [
+    z.object({ jobId: uuid, bookingId: uuid, answer: z.literal("yes") }),
+    z.object({
+      jobId: uuid, bookingId: uuid, answer: z.literal("no"), reason: z.enum(["sick", "another_job", "short_notice", "other"]),
+      otherText: z.string().trim().max(200).nullable(), days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(5), noDays: z.boolean(),
+    }),
+  ]).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAnswerInstallAttendance(data.jobId, context.userId, data));
+
 /** Decision 261: the safety plan (SWMS) on the installer's job page. */
 export const getTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))

@@ -54,6 +54,9 @@ mock.module("@/lib/trade-view.functions", () => ({
   setA1ReadyCheckTimeFn: refused("setA1ReadyCheckTimeFn"), offerTradeReadyCheckNewTimes: refused("offerTradeReadyCheckNewTimes"), takeTradeReadyCheckDay: refused("takeTradeReadyCheckDay"), changeTradeReadyCheckTime: refused("changeTradeReadyCheckTime"),
   saveTradeSwmsNote: refused("saveTradeSwmsNote"), signTradeSwms: refused("signTradeSwms"), getTradeJobStatus: refused("getTradeJobStatus"), askTradeReminder: refused("askTradeReminder"), getMittiJobPresentation: refused("getMittiJobPresentation"),
   getTradeHome: refused("getTradeHome"), getTradeDayView: refused("getTradeDayView"), getTradeDayExtras: refused("getTradeDayExtras"), getTradeMoneyJob: refused("getTradeMoneyJob"), confirmHivicReadyCheckPricingFn: refused("confirmHivicReadyCheckPricingFn"),
+  // Electrician-only cards (decisions 315/317/327): never rendered on the installer page under test.
+  getTradeFixesTimes: refused("getTradeFixesTimes"), saveTradeFixesTimes: refused("saveTradeFixesTimes"), getTradeSafetyCheckDoc: refused("getTradeSafetyCheckDoc"), getTradeSafetyCheckPdf: refused("getTradeSafetyCheckPdf"),
+  getTradeInstallAttendance: refused("getTradeInstallAttendance"), answerTradeInstallAttendance: refused("answerTradeInstallAttendance"),
 }));
 mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn") }));
 mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn") }));
