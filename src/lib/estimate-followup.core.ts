@@ -14,7 +14,7 @@
 // use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
 
-export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242; reconfirmed 25 Oct, decision 357)
+export const ESTIMATE_FOLLOWUP_APPROVED = false as boolean; // Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): paused until O66–O68 are reworded spot-only and re-approved (was approved by decisions 242/357)
 
 export type EstimateFollowupStep = "day_2" | "day_7" | "day_21";
 export const ESTIMATE_FOLLOWUP_STEPS: readonly EstimateFollowupStep[] = ["day_2", "day_7", "day_21"];
