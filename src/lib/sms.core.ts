@@ -67,6 +67,9 @@ export const SMS_MESSAGE_TYPES = {
   quote_reminder: { audience: "owner", label: "Quote reminder – 3 days after the quote and 2 days before the price expires (decisions 88/89)", wordingApproved: true, quietHours: true },
   install_moved: { audience: "owner", label: "Your install has moved – the agreed install day changed (decision 135)", wordingApproved: true, quietHours: true },
   piesa_offer: { audience: "partner", label: "New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: true, quietHours: true },
+  // Decision 331 (Jo 25 Oct 2026, route approved): an approved trade the portal has just created a Mitti user for gets ONE
+  // text to look for Mitti's email and download the app. Wording: MITTI_INVITE_MESSAGE (mitti-invite.core.ts).
+  mitti_invite: { audience: "partner", label: "Invited to Mitti – check Mitti's email, set a password, get the app (decision 331)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -126,6 +129,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   quote_reminder: { kind: "window" }, // key = quote + step (day3/expiry); the due step is recomputed each tick (approved-texts.core quoteReminderDue)
   install_moved: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the new install booking after a changed day; also needs it still booked
   piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
+  mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
 };
 
 export type SmsEventInput = {

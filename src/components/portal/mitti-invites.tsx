@@ -4,8 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { confirmMittiInviteDoneFn, listMittiInvites } from "@/lib/mitti-invite.functions";
 
-/** Staff approvals (People): approved partner people the office still has to finish in Mitti (decision 188). Shown only
- *  when there is something to do; the portal cannot create Mitti users, so each row is an office task. */
+/** Staff approvals (People): partner people the office still has to finish in Mitti (decisions 188/331). Shown only when
+ *  there is something to do: an invite the portal may not make yet, a group add, or a Mitti failure with its plain reason. */
 export function OfficeMittiInvites() {
   const load = useServerFn(listMittiInvites);
   const confirm = useServerFn(confirmMittiInviteDoneFn);
