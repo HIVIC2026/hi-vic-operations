@@ -20,10 +20,13 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
   }
   const ids = (jobs ?? []).map((j) => j.id);
   if (!ids.length) return { rows: [], notDrafted: [], declined: [] };
+  // Bounded id chunks (AGENTS: one all-ids URL stalled Office reads), every chunk in flight together; the installer
+  // names are read alongside instead of after.
   const batches = [];
-  for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
+  for (let from = 0; from < ids.length; from += 150) batches.push(ids.slice(from, from + 150));
+  const businessesRead = admin.from("businesses").select("id, name");
   const parts = [];
-  for (let from = 0; from < batches.length; from += 4) parts.push(...await Promise.all(batches.slice(from, from + 4).map(async batch => {
+  parts.push(...await Promise.all(batches.map(async batch => {
     const [quotes, held, assigned, basics, forms, declines] = await Promise.all([
       admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]),
       admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
@@ -36,7 +39,7 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [], declines: declines.data ?? [] };
   })));
   const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), forms = parts.flatMap(p => p.forms), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
-  const { data: businesses, error: be } = await admin.from("businesses").select("id, name");
+  const { data: businesses, error: be } = await businessesRead;
   if (be) throw new Error("Installer names could not be read.");
   const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
   const declineEv = parts.flatMap(p => p.declines);
@@ -71,13 +74,20 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, notes, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
   }
   const { officeQuoteBlockers } = await import("./office-quote-review.server");
-  // Bound parallel readiness reads; each row and its opened draft use the same guards.
-  for (let from = 0; from < rows.length; from += 10) await Promise.all(rows.slice(from, from + 10).map(async row => {
-    const draft = (quotes ?? []).find(q => q.id === row.quoteId);
-    if (!draft) return;
-    row.reasons = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
-    row.kind = row.reasons.length ? "missing" : "ready";
-    row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
+  // Bound parallel readiness reads (a pool of 20, not fixed batches that wait for their slowest row); each row and its
+  // opened draft use the same guards as Send.
+  const quoteById = new Map((quotes ?? []).map((q) => [q.id, q]));
+  const todo = rows.slice();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(20, todo.length) }, async () => {
+    while (next < todo.length) {
+      const row = todo[next++]!;
+      const draft = row.quoteId ? quoteById.get(row.quoteId) : undefined;
+      if (!draft) continue;
+      row.reasons = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
+      row.kind = row.reasons.length ? "missing" : "ready";
+      row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
+    }
   }));
   rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
   // Jo 24 Oct 2026: installers no longer approve quotes — every draft is on the office list for Check & send;

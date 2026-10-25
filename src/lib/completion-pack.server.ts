@@ -13,7 +13,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { WARRANTY_COPY_PROVIDED_EVENT, warrantyProvidedSummary, type ProductWarranty, type WarrantyAttachDecision } from "./product-warranty.core";
-import { WARRANTY_VIA_LABEL, coesAttachmentPlan, ownerEmailSent, shouldRecordWarrantyProvided, type WarrantyRecordVia } from "./completion-pack.core";
+import { WARRANTY_VIA_LABEL, coesAttachmentPlan, invoiceFullyPaid, ownerEmailSent, shouldRecordWarrantyProvided, type WarrantyRecordVia } from "./completion-pack.core";
 import type { EmailAttachment } from "./email-kit.core";
 
 export const COMPLETION_PACK_SENT_EVENT = "completion_pack_sent";
@@ -29,9 +29,7 @@ async function alreadySent(jobId: string): Promise<boolean> {
 /** Fully paid = cumulative payments on the installation invoice reach its total (decision 139 ledger; `total_paid` never drops). */
 async function invoicePaidInFull(jobId: string): Promise<boolean> {
   const { data: inv } = await admin.from("invoices").select("total_inc_gst, total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!inv) return false;
-  const total = Number(inv.total_inc_gst ?? 0), paid = Number(inv.total_paid ?? 0);
-  return total > 0 && paid + 0.005 >= total;
+  return invoiceFullyPaid(inv);
 }
 
 async function warrantyAlreadyRecorded(jobId: string): Promise<boolean> {
@@ -110,9 +108,22 @@ export async function sendCompletionPack(jobId: string, actorId: string | null =
 /** 15-minute tick: every recently completed, fully paid job without a completion pack yet. */
 export async function sweepCompletionPacks(): Promise<{ checked: number; sent: number; notSent: number }> {
   const since = new Date(Date.now() - SWEEP_WINDOW_MS).toISOString();
-  const { data: jobs } = await admin.from("jobs").select("id").not("installation_completed_at", "is", null).gte("installation_completed_at", since).is("deleted_at", null);
+  const { data: jobs, error } = await admin.from("jobs").select("id").not("installation_completed_at", "is", null).gte("installation_completed_at", since).is("deleted_at", null);
+  if (error) throw new Error(`Could not read completed jobs: ${error.message}`);
+  // Perf 25 Oct 2026: "already sent" and "paid in full" for every candidate at once — sendCompletionPack would skip
+  // exactly these jobs after three reads each, every 15 minutes. The send path still re-checks both itself.
+  const ids = (jobs ?? []).map((j) => j.id);
+  const { readByJobIds } = await import("./sweep-batch.server");
+  const { latestPerJob } = await import("./sweep-batch.core");
+  const [sentRows, invoices] = await Promise.all([
+    readByJobIds<{ job_id: string | null }>("completion packs sent", ids, (c) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", COMPLETION_PACK_SENT_EVENT)),
+    readByJobIds<{ job_id: string | null; created_at: string; total_inc_gst: number | null; total_paid: number | null }>("installation invoices", ids, (c) => admin.from("invoices").select("job_id, created_at, total_inc_gst, total_paid").in("job_id", c).eq("kind", "installation")),
+  ]);
+  const alreadySentIds = new Set(sentRows.map((r) => String(r.job_id)));
+  const latestInvoice = latestPerJob(invoices);
+  const due = (jobs ?? []).filter((j) => !alreadySentIds.has(j.id) && invoiceFullyPaid(latestInvoice.get(j.id)));
   let sent = 0, notSent = 0;
-  for (const j of jobs ?? []) {
+  for (const j of due) {
     try {
       const r = await sendCompletionPack(j.id);
       if (r.outcome === "sent") sent++;

@@ -30,8 +30,8 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
   const out: Row[] = [];
-  // At most four chunks in flight: bounded parallel reads.
-  for (let i = 0; i < chunks.length; i += 4) out.push(...(await Promise.all(chunks.slice(i, i + 4).map((c) => all(what, (f, t) => q(c, f, t))))).flat());
+  // At most eight chunks in flight: bounded parallel reads.
+  for (let i = 0; i < chunks.length; i += 8) out.push(...(await Promise.all(chunks.slice(i, i + 8).map((c) => all(what, (f, t) => q(c, f, t))))).flat());
   return out;
 }
 
@@ -168,11 +168,12 @@ export async function loadActiveJobsList(p: JobsListParams) {
   ]);
   const ex = new Map(extra.map((r) => [String(r["id"]), r]));
   const live = base.filter((r) => { const e = ex.get(String(r["id"])); return e && !e["deleted_at"] && !e["qa_archived_at"]; });
-  // Status line: the office rulebook (office-status.core via loadOffice), batched by job id.
+  // Status line: the office rulebook (office-status.core via loadOffice). One call: loadOffice chunks the job ids itself
+  // and reads every chunk at once (perf 25 Oct 2026; was one sequential loadOffice per 150 jobs).
   const statusOf = new Map<string, string>();
   const liveIds = live.map((r) => String(r["id"]));
-  for (let i = 0; i < liveIds.length; i += 150) {
-    const o = await loadOffice(admin, { includeTest: true, onlyIds: liveIds.slice(i, i + 150) });
+  if (liveIds.length) {
+    const o = await loadOffice(admin, { includeTest: true, onlyIds: liveIds });
     for (const j of o.jobs) if (j.status) statusOf.set(j.id, `${j.status.label}${j.status.detail ? ` · ${j.status.detail}` : ""}`);
   }
   const { declaredExtras } = await import("./enquiry.core");

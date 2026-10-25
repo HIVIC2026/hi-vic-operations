@@ -42,3 +42,10 @@ export function coesAttachmentPlan(docs: readonly CoesDoc[], maxBytes = COES_ATT
   }
   return { attach, skipped };
 }
+
+/** Fully paid = cumulative payments on the installation invoice reach its total (decision 139 ledger; `total_paid` never drops). */
+export function invoiceFullyPaid(inv: { total_inc_gst: number | string | null; total_paid: number | string | null } | null | undefined): boolean {
+  if (!inv) return false;
+  const total = Number(inv.total_inc_gst ?? 0), paid = Number(inv.total_paid ?? 0);
+  return total > 0 && paid + 0.005 >= total;
+}

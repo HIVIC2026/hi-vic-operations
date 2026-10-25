@@ -118,7 +118,9 @@ function NeedsMe() {
   const includeTest = !!test;
   const qc = useQueryClient();
   const load = useServerFn(getNeedsMePage);
-  const { data, error, refetch, isPending } = useQuery({ queryKey: ["needs-me-v2", includeTest], queryFn: () => load({ data: { includeTest } }), refetchInterval: 120_000, staleTime: 30_000 });
+  // Perf 25 Oct 2026: one retry (not three) for the heaviest office read, a 60 s fresh window so switching back from
+  // Outlook doesn't reload it every time, and no polling while the tab is hidden (React Query's default).
+  const { data, error, refetch, isPending } = useQuery({ queryKey: ["needs-me-v2", includeTest], queryFn: () => load({ data: { includeTest } }), refetchInterval: 120_000, staleTime: 60_000, retry: 1 });
   const refresh = () => void qc.invalidateQueries({ queryKey: ["needs-me-v2"] });
   return (
     <AppShell>

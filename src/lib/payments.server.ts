@@ -191,9 +191,19 @@ export async function sweepProvisionalBookings(now = new Date()) {
   const cutoff = new Date(now.getTime() - 48 * 3_600_000).toISOString();
   const soon = new Date(now.getTime() + 48 * 3_600_000).toISOString();
   const { data: bookings } = await admin.from("bookings").select("id, job_id, created_at, scheduled_start").eq("kind", "installation").eq("status", "confirmed").or(`created_at.lt.${cutoff},scheduled_start.lt.${soon}`).limit(300);
+  // Perf 25 Oct 2026: a booking whose install day has started and whose office alert is already recorded can only end in
+  // "office_alert → already alerted" — skip it without the ~9 payment reads. One batched read of those alerts.
+  const started = (bookings ?? []).filter((b) => Date.parse(b.scheduled_start) <= now.getTime());
+  const { readByJobIds } = await import("./sweep-batch.server");
+  const alertedRows = await readByJobIds<{ details: unknown }>("deposit alerts", started.map((b) => b.job_id), (c) => admin.from("workflow_events").select("details").in("job_id", c).eq("event_type", DEPOSIT_UNPAID_AT_START_EVENT));
+  const alertedBookings = new Set(alertedRows.map((r) => String((r.details as { booking_id?: unknown } | null)?.booking_id ?? "")));
+  const todo = (bookings ?? []).filter((b) => !(Date.parse(b.scheduled_start) <= now.getTime() && alertedBookings.has(b.id)));
+  // Payment views are reads only: five at a time; every action below still runs one booking at a time, in order.
+  const views = new Map<string, Awaited<ReturnType<typeof jobPaymentView>> | null>();
+  for (let i = 0; i < todo.length; i += 5) await Promise.all(todo.slice(i, i + 5).map(async (b) => { views.set(b.id, await jobPaymentView(b.job_id, now).catch(() => null)); }));
   let released = 0, checked = 0, alerted = 0;
-  for (const b of bookings ?? []) {
-    const v = await jobPaymentView(b.job_id, now).catch(() => null);
+  for (const b of todo) {
+    const v = views.get(b.id) ?? null;
     if (!v) continue;
     checked++;
     const action = depositSweepAction({ decision: v.provisional.decision, installStart: b.scheduled_start, now: now.toISOString() });

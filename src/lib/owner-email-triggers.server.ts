@@ -242,8 +242,22 @@ export async function sweepFinalInvoices(now = new Date()): Promise<{ checked: n
   const from = new Date(now.getTime() - FINAL_INVOICE_WITHIN_DAYS * 86_400_000).toISOString();
   const { data: jobs, error } = await admin.from("jobs").select("id").gte("installation_completed_at", from).is("deleted_at", null).limit(500);
   if (error) throw new Error(error.message);
+  // Perf 25 Oct 2026: a job whose latest installation invoice already has its O45 key recorded is "done" (the same
+  // `done` finalInvoiceFor computes after five reads per job); read both for every candidate at once and skip those.
+  const ids = (jobs ?? []).map((j) => j.id);
+  const { readByJobIds } = await import("./sweep-batch.server");
+  const { latestPerJob } = await import("./sweep-batch.core");
+  const [invoices, done] = await Promise.all([
+    readByJobIds<{ id: string; job_id: string | null; created_at: string }>("installation invoices", ids, (c) => admin.from("invoices").select("id, job_id, created_at").in("job_id", c).eq("kind", "installation")),
+    recordedKeysBatched(ids, "O45"),
+  ]);
+  const latestInvoice = latestPerJob(invoices);
   let sent = 0;
-  for (const j of jobs ?? []) if (/^sent\b/.test(await onFinalInvoiceDue(j.id, now))) sent++;
+  for (const j of jobs ?? []) {
+    const inv = latestInvoice.get(j.id);
+    if (inv && done.has(ownerEmailKey.finalInvoice(inv.id))) continue;
+    if (/^sent\b/.test(await onFinalInvoiceDue(j.id, now))) sent++;
+  }
   return { checked: (jobs ?? []).length, sent };
 }
 
@@ -257,6 +271,13 @@ async function optedOutJobs(ids: string[]): Promise<Set<string>> {
   ]);
   if (ae || be) throw new Error(`Could not read opt-outs: ${(ae ?? be)!.message}`);
   return new Set([...(a ?? []), ...(b ?? [])].filter((r) => !!r.opted_out_at).map((r) => r.job_id as string));
+}
+
+/** recordedKeys over any number of jobs (bounded id chunks). */
+async function recordedKeysBatched(ids: string[], code: OwnerEmailCode): Promise<Set<string>> {
+  const { chunkIds } = await import("./sweep-batch.core");
+  const sets = await Promise.all(chunkIds(ids).map((c) => recordedKeys(c, code)));
+  return new Set(sets.flatMap((x) => [...x]));
 }
 
 async function recordedKeys(ids: string[], code: OwnerEmailCode): Promise<Set<string>> {

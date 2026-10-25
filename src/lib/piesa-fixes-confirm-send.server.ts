@@ -78,15 +78,44 @@ export async function sendFixesConfirmStep(jobId: string, step: PiesaConfirmStep
 }
 
 /** 15-minute tick: one due step per unconfirmed fixes record. */
+/** Perf 25 Oct 2026: the step decision's facts (latest post_rectification record, its confirmation, recorded steps) for
+ *  EVERY candidate job at once instead of ownerFixesConfirmFacts + doneSteps per job per tick. Same rule; the send path
+ *  re-reads everything itself. */
+export async function dueFixesConfirmSteps(jobIds: string[], now: Date): Promise<Map<string, PiesaConfirmStep>> {
+  const due = new Map<string, PiesaConfirmStep>();
+  if (!jobIds.length) return due;
+  const { readByJobIds } = await import("./sweep-batch.server");
+  const { groupByJob, latestPerJob, stepsForRecord } = await import("./sweep-batch.core");
+  const { PIESA_FIXES_CONFIRMED_EVENT, fixesConfirmationFromEvents } = await import("./piesa-fixes-confirm.core");
+  type Rec = { id: string; job_id: string | null; created_at: string; completed_date: string | null };
+  type Ev = { job_id: string | null; details: unknown; created_at: string };
+  const [recs, confirms, steps] = await Promise.all([
+    readByJobIds<Rec>("fixes records", jobIds, (c) => admin.from("piesa_records").select("id, job_id, created_at, completed_date").in("job_id", c).eq("kind", "post_rectification")),
+    readByJobIds<Ev>("fixes owner confirmations", jobIds, (c) => admin.from("workflow_events").select("job_id, details, created_at").in("job_id", c).eq("event_type", PIESA_FIXES_CONFIRMED_EVENT)),
+    readByJobIds<Ev>("fixes confirmation steps", jobIds, (c) => admin.from("workflow_events").select("job_id, details, created_at").in("job_id", c).eq("event_type", PIESA_FIXES_CONFIRM_STEP_EVENT)),
+  ]);
+  const latest = latestPerJob(recs), confirmsBy = groupByJob(confirms), stepsBy = groupByJob(steps);
+  for (const id of jobIds) {
+    const rec = latest.get(id);
+    if (!rec || !rec.completed_date) continue; // ownerFixesConfirmFacts → null
+    const confirmation = fixesConfirmationFromEvents(confirmsBy.get(id) ?? [], rec.id);
+    const step = nextPiesaConfirmStep({ completedAt: rec.created_at, confirmedAt: confirmation?.signedAt ?? null, done: stepsForRecord<PiesaConfirmStep>(stepsBy.get(id) ?? [], rec.id), now: now.toISOString() });
+    if (step) due.set(id, step);
+  }
+  return due;
+}
+
 export async function sweepOwnerFixesConfirmations(now = new Date()): Promise<{ checked: number; sent: number; alerts: number }> {
-  const { data: jobs } = await admin.from("jobs").select("id").in("stage", [...FIXES_CONFIRM_ACTIVE_STAGES]).is("deleted_at", null);
+  const { data: jobs, error } = await admin.from("jobs").select("id").in("stage", [...FIXES_CONFIRM_ACTIVE_STAGES]).is("deleted_at", null);
+  if (error) throw new Error(`Could not read fixes confirmation jobs: ${error.message}`);
+  const ids = (jobs ?? []).map((j) => j.id);
+  const due = await dueFixesConfirmSteps(ids, now);
   let sent = 0, alerts = 0;
-  for (const j of jobs ?? []) {
+  for (const id of ids) {
+    const step = due.get(id);
+    if (!step) continue;
+    const j = { id };
     try {
-      const f = await ownerFixesConfirmFacts(j.id);
-      if (!f) continue;
-      const step = nextPiesaConfirmStep({ completedAt: f.completedAt, confirmedAt: f.confirmation?.signedAt ?? null, done: await doneSteps(j.id, f.recordId), now: now.toISOString() });
-      if (!step) continue;
       await sendFixesConfirmStep(j.id, step);
       if (step === "office_alert_5") alerts++; else sent++;
     } catch (e) { console.error("Electrical fixes owner confirmation step failed", j.id, (e as Error).message); }
