@@ -8,7 +8,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
-  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
   provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
 } from "./payments.core";
 
@@ -101,7 +101,10 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   // Decision 366: the fixes are their own step only when the fixes quote was accepted after the installation quote (the
   // old model folded them into the installation quote — counted there, never twice).
   const fixesCents = fixesCountedCents({ rectTotalCents: rect ? toCents(rect.customer_total_inc_gst) : 0, rectAcceptedAt: rect?.accepted_at ?? null, installAcceptedAt: quote?.accepted_at ?? null });
-  const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents });
+  // Audit R07: once the fixes are on the same Xero invoice its total already holds them — the plan's quote part stays
+  // the accepted installation quote, so the grand total equals the Xero invoice total (fixes counted once).
+  const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents });
+  const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents });
   // Audit F01: reconciled (Xero live payments + card records not yet in Xero), never max(total_paid, ledger sum).
   const raw = await rawPaymentLedger(jobId, inv.id);
   const ledger = effectiveLedger(raw);

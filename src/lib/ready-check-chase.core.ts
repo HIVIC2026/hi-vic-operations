@@ -72,7 +72,7 @@ export function installDayPhotoBlocker(reqs: Req[]): string | null {
 export type MittiOfficeCode =
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review"
   | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held" | "xero_invoice_product_unconfirmed"
-  | "install_deposit_unpaid_at_start";
+  | "install_deposit_unpaid_at_start" | "xero_invoice_repairs_held";
 export type Ev = { job_id: string | null; event_type: string; created_at: string; details?: Record<string, unknown> | null; summary?: string | null };
 export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; since: string; detail: string | null; key: string };
 
@@ -90,6 +90,9 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   // Decision 367: an install day started with the 10% deposit still unpaid (sweepProvisionalBookings); cleared once the
   // deposit lands (install_booking_confirmed) or the booking is released.
   { code: "install_deposit_unpaid_at_start", raise: (e) => e.event_type === "install_deposit_unpaid_at_start", clear: ["install_booking_confirmed", "install_booking_released_unpaid"], detail: (e) => e.summary ?? null },
+  // Audit R07: approved electrical fixes could not be added to the job's one Xero invoice (paid/credited/voided invoice,
+  // switch off, totals differ); cleared once they are on it (`xero_invoice_repairs_added`, added or adopted after Sync).
+  { code: "xero_invoice_repairs_held", raise: (e) => e.event_type === "xero_invoice_repairs_held", clear: ["xero_invoice_repairs_added"], detail: (e) => (e.details?.["reason"] as string | undefined) ?? e.summary ?? null },
   // Decision 327 replaced the decision-314 "Electrician must be on site … tell the installer and electrician" line: the
   // electrician is asked automatically once the day is booked (install-attendance.core); the office sees only
   // `electrician_install_attendance` (no answer after 48h, or no day inside the window). Old events stay as history.
