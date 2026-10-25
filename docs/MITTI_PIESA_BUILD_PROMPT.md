@@ -46,8 +46,10 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 17. `Are any of them not IC or IC-4 rated?` — Yes/No — Required — only show when question 15 = Yes
 17a. `How many are not IC or IC-4 rated?` — Number — Required — only show when question 17 = Yes
 18. `Are there any appliances, exhaust fans or flues in the ceiling space?` — Yes/No — Required
-19. `Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.` — Text (long text is fine) — Required — only show when question 18 = Yes
-19a. `Does the action you described effectively reduce the risk from each hazard listed?` — Yes/No — Required — only show when question 18 = Yes
+19. Repeating block `Add an appliance or flue` (the electrician taps + for each one) — only show when question 18 = Yes — help text: `One per appliance, exhaust fan or flue. Answer No if it needs work or clearance before insulation goes in — list that work under repair work.` — containing:
+   - `What is it and where is it?` — Text — Required
+   - `Photo of it` — Photo, location on — Required
+   - `Can insulation be safely installed around it as it is?` — Yes/No — Required — No red, Yes grey
 
 ## Group 7: Repair work
 20. `Is any electrical repair work needed before insulation can be installed?` — Pick one: `No repair work is needed` / `Yes, repair work is needed` / `Repair work is not possible, so an electrician must be present on installation day` — Required

@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { AFTER_INSTALL_QUESTIONS, INSTALL_DAY_EVIDENCE, INSTALL_EVIDENCE_QUESTIONS, installEvidenceQuestionList } from "../src/lib/install-evidence.core";
-import { PIESA_EFFECTIVE_QUESTION } from "../src/lib/official-short.core";
+import { APPLIANCE_BLOCK, APPLIANCE_Q, PIESA_EFFECTIVE_QUESTION } from "../src/lib/official-short.core";
 
 const install = readFileSync("docs/MITTI_INSTALL_FORM_CHATGPT_PROMPT.md", "utf8");
 const fix = readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8");
@@ -20,9 +20,15 @@ describe("Install day prompts", () => {
   });
 });
 
-describe("PIESA prompt addendum", () => {
-  test("carries the official effective question verbatim", () => {
-    expect(piesa).toContain(`\`${PIESA_EFFECTIVE_QUESTION}\``);
-    expect(readFileSync("docs/MITTI_PIESA_FORM_SPEC.md", "utf8")).toContain(PIESA_EFFECTIVE_QUESTION);
+describe("PIESA appliance block (decision 295)", () => {
+  test("the build prompt and spec carry the three block questions and no longer the retired self-grading question", () => {
+    const build = readFileSync("docs/MITTI_PIESA_BUILD_PROMPT.md", "utf8");
+    const spec = readFileSync("docs/MITTI_PIESA_FORM_SPEC.md", "utf8");
+    for (const doc of [build, spec]) {
+      expect(doc).toContain(APPLIANCE_BLOCK);
+      for (const q of Object.values(APPLIANCE_Q)) expect(doc).toContain(q);
+    }
+    expect(build).not.toContain(PIESA_EFFECTIVE_QUESTION);
+    expect(spec).not.toContain(PIESA_EFFECTIVE_QUESTION);
   });
 });

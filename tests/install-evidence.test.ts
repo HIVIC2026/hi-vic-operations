@@ -223,15 +223,20 @@ describe("decision 213: Mitti Complete records the installation only when every 
   });
 });
 
-describe("PIESA official Part 7 effective question (decision 210)", () => {
-  test("the short form asks it only when appliances = Yes and the expansion fills p7.effective; blank is flagged, never Yes", () => {
-    const f = SHORT_PIESA_FIELDS.find((x) => x.id === "appliancesEffective")!;
-    expect(f).toMatchObject({ label: "Does the action you described effectively reduce the risk from each hazard listed?", type: "yesno", when: "appliancesPresent = Yes" });
-    const base = { appliancesPresent: "Yes", applianceDetails: "Exhaust fan over the bathroom — kept clear" } as never;
-    const yes = expandShortAnswers("piesa", { ...base, appliancesEffective: "Yes" } as never, {} as never);
-    expect(yes.answers["p7.effective"]).toBe("Yes");
-    const blank = expandShortAnswers("piesa", base, {} as never);
-    expect(blank.answers["p7.effective"]).toBeUndefined();
-    expect(blank.flagged.some((x) => x.includes("effectively reduce the risk"))).toBe(true);
+describe("PIESA Part 7 from the appliance block (decision 295)", () => {
+  test("rows fill the official table; effective = Yes only when every item is safe (or the repair work is complete); blank never Yes", () => {
+    const base = { appliancesPresent: "Yes", applianceWhat: "Exhaust fan over the bathroom", appliancePhoto: "media_a", applianceSafe: "Yes" } as never;
+    const safe = expandShortAnswers("piesa", base, {} as never);
+    expect(safe.answers["p7.appliance#0"]).toBe("Exhaust fan over the bathroom");
+    expect(safe.answers["p7.effective"]).toBe("Yes");
+    const unsafe = expandShortAnswers("piesa", { ...base, "applianceWhat#1": "Gas flue near the manhole", "appliancePhoto#1": "media_b", "applianceSafe#1": "No" } as never, {} as never);
+    expect(unsafe.answers["p7.hazard#1"]).toMatch(/Needs work/);
+    expect(unsafe.answers["p7.effective"]).toBeUndefined();
+    expect(unsafe.flagged.some((x) => /effective/.test(x))).toBe(true);
+    const fixed = expandShortAnswers("piesa", { ...base, "applianceWhat#1": "Gas flue", "applianceSafe#1": "No", rectificationComplete: "Yes" } as never, {} as never);
+    expect(fixed.answers["p7.effective"]).toBe("Yes");
+    // Old forms: one description + the self-graded answer are still read.
+    const legacy = expandShortAnswers("piesa", { appliancesPresent: "Yes", applianceDetails: "Exhaust fan", appliancesEffective: "Yes" } as never, {} as never);
+    expect(legacy.answers["p7.effective"]).toBe("Yes");
   });
 });

@@ -53,7 +53,24 @@ const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
 
 /** Short PIESA (electrician). Life support is confirmed against the enquiry record, never re-asked from scratch. */
 /** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
-export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?";
+export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?"; // retired by decision 295; read from old forms only
+/** Decision 295: the repeating "Add an appliance or flue" block on the PIESA (A4). */
+export const APPLIANCE_BLOCK = "Add an appliance or flue";
+export const APPLIANCE_Q = { what: "What is it and where is it?", photo: "Photo of it", safe: "Can insulation be safely installed around it as it is?" } as const;
+export type ApplianceRow = { what: string; safe: "Yes" | "No" | null; photo: boolean };
+/** Every appliance/flue row the electrician added, in form order (applianceWhat, applianceWhat#1, …). */
+export function applianceRows(short: Record<string, unknown>): ApplianceRow[] {
+  const out: ApplianceRow[] = [];
+  for (let i = 0; i < 50; i++) {
+    const sfx = i === 0 ? "" : `#${i}`;
+    const what = String(short[`applianceWhat${sfx}`] ?? "").trim();
+    const safeRaw = String(short[`applianceSafe${sfx}`] ?? "").trim();
+    const photo = !!String(short[`appliancePhoto${sfx}`] ?? "").trim();
+    if (!what && !safeRaw && !photo) { if (i > 0) break; continue; }
+    out.push({ what, safe: /^yes/i.test(safeRaw) ? "Yes" : /^no/i.test(safeRaw) ? "No" : null, photo });
+  }
+  return out;
+}
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
@@ -75,9 +92,12 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   // Jo 25 Oct 2026: the fixes quote needs the number of fittings to replace, not just that some are not IC rated.
   { id: "downlightsNonIcCount", label: "How many are not IC or IC-4 rated?", type: "number", required: true, when: "downlightsNonIc = Yes", source: "short onsite form" },
   yn("appliancesPresent", "Are there any appliances, exhaust fans or flues in the ceiling space?"),
-  { id: "applianceDetails", label: "Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.", type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
-  // Decision 210 (audit P-1): the official Part 7 "effective" question, asked on site so the printed P7 rule can pass.
-  yn("appliancesEffective", PIESA_EFFECTIVE_QUESTION, "appliancesPresent = Yes"),
+  // Decision 295 (Jo 25 Oct 2026): one repeating "Add an appliance or flue" block per item; the official Part 7 rows and
+  // its "effective" tick are filled from these answers. Repeats arrive as applianceWhat, applianceWhat#1, … (see
+  // shortAnswersFromEntries). The old single description + self-grading question are read only from old forms.
+  { id: "applianceWhat", label: APPLIANCE_Q.what, type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
+  { id: "appliancePhoto", label: APPLIANCE_Q.photo, type: "media", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
+  yn("applianceSafe", APPLIANCE_Q.safe, "appliancesPresent = Yes"),
   { id: "rectificationOutcome", label: "Is any electrical repair work needed before insulation can be installed?", type: "choice", required: true, choices: [...RECTIFICATION_OUTCOMES], source: "short onsite form" },
   { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationOutcome = Yes, repair work is needed", source: "short onsite form" },
   { id: "rectificationOther", label: "Please describe the other repair work.", type: "text", required: true, when: "Other is ticked", source: "short onsite form" },
@@ -152,7 +172,9 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
     if (!cands.length) continue;
     const seen = used.get(k) ?? 0;
     used.set(k, seen + 1);
-    const slot = cands[seen];
+    // A label that repeats more often than the form lists it (a repeating block, decision 295) keeps the LAST slot's id
+    // with a #n suffix for each extra occurrence: applianceWhat, applianceWhat#1, applianceWhat#2 …
+    const slot = cands[seen] ?? (cands.length ? { ...cands[cands.length - 1]!, id: `${cands[cands.length - 1]!.id}#${seen - cands.length + 1}` } : undefined);
     if (slot && e.value != null && e.value !== "") out[slot.id!] = e.value;
   }
   return out;

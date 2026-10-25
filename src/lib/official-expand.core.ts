@@ -3,6 +3,7 @@
 // - A "yes, all safe" answer sets every matching official Yes/No. A "no" sets only the ticked problems.
 // - Anything the portal can't fill for sure stays null and is listed in `flagged` for the office — never a guessed "No".
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
+import { applianceRows } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
 
@@ -126,18 +127,33 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     }
   } else flagged.push("Downlights: not answered.");
 
-  // Part 7 appliances/hazards: the short form asks one combined question; location/hazard detail stays with the office.
+  // Part 7 appliances/flues (decision 295): one row per item from the repeating block; "safe as it is" = No means the work
+  // sits under Part B2 repair work, so the official "effective" tick is Yes only when every item is safe, or once the
+  // repair work is recorded complete. Old forms (one description + self-graded "effective") are still read.
   if (isYes(short["appliancesPresent"]) || isNo(short["appliancesPresent"])) {
     out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
     out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
     if (isYes(short["appliancesPresent"])) {
-      if (txt(short["applianceDetails"])) {
+      const rows = applianceRows(short);
+      if (rows.length) {
+        rows.slice(0, 10).forEach((r, i) => {
+          out[`p7.appliance#${i}`] = r.what || "(not described)";
+          out[`p7.location#${i}`] = r.what || "(not described)";
+          out[`p7.hazard#${i}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
+          if (!r.what) flagged.push(`Appliance ${i + 1}: not described.`);
+          if (r.safe == null) flagged.push(`Appliance ${i + 1}: "safe as it is" not answered.`);
+        });
+        const unsafe = rows.filter((r) => r.safe === "No");
+        out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        if (rows.every((r) => r.safe === "Yes")) out["p7.effective"] = "Yes";
+        else if (unsafe.length && isYes(short["rectificationComplete"])) out["p7.effective"] = "Yes";
+        else if (unsafe.length) flagged.push("Appliances: work required before insulation — the official \"effective\" tick waits for the repair work to be recorded complete.");
+      } else if (txt(short["applianceDetails"])) {
         out["p7.appliance#0"] = txt(short["applianceDetails"]);
         flagged.push("Appliances: the office must split the description into the official table (location, hazard, actions) before lodgement.");
-      } else flagged.push("Appliances: described as present but no details given.");
-      // Decision 210: the official "effective" tick comes from the electrician's own answer; a blank is flagged, never "Yes".
-      if (isYes(short["appliancesEffective"]) || isNo(short["appliancesEffective"])) out["p7.effective"] = isYes(short["appliancesEffective"]) ? "Yes" : "No";
-      else flagged.push("Appliances: \"does the action effectively reduce the risk\" not answered.");
+        if (isYes(short["appliancesEffective"]) || isNo(short["appliancesEffective"])) out["p7.effective"] = isYes(short["appliancesEffective"]) ? "Yes" : "No";
+        else flagged.push("Appliances: \"does the action effectively reduce the risk\" not answered.");
+      } else flagged.push("Appliances: described as present but none listed.");
     }
   } else flagged.push("Appliances and flues: not answered.");
 

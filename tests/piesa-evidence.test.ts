@@ -26,9 +26,9 @@ describe("piesaEvidenceRequirements — which items the answers demand", () => {
     expect(piesaEvidenceRequirements(clean).map((r) => r.id)).toEqual(["switchboard_photo", "onsite_photo"]);
   });
   test("any hazard answered Yes adds one hazard photo per hazard listed", () => {
-    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[1]}, ${MAINS_PROBLEMS[5]}`, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[0], appliancesPresent: "Yes", applianceDetails: "Gas flue near the manhole" };
+    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[1]}, ${MAINS_PROBLEMS[5]}`, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[0], appliancesPresent: "Yes", applianceWhat: "Gas flue near the manhole", applianceSafe: "No" };
     const hz = piesaHazardsListed(a);
-    expect(hz).toEqual([MAINS_PROBLEMS[1], MAINS_PROBLEMS[5], CEILING_PROBLEMS[0], "Appliances, exhaust fans or flues: Gas flue near the manhole"]);
+    expect(hz).toEqual([MAINS_PROBLEMS[1], MAINS_PROBLEMS[5], CEILING_PROBLEMS[0], "Appliance or flue needs work: Gas flue near the manhole"]);
     const req = piesaEvidenceRequirements(a).find((r) => r.id === "hazard_photos");
     expect(req?.count).toBe(4);
     expect(req?.hazards).toEqual(hz);
@@ -64,10 +64,10 @@ describe("piesaEvidenceBlockers — plain messages", () => {
     expect(piesaEvidenceBlockers(clean, withMedia({ switchboard_photo: [mittiMediaFile(geo("m1", 0, 0))], onsite_photo: [mittiMediaFile(geo("m2"))] }))).toEqual(["Switchboard photo must be geotagged"]);
   });
   test("hazard photos: one per hazard, names the hazards still without a photo, all geotagged", () => {
-    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[0]}, ${MAINS_PROBLEMS[6]}`, appliancesPresent: "Yes", applianceDetails: "Exhaust fan" };
+    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[0]}, ${MAINS_PROBLEMS[6]}`, appliancesPresent: "Yes", applianceWhat: "Exhaust fan", applianceSafe: "No" };
     const ok = withMedia({ switchboard_photo: [mittiMediaFile(geo("s"))], onsite_photo: [mittiMediaFile(geo("o"))] });
-    expect(piesaEvidenceBlockers(a, ok)).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[0]}; ${MAINS_PROBLEMS[6]}; Appliances, exhaust fans or flues: Exhaust fan`]);
-    expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1"))] })).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[6]}; Appliances, exhaust fans or flues: Exhaust fan`]);
+    expect(piesaEvidenceBlockers(a, ok)).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[0]}; ${MAINS_PROBLEMS[6]}; Appliance or flue needs work: Exhaust fan`]);
+    expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1"))] })).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[6]}; Appliance or flue needs work: Exhaust fan`]);
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(flat("h2")), mittiMediaFile(geo("h3"))] })).toEqual(["Hazard photos must be geotagged (1 without a location)"]);
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(geo("h2")), mittiMediaFile(geo("h3"))] })).toEqual([]);
   });
