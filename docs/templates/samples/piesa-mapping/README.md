@@ -114,7 +114,6 @@ A4 answers given:
 
 - Job Reference ID → **HV-SAMPLE-1**
 - Address including postcode → **14 Wattle Street, Bentleigh VIC 3204**
-- Whose customer is this? → **Home Insulation Victoria**
 - I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices. → **Yes**
 - Date of inspection → **2026-10-27**
 - Office life support record → **No (owner said no on the website)**
@@ -164,7 +163,6 @@ A4 answers given:
 
 - Job Reference ID → **HV-SAMPLE-2**
 - Address including postcode → **7 Banksia Court, Frankston VIC 3199**
-- Whose customer is this? → **Home Insulation Victoria**
 - I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices. → **Yes**
 - Date of inspection → **2026-10-28**
 - Office life support record → **Yes (owner said yes on the website)**
@@ -255,7 +253,6 @@ A4 answers given:
 
 - Job Reference ID → **HV-SAMPLE-3**
 - Address including postcode → **22 Ironbark Road, Bendigo VIC 3550**
-- Whose customer is this? → **Home Insulation Victoria**
 - I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices. → **Yes**
 - Date of inspection → **2026-10-29**
 - Office life support record → **No (owner said no on the website)**

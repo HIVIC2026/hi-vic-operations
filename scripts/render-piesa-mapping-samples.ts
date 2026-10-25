@@ -61,11 +61,10 @@ const T = OFFICIAL_TEMPLATES.piesa;
 // ---------- A4 answers by the current short-form label ----------
 const L = (id: string) => {
   const f = SHORT_PIESA_FIELDS.find((x) => x.id === id);
-  if (!f) throw new Error(`No short PIESA field ${id}`);
-  return f.label;
+  return f?.label ?? null; // retired questions (decisions 323/324) are simply not on the current form
 };
 type Entry = { label: string; value: string | null };
-const e = (id: string, value: string): Entry => ({ label: L(id), value });
+const e = (id: string, value: string): Entry => ({ label: L(id) ?? `__retired__${id}`, value });
 
 const ELECTRICIAN = [
   e("b3.licence", "A 54321"),
@@ -345,7 +344,7 @@ function ownerFixesConfirmation(c: Case) {
 }
 
 function run(c: Case) {
-  let snapshot: SnapshotEntry[] = c.a4.map((x) => ({ ...x }));
+  let snapshot: SnapshotEntry[] = c.a4.filter((x) => !x.label.startsWith("__retired__")).map((x) => ({ ...x }));
   let today = c.inspectionDate;
   const owner = ownerConfirmation(c);
   const initial = expandPiesa(shortAnswersFromEntries("piesa", snapshot), {
@@ -576,7 +575,7 @@ async function main() {
       "A4 answers given:",
       "",
     );
-    for (const x of c.a4)
+    for (const x of c.a4.filter((y) => !y.label.startsWith("__retired__")))
       out.push(`- ${cell(x.label.split("\n")[0]!)} → **${cell(x.value ?? "")}**`);
     if (c.fixes)
       out.push(
