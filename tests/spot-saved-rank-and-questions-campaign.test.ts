@@ -9,8 +9,8 @@ test('within a rank, longest waiting first',()=>{
  const xs=[{rank:2,spotSavedAt:'2026-10-20'},{rank:1,spotSavedAt:'2026-10-22'},{rank:2,spotSavedAt:'2026-10-01'}].sort(compareSpots);
  expect(xs.map(x=>x.spotSavedAt)).toEqual(['2026-10-22','2026-10-01','2026-10-20']);
 });
-test('decision 180: automatic Save my spot after the 3 questions (held by decision 388 until Jo approves the spot-only wording); the office batch campaign is gone',()=>{
- expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(false);
+test('decision 180: automatic Save my spot after the 3 questions (spot-only wording approved by Jo 25 Oct 2026, decision 388); the office batch campaign is gone',()=>{
+ expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(true);
  expect(existsSync('src/components/portal/InsulationQuestionsCampaign.tsx')).toBe(false);
  expect(readFileSync('src/lib/insulation-questions-campaign.server.ts','utf8')).not.toContain('questionsCampaignSendBatch');
  expect(readFileSync('src/lib/launch-campaign.functions.ts','utf8')).not.toContain('insulationQuestionsSendBatchFn');
