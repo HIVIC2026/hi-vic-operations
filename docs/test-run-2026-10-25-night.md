@@ -1,3 +1,62 @@
+# Tonight in one page — 25/26 October 2026 (for Jo)
+
+**Everything below is LIVE unless it says otherwise.**
+
+## Done
+- **The missed enquiries got their email.** 47 sent and 0 failed:
+  - 30 got the 3-questions email.
+  - 17 got Save my spot (16 of them with the "your existing insulation" card).
+  - 8 were skipped: 6 are on your old hidden-duplicate/excluded lists, 1 had a typical-size estimate (the questions email is only for that kind of estimate on homes with no insulation), and 1 has the same owner email as another home on the list, which was already emailed.
+  - The photo-email switch was turned back off straight after.
+- **The 12 "don't know" enquirers who were held** got Save my spot automatically.
+- **The 15-minute automatic run** (reminders, releases, offers) had stopped answering at about 11pm. Its address was moved to the main site, the same as every other automatic job, and it has run cleanly every 15 minutes since.
+- **Every finding in the GitHub review (R01–R09) is fixed and live:**
+  - A rejected installer job can't change an owner's details.
+  - Two separate $349 payments count as $698, and one payment is never counted twice. There is a database lock against counting it twice.
+  - Xero checks never miss newer unpaid invoices.
+  - Approved repairs are added to the SAME Xero invoice, or held for the office if Xero won't allow it.
+  - A failed warranty email is retried safely.
+  - SMS sign-in works for two homes on one mobile.
+  - "Electrician here at start" needs the full fixes payment.
+  - "Mark paid" follows the same payout rule the screen shows.
+- **Both complete job routes were driven end to end in tests:**
+  - Installer's own customer: 30 checks.
+  - Our website lead: 12 checks.
+- **7 bugs that would have stopped real jobs half-way are fixed and live:**
+  - Complete PIESA was refused on the new A3 form.
+  - The official PIESA copy was never filed.
+  - The A5 form could never record the installation.
+  - Your Release button could never succeed.
+  - Office couldn't send A2 quotes.
+  - Picking an install day too early wiped all 3 offered days.
+  - **Installers' photos were refused on every installer or imported job, including all of Deep's jobs.** This is the important one for tomorrow. The portal now looks up the job's address once and saves its map point, but only when the postcode and suburb match.
+- **The full automatic test suite:**
+
+  | | Tests passing | Tests failing |
+  |---|---|---|
+  | Before tonight | 6,571 | 256 |
+  | Now | 6,777 | 192 |
+
+  No new failures. The 192 still failing are old tests checking wording or files from before the 24 Oct clean-up; see section 5.
+
+## Needs you (nothing changed)
+1. **Stripe:** when you connect it, also tick the `charge.refunded` event on the webhook, so refunds come through.
+2. **Owner paperwork B wording is still marked DRAFT.** Real owners are refused until each part is approved in Settings › Owner documents.
+3. **Automatic quote send is still OFF** (your go-live order).
+4. **The A5 form says "All filled in, you can leave site"** while install-day photos still lock completion. This needs a wording decision.
+5. **The pre-start check doesn't look at some "before install" items:**
+   - PIESA copies given to the owner and installer;
+   - the owner's safety-check receipt.
+
+   A job could start and only find out at the end. Do you want these added to the pre-start check?
+6. **Partner agreement versions:** the REC agreement went back from 2.6 to 2.5, and the installer agreement is at 1.20. Which are right?
+7. **The A3 PIESA form is only created by the office button.** Should it be created automatically when the PIESA is booked?
+8. **Release doesn't check the installer has a rate card.** Without one, no quote can be made.
+9. **A repeat enquiry without answers wipes the owner's earlier insulation answer.**
+10. **Not proven yet:** live Stripe, Xero and login behaviour. All tonight's tests used stand-ins. The 15-minute phone TEST run is still the best final check before Deep starts.
+
+---
+
 # Night test run — 25 October 2026
 
 Plain-words summary for Jo. Branch `test-journeys-2026-10-25` (based on `installer-mitti-workflow`). Committed locally,
