@@ -21,7 +21,7 @@ Never paste a key into chat — keys only go into Lovable's secure secrets form.
 ## 3. The webhook (tells the portal a card payment went through)
 1. **Developers → Webhooks → Add endpoint**
 2. Endpoint URL: `https://estimate.homeinsulationvictoria.com.au/api/public/hooks/stripe-payments`
-3. Events: tick **checkout.session.completed** and **payment_intent.succeeded**
+3. Events: tick **checkout.session.completed**, **payment_intent.succeeded** and **charge.refunded** (so refunds show in the portal)
 4. Save → on the endpoint page, **Signing secret → Reveal** (starts `whsec_`).
 
 ## 4. Tell me "Stripe ready"
