@@ -177,6 +177,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installerTexts'] = "failed";
         }
         try {
+          // Decision 361: Ready Check job offers made after 8pm are texted at 7am (job_offer keeps quiet hours; a held
+          // text never claims its key). The offer's 24 hours still run from when it was made.
+          const { sweepJobOfferTexts } = await import("@/lib/ready-check-offer-text.server");
+          (out as Record<string, unknown>)['jobOfferTexts'] = await sweepJobOfferTexts();
+        } catch (e) {
+          console.error("allocation tick: job offer text catch-up failed", (e as Error).message);
+          (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
+        }
+        try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
           // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
           const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");
