@@ -23,7 +23,7 @@ type OwnerQuoteFacts = {
 };
 
 /** Everything the owner quote email needs, read-only. A missing secure link or total returns `missing`, never a guess. */
-async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: string | null, propertyId: string | null): Promise<OwnerQuoteFacts> {
+export async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: string | null, propertyId: string | null): Promise<OwnerQuoteFacts> {
   const [{ data: quote, error: qe }, { data: items, error: ie }, { data: link, error: le }, { data: prop, error: pe }] = await Promise.all([
     admin.from("quotes").select("customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, kind").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
     admin.from("quote_items").select("description, line_total_inc_gst, sort").eq("quote_id", quoteId),

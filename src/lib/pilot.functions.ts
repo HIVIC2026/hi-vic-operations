@@ -501,6 +501,8 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
     await admin.from("appointment_proposals").insert({ job_id: data.jobId, kind: data.kind, assignment_id: a.id, proposed_by: context.userId, proposer_role: role, starts_at: data.start, note: data.note ?? null });
     if (a.user_id === context.userId && !a.first_response_at) await admin.from("job_assignments").update({ first_response_at: new Date().toISOString() }).eq("id", a.id);
     await logEvent(data.jobId, context.userId, data.kind === "ready_check" ? "ready_check_contact_recorded" : "appointment_proposed", `${role} proposed ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} for ${data.kind === "ready_check" ? "the Ready Check" : data.kind}`, { note: data.note, assignment_id: a.id });
+    // Decision 325: the electrician offered a safety check (PIESA) time → O26 "Pick a time for your electrical safety check" (best-effort).
+    if (data.kind === "assessment" && role === "electrician") await (await import("./owner-email-triggers.server")).onSafetyCheckTimesOffered(data.jobId, [data.start]).catch((e) => console.error("safety check times email skipped", (e as Error).message));
     return { ok: true };
   });
 

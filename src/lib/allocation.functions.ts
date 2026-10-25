@@ -115,6 +115,8 @@ export const sendRectificationQuote = createServerFn({ method: "POST" }).middlew
     const { data: u } = await admin.from("quotes").update({ status: "issued", sent_at: new Date().toISOString() }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
     if (!u) throw new WorkflowError("This quote is no longer a draft.");
     await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed electrical fixes quote to the owner for approval", { quote_id: q.id });
+    // Decision 325: O29 "Your safety check found something to fix first" to the owner (guarded; best-effort, never undoes the send).
+    await (await import("./owner-email-triggers.server")).onFixesQuoteIssued(q.job_id, q.id).catch((e) => console.error("fixes quote email skipped", (e as Error).message));
     return { ok: true };
   });
 
