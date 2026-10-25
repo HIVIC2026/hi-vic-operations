@@ -4,12 +4,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/portal/AppShell";
 import { OfficeSearch } from "@/components/portal/office";
 import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
 import { getNeedsMePage } from "@/lib/office-screens.functions";
+import { checkedLabel } from "@/lib/office-needs-snapshot.core";
 import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
 import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
@@ -120,14 +121,24 @@ function NeedsMe() {
   const load = useServerFn(getNeedsMePage);
   // Perf 25 Oct 2026: one retry (not three) for the heaviest office read, a 60 s fresh window so switching back from
   // Outlook doesn't reload it every time, and no polling while the tab is hidden (React Query's default).
-  const { data, error, refetch, isPending } = useQuery({ queryKey: ["needs-me-v2", includeTest], queryFn: () => load({ data: { includeTest } }), refetchInterval: 120_000, staleTime: 60_000, retry: 1 });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["needs-me-v2"] });
+  // Decision 382: the server answers from its saved copy at once and refreshes it after the response; while it says
+  // `refreshing`, ask again in 5 s to pick up the new copy. After an action, ask it to refresh and hide the done row now.
+  const [done, setDone] = useState<Set<string>>(() => new Set());
+  const { data, error, refetch, isPending } = useQuery({
+    queryKey: ["needs-me-v2", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 60_000, retry: 1,
+    refetchInterval: (q) => (q.state.data?.refreshing ? 5_000 : 120_000),
+  });
+  useEffect(() => { setDone(new Set()); }, [data?.computedAt]);
+  const refresh = (key?: string) => {
+    if (key) setDone((d) => new Set(d).add(key));
+    void load({ data: { includeTest, refresh: true } }).then((fresh) => qc.setQueryData(["needs-me-v2", includeTest], fresh)).catch(() => undefined);
+  };
   return (
     <AppShell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="font-display text-[30px] font-extrabold leading-tight text-ink">Needs me</h1>
-          <p className="text-sm text-sub">{today()}{data ? ` · ${data.total} need${data.total === 1 ? "s" : ""} you. Most urgent first.` : ""}</p>
+          <p className="text-sm text-sub">{today()}{data ? ` · ${data.total} need${data.total === 1 ? "s" : ""} you. Most urgent first. Checked ${checkedLabel(data.computedAt, data.refreshing)}` : ""}</p>
         </div>
         <Link to="/admin/needs-me" search={includeTest ? {} : { test: true }} className="text-sm font-semibold text-hiv-blue underline">{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</Link>
       </div>
@@ -137,7 +148,7 @@ function NeedsMe() {
         <>
           {NEEDS_GROUPS.map((g) => {
             // Decision 378: "Spot saved · waiting for an installer" rows fold into ONE link to Jobs › Choose installer.
-            const { rows, chooseInstaller } = foldChooseInstaller(data.groups[g.key]);
+            const { rows, chooseInstaller } = foldChooseInstaller(data.groups[g.key].filter((r) => !done.has(r.key)));
             const total = rows.length + chooseInstaller.length;
             return (
               <section key={g.key} className="mb-6" aria-label={g.label} data-why={g.key === "today" ? "due or overdue now: 220 lapsed offer, 159 held quote, 123 consent, 195 ESC window, 213 final check, 245/247 email asks, send failed" : g.key === "week" ? "due within 7 days: 49 choose installer, 157 choose electrician, 119/121 VEEC Part A" : "alerts: 240 payments not in Xero, 2 ten-day clock, 215 second no-access, 120 VEEC day 10, lapsed window"}>
@@ -149,7 +160,7 @@ function NeedsMe() {
                   </Link>
                 )}
                 {total === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}.</p> : rows.length === 0 ? null : (
-                  <ul className="rounded-[14px] border border-line bg-paper px-4">{rows.map((r) => <Row key={r.key} row={r} now={data.now} onDone={refresh} />)}</ul>
+                  <ul className="rounded-[14px] border border-line bg-paper px-4">{rows.map((r) => <Row key={r.key} row={r} now={data.now} onDone={() => refresh(r.key)} />)}</ul>
                 )}
               </section>
             );

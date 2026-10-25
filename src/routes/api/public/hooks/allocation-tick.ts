@@ -443,6 +443,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: address completion sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['addressCompletion'] = "failed"; // a lookup outage must not fail the whole tick
         }
+        // Decision 382: refresh the saved Needs me copy last, after every sweep has moved jobs on.
+        try {
+          const { refreshNeedsMeSnapshot } = await import("@/lib/office-needs-snapshot.server");
+          (out as Record<string, unknown>)['needsMeSnapshot'] = await timed("refreshNeedsMeSnapshot", () => refreshNeedsMeSnapshot());
+        } catch (e) {
+          console.error("allocation tick: Needs me copy not refreshed", (e as Error).message);
+          (out as Record<string, unknown>)['needsMeSnapshot'] = "failed";
+        }
         (out as Record<string, unknown>)['timingsMs'] = { total: Date.now() - tickStartedAt, ...timingsMs };
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
