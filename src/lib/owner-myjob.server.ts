@@ -5,6 +5,7 @@ import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core
 import { formatPropertyAddress, shortAddress } from "./address";
 import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
+import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -17,7 +18,7 @@ export async function resolveOwnerJob(token: unknown) {
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
     admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
-    admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
+    admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -87,7 +88,7 @@ export async function resolveOwnerJob(token: unknown) {
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
     // heldUntil: the same 14-day "price held" date the action card already uses (approved P2 page shows it in the sub line).
-    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteOpen?.expiresAt ?? null, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, ws?.safety_check_payment_inc_gst ?? null) : null } : null,
+    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteOpen?.expiresAt ?? null, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
     // Approved P3 page (decision 128): Section 1 is prefilled from the owner + property, never typed again by the owner.
     consent: consent ? { scheduledStart: consent.scheduled_start, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,

@@ -3,6 +3,11 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { isReadyCheckQuote, type InstallerQuoteFacts } from "./installer-quote-status.core";
+import { isNotOnboardedReason } from "./rec-onboarded.core";
+
+/** Decision 303: the hold reason on an unsent draft names an electrician who is not an approved REC yet. */
+const notOnboardedHold = (q: { sent_at: string | null; status: string; release_hold_reason: string | null }) =>
+  !q.sent_at && q.status === "draft" && (q.release_hold_reason ?? "").split(" · ").some((r) => isNotOnboardedReason(r));
 
 const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
 
@@ -31,7 +36,7 @@ export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote>
   }
   return {
     applies: true, quote: { ...q, quote_items: lines }, channel,
-    sent: !!q.sent_at, accepted: q.status === "accepted", declined: q.status === "declined", held,
+    sent: !!q.sent_at, accepted: q.status === "accepted", declined: q.status === "declined", held, electricianNotOnboarded: notOnboardedHold(q),
     formCompleted: (basics?.details as { completed?: boolean } | null)?.completed === true,
   };
 }
@@ -72,7 +77,7 @@ export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string,
     const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
     out.set(id, {
       applies: true, quote: { ...q, quote_items: lines }, channel,
-      sent: !!q.sent_at, accepted: q.status === "accepted", declined: q.status === "declined", held: !q.sent_at && heldQuoteIds.has(q.id),
+      sent: !!q.sent_at, accepted: q.status === "accepted", declined: q.status === "declined", held: !q.sent_at && heldQuoteIds.has(q.id), electricianNotOnboarded: notOnboardedHold(q),
       formCompleted: latestBasics.get(id)?.completed === true,
     });
   }

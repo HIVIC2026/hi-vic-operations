@@ -1,4 +1,6 @@
-// Owner payments (Jo 24 Oct 2026, decisions 139/140/141). Pure rules only – no database, no Xero, no dates from the clock.
+// Owner payments (Jo 24 Oct 2026, decisions 139/140/141; decision 302 25 Oct: the safety check amount is the quote's PIESA
+// line — callers pass it as `safetyCheckCents`; 349 below is only the HIV-electrician default). Pure rules only – no
+// database, no Xero, no dates from the clock.
 //
 // Money: ONE full Xero invoice per accepted quote (xero.core / invoice.lifecycle). Every payment step below is paid
 // AGAINST THAT SAME INVOICE; nothing here creates a second invoice. A step is "paid" when the cumulative amount

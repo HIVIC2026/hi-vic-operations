@@ -9,7 +9,7 @@ const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }
 
 /** Emails the electrician the onboarding link. A one-off partner email typed on the installer's behalf: follows the
  *  manual-email rule (really sends), TEST businesses only reach Jo's test inbox. `dryRun` builds it without sending. */
-export async function sendElectricianInvite(p: { actorId: string; nominationId: string; installerBusinessId: string; inviteToken: string; to: string; name: string; dryRun?: boolean }) {
+export async function sendElectricianInvite(p: { actorId: string | null; nominationId: string; installerBusinessId: string; inviteToken: string; to: string; name: string; dryRun?: boolean }) {
   const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.installerBusinessId).maybeSingle();
   const test = isTestBiz(b);
   const installerName = ((b?.trading_name || b?.name) ?? "Your installer").replace(/^\[TEST PARTNER\]\s*/, "");

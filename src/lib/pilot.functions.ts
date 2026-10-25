@@ -95,6 +95,8 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
       onboarding_status: data.status, onboarding_notes: data.note ?? null, updated_at: new Date().toISOString(),
       ...(data.status === "approved" ? { approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true, xero_contact_status: business.xero_contact_id ? "synced" : "ready" } : {}),
     }).eq("id", data.businessId);
+    // Decision 303: an approved REC is linked to every installer who named that electrician (best-effort; needs an active PIESA rate too).
+    if (data.status === "approved") await (await import("./rec-auto-link.server")).autoLinkApprovedRec(data.businessId, context.userId).catch((e) => console.error("REC auto-link skipped", (e as Error).message));
     return { ok: true };
   });
 
