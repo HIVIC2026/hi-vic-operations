@@ -325,7 +325,7 @@ describe("approved installer email designs", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Re: Ceiling insulation quote");
-    has(m.html, [">Hi Sam,</p>", "Thanks for getting in touch with Home Insulation Victoria. The quickest way to see your price and the Victorian Energy Upgrades discount is our 1-minute calculator: ", 'href="https://estimate.homeinsulationvictoria.com.au/"', "If you have a question the calculator doesn't answer, just reply to this email.", ">— Home Insulation Victoria</p>"]);
+    has(m.html, [">Hi Sam,</p>", "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "If you have any questions, just reply to this email.", ">— Home Insulation Victoria</p>"]);
     expect(m.html).not.toMatch(/\$\d/);
     expect(m.html).toBe(readFileSync("docs/templates/owner/O70-new-sender-calculator.html", "utf8"));
     expect(NEW_SENDER_REPLY_APPROVED).toBe(true);

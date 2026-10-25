@@ -3,6 +3,8 @@
 import { newToken, isWellFormedToken } from "./estimatelink.core";
 
 export const CUSTOMER_BASE = "https://estimate.homeinsulationvictoria.com.au";
+/** Decision 387 (Jo 25 Oct 2026): every NEW enquirer (no job yet) is sent to the website's homeowner enquiry page, never the calculator. */
+export const HOMEOWNER_ENQUIRY_URL = "https://homeinsulationvictoria.com.au/homeowner";
 export const TRACKING_TTL_DAYS = 60;
 export const PREFETCH_WINDOW_MS = 2 * 60_000; // opens this soon after send are treated as likely privacy prefetch
 export const FOLLOWUP_3D_MS = 3 * 86_400_000;

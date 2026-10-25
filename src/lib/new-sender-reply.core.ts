@@ -1,13 +1,13 @@
 // Decision 292 (Jo 25 Oct 2026, replaces 255 for new senders): a NEW email sender the Outlook copier cannot match (no
 // owner, partner, staff or job), whose mail is a genuine enquiry or a price / rebate / eligibility question, does NOT
 // get an enquiry created or an owner link. The portal SENDS (never drafts) ONE email reply, ever, per sender address,
-// pointing them to the public calculator on the website, where the three questions and Save my spot qualify them.
+// pointing them to the homeowner enquiry page on the website (decision 387, Jo 25 Oct 2026: never the calculator).
 // PURE: the decision (who gets the reply), the send mode (held / test / live), the idempotency key and the approved
 // wording live here; nothing reads, writes or sends. Persistence and sending live in new-sender-reply.server.ts (one
 // job-less `email_new_sender_replied` workflow event per reply). Decision 247's job-less `email_unmatched` row is
 // raised as before, so the office can still Match the email by hand.
 // Imports only pure cores and the import-free reply switches, so the Outlook copier test harness can load it.
-import { CUSTOMER_BASE } from "./engagement.core";
+import { HOMEOWNER_ENQUIRY_URL } from "./engagement.core";
 import { classifyEmailIntents, looksLikeNewEnquiry, recentEnoughForAction, type EmailIntent, type IntentHit } from "./email-intent.core";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
 import { REPLY_TEST_ALLOWLIST } from "./outlook-reply-drafts.core";
@@ -24,9 +24,10 @@ export const NEW_SENDER_REPLY_TEST_ONLY: boolean = false;
 export const NEW_SENDER_REPLIED_EVENT = "email_new_sender_replied";
 
 export const NEW_SENDER_REPLY_TEMPLATE = "O70";
-export const NEW_SENDER_REPLY_TEMPLATE_TITLE = "O70 – New sender: start on the calculator";
-/** The public calculator (`/` on the customer host serves the current calculator): the ONLY link this reply carries. */
-export const WEBSITE_CALCULATOR_URL = `${CUSTOMER_BASE}/`;
+export const NEW_SENDER_REPLY_TEMPLATE_TITLE = "O70 – New sender: homeowner enquiry page";
+/** Decision 387 (Jo 25 Oct 2026: "they all go through the homeowner enquiry webpage on the website"): the ONLY link this
+ *  reply carries. (Name kept from decision 292 so callers don't change.) */
+export const WEBSITE_CALCULATOR_URL = HOMEOWNER_ENQUIRY_URL;
 export const NEW_SENDER_REPLY_SIGN_OFF = "— Home Insulation Victoria";
 
 /** "Re: {their subject}" (never "Re: Re: …"); no subject → "Re: Your email". */
@@ -48,14 +49,14 @@ export function newSenderFirstName(fromName: string | null | undefined): string 
   return w[0]!.toUpperCase() + w.slice(1).toLowerCase();
 }
 
-/** The approved wording (decision 292), verbatim; {first name or "there"} and {link} filled. */
+/** The approved wording (decision 292, link and wording changed by decision 387), verbatim; {first name or "there"} and {link} filled. */
 export function newSenderReplyParagraphs(firstName: string | null) {
   return {
     greeting: `Hi ${firstName ?? "there"},`,
     thanks: "Thanks for getting in touch with Home Insulation Victoria.",
-    calculator: `The quickest way to see your price and the Victorian Energy Upgrades discount is our 1-minute calculator: ${WEBSITE_CALCULATOR_URL}.`,
-    questions: "Answer three quick questions and you'll get your estimate straight away, and you can save your spot for a free Ready Check.",
-    reply: "If you have a question the calculator doesn't answer, just reply to this email.",
+    calculator: `To get started, please submit your home on our website: ${WEBSITE_CALCULATOR_URL}.`,
+    questions: "There are thousands of people on the list, and spots are released in the order they're saved.",
+    reply: "If you have any questions, just reply to this email.",
     signOff: NEW_SENDER_REPLY_SIGN_OFF,
   } as const;
 }
