@@ -106,10 +106,10 @@ export function validateOwnerPiesaConfirmation(i: PiesaConfirmInput): string[] {
 export type PiesaOwnerConfirmedDetails = {
   version: typeof PIESA_OWNER_CONFIRM_VERSION; piesa_record_id: string; completed_date: string; signed_copy_id: string | null; snapshot_sha256: string | null;
   name: string; authority: "owner" | "authorised_representative"; signed_at: string;
-  /** The verified 6-digit-code session (owner_link_codes.id) the signature came from. */ link_code_id: string;
+  /** Decision 306 (Jo 25 Oct 2026): no 6-digit code — the secure link alone. Old confirmations carry the code session id; new ones null. */ link_code_id: string | null;
   ip_hash: string | null; ua_hash: string | null;
 };
-export function buildPiesaOwnerConfirmation(i: { facts: PiesaOwnerConfirmFacts; name: string; authority: "owner" | "authorised_representative"; signedAt: string; codeId: string; ipHash: string | null; uaHash: string | null }): PiesaOwnerConfirmedDetails {
+export function buildPiesaOwnerConfirmation(i: { facts: PiesaOwnerConfirmFacts; name: string; authority: "owner" | "authorised_representative"; signedAt: string; codeId: string | null; ipHash: string | null; uaHash: string | null }): PiesaOwnerConfirmedDetails {
   return {
     version: PIESA_OWNER_CONFIRM_VERSION, piesa_record_id: i.facts.piesaRecordId, completed_date: i.facts.completedDate,
     signed_copy_id: i.facts.signedCopy?.id ?? null, snapshot_sha256: i.facts.signedCopy?.sha ?? null,

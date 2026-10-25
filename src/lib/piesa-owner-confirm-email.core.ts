@@ -16,7 +16,7 @@ export function renderPiesaOwnerConfirmEmail(i: PiesaOwnerConfirmEmailInput) {
   const what = (strong: boolean) => `${i.electricianLine} completed the electrical safety check (PIESA) at your home on ${strong ? K.strong(i.assessmentDate) : i.assessmentDate}. Result: ${strong ? K.strong(outcome) : outcome}.`;
   const why = i.reminder
     ? "We can't book your install day until you've confirmed it. It's the government form's owner declaration — you confirm the check was done, we fill in the rest."
-    : "The government form needs you to confirm the check was done. Tap the button, enter the 6-digit code we text you, tick and type your name. About a minute.";
+    : "The government form needs you to confirm the check was done. Tap the button, tick and type your name. About a minute.";
   const warn = (strong: boolean) => `Please don't let anyone into the ceiling before the install: ${strong ? K.strong(CEILING_ENTRY_WARNING) : CEILING_ENTRY_WARNING}`;
   // Jo 25 Oct 2026: remind the owner of the 30-day rule.
   const thirty = "Your install must be done within 30 days of this safety check. After 30 days it expires and a new safety check is needed.";

@@ -65,8 +65,8 @@ export async function ownerPiesaConfirmationBlockerFor(jobId: string): Promise<s
   }
 }
 
-/** The owner signs on the secure link after a fresh 6-digit code. Idempotent per PIESA record. */
-export async function signOwnerPiesaConfirmation(p: { jobId: string; userId: string; codeId: string; fullName: string; signatureName: string; authority: "owner" | "authorised_representative"; confirmed: boolean; ip: string | null; userAgent: string | null }): Promise<{ ok: true; already: boolean; signedAt: string }> {
+/** The owner signs on the secure link (decision 306: link only, no 6-digit code). Idempotent per PIESA record. */
+export async function signOwnerPiesaConfirmation(p: { jobId: string; userId: string | null; codeId: string | null; fullName: string; signatureName: string; authority: "owner" | "authorised_representative"; confirmed: boolean; ip: string | null; userAgent: string | null }): Promise<{ ok: true; already: boolean; signedAt: string }> {
   const facts = await ownerPiesaConfirmFacts(p.jobId);
   if (!facts) throw new WorkflowError("There's no electrical safety check to confirm yet.");
   if (facts.confirmation) return { ok: true, already: true, signedAt: facts.confirmation.signedAt };

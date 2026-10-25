@@ -521,14 +521,12 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
 }
 /** Decision 296 (mock-up P6): "Your electrical safety check — please confirm". The date, the electrician, the result and the
  *  ceiling-entry warning come from the job record; one tick ("The assessment was completed on …"), typed full name =
- *  signature, 6-digit code asked for on the button. After signing: "Confirmed on <date>". Nothing when there is no PIESA yet. */
+ *  signature, no 6-digit code (decision 306). After signing: "Confirmed on <date>". Nothing when there is no PIESA yet. */
 function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
   const load = useServerFn(ownerPiesaConfirmFn);
   const sign = useServerFn(ownerSignPiesaConfirmFn);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["owner-piesa-confirm", token], queryFn: () => load({ data: { token } }) });
-  const [session, setSession] = useSession();
-  const [needCode, setNeedCode] = useState(false);
   const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
   const [tick, setTick] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
@@ -539,9 +537,8 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
   </section>;
   const ready = tick && f.name.trim().length >= 2;
   const doSign = async () => {
-    if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
-    try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-piesa-confirm", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); }
+    try { await sign({ data: { token, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-piesa-confirm", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return <section data-testid="piesa-confirm" className="space-y-4">
@@ -558,7 +555,6 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
       <TypedField label={P6.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P6.typeHere} autoComplete="name" />
       <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P6.dateLine(longDate(new Date().toISOString()))}</p>
     </FormCard>
-    {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
     <div>
       <LockedButton ready={ready} busy={busy} busyLabel={P6.signing} onClick={() => void doSign()}>{P6.button}</LockedButton>

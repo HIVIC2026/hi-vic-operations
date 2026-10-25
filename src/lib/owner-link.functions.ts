@@ -193,13 +193,16 @@ export const ownerPiesaConfirmFn = createServerFn({ method: "POST" }).middleware
     return facts ? JSON.parse(JSON.stringify(piesaConfirmPage(facts))) as ReturnType<typeof piesaConfirmPage> : null;
   });
 
-/** Decision 296: the owner confirms the PIESA via the secure link after a fresh 6-digit code (typed full name = signature, one tick). Idempotent per PIESA. */
+/** Decision 296: the owner confirms the PIESA via the secure link (typed full name = signature, one tick). Idempotent per PIESA.
+ *  Decision 306 (Jo 25 Oct 2026): "Drop the code" — the secure link alone, no 6-digit code. */
 export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, session, ...signer, confirmed: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({ token, ...signer, confirmed: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
     const { signOwnerPiesaConfirmation } = await import("./piesa-owner-confirm.server");
-    return signOwnerPiesaConfirmation({ jobId: s.jobId, userId: s.userId, codeId: s.codeId, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
+    return signOwnerPiesaConfirmation({ jobId, userId: null, codeId: null, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
   });
 
 /** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).
