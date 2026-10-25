@@ -1,5 +1,5 @@
-// Office RPCs for Mitti auto-invite (decision 188): read the open invite list on Staff approvals and confirm, per person,
-// that the invite/group/templates were done in Mitti. Admin-only; nothing here creates a Mitti user or sends a message.
+// Office RPCs for Mitti access (decisions 188/331): read the open list on Staff approvals and confirm, per person, that the
+// remaining Mitti step was done by hand. Admin-only; nothing here creates a Mitti user or sends a message.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
