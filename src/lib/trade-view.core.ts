@@ -96,6 +96,23 @@ export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at
 }
 /** The office reason shown while an installer-supplied payout waits for the owner (payState "checking" with AP done). */
 export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer-supplied job: paid 7 days after the later of Final check and the owner's payment in full)";
+/** The office reason shown while installer pay waits for Final check (AP approval) — payState "checking" with no AP. */
+export const INSTALLER_PAY_WAITING_AP = "Waiting for Final check (AP approval) — installer pay falls due 7 days after it";
+
+/**
+ * Review R09 / audit F19: the ONE installer-payout eligibility rule, shared by the office Payouts display
+ * (office-money.server `moneyPayouts`) and the office Mark paid write (office.functions `markPayoutPaid`, through
+ * installer-pay-timing.server) so the two can never disagree. It is `payState` itself: while it says "checking" the
+ * payout is held — our leads (A2) wait for AP approval; installer-supplied (A1) jobs wait for AP approval AND the
+ * owner's payment in full. Empty = payable on its normal timing. Amounts and the 7-day timing are untouched.
+ */
+export function installerPayHeldReasons(f: { installerSupplied: boolean; apApprovedAt: string | null; ownerPaidInFullAt: string | null }): string[] {
+  if (payState({ paidAt: null, ...f }).kind !== "checking") return [];
+  const out: string[] = [];
+  if (!f.apApprovedAt) out.push(INSTALLER_PAY_WAITING_AP);
+  if (f.installerSupplied && !f.ownerPaidInFullAt) out.push(INSTALLER_PAY_WAITING_OWNER);
+  return out;
+}
 
 /** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A3) and the fixes (A4) 7 days after BOTH
  *  (1) their Mitti form is 100% complete (Complete pressed, every check passed — the decision-318 gate) and (2) the owner

@@ -6,6 +6,7 @@
 // invoice at install complete with a balance due, once per invoice; bank transfer only — no card wording).
 import { sendOwnerTemplateEmail } from "./owner-template-send.server";
 import { ownerEmailKey } from "./owner-email-triggers.core";
+import { COMPLETION_PACK_EMAIL_KEY } from "./completion-pack.core";
 
 export async function emailOwnerQuoteReminder(jobId: string, quoteId: string, kind: "day3" | "expiry", quote: Omit<import("./owner-quote-email.core").OwnerQuoteEmailInput, "firstName" | "unsubscribeUrl" | "test">) {
   const { QUOTE_REMINDER_EMAIL_APPROVED, renderQuoteReminderEmail } = await import("./owner-quote-email.core");
@@ -100,10 +101,10 @@ export async function emailOwnerFinalInvoice(jobId: string, invoiceId: string, i
 
 /** Workflow caller: completion-pack.server.ts (install complete + invoice paid), which passes the manufacturer warranty PDF(s) for the installed product(s). */
 export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null,
-  extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[]; attachedCoes?: boolean } = {}) {
+  extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[]; attachedCoes?: boolean; retryAfterDefiniteFailure?: boolean } = {}) {
   const { COMPLETION_EMAILS_APPROVED, renderCompletionPackEmail } = await import("./completion-emails.core");
   const installed = await installedLineFor(jobId, installedGiven);
-  return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: `completion-pack:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent", ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
+  return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: COMPLETION_PACK_EMAIL_KEY(jobId), approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent", ...(extras.attachments?.length ? { attachments: extras.attachments } : {}), ...(extras.retryAfterDefiniteFailure ? { retryAfterDefiniteFailure: true } : {}),
     render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, attachedWarranties: extras.attachedWarranties ?? [], attachedCoes: extras.attachedCoes === true, test: f.test }) });
 }
 

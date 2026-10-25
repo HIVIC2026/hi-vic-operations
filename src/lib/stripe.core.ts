@@ -85,10 +85,16 @@ export async function verifyStripeSignature(rawBody: string, header: string | nu
   return p.v1.some((s) => constantTimeEqual(s.toLowerCase(), expected));
 }
 
-export type StripePaymentFact = { eventId: string; livemode: boolean; jobId: string; invoiceId: string; step: PaymentStepKey; amountCents: number; paidAt: string; paymentIntentId: string | null; sessionId: string | null; email: string | null };
+export type StripePaymentFact = { eventId: string; livemode: boolean; jobId: string; invoiceId: string; step: PaymentStepKey; amountCents: number; paidAt: string; paymentIntentId: string | null; sessionId: string | null; email: string | null;
+  /** The charge (`latest_charge`) when the event carries it — Xero's Stripe feed may reference the charge, not the PaymentIntent (audit R02). */
+  chargeId?: string | null };
+/** `charge.refunded` (audit R02): Stripe's CUMULATIVE refunded amount for one PaymentIntent. The charge carries no job
+ *  metadata, so the card row is found by its PaymentIntent. */
+export type StripeRefundFact = { eventId: string; livemode: boolean; paymentIntentId: string; chargeId: string | null; refundedCents: number; refundedAt: string };
 
-/** A succeeded payment with our metadata → one payment fact. Other events (or missing metadata) → null. */
-export function parseStripeEvent(rawBody: string): { eventId: string; type: string; fact: StripePaymentFact | null } | null {
+/** A succeeded payment with our metadata → one payment fact; a refunded charge → one refund fact. Other events (or
+ *  missing metadata) → null. */
+export function parseStripeEvent(rawBody: string): { eventId: string; type: string; fact: StripePaymentFact | null; refund?: StripeRefundFact | null } | null {
   let ev: Record<string, unknown>;
   try { ev = JSON.parse(rawBody); } catch { return null; }
   const eventId = typeof ev?.["id"] === "string" ? (ev["id"] as string) : null;
@@ -110,7 +116,12 @@ export function parseStripeEvent(rawBody: string): { eventId: string; type: stri
     const amountCents = Number(obj["amount_received"] ?? 0);
     const jobId = s(meta["job_id"]), invoiceId = s(meta["invoice_id"]);
     if (jobId && invoiceId && step && stripeCardAllowed(step) && amountCents > 0)
-      fact = { eventId, livemode, jobId, invoiceId, step, amountCents, paidAt: created, paymentIntentId: s(obj["id"]), sessionId: null, email: s(obj["receipt_email"]) };
+      fact = { eventId, livemode, jobId, invoiceId, step, amountCents, paidAt: created, paymentIntentId: s(obj["id"]), sessionId: null, email: s(obj["receipt_email"]), chargeId: s(obj["latest_charge"]) };
+  } else if (type === "charge.refunded") {
+    const pi = s(obj["payment_intent"]);
+    const refundedCents = Math.round(Number(obj["amount_refunded"] ?? 0));
+    if (pi && Number.isFinite(refundedCents) && refundedCents > 0)
+      return { eventId, type, fact: null, refund: { eventId, livemode, paymentIntentId: pi, chargeId: s(obj["id"]), refundedCents, refundedAt: created } };
   }
   return { eventId, type, fact };
 }

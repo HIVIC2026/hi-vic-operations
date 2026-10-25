@@ -94,4 +94,12 @@ describe("webhook events → payment facts (idempotent)", () => {
     expect(parseStripeEvent("nope")).toBeNull();
     expect(parseStripeEvent(JSON.stringify({ type: "x" }))).toBeNull();
   });
+  test("audit R02: payment_intent.succeeded carries the charge id; charge.refunded → cumulative refund fact by PaymentIntent", () => {
+    const pi = JSON.stringify({ id: "evt_2", type: "payment_intent.succeeded", livemode: false, created: 1761300001, data: { object: { id: "pi_1", amount_received: 34900, latest_charge: "ch_1", metadata: { job_id: "job-1", invoice_id: "inv-1", step: "safety_check" } } } });
+    expect(parseStripeEvent(pi)!.fact!.chargeId).toBe("ch_1");
+    const rf = parseStripeEvent(JSON.stringify({ id: "evt_4", type: "charge.refunded", livemode: true, created: 1761300100, data: { object: { id: "ch_1", payment_intent: "pi_1", amount_refunded: 10000 } } }));
+    expect(rf?.fact).toBeNull();
+    expect(rf?.refund).toEqual({ eventId: "evt_4", livemode: true, paymentIntentId: "pi_1", chargeId: "ch_1", refundedCents: 10_000, refundedAt: new Date(1761300100 * 1000).toISOString() });
+    expect(parseStripeEvent(JSON.stringify({ id: "evt_5", type: "charge.refunded", data: { object: { id: "ch_1", payment_intent: "pi_1", amount_refunded: 0 } } }))?.refund).toBeUndefined();
+  });
 });

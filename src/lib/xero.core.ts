@@ -150,6 +150,28 @@ export function parseXeroDate(d?: string) {
 
 export const lockHeld = (lockAt: string | null, now = Date.now()) => !!lockAt && now - Date.parse(lockAt) < LOCK_STALE_MS;
 
+// ---------- Payment poll fallback (audit R03) ----------
+/** Jobs whose invoices the poll never re-reads. */
+export const XERO_POLL_CLOSED_STAGES = ["cancelled", "complete"] as const;
+export type XeroPollRow = { id: string; total_inc_gst: number | string | null; total_paid: number | string | null; jobs?: { stage?: string | null } | null };
+/** Eligible = not fully paid and the job not closed. Applied BEFORE the limit (audit R03: the oldest 40 linked invoices
+ *  used to be taken first and settled ones skipped afterwards, so a newer unpaid invoice was never reached). */
+export function xeroPollEligible(r: XeroPollRow): boolean {
+  const stage = r.jobs?.stage ?? "";
+  if ((XERO_POLL_CLOSED_STAGES as readonly string[]).includes(stage)) return false;
+  return Math.round(Number(r.total_paid ?? 0) * 100) < Math.round(Number(r.total_inc_gst ?? 0) * 100);
+}
+/** From candidate pages (oldest sync first), the first `limit` eligible ids. Rotation comes from the order: every
+ *  synced invoice gets a fresh `last_synced_at` and moves to the back, so nothing eligible starves. */
+export function pickXeroPollBatch(rows: XeroPollRow[], limit: number): string[] {
+  const out: string[] = [];
+  for (const r of rows) {
+    if (out.length >= limit) break;
+    if (xeroPollEligible(r) && !out.includes(r.id)) out.push(r.id);
+  }
+  return out;
+}
+
 // ---------- Organisation routing (fail closed) ----------
 /** Live jobs may call Xero only when this switch is turned on. Off = no Xero calls for real jobs.
  *  Jo 24 Oct 2026: ON — the live Home Insulation Victoria Xero organisation is ready. */

@@ -8,7 +8,7 @@ import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type Payou
 import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
-import { INSTALLER_PAY_WAITING_OWNER, ownerPaidInFullAt, payState } from "./trade-view.core";
+import { installerPayHeldReasons, ownerPaidInFullAt, payState } from "./trade-view.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -144,16 +144,19 @@ export async function moneyPayouts() {
     // Audit F19: installer pay uses the SAME payState as the installer's Money screen — AP + 7 days for our leads; for
     // installer-supplied jobs 7 days after the LATER of AP approval and the owner's payment in full.
     const installerSupplied = j.channel === "installer_sourced";
-    const instPay = payState({ paidAt: null, apApprovedAt: ap, installerSupplied, ownerPaidInFullAt: ownerPaidInFullAt(invs.filter((x) => x.job_id === id)) });
+    const timing = { apApprovedAt: ap, installerSupplied, ownerPaidInFullAt: ownerPaidInFullAt(invs.filter((x) => x.job_id === id)) };
+    const instPay = payState({ paidAt: null, ...timing });
     const dueAt = instPay.kind === "coming" ? instPay.on : null;
-    const waitingOwner = installerSupplied && !!ap && instPay.kind === "checking";
+    // Review R09: the SAME rule Mark paid enforces at the write (installer-pay-timing.server).
+    const instHeld = installerPayHeldReasons(timing);
     const paidFor = (kind: string) => paidEv.filter((e) => e.job_id === id && ((e.details?.kind ?? "installation") === kind)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null;
     const name = (a?: { businesses: { name: string; trading_name: string | null } | null }) => a?.businesses?.trading_name || a?.businesses?.name || "Not assigned";
     const atFinal = finalIds.has(id);
     const inst = asg.find((a) => a.job_id === id && a.role === "installer");
-    // Installer pay (Final check jobs only): payState above; an installer-supplied job still waiting for the owner's
-    // payment in full is Held with that reason (never in a Mark paid group).
-    if (atFinal) lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation"), ...(waitingOwner ? { held: [INSTALLER_PAY_WAITING_OWNER] } : {}) });
+    // Installer pay (Final check jobs only): payState above; while it still says "checking" (no AP approval recorded, or
+    // an installer-supplied job still waiting for the owner's payment in full) the line is Held with that reason (never
+    // in a Mark paid group).
+    if (atFinal) lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation"), ...(instHeld.length ? { held: instHeld } : {}) });
     const elec = asg.find((a) => a.job_id === id && a.role === "electrician");
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
     const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
