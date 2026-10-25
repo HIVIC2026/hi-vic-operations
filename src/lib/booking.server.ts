@@ -96,8 +96,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     // Installer planning visibility only — never an installation booking.
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
     const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    // F13: no outbox row. Decision 376: the installer is told the date once per PIESA time (I71 + text, DRAFT until Jo
-    // approves); the approved clearance email + text (186) is still the "offer install days" message once cleared.
+    // F13: no outbox row. Decision 376: the installer is told the date once per PIESA time (I71 + text, approved by Jo
+    // in decision 384); the approved clearance email + text (186) is still the "offer install days" message once cleared.
     if (inst) {
       await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
       await (await import("./installer-planning-notice.server")).notifyInstallerPlanning({ jobId, assignmentId: inst.id, piesaStartIso: start }).catch((e) => console.error("installer planning notice skipped", (e as Error).message));

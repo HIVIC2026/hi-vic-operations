@@ -1,9 +1,8 @@
-// Renders the decision 376 DRAFT messages (Jo 25 Oct 2026 — the four moments F13 left record-only) into
-// docs/templates/drafts with fixed sample data, prints every subject + text + SMS body for Jo's approval, and with --jpg
-// also saves a 640px-wide JPG preview of each design into docs/designs (Playwright Chromium, local files only).
-// Pure renderers; nothing is sent. Once Jo approves a message: move its HTML to its who-folder (docs/templates/owner,
-// electrician or installer) and set its flag
-// to true — O74 VISIT_NEW_TIMES_APPROVED + SMS type `visit_new_times`; O75 OWNER_PAPERWORK_COPY_APPROVED; E14
+// Renders the decision 376 messages (Jo 25 Oct 2026 — the four moments F13 left record-only; Jo APPROVED all four as
+// drafted in decision 384) into their who-folders in docs/templates (owner/, electrician/, installer/) with fixed sample
+// data, prints every subject + text + SMS body, and with --jpg also saves a 640px-wide JPG preview of each design into
+// docs/designs (Playwright Chromium, local files only). Pure renderers; nothing is sent. Flags (all true since decision
+// 384): O74/O74b VISIT_NEW_TIMES_APPROVED + SMS type `visit_new_times`; O75 OWNER_PAPERWORK_COPY_APPROVED; E14
 // PIESA_TIMES_REMINDER_APPROVED + `piesa_times_reminder`; I71 INSTALLER_PLANNING_NOTICE_APPROVED + `installer_planning_notice`.
 // Run: bun scripts/render-decision-376-drafts.ts [--jpg]
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -12,15 +11,15 @@ import { renderPaperworkCopyEmail } from "../src/lib/paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "../src/lib/piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "../src/lib/installer-planning-notice.core";
 
-const DRAFTS = new URL("../docs/templates/drafts/", import.meta.url).pathname;
+const TEMPLATES = new URL("../docs/templates/", import.meta.url).pathname;
 const DESIGNS = new URL("../docs/designs/", import.meta.url).pathname;
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const FIELD = "https://estimate.homeinsulationvictoria.com.au/field/job-1";
 
 export const O74_SAMPLE = { kind: "assessment" as const, wasIso: "2026-10-28T22:30:00.000Z", firstName: "Helen", unsubscribeUrl: null };
 export const D376_FILES = {
-  O74: "O74-visit-new-times.html", O74b: "O74b-visit-new-times-on-the-way.html", O75: "O75-signed-paperwork-copy.html",
-  E14: "E14-piesa-times-reminder.html", I71: "I71-installer-planning-notice.html",
+  O74: "owner/O74-visit-new-times.html", O74b: "owner/O74b-visit-new-times-on-the-way.html", O75: "owner/O75-signed-paperwork-copy.html",
+  E14: "electrician/E14-piesa-times-reminder.html", I71: "installer/I71-installer-planning-notice.html",
 } as const;
 
 const o74 = renderVisitNewTimesEmail({ ...O74_SAMPLE, ownerPicks: true, link: `${MY_JOB}?screen=book` });
@@ -39,9 +38,8 @@ const out: { code: keyof typeof D376_FILES; mail: { subject: string; html: strin
   { code: "I71", mail: i71, sms: installerPlanningText(i71Facts) },
 ];
 
-mkdirSync(DRAFTS, { recursive: true });
 for (const o of out) {
-  writeFileSync(`${DRAFTS}${D376_FILES[o.code]}`, o.mail.html);
+  writeFileSync(`${TEMPLATES}${D376_FILES[o.code]}`, o.mail.html);
   if (import.meta.main) console.log(`--- ${o.code} — subject: ${o.mail.subject}\n${o.mail.text}\n${o.sms ? `--- ${o.code} text: Home Insulation Victoria: ${o.sms}\n` : ""}`);
 }
 

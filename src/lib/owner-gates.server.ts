@@ -180,7 +180,7 @@ export async function signGateDoc(i: SignInput) {
   await logEvent(i.jobId, i.signedBy, "owner_paperwork_signed", `Owner paperwork ${d.gate}: "${d.title}" ${d.signer === "office" ? "recorded" : "signed"}${draft ? " (DRAFT wording, TEST job)" : ""}`, { signature_id: row.id, doc_key: d.key, version: d.version });
 
   // F13: the signed copy is filed on the job above; nothing is queued here and copy_email_queued is no longer set.
-  // Decision 376: the owner's emailed copy (O75, DRAFT until Jo approves) is sent by the 15-minute tick, one email per
+  // Decision 376: the owner's emailed copy (O75, approved by Jo in decision 384) is sent by the 15-minute tick, one email per
   // signing sitting (paperwork-copy-email.server sweepOwnerPaperworkCopies), with these PDFs attached.
   return { id: row.id, draft };
 }

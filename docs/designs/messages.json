@@ -1566,11 +1566,11 @@
   "recipient": "Owner",
   "channel": "Email + Text",
   "when": "Sent once when the installer or electrician cancels a booked Ready Check, safety check or install day.",
-  "status": "Draft",
-  "design": "docs/templates/drafts/O74-visit-new-times.html",
+  "status": "Approved",
+  "design": "docs/templates/owner/O74-visit-new-times.html",
   "image": "O74.jpg",
   "built": true,
-  "note": "Decision 376: held until Jo approves (VISIT_NEW_TIMES_APPROVED, text visit_new_times). Variant O74b when the trade offers the new times."
+  "note": "Decision 384 (Jo 25 Oct 2026) approved the decision 376 draft (VISIT_NEW_TIMES_APPROVED, text visit_new_times). Variant O74b when the trade offers the new times."
  },
  {
   "step": "5",
@@ -1579,11 +1579,11 @@
   "recipient": "Owner",
   "channel": "Email",
   "when": "Sent once per signing sitting, 10 minutes after the owner's last Gate B signature, with the signed PDFs attached.",
-  "status": "Draft",
-  "design": "docs/templates/drafts/O75-signed-paperwork-copy.html",
+  "status": "Approved",
+  "design": "docs/templates/owner/O75-signed-paperwork-copy.html",
   "image": "O75.jpg",
   "built": true,
-  "note": "Decision 376: held until Jo approves (OWNER_PAPERWORK_COPY_APPROVED)."
+  "note": "Decision 384 (Jo 25 Oct 2026) approved the decision 376 draft (OWNER_PAPERWORK_COPY_APPROVED)."
  },
  {
   "step": "6",
@@ -1592,11 +1592,11 @@
   "recipient": "Electrician",
   "channel": "Email + Text",
   "when": "Sent once if the electrician accepted a safety check job 24 hours ago and has offered no times.",
-  "status": "Draft",
-  "design": "docs/templates/drafts/E14-piesa-times-reminder.html",
+  "status": "Approved",
+  "design": "docs/templates/electrician/E14-piesa-times-reminder.html",
   "image": "E14.jpg",
   "built": true,
-  "note": "Decision 376: held until Jo approves (PIESA_TIMES_REMINDER_APPROVED, text piesa_times_reminder)."
+  "note": "Decision 384 (Jo 25 Oct 2026) approved the decision 376 draft (PIESA_TIMES_REMINDER_APPROVED, text piesa_times_reminder)."
  },
  {
   "step": "6",
@@ -1605,10 +1605,10 @@
   "recipient": "Installer",
   "channel": "Email + Text",
   "when": "Sent once when the safety check is booked (and again if it moves), so the installer can plan install days.",
-  "status": "Draft",
-  "design": "docs/templates/drafts/I71-installer-planning-notice.html",
+  "status": "Approved",
+  "design": "docs/templates/installer/I71-installer-planning-notice.html",
   "image": "I71.jpg",
   "built": true,
-  "note": "Decision 376: held until Jo approves (INSTALLER_PLANNING_NOTICE_APPROVED, text installer_planning_notice)."
+  "note": "Decision 384 (Jo 25 Oct 2026) approved the decision 376 draft (INSTALLER_PLANNING_NOTICE_APPROVED, text installer_planning_notice)."
  }
 ]

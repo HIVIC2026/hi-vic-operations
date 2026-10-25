@@ -1,14 +1,15 @@
-// Decision 376 (Jo 25 Oct 2026, DRAFT — awaiting approval): the owner gets a copy of the Gate B paperwork they signed
+// Decision 376 (Jo 25 Oct 2026; wording APPROVED by Jo in decision 384): the owner gets a copy of the Gate B paperwork they signed
 // (the agreement, the payment statement, the VEEC assignment consent, landlord details…) — ONE email O75 "Your signed
 // paperwork" per signing sitting, with each signed PDF from the job file attached (same email `attachments` path as the
 // O63 consent copy). The 15-minute tick batches a sitting: it waits until the owner's last Gate B signature is
 // PAPERWORK_COPY_QUIET_MINUTES old, then sends every not-yet-copied signature from the last PAPERWORK_COPY_LOOKBACK_DAYS
 // together. Office-recorded items (landlord consent) are never copied. Replaces the F13 record-only point (the dead
-// outbox row); nothing goes to a real owner until Jo approves (OWNER_PAPERWORK_COPY_APPROVED). PURE: rules, key, wording.
+// outbox row). Approved (decision 384): real owners go through the guarded owner email path behind customer_comms_enabled.
+// PURE: rules, key, wording.
 import * as K from "./email-kit.core";
 
-/** DRAFT (decision 376): false until Jo approves O75. Real delivery also needs customer_comms_enabled + consent. */
-export const OWNER_PAPERWORK_COPY_APPROVED = false as boolean;
+/** Jo 25 Oct 2026 (decision 384): O75 approved as drafted in decision 376. Real delivery also needs customer_comms_enabled + consent. */
+export const OWNER_PAPERWORK_COPY_APPROVED = true as boolean;
 export const OWNER_PAPERWORK_COPY_TEMPLATE_CODE = "O75";
 export const OWNER_PAPERWORK_COPY_PURPOSE = "owner_paperwork_copy";
 /** Recorded ONCE per batch BEFORE anything is sent (details: { signature_ids, doc_keys }). */

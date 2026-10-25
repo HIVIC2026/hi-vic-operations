@@ -1,14 +1,15 @@
-// Decision 376 (Jo 25 Oct 2026, DRAFT — awaiting approval): when the safety check (PIESA) is booked, the job's installer is
+// Decision 376 (Jo 25 Oct 2026; wording APPROVED by Jo in decision 384): when the safety check (PIESA) is booked, the job's installer is
 // told the date so they can plan install days — ONE email I71 + text per installer assignment and PIESA time (a moved
 // safety check is a new notice). Planning only: it never books, offers or holds an install day, and it says plainly not to
 // book yet — the approved I65 email + `install_clearance` text (decision 186) remain the "go: offer 3 install days" message
-// once the job is cleared. Replaces the F13 record-only `installer_planning_notice` point (the dead outbox row); nothing
-// goes to a real installer until Jo approves (INSTALLER_PLANNING_NOTICE_APPROVED + the SMS type). PURE: wording and keys.
+// once the job is cleared. Replaces the F13 record-only `installer_planning_notice` point (the dead outbox row). Approved
+// (decision 384): real installers go through the guarded partner senders behind customer_comms_enabled + the text switch.
+// PURE: wording and keys.
 import * as K from "./email-kit.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
 
-/** DRAFT (decision 376): false until Jo approves I71 and the text. Real delivery also needs customer_comms_enabled. */
-export const INSTALLER_PLANNING_NOTICE_APPROVED = false as boolean;
+/** Jo 25 Oct 2026 (decision 384): I71 and the text approved as drafted in decision 376. Real delivery also needs customer_comms_enabled (+ the text switch). */
+export const INSTALLER_PLANNING_NOTICE_APPROVED = true as boolean;
 export const INSTALLER_PLANNING_NOTICE_TEMPLATE_CODE = "I71";
 export const INSTALLER_PLANNING_NOTICE_SMS_TYPE = "installer_planning_notice" as const;
 /** Recorded ONCE per installer assignment + PIESA start BEFORE anything is sent (details: { assignment_id, piesa_start, key }). */

@@ -1,4 +1,4 @@
-// Decision 376 (Jo 25 Oct 2026, DRAFT — awaiting approval): the 24-hour coordination point (allocation.server
+// Decision 376 (Jo 25 Oct 2026; wording APPROVED by Jo in decision 384): the 24-hour coordination point (allocation.server
 // `sweepCoordination`, `coordination_reminder`) is the moment a trade was given the owner's contact details for a visit and
 // has proposed no time 24 hours later. In today's flows only ONE case is still a real gap the trade must act on: the
 // electrician accepted a safety check (PIESA) job and has not offered the owner 3 times (decision 333 — "offer the owner 3
@@ -14,8 +14,8 @@
 // The 48-hour office alert (needs `piesa_booking_overdue`) is unchanged. PURE: wording, keys, which kinds send.
 import * as K from "./email-kit.core";
 
-/** DRAFT (decision 376): false until Jo approves E14 and the text. Real delivery also needs customer_comms_enabled. */
-export const PIESA_TIMES_REMINDER_APPROVED = false as boolean;
+/** Jo 25 Oct 2026 (decision 384): E14 and the text approved as drafted in decision 376. Real delivery also needs customer_comms_enabled (+ the text switch). */
+export const PIESA_TIMES_REMINDER_APPROVED = true as boolean;
 export const PIESA_TIMES_REMINDER_TEMPLATE_CODE = "E14";
 export const PIESA_TIMES_REMINDER_SMS_TYPE = "piesa_times_reminder" as const;
 
