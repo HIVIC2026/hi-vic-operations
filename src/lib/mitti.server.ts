@@ -12,7 +12,7 @@ import { jobScope } from "./requirements.server";
 import { provisionalGivesWayToMitti } from "./measurement.core";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
-import { customerOfOption, noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
+import { noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
 import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
@@ -146,7 +146,6 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
         lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
-        customerOf: measureOnly ? null : customerOfOption(job.channel),
         builtLast5Years: measureOnly ? builtLast5YearsOption((prop?.enrichment as Any)?.base44?.declared?.over_five_years ?? null) : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
       },
@@ -410,8 +409,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const snapshot = attachPiesaMedia(audit, (plan.snapshot ?? []) as PiesaSnapshotEntry[]);
         const shortAnswers = shortAnswersFromEntries("piesa", snapshot);
         const evidenceBlockers = piesaEvidenceBlockers(shortAnswers, piesaMediaFromSnapshot(snapshot));
-        // Decision 312: our leads' completed A4 must carry the "won't discuss prices" tick — an office item, never a blocker.
-        const priceTalk = noPriceTalkIssue({ channel: job.channel, completed: plan.completed, entries: snapshot });
+        // Decisions 312/323: every completed A4 that has the "won't discuss prices" tick must have it ticked — an office item, never a blocker.
+        const priceTalk = noPriceTalkIssue({ completed: plan.completed, entries: snapshot });
         // A PIESA marked complete in Mitti without its evidence is NOT complete here (stays pending, re-synced next tick).
         completed = plan.completed && evidenceBlockers.length === 0;
         await admin.from("assessments").update({
