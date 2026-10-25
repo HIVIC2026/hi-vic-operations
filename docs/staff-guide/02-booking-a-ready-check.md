@@ -2,10 +2,12 @@
 
 From "Spot saved" to a booked Ready Check. The office does **one** step; the rest happens by itself.
 
+> **Built to be automatic, on hold for launch.** The portal is built to offer each Ready Check to an installer by itself: it goes to the approved installer covering that postcode with the fewest active jobs (then the nearest), they have 24 hours, and if they say no or don't answer it goes to the next one. After 2 misses it comes back to the office. **For launch we've switched this off and the office chooses the installer by hand** (step 2). When we switch it on, step 2 disappears.
+
 **1. The job appears on Needs me**
 - It shows as "Spot saved – waiting for an installer".
 
-**2. You choose the installer** *(the only office step)*
+**2. You choose the installer** *(the only office step, for now)*
 - Open it and press **Choose installer**.
 - The portal lists nearby approved installers. Pick one.
 
