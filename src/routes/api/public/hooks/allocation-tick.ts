@@ -451,6 +451,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: Needs me copy not refreshed", (e as Error).message);
           (out as Record<string, unknown>)['needsMeSnapshot'] = "failed";
         }
+        // Decision 383: and the saved default first pages of Jobs › Active and Enquiries.
+        try {
+          const { refreshListSnapshots } = await import("@/lib/office-needs-snapshot.server");
+          (out as Record<string, unknown>)['listSnapshots'] = await timed("refreshListSnapshots", () => refreshListSnapshots());
+        } catch (e) {
+          console.error("allocation tick: list copies not refreshed", (e as Error).message);
+          (out as Record<string, unknown>)['listSnapshots'] = "failed";
+        }
         (out as Record<string, unknown>)['timingsMs'] = { total: Date.now() - tickStartedAt, ...timingsMs };
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },

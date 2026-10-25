@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.functions";
+import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
+import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
 import { createEnquiry } from "@/lib/portal.functions";
 import { tidyEnquiryDetails } from "@/lib/name-address-tidy.core";
@@ -76,7 +78,16 @@ export function EnquiriesScreen() {
   const [dialog, setDialog] = useState<string | null>(null);
   // Search as you type (decision 285): a short pause, then the list refreshes from page 1.
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 250); return () => clearTimeout(t); }, [typed]);
-  const q = useQuery({ queryKey: ["office-enquiries", search, filters, sort, page], queryFn: () => load({ data: { search, sort: sort.k, dir: sort.d, page, filters } }), placeholderData: keepPreviousData, staleTime: 30_000 });
+  // Decision 383: the opening view comes from the server's saved copy (worked out now after an office action in this
+  // tab); while the server refreshes it, ask again in 5 s. One retry, not three.
+  const q = useQuery({
+    queryKey: ["office-enquiries", search, filters, sort, page],
+    queryFn: () => {
+      const view = { search, sort: sort.k, dir: sort.d, page, filters };
+      return readOfficeList("enquiries", isDefaultListView(view), (refresh) => load({ data: { ...view, refresh } }));
+    },
+    placeholderData: keepPreviousData, staleTime: 30_000, retry: 1, refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false),
+  });
   const cancel = useAction(bulkCancelOfficeJobs);
   const remove = useAction(removeLeadsFn);
   const d = q.data;
@@ -99,7 +110,7 @@ export function EnquiriesScreen() {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2" data-why="decision 285 one search box; 286 headings sort and filter; 283 no priority number; 281 one list">
         <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-10 w-full max-w-[420px] bg-paper" />
         <div className="flex items-center gap-3">
-          <span className="text-sm text-sub">{d ? `${d.total.toLocaleString("en-AU")} · showing ${d.rows.length}` : "Loading…"}{q.isFetching && d ? " · updating…" : ""}</span>
+          <span className="text-sm text-sub">{d ? `${d.total.toLocaleString("en-AU")} · showing ${d.rows.length}` : "Loading…"}{d?.fromCopy ? ` · checked ${checkedLabel(d.computedAt, false)}` : ""}{(q.isFetching || d?.refreshing) && d ? " · updating…" : ""}</span>
           {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
           <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "cancel", label: "Cancel", danger: true }, { key: "remove", label: "Remove (duplicate / junk)", danger: true }]} />
         </div>

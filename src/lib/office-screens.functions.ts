@@ -60,23 +60,27 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
     // AND filter (text / min–max / picks); no pile, no chip panel.
     search: z.string().max(120).default(""),
     sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("asc"), page: z.number().int().min(1).max(10_000).default(1),
-    filters: columnFilters,
+    filters: columnFilters, refresh: z.boolean().default(false),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { loadEnquiriesList } = await import("./office-lists.server");
-    return loadEnquiriesList(data);
+    // Decision 383: the default first page comes from the saved copy (`refresh` = the office just acted: work it out now).
+    const { getEnquiriesListServed } = await import("./office-needs-snapshot.server");
+    const { refresh, ...params } = data;
+    return getEnquiriesListServed(params, refresh);
   });
 
 export const getActiveJobsList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     search: z.string().max(120).default(""), sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("desc"),
-    page: z.number().int().min(1).max(10_000).default(1), filters: chips, includeTest: z.boolean().default(false),
+    page: z.number().int().min(1).max(10_000).default(1), filters: chips, includeTest: z.boolean().default(false), refresh: z.boolean().default(false),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { loadActiveJobsList } = await import("./office-lists.server");
-    return loadActiveJobsList(data);
+    // Decision 383: the default first page comes from the saved copy (`refresh` = the office just acted: work it out now).
+    const { getActiveJobsListServed } = await import("./office-needs-snapshot.server");
+    const { refresh, ...params } = data;
+    return getActiveJobsListServed(params, refresh);
   });
 
 /** Decision 227: Cancel at any time (one job). */
