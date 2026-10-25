@@ -114,9 +114,11 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("b3.phone", "Electrician phone"),
   { id: "b3.declaration", label: "I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission", type: "tick", required: true, source: "DEECA PIESA form B3" },
   { id: "electricianSignature", label: "Electrician signature", type: "signature", required: true, source: "short onsite form" },
-  yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationOutcome = Yes, repair work is needed"),
-  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
-  { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
+  // Decision 298 (Jo 25 Oct 2026): repair completion is never on the PIESA visit — these three come from the A5 fixes form
+  // (fixes-day.core mergeFixesIntoPiesaSnapshot) or an old PIESA; kept here only so the stored answers still map. Not asked on A4.
+  { ...yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationNeeded = Yes"), required: false, source: "A5 fixes form (decision 298)" },
+  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: false, when: "rectificationNeeded = Yes", source: "A5 fixes form (decision 298)" },
+  { id: "certDate", label: "Date of Certification:", type: "date", required: false, when: "rectificationNeeded = Yes", source: "A5 fixes form (decision 298)" },
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA through their own secure link, not on the electrician's phone;
   // the owner block of the official form is filled from that record (official-expand ctx.ownerConfirmation).
 ];

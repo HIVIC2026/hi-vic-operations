@@ -16,6 +16,8 @@ export type FormField = {
   /** Required only when none of these labels exist in the form (the form captures the answer another way). */
   notRequiredIf?: string[];
   perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
+  /** The same question may appear up to this many times (e.g. "Photo of the problem" under each hazard section, decision 297). */
+  repeats?: number;
   /** Official item id (PIESA/PIISA). */ id?: string;
   /** Official repeating table row. */ row?: { group: string; rows: number };
   /** Printed heading/statement: reproduced verbatim, never answered. */ statement?: "heading" | "statement";
@@ -52,7 +54,9 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 // accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes" } : e.id === "ces_file" ? { when: "Repair work was completed (Section C answered)" } : {}),
+  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
+  // the A5 fixes form, never on the PIESA visit.
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A5 fixes form (decision 298)", required: false } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
@@ -235,7 +239,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
     const hits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
     if (hits.length === 0) { if (!optional(f)) issues.push(`Missing: ${f.label}`); continue; }
     const exp = expected.get(norm(f.label)) ?? 0;
-    const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0);
+    const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0) + (f.repeats ? f.repeats - 1 : 0);
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length > exp + rowCap) { if (!checked.has(norm(f.label))) issues.push(`Duplicate: ${f.label}`); checked.add(norm(f.label)); continue; }
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && !optional(f)) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
     if (hits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
