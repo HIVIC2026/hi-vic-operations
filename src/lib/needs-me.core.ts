@@ -30,10 +30,12 @@ export type PartnerItem = { key: string; title: string; why: string; dueAt: stri
  *  TEST businesses (name starts "TEST" or "[TEST PARTNER]") are left out, like every other Needs me row. */
 export const MITTI_FORMS: [string, string][] = [
   ["A1 Ready Check (installer's own customer)", "mitti_ready_check_priced_template_id"], ["A2 Ready Check (our lead)", "mitti_ready_check_template_id"],
-  ["B Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piesa_template_id"], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piisa_template_id"],
+  ["A3 Electrical safety check (PIESA, electrician)", "mitti_piesa_template_id"],
   // Decision 293: listed only once the database column exists (`mitti_fixes_template_id` key present on the row); before
   // the pending migration the portal-page fallback stands in and a job-level "Fixes form not set up" item is raised when needed.
-  ["A5 Electrical fixes (electrician, later visit)", "mitti_fixes_template_id"],
+  ["A4 Electrical fixes (electrician, later visit)", "mitti_fixes_template_id"],
+  // Decision 390: form numbers follow the job order (A3 PIESA, A4 fixes, A5 Install day).
+  ["A5 Install day (PIISA, lead installer)", "mitti_piisa_template_id"],
 ];
 /** Columns a settings row may lack until a pending migration runs: no row is raised while the key is absent. */
 const PENDING_FORM_COLUMNS = new Set(["mitti_fixes_template_id"]);

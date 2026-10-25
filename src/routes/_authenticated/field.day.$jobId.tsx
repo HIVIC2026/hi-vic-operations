@@ -129,7 +129,7 @@ function DayPage() {
           </>
         )}
 
-        {/* Decision 328: check the A3 Install day form now — the same result the lead installer is texted. */}
+        {/* Decision 328: check the A5 Install day form now — the same result the lead installer is texted. */}
         {data.kind === "install" && data.mittiId && !asking && <CheckMyFormButton jobId={jobId} />}
       </Screen>
     </TradeShell>

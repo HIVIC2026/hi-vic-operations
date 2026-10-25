@@ -1,4 +1,4 @@
-// Decision 328 (Jo, 25 Oct 2026): the A3 Install day form confirmation — pure rules, Jo's wording, the SMS types and
+// Decision 328 (Jo, 25 Oct 2026): the A5 Install day form confirmation — pure rules, Jo's wording, the SMS types and
 // source pins for the sender, the tick and the "Check my form now" button (no database, no network).
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -103,11 +103,11 @@ describe("source pins", () => {
     expect(s).toContain("sendTestSms(");
     expect(s).toContain("sendRealSms({ type: p.type, idempotencyKey: p.key, to: p.to, body: p.body, jobId: p.job.id, businessId: p.businessId })");
     expect(s).not.toMatch(/twilio|au1SendMessage/i);
-    expect(s).toContain("syncPiisaDeclaration(jobId"); // the single-job A3 sync
+    expect(s).toContain("syncPiisaDeclaration(jobId"); // the single-job A5 sync
     expect(s).not.toMatch(/transition\(|recordInstallationComplete/);
     expect([INSTALL_DAY_RESULT_EVENT, INSTALL_DAY_REMINDER_EVENT]).toEqual(["install_day_form_result_sent", "install_day_form_reminder_sent"]);
   });
-  test("the 15-minute tick runs the sweep; the A3 sync reports what it read and passes the final tick to completion", () => {
+  test("the 15-minute tick runs the sweep; the A5 sync reports what it read and passes the final tick to completion", () => {
     expect(read("src/routes/api/public/hooks/allocation-tick.ts")).toContain("sweepInstallDayForms()");
     const d = read("src/lib/piisa-declaration.server.ts");
     expect(d).toContain("opts.onA3({ auditId, completed: !!p.completed");

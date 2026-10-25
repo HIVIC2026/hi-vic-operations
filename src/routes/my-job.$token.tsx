@@ -10,6 +10,7 @@ import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useEffect, useRef, useState } from "react";
@@ -27,11 +28,14 @@ import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
+import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
+import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes"] as const satisfies readonly OwnerScreen[];
+// Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -79,6 +83,7 @@ function MyJobPage() {
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
+          : screen === "turn" ? <TurnScreen token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -198,6 +203,46 @@ function StatusSnapshot({ v }: { v: View }) {
 }
 
 function useSession() { return useState<string | null>(null); }
+
+/** Decision 389: "It's your turn". Two buttons, the link token only (it signs nothing). Confirm offers the Ready Check to the
+ *  installer Jo chose; "I'm no longer interested" closes the spot and nothing else is sent. */
+function TurnScreen({ token }: { token: string }) {
+  const load = useServerFn(ownerTurnStateFn);
+  const confirm = useServerFn(ownerConfirmTurnFn);
+  const decline = useServerFn(ownerDeclineTurnFn);
+  const qc = useQueryClient();
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-turn", token], queryFn: () => load({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const [view, setView] = useState<OwnerTurnView | null>(null);
+  const [busy, setBusy] = useState<"confirm" | "decline" | null>(null);
+  const [sure, setSure] = useState(false);
+  const [err, setErr] = useState("");
+  const v = view ?? st ?? null;
+  const act = async (which: "confirm" | "decline") => {
+    setErr(""); setBusy(which);
+    try { setView(await (which === "confirm" ? confirm : decline)({ data: { token } })); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(null); }
+  };
+  if (isLoading && !v) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (!v || v.kind === "closed") return <section data-testid="owner-turn" data-turn="closed" className={card}><p className="text-sm">{SPOT_RELEASE_PAGE.closed}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+  if (v.kind === "confirmed") return <section data-testid="owner-turn" data-turn="confirmed" className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{SPOT_RELEASE_PAGE.thanks(v.installer)}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+  if (v.kind === "declined") return <section data-testid="owner-turn" data-turn="declined" className={card}><p className="text-sm">{SPOT_RELEASE_PAGE.declined}</p></section>;
+  return (
+    <section data-testid="owner-turn" data-turn="ask" className={card}>
+      <h1 className="font-display text-2xl font-extrabold">{SPOT_RELEASE_PAGE.title}</h1>
+      <p className="text-sm">{SPOT_RELEASE_PAGE.lead}</p>
+      <InfoBox>
+        <p className="font-bold">{WHAT_HAPPENS_NEXT.title}</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">{WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+      </InfoBox>
+      <button type="button" className={signBtn} disabled={!!busy} onClick={() => void act("confirm")}>{busy === "confirm" ? SPOT_RELEASE_PAGE.confirming : SPOT_RELEASE_PAGE.confirm}</button>
+      {!sure
+        ? <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={!!busy} onClick={() => setSure(true)}>{SPOT_RELEASE_PAGE.decline}</button>
+        : <div className="rounded-[14px] border border-estimate-line p-4 text-sm"><p>We'll close your spot and won't contact you about it again.</p><button type="button" className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-estimate-navy font-bold" disabled={!!busy} onClick={() => void act("decline")}>{busy === "decline" ? "Closing…" : SPOT_RELEASE_PAGE.decline}</button></div>}
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    </section>
+  );
+}
 
 /** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
  *  set), 1–3 → a private "What could we have done better?" box (never Google). Link token only — it signs nothing. */
@@ -499,8 +544,9 @@ function SpotScreen({ v, token }: { v: View; token: string }) {
     <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("spot_saved", v.numbers.rebate)} />
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h2 className="font-display text-xl font-extrabold">Save my spot</h2>
-      <p className="mt-1 text-sm">Pick at least 3 times that suit you for your free Ready Check. Each time is a 2-hour window: {TWO_HOUR_WINDOWS.join(", ")}.</p>
-      <a href={`/estimate/${token}`} className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Pick my times</a>
+      {/* Decision 388: saving a spot never offers times or a Ready Check. */}
+      <p className="mt-1 text-sm">{SPOT_FREE} {SPOT_WAIT_LINE}</p>
+      <a href={`/estimate/${token}`} className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">See my estimate and save my spot</a>
     </section>
   </>;
 }
@@ -860,19 +906,19 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       </div>
     </section>
     <OwnerReadyCheckTimes token={token} />
-    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>The waiting list is huge.</strong> We book in order and we're teaming up with more installers and electricians across Victoria to speed it up. We'll text you when it's your turn.</p>
+    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>
-      <p className="mt-1 text-sm">A few quick questions and your OK to share your details with the trades. Do it now and you can book the moment it's your turn.</p>
+      <p className="mt-1 text-sm">A few quick questions and your OK to share your details with the trades. Do it now and it's out of the way when your spot is released.</p>
       {!open ? <button type="button" onClick={() => setOpen(true)} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Do it now</button> : <div className="mt-4"><OwnerPaperwork token={token} /></div>}
     </section>}
     {card === "done" && <section data-testid="gate-a-done" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until we text you.</p></div>
+      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until your spot is released.</p></div>
     </section>}
     {sp.videoInvite && <section className="rounded-[22px] bg-estimate-mint p-5">
-      <h2 className="font-display text-lg font-extrabold">Jump the queue: send a quick video</h2>
+      <h2 className="font-display text-lg font-extrabold">Help us check your insulation: send a quick video</h2>
       <Link to="/estimate/$token/video" params={{ token }} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Send a quick video</Link>
     </section>}
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
@@ -887,7 +933,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <p className="font-display text-lg font-extrabold">Your numbers</p>
       <div className="mt-3 flex justify-between text-sm"><span>Your rebate</span><span className="font-bold text-estimate-logo-green">{aud(sp.rebate)}</span></div>
       <div className="mt-2 flex justify-between text-sm"><span>You pay about</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
-      <p className="mt-3 text-xs text-estimate-navy/70">Estimate only. Your exact price comes after the free Ready Check.</p>
+      <p className="mt-3 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
     </section>
     <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>
     {v.canCancel && <CancelMyJob token={token} />}

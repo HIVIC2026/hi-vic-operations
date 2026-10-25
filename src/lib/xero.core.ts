@@ -85,6 +85,11 @@ export async function findInvoiceByReference(call: XeroCall, reference: string) 
 
 /** Name of the negative incentive line (Activity Guide v1.2 Table 4 / decision 209: "VEEC incentive", not "discount"). */
 export const VEEC_INCENTIVE_LINE = "VEEC incentive";
+/** Decision 391 (Jo, 25 Oct 2026, from tax advice): GST is charged on the full installation price, so the VEEC incentive
+ *  line carries NO GST ("BAS Excluded"). It goes to the VEEC account the accountant names; until then it stays on Sales
+ *  "200", because a code that doesn't exist in Xero would stop every invoice push. Invoices already in Xero are unchanged. */
+export const VEEC_INCENTIVE_TAX_TYPE = "BASEXCLUDED";
+export const VEEC_INCENTIVE_ACCOUNT_CODE = "200";
 export const INSTALLATION_ADDRESS_LABEL = "Installation address";
 
 /** ONE full detailed invoice: every accepted customer-facing quote line once, plus the VEEC incentive as a negative line.
@@ -105,7 +110,7 @@ export function buildInvoicePayload(a: {
   const ref = xeroReference(a.jobNumber);
   const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
   const address = a.installationAddress?.trim() ? ` – ${INSTALLATION_ADDRESS_LABEL}: ${a.installationAddress.trim()}` : "";
-  const LineItems = a.items.map((i, n) => {
+  const LineItems: { Description: string; Quantity: number; UnitAmount: number; AccountCode: string; TaxType?: string; Tracking: { Name: string; Option: string }[] | undefined }[] = a.items.map((i, n) => {
     const q = Number(i.quantity), u = Number(i.unit_price_inc_gst), lt = Number(i.line_total_inc_gst);
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
     const head = `${ref}${n === 0 ? address : ""}`;
@@ -113,7 +118,7 @@ export function buildInvoicePayload(a: {
       ? { Description: `${head} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
       : { Description: `${head} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
   });
-  if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: "200", Tracking });
+  if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: VEEC_INCENTIVE_ACCOUNT_CODE, TaxType: VEEC_INCENTIVE_TAX_TYPE, Tracking });
   const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);
   if (sum !== Math.round(a.total * 100)) throw new Error(`Quote lines (${sum / 100}) don't add up to the accepted total (${a.total}) – invoice not pushed.`);
   return { Invoices: [{ Type: "ACCREC", Contact: { ContactID: a.contactId }, LineAmountTypes: "Inclusive", Reference: ref, DueDate: a.dueDate, Status: "AUTHORISED", LineItems }] };

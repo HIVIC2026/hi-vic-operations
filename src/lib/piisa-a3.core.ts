@@ -103,7 +103,7 @@ export const A3_NATIVE_IDS: Record<string, string[]> = {
   "p8.name": ["f7032d72-4135-4165-bd50-32d84a66d085"],
   "p8.date": ["cda99bb8-8865-46a1-928a-2267175a1e2a"],
 };
-/** A3 evidence media items -> native item id. All seven READ FROM THE EDITOR DOM (electrician photo: Jo, 8 Oct 2026). */
+/** A5 evidence media items -> native item id. All seven READ FROM THE EDITOR DOM (electrician photo: Jo, 8 Oct 2026). */
 export const A3_MEDIA_IDS: Record<A3EvidenceKey, string> = {
   installer_photos: "06598474-e46a-4bba-8c9d-d1be2c9993e1",
   electrician_photo: "1b6461ce-2181-4c4e-b7e8-d53a5e093e75", // "Electrician photo — onsite today (geotagged)", branch attendance = Yes
@@ -186,7 +186,7 @@ export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | unde
 
 /** Every mapped field must exist on the native template, including all three crew rows. Visible failure list. */
 export function a3MissingFields(template: unknown): string[] {
-  // Decision 262: the "A3 – Install day" template is read by wording (install-day.core), not by the old stable IDs.
+  // Decision 262: the "A5 – Install day" template is read by wording (install-day.core), not by the old stable IDs.
   if (isInstallDayDoc(template)) return installDayMissingQuestions(template);
   const entries = flatten(template);
   const out: string[] = [];
@@ -228,10 +228,10 @@ function itemsById(audit: unknown): Map<string, Any> {
   walk(audit);
   return byId;
 }
-/** Fix prompt (24 Oct 2026): A3 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
+/** Fix prompt (24 Oct 2026): A5 keys the per-zone videos now satisfy (whole-job items deleted from the form). */
 export const A3_ZONE_VIDEO_KEYS: A3EvidenceKey[] = ["before_video", "completed_video"];
 /**
- * Every A3 media item on an audit (in-progress or completed) with per-file metadata. before_video / completed_video
+ * Every A5 media item on an audit (in-progress or completed) with per-file metadata. before_video / completed_video
  * = the old whole-job video (older forms) PLUS every zone's before / after 360° video when EVERY zone the form counts
  * has one (zoneVideoFiles); a partly filmed set adds nothing, so the item stays missing. The before-work timing rule
  * and the after-work copy (piisa-postwork) therefore apply to the zone videos too.
@@ -628,7 +628,7 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
   return out;
 }
 
-// ---------- AP evidence for the A3 path ----------
+// ---------- AP evidence for the A5 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
 export const A3_EVIDENCE_QUALITY = "Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
 /** Jo's 9 Oct 2026 full instructions — still accepted on the same stable IDs (a3AcceptedMediaLabels). */
@@ -678,7 +678,7 @@ export type A3EvidenceCtx = {
   lifeSupportConsentOnFile: boolean;
   /** Decision 211: the portal's generated final installation plan (kind `final_area_diagram`) is on the job file. */
   generatedFinalPlan?: boolean;
-  /** Decision 262: the "A3 – Install day" template (before videos come from the Ready Check). */
+  /** Decision 262: the "A5 – Install day" template (before videos come from the Ready Check). */
   installDayForm?: boolean;
 };
 /** Decision 211 (Jo 24 Oct 2026): the generated final plan replaces the install-day "final plan" upload. Old jobs keep
@@ -693,7 +693,7 @@ export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; ti
 export const A3_PRESTART_KEYS: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "before_video", "product_photos"];
 export const A3_AFTER_KEYS: A3EvidenceKey[] = ["completed_video", "final_plan"];
 
-/** Required A3 evidence. The old ID-holding / 360° / ruler extras are NOT in this path (no official basis). */
+/** Required A5 evidence. The old ID-holding / 360° / ruler extras are NOT in this path (no official basis). */
 export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx): { key: A3EvidenceKey; min: number; label: string }[] {
   const ea = answers["p5.electricianPresent"];
   const elec = ctx.electricianRequiredAtStart || answers["p4.instructions"] === "No" || ea === "Yes";
@@ -796,7 +796,7 @@ export function a3EvidenceBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx,
   return [...a3PrestartBlockers(answers, ctx, media, workStartAt), ...a3CompletionBlockers(answers, ctx, media)];
 }
 
-/** Checklist rows for the job page/AP: every A3 item with its real state. */
+/** Checklist rows for the job page/AP: every A5 item with its real state. */
 export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met"; /** Decision 205: what the office verifies on the photo (Table 4 wording). */ verification?: string };
 /** Office verification text for a photo item; with solar/battery present the isolation photo must show the isolators off. */
 export function a3VerificationNote(key: A3EvidenceKey, answers: OfficialAnswers): string | undefined {
@@ -867,7 +867,7 @@ export function a3CrewResolution(crew: { name: string; eec: string | null }[], s
   return { resolved, blockers };
 }
 
-/** AP gate from the stored A3 evidence record (non-A3 declarations have none and are unaffected). Review/missing block. */
+/** AP gate from the stored A5 evidence record (non-A5 declarations have none and are unaffected). Review/missing block. */
 export function a3EvidenceGate(official: unknown): string[] {
   const ev = (official as { a3_evidence?: { checklist?: A3ChecklistRow[]; prestart_blockers?: string[]; completion_blockers?: string[]; crew_blockers?: string[]; prestart_captured_from?: string } } | null)?.a3_evidence;
   if (!ev) return [];
@@ -982,7 +982,7 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
     if ("workerId" in pick) {
       const s = byId.get(pick.workerId);
       if (!s || !s.eecVerified || !s.eec || s.cleared === false) { problems.push(`Crew row ${row + 1}: not a verified, cleared installer of this company`); return; }
-      // PRIVACY (Jo 8 Oct 2026): the A3 template is shared by every company, so it must hold no named staff. Known,
+      // PRIVACY (Jo 8 Oct 2026): the A5 template is shared by every company, so it must hold no named staff. Known,
       // verified staff of the ASSIGNED company always go in as Other + their recorded name/certificate (never retyped),
       // and a named option is never selected even if one appears in the shared list.
       seedOther(s.name, s.eec);

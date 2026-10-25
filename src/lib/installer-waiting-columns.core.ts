@@ -16,6 +16,7 @@ import { isElectricianBiz, isInstallerBiz, verifiedServiceAreaMatch } from "./pi
 import { partnerAllowedForJob } from "./test-send.core";
 import { readyCheckOfficeItem, type OfficeOfferRow } from "./ready-check-times.core";
 import type { NeedsRow } from "./office-needs.core";
+import type { SpotReleaseStateName } from "./spot-release.core";
 
 export const INSTALLER_WAITING_PATH = "/admin/jobs/choose-installer" as const;
 
@@ -50,6 +51,9 @@ export type InstallerWaitingRow = {
   /** The last Ready Check offer came back (declined / no times in 24h) — the office chooses again. */
   lastOffer: { status: "declined" | "expired"; name: string | null } | null;
   isTest: boolean;
+  /** Decision 389: the release state — "Released to X · waiting for owner since …", "Owner confirmed — choose installer",
+   *  "Didn't confirm after release…". A pending release is NOT available to release again. */
+  release?: { state: SpotReleaseStateName; line: string | null; releasable: boolean } | undefined;
 };
 
 export type WaitingFilters = {

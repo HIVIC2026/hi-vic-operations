@@ -1,5 +1,5 @@
 // Decisions 205/210/211/213/262–264: install-day evidence, sign-off and Mitti-complete recording (pure rules). The
-// "A3 – Install day" form (two multi-file after-install items, Ready Check before videos and areas) and completed forms on
+// "A5 – Install day" form (two multi-file after-install items, Ready Check before videos and areas) and completed forms on
 // the old "A3 - PIISA + AP Evidence" template (per-zone items, old wording) are both read.
 import { describe, expect, test } from "bun:test";
 import { FINAL_TICK_MISSING } from "../src/lib/install-day-confirm.core";
@@ -200,7 +200,7 @@ describe("gates, products and the checklist", () => {
     expect(jobProductOptions([], "Bradford Gold R5")).toEqual(["Bradford Gold R5"]);
     expect(ZONE_PRODUCT_OPTIONS).toHaveLength(8);
   });
-  test("A3 checklist rows carry the office verification text; on the install day form the before video is the Ready Check's", () => {
+  test("A5 checklist rows carry the office verification text; on the install day form the before video is the Ready Check's", () => {
     const base = { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: false, lifeSupportConsentOnFile: false };
     const rows = a3EvidenceChecklist({ "p4.present": "Yes" } as never, base, []);
     expect(rows.find((r) => r.key === "isolation_photo")!.verification).toContain("isolator switches must be visibly off");

@@ -99,7 +99,7 @@ describe("labels: exact spec wording plus the earlier wordings", () => {
   test("q43 wording is the decision-178 wording (holding licence / photo ID)", () => {
     expect(ON).toBe("Photo showing you on site at the property, holding your licence / photo ID (geotagged)");
   });
-  test("the portal PIESA form definition carries the four evidence items; the template check refuses a form without the three PIESA-visit photos (CES is on the A5 fixes form, decision 298)", () => {
+  test("the portal PIESA form definition carries the four evidence items; the template check refuses a form without the three PIESA-visit photos (CES is on the A4 fixes form, decision 298)", () => {
     const labels = FORMS.piesa.fields.filter((f) => f.supplemental).map((f) => f.label);
     expect(labels).toEqual([SB, ON, HZ, CES]);
     const items = FORMS.piesa.fields.filter((f) => !f.supplemental).map((f) => ({ label: f.label, type: f.type === "yesno" ? "question" : f.type === "choice" || f.type === "multichoice" || f.type === "tick" ? "list" : f.type === "date" ? "datetime" : f.type === "text" || f.type === "number" ? "textsingle" : f.type }));

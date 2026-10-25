@@ -1,10 +1,10 @@
 // Decision 317 (Jo, 25 Oct 2026): email the assigned electrician the final official PIESA (PDF attached) — once when
-// the official PIESA is first ready, once more when it is regenerated after the fixes (post_rectification / A5).
+// the official PIESA is first ready, once more when it is regenerated after the fixes (post_rectification / A4).
 // Rules + wording: electrician-piesa-copy.core.ts. PDF: official-piesa-pdf.server.ts (the same document as the /field
 // download). One key per PIESA record; the `electrician_piesa_copy_sent` event is recorded BEFORE anything is sent,
 // so a second call or the sweep never sends twice. TEST jobs / TEST partners → test-send only; real electricians →
 // the partner sender `sendOfficeEmail` (paused with the master switch: a paused real send is not claimed, so it goes
-// once the switch is back on). Called from the A5 completion (fixes-day.server) and the 15-minute tick. Never throws
+// once the switch is back on). Called from the A4 completion (fixes-day.server) and the 15-minute tick. Never throws
 // to its caller; never changes a stage, a booking or a record. The owner/installer O28 path is separate.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";

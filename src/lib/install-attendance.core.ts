@@ -1,4 +1,4 @@
-// Decision 327 (Jo, 25 Oct 2026): when the A4 PIESA says the electrician must be on site at the start of the install day
+// Decision 327 (Jo, 25 Oct 2026): when the A3 PIESA says the electrician must be on site at the start of the install day
 // (decision 314 tick "Be on site at the start of the install day" → official outcome "electrician present at the start of
 // installation"; clearance basis `electrician_at_start` in allocation.core), it is lined up AUTOMATICALLY — "the whole point
 // of the portal is AUTOMATE — very little office jobs":
@@ -40,7 +40,7 @@ export const ATTENDANCE_OFFICE_AFTER_MS = 48 * 3_600_000;
 /** The electrician gives 1–5 days they can do (the same limit as an owner's own days). */
 export const ATTENDANCE_MAX_DAYS = OWNER_SUGGEST_MAX;
 
-/** Does the stored A4 (short answers) need the electrician on site at the start of the install day? The decision-314 tick,
+/** Does the stored A3 (short answers) need the electrician on site at the start of the install day? The decision-314 tick,
  *  or the official third outcome it produces (`deriveRectificationOutcome`). */
 export function attendanceRequired(short: Record<string, unknown>): boolean {
   return onsiteStartTicked(short) || short["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2];

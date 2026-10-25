@@ -80,7 +80,7 @@ Then set `MITTI_USER_API_VERIFIED = true`.
   The caps count inspections a person **starts**. The portal starts the forms and shares them, and we believe editing and
   completing a shared form does not count, but no source confirms it. **Confirm on the probe.**
 - **Installers who start their own A1 in Mitti** (Mitti-first pickup) start inspections themselves. On a lite seat that is
-  one a month, so busy installers may need **full** seats. Electricians (A4/A5 are always made by the portal) should be
+  one a month, so busy installers may need **full** seats. Electricians (A3/A4 are always made by the portal) should be
   fine on lite. Jo decided Lite for all trades (decision 340, below).
 - **Cost:** lite seats have been quoted at about $5 per user per month on paid plans (third-party review). Full seats cost
   much more. Adding or changing seats is charged pro rata to the end of the billing period

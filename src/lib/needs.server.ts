@@ -66,13 +66,16 @@ export async function loadNeedsHivic() {
   // Jo 24 Oct 2026 (decisions 49–51): our-lead Ready Checks — ONE item per job: choose an installer, or (after
   // "Not for me" / 24 hours) choose another. Never both, and never the "no taker" item.
   const { readyCheckOfficeItem } = await import("./ready-check-times.core");
+  // Decision 389: a released spot waiting for the owner's Confirm needs nothing from the office.
+  const rcReady = ready.filter((j) => j.stage === "ready_check_ready_to_schedule" && j.channel === "hivic_sourced").map((j) => j.id);
+  const releases = rcReady.length ? await (await import("./spot-release.server")).spotReleaseStates(rcReady) : new Map();
   const readyCheckReturned: { job_id: string; created_at: string; detail?: string }[] = [];
   const chooseTrades = ready.flatMap((j) => {
     const k = j.stage === "ready_check_ready_to_schedule" ? "ready_check" : "piesa";
     if (k === "ready_check") {
       const hasInst = (trAsg ?? []).some((a) => a.job_id === j.id && a.role === "installer");
       const offers = (tOff ?? []).filter((o) => o.job_id === j.id && o.kind === "ready_check");
-      const item = readyCheckOfficeItem({ channel: j.channel, stage: j.stage, hasInstaller: hasInst, offers });
+      const item = releases.get(j.id)?.state === "pending" ? null : readyCheckOfficeItem({ channel: j.channel, stage: j.stage, hasInstaller: hasInst, offers });
       if (item?.code === "offer_returned") { readyCheckReturned.push({ job_id: j.id, created_at: offers.map((o) => o.offered_at).sort().pop()!, detail: item.status === "declined" ? "(The installer said Not for me.)" : "(No times within 24 hours.)" }); return []; }
       return item?.code === "choose_installer" ? [{ job_id: j.id, kind: k, since: null }] : [];
     }

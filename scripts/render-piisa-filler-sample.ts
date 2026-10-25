@@ -1,9 +1,9 @@
 // Decision 329: proves the fixed Word filler on the APPROVED PIISA (piisa-map-2.0.0) — one realistic install, answers keyed
-// exactly as the live A3 path hands them to renderOfficialDocx (piisa-declaration.server: parseA3Answers + crew + products +
+// exactly as the live A5 path hands them to renderOfficialDocx (piisa-declaration.server: parseA3Answers + crew + products +
 // p8.date + the typed electronic signature). Fills the bundled official Word form through fillOfficialDocxXml, checks the
 // XML is well-formed, reads every box / text field back and renders PNGs with LibreOffice + pdftoppm when installed.
 // SAMPLE ONLY: no database, no network, nothing stored or sent; names and numbers are made up.
-// Decision 336: the Part 8 box shows the A3 lead installer's signature PICTURE (a made-up sample, scripts/sample-signature-png.ts)
+// Decision 336: the Part 8 box shows the A5 lead installer's signature PICTURE (a made-up sample, scripts/sample-signature-png.ts)
 // embedded through the same package filler the live path uses (fillOfficialDocxParts), with "Signed in Mitti on DD/MM/YYYY".
 // Output: docs/templates/compliance/piisa-filler/ (piisa-sample.docx, piisa-sample-word.pdf, PNG pages, README.md).
 // Run: bun scripts/render-piisa-filler-sample.ts
@@ -77,8 +77,8 @@ async function main() {
   if (createHash("sha256").update(bytes).digest("hex") !== T.sha256) throw new Error("Bundled PIISA Word form does not match the recorded official original.");
   const parts = unzipSync(bytes);
   const original = new TextDecoder().decode(parts["word/document.xml"]!);
-  // Decision 336: the A3 lead installer's signature picture in the Part 8 box (made-up sample image).
-  const filledPkg = fillOfficialDocxParts(parts, "piisa", PIISA_SAMPLE, { "p8.signature": { images: [{ bytes: sampleSignaturePng("Daniel Moore A3"), contentType: "image/png", signedOn: "2026-11-12" }] } });
+  // Decision 336: the A5 lead installer's signature picture in the Part 8 box (made-up sample image).
+  const filledPkg = fillOfficialDocxParts(parts, "piisa", PIISA_SAMPLE, { "p8.signature": { images: [{ bytes: sampleSignaturePng("Daniel Moore A5"), contentType: "image/png", signedOn: "2026-11-12" }] } });
   const { xml, filled, missed, notOnForm } = filledPkg;
   if (filledPkg.embedded.length !== 1 || !xml.includes(`r:embed="${filledPkg.embedded[0]!.rId}"`) || !filledPkg.rels.includes(`Id="${filledPkg.embedded[0]!.rId}"`)) throw new Error("The PIISA signature picture is not wired up.");
   const problems = xmlProblems(xml);
@@ -108,7 +108,7 @@ async function main() {
   const out = [
     `# Official PIISA through the fixed Word filler (${T.mappingVersion}, approved) — sample`,
     "",
-    "SAMPLE ONLY: one realistic install, answers keyed exactly as the live A3 path hands them to `renderOfficialDocx` (`piisa-declaration.server`). Made by `bun scripts/render-piisa-filler-sample.ts`; nothing stored or sent; names and numbers made up.",
+    "SAMPLE ONLY: one realistic install, answers keyed exactly as the live A5 path hands them to `renderOfficialDocx` (`piisa-declaration.server`). Made by `bun scripts/render-piisa-filler-sample.ts`; nothing stored or sent; names and numbers made up.",
     "",
     `Form: ${T.title} (${T.publication}), original \`${T.originalFile}\`, SHA-256 \`${T.sha256}\`.`,
     "",
@@ -122,7 +122,7 @@ async function main() {
     "",
     `- Filler: ${filled.length} items placed; not placed: ${missed.length ? missed.map((m) => `\`${m}\``).join(", ") : "none"}; no field on the Word form: ${notOnForm.length ? notOnForm.map((m) => `\`${m}\``).join(", ") : "none"}.`,
     `- Word XML: well-formed (tags balanced, no run nested in a run); xmllint ${lint}.`,
-    `- Decision 336: Part 8 "Signature" box = the A3 lead installer's signature PICTURE (inline image \`${filledPkg.embedded[0]!.part}\`, relationship \`${filledPkg.embedded[0]!.rId}\`) with "${shown["p8.signature"] ?? ""}" under it. Sample picture only (made up).`,
+    `- Decision 336: Part 8 "Signature" box = the A5 lead installer's signature PICTURE (inline image \`${filledPkg.embedded[0]!.part}\`, relationship \`${filledPkg.embedded[0]!.rId}\`) with "${shown["p8.signature"] ?? ""}" under it. Sample picture only (made up).`,
     mismatches.length ? "- Word form vs answers — DIFFERENCES:" : "- Word form vs answers: every box and text field matches the answers.",
     ...mismatches.map((m) => `  - ${m}`),
     `- Printed-rule blockers (\`evaluatePiisa\`): ${ev.blockers.length ? ev.blockers.map((b) => `\`${b.rule}\``).join(", ") : "none"}.`,

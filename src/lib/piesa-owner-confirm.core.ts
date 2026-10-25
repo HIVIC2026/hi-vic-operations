@@ -1,5 +1,5 @@
 // Decision 296 (Jo, 25 Oct 2026: "the owner might not be there"): the owner confirms the PIESA by SECURE LINK, not on the
-// electrician's A4 Mitti form. After the electrician completes the PIESA the owner is asked by email (O71) + text, reminded
+// electrician's A3 Mitti form. After the electrician completes the PIESA the owner is asked by email (O71) + text, reminded
 // on days 1 and 3, and the office is alerted on day 5; the official PIESA owner block (Section 4 / "O": o.tick1–4, o.name,
 // o.date) is filled from that record and NEVER from the Mitti form any more; the install day cannot be booked until the
 // current PIESA is confirmed. A re-done PIESA (a new `initial` or `reassessment` PIESA record — the same kinds that anchor

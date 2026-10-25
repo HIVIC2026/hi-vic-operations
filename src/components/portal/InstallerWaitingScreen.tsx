@@ -1,7 +1,8 @@
 // Decision 378 (Jo 25 Oct 2026): Jobs › Choose installer — our-lead jobs with a saved spot waiting for the office to pick
 // an installer, in ONE table with the Enquiries interaction (281/283/285/286): every heading sorts AND filters from a
 // small popover, one search box, no chip panel. Columns Job · Owner · Suburb (postcode) · Size · Insulation · Estimate ·
-// Waiting since · Coverage, then "Choose installer" (the existing ChooseInstallerPanel, unchanged, in a dialog). On a
+// Waiting since · Coverage, then "Choose installer" (the ChooseInstallerPanel in a dialog; decision 389: its button is
+// Release — the owner confirms first; a pending release shows its status and can't be released again). On a
 // phone each row is a card with the same fields and the same heading buttons sit above the cards. Needs me folds its
 // "Spot saved · waiting for an installer" rows into one link here, so a job is in one Needs me pile only.
 import { useEffect, useState } from "react";
@@ -134,11 +135,13 @@ export function InstallerWaitingScreen() {
                     <span className="text-sub lg:hidden">Size</span><span>{f.size}</span>
                     <span className="text-sub lg:hidden">Insulation</span><span>{f.insulation}</span>
                     <span className="text-sub lg:hidden">Estimate</span><span>{f.estimate}</span>
-                    <span className="text-sub lg:hidden">Waiting since</span><span className="text-sub">{f.waiting}{r.lastOffer && <span className="block text-[11px]">Last offer {r.lastOffer.status === "declined" ? `declined${r.lastOffer.name ? ` by ${r.lastOffer.name}` : ""}` : `lapsed${r.lastOffer.name ? ` (${r.lastOffer.name})` : ""}`}</span>}</span>
+                    <span className="text-sub lg:hidden">Waiting since</span><span className="text-sub">{f.waiting}{r.lastOffer && <span className="block text-[11px]">Last offer {r.lastOffer.status === "declined" ? `declined${r.lastOffer.name ? ` by ${r.lastOffer.name}` : ""}` : `lapsed${r.lastOffer.name ? ` (${r.lastOffer.name})` : ""}`}</span>}{r.release?.line && <span className={cn("block text-[11px] font-semibold", r.release.state === "lapsed" ? "text-danger" : "text-hiv-blue")} data-release={r.release.state}>{r.release.line}</span>}</span>
                     <span className="text-sub lg:hidden">Coverage</span>
                     <span><CoverageBadges c={r.coverage} />{!r.coverage.installer && <span className="mt-1 block text-[11px] font-semibold text-danger">{NO_INSTALLER_NOTE}</span>}</span>
                     <span className="col-span-2 mt-1 lg:col-span-1 lg:mt-0">
-                      <button type="button" className={cn(btn, "w-full lg:w-auto", r.coverage.installer ? "bg-hiv-green text-white" : "border border-danger/50 bg-paper text-danger")} onClick={() => setChoosing(r)} title={r.coverage.installer ? undefined : NO_INSTALLER_NOTE}>Choose installer</button>
+                      {r.release && !r.release.releasable
+                        ? <button type="button" disabled className={cn(btn, "w-full border border-line bg-paper text-sub lg:w-auto")} title={r.release.line ?? undefined}>Released</button>
+                        : <button type="button" className={cn(btn, "w-full lg:w-auto", r.coverage.installer ? "bg-hiv-green text-white" : "border border-danger/50 bg-paper text-danger")} onClick={() => setChoosing(r)} title={r.coverage.installer ? undefined : NO_INSTALLER_NOTE}>Choose installer</button>}
                     </span>
                   </li>
                 );

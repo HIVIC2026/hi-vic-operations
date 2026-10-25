@@ -46,17 +46,17 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
       mittiForm: !!a.external_mitti_id,
       completed: a.mitti_completed === true,
       evidence: a.external_mitti_id ? piesaEvidenceBlockersFromSnapshot(a.mitti_raw_snapshot, (e) => shortAnswersFromEntries("piesa", e)) : [],
-      // Decision 355: the sync that saw the A4 Complete with its evidence stamps mitti_synced_at.
+      // Decision 355: the sync that saw the A3 Complete with its evidence stamps mitti_synced_at.
       completedAt: a.mitti_completed === true ? a.mitti_synced_at ?? a.mitti_modified_at ?? null : null,
     } : null;
     const jobFixEv = fixEv.filter((e) => e.job_id === id);
     const fo = fixesFormOutcome(jobFixEv);
     const fixesDoneAt = fo.outcome === "done" ? jobFixEv.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT && (e.details as { audit_id?: string } | null)?.audit_id === fo.auditId)?.created_at ?? null : null;
-    // Fixes done on the same visit are recorded on the A4 (q30 Yes): no A5 form exists, the A4 rule applies.
+    // Fixes done on the same visit are recorded on the A3 (q30 Yes): no A4 form exists, the A3 rule applies.
     const sameVisitOnPiesa = !fo.auditId && entries.length > 0 && !fixesFormNeeded(shortAnswersFromEntries("piesa", entries));
     const summary = ieEv.find((e) => e.job_id === id)?.details?.summary ?? null;
     const declared = decl.some((d) => d.job_id === id);
-    // No signed A3 and no evidence read yet: the "not marked Complete" reason already holds it — skip the date lookup.
+    // No signed A5 and no evidence read yet: the "not marked Complete" reason already holds it — skip the date lookup.
     const installDate = !declared && !summary ? null : summary?.installDate ?? await installStartDate(id).catch(() => null);
     out.set(id, {
       piesa,

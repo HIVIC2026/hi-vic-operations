@@ -83,6 +83,8 @@ import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
+import { renderSpotReleasedEmail } from "./spot-release-email.core";
+import { spotReleasedText } from "./spot-release.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -211,13 +213,13 @@ const ENTRY = (e: Omit<TemplateEntry, "approval" | "approvalNote"> & { approval?
 
 const OWNER: TemplateEntry[] = [
   // Enquiry
-  ENTRY({ id: "owner:O1", section: "owner", step: "enquiry", kind: "email", code: "O1", name: "Save my spot (no existing insulation)", when: "Estimate sent: eligible, no existing insulation (Jo T1/T2)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69", gate: { kind: "email" },
+  ENTRY({ id: "owner:O1", section: "owner", step: "enquiry", kind: "email", code: "O1", name: "Save my spot (no existing insulation)", when: "Estimate sent: eligible, no existing insulation (Jo T1/T2)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69; HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
     source: { builder: "src/lib/jo-outcome-email.core.ts", fn: "renderJoOutcomeEmail", sender: "src/lib/followups.server.ts" }, design: "docs/templates/owner/O1-save-my-spot.html",
     render: () => jo({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, recipient: HELEN, figures: FIG, links: LINKS }) }),
-  ENTRY({ id: "owner:O2-some", section: "owner", step: "enquiry", kind: "email", code: "O2", name: "Save my spot (some insulation)", when: "Estimate sent: existing insulation below R2 reviewed, or declared thin/patchy (T3/T4)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69", gate: { kind: "email" },
+  ENTRY({ id: "owner:O2-some", section: "owner", step: "enquiry", kind: "email", code: "O2", name: "Save my spot (some insulation)", when: "Estimate sent: existing insulation below R2 reviewed, or declared thin/patchy (T3/T4)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69; HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
     source: { builder: "src/lib/jo-outcome-email.core.ts", fn: "renderJoOutcomeEmail", sender: "src/lib/hot-leads-send.server.ts" }, design: "docs/templates/owner/O2-save-my-spot-some-insulation.html",
     render: () => jo({ outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, declaredThinPatchy: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS }) }),
-  ENTRY({ id: "owner:O2-questions", section: "owner", step: "enquiry", kind: "email", code: "O2", name: "Save my spot: answer 3 questions", when: "Estimate sent: existing insulation not confirmed yet (T5/T6); also the one-off 3 questions reminder", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69, 172", gate: { kind: "email" },
+  ENTRY({ id: "owner:O2-questions", section: "owner", step: "enquiry", kind: "email", code: "O2", name: "Save my spot: answer 3 questions", when: "Estimate sent: existing insulation not confirmed yet (T5/T6); also the one-off 3 questions reminder", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 66–69, 172; HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
     source: { builder: "src/lib/jo-outcome-email.core.ts", fn: "renderJoOutcomeEmail", sender: "src/lib/three-questions-reminder.server.ts" }, design: "docs/templates/owner/O2-save-my-spot-questions.html",
     render: () => jo({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, insulationQuestions: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS }) }),
   ENTRY({ id: "owner:O6", section: "owner", step: "enquiry", kind: "email", code: "O6", name: "Not eligible", when: "Eligibility result: does not appear eligible (T7)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 73", gate: { kind: "email" },
@@ -230,10 +232,10 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/followup-email.ts", fn: "renderFollowupEmail", sender: "src/lib/followups.server.ts" },
     render: () => email(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: EST })) }),
   ...([["day_2", "O66", "Estimate reminder (day 2)", "O66-estimate-reminder-day-2.html"], ["day_7", "O67", "Estimate reminder (day 7)", "O67-estimate-reminder-day-7.html"], ["day_21", "O68", "Estimate closing (day 21)", "O68-estimate-closing-day-21.html"]] as const).map(([step, code, name, file]) =>
-    ENTRY({ id: `owner:${code}`, section: "owner", step: "enquiry", kind: "email", code, name, when: `${step.replace("day_", "Day ")} after the estimate email, until the spot is saved, they reply or opt out (closes a week after day 21)`, who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 242 (reconfirmed 357)", gate: { kind: "email" },
+    ENTRY({ id: `owner:${code}`, section: "owner", step: "enquiry", kind: "email", code, name, when: `${step.replace("day_", "Day ")} after the estimate email, until the spot is saved, they reply or opt out (closes a week after day 21)`, who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 242 (reconfirmed 357); HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
       source: { builder: "src/lib/estimate-followup.core.ts", fn: "renderEstimateFollowupEmail", sender: "src/lib/estimate-followup.server.ts" }, design: `docs/templates/owner/${file}`,
       render: () => email(renderEstimateFollowupEmail({ step, firstName: "Helen", rebate: 1610, price: 2188, fullPrice: 3798, basis: "Based on what you told us: 137 m² ceiling, no existing insulation.", saveUrl: `${EST}/campaign`, calculatorUrl: `${EST}/calculator`, unsubscribeUrl: UNSUB })) })),
-  ENTRY({ id: "owner:sms-save_spot_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "Save my spot reminder (one-off)", when: "Office one-off reminder to owners who have an estimate but no saved spot", who: "Owner", approvalNote: "Jo (one-off blast wording)", gate: { kind: "text", smsType: "save_spot_reminder" },
+  ENTRY({ id: "owner:sms-save_spot_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "Save my spot reminder (one-off)", when: "Office one-off reminder to owners who have an estimate but no saved spot", who: "Owner", approvalNote: "Jo (one-off blast wording); HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "text", smsType: "save_spot_reminder" },
     source: { builder: "src/lib/save-spot-reminder-blast.core.ts", fn: "blastMessage", sender: "src/lib/save-spot-reminder-blast.server.ts" },
     render: () => text(blastMessage("Helen", 2188, 1610, `${EST}/campaign`)) }),
   ENTRY({ id: "owner:sms-three_questions_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "3 questions reminder (one-off)", when: "Office one-off reminder (pre-23-Oct enquiries); the email is O2 questions", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 172", gate: { kind: "text", smsType: "three_questions_reminder" },
@@ -242,10 +244,10 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O70", section: "owner", step: "enquiry", kind: "email", code: "O70", name: "New sender → calculator reply", when: "Someone with no job emails an enquiry or price question: ONE reply pointing to the calculator", who: "New email sender", approvalNote: "Jo 25 Oct 2026, decisions 292, 356", gate: { kind: "email" },
     source: { builder: "src/lib/new-sender-reply-email.core.ts", fn: "renderNewSenderReplyEmail", sender: "src/lib/new-sender-reply.server.ts" }, design: "docs/templates/owner/O70-new-sender-calculator.html",
     render: () => email(renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" })) }),
-  ENTRY({ id: "owner:O10", section: "owner", step: "enquiry", kind: "email", code: "O10", name: "Spot saved", when: "The owner saves their spot", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 70", gate: { kind: "email", switchKey: "spot_saved_email" },
+  ENTRY({ id: "owner:O10", section: "owner", step: "enquiry", kind: "email", code: "O10", name: "Spot saved", when: "The owner saves their spot", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 70; reworded spot-only by decision 388 (no flag: changed directly)", gate: { kind: "email", switchKey: "spot_saved_email" },
     source: { builder: "src/lib/spot-saved-messages.core.ts", fn: "renderSpotSavedEmail", sender: "src/lib/spot-saved-send.server.ts" }, design: "docs/templates/owner/O10-spot-saved.html",
     render: () => email(renderSpotSavedEmail({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: SHORT_ADDRESS, myJobUrl: JOB, optOutUrl: UNSUB, referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=TEST", estimate: { gross: 3798, customer: 2188, areaM2: 137, address: ADDRESS, calculatorUrl: `${EST}/calculator` } })) }),
-  ENTRY({ id: "owner:sms-spot_saved", section: "owner", step: "enquiry", kind: "text", code: "", name: "Spot saved (text)", when: "The owner saves their spot", who: "Owner", approvalNote: "Jo, decision 159", gate: { kind: "text", smsType: "spot_saved" },
+  ENTRY({ id: "owner:sms-spot_saved", section: "owner", step: "enquiry", kind: "text", code: "", name: "Spot saved (text)", when: "The owner saves their spot", who: "Owner", approvalNote: "Jo, decision 159; HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "text", smsType: "spot_saved" },
     source: { builder: "src/lib/spot-saved-messages.core.ts", fn: "renderSpotSavedSms", sender: "src/lib/spot-saved-send.server.ts" },
     render: () => text(renderSpotSavedSms({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: SHORT_ADDRESS, myJobUrl: JOB, optOutUrl: UNSUB })) }),
   // Ready Check
@@ -319,10 +321,10 @@ const OWNER: TemplateEntry[] = [
       { label: "10 days left", body: ownerInstallWindowText({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: JOB, firstName: "Helen", installerName: "Sample Insulation Co" }) },
     ]) }),
   // Fixes
-  ENTRY({ id: "owner:O29", section: "owner", step: "fixes", kind: "email", code: "O29", name: "Your electrical fixes quote", when: "The safety check finds repair work: fixes quote released (automatically when priced on the A4, decision 354)", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "owner:O29", section: "owner", step: "fixes", kind: "email", code: "O29", name: "Your electrical fixes quote", when: "The safety check finds repair work: fixes quote released (automatically when priced on the A3, decision 354)", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/rectification-quote-email.core.ts", fn: "renderFixesQuoteEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/owner/O29-fixes-quote.html",
     render: () => email(renderFixesQuoteEmail({ firstName: "Helen", electricianName: "Spark Electrical", checkedOn: "Thursday 5 November", found: ["4 old downlights that can't be covered by insulation", "One ceiling cable joint that isn't enclosed"], lines: [{ description: "Replace 4 downlights with IC-rated LEDs", detail: "4 × $120.00, supplied and installed", lineTotalIncGst: 480 }, { description: "Enclose cable joint in a junction box", detail: "Labour and parts", lineTotalIncGst: 200 }], totalIncGst: 680, expiresOn: "5 December", approveUrl: `${JOB}?screen=fixes` })) }),
-  ENTRY({ id: "owner:fixes-confirm", section: "owner", step: "fixes", kind: "email", code: "", name: "Please confirm your electrical fixes", when: "The electrician completes the A5 fixes form; reminders days 1 and 3", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 330", gate: { kind: "email" },
+  ENTRY({ id: "owner:fixes-confirm", section: "owner", step: "fixes", kind: "email", code: "", name: "Please confirm your electrical fixes", when: "The electrician completes the A4 fixes form; reminders days 1 and 3", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 330", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-fixes-confirm-email.core.ts", fn: "renderPiesaFixesConfirmEmail", sender: "src/lib/piesa-fixes-confirm-send.server.ts" },
     render: () => email(renderPiesaFixesConfirmEmail({ firstName: "Helen", fixesDate: "9 November 2026", electricianLine: "Sam Spark (Spark Electrical Pty Ltd)", confirmUrl: JOB, unsubscribeUrl: UNSUB })) }),
   ENTRY({ id: "owner:sms-piesa_owner_fixes_confirm", section: "owner", step: "fixes", kind: "text", code: "", name: "Confirm your electrical fixes (text)", when: "With the fixes confirmation email and its reminders", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 330", gate: { kind: "text", smsType: "piesa_owner_fixes_confirm" },
@@ -425,6 +427,13 @@ const OWNER: TemplateEntry[] = [
     ENTRY({ id: `owner:paperwork:${d.key}`, section: "owner", step: "quote", kind: "paperwork", code: "", name: `Paperwork: ${d.title}`, when: d.signer === "office" ? "Gate B (before the install is booked) — the office records it" : "Gate B: signed or ticked by the owner on My job before the install is booked", who: d.signer === "office" ? "Office records (owner's landlord)" : "Owner", approvalNote: d.approvalNote ?? `Version ${d.version}: approval stored in Settings › Owner paperwork`, gate: { kind: "always" },
       source: { builder: "src/lib/owner-gates.core.ts", fn: "GATE_DOCS", sender: "src/lib/owner-gates.server.ts" }, paperworkKey: d.key,
       render: () => ({ kind: "doc", title: `${d.title} — ${d.version}`, body: `${d.key === "payment_terms" ? paymentTermsText(paymentTermsMoney({ quoteTotalCents: 220000, safetyCheckCents: 34900, installDepositCents: 18510, balanceCents: 166590 })) : fillTemplate(d.body, SAMPLE_VARS)}\n\n[ ] ${d.tick}`, note: "Sample values filled in. The tick label is what the owner presses." }) })),
+  // Decision 389: Jo releases a saved spot → "It's your turn" to the owner (email + text, day-2 reminder). Approved by Jo 25 Oct 2026.
+  ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
+    source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/owner/O77-spot-released.html",
+    render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
+    source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
+    render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */
@@ -531,13 +540,13 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-electrician_cant_attend_installer", section: "installer", step: "install", kind: "text", code: "", name: "Electrician can't make the install day (text)", when: "The electrician who must be there at the start says they can't make it", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_cant_attend_installer" },
     source: { builder: "src/lib/install-attendance.core.ts", fn: "installerCantAttendText", sender: "src/lib/install-attendance.server.ts" },
     render: () => text(installerCantAttendText({ wasStartIso: INSTALL_ISO, reason: "Another job that day", days: ["2026-11-12", "2026-11-16"] })) }),
-  ENTRY({ id: "installer:sms-install_day_form_result", section: "installer", step: "install", kind: "text", code: "", name: "Install day form checked (text)", when: "The A3 Install day form is marked Complete", who: "Lead installer", approvalNote: "Jo 25 Oct 2026, decision 328", gate: { kind: "text", smsType: "install_day_form_result" },
+  ENTRY({ id: "installer:sms-install_day_form_result", section: "installer", step: "install", kind: "text", code: "", name: "Install day form checked (text)", when: "The A5 Install day form is marked Complete", who: "Lead installer", approvalNote: "Jo 25 Oct 2026, decision 328", gate: { kind: "text", smsType: "install_day_form_result" },
     source: { builder: "src/lib/install-day-confirm.core.ts", fn: "installDayResultText", sender: "src/lib/install-day-confirm.server.ts" },
     render: () => texts([
       { label: "All filled in", body: installDayResultText({ state: "all_filled_in", missing: [] }, { jobNumber: "HV-TEST", address: SHORT_ADDRESS }) },
       { label: "Not finished", body: installDayResultText({ state: "not_finished", missing: ["After video of ceiling area 2", "Depth photo of ceiling area 2"] }, { jobNumber: "HV-TEST", address: SHORT_ADDRESS }) },
     ]) }),
-  ENTRY({ id: "installer:sms-install_day_form_reminder", section: "installer", step: "install", kind: "text", code: "", name: "Install day form not complete at 5pm (text)", when: "5pm on the install day with the A3 still not Complete", who: "Lead installer", approvalNote: "Jo 25 Oct 2026, decision 328", gate: { kind: "text", smsType: "install_day_form_reminder" },
+  ENTRY({ id: "installer:sms-install_day_form_reminder", section: "installer", step: "install", kind: "text", code: "", name: "Install day form not complete at 5pm (text)", when: "5pm on the install day with the A5 still not Complete", who: "Lead installer", approvalNote: "Jo 25 Oct 2026, decision 328", gate: { kind: "text", smsType: "install_day_form_reminder" },
     source: { builder: "src/lib/install-day-confirm.core.ts", fn: "installDayReminderText", sender: "src/lib/install-day-confirm.server.ts" },
     render: () => text(installDayReminderText({ jobNumber: "HV-TEST" })) }),
   ENTRY({ id: "installer:sms-owner_changed_visit", section: "installer", step: "any", kind: "text", code: "", name: "Owner changed the booked visit (text)", when: "The owner changes a booked Ready Check or install day on My job", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 337", gate: { kind: "text", smsType: "owner_changed_visit" },
@@ -576,10 +585,10 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:piesa-copy", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Your safety check for the property (PIESA copy)", when: "The official PIESA is filed (again after fixes)", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 317", gate: { kind: "email" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "renderElectricianPiesaEmail", sender: "src/lib/electrician-piesa-copy.server.ts" },
     render: () => email(renderElectricianPiesaEmail({ address: SHORT_ADDRESS, jobNumber: "HV-TEST", version: "initial" })) }),
-  ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A4 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
+  ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A3 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
     source: { builder: "src/lib/fixes-times.core.ts", fn: "fixesTimesLinkText", sender: "src/lib/fixes-times-link.server.ts" },
     render: () => text(fixesTimesLinkText({ address: SHORT_ADDRESS, link: FIELD })) }),
-  ENTRY({ id: "electrician:sms-electrician_install_attendance", section: "electrician", step: "install", kind: "text", code: "", name: "Be there at the start of the install (text)", when: "Install day booked when the A4 says the electrician must be on site at the start; 24h reminder", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_install_attendance" },
+  ENTRY({ id: "electrician:sms-electrician_install_attendance", section: "electrician", step: "install", kind: "text", code: "", name: "Be there at the start of the install (text)", when: "Install day booked when the A3 says the electrician must be on site at the start; 24h reminder", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_install_attendance" },
     source: { builder: "src/lib/install-attendance.core.ts", fn: "attendanceSmsText", sender: "src/lib/install-attendance.server.ts" },
     render: () => texts([
       { label: "Request", body: attendanceSmsText({ address: SHORT_ADDRESS, startIso: INSTALL_ISO, link: FIELD }) },
@@ -615,13 +624,13 @@ const MITTI: TemplateEntry[] = [
   ENTRY({ id: "mitti:A2", section: "mitti", step: "ready_check", kind: "form", code: "A2", name: "Ready Check — our lead", when: "Free Ready Check on a Home Insulation Victoria lead (evidence only, no pricing)", who: "Installer", approvalNote: "Jo 23–25 Oct 2026, decisions 359/374", gate: { kind: "always" },
     source: { builder: "src/lib/mitti-forms.core.ts", fn: "FORMS", sender: "src/lib/mitti.server.ts" },
     render: () => ({ kind: "questions", title: FORMS.ready_check.title, record: "docs/MITTI_READY_CHECK_ONE_PROMPT.md · published copy tests/fixtures/mitti-ready-check/a2-published-r13.json", groups: fieldsGroups(FORMS.ready_check.fields) }) }),
-  ENTRY({ id: "mitti:A4", section: "mitti", step: "safety_check", kind: "form", code: "A4", name: "Electrical safety check (PIESA)", when: "The licensed electrician's visit; the portal fills the official DEECA PIESA from it", who: "Electrician", approvalNote: "Decision 350 (mapping approved)", gate: { kind: "always" },
+  ENTRY({ id: "mitti:A3", section: "mitti", step: "safety_check", kind: "form", code: "A3", name: "Electrical safety check (PIESA)", when: "The licensed electrician's visit; the portal fills the official DEECA PIESA from it", who: "Electrician", approvalNote: "Decision 350 (mapping approved)", gate: { kind: "always" },
     source: { builder: "src/lib/mitti-forms.core.ts", fn: "FORMS", sender: "src/lib/mitti.server.ts" },
     render: () => ({ kind: "questions", title: FORMS.piesa.title, record: "docs/MITTI_PIESA_BUILD_PROMPT.md", groups: fieldsGroups(FORMS.piesa.fields) }) }),
-  ENTRY({ id: "mitti:A5", section: "mitti", step: "fixes", kind: "form", code: "A5", name: FIXES_DAY_TEMPLATE_NAME, when: "Booking a later fixes visit creates it for the electrician", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 293", gate: { kind: "always" },
+  ENTRY({ id: "mitti:A4", section: "mitti", step: "fixes", kind: "form", code: "A4", name: FIXES_DAY_TEMPLATE_NAME, when: "Booking a later fixes visit creates it for the electrician", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 293", gate: { kind: "always" },
     source: { builder: "src/lib/fixes-day.core.ts", fn: "FIXES_DAY_QUESTIONS", sender: "src/lib/fixes-day.server.ts" },
     render: () => ({ kind: "questions", title: FIXES_DAY_TEMPLATE_NAME, record: "docs/MITTI_FIXES_FORM_PROMPT.md (drift test tests/fixes-day.test.ts)", groups: numbered(FIXES_DAY_QUESTIONS) }) }),
-  ENTRY({ id: "mitti:A3", section: "mitti", step: "install", kind: "form", code: "A3", name: INSTALL_DAY_TEMPLATE_NAME, when: "Install day; the portal fills the official DEECA PIISA from it", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decisions 260–266", gate: { kind: "always" },
+  ENTRY({ id: "mitti:A5", section: "mitti", step: "install", kind: "form", code: "A5", name: INSTALL_DAY_TEMPLATE_NAME, when: "Install day; the portal fills the official DEECA PIISA from it", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decisions 260–266", gate: { kind: "always" },
     source: { builder: "src/lib/install-day.core.ts", fn: "INSTALL_DAY_QUESTIONS", sender: "src/lib/mitti.server.ts" },
     render: () => ({ kind: "questions", title: INSTALL_DAY_TEMPLATE_NAME, record: "docs/MITTI_INSTALL_FORM_FIX_PROMPT.md (drift test tests/install-day.test.ts) · published copy tests/fixtures/a3-published-2026-10-25-read-first.json", groups: numbered(INSTALL_DAY_QUESTIONS) }) }),
 ];
@@ -638,7 +647,7 @@ function consentSample(): string {
 }
 
 const COMPLIANCE: TemplateEntry[] = [
-  ENTRY({ id: "compliance:piesa", section: "compliance", step: "safety_check", kind: "document", code: "", name: "Official PIESA (DEECA, March 2026)", when: "Filled from the A4 by the portal; copies to owner (O28), installer and electrician", who: "Owner, installer, electrician", approvalNote: "Decision 350 (piesa-map-2.0.0 approved)", gate: { kind: "always" },
+  ENTRY({ id: "compliance:piesa", section: "compliance", step: "safety_check", kind: "document", code: "", name: "Official PIESA (DEECA, March 2026)", when: "Filled from the A3 by the portal; copies to owner (O28), installer and electrician", who: "Owner, installer, electrician", approvalNote: "Decision 350 (piesa-map-2.0.0 approved)", gate: { kind: "always" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "officialPiesaPdfText", sender: "src/lib/official-piesa-pdf.server.ts" },
     render: () => ({ kind: "files", items: [
       { label: "Filled sample (Word form printed)", path: "docs/templates/compliance/piesa-mapping/case-1-all-clear-word.pdf", note: "Made by scripts/render-piesa-mapping-samples.ts with the live filler" },
@@ -646,7 +655,7 @@ const COMPLIANCE: TemplateEntry[] = [
       { label: "PDF attached to the electrician's email", path: "docs/templates/compliance/piesa-mapping/case-1-all-clear.pdf", note: "officialPiesaPdfText" },
       { label: "Blank official form", path: "docs/official-forms/VEU-pre-installation-electrical-safety-assessment-form_1.docx", note: "Original DEECA Word file" },
     ] }) }),
-  ENTRY({ id: "compliance:piisa", section: "compliance", step: "install", kind: "document", code: "", name: "Official PIISA (DEECA, March 2026)", when: "Filled from the A3 Install day form by the portal", who: "Lead installer (filed on the job)", approvalNote: "piisa-map-2.0.0 approved", gate: { kind: "always" },
+  ENTRY({ id: "compliance:piisa", section: "compliance", step: "install", kind: "document", code: "", name: "Official PIISA (DEECA, March 2026)", when: "Filled from the A5 Install day form by the portal", who: "Lead installer (filed on the job)", approvalNote: "piisa-map-2.0.0 approved", gate: { kind: "always" },
     source: { builder: "src/lib/official-docx.server.ts", fn: "renderOfficialDocx", sender: "src/lib/piisa-declaration.server.ts" },
     render: () => ({ kind: "files", items: [
       { label: "Filled sample (Word form printed)", path: "docs/templates/compliance/piisa-filler/piisa-sample-word.pdf", note: "Made by scripts/render-piisa-filler-sample.ts with the live filler" },

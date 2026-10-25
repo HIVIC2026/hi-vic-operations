@@ -1,11 +1,11 @@
-// Jo's published "A4 – Electrical safety check (PIESA)" (25 Oct 2026, modified 02:06 UTC) validates against the portal
+// Jo's published "A3 – Electrical safety check (PIESA)" (25 Oct 2026, modified 02:06 UTC) validates against the portal
 // contract: decisions 294–298 (life support direct, appliance block, repair Yes/No, photos with their questions, no owner
 // page, no after-repair page). The fixture is the definition as Mitti returned it.
 // Decisions 305/308/312/323/324 (Jo 25 Oct 2026) changed the form AFTER this template was published: on the Repair work page
 // ONE list — the ticks of what the electrician will do (with the downlight / RCD counts and Other), then his one total price
 // LAST (decision 324, which also retired "Please tick the repair work that is required." / "Please describe the other repair
 // work.": the official B2 ticks are derived from the plain list); and on the Job page the no-price-talk tick, on every job
-// (decision 323 deleted "Whose customer is this?"). Until Jo republishes A4, the published fixture reports EXACTLY the new
+// (decision 323 deleted "Whose customer is this?"). Until Jo republishes A3, the published fixture reports EXACTLY the new
 // questions as missing — nothing else. The retired questions still on the published form (309's "Can the repair work be
 // done before installation?", 324's two official-tick questions) are legacy: never reported, their answers still read.
 // Decision 336 (Jo 25 Oct 2026): the hazard block asks type / what / where / photo / safe / problem / action (the decision-295
@@ -62,7 +62,7 @@ function republished() {
   return d;
 }
 
-describe("published A4 PIESA", () => {
+describe("published A3 PIESA", () => {
   test("validateTemplate and the saved-form health check report only the new 305/308/323/324 questions (republish needed)", () => {
     expect(validateTemplate("piesa", flattenDefinition(def)).issues).toEqual(NOT_YET_PUBLISHED);
     expect((validateSavedDefinition("piesa" as never, def) as { issues: string[] }).issues).toEqual(NOT_YET_PUBLISHED);

@@ -397,7 +397,7 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
         expect(m.plainText).toContain("Based on what you told us: 118 m² ceiling");
         expect(m.plainText).not.toContain("150 m²");
       } else {
-        expect(m.plainText).toContain("Based on a typical 150 m² ceiling (estimated, not measured)");
+        expect(m.plainText).toContain("Based on a typical 150 m² ceiling (an estimate, not your actual size)");
         expect(m.plainText).not.toContain("Based on what you told us");
       }
       expect(shellOf(m.html)).toBe(shellOf(t1.html));

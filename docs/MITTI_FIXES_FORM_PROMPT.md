@@ -16,8 +16,8 @@ connected software system reads every answer by its question text. Do not reword
 any question. If Mitti does not offer an answer type I name, tell me the closest Mitti type and ask me before
 substituting.
 
-**Template name:** `A5 – Electrical fixes`
-Build it as a NEW template. The existing "A4 – Electrical safety check (PIESA)" template is not changed.
+**Template name:** `A4 – Electrical fixes`
+Build it as a NEW template. The existing "A3 – Electrical safety check (PIESA)" template is not changed.
 
 **Inspection title:** Job number + Address (Q1 and Q2).
 **Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for Q14.
@@ -56,5 +56,5 @@ Q14: `Photo of the finished work at the switchboard / in the ceiling` — Photo,
 Q15: `Electrician signature` — Signature — Required
 
 Publish, then send me the **template ID**. It's in the Mitti web address when the template is open, or under the
-template's settings. I'll connect it in the portal (Compliance → Mitti forms → A5) and check it before any electrician
+template's settings. I'll connect it in the portal (Compliance → Mitti forms → A4) and check it before any electrician
 gets one.

@@ -44,7 +44,7 @@ describe("decision 372: the Final check list", () => {
     expect(keys({ ...ok, piesa: null })).toEqual(["piesa"]);
   });
 
-  test("fixes: needed → A5/CoES record and the owner's fixes confirmation; same-visit fixes pass", () => {
+  test("fixes: needed → A4/CoES record and the owner's fixes confirmation; same-visit fixes pass", () => {
     const failed = { ...ok, piesa: { ...ok.piesa!, outcome: "fail" } };
     expect(keys({ ...failed, fixes: { needed: true, sameVisit: false, postFixes: null } })).toEqual(["fixes"]);
     const noOwner = finalCheckList({ ...failed, fixes: { needed: true, sameVisit: false, postFixes: { completedDate: "2026-10-12", ownerConfirmed: false } } });

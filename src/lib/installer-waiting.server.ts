@@ -89,6 +89,9 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }): 
   const websiteTotal = new Map<string, number | null>();
   for (const e of estimates) { const k = String(e["job_id"]); if (!websiteTotal.has(k)) websiteTotal.set(k, savedPriceFromEstimate(e as never)?.total ?? null); }
   const covered = coverageLookup(partners, new Date(now));
+  // Decision 389: each job's release state (batched by job id).
+  const releases = ids.length ? await (await import("./spot-release.server")).spotReleaseStates(ids) : new Map();
+  const { releaseStatusLine, releasable } = await import("./spot-release.core");
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
 
@@ -112,6 +115,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }): 
       spotSavedAt, waitingFrom: spotSavedAt ?? String(j["created_at"]),
       coverage: covered(postcode || null, isTest),
       lastOffer: member.lastOffer, isTest,
+      ...(() => { const r = releases.get(id); return r ? { release: { state: r.state, line: releaseStatusLine(r, now), releasable: releasable(r) } } : {}; })(),
     });
   }
   return { now, rows };

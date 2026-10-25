@@ -1,5 +1,7 @@
 # Mitti templates audit — 24 Oct 2026
 
+> **Form numbers (decision 390, 25 Oct 2026):** this dated audit uses the numbering of the time. Today A3 = Electrical safety check (PIESA), A4 = Electrical fixes, A5 = Install day; this audit's form "A3" is today's A5. Audit item IDs such as A3-1 are unchanged.
+
 Ordered by Jo with decision 206. Read-only audit of the four Mitti templates against what the portal reads and what the regulator records require. No code was changed.
 
 ## 1. Scope, sources and limits

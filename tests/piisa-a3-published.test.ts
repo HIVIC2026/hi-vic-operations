@@ -18,7 +18,7 @@ const typed = [...byId.values()].filter(({ node }) => TYPES.some((t) => t in nod
 const opts = (n: Node) => ((n[TYPES.find((t) => t in n)!] as { options?: { is_mandatory?: boolean; weighting?: number | null } })?.options ?? {});
 const conditional = (p: Node[]) => p.some((x) => "logicfield" in x);
 
-describe("published A3 definition (live read-only GET)", () => {
+describe("published A5 definition (live read-only GET)", () => {
   test("every mapped field and media item is present: zero missing", () => {
     expect(a3MissingFields(published)).toEqual([]);
   });

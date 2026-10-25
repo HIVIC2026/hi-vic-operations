@@ -50,7 +50,7 @@ async function installBooking(jobId: string) {
   const { data } = await admin.from("bookings").select("scheduled_start, scheduled_end, status").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: true }).limit(1).maybeSingle();
   return data ?? null;
 }
-/** Installation start date: the confirmed installation booking, else the A3 form's start date, else the completion record. */
+/** Installation start date: the confirmed installation booking, else the A5 form's start date, else the completion record. */
 export async function installStartDate(jobId: string, a3StartDate?: string | null): Promise<string | null> {
   const b = await installBooking(jobId);
   if (b?.scheduled_start) return melbourneDateOf(b.scheduled_start);

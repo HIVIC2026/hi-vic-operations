@@ -1,8 +1,8 @@
 // Decision 336 (Jo 25 Oct 2026): A) the electrician's / lead installer's ACTUAL Mitti signature images in the official Word
 // forms (inline picture parts, relationships, content types; "Signed in Mitti on DD/MM/YYYY"), typed-name fallback + flag;
-// B) exact A4 hazard rows (type / what / where / problem / action) mapped row by row into PIESA Part 7.
+// B) exact A3 hazard rows (type / what / where / problem / action) mapped row by row into PIESA Part 7.
 // Decision 338: "Does an electrician need to be on site at the start of the install?" replaces the on-site tick (old tick still
-// read), the tick list is not Required, both empty = one flag; the A3 Install day Q29 prefill follows the new question.
+// read), the tick list is not Required, both empty = one flag; the A5 Install day Q29 prefill follows the new question.
 import { describe, expect, test } from "bun:test";
 import { unzipSync } from "fflate";
 import piesaDocx from "../src/lib/official-docx-piesa.data";
@@ -43,7 +43,7 @@ describe("decision 336 A: signature pictures in the official Word forms", () => 
     expect(imagePixelSize(new TextEncoder().encode("not an image"))).toBeNull();
   });
 
-  test("PIESA: B3 (A4) and Section C (A5) pictures — parts present, relationships referenced, content types, XML well-formed", () => {
+  test("PIESA: B3 (A3) and Section C (A4) pictures — parts present, relationships referenced, content types, XML well-formed", () => {
     const answers = { "b3.name": "Sam Spark", "b3.declaration": true, "c.signature": electronicSignature("Sam Spark", "2026-11-03") };
     const r = fillOfficialDocxParts(PIESA, "piesa", answers, {
       "b3.signature": { images: [{ bytes: PNG, contentType: "image/png", signedOn: "2026-10-28" }] },
@@ -96,7 +96,7 @@ describe("decision 336 A: signature pictures in the official Word forms", () => 
     expect(xmlProblems(r.xml)).toEqual([]);
   });
 
-  test("PIISA: the A3 lead installer picture in the Part 8 box", () => {
+  test("PIISA: the A5 lead installer picture in the Part 8 box", () => {
     const r = fillOfficialDocxParts(PIISA, "piisa", { "p8.name": "Daniel Moore", "p8.date": "2026-11-12", "p8.signature": electronicSignature("Daniel Moore", "2026-11-12") }, { "p8.signature": { images: [{ bytes: PNG, contentType: "image/png", signedOn: "2026-11-12" }] } });
     expect(xmlProblems(r.xml)).toEqual([]);
     expect(r.embedded.map((e) => e.slot)).toEqual(["p8.signature"]);
@@ -128,7 +128,7 @@ const hazardEntries = [
 ];
 
 describe("decision 336 B: exact hazard rows → Part 7", () => {
-  test("the A4 wording, in order, as given to Jo", () => {
+  test("the A3 wording, in order, as given to Jo", () => {
     expect(APPLIANCE_PRESENT_LABEL).toBe("Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?");
     expect(Object.values(APPLIANCE_Q)).toEqual(["What type is it?", "What is it?", "Where is it?", "Photo of it", "Can insulation be safely installed around it as it is?", "What is the problem?", "What needs to be done to make it safe?"]);
     const f = (id: string) => SHORT_PIESA_FIELDS.find((x) => x.id === id)!;
@@ -162,7 +162,7 @@ describe("decision 336 B: exact hazard rows → Part 7", () => {
     expect(answers["p7.otherAction#0"]).toBe("Replace the joist");
     expect(answers["p7.effective"]).toBeUndefined();
     expect(flagged.some((f) => f.includes("effective"))).toBe(true);
-    // Once the repair work is recorded complete (A5), "effective" = Yes and Part 7 passes the printed rules.
+    // Once the repair work is recorded complete (A4), "effective" = Yes and Part 7 passes the printed rules.
     const done = expandPiesa({ ...shortAnswersFromEntries("piesa", hazardEntries), rectificationComplete: "Yes" }, ctx).answers;
     expect(done["p7.effective"]).toBe("Yes");
     expect(evaluatePiesa(done).blockers.filter((b) => b.rule.startsWith("P7"))).toEqual([]);
@@ -234,14 +234,14 @@ describe("decision 338: on site at the start is its own question", () => {
     expect(flagged).toContain(`Electrical fixes: ${NO_REPAIR_WORK_FLAG}.`);
     expect(NO_REPAIR_WORK_FLAG).toBe("No repair work ticked and no on-site attendance");
   });
-  test("A3 Install day Q29 prefill follows the new A4 question (Yes → Yes, No → No), else the old tick / B1", () => {
+  test("A5 Install day Q29 prefill follows the new A3 question (Yes → Yes, No → No), else the old tick / B1", () => {
     const yes = sync([{ label: ONSITE_START_LABEL, value: "Yes" }]);
     expect(electricianAtStartPrefill({ a4Short: yes, b1: null })).toBe(true);
     expect(electricianAtStartPrefill({ a4Short: sync([{ label: ONSITE_START_LABEL, value: "No" }]), b1: B1_OPTIONS[2] })).toBe(false);
     expect(electricianAtStartPrefill({ a4Short: sync([{ label: FIXES_WORK_LABEL, value: FIXES_ONSITE_OPTION }]), b1: null })).toBe(true);
     expect(electricianAtStartPrefill({ a4Short: null, b1: B1_OPTIONS[2] })).toBe(true);
     expect(electricianAtStartPrefill({ a4Short: null, b1: B1_OPTIONS[0] })).toBe(false);
-    // …and lands on Q29 of the A3 template as "Yes".
+    // …and lands on Q29 of the A5 template as "Yes".
     const ynSet = { id: "rs-yn", responses: [{ id: "o-yes", label: "Yes" }, { id: "o-no", label: "No" }] };
     const template = { template: { items: [{ id: "q29", item_id: "q29", label: INSTALL_DAY_Q.electricianNeeded, question: { response_set_id: "rs-yn" } }], response_sets: [ynSet] } };
     const items = installDayPrefillItems(template, { jobNumber: null, address: null, installDate: null, apName: null, businessName: null, leadName: null, leadCii: null, lifeSupport: null, solarPresent: null, electricianAtStart: electricianAtStartPrefill({ a4Short: yes, b1: null }) }, choiceOption);

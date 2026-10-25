@@ -15,7 +15,7 @@ export type AdvanceFacts = {
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
   openRectItems: number;
-  /** Decision 314 follow-up: the A4's ONLY repair tick is "Be on site at the start of the install day" (fixes-times.core
+  /** Decision 314 follow-up: the A3's ONLY repair tick is "Be on site at the start of the install day" (fixes-times.core
    *  `onsiteStartOnly`) — no fixes visit ever. Absent = false (read only when fixes items are open). */
   onsiteStartOnly?: boolean;
   /** …and electrical clearance holds on the `electrician_at_start` basis (fixes quote accepted + payment rule cleared,

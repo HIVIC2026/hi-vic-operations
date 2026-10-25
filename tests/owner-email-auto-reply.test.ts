@@ -43,7 +43,8 @@ describe("decision 386 classifier: send only the standard answers", () => {
     ["when is my visit (safety check booked)", "What day is the electrician coming?", facts({ stage: "piesa_scheduled", spotSaved: true, quoteStatus: "accepted", nextVisit: { kind: "piesa", slot: RC.slot } }), "visit_booked", MY_JOB],
     ["where is my quote (sent)", "Where is my quote?", facts({ stage: "awaiting_quote_acceptance", spotSaved: true, quoteStatus: "issued" }), "quote_ready", MY_JOB],
     ["where is my quote (being prepared)", "Haven't received my quote yet, where is my quote?", facts({ stage: "ready_check_complete", spotSaved: true }), "quote_preparing", MY_JOB],
-    ["where is my quote (before the Ready Check)", "Where is my quote?", facts(WAITING), "quote_after_ready_check", MY_JOB],
+    ["where is my quote (spot saved, not released → the spot-saved answer, decision 388)", "Where is my quote?", facts(WAITING), "spot_saved", MY_JOB],
+    ["where is my quote (times offered → after the Ready Check)", "Where is my quote?", facts({ stage: "ready_check_awaiting_acceptance", spotSaved: true }), "quote_after_ready_check", MY_JOB],
     ["how do I pay (quote accepted)", "How do I pay?", facts({ stage: "measured_quote_accepted", spotSaved: true, quoteStatus: "accepted" }), "how_to_pay", MY_JOB],
   ];
   for (const [name, body, f, answer, link] of SEND) test(`send: ${name}`, () => {
@@ -125,7 +126,7 @@ describe("decision 386 wording (DRAFT O76a–O76j)", () => {
     expect(m.text).toContain("The Home Insulation Victoria team");
     expect(m.html).toContain(`href="${MY_JOB}"`);
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as AnswerType[]) expect(answerText(a, { firstName: null, link: MY_JOB })).toContain(LONG_LIST);
-    expect(LONG_LIST).toBe("There's a long list of homes waiting, and spots are released in the order they were saved.");
+    expect(LONG_LIST).toBe("Thousands of Victorians have registered, and spots are released in the order they were saved."); // decision 388
     expect(answerText("visit_booked", { firstName: null, link: MY_JOB, visit: RC })).toContain("Your free Ready Check is booked for Wednesday 28 October at 8am.");
     expect(answerText("quote_ready", { firstName: "Helen", link: `${MY_JOB}?x=1` })).toContain(`See your quote here: ${quoteScreenLink(MY_JOB)}`);
     expect(renderOwnerAutoReplyEmail({ answer: "how_to_pay", facts: { firstName: null, link: MY_JOB }, theirSubject: null, test: true }).html).toContain("TEST — only sent to Jo");

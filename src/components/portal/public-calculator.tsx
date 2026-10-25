@@ -24,12 +24,12 @@ const INSULATION_OPTIONS: { value: InsulationDeclared; label: string }[] = [
 const INSULATION_HELP: Record<string, string> = {
   none: "Bare ceiling or just the plaster",
   present: "Some insulation already installed",
-  unknown: "We'll confirm it at the free Ready Check",
+  unknown: "We'll confirm it before you agree to anything",
 };
 
 /** Split out of the canonical "what could change" wording — same facts, easier to scan. */
 const CHANGE_FACTORS = [
-  "The measured ceiling size",
+  "Your actual ceiling size",
   "Existing insulation, and whether any has to be removed",
   "Ceiling access conditions",
   "Any electrical fixes found during the mandatory PIESA",
@@ -285,7 +285,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
               </div>
               {insulation !== null && insulation !== "none" && (
                 <p className="rounded-xl bg-estimate-blush px-3.5 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
-                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it at your free Ready Check and confirm whether any removal is needed. Removal is not included in this estimate and will be priced only if required.
+                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Whether any removal is needed is confirmed before you agree to anything. Removal is not included in this estimate and will be priced only if required.
                 </p>
               )}
             </Question>
@@ -310,7 +310,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
                 <div className="rounded-2xl border-2 border-estimate-green bg-estimate-mint px-5 py-4 text-center" data-testid="public-calculator-discount-highlight">
                   <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated VEU rebate</p>
                   <p className="mt-1 text-[2rem] font-extrabold leading-none text-estimate-green sm:text-[2.4rem]">You could save {dollars(standard.applied_discount)}</p>
-                  <p className="mt-2 text-[0.7rem] leading-relaxed text-estimate-navy/75" data-testid="public-calculator-discount-estimate">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>
+                  <p className="mt-2 text-[0.7rem] leading-relaxed text-estimate-navy/75" data-testid="public-calculator-discount-estimate">Estimated discount: {dollars(standard.applied_discount)} — confirmed before you agree to anything.</p>
                 </div>
 
                 {/* The number they actually pay. */}
@@ -321,7 +321,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
                   </p>
                   <p className="mt-1 text-xs font-bold text-estimate-navy/70">incl. GST · before rebate {dollars(standard.pre_discount_total)}</p>
                   <p className="mx-auto mt-2 max-w-[300px] text-[0.7rem] leading-relaxed text-estimate-navy/75">
-                    Estimate only. Eligibility, measurements and final pricing confirmed after assessment.
+                    Estimate only. Eligibility and final pricing are confirmed before you agree to anything.
                   </p>
                   {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">Discount reduced so the minimum $200 customer contribution applies.</p>}
                 </div>

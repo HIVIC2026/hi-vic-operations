@@ -7,8 +7,7 @@ export type FollowupEmailInput = { kind: ActiveFollowupKind; estimateUrl: string
 
 const REASSURE = "No payment required. No obligation to proceed with installation.";
 const HELPER = "Your secure estimate link is personal to your property.";
-const SERVICE = "Free Ready Check";
-const DEMAND = "Demand is high. Installer availability is limited.";
+const DEMAND = "Thousands of Victorians have registered. Spots are released in the order they were saved."; // decision 388
 
 type Copy = { subject: string; preview: string; badge: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };
 const COPY: Record<ActiveFollowupKind, Copy> = {
@@ -19,7 +18,7 @@ const COPY: Record<ActiveFollowupKind, Copy> = {
     heading: "Just checking you received your estimate",
     intro: "We prepared a preliminary ceiling insulation estimate for your home a few days ago, including your estimated VEU rebate and what’s included.",
     listTitle: "What your estimate shows",
-    ticks: ["Your estimated VEU rebate", "Your estimated cost, including GST", "What the quote includes", `Your next step: a ${SERVICE}`],
+    ticks: ["Your estimated VEU rebate", "Your estimated cost, including GST", "What the quote includes", "Your next step: save your spot (free, no obligation)"],
     actionTitle: "Take a look when it suits you",
     actionBody: "Your estimate is saved and ready. Open it any time to review the details.",
     cta: "View my estimate →",

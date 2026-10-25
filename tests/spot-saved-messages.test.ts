@@ -6,14 +6,17 @@ describe("spot saved confirmations", () => {
   test("text wording", () => {
     const s = renderSpotSavedSms(i);
     expect(s.startsWith("Spot saved, Sarah! 🎉 Smart move: your $1,470 rebate is waiting.")).toBe(true);
-    expect(s).toContain("an installer is free in Ballarat.");
+    // Decision 388: spot-only — no installer, times or "as soon as" before release.
+    expect(s).toContain("Thousands of Victorians have registered. Spots are released in the order they were saved. We'll be in touch when your spot is released.");
+    expect(s).not.toMatch(/installer|as soon as|Ready Check/);
     expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc – Home Insulation Victoria");
   });
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
-    // Decision 70 design (O10): logo card, smart-move headline, green rebate line, three steps, See my job, AP footer.
-    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting.", "we book homes in the order spots were saved", "When a certified installer is free near Ballarat, we'll text and email you their times for your free Ready Check.", "What happens next", "Tap the time that suits you", "Free Ready Check, then your exact price", ">See my job<", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe", "#07BF61"]) expect(e.html).toContain(t);
+    // Decision 70 design (O10): logo card, smart-move headline, green rebate line, steps, See my job, AP footer; decision 388 spot-only wording.
+    expect(e.html + e.text).not.toContain("Ready Check");
+    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting.", "Spots are released in the order they were saved.", "We'll be in touch when your spot is released, with your next step.", "What happens next", "Your place is kept", ">See my job<", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe", "#07BF61"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("/api/public/email-art/");
     expect(e.html).not.toContain("Heads up");
     expect(/call us|phone number|1300|04\d{2}/i.test(e.html + e.text)).toBe(false); // "No phone tag." is approved wording (decision 70)

@@ -1,12 +1,12 @@
-// Decision 315 (Jo 25 Oct 2026): electricians do the PIESA in the Mitti A4 form, so the old portal "Complete PIESA" step that
-// asked for the electrical fixes times (3–5 windows + estimated hours) is never reached. When the A4 sync sees the PIESA
+// Decision 315 (Jo 25 Oct 2026): electricians do the PIESA in the Mitti A3 form, so the old portal "Complete PIESA" step that
+// asked for the electrical fixes times (3–5 windows + estimated hours) is never reached. When the A3 sync sees the PIESA
 // completed AND repair work is needed (and not fixed on the same visit) AND no electrician fixes windows exist yet, the
 // assigned electrician gets ONE text with a link to their job page (/field/{jobId}#fixes-times) to pick the times there.
 // Pure: the decision, the key, the wording, the link, the quote hold and the 24h Needs me rule. No I/O.
 import { fixesFormNeeded } from "./fixes-day.core";
 import { onsiteStartTicked, repairWorkBesidesOnsite } from "./official-short.core";
 
-/** Recorded once per job + PIESA (A4 audit) BEFORE anything is sent (details: { key, audit_id, completed_at, business_id, to }). */
+/** Recorded once per job + PIESA (A3 audit) BEFORE anything is sent (details: { key, audit_id, completed_at, business_id, to }). */
 export const FIXES_TIMES_LINK_EVENT = "fixes_times_link_sent" as const;
 /** The SAME event the old portal path writes when the electrician gives the windows (portal.functions completeAssessment). */
 export const FIXES_TIMES_GIVEN_EVENT = "rectification_windows_given" as const;
@@ -27,7 +27,7 @@ export function fixesTimesLinkText(f: { address: string | null; link: string }):
 }
 
 // ---- Decision 314: "Be on site at the start of the install day" as the ONLY repair tick = no fixes visit, no times ----
-/** The A4's only repair tick is "Be on site at the start of the install day" (official-short.core `fixesWorkTicks`): the
+/** The A3's only repair tick is "Be on site at the start of the install day" (official-short.core `fixesWorkTicks`): the
  *  electrician attends the install day instead of a fixes visit. Any other tick alongside it still needs the times. */
 export function onsiteStartOnly(short: Record<string, unknown>): boolean {
   return onsiteStartTicked(short) && !repairWorkBesidesOnsite(short);
@@ -41,7 +41,7 @@ export function fixesTimesNeeded(short: Record<string, string | null | undefined
 
 export type FixesTimesLinkFacts = {
   deleted: boolean;
-  /** The A4 sync saw the PIESA completed in Mitti (with its evidence). */
+  /** The A3 sync saw the PIESA completed in Mitti (with its evidence). */
   piesaCompleted: boolean;
   timesNeeded: boolean;
   /** Any electrician fixes window (appointment_proposals kind rectification, electrician_window) already exists. */

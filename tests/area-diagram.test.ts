@@ -122,7 +122,7 @@ describe("install-day confirmations (decision 210 d/e) feed the final plan", () 
   });
 });
 
-describe("the generated final plan satisfies the A3 final_plan evidence", () => {
+describe("the generated final plan satisfies the A5 final_plan evidence", () => {
   const base = { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: false, lifeSupportConsentOnFile: true };
   test("pure rule", () => {
     expect(generatedPlanSatisfiesFinalPlan({ generatedFinalPlan: true, existingPlanMatchesInstall: false, mandatoryCurrentPostwork: true })).toBe(true);

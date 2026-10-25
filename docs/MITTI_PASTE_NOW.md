@@ -3,10 +3,10 @@
 Paste each block into ChatGPT on its own. Blocks 1–3 each change one template; block 4 adds the same four questions to
 both Ready Check templates (A1 and A2).
 
-## 1. A3 – Install day
+## 1. A5 – Install day
 
 ```
-Edit the Mitti template "A3 – Install day". Make ONLY these changes, then publish.
+Edit the Mitti template "A5 – Install day". Make ONLY these changes, then publish.
 
 1. Page 1, first item, before Q1, a Text item (not a question):
 "READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete."
@@ -47,10 +47,10 @@ If you need separate response sets for this, make them. Keep every "only show wh
 Change nothing else. Publish.
 ```
 
-## 2. A4 – PIESA (electrician)
+## 2. A3 – PIESA (electrician)
 
 ```
-Edit the Mitti template "A4 – PIESA". Make ONLY these changes, then publish.
+Edit the Mitti template "A3 – PIESA". Make ONLY these changes, then publish.
 
 1. Rename the question "Are there any appliances, exhaust fans or flues in the ceiling space?" to:
 "Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?" (Yes/No, Required, same logic).
@@ -80,10 +80,10 @@ The price question stays LAST on that page.
 Change nothing else. Publish.
 ```
 
-## 3. A5 – Electrical fixes
+## 3. A4 – Electrical fixes
 
 ```
-Edit the Mitti template "A5 – Electrical fixes". Make ONLY these changes, then publish.
+Edit the Mitti template "A4 – Electrical fixes". Make ONLY these changes, then publish.
 
 1. First page, first item, a Text item (not a question):
 "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged."

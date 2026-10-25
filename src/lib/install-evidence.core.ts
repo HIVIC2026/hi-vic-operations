@@ -2,15 +2,15 @@
 // Install-day evidence and sign-off on the Mitti Install day form. PURE: no database, no network. Jo 24 Oct 2026,
 // decisions 205 (Activity Guide v1.2 §4.2 + Table 4), 210 (lock-out removal / re-energise, lead present + signature, foil /
 // conductive existing insulation, product + m² per area, area names from the Ready Check), 211 (no plan upload: the
-// final diagram is drawn from the per-area product + m² answers) and 262 (the "A3 – Install day" template).
+// final diagram is drawn from the per-area product + m² answers) and 262 (the "A5 – Install day" template).
 //
-// The portal reads every item BY EXACT QUESTION WORDING. The current wording is the "A3 – Install day" template
+// The portal reads every item BY EXACT QUESTION WORDING. The current wording is the "A5 – Install day" template
 // (install-day.core.ts, built from docs/MITTI_INSTALL_FORM_FIX_PROMPT.md); the decision-205 wording of the old
 // "A3 - PIISA + AP Evidence" template stays readable as aliases so completed old forms still parse. The safety plan
 // (SWMS) is not on the form any more (decision 261, swms.core.ts). Form health lists any wording the template lacks;
 // the stage gates fail closed for installs from the effective date.
 //
-// Grandfathering: installs that started before INSTALL_EVIDENCE_EFFECTIVE_DATE keep the seven original A3 items only
+// Grandfathering: installs that started before INSTALL_EVIDENCE_EFFECTIVE_DATE keep the seven original A5 items only
 // (piisa-a3.core); nothing here applies to them, so history is untouched.
 import { norm } from "./mitti.core";
 import { melbourneToday } from "./melbourne-time.core";
@@ -44,7 +44,7 @@ export function installEvidenceApplies(installDate: string | null | undefined, t
 // ======================================================================================================
 
 /** OLD A3 per-zone items (decision 205) — still read on completed old forms — plus the multi-day items of the install day
- *  form. The "A3 – Install day" form has no per-area items: INSTALL_DAY_EVIDENCE (decision 263). */
+ *  form. The "A5 – Install day" form has no per-area items: INSTALL_DAY_EVIDENCE (decision 263). */
 export const INSTALL_EVIDENCE_QUESTIONS = {
   zoneCount: "How many upgrade zones are you insulating on this job?",
   zoneName: (z: number) => `Zone ${z} — name of this ceiling area (use the same name as the Ready Check and floor plan)`,
@@ -77,7 +77,7 @@ export const INSTALL_EVIDENCE_QUESTIONS_LONG = {
   dailyRecheck: "Before starting work each day, I re-checked every item on this safety assessment and they all still hold.",
 } as const;
 
-/** The four A3 photo items: the "A3 – Install day" wording. */
+/** The four A5 photo items: the "A5 – Install day" wording. */
 export const INSTALL_EVIDENCE_RELABELS = {
   installer_photos: ID.leadPhoto, // decision 300: one photo per installer (lead / second / third items), all read as installer_photos
   electrician_photo: ID.electricianPhoto,
@@ -210,7 +210,7 @@ export function installEvidenceMissingQuestions(template: unknown): string[] {
 export type InstallEvidenceZoneRead = { zone: number; name: string | null; underInsulated: boolean | null; existingPhoto: MittiMediaFile[]; beforeVideo: MittiMediaFile[]; afterVideo: MittiMediaFile[]; depthPhoto: MittiMediaFile[]; product: string | null; areaM2: number | null };
 export type AfterInstallRead = { onForm: boolean; /** Decision 328: the final "Every answer, photo and video … filled in" tick. null = not on this form (old A3). */ allFilledIn?: boolean | null; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
-export type InstallEvidenceRead = { /** The "A3 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
+export type InstallEvidenceRead = { /** The "A5 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
   /** Install day form (decisions 263/264): the two multi-file items. Empty on the old A3. */ files: { afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
@@ -239,7 +239,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
 }
 
 /**
- * Fix prompt (24 Oct 2026): the whole-job before / completed videos are deleted from the A3 form — each zone's own
+ * Fix prompt (24 Oct 2026): the whole-job before / completed videos are deleted from the A5 form — each zone's own
  * before / after 360° video now stands as that evidence. Returns every zone's files for a phase ONLY when the form's zone
  * count is answered and every zone 1..n carries at least one file; otherwise null (never a partial set).
  */
@@ -381,7 +381,7 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
       if (z.areaM2 === null) after.push(`${lbl}: m² not recorded`);
     });
     if (!ctx.zones.length) before.push("No Ready Check areas are recorded for this job — the before / after videos and depth photos can't be checked; office review");
-  } else if (!read.questionsOnForm) before.push(`The Mitti Install day form has no "${Q.zoneCount}" question yet — build the "A3 – Install day" template (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md).`);
+  } else if (!read.questionsOnForm) before.push(`The Mitti Install day form has no "${Q.zoneCount}" question yet — build the "A5 – Install day" template (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md).`);
   else {
     if (zoneCount > MAX_FORM_ZONES) before.push(`This job records ${zoneCount} upgrade zones but the Mitti form holds ${MAX_FORM_ZONES} — office review (extra zones need their own evidence).`);
     if (read.formZoneCount == null) before.push(`${Q.zoneCount}: not answered`);
@@ -439,7 +439,7 @@ export function installEvidenceGateLines(summary: InstallEvidenceSummary | null 
 }
 
 // ======================================================================================================
-// Prefill for the OLD A3 template (zone names from the Ready Check) — label-matched text items. The "A3 – Install day"
+// Prefill for the OLD A3 template (zone names from the Ready Check) — label-matched text items. The "A5 – Install day"
 // template is prefilled by install-day.core installDayPrefillItems.
 // ======================================================================================================
 export type InstallPrefillCtx = { zoneNames: (string | null)[] };

@@ -20,7 +20,7 @@ describe("tradePayoutBlockers: complete form + evidence → payable", () => {
     expect(tradePayoutBlockers("rectification", ok)).toEqual([]);
     expect(tradePayoutBlockers("installation", ok)).toEqual([]);
   });
-  test("fixes done on the same visit follow the A4 rule (no A5 form)", () => {
+  test("fixes done on the same visit follow the A3 rule (no A4 form)", () => {
     expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: true, outcome: null, detail: null } })).toEqual([]);
     expect(tradePayoutBlockers("rectification", { ...ok, piesa: { mittiForm: true, completed: false, evidence: [] }, fixes: { sameVisitOnPiesa: true, outcome: null, detail: null } })).toEqual([PAYOUT_FORM_NOT_COMPLETE.assessment]);
   });
@@ -28,12 +28,12 @@ describe("tradePayoutBlockers: complete form + evidence → payable", () => {
 
 describe("tradePayoutBlockers: not Complete → held with a plain reason", () => {
   test("safety check: not marked Complete, no Mitti form, no facts", () => {
-    expect(tradePayoutBlockers("assessment", { ...ok, piesa: { mittiForm: true, completed: false, evidence: [] } })).toEqual(["Mitti safety check form (A4) not marked Complete"]);
+    expect(tradePayoutBlockers("assessment", { ...ok, piesa: { mittiForm: true, completed: false, evidence: [] } })).toEqual(["Mitti safety check form (A3) not marked Complete"]);
     expect(tradePayoutBlockers("assessment", { ...ok, piesa: { mittiForm: false, completed: false, evidence: [] } })).toEqual([PAYOUT_FORM_NOT_COMPLETE.assessment]);
     expect(tradePayoutBlockers("assessment", { ...ok, piesa: null })).toEqual([PAYOUT_FORM_NOT_COMPLETE.assessment]);
   });
   test("fixes: open / held / not done / no form", () => {
-    expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: false, outcome: "open", detail: null } })).toEqual(["Mitti electrical fixes form (A5) not marked Complete"]);
+    expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: false, outcome: "open", detail: null } })).toEqual(["Mitti electrical fixes form (A4) not marked Complete"]);
     expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: false, outcome: null, detail: null } })).toEqual([PAYOUT_FORM_NOT_COMPLETE.rectification]);
     expect(tradePayoutBlockers("rectification", { ...ok, fixes: null })).toEqual([PAYOUT_FORM_NOT_COMPLETE.rectification]);
     expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: false, outcome: "not_done", detail: "Smoke alarm still to fit" } }))
@@ -41,8 +41,8 @@ describe("tradePayoutBlockers: not Complete → held with a plain reason", () =>
     expect(tradePayoutBlockers("rectification", { ...ok, fixes: { sameVisitOnPiesa: false, outcome: "held", detail: "The fixes form was marked Complete but is missing: Photo of the finished work at the switchboard / in the ceiling (must be geotagged)" } }))
       .toEqual([PAYOUT_FORM_NOT_COMPLETE.rectification, "Electrical fixes form: The fixes form was marked Complete but is missing: Photo of the finished work at the switchboard / in the ceiling (must be geotagged)"]);
   });
-  test("install: A3 not Complete", () => {
-    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: false, evidence: [] } })).toEqual(["Mitti install day form (A3) not marked Complete"]);
+  test("install: A5 not Complete", () => {
+    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: false, evidence: [] } })).toEqual(["Mitti install day form (A5) not marked Complete"]);
     expect(tradePayoutBlockers("installation", { ...ok, install: null })).toEqual([PAYOUT_FORM_NOT_COMPLETE.installation]);
   });
 });
@@ -145,7 +145,7 @@ describe("Jo's approved wording, the same everywhere", () => {
       const d = src(f);
       const g1 = d.indexOf("## Group 1: Job\n");
       expect(g1, f).toBeGreaterThan(-1);
-      // Decision 328: the A3 carries Jo's READ FIRST line instead (it includes the pay rule); A4 / A5 keep the 318 line.
+      // Decision 328: the A5 carries Jo's READ FIRST line instead (it includes the pay rule); A3 / A4 keep the 318 line.
       const line = f === "docs/MITTI_INSTALL_FORM_FIX_PROMPT.md" ? INSTALL_DAY_READ_FIRST_TEXT : NO_FORM_NO_PAY.mittiInstruction;
       expect(d.slice(g1).split("\n")[1], f).toContain(`\`${line}\``);
     }

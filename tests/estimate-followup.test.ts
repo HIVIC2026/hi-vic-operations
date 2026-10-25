@@ -20,7 +20,7 @@ const decide = (now: string, patch: Partial<EstimateFollowupFacts> = {}) => deci
 
 describe("flag and keys", () => {
   test("wording approved by Jo 24 Oct 2026 (decision 242): the flag is true; sends stay behind customer_comms_enabled", () => {
-    expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(false); // decision 388: paused for spot-only wording
+    expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(true); // decision 388: reworded spot-only, Jo re-approved 25 Oct 2026
   });
   test("schedule: day 2, 7, 21, then close 7 days after the day-21 email", () => {
     expect(ESTIMATE_FOLLOWUP_SCHEDULE).toEqual({ day_2: 2, day_7: 7, day_21: 21 });
@@ -138,7 +138,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
   test("O68 day 21 says we'll close the estimate and they can come back any time", () => {
     const m = render("day_21");
     shell(m.html, m.text);
-    expect(m.subject).toBe("Helen, we'll close your estimate soon");
+    expect(m.subject).toBe("Helen, we'll close your estimate in a week");
     expect(m.text).toContain("we'll close it in a week");
     expect(m.text).toContain("You can come back any time");
     expect(m.html).toContain("Want to keep your spot? Save it now");
@@ -217,13 +217,14 @@ function seed(opts: { jobs: Row[]; sends?: Row[]; events?: Row[]; responses?: Ro
 const job = (id: string, patch: Row = {}): Row => ({ id, job_number: `HV-${id}`, source: "base44", stage: "preliminary_estimate_ready", deleted_at: null, qa_archived_at: null, owner_id: "o", property_id: "p", estimated_area_m2: 137, estimated_area_unknown: false, owners: { full_name: "Helen Smith", email: `${id}@example.com` }, ...patch });
 
 describe("server sweep (mocked backend)", () => {
-  test("real owner while paused (decision 388): held, nothing sent, nothing recorded", async () => {
+  test("real owner, spot-only wording re-approved (decision 388), comms on: day 2 goes through the guarded owner sender once, recorded first", async () => {
     const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");
     seed({ jobs: [job("real")] });
     const r = await sweepEstimateFollowups(new Date(NOW));
-    expect(r).toEqual({ checked: 1, sent: 0, held: 1, closed: 0, stopped: 0, failed: 0 });
-    expect(calls.guarded.length).toBe(0);
-    expect(db.workflow_events!).toEqual([]);
+    expect(r).toEqual({ checked: 1, sent: 1, held: 0, closed: 0, stopped: 0, failed: 0 });
+    expect(calls.guarded.length).toBe(1);
+    expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"], [ESTIMATE_FOLLOWUP_RESULT_EVENT, "day_2"]]);
+    expect(db.workflow_events![1]!.details.sent).toBe(true);
   });
   test("TEST job: day 2 goes through test-send once, recorded first; a second tick does nothing", async () => {
     const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");

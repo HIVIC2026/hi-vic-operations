@@ -1,4 +1,4 @@
-// Decision 354 (Jo 25 Oct 2026): the electrician-priced (A4) fixes quote goes to the owner automatically when the A4 is
+// Decision 354 (Jo 25 Oct 2026): the electrician-priced (A3) fixes quote goes to the owner automatically when the A3 is
 // complete and every existing check passes; no office "Fixes quote to check" step unless a check fails.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ describe("decision 354: automatic fixes quote send (pure rule)", () => {
     expect(AUTO_FIXES_QUOTE_SEND_ENABLED).toBe(true);
     expect(AUTO_FIXES_QUOTE_HELD_EVENT).toBe("fixes_quote_auto_send_held");
   });
-  test("A4 complete + electrician-priced draft + every check passes + comms on → send", () => {
+  test("A3 complete + electrician-priced draft + every check passes + comms on → send", () => {
     expect(autoFixesSendDecision(ok)).toEqual({ action: "send" });
   });
   test("TEST jobs send (test-send downstream) even with the master switch off; real owners wait for customer_comms_enabled", () => {
@@ -24,7 +24,7 @@ describe("decision 354: automatic fixes quote send (pure rule)", () => {
       expect(autoFixesSendDecision({ ...ok, quote }).action).toBe("wait");
     expect(autoFixesSendDecision({ ...ok, quote: null }).action).toBe("wait");
   });
-  test("not yet: switch off, A4 not Complete, waiting for the electrician's fixes times (no office item)", () => {
+  test("not yet: switch off, A3 not Complete, waiting for the electrician's fixes times (no office item)", () => {
     expect(autoFixesSendDecision({ ...ok, enabled: false }).action).toBe("wait");
     expect(autoFixesSendDecision({ ...ok, a4Completed: false }).action).toBe("wait");
     expect(autoFixesSendDecision({ ...ok, waitingForTimes: true }).action).toBe("wait");
@@ -47,7 +47,7 @@ describe("decision 354: wiring", () => {
     expect(auto).toContain("customerCommsEnabled()");
     expect(auto).not.toMatch(/sendGuardedOwnerEmail|sendTestEmail|resendSend/); // no sender of its own
   });
-  test("triggered at the A4 completion, when the electrician gives the fixes times, and on the 15-minute tick", () => {
+  test("triggered at the A3 completion, when the electrician gives the fixes times, and on the 15-minute tick", () => {
     const m = read("src/lib/mitti.server.ts");
     expect(m).toMatch(/if \(completed\) await \(await import\("\.\/auto-fixes-quote-send\.server"\)\)\.maybeAutoSendFixesQuote\(jobId, \{ actorId, generate: true \}\)/);
     expect(read("src/lib/trade-view.functions.ts")).toContain("maybeAutoSendFixesQuote(data.jobId");
