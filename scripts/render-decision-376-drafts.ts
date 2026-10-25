@@ -1,7 +1,8 @@
 // Renders the decision 376 DRAFT messages (Jo 25 Oct 2026 — the four moments F13 left record-only) into
 // docs/templates/drafts with fixed sample data, prints every subject + text + SMS body for Jo's approval, and with --jpg
 // also saves a 640px-wide JPG preview of each design into docs/designs (Playwright Chromium, local files only).
-// Pure renderers; nothing is sent. Once Jo approves a message: move its HTML to docs/templates/approved and set its flag
+// Pure renderers; nothing is sent. Once Jo approves a message: move its HTML to its who-folder (docs/templates/owner,
+// electrician or installer) and set its flag
 // to true — O74 VISIT_NEW_TIMES_APPROVED + SMS type `visit_new_times`; O75 OWNER_PAPERWORK_COPY_APPROVED; E14
 // PIESA_TIMES_REMINDER_APPROVED + `piesa_times_reminder`; I71 INSTALLER_PLANNING_NOTICE_APPROVED + `installer_planning_notice`.
 // Run: bun scripts/render-decision-376-drafts.ts [--jpg]

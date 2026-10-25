@@ -77,6 +77,11 @@ import { PRODUCT_WARRANTIES, warrantyTermText } from "./product-warranty.core";
 import { VEU_FACTSHEET_PATH, VEU_FACTSHEET_TITLE } from "./veu-factsheet.core";
 import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT } from "./trade-access.core";
+import { swmsSignLinkText } from "./swms-sign-text.core";
+import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
+import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
+import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
+import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -490,6 +495,9 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install (with safety plan links while unsigned)", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decision 99", gate: { kind: "text", smsType: "install_tomorrow" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "installTomorrowText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
+  ENTRY({ id: "installer:sms-swms_sign_link", section: "installer", step: "install", kind: "text", code: "", name: "Sign the safety plan (text)", when: "Install booked, and the day before, to each crew member who hasn't signed the SWMS", who: "Each installer crew member", approvalNote: "Jo 25 Oct 2026, decisions 377/380", gate: { kind: "text", smsType: "swms_sign_link" },
+    source: { builder: "src/lib/swms-sign-text.core.ts", fn: "swmsSignLinkText", sender: "src/lib/swms-sign-text.server.ts" },
+    render: () => text(swmsSignLinkText({ address: SHORT_ADDRESS, startIso: INSTALL_ISO, link: `${FIELD}/safety-plan` })) }),
   ENTRY({ id: "installer:sms-daily_mitti", section: "installer", step: "install", kind: "text", code: "", name: "Good morning — today's Mitti links (6:30am)", when: "6:30am on a job day", who: "Installer / electrician", approvalNote: "Jo, decision 154", gate: { kind: "text", smsType: "daily_mitti" },
     source: { builder: "src/lib/daily-mitti-text.core.ts", fn: "dailyText", sender: "src/lib/daily-mitti-text.server.ts" },
     render: () => text(dailyText(DAY_JOBS, `${BASE}/field`)) }),
@@ -658,6 +666,34 @@ const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:trade-invite", section: "waiting", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Would go when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approval: "waiting", approvalNote: "TRADE_INVITE_EMAIL_APPROVED = false (trade-access.core.ts)", gate: { kind: "code_off", flag: "TRADE_INVITE_EMAIL_APPROVED" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "TRADE_INVITE_DRAFT", sender: "src/lib/trade-access.functions.ts" },
     render: () => email({ subject: TRADE_INVITE_DRAFT.subject, html: simpleEmail("Hi Sam,", [fillTemplate(TRADE_INVITE_DRAFT.body, { first_name: "Sam", business: "Sample Insulation Co", sign_in_url: `${BASE}/auth` })], { label: TRADE_INVITE_DRAFT.button, url: `${BASE}/reset-password?token_hash=TEST` }, { testLabel: false }).html }) }),
+  // Decision 376 (Jo 25 Oct 2026): four moments that were record-only, each held behind its own *_APPROVED = false flag.
+  ENTRY({ id: "waiting:O74", section: "waiting", step: "any", kind: "email", code: "O74", name: "Your visit needs a new time", when: "The trade cancels a booked Ready Check, safety check or install day: owner chooses new times on My job", who: "Owner", approval: "waiting", approvalNote: "VISIT_NEW_TIMES_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "VISIT_NEW_TIMES_APPROVED" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/drafts/O74-visit-new-times.html",
+    render: () => email(renderVisitNewTimesEmail({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
+  ENTRY({ id: "waiting:O74b", section: "waiting", step: "any", kind: "email", code: "O74b", name: "Your visit is moving (new times on the way)", when: "The trade cancels a booked visit and will offer the new times", who: "Owner", approval: "waiting", approvalNote: "VISIT_NEW_TIMES_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "VISIT_NEW_TIMES_APPROVED" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/drafts/O74b-visit-new-times-on-the-way.html",
+    render: () => email(renderVisitNewTimesEmail({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
+  ENTRY({ id: "waiting:sms-visit_new_times", section: "waiting", step: "any", kind: "text", code: "", name: "Your visit needs a new time (text)", when: "With O74 / O74b", who: "Owner", approval: "waiting", approvalNote: "SMS type visit_new_times not approved (decision 376)", gate: { kind: "text", smsType: "visit_new_times" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "visitNewTimesText", sender: "src/lib/visit-new-times.server.ts" },
+    render: () => texts([
+      { label: "Owner picks new times", body: visitNewTimesText({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book` }) },
+      { label: "New times on the way", body: visitNewTimesText({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book` }) },
+    ]) }),
+  ENTRY({ id: "waiting:O75", section: "waiting", step: "quote", kind: "email", code: "O75", name: "Your signed paperwork", when: "One email per signing sitting with the signed Gate B PDFs attached", who: "Owner", approval: "waiting", approvalNote: "OWNER_PAPERWORK_COPY_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "OWNER_PAPERWORK_COPY_APPROVED" },
+    source: { builder: "src/lib/paperwork-copy-email.core.ts", fn: "renderPaperworkCopyEmail", sender: "src/lib/paperwork-copy-email.server.ts" }, design: "docs/templates/drafts/O75-signed-paperwork-copy.html",
+    render: () => email(renderPaperworkCopyEmail({ firstName: "Helen", address: ADDRESS, titles: ["The agreement", "Payment", "Your rebate (VEEC assignment)"], attached: true, myJobUrl: JOB, unsubscribeUrl: null })) }),
+  ENTRY({ id: "waiting:E14", section: "waiting", step: "safety_check", kind: "email", code: "E14", name: "Offer the owner your safety check times", when: "24 hours after the electrician accepted a safety check and offered no times", who: "Electrician", approval: "waiting", approvalNote: "PIESA_TIMES_REMINDER_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "PIESA_TIMES_REMINDER_APPROVED" },
+    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "renderPiesaTimesReminderEmail", sender: "src/lib/piesa-times-reminder.server.ts" }, design: "docs/templates/drafts/E14-piesa-times-reminder.html",
+    render: () => email(renderPiesaTimesReminderEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD, firstName: "Sam" })) }),
+  ENTRY({ id: "waiting:sms-piesa_times_reminder", section: "waiting", step: "safety_check", kind: "text", code: "", name: "Offer the owner your safety check times (text)", when: "With E14", who: "Electrician", approval: "waiting", approvalNote: "SMS type piesa_times_reminder not approved (decision 376)", gate: { kind: "text", smsType: "piesa_times_reminder" },
+    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "piesaTimesReminderText", sender: "src/lib/piesa-times-reminder.server.ts" },
+    render: () => text(piesaTimesReminderText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD })) }),
+  ENTRY({ id: "waiting:I71", section: "waiting", step: "safety_check", kind: "email", code: "I71", name: "Safety check booked (for your planning)", when: "The safety check is booked: the installer is told the date for planning only", who: "Installer", approval: "waiting", approvalNote: "INSTALLER_PLANNING_NOTICE_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "INSTALLER_PLANNING_NOTICE_APPROVED" },
+    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "renderInstallerPlanningEmail", sender: "src/lib/installer-planning-notice.server.ts" }, design: "docs/templates/drafts/I71-installer-planning-notice.html",
+    render: () => email(renderInstallerPlanningEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD, ownerFirstName: "Helen" })) }),
+  ENTRY({ id: "waiting:sms-installer_planning_notice", section: "waiting", step: "safety_check", kind: "text", code: "", name: "Safety check booked (for your planning) (text)", when: "With I71", who: "Installer", approval: "waiting", approvalNote: "SMS type installer_planning_notice not approved (decision 376)", gate: { kind: "text", smsType: "installer_planning_notice" },
+    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "installerPlanningText", sender: "src/lib/installer-planning-notice.server.ts" },
+    render: () => text(installerPlanningText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD })) }),
 ];
 
 /* ---------------------------------------------------------------- daily text sample */
