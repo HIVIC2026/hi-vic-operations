@@ -474,7 +474,7 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 export { clearanceFacts } from "./electrical-clearance.server";
 
 /** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
- *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; DRAFT until Jo approves) after the event
+ *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; approved by Jo, decision 384) after the event
  *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);

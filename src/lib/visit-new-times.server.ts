@@ -1,8 +1,8 @@
-// Decision 376 (DRAFT): the owner is told ONCE (email O74 + text) when the TRADE cancels a booked visit — called only from
+// Decision 376 (approved by Jo, decision 384): the owner is told ONCE (email O74 + text) when the TRADE cancels a booked visit — called only from
 // visit-events.server `tradeCancelVisit`, after `reopen` has recorded `visit_times_reopened` for that booking. The notice
 // is recorded as a `visit_new_times_notice` workflow event BEFORE anything is sent (once per booking, ever). TEST jobs →
 // test-send; real owners → the guarded owner email path (customer_comms_enabled + consent + opt-outs) and the one real
-// SMS sender, both held while the wording is unapproved. Best-effort: never throws to the cancel, never changes a stage.
+// SMS sender (customer_comms_enabled + the `visit_new_times` text switch still gate delivery). Best-effort: never throws to the cancel, never changes a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {

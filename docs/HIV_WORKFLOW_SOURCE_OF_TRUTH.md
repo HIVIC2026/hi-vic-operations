@@ -208,3 +208,6 @@ The business owner adds each team member's mobile once on My business › Team. 
 
 ## Staff address (decision 381, Jo 25 Oct 2026)
 - portal.homeinsulationvictoria.com.au is the staff address: its bare address opens sign-in (`/auth`, which sends signed-in staff on to the portal). Every customer host keeps the public calculator at `/`; all other paths are unchanged. Rule in pure `staff-host.core.ts`, applied in `src/server.ts` (page loads) and the `/` route (in-app navigation). Jo adds the domain in Lovable › Settings › Domains.
+
+## Held moments approved (decision 384, Jo 25 Oct 2026)
+- The four decision 376 messages are approved exactly as drafted and on in code: O74/O74b + text `visit_new_times` (owner, trade cancelled a booked visit), O75 signed paperwork copy (owner), E14 + text `piesa_times_reminder` (electrician, no safety check times 24h after accepting), I71 + text `installer_planning_notice` (installer, safety check booked, planning only). They go only through the existing guarded senders; `customer_comms_enabled` and each text's own `sms_message_switches` entry still decide whether anything is actually delivered.

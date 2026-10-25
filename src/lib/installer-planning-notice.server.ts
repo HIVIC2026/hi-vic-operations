@@ -1,8 +1,8 @@
-// Decision 376 (DRAFT): the installer planning notice after a CONFIRMED safety check booking (email I71 + text). Called only
+// Decision 376 (approved by Jo, decision 384): the installer planning notice after a CONFIRMED safety check booking (email I71 + text). Called only
 // from booking.server `confirmBooking` (kind assessment), after the `installer_planning_notice` job-history point. Recorded
 // ONCE per installer assignment + PIESA start as `installer_planning_notified` BEFORE anything is sent. TEST jobs / TEST
 // partners → test-send; real installers → sendOfficeEmail (partner; paused with customer_comms_enabled) + the one real SMS
-// sender, both held while the wording is unapproved. Best-effort: never throws to the booking, never changes a stage.
+// sender (the `installer_planning_notice` text switch still gates the text). Best-effort: never throws to the booking, never changes a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {

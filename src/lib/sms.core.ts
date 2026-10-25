@@ -80,13 +80,14 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
   // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
   swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377; wording approved by Jo 25 Oct)", wordingApproved: true, quietHours: true },
-  // Decision 376 (Jo 25 Oct 2026): DRAFT wording — held until Jo approves. Each records one workflow event before any send.
+  // Decision 376 (Jo 25 Oct 2026), wording approved by Jo in decision 384 (25 Oct 2026). Each records one workflow event
+  // before any send; real sends still need customer_comms_enabled + the per-type switch in sms_message_switches.
   // The trade cancelled a booked visit → the owner (O74 text, visit-new-times.core visitNewTimesText).
-  visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decisions 376/384)", wordingApproved: true, quietHours: true },
   // 24h after accepting a safety check job with no times offered → the electrician (E14 text, piesa-times-reminder.core).
-  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: true, quietHours: true },
   // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
-  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

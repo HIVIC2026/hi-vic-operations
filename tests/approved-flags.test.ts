@@ -28,6 +28,10 @@ import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } f
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+import { VISIT_NEW_TIMES_APPROVED } from "../src/lib/visit-new-times.core";
+import { OWNER_PAPERWORK_COPY_APPROVED } from "../src/lib/paperwork-copy-email.core";
+import { PIESA_TIMES_REMINDER_APPROVED } from "../src/lib/piesa-times-reminder.core";
+import { INSTALLER_PLANNING_NOTICE_APPROVED } from "../src/lib/installer-planning-notice.core";
 import { usualElectricianReminderBody } from "../src/lib/usual-electrician.core";
 
 /** flag → decision number(s) in docs/JO_DECISIONS_LOG.md. */
@@ -64,6 +68,10 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   INSTALL_CLEARANCE_EMAIL_APPROVED: { value: INSTALL_CLEARANCE_EMAIL_APPROVED, decisions: "186 (I65)" },
   CANCEL_NOTICE_EMAILS_APPROVED: { value: CANCEL_NOTICE_EMAILS_APPROVED, decisions: "291 (O69, I70 — Jo 25 Oct 2026)" },
   NEW_SENDER_REPLY_APPROVED: { value: NEW_SENDER_REPLY_APPROVED, decisions: "292 (O70 new-sender calculator reply — Jo 25 Oct 2026)" },
+  VISIT_NEW_TIMES_APPROVED: { value: VISIT_NEW_TIMES_APPROVED, decisions: "384 (O74/O74b drafted in 376 — Jo 25 Oct 2026)" },
+  OWNER_PAPERWORK_COPY_APPROVED: { value: OWNER_PAPERWORK_COPY_APPROVED, decisions: "384 (O75 drafted in 376 — Jo 25 Oct 2026)" },
+  PIESA_TIMES_REMINDER_APPROVED: { value: PIESA_TIMES_REMINDER_APPROVED, decisions: "384 (E14 drafted in 376 — Jo 25 Oct 2026)" },
+  INSTALLER_PLANNING_NOTICE_APPROVED: { value: INSTALLER_PLANNING_NOTICE_APPROVED, decisions: "384 (I71 drafted in 376 — Jo 25 Oct 2026)" },
 };
 
 /** SMS type → decision. */
@@ -84,6 +92,8 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   ready_check_times_owner: "78 (A), wired by 326", ready_check_booked_owner: "82 (owner booked, B), wired by 326",
   visit_tomorrow_owner: "82/93/99 (owner day before), wired by 326", safety_check_booked_owner: "93 (owner booked, A), wired by 326",
   quote_reminder: "88/89, wired by 326", install_moved: "135, wired by 326", piesa_offer: "93 (electrician, B), wired by 326",
+  swms_sign_link: "380 (crew safety plan link, drafted in 377)",
+  visit_new_times: "384 (O74 text, drafted in 376)", piesa_times_reminder: "384 (E14 text, drafted in 376)", installer_planning_notice: "384 (I71 text, drafted in 376)",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {
@@ -95,10 +105,10 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
       expect(SMS_MESSAGE_TYPES[type as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(true);
     });
   }
-  test("every SMS type is approved except the drafts awaiting Jo: decision 377 crew safety plan link, decision 376 held moments (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
+  test("every SMS type is approved: the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
-    // Decisions 377 / 376 (25 Oct 2026): draft wording, held by the sender until Jo approves (tests/decision-376-drafts.test.ts).
-    expect(off.sort()).toEqual(["installer_planning_notice", "piesa_times_reminder", "visit_new_times"]);
+    // Decision 384 (25 Oct 2026): no text wording is waiting for Jo. Delivery still needs customer_comms_enabled + each type's switch.
+    expect(off.sort()).toEqual([]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

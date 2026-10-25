@@ -1,8 +1,8 @@
-// Decision 376 (DRAFT): the 24-hour coordination reminder to the ELECTRICIAN who accepted a safety check job and has not
+// Decision 376 (approved by Jo, decision 384): the 24-hour coordination reminder to the ELECTRICIAN who accepted a safety check job and has not
 // offered the owner times (email E14 + text). Called only from allocation.server `sweepCoordination`, right after it has
 // recorded the `coordination_reminder` workflow event (the once-per-assignment claim, written before any send). TEST jobs /
-// TEST partners → test-send; real electricians → sendOfficeEmail (partner) + the one real SMS sender, both held while the
-// wording is unapproved. Best-effort: never throws to the sweep, never changes a stage or a booking.
+// TEST partners → test-send; real electricians → sendOfficeEmail (partner) + the one real SMS sender (customer_comms_enabled
+// + the `piesa_times_reminder` text switch still gate delivery). Best-effort: never throws to the sweep, never changes a stage or a booking.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import {
   PIESA_TIMES_REMINDER_APPROVED, PIESA_TIMES_REMINDER_SMS_TYPE, coordinationReminderSends, piesaTimesReminderKeys, piesaTimesReminderText, renderPiesaTimesReminderEmail,

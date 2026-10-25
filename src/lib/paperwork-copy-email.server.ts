@@ -1,8 +1,8 @@
-// Decision 376 (DRAFT): ONE "Your signed paperwork" email (O75) per signing sitting, with the signed Gate B PDFs from the
+// Decision 376 (approved by Jo, decision 384): ONE "Your signed paperwork" email (O75) per signing sitting, with the signed Gate B PDFs from the
 // job file attached. Swept by the 15-minute allocation tick (signGateDoc only files the copy). Each batch is recorded as
 // an `owner_paperwork_copy` workflow event BEFORE anything is sent, so a signature is never copied twice. TEST jobs →
-// test-send; real owners → the guarded owner email path (customer_comms_enabled + consent + opt-outs), held while the
-// wording is unapproved (the batch is still recorded, so nothing old goes out later when it is approved).
+// test-send; real owners → the guarded owner email path (customer_comms_enabled + consent + opt-outs). Batches
+// are recorded even when held, so nothing old goes out later; only the last PAPERWORK_COPY_LOOKBACK_DAYS are copied.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { EmailAttachment } from "./email-kit.core";
