@@ -329,7 +329,54 @@ const s = (v: Value) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : Stri
 const isYes = (v: Value) => /^yes$/i.test(s(v));
 const isNo = (v: Value) => /^no$/i.test(s(v));
 const ticked = (v: Value) => v === true || /^(yes|true|ticked|checked)$/i.test(s(v));
-const list = (v: Value) => (Array.isArray(v) ? v.map(String) : s(v) ? s(v).split(/\s*,\s*(?=[A-Z])/) : []);
+const list = (v: Value, options?: readonly string[]) => (Array.isArray(v) ? v.map(String) : !s(v) ? [] : options ? splitSelections(v, options).selected : s(v).split(/\s*,\s*(?=[A-Z])/));
+
+// ---------- multi-select answers (decision 329) ----------
+const selNorm = (x: string) => x.replace(/[‘’`´]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/\s+/g, " ").trim().toLowerCase();
+const selCore = (x: string) => selNorm(x).replace(/[.:]+$/, "");
+/**
+ * The ticked options of a multi-select answer. Mitti joins the selected labels with ", " (mitti.core responseValue) and the
+ * option labels THEMSELVES contain commas ("Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, …)"), so a
+ * plain comma split is wrong. An array is taken as it is (each element still matched); a string is split on " | " / new
+ * lines and then read left to right against the known options, longest first. Anything that matches no option comes back in
+ * `unknown` (so the caller can flag it) — it is never guessed into an option. `selected` is in the options' own order, once each.
+ */
+export function splitSelections(v: Value, options: readonly string[]): { selected: string[]; unknown: string[] } {
+  const raw = Array.isArray(v) ? v.map(String) : v == null || v === "" ? [] : [String(v)];
+  const parts = raw.flatMap((x) => x.split(/\s*\|\s*|\s*\n\s*/)).map((x) => x.trim()).filter(Boolean);
+  const opts = [...new Set(options)].map((o) => ({ o, core: selCore(o) })).filter((x) => x.core).sort((a, b) => b.core.length - a.core.length);
+  const hit = new Set<string>();
+  const unknown: string[] = [];
+  const matchAt = (rest: string) => {
+    for (const x of opts) {
+      if (!rest.startsWith(x.core)) continue;
+      const after = rest.slice(x.core.length);
+      const m = /^[.:]*\s*(?:,|$)/.exec(after);
+      if (m) return { o: x.o, rest: after.slice(m[0].length) };
+    }
+    return null;
+  };
+  for (const part of parts) {
+    let rest = selNorm(part);
+    while ((rest = rest.replace(/^[\s,]+/, ""))) {
+      const m = matchAt(rest);
+      if (m) { hit.add(m.o); rest = m.rest; continue; }
+      // Not a known option: the unknown piece runs to the next ", " that starts a known option (or the end).
+      let cut = rest.length;
+      for (let i = rest.indexOf(","); i >= 0; i = rest.indexOf(",", i + 1)) if (matchAt(rest.slice(i + 1).trimStart())) { cut = i; break; }
+      unknown.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut);
+    }
+  }
+  return { selected: options.filter((o, i) => hit.has(o) && options.indexOf(o) === i), unknown };
+}
+
+// ---------- typed electronic signatures (decision 329) ----------
+const ddmmyyyy = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : d.trim(); };
+/** The text written into an official form's "Signature" box: the signer's typed name, signed electronically on a date. */
+export const electronicSignature = (name: string, date: string) => `${name.trim().replace(/\s+/g, " ")} (signed electronically on ${ddmmyyyy(date)})`;
+/** True for a value built by `electronicSignature` (a typed name + the electronic-signing date). */
+export const isElectronicSignature = (v: Value) => /^\S.* \(signed electronically on \d{2}\/\d{2}\/\d{4}\)$/.test(s(v));
 const isDate = (v: Value) => /^\d{4}-\d{2}-\d{2}$/.test(s(v));
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
@@ -391,7 +438,7 @@ function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: Offic
   for (const i of answerItems(key)) {
     if (!i.required || i.row || !active(i)) continue;
     const v = a[i.id];
-    const bad = i.kind === "tick" ? !ticked(v) : i.kind === "date" ? !isDate(v) : i.kind === "ticks" ? list(v).length === 0 : !s(v);
+    const bad = i.kind === "tick" ? !ticked(v) : i.kind === "date" ? !isDate(v) : i.kind === "ticks" ? list(v, i.options).length === 0 : !s(v);
     if (bad) out.push({ rule: `REQ:${i.id}`, message: i.kind === "date" && s(v) ? `"${i.label}" must be a date only (YYYY-MM-DD), not a date and time.` : `Required: "${i.label}"${i.kind === "tick" ? " must be ticked" : ""}.` });
   }
   return out;
@@ -409,7 +456,7 @@ export function evaluatePiesa(a: OfficialAnswers, ctx: PiesaContext = {}): Evalu
   const hazardAsked = isYes(a["p7.appliances"]) || isYes(a["p7.flues"]);
   const applianceRows = rows(a, ["p7.appliance", "p7.location", "p7.hazard"], 10);
   const hazardIdentified = applianceRows.length > 0;
-  const b2 = list(a["b2"]);
+  const b2 = list(a["b2"], B2_OPTIONS);
   const active = (i: OfficialItem) => {
     switch (i.when) {
       case undefined: return true;

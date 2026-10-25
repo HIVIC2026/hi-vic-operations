@@ -172,6 +172,9 @@ export function deriveOfficialRepairTicks(out: Record<string, string>): void {
   if (other && !String(out["rectificationOther"] ?? "").trim()) out["rectificationOther"] = other;
 }
 export const FIXES_DOWNLIGHT_COUNT_LABEL = "How many downlights are you replacing?";
+/** Decision 329: stored-answer labels for the A5 fixes form's signature (portal only, never on a Mitti form). */
+export const FIXES_SIGNED_BY_LABEL = "Electrical fixes form signed by";
+export const FIXES_SIGNED_ON_LABEL = "Electrical fixes form signed on";
 export const FIXES_RCD_COUNT_LABEL = "How many RCD safety switches are you installing?";
 export const FIXES_OTHER_LABEL = "Describe the other work";
 export const FIXES_OTHER_HELP = "Say exactly what you'll do, where, and how many.";
@@ -256,6 +259,10 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { ...yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationNeeded = Yes"), required: false, source: "A5 fixes form (decision 298)" },
   { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: false, when: "rectificationNeeded = Yes", source: "A5 fixes form (decision 298)" },
   { id: "certDate", label: "Date of Certification:", type: "date", required: false, when: "rectificationNeeded = Yes", source: "A5 fixes form (decision 298)" },
+  // Decision 329: who signed the A5 fixes form and when (Melbourne date) — written into the stored answers by
+  // fixes-day.core mergeFixesIntoPiesaSnapshot and used for the official Section C typed signature. Never asked on A4.
+  { id: "fixesSignedBy", label: FIXES_SIGNED_BY_LABEL, type: "text", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "A5 fixes form signature (decision 329)" },
+  { id: "fixesSignedOn", label: FIXES_SIGNED_ON_LABEL, type: "date", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "A5 fixes form signature (decision 329)" },
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA through their own secure link, not on the electrician's phone;
   // the owner block of the official form is filled from that record (official-expand ctx.ownerConfirmation).
 ];

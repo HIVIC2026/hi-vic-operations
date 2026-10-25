@@ -209,6 +209,29 @@ export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" }).middle
     return signOwnerPiesaConfirmation({ jobId, userId: null, codeId: null, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
   });
 
+/** Decision 330: what the owner confirms about the electrical fixes (date, electrician) — null when no fixes are recorded. Link token only (read). */
+export const ownerFixesConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { ownerFixesConfirmFacts } = await import("./piesa-fixes-confirm.server");
+    const { piesaFixesConfirmPage } = await import("./piesa-fixes-confirm.core");
+    const facts = await ownerFixesConfirmFacts(jobId);
+    return facts ? JSON.parse(JSON.stringify(piesaFixesConfirmPage(facts))) as ReturnType<typeof piesaFixesConfirmPage> : null;
+  });
+
+/** Decision 330: the owner confirms the electrical fixes via the secure link (one tick + typed full name, no code). Idempotent per fixes record. */
+export const ownerSignFixesConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, ...signer, confirmed: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    const { signOwnerFixesConfirmation } = await import("./piesa-fixes-confirm.server");
+    return signOwnerFixesConfirmation({ jobId, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
+  });
+
 /** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).
  *  Link token only: the page merely opens Stripe's own payment page for our exact amount; no money moves without Stripe's flow. */
 export const ownerCardCheckoutFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

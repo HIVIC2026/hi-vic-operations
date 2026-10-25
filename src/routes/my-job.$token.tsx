@@ -16,13 +16,13 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
-import { OFFICE_EMAIL, P2, P3, P4, P6, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
+import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
@@ -111,6 +111,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {v.consent && <ConsentCard v={v} token={token} />}
     {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
     {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
+    {v.fixesConfirm && <FixesConfirmCard token={token} />}
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
@@ -565,6 +566,44 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
       <LockedButton ready={ready} busy={busy} busyLabel={P6.signing} onClick={() => void doSign()}>{P6.button}</LockedButton>
       {!ready && <LockHint>{P6.lockHint}</LockHint>}
       <SmallNote>{P6.afterNote}</SmallNote>
+      <OwnerFooter />
+    </div>
+  </section>;
+}
+
+/** Decision 330: "Your electrical fixes — please confirm" (P6 pattern, no code): one tick "The electrical fixes were completed on
+ *  <date>" + typed full name. Nothing when no fixes are recorded; "Confirmed on <date>" afterwards. Never holds the booking. */
+function FixesConfirmCard({ token }: { token: string }) {
+  const load = useServerFn(ownerFixesConfirmFn);
+  const sign = useServerFn(ownerSignFixesConfirmFn);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["owner-fixes-confirm", token], queryFn: () => load({ data: { token } }) });
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
+  const [tick, setTick] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  if (data.confirmed) return <section data-testid="fixes-confirmed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
+    <div><p className="font-display text-lg font-extrabold">{P6F.confirmedTitle}</p><p className="text-sm">{P6F.confirmedOn(data.confirmed.signedOn, data.confirmed.name)}</p></div>
+  </section>;
+  const ready = tick && f.name.trim().length >= 2;
+  const doSign = async () => {
+    setErr(""); setBusy(true);
+    try { await sign({ data: { token, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await qc.invalidateQueries({ queryKey: ["owner-fixes-confirm", token] }); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  return <section data-testid="fixes-confirm" className="space-y-4">
+    <PageIntro kicker={P6F.kicker} title={P6F.title}>{P6F.sub(data.electricianLine, data.fixesDate)}</PageIntro>
+    <FormCard eyebrow={P6F.formEyebrow}>
+      <TickCard on={tick} set={setTick} title={data.tick} sub={P6F.declare} read="Read the declaration ›" readBody={`• ${data.declaration}`} />
+      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
+      <TypedField label={P6F.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P6.typeHere} autoComplete="name" />
+      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P6F.dateLine(longDate(new Date().toISOString()))}</p>
+    </FormCard>
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    <div>
+      <LockedButton ready={ready} busy={busy} busyLabel={P6F.signing} onClick={() => void doSign()}>{P6F.button}</LockedButton>
+      {!ready && <LockHint>{P6F.lockHint}</LockHint>}
       <OwnerFooter />
     </div>
   </section>;
