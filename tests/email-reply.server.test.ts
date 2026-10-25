@@ -205,7 +205,7 @@ describe("drafting", () => {
     expect(drafted["details"]).toMatchObject({ email_enquiry_created: true, link: "https://estimate.homeinsulationvictoria.com.au/estimate/TESTTOKEN/campaign" });
     expect(tables["owner_contact_consents"] ?? []).toHaveLength(0); // an email is consent to reply only
   });
-  test("decision 255: no address in the email → reply asks for street address and suburb; enquiry has no address (Fix details)", async () => {
+  test("decision 255: no address in the email → reply asks for street address and suburb; enquiry has no address (decision 281: no Fix details pile)", async () => {
     seed();
     const r = await draftReplyForMessage({ message: msg({ subject: "Rebate", body: "Is the insulation rebate still available and how much would it cost?" }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
     expect(r).toMatchObject({ status: "drafted", type: "price_rebate_eligibility", checkBeforeSending: true });

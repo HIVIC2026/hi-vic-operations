@@ -1,11 +1,14 @@
-// O3 Jobs (Active) and O4 Enquiries list reads (office only, read-only). One pile per job: Enquiries holds every
-// job before a spot is saved (office_enquiry_index bucket "enquiry") split by the pure enquiryPile rule; Jobs Active
-// holds the "active" bucket split by the pure jobsStage rule. Filters, sorting, priority and paging are pure
-// (office-filters.core); every job-id lookup is batched (AGENTS: one all-ids URL stalled Office reads).
+// O3 Jobs (Active) and O4 Enquiries list reads (office only, read-only). One pile per job: Enquiries is ONE list of
+// every job before a spot is saved (office_enquiry_index bucket "enquiry"; decision 281 — no Fix details pile, the
+// address lookup completes blanks itself); Jobs Active holds the "active" bucket split by the pure jobsStage rule.
+// Filters, sorting, priority and paging are pure (office-filters.core); every job-id lookup is batched (AGENTS: one
+// all-ids URL stalled Office reads).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice } from "./office.server";
-import { enquiryPile, jobsStage, surnameOf, waitingOnLine, type EnquiryPile, type JobsStage } from "./office-jobs.core";
+import { jobsStage, surnameOf, waitingOnLine, type JobsStage } from "./office-jobs.core";
 import { tidyEnquiryDetails, type DetailsProblem } from "./name-address-tidy.core";
+import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters } from "./enquiry-columns.core";
+import { savedPriceFromEstimate } from "./launch-campaign.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -67,23 +70,39 @@ async function coveredFn() {
   };
 }
 
-export type EnquiryListParams = { pile: EnquiryPile; search: string; sort: string; dir: SortDir; page: number; filters: ChipFilters; includeTest?: boolean };
+/** Decisions 285/286: one search box (owner name, address, job number) + column headings that sort AND filter; no chip panel. */
+export type EnquiryListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ColumnFilters; includeTest?: boolean };
 export type EnquiryListRow = {
-  id: string; jobNumber: string; priority: number; ownerName: string; street: string; suburb: string; postcode: string; phone: string | null; email: string | null;
+  id: string; jobNumber: string; ownerName: string; street: string; suburb: string; postcode: string; address: string; phone: string | null; email: string | null;
   told: string; websiteSaid: string; problems: DetailsProblem[]; lastHeardAt: string | null; lastHeardChannel: string | null; waitingOn: string;
   insulation: InsulationChip; size: SizeChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip; createdAt: string; areaM2: number | null;
+  estimateDollars: number | null; estimateKind: "quote" | "website" | null;
 };
+
+/** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
+async function estimateMap(ids: string[]) {
+  const [estimates, quotes] = await Promise.all([
+    byIds("website estimates", ids, (c, f, t) => admin.from("indicative_estimates").select("id, job_id, area_m2, insulation_declared, scenarios, created_at").in("job_id", c).eq("status", "current").order("created_at", { ascending: false }).range(f, t)),
+    byIds("quotes", ids, (c, f, t) => admin.from("quotes").select("job_id, customer_total_inc_gst, created_at").in("job_id", c).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).range(f, t)),
+  ]);
+  const website = new Map<string, number | null>();
+  for (const e of estimates) { const k = String(e["job_id"]); if (!website.has(k)) website.set(k, savedPriceFromEstimate(e as never)?.total ?? null); }
+  const quote = new Map<string, number | null>();
+  for (const q of quotes) { const k = String(q["job_id"]); if (!quote.has(k)) quote.set(k, q["customer_total_inc_gst"] == null ? null : Number(q["customer_total_inc_gst"])); }
+  return (id: string) => estimateDollars({ websiteTotal: website.get(id) ?? null, quoteTotal: quote.get(id) ?? null });
+}
 
 export async function loadEnquiriesList(p: EnquiryListParams) {
   const now = Date.now();
   const index = await all("enquiries", (a, b) => admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone")
     .eq("office_bucket", "enquiry").in("source", ["base44", "portal", "email"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
   const ids = index.map((r) => String(r["id"]));
-  const [jobs, heard, answered, covered] = await Promise.all([
+  const [jobs, heard, answered, covered, estimateOf] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
     byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
     coveredFn(),
+    estimateMap(ids),
   ]);
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
@@ -100,26 +119,30 @@ export async function loadEnquiriesList(p: EnquiryListParams) {
     const last = heard.last.get(id) ?? null;
     const sends = (heard.sends.get(id) ?? []).sort((a, b) => a.at.localeCompare(b.at));
     const ins = insulationChip(declared);
+    const est = estimateOf(id);
     return {
-      id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, phone: s(r["owner_phone"]), email: s(r["owner_email"]),
+      id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
+      estimateDollars: est.dollars, estimateKind: est.kind,
       told: [areaM2 ? `~${Math.round(areaM2)} m²` : "No size", ins === "no" ? "no insulation" : ins === "some" ? "some insulation" : "not sure"].join(" · "),
       websiteSaid: [s(r["owner_name"]), [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(" ")].filter(Boolean).join(" · "),
       problems: tidy.problems, lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null,
       waitingOn: waitingOnLine({ enquiryStatus: s(r["enquiry_status"]), needsFirstResponse: r["needs_first_response"] === true, latestSend: sends.at(-1) ?? null, reminders: sends.filter((x) => REMINDER.test(x.purpose)).length, answeredQuestions: answeredSet.has(id), latestFailed: r["latest_attempt_status"] === "failed" && r["needs_first_response"] === true }),
       insulation: ins, size: sizeChip(areaM2), region: regionChip(tidy.postcode || prop?.postcode), source: sourceChip({ source: s(r["source"]), channel: s(r["channel"]) }), heard: lastHeardChip(last?.at ?? null, now),
       createdAt: String(r["created_at"]), areaM2, covered: covered(tidy.postcode || prop?.postcode || null, tidy.suburb || null),
-      pile: enquiryPile({ fullName: s(r["owner_name"]), addressLine: prop?.address_line ?? null, suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null }),
     };
   });
-  const counts = { fix_details: rows.filter((r) => r.pile === "fix_details").length, waiting_owner: rows.filter((r) => r.pile === "waiting_owner").length };
+  // Decision 281: one list. `open` = every enquiry; `incompleteAddresses` = still waiting on the automatic lookup.
+  const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length };
   const ranked = rankByPriority(rows.map((r) => ({ ...r, insulation: r.insulation, lastHeardAt: r.lastHeardAt })), now);
   const q = p.search.trim().toLowerCase();
-  const filtered = ranked.filter((r) => r.pile === p.pile && matchesChips(r, p.filters) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));
-  const SORTS: Record<string, keyof (typeof filtered)[number]> = { priority: "priority", job: "jobNumber", owner: "ownerName", street: "street", suburb: "suburb", postcode: "postcode", heard: "lastHeardAt", waiting: "waitingOn", told: "areaM2", created: "createdAt" };
+  const filtered = ranked.filter((r) => matchesColumnFilters(r, p.filters ?? {}) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));
+  // Decision 286 columns: Job · Owner · Address · Size · Insulation · Estimate · Last heard (older keys kept for bookmarks).
+  const SORTS: Record<string, keyof (typeof filtered)[number]> = { priority: "priority", job: "jobNumber", owner: "ownerName", address: "street", street: "street", suburb: "suburb", postcode: "postcode", size: "areaM2", insulation: "insulation", estimate: "estimateDollars", heard: "lastHeardAt", waiting: "waitingOn", told: "areaM2", created: "createdAt" };
   const key = SORTS[p.sort] ?? "priority";
   const sorted = sortRows(filtered, key, key === "priority" && !p.sort ? "asc" : p.dir);
   const page = pageOf(sorted, p.page);
-  return { ...page, counts, rows: page.rows.map(({ score: _s, pile: _p, covered: _c, ...r }) => r as EnquiryListRow) };
+  // Decision 283: the priority rank sorts the list hottest first but is never shown, so it does not leave the server.
+  return { ...page, counts, rows: page.rows.map(({ score: _s, priority: _n, covered: _c, ...r }) => r as EnquiryListRow) };
 }
 
 export type JobsListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ChipFilters; includeTest?: boolean };

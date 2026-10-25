@@ -203,7 +203,7 @@ try {
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
     type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string; verifyContent?: boolean; discoverTestJob?: boolean; widths?: number[] };
     let screens: Screen[] = [
-      { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Fix details", "Waiting on owner"] },
+      { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Owner", "Address", "Estimate"] },
       { step: "office-needs-me", persona: "office", path: "/admin", expectedPath: "/admin/needs-me", mustSee: ["Needs me", "Today", "This week", "Watch"] },
       { step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/active", mustSee: ["Jobs", "Active", "Closed", "Choose installer", "Ready Check", "Final check"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },

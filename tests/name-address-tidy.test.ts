@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
-import { fixDetailsErrors, hasCaseProblem, nameProblem, needsFixDetails, splitAddress, tidyEnquiryDetails, tidyPersonName } from "../src/lib/name-address-tidy.core";
+import { DETAILS_PROBLEM_LABEL, hasCaseProblem, splitAddress, tidyEnquiryDetails, tidyPersonName } from "../src/lib/name-address-tidy.core";
 
 // Decision 216/238: capitalisation tidied automatically; addresses split into street / suburb / postcode for every source.
+// Decision 281: names are never a "problem" (first-name-only, odd or missing is tidied and stored as it is);
+// what the split cannot read is filled by the address lookup, not an office button.
 test("capitalisation tidy fixes ALL CAPS and all lower case, keeps mixed case", () => {
   expect(tidyPersonName("MARGARET DOYLE")).toBe("Margaret Doyle");
   expect(tidyPersonName("siobhan  brennan")).toBe("Siobhan Brennan");
@@ -14,15 +16,16 @@ test("capitalisation tidy fixes ALL CAPS and all lower case, keeps mixed case", 
   expect(hasCaseProblem("abc smith")).toBe(true);
 });
 
-test("one-word and junk names go to Fix details", () => {
-  expect(nameProblem("jo")).toBe("one_word");
-  expect(nameProblem("Nguyen")).toBe("one_word");
-  expect(nameProblem("asdf")).toBe("junk");
-  expect(nameProblem("test test")).toBe("junk");
-  expect(nameProblem("jo@example.com")).toBe("junk");
-  expect(nameProblem("xxx yyy")).toBe("junk");
-  expect(nameProblem("")).toBe("missing");
-  expect(nameProblem("Jo Tran")).toBeNull();
+test("decision 281: first-name-only, odd and missing names are tidied to what they are and block nothing", () => {
+  expect(tidyPersonName("jo")).toBe("Jo");
+  expect(tidyPersonName("asdf")).toBe("Asdf");
+  expect(tidyPersonName("")).toBe("");
+  expect(tidyPersonName(null)).toBe("");
+  for (const name of ["jo", "Nguyen", "asdf", "test test", "", null]) {
+    const t = tidyEnquiryDetails({ fullName: name, addressLine: "3 Lakeview Drive", suburb: "Lilydale", postcode: "3140" });
+    expect(t.problems).toEqual([]);
+  }
+  expect(Object.keys(DETAILS_PROBLEM_LABEL)).toEqual(["street_missing", "suburb_missing", "postcode_missing"]); // address only
 });
 
 test("address split handles commas, VIC and postcodes, and one-line website addresses", () => {
@@ -32,22 +35,17 @@ test("address split handles commas, VIC and postcodes, and one-line website addr
   expect(splitAddress("15 Lum Road Wheelers Hill 3150")).toEqual({ street: "15 Lum Road", suburb: "Wheelers Hill", postcode: "3150", state: "VIC" });
   // Already split: stored suburb wins and is stripped from the line.
   expect(splitAddress("41 Burwood Highway, Burwood East", "Burwood East", "3151")).toEqual({ street: "41 Burwood Highway", suburb: "Burwood East", postcode: "3151", state: "VIC" });
-  // Cannot split: suburb stays blank (never invented).
+  // Cannot split: suburb stays blank (never invented) — the lookup fills it (decision 281).
   expect(splitAddress("unit 3/22 High Street Road").suburb).toBe("");
 });
 
-test("Fix details only holds what the tidy cannot fix", () => {
+test("the tidy reports only what the address is still missing after it", () => {
   const caseOnly = tidyEnquiryDetails({ fullName: "MARGARET DOYLE", addressLine: "8 Carrington Rd, Box Hill 3128", suburb: null, postcode: null });
   expect(caseOnly.problems).toEqual([]);
   expect(caseOnly.changed).toBe(true);
   expect(caseOnly.fullName).toBe("Margaret Doyle");
-  expect(needsFixDetails({ fullName: "jo", addressLine: "12 wattle st clayton", suburb: null, postcode: null })).toBe(true);
-  expect(tidyEnquiryDetails({ fullName: "jo", addressLine: "12 wattle st clayton", suburb: null, postcode: null }).problems).toEqual(["name_one_word", "postcode_missing"]);
-  expect(needsFixDetails({ fullName: "Ruth Mackenzie", addressLine: "41 Burwood Highway", suburb: "Burwood East", postcode: "3151" })).toBe(false);
-  expect(tidyEnquiryDetails({ fullName: "Ruth Mackenzie", addressLine: "41 Burwood Highway", suburb: "Burwood East", postcode: "3151" }).changed).toBe(false);
-});
-
-test("office save validates after the tidy", () => {
-  expect(fixDetailsErrors({ fullName: "Jo Tran", street: "12 Wattle Street", suburb: "Clayton", postcode: "3168" })).toEqual([]);
-  expect(fixDetailsErrors({ fullName: "Jo", street: "12 Wattle Street", suburb: "", postcode: "31" })).toEqual(["First name only", "Suburb not split", "No postcode"]);
+  expect(tidyEnquiryDetails({ fullName: "jo", addressLine: "12 wattle st clayton", suburb: null, postcode: null }).problems).toEqual(["postcode_missing"]);
+  expect(tidyEnquiryDetails({ fullName: "Aisha Karim", addressLine: "unit 3/22 High Street Road", suburb: null, postcode: null }).problems).toEqual(["suburb_missing", "postcode_missing"]);
+  expect(tidyEnquiryDetails({ fullName: "x", addressLine: "", suburb: null, postcode: null }).problems).toEqual(["street_missing", "suburb_missing", "postcode_missing"]);
+  expect(tidyEnquiryDetails({ fullName: "Ruth Mackenzie", addressLine: "41 Burwood Highway", suburb: "Burwood East", postcode: "3151" })).toMatchObject({ problems: [], changed: false });
 });
