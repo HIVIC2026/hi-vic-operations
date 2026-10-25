@@ -61,11 +61,11 @@ describe("clearance and electrical fixes", () => {
     expect(installationCoordinationBlocker(electricalClearance({ ...c, piesaCompletedAt: null }))).not.toBeNull();
     expect(electricalClearance(c)).toMatchObject({ cleared: true, basis: "initial_piesa", timingDate: "2026-10-01" });
   });
-  test("Section C date drives timing after rectification", () => {
+  test("decision 316: fixes clear the job but the 30 days still run from the official PIESA date", () => {
     const r = { ...c, piesaOutcome: "fail" as const, rectificationRequired: true };
     expect(electricalClearance(r).cleared).toBe(false);
     expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, rectificationCompletedAt: "2026-10-05" }).cleared).toBe(false);
-    expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, rectificationCompletedAt: "2026-10-05", sectionCSignedAt: "2026-10-06" })).toMatchObject({ cleared: true, basis: "section_c", timingDate: "2026-10-06" });
+    expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, rectificationCompletedAt: "2026-10-05", sectionCSignedAt: "2026-10-06" })).toMatchObject({ cleared: true, basis: "section_c", timingDate: "2026-10-01" });
     expect(electricalClearance(c).pendingConfirmation).toContain("pending written confirmation");
   });
   test("rectification quote needs office review before send; owner approval before visit", () => {

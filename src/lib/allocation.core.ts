@@ -273,7 +273,8 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
   if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
   if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
   if (!f.sectionCSignedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Section C not completed and signed yet." };
-  return { ...base, cleared: true, timingDate: f.sectionCSignedAt, basis: "section_c", blocker: null };
+  // Decision 316 (Jo 25 Oct 2026): fixes clear the job, but the 30 days still run from the official PIESA date.
+  return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "section_c", blocker: null };
 }
 
 /** Installation contact release / booking is hard blocked until electrical clearance is valid. */
