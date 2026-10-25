@@ -618,10 +618,7 @@ export function parseAudit(audit: Any) {
     if (reason) patch.notes = [patch.notes, `Ready Check failed – installer reasons: ${reason}`].filter(Boolean).join(". ").slice(0, 4000);
   }
 
-  const photoGaps = {
-    access: !!find(entries, ["Upload a clear photo of the ceiling access point"], { withValue: true }),
-    areas: rooms.map((r, i) => ({ area: i + 1, insulated: r.insulated, depth: r.photos.depth, overview: r.photos.overview })),
-  };
+  // Decision 396: Ready Check photos the form left out are no longer carried to install day (the A5 asks the ruler photos).
   // Decision 222 / 211: per-area record in the areas.v1 shape (ready-check-areas.core readAreas) plus the install-day
   // zone fields (piisa-a3.core rcAreasFromRecord: name / present / removal). Stored on ceiling_measurements.zones by the sync.
   const areas: MittiArea[] = rooms.map((r, i) => ({
@@ -645,7 +642,6 @@ export function parseAudit(audit: Any) {
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
     failReasons,
     jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID"]),
-    photoGaps,
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };

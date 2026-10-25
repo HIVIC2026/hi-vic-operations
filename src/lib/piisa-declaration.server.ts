@@ -41,7 +41,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (isA3) {
     try {
       const ie = await import("./install-evidence.server");
-      installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit);
+      installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit, fetchMedia);
     } catch (e) { try { await logEvent(jobId, actorId, "install_evidence_sync_failed", "Install-day evidence (Table 4 / sign-off) could not be read — sync again", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   }
   // Decision 328: the final tick of the install day form (unticked = not complete) and what this sync read, for the

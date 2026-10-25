@@ -1,6 +1,6 @@
 // Mitti Ready Check build, Stages 7–8 (Jo 22 Oct 2026). Pure rules — no database, no network.
 // Stage 7: an incomplete Ready Check form → text the installer what's missing; after 24h → office "Chase installer".
-//          Photos not needed for the quote are carried to install day and lock "Installation complete".
+//          Photos are optional on the Ready Check; decision 396 retired carrying them to install day.
 // Stage 8: the "Office needs to…" Mitti items, from recorded workflow events (latest per job, resolved by a later event).
 import type { ReadyCheckFacts } from "./ready-check-complete.core";
 
@@ -14,7 +14,7 @@ export function installerMissing(f: ReadyCheckFacts): string[] {
   if (!f.formComplete) out.push("finish and submit the form");
   if (!f.priceKnown) out.push("your total quoted price (inc GST)");
   if (!f.electricianDecided) out.push("who is doing the electrical safety check");
-  // Photos are optional in Mitti (Jo 23 Oct) — missing ones are taken on install day instead.
+  // Photos are optional in Mitti (Jo 23 Oct; access hatch photo optional, Jo 26 Oct) — never chased here (decision 396).
   if (f.contactPermission === null) out.push("whether the homeowner agrees to be contacted");
   return out;
 }
@@ -40,33 +40,19 @@ export function readyCheckIncompleteText(jobNumber: string, address: string | nu
 /** Stable signature so the same gaps are recorded (and texted) once, not on every 15-minute sync. */
 export const missingSignature = (missing: string[]) => [...missing].sort().join("|");
 
-// ---------- install-day photo lock ----------
-/** Ready Check photos the quote doesn't need, carried to install day (taken before work starts). */
-export const INSTALL_DAY_PHOTO_CATEGORIES = ["access_manhole", "before_ceiling_space", "existing_insulation_r_value"] as const;
-
-/** Jo 23 Oct: each photo missing from the Ready Check form becomes a required install-day photo. Already on the form = not asked again. */
-export type PhotoGaps = { access: boolean; areas: { area: number; insulated: boolean; depth: boolean; overview: boolean }[] };
-export type InstallDayPhotoSpec = { category: (typeof INSTALL_DAY_PHOTO_CATEGORIES)[number]; label: string };
-export function installDayPhotoNeeds(g: PhotoGaps): InstallDayPhotoSpec[] {
-  const out: InstallDayPhotoSpec[] = [];
-  if (!g.access) out.push({ category: "access_manhole", label: "Install day: ceiling access photo" });
-  for (const a of g.areas) {
-    if (a.insulated && !a.depth) out.push({ category: "existing_insulation_r_value", label: `Install day: Area ${a.area} existing insulation depth photo` });
-    if (!a.overview) out.push({ category: "before_ceiling_space", label: `Install day: Area ${a.area} overview photo` });
-  }
-  return out;
+// ---------- retired install-day photo chase (decision 396) ----------
+/** Decision 396 (Jo, 26 Oct 2026): the "missing Ready Check photos become install-day photos" chase is gone — the A5
+ *  asks the legally required ruler photos itself (install-evidence.core `rulerPhotoEvaluation`); access hatch / area
+ *  overview photos are not legally required. Requirement rows the chase created earlier (gate `installation`, one of
+ *  these categories, label "Install day: …" — the job's seeded checklist rows of the same categories are NOT these) are
+ *  IGNORED in code wherever evidence is gated or listed; no database change. */
+export const RETIRED_INSTALL_DAY_PHOTO_CATEGORIES = ["access_manhole", "before_ceiling_space", "existing_insulation_r_value"] as const;
+export const RETIRED_INSTALL_DAY_PHOTO_LABEL_PREFIX = "Install day:";
+export function isRetiredInstallDayPhotoRow(r: { category?: string | null; gate?: string | null; label?: string | null }): boolean {
+  return r.gate === "installation" && (RETIRED_INSTALL_DAY_PHOTO_CATEGORIES as readonly string[]).includes(String(r.category ?? ""))
+    && String(r.label ?? "").trim().startsWith(RETIRED_INSTALL_DAY_PHOTO_LABEL_PREFIX);
 }
-export const INSTALL_PHOTO_LOCK = "Installation complete stays locked until these install-day photos are in";
-type Req = { category: string; label: string | null; gate: string | null; required: boolean; status: string };
-export function installDayPhotosOutstanding(reqs: Req[]): string[] {
-  return reqs
-    .filter((r) => r.required && r.gate === "installation" && (INSTALL_DAY_PHOTO_CATEGORIES as readonly string[]).includes(r.category) && ["outstanding", "rejected"].includes(r.status))
-    .map((r) => r.label?.trim() || r.category.replaceAll("_", " "));
-}
-export function installDayPhotoBlocker(reqs: Req[]): string | null {
-  const out = installDayPhotosOutstanding(reqs);
-  return out.length ? `${INSTALL_PHOTO_LOCK}: ${out.join(", ")}.` : null;
-}
+export const withoutRetiredInstallDayPhotos = <T extends { category?: string | null; gate?: string | null; label?: string | null }>(rows: readonly T[]): T[] => rows.filter((r) => !isRetiredInstallDayPhotoRow(r));
 
 // ---------- Stage 8: "Office needs to…" Mitti items ----------
 export type MittiOfficeCode =

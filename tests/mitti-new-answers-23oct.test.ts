@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { buildPrefill, parseAudit, validateStoredMittiAudit } from "../src/lib/mitti.core";
 import { a1DifficultAccessIncluded, websiteStopReasons, readyCheckStopReasons, removalTotalM2, difficultAccessFee, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "../src/lib/ready-check-answers.core";
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
-import { installDayPhotoNeeds, installDayPhotoBlocker } from "../src/lib/ready-check-chase.core";
+import { evidenceStageBlockers } from "../src/lib/ap-review-evidence.core";
 import { validateQuotedPrice } from "../src/lib/mitti-forms.core";
 import { applyMittiRemoval, applyMittiAccessFeeIncluded } from "../src/lib/mitti-installer-quote.core";
 import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
@@ -71,20 +71,20 @@ describe("6 difficult access charge", () => {
   });
 });
 
-describe("7 install-day photo lock", () => {
-  test("missing photos become required install-day photos; on the form = not asked", () => {
-    const needs = installDayPhotoNeeds({ access: false, areas: [{ area: 1, insulated: true, depth: false, overview: true }, { area: 2, insulated: false, depth: false, overview: false }] });
-    expect(needs.map((n) => n.label)).toEqual(["Install day: ceiling access photo", "Install day: Area 1 existing insulation depth photo", "Install day: Area 2 overview photo"]);
-    expect(installDayPhotoNeeds({ access: true, areas: [{ area: 1, insulated: true, depth: true, overview: true }] })).toEqual([]);
-  });
-  test("depth photo requirement locks completion", () => {
-    expect(installDayPhotoBlocker([{ category: "existing_insulation_r_value", label: "Install day: Area 1 existing insulation depth photo", gate: "installation", required: true, status: "outstanding" }])).toMatch(/Area 1 existing insulation depth photo/);
+describe("7 install-day photo lock — retired by decision 396", () => {
+  test("decision 396: a chase row left over from before never blocks AP review / Ready for VEEC", () => {
+    const rows = [
+      { label: "Install day: Area 1 existing insulation depth photo", category: "existing_insulation_r_value", gate: "installation", required: true, status: "outstanding" },
+      { label: "Completed installation", category: "completed_installation", gate: "installation", required: true, status: "verified" },
+    ];
+    expect(evidenceStageBlockers("ready_for_veec", rows, false)).toEqual([]);
+    expect(evidenceStageBlockers("ap_review", rows, false)).toEqual([]);
   });
   test("photos no longer block the quote", () => {
     const r = readyCheckCompletionChecks({ formComplete: true, belowR2: true, lifeSupportReviewed: true, depthPhoto: false, overviewPhoto: false, contactPermission: true, electricianDecided: true, priceKnown: true });
     expect(r.ready).toBe(true);
   });
-  test("parseAudit reports photo gaps per area (media items)", () => {
+  test("decision 396: parseAudit no longer reports photo gaps for install day", () => {
     const p = parseAudit({ audit_id: "a", items: [
       { item_id: "acc", label: "Upload a clear photo of the ceiling access point", media: [{ media_id: "x" }] },
       { item_id: "a1", label: "Area 1" },
@@ -92,7 +92,8 @@ describe("7 install-day photo lock", () => {
       { item_id: "a1i", parent_id: "a1", label: "Is there existing insulation in this ceiling area?", responses: sel("Yes") },
       { item_id: "a1o", parent_id: "a1", label: "Upload an overview photo of this ceiling area", media: [] },
     ] });
-    expect(p.photoGaps).toEqual({ access: true, areas: [{ area: 1, insulated: true, depth: false, overview: false }] });
+    expect("photoGaps" in p).toBe(false);
+    expect(p.areas.map((a) => a.beforeVideo)).toEqual([false]);
   });
 });
 

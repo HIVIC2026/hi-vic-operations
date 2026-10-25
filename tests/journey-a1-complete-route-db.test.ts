@@ -640,6 +640,11 @@ describe("A1 step 11 — the 10% install deposit, the pre-start check and the in
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A5)).toHaveLength(1);
     const a5 = [...providers.mitti.audits.values()].find((a) => a.template_id === TPL_A5)!;
     if (process.env["JOURNEY_DEBUG"]) console.log("A5-PREFILL", a5.items.filter((i) => i.responses).map((i) => `${i.label.slice(0, 50)} = ${JSON.stringify(i.responses)}`));
+    // Night run fix: life support and solar come from the PIESA (A3 answered No to both) — the owner gave no answer here.
+    const id = await import("../src/lib/install-day.core");
+    const picked = (label: string) => ((a5.items.find((i) => i.label === label)?.responses as { selected?: { label: string }[] } | undefined)?.selected ?? []).map((x) => x.label);
+    expect(picked(id.INSTALL_DAY_Q.lifeSupport)).toEqual(["No"]);
+    expect(picked(id.INSTALL_DAY_Q.solar)).toEqual(["No"]);
   });
 });
 
@@ -652,7 +657,7 @@ describe("A1 step 12 — install day: the installer fills in the A5 form → the
     expect(r.state).toBe("not_complete");
     expect((await q<{ c: Date | null }>("select installation_completed_at as c from jobs where id=$1", [JOB]))[0]!.c).toBeNull();
   });
-  test("the lead installer completes every answer, photo and video → declaration saved, installation recorded once", async () => {
+  test("decision 396: the lead installer completes every answer, photo and video — the A5 ruler photos per area are required, then the installation is recorded once", async () => {
     const forms = await import("./helpers/journey-forms");
     const id = await import("../src/lib/install-day.core");
     const ie = await import("../src/lib/install-evidence.server");
@@ -660,10 +665,22 @@ describe("A1 step 12 — install day: the installer fills in the A5 form → the
     const [b] = await q<{ scheduled_start: Date }>("select scheduled_start from bookings where job_id=$1 and kind='installation' and status='confirmed'", [JOB]);
     const capturedAt = new Date(b!.scheduled_start.getTime() + 2 * 3_600_000).toISOString();
     const a5 = [...providers.mitti.audits.values()].find((a) => a.template_id === TPL_A5)!;
+    // Decision 396: first the form WITHOUT the ruler photos — "not finished", naming the area; nothing is recorded.
     const def = forms.completedA5({ q: id.INSTALL_DAY_Q as unknown as Record<string, string>, capturedAt, mediaPrefix: "a5", lead: "Ivy Installer", areas: Math.max(1, zones.length) });
     for (const m of def.mediaIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "image/png" });
     for (const m of def.videoIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "video/mp4" });
     fillAudit(a5, def.items);
+    const ie396 = await import("../src/lib/install-evidence.core");
+    const tvf0 = await import("../src/lib/trade-view.functions");
+    const r0 = await tvf0.checkTradeInstallForm({ data: { jobId: JOB }, context: { userId: INST, supabase: asUser(INST), claims: {} } }) as { state: string; missing: string[] };
+    await settle();
+    expect(r0.state).toBe("not_finished");
+    expect(r0.missing).toContain(ie396.RULER_SECTION_MISSING);
+    expect((await q<{ c: Date | null }>("select installation_completed_at as c from jobs where id=$1", [JOB]))[0]!.c).toBeNull();
+    // Then the A5 with the ruler photo section: one copy per Ready Check area, both photos geotagged and timed.
+    const withRuler = forms.completedA5({ q: id.INSTALL_DAY_Q as unknown as Record<string, string>, capturedAt, mediaPrefix: "a5", lead: "Ivy Installer", areas: Math.max(1, zones.length), ruler: id.INSTALL_DAY_RULER_Q });
+    for (const m of withRuler.mediaIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "image/png" });
+    fillAudit(a5, withRuler.items.filter((i) => i.label === ""));
     const tvf = await import("../src/lib/trade-view.functions");
     const instCtx = { userId: INST, supabase: asUser(INST), claims: {} };
     const r = await tvf.checkTradeInstallForm({ data: { jobId: JOB }, context: instCtx }) as { state: string; missing: string[]; title: string; body: string };
@@ -681,35 +698,14 @@ describe("A1 step 12 — install day: the installer fills in the A5 form → the
     await settle();
     if (process.env["JOURNEY_DEBUG"]) console.log("A5-AFTER-REVIEW", JSON.stringify(r2), await stageOf(JOB), (await q<{ event_type: string; summary: string; details: unknown }>("select event_type, summary, details from workflow_events where job_id=$1 order by created_at desc limit 12", [JOB])).map((e) => `${e.event_type}: ${e.summary} ${e.event_type === "piisa_prestart_captured" ? JSON.stringify(e.details) : ""}`));
     expect(r2.state).toBe("all_filled_in");
-    // FINDING (documented, wording not changed): "All filled in ✓ You can leave site" while Installation complete is still
-    // locked for the install-day photos the Ready Check form left out (ready-check-chase.core) — they are uploaded on
-    // the installer's job page, not in the A5 form.
-    const held = (await events(JOB, "install_complete_auto_held")).at(-1);
-    if (process.env["JOURNEY_DEBUG"]) console.log("INSTALL-HELD", held?.summary);
-    const outstanding = await q<{ id: string; label: string }>("select id, label from evidence_requirements where job_id=$1 and gate='installation' and required and status in ('outstanding','rejected') and category in ('access_manhole','before_ceiling_space','existing_insulation_r_value')", [JOB]);
-    if (outstanding.length) {
-      expect(held?.summary).toContain("install-day photos");
-      const forms = await import("./helpers/journey-forms");
-      // FINDING (documented, not changed — needs Jo): a trade's portal photo upload is location-checked against the
-      // property's "coordinates" fact, which only property intelligence wrote; that was retired on 4 Oct ("no remote
-      // lookups") and nothing else writes it, so on new jobs the upload is refused ("We don't have this property's
-      // location on file yet …") and no office path exists to confirm it. The journey records the fact the way
-      // property intelligence did, so the rest of the route can be proven.
-      const [jp] = await q<{ property_id: string }>("select property_id from jobs where id=$1", [JOB]);
-      let refusedNoLocation = "";
-      try { await pf.requestEvidenceUpload({ data: { requirementId: outstanding[0]!.id, fileName: "photo.png", mimeType: "image/png", fix: { lat: forms.SITE.lat, lng: forms.SITE.lng, accuracyM: 8 } }, context: instCtx }); } catch (e) { refusedNoLocation = (e as Error).message; }
-      expect(refusedNoLocation).toContain("location on file");
-      await q("insert into property_facts (job_id, property_id, fact_key, value, source_type, source_name) values ($1,$2,'coordinates',$3,'public_gis','Vicmap Address (journey fixture)')", [JOB, jp!.property_id, JSON.stringify([forms.SITE.lng, forms.SITE.lat])]);
-      for (const rq of outstanding) {
-        const fix = { lat: forms.SITE.lat, lng: forms.SITE.lng, accuracyM: 8 };
-        const up = await pf.requestEvidenceUpload({ data: { requirementId: rq.id, fileName: "photo.png", mimeType: "image/png", fix }, context: instCtx }) as { path: string };
-        await admin.storage.from("job-files").upload(up.path, forms.PNG_1X1, { contentType: "image/png" });
-        await pf.confirmEvidenceUpload({ data: { requirementId: rq.id, path: up.path, fileName: "photo.png", mimeType: "image/png", size: forms.PNG_1X1.length, fix }, context: instCtx });
-      }
-      await settle();
-      await tvf.checkTradeInstallForm({ data: { jobId: JOB }, context: instCtx });
-      await settle();
-    }
+    // Decision 396: "All filled in ✓ You can leave site" depends on the A5 only — the retired chase made no job-page
+    // photo requirements, so nothing else holds the installation.
+    expect(await q("select id from evidence_requirements where job_id=$1 and gate='installation' and label like 'Install day:%'", [JOB])).toHaveLength(0);
+    expect((await events(JOB, "install_complete_auto_held")).map((e) => e.summary).join(" ")).not.toContain("install-day photos");
+    // The ruler photos are kept on the job file like the other Mitti evidence (one copy per Mitti media id).
+    const rulerDocs = await q<{ title: string }>("select title from documents where job_id=$1 and kind='install_ruler_photo' order by title", [JOB]);
+    expect(rulerDocs.length).toBe(2 * Math.max(1, zones.length));
+    expect(rulerDocs.map((d) => d.title).join(" | ")).toContain("existing insulation depth");
     if (process.env["JOURNEY_DEBUG"]) console.log("AFTER-PHOTOS", await stageOf(JOB), (await q<{ event_type: string; summary: string }>("select event_type, summary from workflow_events where job_id=$1 order by created_at desc limit 10", [JOB])).map((e) => `${e.event_type}: ${e.summary}`));
     expect((await q<{ c: Date | null }>("select installation_completed_at as c from jobs where id=$1", [JOB]))[0]!.c).not.toBeNull();
   });
@@ -751,9 +747,9 @@ describe("A1 step 13 — completion documents, the final balance and the trades'
     // The installer's install row is not held (it waits for the office's final check / AP approval as usual).
     const iRows = (instMoney as { rows?: { kind: string; held: string[]; state: { kind: string } }[] }).rows ?? [];
     expect(iRows.map((r) => [r.kind, r.held])).toEqual([["installation", []]]);
-    // FINDING for the payouts workstream (not changed here): the electrician's Money shows only the Fixes row (no
-    // safety check row) and its amount is empty.
-    const eRows = (elecMoney as { rows?: { kind: string; state: { kind: string } }[] }).rows ?? [];
-    expect(eRows.map((r) => r.kind)).toContain("rectification");
+    // Night run fix: the electrician's Money shows BOTH the safety check and the fixes rows, each with its amount.
+    const eRows = (elecMoney as { rows?: { kind: string; amount: number | null; state: { kind: string } }[] }).rows ?? [];
+    expect(eRows.map((r) => r.kind).sort()).toEqual(["assessment", "rectification"]);
+    for (const r of eRows) expect(r.amount, r.kind).toBeGreaterThan(0);
   });
 });

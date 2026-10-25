@@ -62,13 +62,15 @@ export async function tradeHome(userId: string) {
   const [{ data: jobs }, { data: books }, { data: missing }, { data: deadlines }] = await Promise.all([
     admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
-    admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
+    admin.from("evidence_requirements").select("job_id, category, gate, label").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", jobIds.length ? jobIds : none),
   ]);
   const mine = c.kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
   const byId = new Map(live.map((j) => [j.id, j]));
-  const miss = new Map<string, number>(); for (const r of missing ?? []) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
+  // Decision 396: rows the retired install-day photo chase created are not missing photos.
+  const { withoutRetiredInstallDayPhotos } = await import("./ready-check-chase.core");
+  const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
   const label = (j: (typeof live)[number]) => { const o = j.owners as { full_name: string | null } | null; const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null; return { owner: o?.full_name ?? null, surname: surname(o?.full_name), suburb: p?.suburb ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode), street: shortAddress(p?.address_line, p?.suburb) }; };
   const upcomingOf = (id: string) => (books ?? []).filter((b) => b.job_id === id && b.status === "confirmed" && mine.includes(b.kind) && new Date(b.scheduled_end ?? b.scheduled_start).getTime() > now.getTime() - 12 * 3_600_000);
@@ -316,7 +318,7 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("ready_checks").select("status, submitted_at, external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").limit(1).maybeSingle(),
-    admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
+    admin.from("evidence_requirements").select("label, category, gate").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle(),
     admin.from("rectification_items").select("description").eq("job_id", jobId).neq("status", "cancelled"),
     admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", kinds as never),
@@ -334,7 +336,7 @@ export async function tradeDay(jobId: string, userId: string) {
   else if (cgi && cgiD?.visit === "install" && j?.stage === "installation_scheduling") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "install" };
   else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
-  else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) outcome = (miss ?? []).length ? { kind: "missing", items: (miss ?? []).map((m) => m.label) } : { kind: "wrap" };
+  else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
   const shownKind = outcome?.kind === "couldnt_get_in" && outcome.visit === "install" ? "install" : dayKind;
   return {
     kind: shownKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
@@ -398,8 +400,17 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
  *  electricians 7 days after the form is complete AND the owner paid that step (decision 355); else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
-  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
-  const rows = (books ?? []).filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test"));
+  // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
+  // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
+  // the job's PIESA (A3) Mitti form is Complete (`assessments.mitti_completed`, the same fact the payout gate reads).
+  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
+  const confirmedSafety = [...new Set((books ?? []).filter((b) => b.status === "confirmed" && b.kind === "assessment").map((b) => b.job_id))];
+  const { data: doneSafety } = confirmedSafety.length ? await admin.from("assessments").select("job_id").in("job_id", confirmedSafety).eq("mitti_completed", true) : { data: [] as { job_id: string }[] };
+  const safetyDone = new Set((doneSafety ?? []).map((a) => a.job_id));
+  const done = (books ?? []).filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
+  // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
+  const seenSafety = new Set<string>();
+  const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));
   const ids = [...new Set(rows.map((r) => r.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
   // Speed (decision 280): all five follow-up reads depend only on the job ids — one round trip, not three.
@@ -415,6 +426,18 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   // Our leads: the install pay is the installer's agreed-rate cost on the accepted quote (inc GST) until the office records the payout.
   const ratePay = (jobId: string): number | null => {
     const q = (accQ ?? []).find((x) => x.job_id === jobId && x.kind === "installation");
+    const qi = q?.quote_internals as { cost_ex_gst: number | string | null } | { cost_ex_gst: number | string | null }[] | null | undefined;
+    const cost = Number((Array.isArray(qi) ? qi[0] : qi)?.cost_ex_gst);
+    return Number.isFinite(cost) && cost > 0 ? Math.round(cost * 1.1 * 100) / 100 : null;
+  };
+  // Night run 25 Oct 2026: the electrician's amounts were empty when no offer summary carried them (e.g. the installer's
+  // own customer, no PIESA offer; fixes never have an offer). Same sources as the office Payouts: the safety check = this
+  // business's agreed PIESA rate (electrician_rates, inc GST); the fixes = the accepted fixes quote's electrician cost
+  // (quote_internals.cost_ex_gst, shown inc GST like the installer's agreed-rate pay). Never the customer price.
+  const { data: piesaRates } = kind === "electrician" ? await admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : { data: [] as { rate_inc_gst: number | string | null }[] };
+  const piesaRate = (() => { const r = Number((piesaRates ?? [])[0]?.rate_inc_gst); return Number.isFinite(r) && r > 0 ? r : null; })();
+  const fixesPay = (jobId: string): number | null => {
+    const q = (accQ ?? []).find((x) => x.job_id === jobId && x.kind === "rectification");
     const qi = q?.quote_internals as { cost_ex_gst: number | string | null } | { cost_ex_gst: number | string | null }[] | null | undefined;
     const cost = Number((Array.isArray(qi) ? qi[0] : qi)?.cost_ex_gst);
     return Number.isFinite(cost) && cost > 0 ? Math.round(cost * 1.1 * 100) / 100 : null;
@@ -439,7 +462,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
-    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
+    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf = gate.get(b.job_id);
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
     const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf, ownerPaid?.get(b.job_id)) : null;

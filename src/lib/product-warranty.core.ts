@@ -79,7 +79,22 @@ export function warrantyFamilyForOption(option: string | null | undefined): Warr
   if (/pink batts/i.test(o)) return "pink_batts";
   if (/^earthwool/i.test(o)) return "earthwool";
   if (/^ecowool/i.test(o)) return "ecowool";
+  // An office-confirmed actual product from the label review ("Bradford Gold Ceiling Batt R5.0", "Knauf Earthwool …").
+  if (/\bbradford\b/i.test(o) && /\bgold\b/i.test(o)) return "bradford_gold";
+  if (/\bearthwool\b/i.test(o)) return "earthwool";
+  if (/\becowool\b/i.test(o)) return "ecowool";
   return null;
+}
+
+/**
+ * Night run 25 Oct 2026: the warranty pack named the QUOTED product even when the office had confirmed a different actual
+ * product from the product-label review (piisa-products `p7.products`, one "brand | model | R<value>" line each). The
+ * confirmed products, as "brand model" names, are what went in; they win over the install-day / Ready Check option.
+ */
+export function confirmedProductNames(p7Products: string | null | undefined): string[] {
+  const out = String(p7Products ?? "").split("\n").map((line) => line.split("|").map((x) => x.trim()))
+    .filter((parts) => parts.length >= 2 && parts[0] && parts[1]).map(([brand, model]) => (model!.toLowerCase().startsWith(brand!.toLowerCase()) ? model! : `${brand} ${model}`));
+  return [...new Set(out)];
 }
 
 export const warrantyForOption = (option: string | null | undefined): ProductWarranty | null => {
@@ -102,8 +117,11 @@ export function meetsEscMinimum(w: ProductWarranty): boolean {
  * The product(s) actually installed, as Mitti options, in a stable order without duplicates: the install day form's per-area
  * answers first (what went in), else the Ready Check product (the declared product). Unknown/blank answers are dropped.
  */
-export function installedProductOptions(x: { installDayProducts: readonly (string | null | undefined)[]; readyCheckProduct: string | null | undefined }): string[] {
+export function installedProductOptions(x: { installDayProducts: readonly (string | null | undefined)[]; readyCheckProduct: string | null | undefined; confirmedProducts?: readonly string[] | null }): string[] {
   const clean = (v: string | null | undefined) => String(v ?? "").trim();
+  // The office-confirmed actual products (label review) are what went in — they win over any quoted / planned option.
+  const confirmed = (x.confirmedProducts ?? []).map(clean).filter(Boolean);
+  if (confirmed.length) return [...new Set(confirmed)];
   const fromForm = x.installDayProducts.map(clean).filter(Boolean);
   const list = fromForm.length ? fromForm : [clean(x.readyCheckProduct)].filter(Boolean);
   return [...new Set(list)];

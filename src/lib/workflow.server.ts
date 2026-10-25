@@ -477,7 +477,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     // P0: mandatory evidence gate fails closed (a read error or a missing installation checklist never passes).
     const { data: reqs, error: reqErr } = await admin
       .from("evidence_requirements")
-      .select("label,status,required,gate")
+      .select("label,status,required,gate,category")
       .eq("job_id", jobId)
       .eq("required", true);
     const { evidenceStageBlockers } = await import("./ap-review-evidence.core");

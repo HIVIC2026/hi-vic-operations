@@ -18,7 +18,7 @@ export async function finalCheckFacts(jobId: string, actorId: string | null): Pr
     admin.from("esc_notifications").select("sent_at, status").eq("job_id", jobId).in("status", ["sent", "accepted"]).not("sent_at", "is", null).order("sent_at").limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "warranty_copy_provided").order("created_at").limit(1).maybeSingle(),
     admin.from("invoice_status").select("total_inc_gst, total_paid, kind").eq("job_id", jobId).eq("kind", "installation").limit(1).maybeSingle(),
-    admin.from("evidence_requirements").select("label,status,required,gate").eq("job_id", jobId).eq("required", true),
+    admin.from("evidence_requirements").select("label,status,required,gate,category").eq("job_id", jobId).eq("required", true),
   ]);
   for (const [what, r] of [["PIESA records", piesaRows], ["fixes items", rectOpen], ["installation booking", booking], ["ESC notice", esc], ["warranty record", warranty], ["invoice", invoice]] as const)
     if (r.error) throw new Error(`Final check: ${what} could not be read (${r.error.message}).`);

@@ -77,6 +77,79 @@ export const INSTALL_DAY_Q = {
   allFilledIn: 'Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".',
 } as const;
 
+/**
+ * Decision 396 (Jo, 26 Oct 2026, "A5 asks both ruler photos"): ESC Ceiling Insulation Activity Guide v1.2 Table 4 — per
+ * ceiling area, a timestamped + geotagged photo with a vertical ruler showing the EXISTING insulation depth (areas that
+ * had insulation only) and one showing the NEW insulation depth after install (every area). They sit in ONE repeating
+ * section on their own page (before the declaration, so the existing photo is taken before any work), the installer adds
+ * one copy per ceiling area in the SAME ORDER as the Ready Check areas (decision 263: files are matched to the Ready
+ * Check areas by order). The A5 has no existing-insulation answer of its own (decision 263: not asked again), so the
+ * existing photo is NOT required in Mitti and the portal requires it per area from the Ready Check record.
+ * Kept OUT of INSTALL_DAY_QUESTIONS (no renumbering of Q1–Q48, and a form built before the paste can still be created);
+ * the evidence check (install-evidence.core) blocks Installation complete when they are missing.
+ */
+export const INSTALL_DAY_RULER_Q = {
+  existingDepth: "Existing insulation depth — photo with a ruler standing upright in it",
+  newDepth: "New insulation depth after install — photo with a ruler standing upright in it",
+} as const;
+export const INSTALL_DAY_RULER_PAGE = "Ruler photos (each ceiling area)";
+export const INSTALL_DAY_RULER_SECTION_BUTTON = "Add a ceiling area";
+export const INSTALL_DAY_RULER_HELP = {
+  section: "Add one for each ceiling area, in the same order as the Ready Check areas.",
+  existingDepth: "Only if this area had insulation before. Take it before any work starts.",
+  newDepth: "Come back to this page when the insulation is in. Don't squash it.",
+} as const;
+export type InstallDayRulerArea = { existing: MittiMediaFile[]; after: MittiMediaFile[] };
+export type InstallDayRulerRead = { onForm: boolean; areas: InstallDayRulerArea[] };
+/**
+ * The ruler photos per repeat copy, in form order (copy i = Ready Check area i). Items hidden by Mitti logic
+ * (`inactive: true`) are never read. Both questions of a copy share its repeat-instance parent; a form without parents
+ * (flat) pairs them by occurrence.
+ */
+export function installDayRulerPhotos(audit: unknown): InstallDayRulerRead {
+  type Hit = { which: "existing" | "after"; parent: string | null; media: MittiMediaFile[] };
+  const hits: Hit[] = [];
+  const kE = labelKey(INSTALL_DAY_RULER_Q.existingDepth), kN = labelKey(INSTALL_DAY_RULER_Q.newDepth);
+  const walk = (x: unknown, parent: string | null) => {
+    if (Array.isArray(x)) { x.forEach((y) => walk(y, parent)); return; }
+    if (!x || typeof x !== "object") return;
+    const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
+    const id = o["item_id"] ?? o["id"];
+    if (typeof o["label"] === "string") {
+      const k = labelKey(o["label"]);
+      if (k === kE || k === kN) {
+        const r = (o["responses"] ?? {}) as Record<string, any>;
+        const media = o["media"] ?? r["media"] ?? r["attachments"] ?? [];
+        const p = o["parent_id"] ?? parent;
+        hits.push({ which: k === kE ? "existing" : "after", parent: p == null ? null : String(p), media: Array.isArray(media) ? media.map(mittiMediaFile) : [] });
+      }
+    }
+    const childParent = typeof o["label"] === "string" && id != null ? String(id) : parent;
+    for (const [key, v] of Object.entries(o)) if (v && typeof v === "object" && key !== "responses" && key !== "media") walk(v, childParent);
+  };
+  walk((audit as any)?.template ?? audit, null);
+  if (!hits.length) return { onForm: false, areas: [] };
+  const areas: InstallDayRulerArea[] = [];
+  if (hits.every((h) => h.parent != null)) {
+    const order: string[] = [];
+    for (const h of hits) if (!order.includes(h.parent!)) order.push(h.parent!);
+    for (const p of order) {
+      const own = hits.filter((h) => h.parent === p);
+      areas.push({ existing: own.filter((h) => h.which === "existing").flatMap((h) => h.media), after: own.filter((h) => h.which === "after").flatMap((h) => h.media) });
+    }
+  } else {
+    const ex = hits.filter((h) => h.which === "existing"), nw = hits.filter((h) => h.which === "after");
+    for (let i = 0; i < Math.max(ex.length, nw.length); i++) areas.push({ existing: ex[i]?.media ?? [], after: nw[i]?.media ?? [] });
+  }
+  return { onForm: true, areas };
+}
+/** Decision 396: ruler questions the template does not carry yet (exact wording). Advisory — see INSTALL_DAY_RULER_Q. */
+export function installDayRulerMissingQuestions(template: unknown): string[] {
+  const items = labelledItems(template);
+  return Object.values(INSTALL_DAY_RULER_Q).filter((l) => !allWithLabel(items, l).length);
+}
+
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";
 export type InstallDayPrefillKey = "jobNumber" | "address" | "installDate" | "apName" | "businessName" | "leadName" | "leadCii" | "anyoneElse" | "secondName" | "secondCii" | "thirdOnSite" | "thirdName" | "thirdCii" | "lifeSupport" | "solarPresent" | "electricianAtStart";
 /** Decision 301: who turned the power back on — a pick, mapped to the pre-filled crew, never free text. */
@@ -348,6 +421,19 @@ export function electricianAtStartPrefill(i: { a4Short: Record<string, unknown> 
   if (/^no\b/i.test(q)) return false;
   if (i.a4Short && onsiteStartTicked(i.a4Short)) return true;
   return i.b1 === B1_OPTIONS[2];
+}
+/**
+ * Night run 25 Oct 2026 (A1 route): the A5 did not carry life support / solar from the PIESA (A3). Q18 and Q23 now come
+ * from the PIESA first — the signed official PIESA answers (`lifeSupport`, `p3.present`), else the stored A3 short answers
+ * (`lifeSupportPresent`, `solarPresent`) — and the owner's enquiry declaration only for life support when the PIESA has
+ * nothing. Safety first for life support: any source saying Yes pre-fills Yes. Unknown stays blank (the installer answers).
+ */
+export function installDayPiesaFacts(i: { piesaAnswers: Record<string, unknown> | null | undefined; a3Short: Record<string, unknown> | null | undefined; lifeSupportDeclared: "yes" | "no" | "unknown" | null | undefined }): { lifeSupport: boolean | null; solarPresent: boolean | null } {
+  const yn = (v: unknown): boolean | null => { const s = String(Array.isArray(v) ? v[0] ?? "" : v ?? "").trim(); return /^yes\b/i.test(s) ? true : /^no\b/i.test(s) ? false : null; };
+  const ls = [yn(i.piesaAnswers?.["lifeSupport"]), yn(i.a3Short?.["lifeSupportPresent"]), i.lifeSupportDeclared === "yes" ? true : i.lifeSupportDeclared === "no" ? false : null];
+  const lifeSupport = ls.includes(true) ? true : ls.find((x) => x === false) ?? null;
+  const solarPresent = yn(i.piesaAnswers?.["p3.present"]) ?? yn(i.a3Short?.["solarPresent"]);
+  return { lifeSupport, solarPresent };
 }
 /** Prefill items for the template's own item IDs, matched by exact wording. Choice answers use the template's own option
  *  ids (never guessed); a value with no matching option, or a question the template lacks, is skipped. */

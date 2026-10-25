@@ -8,7 +8,7 @@ import {
   VIDEO_MAX_BYTES, ZONE_PRODUCT_OPTIONS, afterInstallBlockers, declaredProductProblems, evaluateInstallEvidence, foilBlockers, installCompletionDecision, installEvidenceApplies, installEvidenceGateLines,
   installEvidenceMissingQuestions, installEvidencePrefillItems, installEvidenceQuestionList, installerNextLine, jobProductOptions, readInstallEvidence, zoneNameValue, zoneVideoFiles, type JobZone,
 } from "../src/lib/install-evidence.core";
-import { INSTALL_DAY_Q as ID } from "../src/lib/install-day.core";
+import { INSTALL_DAY_Q as ID, INSTALL_DAY_RULER_Q as RQ } from "../src/lib/install-day.core";
 import { a3EvidenceChecklist } from "../src/lib/piisa-a3.core";
 import { evidenceStageBlockers } from "../src/lib/ap-review-evidence.core";
 import { validateSavedDefinition } from "../src/lib/mitti-form-schema.core";
@@ -29,8 +29,13 @@ const dt = (label: string, v: string) => item(label, { type: "datetime", respons
 
 // ---------- the install day form ----------
 /** The install day form's after-install items + both "Lead installer's signature" items (declaration first). */
-function installDay(o: { after?: number; depth?: number; multiDay?: boolean; recheck?: boolean; lockout?: string; solar?: string; signer?: string; bytes?: number; noFinalTick?: boolean } = {}) {
+/** Decision 396: one ruler-photo repeat copy per Ready Check area (existing depth before work, new depth after). */
+const rulerCopies = (n: number) => Array.from({ length: n }, (_, i) => ({ item_id: `rc-${i}`, label: "", children: [
+  item(RQ.existingDepth, { media: geo(1, {}, "2026-11-03T19:40:00Z", `re${i}`) }), item(RQ.newDepth, { media: geo(1, {}, "2026-11-04T03:15:00Z", `rn${i}`) }),
+] }));
+function installDay(o: { after?: number; depth?: number; multiDay?: boolean; recheck?: boolean; lockout?: string; solar?: string; signer?: string; bytes?: number; noFinalTick?: boolean; ruler?: number } = {}) {
   return { items: [
+    ...rulerCopies(o.ruler ?? 2),
     tick(ID.declaration), sign(ID.signature, "Bhavdeep Singh", "2026-11-03T19:45:00Z"),
     item(E.afterVideos, { media: geo(o.after ?? 2, { file_size: o.bytes ?? 90_000_000 }, "2026-11-04T03:00:00Z", "av") }),
     item(E.depthPhotos, { media: geo(o.depth ?? 2, {}, "2026-11-04T03:10:00Z", "dp") }),

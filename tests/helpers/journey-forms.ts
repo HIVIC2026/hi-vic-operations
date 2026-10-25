@@ -96,10 +96,20 @@ const ticked = (label: string): MittiItem => ({ item_id: id(label), label, type:
 /** The lead installer's "A5 – Install day" answers (decisions 262/263/264/300/328), alone on site, no solar, no life
  *  support, no electrician needed at the start: ID photo, isolation photo, product label photo, the declaration signed
  *  before work, one after video and one depth photo per Ready Check area, power back on, the final "All filled in" tick
- *  and the closing signature. Wording from install-day.core INSTALL_DAY_Q. */
-export function completedA5(o: { q: Record<string, string>; capturedAt: string; mediaPrefix: string; lead: string; areas: number }): { items: MittiItem[]; mediaIds: string[]; videoIds: string[] } {
+ *  and the closing signature. Wording from install-day.core INSTALL_DAY_Q. With `ruler` (INSTALL_DAY_RULER_Q, decision
+ *  396): one ruler-photo repeat copy per area (existing depth unless `existingAreas[i]` is false, new depth always). */
+export function completedA5(o: { q: Record<string, string>; capturedAt: string; mediaPrefix: string; lead: string; areas: number; ruler?: { existingDepth: string; newDepth: string }; existingAreas?: boolean[] }): { items: MittiItem[]; mediaIds: string[]; videoIds: string[] } {
   const m = (n: string) => mediaId(`${o.mediaPrefix}-${n}`);
   const q = o.q;
+  // Decision 396: one copy of the "Ruler photos (each ceiling area)" repeat section per Ready Check area, in order: the
+  // existing-depth photo (areas that had insulation) and the new-depth photo, both geotagged and timed.
+  const rulerIds: string[] = [];
+  const ruler: MittiItem[] = !o.ruler ? [] : Array.from({ length: o.areas }, (_, i) => {
+    const kids: MittiItem[] = [];
+    if (o.existingAreas?.[i] !== false) { const e = m(`ruler-existing-${i + 1}`); rulerIds.push(e); kids.push(photo(o.ruler!.existingDepth, [e], o.capturedAt)); }
+    const n = m(`ruler-new-${i + 1}`); rulerIds.push(n); kids.push(photo(o.ruler!.newDepth, [n], o.capturedAt));
+    return { item_id: `ruler_copy_${o.mediaPrefix}_${i + 1}`, label: "", type: "section", children: kids };
+  });
   const videos = Array.from({ length: o.areas }, (_, i) => m(`after-video-${i + 1}`));
   const depth = Array.from({ length: o.areas }, (_, i) => m(`depth-${i + 1}`));
   const items: MittiItem[] = [
@@ -114,6 +124,7 @@ export function completedA5(o: { q: Record<string, string>; capturedAt: string; 
     pick(q["piesaRead"]!, "Yes"),
     pick(q["ceilingEntered"]!, "No"),
     photo(q["productPhotos"]!, [m("product")], o.capturedAt),
+    ...ruler,
     ticked(q["declaration"]!),
     signature(q["signature"]!, m("signature-start"), o.capturedAt, o.lead),
     photo(q["afterVideos"]!, videos, o.capturedAt),
@@ -127,7 +138,7 @@ export function completedA5(o: { q: Record<string, string>; capturedAt: string; 
     ticked(q["allFilledIn"]!),
     signature(q["signature"]!, m("signature-end"), o.capturedAt, o.lead),
   ];
-  const photos = ["lead-id", "isolation", "product", "signature-start", "switchboard-on", "signature-end"].map(m).concat(depth);
+  const photos = ["lead-id", "isolation", "product", "signature-start", "switchboard-on", "signature-end"].map(m).concat(depth, rulerIds);
   return { items, mediaIds: photos, videoIds: videos };
 }
 
