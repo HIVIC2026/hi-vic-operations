@@ -21,6 +21,7 @@ import { useAction } from "@/hooks/use-me";
 import { COULDNT_GET_IN, couldntGetInMessage } from "@/lib/trade-view.core";
 import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, couldntGetInSheet, dayNext, electricianOnSite, leadInstallerDeclaration, payNote, signRebateChecks, signRebateThen, sourceLabel, whatWeKnow } from "@/lib/installer-screens.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, outlineLinkClass, primaryLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
@@ -127,6 +128,9 @@ function DayPage() {
             {(data.kind === "ready_check" || data.kind === "install") && <LinkRow muted border onClick={() => setAsking(true)}>Couldn't get in?</LinkRow>}
           </>
         )}
+
+        {/* Decision 328: check the A3 Install day form now — the same result the lead installer is texted. */}
+        {data.kind === "install" && data.mittiId && !asking && <CheckMyFormButton jobId={jobId} />}
       </Screen>
     </TradeShell>
   );

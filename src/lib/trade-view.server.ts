@@ -1032,3 +1032,13 @@ export async function tradeSafetyCheckPdf(jobId: string, userId: string) {
   if (!pdf) throw new WorkflowError("The official safety check isn't ready yet.");
   return { fileName: pdf.fileName, base64: toB64(pdf.bytes) };
 }
+
+/** Decision 328: "Check my form now" on /field/day/{jobId} and /field/{jobId}. Installers only, business-scoped through
+ *  requireTradeJob; runs the single-job A3 sync (install-day-confirm.server) and returns only the result lines — no
+ *  prices, no other partners. A Complete form on the install day also gets the result text once per revision. */
+export async function tradeCheckInstallForm(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "installer") throw new WorkflowError("Only the installing business checks the install day form.");
+  const r = await (await import("./install-day-confirm.server")).checkInstallDayForm(jobId, { actorId: userId });
+  return { state: r.state, title: r.title, body: r.body, good: r.good, missing: r.missing.slice(0, 10), texted: !!r.texted };
+}

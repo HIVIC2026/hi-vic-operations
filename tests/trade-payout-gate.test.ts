@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { PAYOUT_FORM_NOT_COMPLETE, payoutHeldLine, tradePayoutBlockers, type TradePayoutFacts } from "../src/lib/trade-payout-gate.core";
 import { groupPayouts, type PayoutLine } from "../src/lib/office-money.core";
 import { NO_FORM_NO_PAY, heldPayPill } from "../src/lib/trade-view.core";
+import { INSTALL_DAY_READ_FIRST_TEXT } from "../src/lib/install-day.core";
 import { FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, fixesFormOutcome } from "../src/lib/fixes-day.core";
 import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
 
@@ -144,7 +145,10 @@ describe("Jo's approved wording, the same everywhere", () => {
       const d = src(f);
       const g1 = d.indexOf("## Group 1: Job\n");
       expect(g1, f).toBeGreaterThan(-1);
-      expect(d.slice(g1).split("\n")[1], f).toContain(`\`${NO_FORM_NO_PAY.mittiInstruction}\``);
+      // Decision 328: the A3 carries Jo's READ FIRST line instead (it includes the pay rule); A4 / A5 keep the 318 line.
+      const line = f === "docs/MITTI_INSTALL_FORM_FIX_PROMPT.md" ? INSTALL_DAY_READ_FIRST_TEXT : NO_FORM_NO_PAY.mittiInstruction;
+      expect(d.slice(g1).split("\n")[1], f).toContain(`\`${line}\``);
     }
+    expect(src("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md")).not.toContain(NO_FORM_NO_PAY.mittiInstruction);
   });
 });

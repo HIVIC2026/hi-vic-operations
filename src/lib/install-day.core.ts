@@ -14,8 +14,12 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 export const INSTALL_DAY_TEMPLATE_NAME = "A3 – Install day";
 export const INSTALL_DAY_RULE = "install-day-2026-10-24";
 export const INSTALL_DAY_SOLAR_BACK_OPTIONS = ["Yes", "No", "There isn't one"] as const;
-/** Q35, a text item (not a question) after the declaration signature. */
-export const INSTALL_DAY_AFTER_SIGN_TEXT = "That's the before-work part done. Come back to the next page when the insulation is in.";
+/** Q37, a text item (not a question) after the declaration signature. Decision 328 (Jo 25 Oct 2026) wording. */
+export const INSTALL_DAY_AFTER_SIGN_TEXT = "STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.";
+/** Decision 328: the first item of Group 1 (before Q1), a text item. Replaces the decision-318 pay line on THIS form only. */
+export const INSTALL_DAY_READ_FIRST_TEXT = 'READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.';
+/** Decision 328: the first item of Group 8 (before the after videos), a text item. */
+export const INSTALL_DAY_AFTER_INSTALL_TEXT = "AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.";
 export const INSTALL_DAY_DECLARATION_START = "INSTALLER DECLARATION – Sign BEFORE insulation work starts.";
 
 /** Every label, by key. */
@@ -67,6 +71,8 @@ export const INSTALL_DAY_Q = {
   switchboardOn: "Photo of the switchboard with the main switch on",
   solarBack: "Is the solar, battery or generator back on?",
   supervised: "I was here the whole time and supervised everyone",
+  /** Decision 328: the final tick, just before the last signature. Required — unticked = the form is not complete. */
+  allFilledIn: 'Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".',
 } as const;
 
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";
@@ -85,7 +91,7 @@ export type InstallDayQuestion = {
 };
 
 const Q = INSTALL_DAY_Q;
-/** Every question in form order (Q1–45). */
+/** Every question in form order (Q1–48; Q34 and Q37 are text items). */
 export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   const out: InstallDayQuestion[] = [];
   let n = 0;
@@ -124,10 +130,10 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(5, Q.electricianPhoto, "photo", true, { showWhen: { n: here, is: ["Yes"] } });
   q(5, Q.ceilingEntered, "yes_no", true, { help: "Ask the owner.", stop: { when: "Yes", text: "Stop. An electrician must check again." } });
   q(6, Q.productPhotos, "photo", true, { help: "One per product." });
-  n++; // Q32: the official declaration text items (copied from the old template), not a question
+  n++; // Q34: the official declaration text items (copied from the old template), not a question
   q(7, Q.declaration, "checkbox", true);
   q(7, Q.signature, "signature", true);
-  n++; // Q35: "That's the before-work part done…" text item, not a question
+  n++; // Q37: "STOP. You are only halfway…" text item (decision 328), not a question
   q(8, Q.afterVideos, "video", true, { multiple: true });
   q(8, Q.depthPhotos, "photo", true, { multiple: true, help: "Don't squash it." });
   const md = q(8, Q.multiDay, "yes_no", true);
@@ -137,6 +143,7 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(9, Q.switchboardOn, "photo", true, { showWhen: { n: lo, is: ["Yes"] } });
   q(9, Q.solarBack, "pick_one", true, { options: INSTALL_DAY_SOLAR_BACK_OPTIONS });
   q(9, Q.supervised, "checkbox", true);
+  q(9, Q.allFilledIn, "checkbox", true); // decision 328
   q(9, Q.signature, "signature", true);
   return out;
 })();
@@ -208,7 +215,7 @@ const yesNo = (v: string | null | undefined): "Yes" | "No" | null => (v == null 
 export type InstallDayRead = {
   text: (label: string) => string | null; yn: (label: string) => "Yes" | "No" | null; ticked: (label: string) => boolean;
   media: (label: string) => MittiMediaFile[];
-  /** Q34 (before work) and Q45 (after install): the 1st and 2nd "Lead installer's signature". */
+  /** Q36 (before work) and Q48 (after install): the 1st and 2nd "Lead installer's signature". */
   declarationSignature: ReadSignature; completionSignature: ReadSignature;
 };
 export function readInstallDay(audit: unknown): InstallDayRead {

@@ -2,6 +2,7 @@
 // "A3 – Install day" form (two multi-file after-install items, Ready Check before videos and areas) and completed forms on
 // the old "A3 - PIISA + AP Evidence" template (per-zone items, old wording) are both read.
 import { describe, expect, test } from "bun:test";
+import { FINAL_TICK_MISSING } from "../src/lib/install-day-confirm.core";
 import {
   AFTER_INSTALL_QUESTIONS as A, AFTER_INSTALL_QUESTIONS_LONG as AL, FOIL_QUESTIONS as F, INSTALL_DAY_EVIDENCE as E, INSTALL_EVIDENCE_EFFECTIVE_DATE, INSTALL_EVIDENCE_QUESTIONS as Q, INSTALL_EVIDENCE_QUESTIONS_LONG as QL,
   VIDEO_MAX_BYTES, ZONE_PRODUCT_OPTIONS, afterInstallBlockers, declaredProductProblems, evaluateInstallEvidence, foilBlockers, installCompletionDecision, installEvidenceApplies, installEvidenceGateLines,
@@ -28,14 +29,14 @@ const dt = (label: string, v: string) => item(label, { type: "datetime", respons
 
 // ---------- the install day form ----------
 /** The install day form's after-install items + both "Lead installer's signature" items (declaration first). */
-function installDay(o: { after?: number; depth?: number; multiDay?: boolean; recheck?: boolean; lockout?: string; solar?: string; signer?: string; bytes?: number } = {}) {
+function installDay(o: { after?: number; depth?: number; multiDay?: boolean; recheck?: boolean; lockout?: string; solar?: string; signer?: string; bytes?: number; noFinalTick?: boolean } = {}) {
   return { items: [
     tick(ID.declaration), sign(ID.signature, "Bhavdeep Singh", "2026-11-03T19:45:00Z"),
     item(E.afterVideos, { media: geo(o.after ?? 2, { file_size: o.bytes ?? 90_000_000 }, "2026-11-04T03:00:00Z", "av") }),
     item(E.depthPhotos, { media: geo(o.depth ?? 2, {}, "2026-11-04T03:10:00Z", "dp") }),
     pick(Q.multiDay, o.multiDay ? "Yes" : "No"), ...(o.recheck ? [tick(Q.dailyRecheck)] : []),
     pick(A.lockoutRemoved, o.lockout ?? "Yes"), text(A.lockoutRemovedBy, "Bhavdeep Singh, installer"), item(A.switchboardAfterPhoto, { media: geo(1, {}, "2026-11-04T04:00:00Z") }),
-    pick(A.solarRestarted, o.solar ?? "There isn't one"), tick(A.leadPresent), sign(A.completionSignature, o.signer ?? "Bhavdeep Singh", "2026-11-04T04:06:00Z"),
+    pick(A.solarRestarted, o.solar ?? "There isn't one"), tick(A.leadPresent), ...(o.noFinalTick ? [] : [tick(ID.allFilledIn)]), sign(A.completionSignature, o.signer ?? "Bhavdeep Singh", "2026-11-04T04:06:00Z"),
   ] };
 }
 const rcZones: JobZone[] = [
@@ -119,6 +120,11 @@ describe("after-install sign-off", () => {
     expect(afterInstallBlockers(ok, { leadName: "Bhavdeep Singh", solarPresent: true })).toEqual(["Solar/battery restart answered \"None here\" but the safety form says the home has solar, a battery or another supply — office review"]);
     const no = readInstallEvidence(installDay({ solar: "No" })).after;
     expect(afterInstallBlockers(no, { leadName: "Bhavdeep Singh", solarPresent: true })).toContain("Solar, battery or generator not restarted — restart it per the instructions (or have the electrician do it) before leaving site");
+    // Decision 328: the install day form's final tick is required; unticked = not complete. Old A3 forms have none.
+    const unticked = readInstallEvidence(installDay({ noFinalTick: true })).after;
+    expect(unticked.allFilledIn).toBe(false);
+    expect(afterInstallBlockers(unticked, { leadName: "Bhavdeep Singh", solarPresent: false })).toEqual([FINAL_TICK_MISSING]);
+    expect(evalDay({ noFinalTick: true }).blockers).toEqual([FINAL_TICK_MISSING]);
     const none = readInstallEvidence({ items: [pick(A.lockoutRemoved, "Yes")] }).after;
     expect(afterInstallBlockers(none, {})).toEqual([`${A.lockoutRemovedBy}: not entered`, "Switchboard photo after re-energising: 0 of 1 uploaded", `${A.solarRestarted}: not answered`, "Lead installer has not confirmed being on site for the whole installation", `${A.completionSignature}: missing`]);
   });
@@ -220,6 +226,12 @@ describe("decision 213: Mitti Complete records the installation only when every 
     expect(d.outstanding).toEqual(held.blockers);
     expect(d.nextLine).toBe(installerNextLine(held));
     expect(installerNextLine({ ...held, blockers: ["only one"] })).toBe("Install day form: only one");
+  });
+  test("decision 328: an unticked final tick holds the record whatever the install date", () => {
+    const d = installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: { ...clean, applies: false }, alreadyCompleted: false, allFilledInTicked: false });
+    expect(d).toMatchObject({ record: false, outstanding: [FINAL_TICK_MISSING] });
+    expect(installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: clean, alreadyCompleted: false, allFilledInTicked: true }).record).toBe(true);
+    expect(installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: clean, alreadyCompleted: false, allFilledInTicked: null }).record).toBe(true);
   });
 });
 
