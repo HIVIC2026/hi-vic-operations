@@ -9,6 +9,8 @@
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
+import { onsiteStartTicked } from "./official-short.core";
+import { B1_OPTIONS } from "./official-forms.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A3 – Install day";
@@ -320,6 +322,19 @@ export type InstallDayPrefillFacts = {
   lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
+/**
+ * Decision 338 (Jo 25 Oct 2026): Q29 "Does the PIESA need an electrician here at the start?" comes from the A4 question
+ * "Does an electrician need to be on site at the start of the install?" (Yes → Yes, No → No) when the stored A4 answered it;
+ * an old form falls back to its decision-314 tick, then to the signed PIESA's B1 outcome (third option = Yes) as before.
+ * `a4Short` = shortAnswersFromEntries("piesa", stored A4 snapshot); `b1` = the signed official PIESA's B1 answer.
+ */
+export function electricianAtStartPrefill(i: { a4Short: Record<string, unknown> | null | undefined; b1: string | null | undefined }): boolean {
+  const q = String(i.a4Short?.["onsiteStartNeeded"] ?? "").trim();
+  if (/^yes\b/i.test(q)) return true;
+  if (/^no\b/i.test(q)) return false;
+  if (i.a4Short && onsiteStartTicked(i.a4Short)) return true;
+  return i.b1 === B1_OPTIONS[2];
+}
 /** Prefill items for the template's own item IDs, matched by exact wording. Choice answers use the template's own option
  *  ids (never guessed); a value with no matching option, or a question the template lacks, is skipped. */
 export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFacts, choiceOption: (template: unknown, itemId: string, label: string) => { id: string; label: string } | null): PrefillItem[] {

@@ -206,7 +206,10 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { facts } = await materialFacts(jobId, piesa);
     const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
-    const r = renderOfficialDocx("piisa", answers as never);
+    // Decision 336: the A3 lead installer's ACTUAL signature image (stored at the start-of-work capture) in the Part 8 box.
+    const sigImgs = await (await import("./official-signature.server")).officialSignatureImages(jobId, "piisa", answers, prestart?.signature_image ?? null).catch(() => null);
+    const r = renderOfficialDocx("piisa", answers as never, sigImgs?.signatures ?? {});
+    if (sigImgs?.flags.length) await logEvent(jobId, actorId, "piisa_signature_image_missing", sigImgs.flags.join(" "), { audit_id: auditId, flags: sigImgs.flags }, { internal: true });
     if (directLike && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });

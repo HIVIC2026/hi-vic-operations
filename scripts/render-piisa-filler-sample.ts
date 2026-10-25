@@ -3,6 +3,8 @@
 // p8.date + the typed electronic signature). Fills the bundled official Word form through fillOfficialDocxXml, checks the
 // XML is well-formed, reads every box / text field back and renders PNGs with LibreOffice + pdftoppm when installed.
 // SAMPLE ONLY: no database, no network, nothing stored or sent; names and numbers are made up.
+// Decision 336: the Part 8 box shows the A3 lead installer's signature PICTURE (a made-up sample, scripts/sample-signature-png.ts)
+// embedded through the same package filler the live path uses (fillOfficialDocxParts), with "Signed in Mitti on DD/MM/YYYY".
 // Output: docs/templates/samples/piisa-filler/ (piisa-sample.docx, piisa-sample-word.pdf, PNG pages, README.md).
 // Run: bun scripts/render-piisa-filler-sample.ts
 import { createHash } from "node:crypto";
@@ -10,7 +12,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { unzipSync, zipSync } from "fflate";
 import piisaDocx from "../src/lib/official-docx-piisa.data";
-import { fillOfficialDocxXml, readOfficialDocx, xmlProblems } from "../src/lib/official-docx.core";
+import { fillOfficialDocxParts, readOfficialDocx, xmlProblems } from "../src/lib/official-docx.core";
+import { sampleSignaturePng } from "./sample-signature-png";
 import { OFFICIAL_TEMPLATES, answerItems, electronicSignature, evaluatePiisa, type OfficialAnswers } from "../src/lib/official-forms.core";
 
 const OUT = new URL("../docs/templates/samples/piisa-filler/", import.meta.url).pathname;
@@ -74,12 +77,15 @@ async function main() {
   if (createHash("sha256").update(bytes).digest("hex") !== T.sha256) throw new Error("Bundled PIISA Word form does not match the recorded official original.");
   const parts = unzipSync(bytes);
   const original = new TextDecoder().decode(parts["word/document.xml"]!);
-  const { xml, filled, missed, notOnForm } = fillOfficialDocxXml(original, "piisa", PIISA_SAMPLE);
+  // Decision 336: the A3 lead installer's signature picture in the Part 8 box (made-up sample image).
+  const filledPkg = fillOfficialDocxParts(parts, "piisa", PIISA_SAMPLE, { "p8.signature": { images: [{ bytes: sampleSignaturePng("Daniel Moore A3"), contentType: "image/png", signedOn: "2026-11-12" }] } });
+  const { xml, filled, missed, notOnForm } = filledPkg;
+  if (filledPkg.embedded.length !== 1 || !xml.includes(`r:embed="${filledPkg.embedded[0]!.rId}"`) || !filledPkg.rels.includes(`Id="${filledPkg.embedded[0]!.rId}"`)) throw new Error("The PIISA signature picture is not wired up.");
   const problems = xmlProblems(xml);
   if (problems.length) throw new Error(`Filled PIISA XML is not well-formed: ${problems.join("; ")}`);
   let lint = "not run (xmllint not installed)";
   if (has("xmllint")) { const f = `${OUT}.check.xml`; writeFileSync(f, xml); try { execFileSync("xmllint", ["--noout", f], { stdio: "ignore" }); lint = "clean"; } catch { throw new Error("xmllint rejected the filled PIISA XML"); } finally { rmSync(f, { force: true }); } }
-  writeFileSync(`${OUT}piisa-sample.docx`, zipSync({ ...parts, "word/document.xml": new TextEncoder().encode(xml) }, { level: 0 }));
+  writeFileSync(`${OUT}piisa-sample.docx`, zipSync(filledPkg.parts, { level: 0 }));
 
   let pngs: string[] = [];
   const soffice = has("soffice") ? "soffice" : has("libreoffice") ? "libreoffice" : null;
@@ -94,7 +100,8 @@ async function main() {
   }
 
   const shown = readOfficialDocx(xml, "piisa", original);
-  const mismatches = Object.keys(shown).filter((id) => !same(PIISA_SAMPLE[id], shown[id])).map((id) => `\`${id}\`: answer ${JSON.stringify(PIISA_SAMPLE[id] ?? null)}, Word form shows ${JSON.stringify(shown[id] ?? null)}`);
+  // Decision 336: the Part 8 box shows the picture with "Signed in Mitti on …" as its text (the typed signature stays in the record).
+  const mismatches = Object.keys(shown).filter((id) => !same(PIISA_SAMPLE[id], shown[id]) && !(id === "p8.signature" && /^Signed in Mitti on \d{2}\/\d{2}\/\d{4}$/.test(String(shown[id] ?? "")))).map((id) => `\`${id}\`: answer ${JSON.stringify(PIISA_SAMPLE[id] ?? null)}, Word form shows ${JSON.stringify(shown[id] ?? null)}`);
   const ev = evaluatePiisa(PIISA_SAMPLE, { piesaCompletionDate: "2026-10-27", piesaReceivedAt: "2026-10-28T09:00:00+11:00", electricianRequiredAtStart: false, conductiveExistingInsulation: false, conductivityEvidence: "sample-photo" });
   const items = answerItems("piisa");
   const show = (v: unknown) => (v == null || v === "" ? "_blank_" : v === true ? "ticked" : v === false ? "not ticked" : Array.isArray(v) ? v.join(" / ") : String(v));
@@ -115,6 +122,7 @@ async function main() {
     "",
     `- Filler: ${filled.length} items placed; not placed: ${missed.length ? missed.map((m) => `\`${m}\``).join(", ") : "none"}; no field on the Word form: ${notOnForm.length ? notOnForm.map((m) => `\`${m}\``).join(", ") : "none"}.`,
     `- Word XML: well-formed (tags balanced, no run nested in a run); xmllint ${lint}.`,
+    `- Decision 336: Part 8 "Signature" box = the A3 lead installer's signature PICTURE (inline image \`${filledPkg.embedded[0]!.part}\`, relationship \`${filledPkg.embedded[0]!.rId}\`) with "${shown["p8.signature"] ?? ""}" under it. Sample picture only (made up).`,
     mismatches.length ? "- Word form vs answers — DIFFERENCES:" : "- Word form vs answers: every box and text field matches the answers.",
     ...mismatches.map((m) => `  - ${m}`),
     `- Printed-rule blockers (\`evaluatePiisa\`): ${ev.blockers.length ? ev.blockers.map((b) => `\`${b.rule}\``).join(", ") : "none"}.`,

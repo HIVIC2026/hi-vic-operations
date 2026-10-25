@@ -216,7 +216,7 @@ async function regenerateOfficialPiesa(jobId: string, actorId: string | null, sn
   const id = await storeSignedCopy({ jobId, key: "piesa", answers: expanded.answers, signer: { userId: signer.userId, name: signer.name ?? "", role: "electrician" }, enteredDate: certDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti-fixes:${jobId}` });
   const { storeOfficialDocx } = await import("./official-docx.server");
   const r = await storeOfficialDocx(jobId, "piesa");
-  await logEvent(jobId, actorId, "official_piesa_regenerated", `Official PIESA regenerated with Section C from the electrical fixes form (${r.filled} items filled${r.missed.length ? `, ${r.missed.length} not placed` : ""})`, { signed_copy_id: id, path: r.path, missed: r.missed }, { internal: true });
+  await logEvent(jobId, actorId, "official_piesa_regenerated", `Official PIESA regenerated with Section C from the electrical fixes form (${r.filled} items filled${r.missed.length ? `, ${r.missed.length} not placed` : ""})`, { signed_copy_id: id, path: r.path, missed: r.missed, signatures_embedded: r.signaturesEmbedded, signature_flags: r.signatureFlags }, { internal: true });
   return `official PIESA regenerated (signed copy ${id})`;
 }
 
@@ -277,6 +277,8 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
     { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
     { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
   ], fetchMedia);
+  // Decision 336: the A5 signature IMAGE goes in the official Section C box (kept privately with the job first).
+  await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);
   const { saveMittiReport } = await import("./mitti.server");
   await saveMittiReport(jobId, actorId, auditId, parsed.modifiedAt ? String(parsed.modifiedAt) : null, "Electrical fixes", mitti);
   // The portal page's evidence requirements are satisfied by the form's files (same categories, no second upload asked).

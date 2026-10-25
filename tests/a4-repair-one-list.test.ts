@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { B2_OPTIONS } from "../src/lib/official-forms.core";
 import {
-  FIXES_OTHER_LABEL, FIXES_PRICE_LABEL, FIXES_TO_B2, FIXES_WORK_LABEL, FIXES_WORK_OPTIONS, RECTIFICATION_OUTCOMES, REPAIR_OTHER_LEGACY_LABEL,
+  FIXES_OTHER_LABEL, FIXES_PRICE_LABEL, FIXES_TO_B2, FIXES_WORK_LABEL, FIXES_WORK_READ_OPTIONS, RECTIFICATION_OUTCOMES, REPAIR_OTHER_LEGACY_LABEL,
   REPAIR_TICKS_LEGACY_LABEL, SHORT_PIESA_FIELDS, derivedRepairTicks, shortAnswersFromEntries,
 } from "../src/lib/official-short.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
@@ -17,7 +17,8 @@ import { fixesPriceSource } from "../src/lib/fixes-price.core";
 
 const NEEDED = "Is any electrical repair work needed before insulation can be installed?";
 const ctx = { lifeSupportDeclared: "no" as const, today: "2026-10-25", ownerConfirmation: null };
-const [DL, RCD, BRK, TPS, SECURE, JOIN, MAINS, OLD, SOLAR, ONSITE, OTHER] = FIXES_WORK_OPTIONS;
+// Decision 338: the read list (the ten asked options + the retired on-site tick, still read from old forms).
+const [DL, RCD, BRK, TPS, SECURE, JOIN, MAINS, OLD, SOLAR, ONSITE, OTHER] = FIXES_WORK_READ_OPTIONS;
 const sync = (work: string, extra: { label: string; value: string }[] = []) =>
   shortAnswersFromEntries("piesa", [{ label: NEEDED, value: "Yes" }, { label: FIXES_WORK_LABEL, value: work }, ...extra]);
 

@@ -26,6 +26,12 @@ Each case below reads the filled Word file back (`readOfficialDocx`) and compare
 
 The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/samples/piisa-filler/` for one realistic install filled through the fixed filler.
 
+## Decisions 336 and 338 (Jo 25 Oct 2026)
+
+1. **"WHERE IS THE ELECTRICIAN'S SIGNATURE?"** The Word form now shows the electrician's ACTUAL signature picture captured in Mitti: the A4 "Electrician signature" straight after the Part B3 declaration (the official form prints no B3 signature box, so it sits in its own line there), and the A5 "Electrician signature" in the Section C "Signature" box — each with "Signed in Mitti on DD/MM/YYYY" under it. The picture is a real inline image (its own media part, an image relationship and the content type; the XML is checked well-formed). The PDF draws the same pictures. The samples use a made-up signature picture (`scripts/sample-signature-png.ts`). Owner blocks stay typed e-signatures (secure link). No image on file → the typed name and the office flag "Electrician signature image not available".
+2. **Exact hazard rows.** The A4 block asks "What type is it?" (Appliance / Exhaust fan / Flue / Other hazard), "What is it?", "Where is it?", the photo, "Can insulation be safely installed around it as it is?", and when No "What is the problem?" + "What needs to be done to make it safe?". Part 7 is filled row by row from those answers (case 1: an exhaust fan; case 2: a flue and a rotten joist as an "other hazard"). Older forms keep the old standard wording.
+3. **On site at the start (decision 338).** "Be on site at the start of the install day" left the tick list and is its own Yes/No question, "Does an electrician need to be on site at the start of the install?" (case 3 = Yes, nothing ticked). Old forms with the tick read the same way.
+
 ## Every official question: where it comes from, and what each case got
 
 | Official item | Comes from | Case 1 | Case 2 | Case 3 |
@@ -62,16 +68,16 @@ The same Word filler fills the approved PIISA: it had the same No / tick / neste
 | `p6.recessed` Are there recessed luminaires present in the ceiling? | A4 "Are there any downlights or other recessed lights in the ceiling?" | Yes | Yes | No |
 | `p6.count` If ’Yes’, specify total number of luminaries: | A4 "How many are there?" | 8 | 4 | _blank_ |
 | `p6.prohibited` Are there prohibited luminaires that are not IC and/or IC-4 rated (i.e. classifi… | A4 "Are any of them not IC or IC-4 rated?" | No | Yes | _blank_ |
-| `p7.appliances` Are there any electrical appliances present in the ceiling space (e.g. water hea… | A4 "Are there any appliances, exhaust fans or flues in the ceiling space?" (one question for both) | Yes | No | No |
-| `p7.flues` Are there any exhaust fans or heating flues that vent into or through the ceilin… | A4 "Are there any appliances, exhaust fans or flues in the ceiling space?" (SAME answer as appliances — see "Still can't be filled from A4") | Yes | No | No |
-| `p7.appliance` Appliance | A4 "What is it and where is it?" (one row per "Add an appliance or flue") | Bathroom exhaust fan, ceiling above the main bathroom | _blank_ | _blank_ |
-| `p7.location` Location | A4 "What is it and where is it?" (SAME text as the Appliance column) | Bathroom exhaust fan, ceiling above the main bathroom | _blank_ | _blank_ |
-| `p7.hazard` Hazard | Fixed wording from "Can insulation be safely installed around it as it is?" | None — insulation can be installed around it as it is | _blank_ | _blank_ |
-| `p7.actions` If a hazard was identified, what actions were undertaken, or should be undertake… | Fixed wording (none / see Part B2) | None required | _blank_ | _blank_ |
-| `p7.effective` Does this action effectively reduce the risk associated with the identified haza… | Derived: Yes when every item is safe as it is, or once repairs are recorded complete | Yes | _blank_ | _blank_ |
-| `p7.otherHazard` Other electrical or other hazards identified in the ceiling space (e.g. rotten j… | NOT ASKED on A4 — always blank | _blank_ | _blank_ | _blank_ |
-| `p7.otherAction` Action taken, or should be taken, to mitigate against hazard prior to insulation… | NOT ASKED on A4 — always blank | _blank_ | _blank_ | _blank_ |
-| `b1` Check ONE option only | A4 "Is any electrical repair work needed before insulation can be installed?" + "Be on site at the start of the install day" tick (decision 314) | Electrical rectification work is not required before insulation is installed or upgraded. | Electrical rectification work is required before insulation is installed or upgraded. | Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3 |
+| `p7.appliances` Are there any electrical appliances present in the ceiling space (e.g. water hea… | A4 "Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?" + a row with "What type is it?" = Appliance (decision 336) | No | No | No |
+| `p7.flues` Are there any exhaust fans or heating flues that vent into or through the ceilin… | A4 "Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?" + a row with "What type is it?" = Flue or Exhaust fan (the official question names "exhaust fans or heating flues") | Yes | Yes | No |
+| `p7.appliance` Appliance | A4 "What is it?" (one row per Appliance / Exhaust fan / Flue item) | Bathroom exhaust fan | Gas heater flue | _blank_ |
+| `p7.location` Location | A4 "Where is it?" | Ceiling above the main bathroom | Ceiling above the lounge | _blank_ |
+| `p7.hazard` Hazard | A4 "What is the problem?" (only when "Can insulation be safely installed around it as it is?" = No), else "None — safe to insulate around" | None — safe to insulate around | The flue has no guard — insulation would touch the hot flue | _blank_ |
+| `p7.actions` If a hazard was identified, what actions were undertaken, or should be undertake… | A4 "What needs to be done to make it safe?" for each unsafe item ("None required" when all are safe) | None required | Gas heater flue: Fit a flue guard keeping insulation 50 mm clear before insulation goes in | _blank_ |
+| `p7.effective` Does this action effectively reduce the risk associated with the identified haza… | Derived: Yes when every item is safe as it is, or once repairs are recorded complete | Yes | Yes | _blank_ |
+| `p7.otherHazard` Other electrical or other hazards identified in the ceiling space (e.g. rotten j… | A4 Other hazard rows: "What is it?" (Where is it?): "What is the problem?" | _blank_ | Rotten ceiling joist (Hallway, next to the manhole): The joist is soft and cracked and won't take a person's weight | _blank_ |
+| `p7.otherAction` Action taken, or should be taken, to mitigate against hazard prior to insulation… | A4 Other hazard rows: "What needs to be done to make it safe?" ("None required" when safe as it is) | _blank_ | Builder to replace the joist before insulation goes in | _blank_ |
+| `b1` Check ONE option only | A4 "Is any electrical repair work needed before insulation can be installed?" + "Does an electrician need to be on site at the start of the install?" (decision 338; old forms: the "Be on site at the start of the install day" tick, decision 314) | Electrical rectification work is not required before insulation is installed or upgraded. | Electrical rectification work is required before insulation is installed or upgraded. | Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3 |
 | `b2` The following electrical work is required before insulation is installed or upgr… | A4 "Please tick the repair work that is required." (only when B1 = rectification required) | _blank_ | Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights. / Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000 | _blank_ |
 | `b2.other` Other (indicate below) – details | A4 "Please describe the other repair work." | _blank_ | _blank_ | _blank_ |
 | `b3.licence` Licence no: | A4 "Electrician licence number" | A 54321 | A 54321 | A 54321 |
@@ -92,7 +98,7 @@ The same Word filler fills the approved PIISA: it had the same No / tick / neste
 | `c.tick5` I confirm that all mains connected cables in the ceiling space meet Basic Protec… | A5 "Have you completed all of the repair work listed…" = Yes (all seven ticked together) | _blank_ | ticked | _blank_ |
 | `c.tick6` I confirm that an electrical safety assessment has been completed and the ceilin… | A5 "Have you completed all of the repair work listed…" = Yes (all seven ticked together) | _blank_ | ticked | _blank_ |
 | `c.tick7` I declare that all information contained in and attached to this form is correct… | A5 "Have you completed all of the repair work listed…" = Yes (all seven ticked together) | _blank_ | ticked | _blank_ |
-| `c.signature` Signature | Typed electronic signature: A5 signer's name + the A5 signature's date ("Name (signed electronically on DD/MM/YYYY)") | _blank_ | Sam Spark (signed electronically on 03/11/2026) | _blank_ |
+| `c.signature` Signature | Decision 336: the A5 "Electrician signature" IMAGE in the box with "Signed in Mitti on DD/MM/YYYY" under it (no image on file → the typed "Name (signed electronically on DD/MM/YYYY)" + flag "Electrician signature image not available") | _blank_ | Sam Spark (signed electronically on 03/11/2026) | _blank_ |
 | `c.completionDate` Date of completion: | "today" of the regeneration = A5 "Date of certification" | _blank_ | 2026-11-03 | _blank_ |
 | `c.coes` Certificate of Electrical Safety number (required for any electrical works compl… | A5 "Certificate of Electrical Safety number" | _blank_ | CES 7781234 | _blank_ |
 | `c.certDate` Date of Certification: | A5 "Date of certification" | _blank_ | 2026-11-03 | _blank_ |
@@ -108,7 +114,7 @@ The same Word filler fills the approved PIISA: it had the same No / tick / neste
 
 Job HV-SAMPLE-1, 14 Wattle Street, Bentleigh VIC 3204. Inspection 2026-10-27. Owner Helen Nguyen confirmed on the secure link (2026-10-27T19:40:00+11:00).
 
-Files: `case-1-all-clear.docx`, `case-1-all-clear-word.pdf` (8 pages: `case-1-all-clear-word-1.png`, `case-1-all-clear-word-2.png`, `case-1-all-clear-word-3.png`, `case-1-all-clear-word-4.png`, `case-1-all-clear-word-5.png`, `case-1-all-clear-word-6.png`, `case-1-all-clear-word-7.png`, `case-1-all-clear-word-8.png`), `case-1-all-clear.pdf` (5 pages: `case-1-all-clear-pdf-1.png`, `case-1-all-clear-pdf-2.png`, `case-1-all-clear-pdf-3.png`, `case-1-all-clear-pdf-4.png`, `case-1-all-clear-pdf-5.png`).
+Files: `case-1-all-clear.docx`, `case-1-all-clear-word.pdf` (9 pages: `case-1-all-clear-word-1.png`, `case-1-all-clear-word-2.png`, `case-1-all-clear-word-3.png`, `case-1-all-clear-word-4.png`, `case-1-all-clear-word-5.png`, `case-1-all-clear-word-6.png`, `case-1-all-clear-word-7.png`, `case-1-all-clear-word-8.png`, `case-1-all-clear-word-9.png`), `case-1-all-clear.pdf` (5 pages: `case-1-all-clear-pdf-1.png`, `case-1-all-clear-pdf-2.png`, `case-1-all-clear-pdf-3.png`, `case-1-all-clear-pdf-4.png`, `case-1-all-clear-pdf-5.png`).
 
 A4 answers given:
 
@@ -124,8 +130,10 @@ A4 answers given:
 - Are there any downlights or other recessed lights in the ceiling? → **Yes**
 - How many are there? → **8**
 - Are any of them not IC or IC-4 rated? → **No**
-- Are there any appliances, exhaust fans or flues in the ceiling space? → **Yes**
-- What is it and where is it? → **Bathroom exhaust fan, ceiling above the main bathroom**
+- Are there any appliances, exhaust fans, flues or other hazards in the ceiling space? → **Yes**
+- What type is it? → **Exhaust fan**
+- What is it? → **Bathroom exhaust fan**
+- Where is it? → **Ceiling above the main bathroom**
 - Photo of it → **1 photo**
 - Can insulation be safely installed around it as it is? → **Yes**
 - Is any electrical repair work needed before insulation can be installed? → **No**
@@ -139,12 +147,13 @@ A4 answers given:
 
 Word form: the filler reports 46 items placed; not placed: none. Read back from the filled Word file:
 
-- Yes/No: 18 answered Yes — Word form shows 18 ticked "Yes" boxes; 6 answered No — Word form shows 6 ticked "No" boxes.
+- Yes/No: 17 answered Yes — Word form shows 17 ticked "Yes" boxes; 7 answered No — Word form shows 7 ticked "No" boxes.
 - B1 outcome: answered — Word form shows "Electrical rectification work is not required before insulat…".
 - B2 repair items: 0 answered — Word form shows 0 B2 boxes ticked.
 - Declaration ticks: 5 answered — Word form shows 5 ticked.
-- Signatures: Section C blank; owner "Helen Nguyen (signed electronically on 27/10/2026)".
-- Part 7 rows on the Word form: Appliance "Bathroom exhaust fan, ceiling above the main bathroom" / Location "Bathroom exhaust fan, ceiling above the main bathroom" / Hazard "None — insulation can be installed around it as it is".
+- Signatures: Part B3 electrician's signature PICTURE (from A4) + "Signed in Mitti on …"; Section C blank; owner "Helen Nguyen (signed electronically on 27/10/2026)" (typed — owners sign on the secure link).
+- Part 7 other hazards on the Word form: none; actions line: "None required".
+- Part 7 rows on the Word form: Appliance "Bathroom exhaust fan" / Location "Ceiling above the main bathroom" / Hazard "None — safe to insulate around".
 - Word XML: well-formed (tags balanced, no run nested in a run, `xmllint` clean).
 
 Word form vs answers: every box and text field matches the answers.
@@ -153,11 +162,11 @@ Flagged by the expansion (`expanded.flagged`): none
 
 Printed-rule blockers (`evaluatePiesa`): none
 
-## Case 2 — Life support (medical plan) + solar + 4 non-IC downlights; repairs needed, then done on the A5 fixes form with a CoES
+## Case 2 — Life support (medical plan) + solar + 4 non-IC downlights + a flue and a rotten joist; repairs needed, then done on the A5 fixes form with a CoES
 
 Job HV-SAMPLE-2, 7 Banksia Court, Frankston VIC 3199. Inspection 2026-10-28. Owner Robert Ellis confirmed on the secure link (2026-10-28T20:15:00+11:00). A5 fixes form completed 2026-11-03, CoES CES 7781234.
 
-Files: `case-2-life-support-fixes.docx`, `case-2-life-support-fixes-word.pdf` (8 pages: `case-2-life-support-fixes-word-1.png`, `case-2-life-support-fixes-word-2.png`, `case-2-life-support-fixes-word-3.png`, `case-2-life-support-fixes-word-4.png`, `case-2-life-support-fixes-word-5.png`, `case-2-life-support-fixes-word-6.png`, `case-2-life-support-fixes-word-7.png`, `case-2-life-support-fixes-word-8.png`), `case-2-life-support-fixes.pdf` (5 pages: `case-2-life-support-fixes-pdf-1.png`, `case-2-life-support-fixes-pdf-2.png`, `case-2-life-support-fixes-pdf-3.png`, `case-2-life-support-fixes-pdf-4.png`, `case-2-life-support-fixes-pdf-5.png`).
+Files: `case-2-life-support-fixes.docx`, `case-2-life-support-fixes-word.pdf` (9 pages: `case-2-life-support-fixes-word-1.png`, `case-2-life-support-fixes-word-2.png`, `case-2-life-support-fixes-word-3.png`, `case-2-life-support-fixes-word-4.png`, `case-2-life-support-fixes-word-5.png`, `case-2-life-support-fixes-word-6.png`, `case-2-life-support-fixes-word-7.png`, `case-2-life-support-fixes-word-8.png`, `case-2-life-support-fixes-word-9.png`), `case-2-life-support-fixes.pdf` (5 pages: `case-2-life-support-fixes-pdf-1.png`, `case-2-life-support-fixes-pdf-2.png`, `case-2-life-support-fixes-pdf-3.png`, `case-2-life-support-fixes-pdf-4.png`, `case-2-life-support-fixes-pdf-5.png`).
 
 A4 answers given:
 
@@ -178,13 +187,28 @@ A4 answers given:
 - How many are there? → **4**
 - Are any of them not IC or IC-4 rated? → **Yes**
 - How many are not IC or IC-4 rated? → **4**
-- Are there any appliances, exhaust fans or flues in the ceiling space? → **No**
+- Are there any appliances, exhaust fans, flues or other hazards in the ceiling space? → **Yes**
+- What type is it? → **Flue**
+- What is it? → **Gas heater flue**
+- Where is it? → **Ceiling above the lounge**
+- Photo of it → **1 photo**
+- Can insulation be safely installed around it as it is? → **No**
+- What is the problem? → **The flue has no guard — insulation would touch the hot flue**
+- What needs to be done to make it safe? → **Fit a flue guard keeping insulation 50 mm clear before insulation goes in**
+- What type is it? → **Other hazard**
+- What is it? → **Rotten ceiling joist**
+- Where is it? → **Hallway, next to the manhole**
+- Photo of it → **1 photo**
+- Can insulation be safely installed around it as it is? → **No**
+- What is the problem? → **The joist is soft and cracked and won't take a person's weight**
+- What needs to be done to make it safe? → **Builder to replace the joist before insulation goes in**
 - Is any electrical repair work needed before insulation can be installed? → **Yes**
 - Please tick the repair work that is required. → **Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights., Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000**
 - Your total price for all the repair work, including GST → **1180**
 - What will you do? Tick everything included in your price. → **Replace downlights with IC-4 rated LED downlights, Install RCD safety switches**
 - How many downlights are you replacing? → **4**
 - How many RCD safety switches are you installing? → **1**
+- Does an electrician need to be on site at the start of the install? → **No**
 - Electrician licence number → **A 54321**
 - Electrician full name → **Sam Spark**
 - Electrical contractor (REC) business name → **Spark Electrical Pty Ltd**
@@ -195,14 +219,15 @@ A4 answers given:
 
 A5 fixes form: completed Yes, CoES number, date of certification, CoES file, geotagged work photo, signature — merged with `mergeFixesIntoPiesaSnapshot`.
 
-Word form: the filler reports 63 items placed; not placed: none. Read back from the filled Word file:
+Word form: the filler reports 70 items placed; not placed: none. Read back from the filled Word file:
 
-- Yes/No: 20 answered Yes — Word form shows 20 ticked "Yes" boxes; 7 answered No — Word form shows 7 ticked "No" boxes.
+- Yes/No: 22 answered Yes — Word form shows 22 ticked "Yes" boxes; 6 answered No — Word form shows 6 ticked "No" boxes.
 - B1 outcome: answered — Word form shows "Electrical rectification work is required before insulation …".
 - B2 repair items: 2 answered — Word form shows 2 B2 boxes ticked.
 - Declaration ticks: 12 answered — Word form shows 12 ticked.
-- Signatures: Section C "Sam Spark (signed electronically on 03/11/2026)"; owner "Robert Ellis (signed electronically on 04/11/2026)".
-- Part 7 rows on the Word form: none.
+- Signatures: Part B3 electrician's signature PICTURE (from A4) + "Signed in Mitti on …"; Section C "Signed in Mitti on 03/11/2026" under the A5 signature PICTURE; owner "Robert Ellis (signed electronically on 04/11/2026)" (typed — owners sign on the secure link).
+- Part 7 other hazards on the Word form: "Rotten ceiling joist (Hallway, next to the manhole): The joist is soft and cracked and won't take a person's weight" → "Builder to replace the joist before insulation goes in"; actions line: "Gas heater flue: Fit a flue guard keeping insulation 50 mm clear before insulation goes in".
+- Part 7 rows on the Word form: Appliance "Gas heater flue" / Location "Ceiling above the lounge" / Hazard "The flue has no guard — insulation would touch the hot flue".
 - Word XML: well-formed (tags balanced, no run nested in a run, `xmllint` clean).
 
 Word form vs answers: every box and text field matches the answers.
@@ -219,12 +244,14 @@ Right after the A5 form, before the owner confirms the fixes (decision 330) — 
 - (owner declaration 3 then: blank; o.date 2026-10-28)
 
 Before the A5 fixes form (the PIESA as first synced) — flags:
+- Appliances: work required before insulation — the official "effective" tick waits for the repair work to be recorded complete.
 - Section C: electrical fixes completion not confirmed — Section C stays incomplete.
 - Section C: Certificate of Electrical Safety number missing.
 - Section C: certification date missing.
 - Owner hasn't confirmed the electrical fixes.
 
 …and blockers:
+- `REQ:p7.effective` Required: "Does this action effectively reduce the risk associated with the identified hazard/s?".
 - `REQ:c.licence` Required: "Licence no:".
 - `REQ:c.name` Required: "Full Name:".
 - `REQ:c.recName` Required: "Name:".
@@ -242,12 +269,13 @@ Before the A5 fixes form (the PIESA as first synced) — flags:
 - `REQ:c.coes` Required: "Certificate of Electrical Safety number (required for any electrical works completed):".
 - `REQ:c.certDate` Required: "Date of Certification:".
 - `REQ:o.tick3` Required: "I confirm that any electrical rectification works were completed on the above date." must be ticked.
+- `P7-NOT-EFFECTIVE` Hazard remains unresolved - office/electrical review required.
 
-## Case 3 — Repair needed where the only tick is "Be on site at the start of the install day" (electrician present at installation)
+## Case 3 — Repair needed where the only work is "Does an electrician need to be on site at the start of the install?" = Yes (decision 338; electrician present at installation)
 
 Job HV-SAMPLE-3, 22 Ironbark Road, Bendigo VIC 3550. Inspection 2026-10-29. Owner Priya Shah confirmed on the secure link (2026-10-30T08:05:00+11:00).
 
-Files: `case-3-electrician-at-start.docx`, `case-3-electrician-at-start-word.pdf` (8 pages: `case-3-electrician-at-start-word-1.png`, `case-3-electrician-at-start-word-2.png`, `case-3-electrician-at-start-word-3.png`, `case-3-electrician-at-start-word-4.png`, `case-3-electrician-at-start-word-5.png`, `case-3-electrician-at-start-word-6.png`, `case-3-electrician-at-start-word-7.png`, `case-3-electrician-at-start-word-8.png`), `case-3-electrician-at-start.pdf` (5 pages: `case-3-electrician-at-start-pdf-1.png`, `case-3-electrician-at-start-pdf-2.png`, `case-3-electrician-at-start-pdf-3.png`, `case-3-electrician-at-start-pdf-4.png`, `case-3-electrician-at-start-pdf-5.png`).
+Files: `case-3-electrician-at-start.docx`, `case-3-electrician-at-start-word.pdf` (9 pages: `case-3-electrician-at-start-word-1.png`, `case-3-electrician-at-start-word-2.png`, `case-3-electrician-at-start-word-3.png`, `case-3-electrician-at-start-word-4.png`, `case-3-electrician-at-start-word-5.png`, `case-3-electrician-at-start-word-6.png`, `case-3-electrician-at-start-word-7.png`, `case-3-electrician-at-start-word-8.png`, `case-3-electrician-at-start-word-9.png`), `case-3-electrician-at-start.pdf` (5 pages: `case-3-electrician-at-start-pdf-1.png`, `case-3-electrician-at-start-pdf-2.png`, `case-3-electrician-at-start-pdf-3.png`, `case-3-electrician-at-start-pdf-4.png`, `case-3-electrician-at-start-pdf-5.png`).
 
 A4 answers given:
 
@@ -262,12 +290,12 @@ A4 answers given:
 - Is there solar, a battery or a generator at the property? → **No**
 - Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation? → **Yes**
 - Are there any downlights or other recessed lights in the ceiling? → **No**
-- Are there any appliances, exhaust fans or flues in the ceiling space? → **No**
+- Are there any appliances, exhaust fans, flues or other hazards in the ceiling space? → **No**
 - Is any electrical repair work needed before insulation can be installed? → **Yes**
 - Please tick the repair work that is required. → **Other (indicate below):**
 - Please describe the other repair work. → **Old main switch cannot be locked off. Electrician to attend at the start of the install day to isolate the mains, lock out and tag.**
 - Your total price for all the repair work, including GST → **220**
-- What will you do? Tick everything included in your price. → **Be on site at the start of the install day**
+- Does an electrician need to be on site at the start of the install? → **Yes**
 - Electrician licence number → **A 54321**
 - Electrician full name → **Sam Spark**
 - Electrical contractor (REC) business name → **Spark Electrical Pty Ltd**
@@ -282,7 +310,8 @@ Word form: the filler reports 39 items placed; not placed: none. Read back from 
 - B1 outcome: answered — Word form shows "Electrical rectification work is not possible prior to insul…".
 - B2 repair items: 0 answered — Word form shows 0 B2 boxes ticked.
 - Declaration ticks: 5 answered — Word form shows 5 ticked.
-- Signatures: Section C blank; owner "Priya Shah (signed electronically on 30/10/2026)".
+- Signatures: Part B3 electrician's signature PICTURE (from A4) + "Signed in Mitti on …"; Section C blank; owner "Priya Shah (signed electronically on 30/10/2026)" (typed — owners sign on the secure link).
+- Part 7 other hazards on the Word form: none; actions line: blank.
 - Part 7 rows on the Word form: none.
 - Word XML: well-formed (tags balanced, no run nested in a run, `xmllint` clean).
 
@@ -299,13 +328,9 @@ Next actions:
 
 These official items have no matching A4 question, so the portal cannot fill them truthfully. Proposal for each (Jo to decide; nothing changed):
 
-- `p7.appliances` vs `p7.flues` — one A4 question ("appliances, exhaust fans or flues") answers both, so they are always the same. Proposal: per "Add an appliance or flue" item, add a pick-one "Appliance / Exhaust fan or flue" and derive each official question from the items.
-- `p7.location` — copies the "What is it and where is it?" text (the Appliance column shows the same). Proposal: split into "What is it?" and "Where is it?" in the repeating block.
-- `p7.hazard` / `p7.actions` — fixed portal wording from "Can insulation be safely installed around it as it is?". Proposal: when No, ask "What is the hazard?" and "What must be done before insulation?" (short text) in the block.
-- `p7.otherHazard` / `p7.otherAction` (other hazards, e.g. rotten joist) — never asked, always blank. Proposal: one optional repeating block "Any other hazard in the ceiling?" with hazard + action.
 - `p4.tps` N/A — A4 can only say Yes/No. Proposal: add "There are no TPS cables in the ceiling" as a choice so N/A can be ticked.
-- B1 third outcome (case 3) — "Be on site at the start of the install day" gives B1 "not possible … under parts 2 and 3", but the B2 tick and the electrician's description are not printed (B2 is only for rectification required), and A4 still requires a B2 tick. Proposal: when only "Be on site" is ticked, skip the B2 question on A4 and print the description in Part 7 "other hazards / action".
+- B1 third outcome (case 3) — "Does an electrician need to be on site at the start of the install?" = Yes (decision 338) gives B1 "not possible … under parts 2 and 3"; B2 is only for rectification required, so nothing is printed in B2. Proposal: accept (the attendance is recorded and lined up automatically, decision 327).
 - `p2.switch` — the Word form prints no box; the derived answer lives only in the signed record and the PDF. Proposal: accept (the form's own note says the overall answer follows the sub-items).
 - `lifeSupportAttachment` — the consent / medical plan photo is kept as a job file, not printed on the Word form. Proposal: accept; attach the photo with the PIESA copy.
-- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312 questions and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.
+- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312/323 questions, the decision 336 hazard-row questions and the decision 338 on-site question, and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.
 

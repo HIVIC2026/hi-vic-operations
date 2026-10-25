@@ -12,7 +12,7 @@
  * Release rules are unchanged: the quote is still a held draft for office review (quote-release.core).
  */
 import { applyRectificationMargin, RECTIFICATION_MARGIN_INC_GST, type RectificationLine } from "./rectification-pricing.core";
-import { FIXES_DOWNLIGHT_OPTION, FIXES_OTHER_OPTION, FIXES_RCD_OPTION, fixesWorkTicks } from "./official-short.core";
+import { FIXES_DOWNLIGHT_OPTION, FIXES_OTHER_OPTION, FIXES_RCD_OPTION, fixesWorkTicks, fixesWorkWithOnsite } from "./official-short.core";
 export { fixesWorkTicks };
 import { priceFromPortal } from "./installer-price.core";
 
@@ -72,7 +72,8 @@ export function describeFixesWork(i: { ticks: string[]; downlights: number | nul
 export type FixesInclusions = { ok: true; included: string } | { ok: false; reason: string } | { ok: false; reason: null };
 /** Decision 308: the inclusions from the ticks (+ counts / Other). `reason: null` = nothing ticked at all (old form). */
 export function fixesInclusionsFromTicks(short: Record<string, unknown>): FixesInclusions {
-  const ticks = fixesWorkTicks(short["fixesWork"]);
+  // Decision 338: the "on site at the start" question (Yes) counts exactly like the old tick (same quote-line wording).
+  const ticks: string[] = fixesWorkWithOnsite(short);
   if (!ticks.length) return { ok: false, reason: null };
   const downlights = ticks.includes(FIXES_DOWNLIGHT_OPTION) ? parseFixesCount(short["fixesDownlightCount"]) : null;
   if (ticks.includes(FIXES_DOWNLIGHT_OPTION) && downlights == null) return { ok: false, reason: "The PIESA form ticks downlights but not how many are being replaced" };

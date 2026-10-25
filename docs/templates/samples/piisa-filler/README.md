@@ -14,6 +14,7 @@ The approved PIISA uses the same Word filler (`official-docx.core.ts`) as the PI
 
 - Filler: 40 items placed; not placed: none; no field on the Word form: none.
 - Word XML: well-formed (tags balanced, no run nested in a run); xmllint clean.
+- Decision 336: Part 8 "Signature" box = the A3 lead installer's signature PICTURE (inline image `word/media/hiv-signature-1.png`, relationship `rIdHivSignature1`) with "Signed in Mitti on 12/11/2026" under it. Sample picture only (made up).
 - Word form vs answers: every box and text field matches the answers.
 - Printed-rule blockers (`evaluatePiisa`): none.
 
@@ -56,7 +57,7 @@ The approved PIISA uses the same Word filler (`official-docx.core.ts`) as the PI
 | `p6.reason` | Existing glasswool batts are dry, evenly laid and not foil-backed; topped up to reach the required R-value. | Existing glasswool batts are dry, evenly laid and not foil-backed; topped up to reach the required R-value. |
 | `p7.products` | Bradford Gold Hi-Performance Ceiling Batts R5.0 (BCB50) — 118 m² | Bradford Gold Hi-Performance Ceiling Batts R5.0 (BCB50) — 118 m² |
 | `p8.declaration` | ticked | ticked |
-| `p8.signature` | Daniel Moore (signed electronically on 12/11/2026) | Daniel Moore (signed electronically on 12/11/2026) |
+| `p8.signature` | Daniel Moore (signed electronically on 12/11/2026) | Signed in Mitti on 12/11/2026 |
 | `p8.name` | Daniel Moore | Daniel Moore |
 | `p8.date` | 2026-11-12 | 12/11/2026 |
 

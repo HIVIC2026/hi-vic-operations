@@ -66,7 +66,8 @@ describe("expansion to official answers", () => {
     }
     // Decision 329: signatures are now the signer's typed electronic signature (never fabricated); only the PIESA Part 7
     // table detail the A4 form does not ask stays excluded.
-    expect(expansionCoverage("piesa").excluded).toEqual(["p7.location", "p7.hazard", "p7.actions", "p7.otherHazard", "p7.otherAction"]);
+    // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A4 hazard rows.
+    expect(expansionCoverage("piesa").excluded).toEqual([]);
     expect(expansionCoverage("piisa").excluded).toEqual([]);
   });
   test("an all-safe mains answer sets every official Part 2 item to Yes", () => {

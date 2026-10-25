@@ -20,6 +20,13 @@
 //   written onto a sub-row.
 // Check boxes are set through their own `w:default` + `w:checked` (the Section C declaration carries `w:checked="0"` in the
 // original, which overrides `w:default`); no glyph run is inserted, so a run is never nested inside another run.
+//
+// Decision 336 (Jo 25 Oct 2026: "WHERE IS THE ELECTRICIAN'S SIGNATURE?") — the ACTUAL signature images captured in Mitti are
+// embedded as inline pictures (`fillOfficialDocxParts`: a media part + an image relationship + the content type, and a
+// `<w:drawing>` run): PIESA Section C "Signature" box (A5 signature) and the PIISA Part 8 "Signature" box (A3 lead installer),
+// each with "Signed in Mitti on DD/MM/YYYY" written as the box's text under the picture. Part B3 of the PIESA prints no
+// signature box, so the A4 signature is placed in a paragraph of its own straight after the B3 declaration (no form wording
+// changes). A signature without a usable image keeps the typed text (the caller flags it). Owner boxes stay typed e-signatures.
 import { answerItems, splitSelections, type OfficialAnswers, type OfficialItem, type OfficialKey, type Value } from "./official-forms.core";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
@@ -39,6 +46,7 @@ export const WORD_FORM_NO_FIELD: Record<OfficialKey, string[]> = {
 
 export type DocxField = {
   /** Order in the document (0-based). */ n: number;
+  /** Offset of the field's `begin` fldChar (decision 336: a signature picture goes in the run before it). */ begin: number;
   kind: "check" | "text";
   /** The `<w:checkBox>…</w:checkBox>` element (check) — replaced to set the state. */ cbStart: number; cbEnd: number;
   /** The field result between the separate and end runs (text) — replaced with the value. */ resStart: number; resEnd: number;
@@ -83,7 +91,7 @@ export function docxFields(xml: string): DocxField[] {
     const next = xml.indexOf(BEGIN, afterEnd);
     const stop = Math.min(paras[para]?.end ?? xml.length, next < 0 ? xml.length : next);
     const after = [...xml.slice(afterEnd, stop).matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((t) => unesc(t[1]!)).join("");
-    out.push({ n: out.length, kind, cbStart, cbEnd, resStart, resEnd, para, after });
+    out.push({ n: out.length, begin: b, kind, cbStart, cbEnd, resStart, resEnd, para, after });
   }
   return out;
 }
@@ -176,14 +184,68 @@ function textRunsXml(xml: string, f: DocxField, value: string): string {
   return value.split(/\r?\n/).map((line, i) => `<w:r>${rPr}${i ? "<w:br/>" : ""}<w:t xml:space="preserve">${esc(line)}</w:t></w:r>`).join("");
 }
 
-export type FillResult = { xml: string; filled: string[]; missed: string[]; notOnForm: string[] };
+export type FillResult = { xml: string; filled: string[]; missed: string[]; notOnForm: string[]; /** Decision 336. */ signatures?: string[] };
+
+// ---------- decision 336: signature pictures ----------
+/** Where a signature picture goes: a signature item's own box, or (PIESA B3, which has no box) after the B3 declaration. */
+export type SignatureSlot = "b3.signature" | "c.signature" | "p8.signature";
+export const SIGNATURE_SLOTS: Record<OfficialKey, SignatureSlot[]> = { piesa: ["b3.signature", "c.signature"], piisa: ["p8.signature"] };
+/** One picture already added to the package (relationship id + size in EMU). */
+export type DocxPicture = { rId: string; cx: number; cy: number; name: string; docPrId: number };
+/** Pictures + the line under them; `text` alone (no pictures) = the typed fallback for a box the form has no field for (B3). */
+export type DocxSignaturePlacement = { pictures: DocxPicture[]; caption: string };
+export type SignatureImage = { bytes: Uint8Array; contentType: string; /** YYYY-MM-DD (Melbourne) the signature was captured in Mitti. */ signedOn: string };
+/** Per slot: the captured images (possibly none) + the typed text to show when none can be embedded (B3 only — the boxes
+ *  that have a field keep the typed answer). */
+export type SignatureInput = { images: SignatureImage[]; fallbackText?: string | null };
+export const SIGNATURE_IMAGE_NOT_AVAILABLE = "Electrician signature image not available";
+export const INSTALLER_SIGNATURE_IMAGE_NOT_AVAILABLE = "Installer signature image not available";
+export const signedInMittiCaption = (date: string) => `Signed in Mitti on ${dateOut(date)}`;
+
+const EMU_PER_PX = 9525;
+/** Paragraph properties for a signature picture: auto line spacing (the form's styles use exact spacing, which clips pictures). */
+const PICTURE_PPR = `<w:pPr><w:spacing w:before="60" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
+/** Pixel size of a PNG (IHDR) or JPEG (SOFn); null when the bytes are neither or the size can't be read. Pure. */
+export function imagePixelSize(bytes: Uint8Array): { w: number; h: number; type: "png" | "jpeg" } | null {
+  const u32 = (o: number) => ((bytes[o]! << 24) | (bytes[o + 1]! << 16) | (bytes[o + 2]! << 8) | bytes[o + 3]!) >>> 0;
+  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const w = u32(16), h = u32(20);
+    return w > 0 && h > 0 ? { w, h, type: "png" } : null;
+  }
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let o = 2;
+    while (o + 9 < bytes.length) {
+      if (bytes[o] !== 0xff) { o++; continue; }
+      const m = bytes[o + 1]!;
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { o += 2; continue; }
+      const len = (bytes[o + 2]! << 8) | bytes[o + 3]!;
+      if ((m >= 0xc0 && m <= 0xcf) && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        const h = (bytes[o + 5]! << 8) | bytes[o + 6]!, w = (bytes[o + 7]! << 8) | bytes[o + 8]!;
+        return w > 0 && h > 0 ? { w, h, type: "jpeg" } : null;
+      }
+      o += 2 + len;
+    }
+  }
+  return null;
+}
+/** Picture size inside a signature box: at most 5.5 cm wide and 2 cm high, aspect kept. */
+export function signatureExtent(w: number, h: number): { cx: number; cy: number } {
+  const maxCx = 1_980_000, maxCy = 720_000;
+  const s = Math.min(maxCx / (w * EMU_PER_PX), maxCy / (h * EMU_PER_PX), 1);
+  return { cx: Math.max(1, Math.round(w * EMU_PER_PX * s)), cy: Math.max(1, Math.round(h * EMU_PER_PX * s)) };
+}
+/** One inline picture run (`<w:drawing><wp:inline>…`), referencing an image relationship of word/document.xml. */
+export function pictureRunXml(p: DocxPicture): string {
+  const name = esc(p.name);
+  return `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${p.cx}" cy="${p.cy}"/><wp:docPr id="${p.docPrId}" name="${name}" descr="${name}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${p.docPrId}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${p.rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${p.cx}" cy="${p.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+}
 
 /**
  * Fills word/document.xml for `key` with `answers`. Items are placed through the form's layout map (officialDocxLayout).
  * Answered items the map could not place are reported in `missed`, never guessed; derived items with no field of their own
  * are reported in `notOnForm`.
  */
-export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: OfficialAnswers): FillResult {
+export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: OfficialAnswers, opts: { signatures?: Partial<Record<SignatureSlot, DocxSignaturePlacement>> } = {}): FillResult {
   const layout = officialDocxLayout(input, key);
   const fields = docxFields(input);
   const edits: Edit[] = [];
@@ -227,10 +289,88 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
     if (v == null || txt(v) === "" || (item.kind === "tick" && !ticked(v))) continue;
     place(item, item.id, v);
   }
-  edits.sort((a, b) => b.start - a.start);
+  // Decision 336: signature pictures (+ "Signed in Mitti on …" as the box's text), or B3's own paragraph.
+  const signatures: string[] = [];
+  for (const [slot, sp] of Object.entries(opts.signatures ?? {}) as [SignatureSlot, DocxSignaturePlacement][]) {
+    if (!sp || !SIGNATURE_SLOTS[key].includes(slot)) continue;
+    const pics = sp.pictures.map(pictureRunXml).join(`<w:r><w:t xml:space="preserve"> </w:t></w:r>`);
+    if (slot === "b3.signature") {
+      const decl = layout.slots.get("b3.declaration");
+      if (!decl || !sp.caption) { missed.push(slot); continue; }
+      const para = paragraphs(input)[fields[decl.fields[0]!.n]!.para];
+      if (!para) { missed.push(slot); continue; }
+      const body = `${pics}${pics ? "<w:r><w:br/></w:r>" : ""}<w:r><w:rPr><w:noProof/></w:rPr><w:t xml:space="preserve">${esc(sp.caption)}</w:t></w:r>`;
+      edits.push({ start: para.end, end: para.end, text: `<w:p>${PICTURE_PPR}${body}</w:p>` });
+      signatures.push(slot);
+      continue;
+    }
+    const slotInfo = layout.slots.get(slot);
+    if (!slotInfo || !sp.pictures.length) { missed.push(slot); continue; }
+    const f = fields[slotInfo.fields[0]!.n]!;
+    const fieldPara = paragraphs(input)[f.para];
+    if (!fieldPara) { missed.push(slot); continue; }
+    // The field result becomes the caption (replacing any typed text set above for the same box); the picture sits in its own
+    // paragraph straight above it inside the same box (the form's exact line spacing would clip an inline picture).
+    for (let i = edits.length - 1; i >= 0; i--) if (edits[i]!.start === f.resStart && edits[i]!.end === f.resEnd) edits.splice(i, 1);
+    edits.push({ start: fieldPara.start, end: fieldPara.start, text: `<w:p>${PICTURE_PPR}${pics}</w:p>` });
+    edits.push({ start: f.resStart, end: f.resEnd, text: textRunsXml(input, f, sp.caption) });
+    if (!filled.includes(slot)) filled.push(slot);
+    signatures.push(slot);
+  }
+  edits.sort((a, b) => b.start - a.start || b.end - a.end);
   let xml = input;
   for (const e of edits) xml = xml.slice(0, e.start) + e.text + xml.slice(e.end);
-  return { xml, filled, missed, notOnForm };
+  return { xml, filled, missed, notOnForm, ...(opts.signatures ? { signatures } : {}) };
+}
+
+/**
+ * Decision 336: fills a whole unzipped Word package — word/document.xml through `fillOfficialDocxXml`, plus each usable
+ * signature image as its own media part (word/media/hiv-signature-N.png|jpeg), an image relationship in
+ * word/_rels/document.xml.rels and the content type for its extension. An image that isn't a readable PNG/JPEG is not
+ * embedded: the slot falls back to its typed text and is listed in `notEmbedded`. Pure (no I/O); parts are copied, never mutated.
+ */
+export function fillOfficialDocxParts(parts: Record<string, Uint8Array>, key: OfficialKey, answers: OfficialAnswers, signatures: Partial<Record<SignatureSlot, SignatureInput>> = {}) {
+  const dec = (p: string) => new TextDecoder().decode(parts[p]!);
+  const doc = parts["word/document.xml"];
+  if (!doc) throw new Error("The official Word form is missing its document body.");
+  let rels = parts["word/_rels/document.xml.rels"] ? dec("word/_rels/document.xml.rels") : "";
+  let types = parts["[Content_Types].xml"] ? dec("[Content_Types].xml") : "";
+  const out: Record<string, Uint8Array> = { ...parts };
+  const placements: Partial<Record<SignatureSlot, DocxSignaturePlacement>> = {};
+  const notEmbedded: SignatureSlot[] = [];
+  const embedded: { slot: SignatureSlot; part: string; rId: string }[] = [];
+  let n = 0;
+  for (const [slot, sig] of Object.entries(signatures) as [SignatureSlot, SignatureInput][]) {
+    if (!sig || !SIGNATURE_SLOTS[key].includes(slot)) continue;
+    const pictures: DocxPicture[] = [];
+    let signedOn = "";
+    for (const img of sig.images) {
+      const size = imagePixelSize(img.bytes);
+      if (!size || !rels || !types) continue;
+      n++;
+      const ext = size.type === "png" ? "png" : "jpeg";
+      const part = `word/media/hiv-signature-${n}.${ext}`;
+      const rId = `rIdHivSignature${n}`;
+      out[part] = img.bytes;
+      rels = rels.replace("</Relationships>", `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hiv-signature-${n}.${ext}"/></Relationships>`);
+      if (!new RegExp(`<Default Extension="${ext}"`, "i").test(types)) types = types.replace("<Default ", `<Default Extension="${ext}" ContentType="image/${ext}"/><Default `);
+      pictures.push({ rId, ...signatureExtent(size.w, size.h), name: `Signature ${n}`, docPrId: 3_360_000 + n });
+      embedded.push({ slot, part, rId });
+      signedOn = signedOn || img.signedOn;
+    }
+    if (pictures.length) placements[slot] = { pictures, caption: signedInMittiCaption(signedOn) };
+    else {
+      notEmbedded.push(slot);
+      if (slot === "b3.signature" && sig.fallbackText) placements[slot] = { pictures: [], caption: sig.fallbackText };
+    }
+  }
+  const r = fillOfficialDocxXml(dec("word/document.xml"), key, answers, { signatures: placements });
+  out["word/document.xml"] = new TextEncoder().encode(r.xml);
+  if (embedded.length) {
+    out["word/_rels/document.xml.rels"] = new TextEncoder().encode(rels);
+    out["[Content_Types].xml"] = new TextEncoder().encode(types);
+  }
+  return { parts: out, xml: r.xml, filled: r.filled, missed: r.missed, notOnForm: r.notOnForm, embedded, notEmbedded, rels, types };
 }
 
 /** What a filled Word form SHOWS for each item, read back from the XML (tests + the sample read-back). */
