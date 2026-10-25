@@ -6610,6 +6610,27 @@ export type Database = {
         }
         Relationships: []
       }
+      office_needs_snapshot: {
+        Row: {
+          computed_at: string
+          key: string
+          payload: Json
+          refreshing_at: string | null
+        }
+        Insert: {
+          computed_at: string
+          key: string
+          payload: Json
+          refreshing_at?: string | null
+        }
+        Update: {
+          computed_at?: string
+          key?: string
+          payload?: Json
+          refreshing_at?: string | null
+        }
+        Relationships: []
+      }
       office_snoozes: {
         Row: {
           created_at: string
