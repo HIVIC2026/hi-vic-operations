@@ -5,7 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 
 const db = new PGlite();
-await db.exec(`CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());`);
+await db.exec(`CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean not null default false, created_at timestamptz default clock_timestamp());`); // live columns (types.ts)
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class extends Error {},

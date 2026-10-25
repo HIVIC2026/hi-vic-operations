@@ -5,6 +5,7 @@ import {
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
   paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
   effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
+  ledgerXeroPayments, reconcilePayments, stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, xeroReceiptKey, xeroReversalReceiptKey,
   INSTALL_DEPOSIT_NOT_PAID, depositDeadlineBeforeStart, depositSweepAction, installDepositPrestartBlocker,
 } from "../src/lib/payments.core";
 import { paymentPatch } from "../src/lib/invoice.lifecycle";
@@ -184,14 +185,60 @@ describe("audit F01: the same money is counted once; deleted Xero payments are r
     const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "Stripe pi_3Abc123456" }]);
     expect(reconciledPaidCents([card], xero)).toBe(34_900);
   });
-  test("no Stripe id in the Reference: same amount within 10 days matches; outside 10 days does not", () => {
-    expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 9) }]))).toBe(34_900);
-    expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }]))).toBe(69_800);
+  test("audit R02: no Stripe id in the Reference → a same-amount card + Xero pair is TWO payments ($698), reported as unclear", () => {
+    const bank = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 2), Reference: "INV-0042" }]);
+    expect(reconciledPaidCents([card], bank)).toBe(69_800);
+    const r = reconcilePayments([card], bank);
+    expect(r.unclear.map((u) => u.xero.paymentId)).toEqual(["x1"]);
+    expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(69_800);
+    // outside 10 days or a different amount: still two payments, nothing unclear to report
+    expect(reconcilePayments([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }])).unclear).toEqual([]);
     expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 300, Date: plus(T0, 24) }]))).toBe(64_900);
   });
-  test("each Xero payment claims at most one card record", () => {
+  test("audit R02: the charge id in the Reference identifies the card receipt too", () => {
+    const withCharge = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "card", paid_at: T0, note: "stripe:pi_3Abc123456", stripe_payment_intent: "pi_3Abc123456", stripe_charge: "ch_3Abc999999" });
+    const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "ch_3Abc999999" }]);
+    expect(reconciledPaidCents([withCharge], xero)).toBe(34_900);
+    expect(reconcilePayments([withCharge], xero).unclear).toEqual([]);
+  });
+  test("each Xero payment claims at most one card record; a Reference naming one receipt never matches another", () => {
     const card2 = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "card", paid_at: plus(T0, 1), note: "stripe:pi_other99999" });
-    expect(reconciledPaidCents([card, card2], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24) }]))).toBe(69_800);
+    const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24), Reference: "pi_3Abc123456" }]);
+    expect(reconciledPaidCents([card, card2], xero)).toBe(69_800);
+    expect(reconcilePayments([card, card2], xero).unclear).toEqual([]); // x1 belongs to `card`; card2 is simply unmatched
+  });
+  test("legacy office rows (no receipt identity ever existed) keep the amount/date match", () => {
+    const office = ledgerRecordFromEvent("owner_payment_recorded", T0, "u1", { amount_cents: 34_900, source: "manual", paid_at: T0 });
+    expect(reconciledPaidCents([office], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 9) }]))).toBe(34_900);
+    expect(reconciledPaidCents([office], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }]))).toBe(69_800);
+    // …but never against a Xero payment that names a Stripe receipt
+    expect(reconciledPaidCents([office, card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24), Reference: "pi_3Abc123456" }]))).toBe(69_800);
+  });
+  test("audit R02: a Stripe refund (owner_payment_reversed, source card) lowers the unmatched card row; Xero rules once matched", () => {
+    const part = ledgerRecordFromEvent("owner_payment_reversed", plus(T0, 24), null, { amount_cents: 10_000, source: "card", stripe_payment_intent: "pi_3Abc123456", note: "stripe-refund:pi_3Abc123456" });
+    expect(part.kind).toBe("reversal");
+    expect(reconciledPaidCents([card, part], [])).toBe(24_900);
+    expect(cumulativePaidCents(effectiveLedger([card, part]))).toBe(24_900);
+    expect(stripeRefundedSoFarCents([card, part], "pi_3Abc123456")).toBe(10_000);
+    const rest = ledgerRecordFromEvent("owner_payment_reversed", plus(T0, 48), null, { amount_cents: 24_900, source: "card", stripe_payment_intent: "pi_3Abc123456" });
+    expect(reconciledPaidCents([card, part, rest], [])).toBe(0);
+    expect(effectiveLedger([card, part, rest])).toEqual([]);
+    // a refund of another receipt does not touch this one
+    const other = ledgerRecordFromEvent("owner_payment_reversed", plus(T0, 48), null, { amount_cents: 34_900, source: "card", stripe_payment_intent: "pi_someone_else" });
+    expect(reconciledPaidCents([card, other], [])).toBe(34_900);
+    // once Xero holds the card money, Xero is the record (its own deletion reverses it)
+    expect(reconciledPaidCents([card, part], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "pi_3Abc123456" }]))).toBe(34_900);
+  });
+  test("receipt keys (audit R06): both Stripe events of one PaymentIntent share one key; Xero keys are per invoice", () => {
+    expect(stripeReceiptKey("pi_1")).toBe("stripe:pi_1");
+    expect(stripeRefundReceiptKey("pi_1", 10_000)).toBe("stripe-refund:pi_1:10000");
+    expect(xeroReceiptKey("inv", "x1")).toBe("xero:inv:x1");
+    expect(xeroReversalReceiptKey("inv", "x1")).toBe("xero-reversal:inv:x1");
+  });
+  test("a Xero payment recorded twice by an old race counts once in the ledger's own view", () => {
+    const rec = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: T0, xero_payment_id: "x1" });
+    expect(ledgerXeroPayments([rec, { ...rec }])).toHaveLength(1);
+    expect(cumulativePaidCents(effectiveLedger([rec, { ...rec }]))).toBe(34_900);
   });
   test("a deleted/voided Xero payment does not count and is reversed once", () => {
     const rec = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: T0, xero_payment_id: "x1" });
