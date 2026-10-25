@@ -143,6 +143,19 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Decision 272: the ESC Registry robot failed on a job → the office does that submission by hand (cleared once it is recorded).
   const { openRobotFailureRows } = await import("./esc-registry-robot.server");
   for (const r of await openRobotFailureRows(opts.onlyIds)) { const x = f(r.jobId); if (x && !x.robotFailed) x.robotFailed = { at: r.at, text: r.text, task: r.task }; }
+  // F15: the automatic install day (PIISA) form failed with the install today/tomorrow → one row until a form is created.
+  {
+    const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
+    const alerts = await all("install day form alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", PIISA_AUTOSEND_OFFICE_EVENT).gte("created_at", new Date(now - 7 * DAY).toISOString()).range(a, b));
+    const aIds = [...new Set(alerts.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    const made = aIds.length ? await byIds("install day forms created", aIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).eq("event_type", PIISA_AUDIT_CREATED_EVENT).range(a, b)) : [];
+    for (const id of aIds) {
+      const j = jobs.find((k) => k.id === id); const x = f(id);
+      if (!x || j?.stage !== "installation_booked") continue;
+      const open = piisaFormFailedOpen([...alerts, ...made].filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { message?: string | null } | null })));
+      if (open) x.piisaFormFailed = open;
+    }
+  }
   for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft ={ at: String(t["install_10day_flagged_at"]), deadline: jobs.find((j) => j.id === t["id"])?.facts.installDeadline ?? null }; }
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobs.find((k) => k.id === e["job_id"]); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.
