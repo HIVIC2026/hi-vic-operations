@@ -1086,7 +1086,13 @@ async function enforcePhotoLocation(sb: Parameters<typeof requireJobRole>[0], jo
     job?.property_id ? admin.from("property_facts").select("value").eq("property_id", job.property_id).eq("fact_key", "coordinates").eq("is_current", true).limit(1).maybeSingle() : Promise.resolve({ data: null }),
     admin.from("workflow_settings").select("photo_max_distance_m").eq("id", 1).maybeSingle(),
   ]);
-  const r = checkPhotoLocation({ mime, fix: fix ?? null, property: propertyPoint(fact?.value), maxM: ws?.photo_max_distance_m ?? 150, isOffice: role === "admin" });
+  let property = propertyPoint(fact?.value);
+  // Night run 25 Oct 2026: installer/imported jobs never had the map point written — fill it once from the address search.
+  if (!property && job?.property_id && role !== "admin") {
+    const { needsLocation } = await import("./geo.core");
+    if (needsLocation(mime) && fix) { const { ensurePropertyCoordinates } = await import("./property-coordinates.server"); property = propertyPoint(await ensurePropertyCoordinates(jobId, job.property_id)); }
+  }
+  const r = checkPhotoLocation({ mime, fix: fix ?? null, property, maxM: ws?.photo_max_distance_m ?? 150, isOffice: role === "admin" });
   if (!r.ok) throw new WorkflowError(r.reason);
   return { ...r, role };
 }
