@@ -33,7 +33,7 @@ Visible name everywhere: **Home Insulation Victoria**. Retired visible names: HI
 25. Mitti syncs passed / OK to proceed.
 26. Owner and installer arrange installation.
 27. Installer completes installation and final Mitti evidence.
-28. Final AP/compliance checks.
+28. Final AP/compliance checks — ONE Final check screen per job; Approve only when every check passes, by a person (decision 372).
 29. Job completes only when all final gates pass.
 
 Retired: PIESA before confirmed quote/payment; combined Ready Check + PIESA visit; installation booking before PIESA/Section C clearance; Mitti moving job state without portal validation.
@@ -197,3 +197,8 @@ When the PIESA (A4) says repair work is needed and the electrician does not fix 
 The Ready Check (A1 and A2) asks, per ceiling area and only when there is existing insulation: whether it is in good enough condition to lay new insulation over (Top up only), whether it is foil-backed, metallic or electrically conductive, a photo showing that, and why it is being kept (Top up only). The portal fills official PIISA Part 6 from those answers on install day; the installer is not asked again. When every area with existing insulation is Removed, the portal fills Part 6 itself (not laid over, no reason, the foil note satisfied by removal). A top-up on a Ready Check done before these questions existed is listed as "not recorded" and holds the PIISA until recorded.
 ## Warranty added after the completion pack (decision 363, 25 Oct 2026)
 If the completion pack went without a product's manufacturer warranty because the PDF was not on file, the owner gets one short email "Your insulation warranty" with the PDF attached as soon as it is added (automatic, 15-minute tick), and the warranty copy is then recorded as given so the AP signature on the VEEC form can go ahead. Wording O73 is a draft awaiting Jo's approval; until then nothing goes to real owners.
+
+## Less office work: consent AP part, trade checks, one-screen Final check (decisions 370–372, Jo 25 Oct 2026)
+- **Owner consent AP part signs itself (370):** once the owner has signed the ESC Owner's Consent Form and every existing check passes (four Section 2 ticks, consent matches the current booking, complete ≥24h before the start), Section 3 is signed automatically as the AP representative named on the forms through the same `confirmApConsent` path (executed copy, O63 copy email under its existing guard). Straight after the owner signs and on the 15-minute tick; idempotent (`consent_ap_signed_auto`). Office Sign is the fallback; Needs me only when held >24h or the deadline is <24h away, with the reason. Timing rules unchanged.
+- **Trade checks (371):** one Needs me row per trade document from 30 days before its latest stored expiry (insurance, installer certificate, REC registration, licences, each person's licence and CII). A lapsed public liability, installer certificate or REC registration stops new offers to that business; a lapsed licence / CII stops that person. White Cards have no stored expiry. Licence / REC numbers get a shape check at onboarding. The ESV register lookup is an adapter behind `ESV_REGISTER_LOOKUP_ENABLED` (off; esv.vic.gov.au not reachable from the build sandbox) that records "not checked" for the reviewer. The office still gives the final Approve on a new trade.
+- **One-screen Final check (372):** every pre-computed check with a tick/cross, why and an evidence link; Approve enabled only when all pass; the human authorised action and every existing guard stay; no auto-approve.
