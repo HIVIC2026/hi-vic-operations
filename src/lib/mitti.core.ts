@@ -468,6 +468,10 @@ export function parseAudit(audit: Any) {
         if (types.length > 1) issues.push("More than one existing insulation type was ticked (batts + loose fill) – mixed insulation needs office review.");
         if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
+    } else if (rooms.every((r) => r.present === false)) {
+      // 25 Oct 2026: no existing insulation in any area is an explicit "nothing to remove" — it clears a removal figure
+      // left behind by an earlier partial fill (a stale hidden branch once carried 20 m² into a job).
+      patch.removal_required = false;
     }
     // Per-area R-values (A1): record the lowest; differing values across areas need office review.
     const rvs = rooms.map((r) => r.rv).filter((v): v is number => v != null && v > 0);

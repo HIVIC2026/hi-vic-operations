@@ -261,6 +261,7 @@ describe("inactive Mitti items are never read (25 Oct: a stale 200 × 200 area b
     const p = parseAudit({ audit_id: "audit_x", audit_data: {}, items: doc.items, header_items: [] } as never);
     expect(p.patch.measured_area_m2).toBe(25);
     expect(p.patch.removal_m2 ?? null).toBeNull();
+    expect(p.patch.removal_required).toBe(false); // explicit: clears a stale figure on the stored measurement
     expect(p.areas).toHaveLength(1);
   });
 });
