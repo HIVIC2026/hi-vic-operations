@@ -35,7 +35,8 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "2a89d21c1f2c8fef916954d070449bd3175590d90b9a514d4a8d7625f3a299ac",
     originalFile: "docs/official-forms/VEU-pre-installation-electrical-safety-assessment-form_1.docx",
-    mappingVersion: "piesa-map-2.0.0", approved: false, superseded: false, effectiveFrom: null,
+    // Jo 25 Oct 2026 (decision 350): "The PIESA sample forms approved" — mapping approved for live use.
+    mappingVersion: "piesa-map-2.0.0", approved: { by: "Jo (Home Insulation Victoria)", at: "2026-10-25" }, superseded: false, effectiveFrom: "2026-10-25",
   },
   piisa: {
     key: "piisa", title: "VEU pre-installation installer safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",

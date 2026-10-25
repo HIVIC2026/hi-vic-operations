@@ -24,10 +24,10 @@ describe("template records", () => {
       expect(officialFormUseBlocker(k, { ...t, sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION" })).toMatch(/source web address/);
       expect(officialFormUseBlocker(k, { ...t, superseded: true })).toMatch(/superseded/);
     });
-    test(`${k}: approval state (Jo 24 Oct: PIISA approved, PIESA not yet); approval branch behaves`, () => {
+    test(`${k}: approval state (Jo: PIISA 24 Oct, PIESA 25 Oct); approval branch behaves`, () => {
       const t = OFFICIAL_TEMPLATES[k];
-      if (k === "piisa") { expect(t.approved).toEqual({ by: "Jo (Home Insulation Victoria)", at: "2026-10-24" }); expect(officialFormUseBlocker(k)).toBeNull(); }
-      else { expect(t.approved).toBe(false); expect(officialFormUseBlocker(k)).toMatch(/hasn't been approved/); }
+      expect(t.approved).toEqual({ by: "Jo (Home Insulation Victoria)", at: k === "piisa" ? "2026-10-24" : "2026-10-25" });
+      expect(officialFormUseBlocker(k)).toBeNull();
       // This copied record exercises the approval branch; it never approves the application mapping.
       const approved = { ...t, approved: { by: "TEST fixture approver", at: "2026-10-20T00:00:00Z" } };
       expect(officialFormUseBlocker(k, approved)).toBeNull();
@@ -216,7 +216,7 @@ describe("PIISA installation-day gate", () => {
     expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, approved: false }) } }).blockers.some((b) => b.includes("can't be used yet"))).toBe(true);
     expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, superseded: true }) } }).blockers.some((b) => b.includes("superseded"))).toBe(true);
     expect(OFFICIAL_TEMPLATES.piisa.approved).not.toBe(false);
-    expect(OFFICIAL_TEMPLATES.piesa.approved).toBe(false);
+    expect(OFFICIAL_TEMPLATES.piesa.approved).not.toBe(false);
   });
   test("missing PIISA: installer responsible, due states", () => {
     expect(base({ piisa: null }).responsible).toBe("installer");
