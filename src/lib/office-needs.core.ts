@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -70,6 +70,10 @@ export type NeedsFacts = {
   robotFailed?: { at: string; text: string; task: "install_notification" | "veec_creation" } | null;
   /** F15: the automatic install day (PIISA) Mitti form failed with the install today or tomorrow (piisa-autosend.core). */
   piisaFormFailed?: { at: string; text: string } | null;
+  /** Decision 398: the A3 PIESA Mitti form was not created automatically at the PIESA booking (piesa-autoform.core). */
+  piesaFormFailed?: { at: string; text: string } | null;
+  /** Decision 395: the day-before pre-start check (12pm Melbourne) failed for the booked install — what is missing. */
+  prestartFailed?: { at: string; reasons: string[] } | null;
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
   paymentOverdue?: { at: string; text: string } | null;
@@ -83,6 +87,12 @@ const HOUR = 3_600_000;
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(/\s?([ap]m)$/i, (m) => m.trim().toLowerCase());
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 
+/** "Pre-start check failed · <first reason> (+n more)" — the office sees what is missing the day before the install. */
+export function prestartFailedLine(reasons: readonly string[]): string {
+  const first = reasons[0]?.trim();
+  return `Pre-start check failed${first ? ` · ${first.slice(0, 140)}` : ""}${reasons.length > 1 ? ` (+${reasons.length - 1} more)` : ""}`;
+}
+
 type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number };
 
 /** Every candidate row for one job, most urgent first (rank). The caller keeps the first. */
@@ -93,6 +103,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   // Review R04: an owner email with no clear answer from the email service — never resent automatically.
   if (f.sendUnknown) add({ rank: 11, group: "today", kind: "send_failed", line: f.sendUnknown.text, since: f.sendUnknown.at, button: { label: "Open job", to: "job", section: "contact" } });
   if (f.robotFailed) add({ rank: 12, group: "today", kind: "robot_failed", line: f.robotFailed.text, since: f.robotFailed.at, button: f.robotFailed.task === "veec_creation" ? { label: "Lodge VEEC", to: "job", section: "final-check" } : { label: "Open Registry block", to: "job", section: "install" } });
+  if (f.prestartFailed) add({ rank: 13, group: "today", kind: "prestart_failed", line: prestartFailedLine(f.prestartFailed.reasons), since: f.prestartFailed.at, button: { label: "Open job", to: "job", section: "install" } });
+  if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   if (f.consentToSign) {

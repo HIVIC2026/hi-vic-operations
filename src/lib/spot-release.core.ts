@@ -111,13 +111,19 @@ export function spotReleaseDue(s: SpotReleaseState, now: Date, job: { waiting: b
 
 // ---- Release (office) ----------------------------------------------------------------------------------------------
 
+/** Decision 399 (Jo 26 Oct 2026, "Yes, block + tell me why"): Release refuses an installer business with no active
+ *  installer rate card (the same `rate_cards` row the quote builder prices from); nothing is recorded or sent. */
+export const NO_RATE_CARD_REASON = "This installer has no rate card yet";
+
 export type ReleasePlan = { mode: "release" } | { mode: "direct_offer" } | { mode: "refused"; reason: string };
-/** What pressing Release does. A confirmed owner → straight to the installer offer (never asked twice). */
-export function releasePlan(f: { state: SpotReleaseState; testJob: boolean; emailApproved: boolean; smsApproved: boolean; now?: number }): ReleasePlan {
+/** What pressing Release does. A confirmed owner → straight to the installer offer (never asked twice).
+ *  `hasRateCard` = the chosen installer business has an active installer rate card (decision 399); fail closed. */
+export function releasePlan(f: { state: SpotReleaseState; testJob: boolean; emailApproved: boolean; smsApproved: boolean; hasRateCard: boolean; now?: number }): ReleasePlan {
   const s = f.state;
-  if (s.state === "confirmed") return { mode: "direct_offer" };
   if (s.state === "pending") return { mode: "refused", reason: `Already released to ${s.businessName ?? "an installer"} — waiting for the owner to confirm.` };
   if (s.state === "declined") return { mode: "refused", reason: "The owner said they're no longer interested." };
+  if (f.hasRateCard !== true) return { mode: "refused", reason: NO_RATE_CARD_REASON };
+  if (s.state === "confirmed") return { mode: "direct_offer" };
   if (!f.testJob && !(f.emailApproved && f.smsApproved)) return { mode: "refused", reason: SPOT_RELEASE_UNAPPROVED };
   return { mode: "release" };
 }

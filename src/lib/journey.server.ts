@@ -184,6 +184,9 @@ const s3: StepFn = async (ctx, r) => {
   check(r, "TEST job kept out of the office Spots saved list", !office.rows.some((x) => x.jobId === ctx.jobId), `${office.rows.length} real rows`);
   // Jo 24 Oct 2026: the owner gives no Ready Check times; the office picks the TEST installer, who offers the owner 3 times.
   await ownerSignGates(ctx, r, ["A"]);
+  // Decision 389: the office releases the spot first (the same booking mark the Release button sets), then offers it.
+  const { openOwnerReadyCheckBooking } = await import("./ready-check-booking-access.server");
+  await openOwnerReadyCheckBooking(ctx.jobId!, ctx.actorId);
   const { startReadyCheckOffers } = await import("./readycheck-booking.server");
   const { data: j } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
   ctx.notes["stage_before_offer"] = j?.stage;

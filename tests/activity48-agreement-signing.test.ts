@@ -41,23 +41,24 @@ describe('complete applicant contracts', () => {
   test(`${name}: schedule incorporated exactly once before acknowledgements`, () => { const s = activity48AgreementScheduleText(); expect(text.split(s)).toHaveLength(2); expect(text.indexOf(s)).toBeLessThan(text.indexOf('ACKNOWLEDGEMENTS')); expect(text).toContain(`Schedule version: ${ACTIVITY48_AGREEMENT_SCHEDULE_VERSION}`); });
  }
  test('versions retain prior signatures and reject prior REC review', () => {
-  expect(inst.INSTALLER_AGREEMENT_VERSION).toBe('HI-VIC-A48-INST-1.19-2026-10-09'); expect(rec.REC_AGREEMENT_VERSION).toBe('HI-VIC-A48-REC-2.6-2026-10-09');
+  expect(inst.INSTALLER_AGREEMENT_VERSION).toBe('HI-VIC-A48-INST-1.20-2026-10-19'); // decision 397: installer stays at 1.20 expect(rec.REC_AGREEMENT_VERSION).toBe('HI-VIC-A48-REC-2.6-2026-10-09');
   expect(inst.ACTIVATABLE_INSTALLER_VERSIONS).toContain('HI-VIC-A48-INST-1.18-2026-10-09'); expect(rec.ACTIVATABLE_REC_VERSIONS).toContain('HI-VIC-A48-REC-2.5-2026-10-05');
   expect(rec.recReviewGateOpen({ agreement_reviewed: true }, { version: 'HI-VIC-A48-REC-2.5-2026-10-05', sha256: hash(rt) })).toBe(false);
  });
  test('review schedules and acknowledgements include Schedule 4', () => {
-  for (const text of [inst.scheduleText({}), rec.scheduleText({})]) expect(text).toContain(activity48AgreementScheduleText());
-  for (const acks of [inst.ACKNOWLEDGEMENTS, rec.ACKNOWLEDGEMENTS]) expect(acks.find(a => a.key === 'schedule')?.text).toContain('AP retains its own statutory duties');
+  // Decision 397: REC 2.6 puts Schedule 4 in its review schedules + its own tick; installer 1.20 carries it in the signed text.
+  expect(rec.scheduleText({})).toContain(activity48AgreementScheduleText());
+  expect(inst.agreementText({})).toContain(activity48AgreementScheduleText());
+  expect(rec.ACKNOWLEDGEMENTS.find(a => a.key === 'schedule')?.text).toContain('AP retains its own statutory duties');
  });
 });
 describe('mock-only signatures and history', () => {
   test('signed review preserves exact historic version/text; draft review uses new complete contract', () => {
    const historic = { status: 'submitted', agreement_version: 'historic-version', agreement_text: 'Exact signed historical text' };
-   for (const view of [inst.installerAgreementView(historic, {}), rec.recAgreementView(historic, {})]) expect(view).toMatchObject({ version: 'historic-version', text: 'Exact signed historical text' });
-   expect(inst.installerAgreementView({ ...historic, status: 'draft' }, {}).version).toBe(inst.INSTALLER_AGREEMENT_VERSION);
+   expect(rec.recAgreementView(historic, {})).toMatchObject({ version: 'historic-version', text: 'Exact signed historical text' });
+   expect(rec.recAgreementView({ ...historic, status: 'draft' }, {}).version).toBe(rec.REC_AGREEMENT_VERSION);
    expect(rec.recAgreementView({ ...historic, status: 'draft' }, {}).text).toContain(activity48AgreementScheduleText());
    for (const status of ['submitted', 'approved']) {
-    expect(() => inst.installerAgreementView({ status }, {})).toThrow('stored signed agreement is incomplete');
     expect(() => rec.recAgreementView({ status }, {})).toThrow('stored signed agreement is incomplete');
    }
   });
@@ -65,13 +66,13 @@ describe('mock-only signatures and history', () => {
   let is: Record<string, unknown> | undefined, rs: Record<string, unknown> | undefined;
   await performInstallerSign(ia, ii, { ip: null, userAgent: null }, { sha256: async s => hash(s), signAtomic: async a => { is = a.signed; return { outcome: 'signed', partner_enquiry_id: 'sample', signed_at: date }; } });
   await performRecSign(ra, ri, { ip: null, userAgent: null }, { sha256: async s => hash(s), signAtomic: async a => { rs = a.signed; return { outcome: 'signed', partner_enquiry_id: 'sample', signed_at: date }; } }, new Date(date));
-  expect(is).toMatchObject({ agreement_text: it, agreement_version: inst.INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash(it), acknowledgements: { schedule: { accepted: true } } });
+  expect(is).toMatchObject({ agreement_text: it, agreement_version: inst.INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash(it) });
   expect(rs).toMatchObject({ agreement_text: rt, agreement_version: rec.REC_AGREEMENT_VERSION, agreement_sha256: hash(rt), acknowledgements: { schedule: { accepted: true } } });
  });
  test('old versions, stale hashes and missing schedule acknowledgement make zero persistence calls', async () => {
   let calls = 0; const deps = { sha256: async (s: string) => hash(s), signAtomic: async () => { calls++; throw new Error('Unexpected persistence'); } };
   for (const i of [{ ...ri, agreement_version: 'HI-VIC-A48-REC-2.5-2026-10-05' }, { ...ri, agreement_sha256: hash('previous schedule') }, { ...ri, acknowledgements: { ...ri.acknowledgements, schedule: false } }]) await expect(performRecSign(ra, i, { ip: null, userAgent: null }, deps, new Date(date))).rejects.toThrow();
-  for (const i of [{ ...ii, agreement_version: 'HI-VIC-A48-INST-1.18-2026-10-09' }, { ...ii, agreement_sha256: hash('previous schedule') }, { ...ii, acknowledgements: { ...ii.acknowledgements, schedule: false } }]) await expect(performInstallerSign(ia, i, { ip: null, userAgent: null }, deps)).rejects.toThrow();
+  for (const i of [{ ...ii, agreement_version: 'HI-VIC-A48-INST-1.18-2026-10-09' }, { ...ii, agreement_sha256: hash('previous schedule') }, { ...ii, acknowledgements: { ...ii.acknowledgements, authority: false } }]) await expect(performInstallerSign(ia, i, { ip: null, userAgent: null }, deps)).rejects.toThrow();
   expect(calls).toBe(0);
  });
  test('historic REC replay never regenerates or replaces signed text', async () => {

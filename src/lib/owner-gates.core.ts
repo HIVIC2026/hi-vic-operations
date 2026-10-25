@@ -190,13 +190,21 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
 
   return ([["A", A], ["B", B], ["C", C], ["D", D]] as [Gate, GateItem[]][]).map(([gate, items]) => {
     const blockers: string[] = [];
-    for (const i of items) {
-      if (!i.done) blockers.push(`Owner paperwork ${gate}: ${i.label} not ${i.note ? "recorded" : "signed"} yet.`);
-      else if (i.draft && !f.isTest) blockers.push(`Owner paperwork ${gate}: ${i.label} was signed on DRAFT wording — real jobs need Jo-approved wording.`);
-    }
+    for (const i of items) { const b = gateItemBlocker(gate, i, !!f.isTest); if (b) blockers.push(b); }
     return { gate, label: GATE_LABEL[gate], items, complete: blockers.length === 0, blockers };
   });
 }
+
+/** One gate item's blocker (null = done). The rule evaluateOwnerGates applies to every item. */
+export function gateItemBlocker(gate: Gate, i: GateItem, isTest: boolean): string | null {
+  if (!i.done) return `Owner paperwork ${gate}: ${i.label} not ${i.note ? "recorded" : "signed"} yet.`;
+  if (i.draft && !isTest) return `Owner paperwork ${gate}: ${i.label} was signed on DRAFT wording — real jobs need Jo-approved wording.`;
+  return null;
+}
+
+/** Decision 395: the owner's Gate C "Your safety check copy" receipt ("I have received it") — the same item and wording
+ *  Installation complete checks (Gate C), now also part of the day-before pre-start check. */
+export const piesaCopyReceiptBlocker = (f: GateFacts): string | null => gateItemBlocker("C", docItem(f, "piesa_copy_receipt"), !!f.isTest);
 
 /** Which gates must be complete before entering a stage. */
 const ACCEPTED = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "piesa_and_install_window_pending", "piesa_scheduled", "evidence_outstanding"];

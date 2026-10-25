@@ -106,6 +106,9 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
     // Decision 325: O26 booked version ("safety check booked") to the owner; `changed` when an existing PIESA booking moved. Best-effort.
     await (await import("./owner-email-triggers.server")).onSafetyCheckBooked(jobId, start, stage === target).catch((e) => console.error("safety check booked email skipped", (e as Error).message));
+    // Decision 398: the electrician's A3 PIESA Mitti form is made now, through the office "Create Mitti form" path (never
+    // twice; a failure is one Needs me row and the office button stays as the backup). Never a booking failure.
+    await (await import("./piesa-autoform.server")).onPiesaBooked(jobId, inserted.id, actorId).catch((e) => console.error("PIESA form creation skipped", (e as Error).message));
   }
   // Decision 325: O42 "Your install day has changed" when a confirmed install day is moved directly (stage already booked). Best-effort.
   if (kind === "installation" && priorInstallStart) {

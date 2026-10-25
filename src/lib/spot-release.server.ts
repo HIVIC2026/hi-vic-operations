@@ -122,11 +122,11 @@ export type ReleaseResult = { mode: "released"; installer: string; detail: strin
 /** Jo presses Release for one installer. Tests may pass `approved` (production uses the code constants). */
 export async function releaseSpot(jobId: string, actorId: string | null, businessId: string, opts: { approved?: { email: boolean; sms: boolean }; now?: Date } = {}): Promise<ReleaseResult> {
   const now = opts.now ?? new Date();
-  const [job, events] = await Promise.all([jobFacts(jobId), eventsFor(jobId)]);
+  const [job, events, hasRateCard] = await Promise.all([jobFacts(jobId), eventsFor(jobId), installerHasActiveRateCard(businessId)]);
   if (!job || job.deleted_at) throw new WorkflowError("This job is no longer available.");
   const state = spotReleaseState(events);
   const approved = opts.approved ?? { email: SPOT_RELEASED_APPROVED, sms: SMS_MESSAGE_TYPES[SPOT_RELEASED_SMS_TYPE].wordingApproved as boolean };
-  const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms });
+  const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms, hasRateCard });
   if (plan.mode === "refused") throw new WorkflowError(plan.reason);
   const offer = (await import("./ready-check-times.server")).officePickReadyCheckInstaller;
   if (plan.mode === "direct_offer") {
@@ -163,6 +163,15 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   const detail = await sendTurnMessages(jobId, { seq, businessId }, "released", link, { approved });
   await admin.from("jobs").update({ next_action: `Waiting for the owner to confirm their Ready Check (released to ${c.name})` }).eq("id", jobId);
   return { mode: "released", installer: c.name, detail };
+}
+
+/** Decision 399: the chosen business has an ACTIVE installer rate card — the same read the quote builder prices from
+ *  (`rate_cards` kind installer, is_active, business_id). A read error refuses the Release (nothing recorded). */
+export async function installerHasActiveRateCard(businessId: string): Promise<boolean> {
+  if (!businessId) return false;
+  const { count, error } = await loose.from("rate_cards").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("kind", "installer").eq("is_active", true);
+  if (error) throw new WorkflowError(`Could not check the installer's rate card: ${error.message}`);
+  return (count ?? 0) > 0;
 }
 
 async function businessName(id: string): Promise<string> {

@@ -82,6 +82,12 @@ export type PrestartFacts = {
   /** Decision 367: "Install deposit not paid" while the 10% deposit for this booking is unpaid (payment rule jobs);
    *  null = paid / not under the payment rule; undefined = not loaded (older callers, never blocks). */
   installDepositBlocker?: string | null | undefined;
+  /** Decision 395: signed PIESA copies not delivered to the owner / installer 24h before the start (esc.core
+   *  piesaCopyDeliveryBlockers, the rule Installation complete uses); undefined = not loaded (older callers). */
+  piesaCopyBlockers?: string[] | undefined;
+  /** Decision 395: the owner has not ticked "I have received it" for their safety check copy (Gate C piesa_copy_receipt,
+   *  owner-gates.core piesaCopyReceiptBlocker); null = ticked; undefined = not loaded (older callers). */
+  piesaCopyReceiptBlocker?: string | null | undefined;
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -108,6 +114,23 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.publicLiabilityBlocker) out.push(`Installer business: ${f.publicLiabilityBlocker}`);
   if (f.swmsBlocker) out.push(f.swmsBlocker);
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
+  for (const b of f.piesaCopyBlockers ?? []) out.push(b);
+  if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
+  return out;
+}
+
+/** Office Needs me (decision 395): per job, the latest pre-start check when it FAILED for a currently confirmed install
+ *  start — the same rule as prestartNeeds (latest check, same start). The office sees what is missing the day before. */
+export function prestartFailedFor(
+  bookings: readonly { job_id: string; scheduled_start: string }[],
+  checks: readonly { job_id: string; scheduled_start: string; passed: boolean; failures: string[]; checked_at: string }[],
+): Map<string, { at: string; reasons: string[] }> {
+  const starts = new Map<string, Set<number>>();
+  for (const b of bookings) { const t = Date.parse(b.scheduled_start); if (!starts.has(b.job_id)) starts.set(b.job_id, new Set()); starts.get(b.job_id)!.add(t); }
+  const latest = new Map<string, (typeof checks)[number]>();
+  for (const c of checks) { const p = latest.get(c.job_id); if (!p || c.checked_at > p.checked_at) latest.set(c.job_id, c); }
+  const out = new Map<string, { at: string; reasons: string[] }>();
+  for (const [id, c] of latest) if (!c.passed && starts.get(id)?.has(Date.parse(c.scheduled_start))) out.set(id, { at: c.checked_at, reasons: c.failures });
   return out;
 }
 

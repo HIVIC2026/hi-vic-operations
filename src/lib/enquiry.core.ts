@@ -315,7 +315,7 @@ export function mediaStoragePath(jobId: string, sourceId: string, name: string) 
 
 // Base44 stores the homeowner answers under `answers.insulation` and `answers.top_floor`;
 // older/alternative spellings are kept as fallbacks only.
-const EXISTING_INSULATION_KEYS = ["insulation", "declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
+export const EXISTING_INSULATION_KEYS = ["insulation", "declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
 const TOP_FLOOR_KEYS = ["top_floor", "declared_top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
 const answerText = (v: unknown): string | null => {
   if (v === true) return "yes"; if (v === false) return "no";
@@ -327,6 +327,9 @@ export function declaredExtras(answers: Record<string, unknown> | null | undefin
   const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
   return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
 }
+
+/** The three follow-up answers for owners who said insulation is present (read by declaredInsulationDetail). */
+export const INSULATION_DETAIL_KEYS = ["insulation_type", "insulation_thickness", "insulation_coverage"] as const;
 
 export type InsulationDetail = {
   insulation_type: "batts" | "loose_fill" | "foil" | "unknown" | null;
