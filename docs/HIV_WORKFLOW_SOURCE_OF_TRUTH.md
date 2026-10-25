@@ -187,3 +187,7 @@ When the PIESA (A4) says repair work is needed and the electrician does not fix 
 ## Existing insulation for the official PIISA Part 6 (decisions 359/360, 25 Oct 2026)
 
 The Ready Check (A1 and A2) asks, per ceiling area and only when there is existing insulation: whether it is in good enough condition to lay new insulation over (Top up only), whether it is foil-backed, metallic or electrically conductive, a photo showing that, and why it is being kept (Top up only). The portal fills official PIISA Part 6 from those answers on install day; the installer is not asked again. When every area with existing insulation is Removed, the portal fills Part 6 itself (not laid over, no reason, the foil note satisfied by removal). A top-up on a Ready Check done before these questions existed is listed as "not recorded" and holds the PIISA until recorded.
+
+## Warranty added after the completion pack (decision 363, 25 Oct 2026)
+
+If the completion pack went without a product's manufacturer warranty because the PDF was not on file, the owner gets one short email "Your insulation warranty" with the PDF attached as soon as it is added (automatic, 15-minute tick), and the warranty copy is then recorded as given so the AP signature on the VEEC form can go ahead. Wording O73 is a draft awaiting Jo's approval; until then nothing goes to real owners.

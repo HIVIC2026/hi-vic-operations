@@ -132,6 +132,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['completionPacks'] = "failed";
         }
         try {
+          // Decision 363: a warranty PDF added after the pack went without it → ONE owner email (O73, draft until approved)
+          // with the PDF, then `warranty_copy_provided` so the AP auto-signature can proceed. Before the AP sweep below.
+          const { sweepWarrantyFollowups } = await import("@/lib/warranty-followup.server");
+          (out as Record<string, unknown>)['warrantyFollowups'] = await sweepWarrantyFollowups();
+        } catch (e) {
+          console.error("allocation tick: warranty follow-up sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['warrantyFollowups'] = "failed";
+        }
+        try {
           // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
           const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
           (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
