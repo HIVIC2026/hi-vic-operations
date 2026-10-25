@@ -23,12 +23,12 @@ describe("decision 352: the quoted safety-check price is never re-priced by an e
     const usual = usualElectrician({ name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 })!;
     const before = [{ business_id: "rec-sparkie", name: "Sparkie Co", rec_number: "REC-12345", piesa_rate: { id: "r-s", rate_inc_gst: 220 } }];
     const quoted = ownerPiesaLineIncGst(349, ourLeadPiesaElectrician({ channel: "website", usual, candidates: before }));
-    expect(quoted).toBe(220);
+    expect(quoted).toBe(349); // decision 373: our leads always $349
     const quoteLines = [{ code: "PIESA", line_total_inc_gst: quoted }];
     // Later the usual electrician is blocked; a fresh selection would say "ours" ($349) — but the quote line is what counts.
     const later = ourLeadPiesaElectrician({ channel: "website", usual, candidates: before.map((c) => ({ ...c, blocker: "Not taking jobs." })) });
     expect(ownerPiesaLineIncGst(349, later)).toBe(349);
-    expect(safetyCheckCentsFor({ lines: quoteLines, settingIncGst: 349 })).toEqual({ cents: 22_000, source: "quote_line" });
+    expect(safetyCheckCentsFor({ lines: quoteLines, settingIncGst: 349 })).toEqual({ cents: 34_900, source: "quote_line" });
     // We pay our electrician their own agreed onboarding rate, not the owner's $220.
     expect(piesaPayableRate(later, "rec-ours", { id: "rate-ours", rate: 260 })).toEqual({ id: "rate-ours", rate: 260, source: "agreed_rate" });
   });

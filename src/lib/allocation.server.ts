@@ -223,7 +223,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
-  // Decision 157: on our leads the installer's usual electrician is paid their onboarding rate for the PIESA — decision 349: the owner's PIESA line passes that same rate through (ownerPiesaLineIncGst).
+  // Decision 157: on our leads the installer's usual electrician is paid their onboarding rate for the PIESA (the owner still pays the standard $349 — decision 373).
   const usualSel = kind === "piesa" ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates) : null;
   if (usualSel?.mode === "usual") rates.set(usualSel.businessId, { id: usualSel.rateId, rate: usualSel.rateIncGst });
   const { offerRateBlocker } = await import("./allocation.core");

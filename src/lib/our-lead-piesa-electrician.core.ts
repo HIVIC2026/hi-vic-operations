@@ -95,10 +95,11 @@ export function piesaPayableRate(sel: OurLeadPiesaSelection, businessId: string,
   return agreed ? { ...agreed, source: "agreed_rate" } : null;
 }
 
-/** Owner-facing safety-check line on an our-lead quote (decision 349): the installer's usual electrician → their
- *  onboarding rate exactly (no margin); anyone else (our electrician) → HIV's standard price. */
-export function ownerPiesaLineIncGst(standardIncGst: number, sel: OurLeadPiesaSelection): number {
-  return sel.mode === "usual" && Number.isFinite(sel.rateIncGst) && sel.rateIncGst > 0 ? Math.round(sel.rateIncGst * 100) / 100 : standardIncGst;
+/** Owner-facing safety-check line on an our-lead quote. Decision 373 (Jo 25 Oct 2026: "our leads we always charge
+ *  $349 for the PIESA regardless") replaces 349 here: always HIV's standard price, whoever does it; the electrician is
+ *  still paid their own onboarding rate (`piesaPayableRate`). `_sel` is kept so callers record which electrician was planned. */
+export function ownerPiesaLineIncGst(standardIncGst: number, _sel: OurLeadPiesaSelection): number {
+  return standardIncGst;
 }
 
 /** Decisions 349/351: whose electrician is doing the electrical work, on BOTH routes. `installer_usual` = the

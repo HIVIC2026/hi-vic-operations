@@ -22,7 +22,7 @@ The installer measures the ceiling in Mitti. The portal turns that into the owne
 - The portal prices it from our price list:
   - insulation per m² (R5 $30, R6 $32, R7 $33)
   - removal of old insulation per m², if needed
-  - the electrical safety check (PIESA): $349, or the installer's own electrician's agreed rate
+  - the electrical safety check (PIESA): always $349 on our leads, whoever does it
   - our AP fee
   - minus the VEU rebate
   - a "difficult access" fee only if the installer rated it difficult and has an agreed fee

@@ -56,18 +56,18 @@ describe("our-lead PIESA electrician (decision 157)", () => {
     expect(ourLeadPiesaElectrician({ channel: "installer_sourced", usual: rapidUsual, candidates: recs }).mode).toBe("not_our_lead");
     expect(resolveMittiElectrician({ choice: "usual", usual: rapidUsual, different: { name: null, licence: null, priceIncGst: null } }).priceIncGst).toBe(275);
   });
-  test("decision 349/353: installer's usual electrician → owner's PIESA line = THEIR onboarding rate exactly (no margin)", () => {
+  test("decision 373: installer's usual electrician → owner still pays $349; we pay THEIR onboarding rate", () => {
     // The installer typed $220 on My business; the electrician's own onboarding rate is $220 here.
     const usual220 = usualElectrician({ name: "Sparkie Co Pty Ltd", licence: "REC 12345", priceIncGst: 220 })!;
     const sel = ourLeadPiesaElectrician({ channel: "website", usual: usual220, revision: "cfg-1", candidates: withSparkieRate(220) });
     expect(sel.mode).toBe("usual");
-    expect(ownerPiesaLineIncGst(349, sel)).toBe(220);
-    // what we pay them = what the owner pays for the PIESA
+    expect(ownerPiesaLineIncGst(349, sel)).toBe(349);
+    // what we pay them = their own onboarding rate
     expect(piesaPayableRate(sel, "rec-sparkie", { id: "rate-x", rate: 260 })!.rate).toBe(220);
     const q = priceHivQuote({ areaM2: 100, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: ownerPiesaLineIncGst(349, sel), apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 15, installerRemovalExPerM2: null, installerTravelEx: null });
-    expect(q.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(220);
-    // decision 302/342: the safety-check payment (and the repeat-PIESA charge) read this line → $220
-    expect(safetyCheckCentsFor({ lines: q.lines, settingIncGst: 349 })).toEqual({ cents: 22_000, source: "quote_line" });
+    expect(q.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(349);
+    // decision 302/342: the safety-check payment (and the repeat-PIESA charge) read this line → $349
+    expect(safetyCheckCentsFor({ lines: q.lines, settingIncGst: 349 })).toEqual({ cents: 34_900, source: "quote_line" });
   });
   test("decision 353: the My business price is NOT the rate — the electrician's own onboarding rate wins", () => {
     const typed = usualElectrician({ name: "Sparkie Co Pty Ltd", licence: "REC 12345", priceIncGst: 150 })!;
@@ -76,7 +76,7 @@ describe("our-lead PIESA electrician (decision 157)", () => {
     expect(sel.rateIncGst).toBe(262.5);
     expect(sel.rateId).toBe("rate-sparkie-2");
     expect(sel.note).toContain("$262.50");
-    expect(ownerPiesaLineIncGst(349, sel)).toBe(262.5);
+    expect(ownerPiesaLineIncGst(349, sel)).toBe(349);
     expect(piesaPayableRate(sel, "rec-sparkie", null)).toEqual({ id: "rate-sparkie-2", rate: 262.5, source: "installer_usual_electrician" });
   });
   test("decision 353: usual electrician with NO approved onboarding rate → not usable as usual: our electrician at $349", () => {
