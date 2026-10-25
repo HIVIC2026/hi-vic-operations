@@ -52,7 +52,7 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
-import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
+import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
@@ -226,6 +226,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
         stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
+      {/* Decision 318: the pay rule sits beside the PIESA / fixes Mitti forms. */}
+      {(stage === "rectification_booked" || (a?.external_mitti_id && assessing)) && <NoFormNoPay />}
       {stage === "rectification_booked" && <FixesFormCard jobId={jobId} mittiInvited={mittiInvited} />}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
@@ -378,6 +380,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
           {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
+          {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
+          {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}
           {next.panel === "sign_rebate" && (
             <div className="mt-3 space-y-3" data-sign-rebate>
               {!page.install.recordedAt

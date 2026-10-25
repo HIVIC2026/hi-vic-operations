@@ -43,14 +43,24 @@ export function invoiceRowState(steps: Pick<PaymentStep, "key" | "state" | "dueA
   return { label: "On track", tone: "plain", chase: false };
 }
 
-export type PayoutLine = { jobId: string; jobNumber: string; businessId: string | null; business: string; kind: "installation" | "assessment" | "rectification"; amountEx: number | null; dueAt: string | null; paidAt: string | null };
+export type PayoutLine = { jobId: string; jobNumber: string; businessId: string | null; business: string; kind: "installation" | "assessment" | "rectification"; amountEx: number | null; dueAt: string | null; paidAt: string | null;
+  /** Decision 318: reasons the payout is held (Mitti form not Complete / evidence missing). Empty or absent = payable. */
+  held?: string[] };
+/** Decision 318: one unpaid payout that is NOT payable yet — shown as Held with its reasons, never in a Mark paid group. */
+export type HeldPayout = { jobId: string; jobNumber: string; businessId: string | null; business: string; trade: "installer" | "electrician"; kind: PayoutLine["kind"]; amountEx: number | null; dueAt: string | null; reasons: string[] };
 export type PayoutGroup = { key: string; businessId: string | null; business: string; trade: "installer" | "electrician"; jobs: { jobId: string; jobNumber: string; kind: PayoutLine["kind"] }[]; amountEx: number | null; dueAt: string | null; paid: boolean; paidAt: string | null };
 
-/** Payouts tab: unpaid lines grouped per business and trade (one Mark paid per group); paid lines grouped per business + paid day. */
-export function groupPayouts(lines: PayoutLine[]): { due: PayoutGroup[]; paid: PayoutGroup[] } {
+/** Payouts tab: unpaid PAYABLE lines grouped per business and trade (one Mark paid per group); unpaid lines with a
+ *  decision-318 hold listed one by one as Held (never payable); paid lines grouped per business + paid day. */
+export function groupPayouts(lines: PayoutLine[]): { due: PayoutGroup[]; held: HeldPayout[]; paid: PayoutGroup[] } {
   const groups = new Map<string, PayoutGroup>();
+  const held: HeldPayout[] = [];
   for (const l of lines) {
     const trade = l.kind === "installation" ? "installer" : "electrician";
+    if (!l.paidAt && l.held?.length) {
+      held.push({ jobId: l.jobId, jobNumber: l.jobNumber, businessId: l.businessId, business: l.business, trade, kind: l.kind, amountEx: l.amountEx, dueAt: l.dueAt, reasons: l.held });
+      continue;
+    }
     const key = `${l.paidAt ? `paid:${l.paidAt.slice(0, 10)}` : "due"}:${l.businessId ?? l.business}:${trade}`;
     const g = groups.get(key) ?? { key, businessId: l.businessId, business: l.business, trade, jobs: [], amountEx: 0, dueAt: null, paid: !!l.paidAt, paidAt: l.paidAt };
     g.jobs.push({ jobId: l.jobId, jobNumber: l.jobNumber, kind: l.kind });
@@ -61,6 +71,7 @@ export function groupPayouts(lines: PayoutLine[]): { due: PayoutGroup[]; paid: P
   const all = [...groups.values()];
   return {
     due: all.filter((g) => !g.paid).sort((a, b) => (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9") || a.business.localeCompare(b.business)),
+    held: held.sort((a, b) => a.business.localeCompare(b.business) || a.jobNumber.localeCompare(b.jobNumber)),
     paid: all.filter((g) => g.paid).sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")),
   };
 }

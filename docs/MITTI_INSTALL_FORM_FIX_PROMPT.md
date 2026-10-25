@@ -32,6 +32,7 @@ location on; Video = video attachment with location on ("several files allowed" 
 signature capture.
 
 ## Group 1: Job
+Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
 Q1: `Portal Job Number` — Text — Required — portal fills this in
 Q2: `Site address` — Text — Required — portal fills this in
 Q3: `Install date` — Date — Required — portal fills this in

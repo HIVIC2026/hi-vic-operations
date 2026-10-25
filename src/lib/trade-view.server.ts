@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { COULDNT_GET_IN, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -422,6 +422,10 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     return kind === "assessment" ? items.some((i) => i.code === "PIESA") : items.some((i) => i.qk === "rectification" || (i.description ?? "").startsWith("Electrical rectification:"));
   };
   const { electricalBillingSource } = await import("./installer-led.core");
+  // Decision 318: no complete Mitti form (with every geotagged photo/video), no payment — unpaid rows are held with reasons.
+  const { payoutGateFacts } = await import("./trade-payout-gate.server");
+  const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
+  const gate = await payoutGateFacts(ids);
   const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
@@ -429,7 +433,11 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
-    const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
+    const timed = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
+    const gf = gate.get(b.job_id);
+    const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
+    // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
+    const state: PayState = held.length ? { kind: "checking" } : timed;
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
     const jj = b.jobs as { channel?: string | null; electrician_choice?: string | null };
     // A kind-less payout event is the job/installer payout; only an explicit electrical-kind event proves an HIV electrical payment.
@@ -437,7 +445,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const billing = b.kind === "assessment" || b.kind === "rectification"
       ? electricalBillingSource({ channel: jj.channel ?? null, choice: jj.electrician_choice ?? null, committedLineOnAcceptedQuote: committed(b.job_id, b.kind), hivPaidAt: explicitPaid })
       : "hivic" as const;
-    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
   });
 }
 

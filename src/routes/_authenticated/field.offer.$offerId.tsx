@@ -10,7 +10,7 @@ import { getTradeOffer, offerTradeReadyCheckTimes, replyTradeOffer, takeTradeTim
 import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/portal/ready-check-times-installer";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
 import { NOT_FOR_ME_SHEET, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
-import { ContactButtons, ErrorLine, Group, NextPanel, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
+import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
   head: () => ({ meta: [{ title: "New job offer – Home Insulation Victoria" }, { name: "description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:title", content: "New job offer – Home Insulation Victoria" }, { property: "og:description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -110,6 +110,8 @@ function OfferPage() {
             <div className="-mt-1.5" data-offer-top>
               {offerTopLines({ areaM2: data.area, insulation: data.insulation }).map((l) => <p key={l} className="flex min-h-7 items-center text-[15px]">{l}</p>)}
               <p className="mt-2 text-[13px] leading-[1.5] text-sub">{OFFER_PAY_LINE}</p>
+              {/* Decision 318: one short line on every offer. */}
+              <NoFormNoPay line className="mt-1.5" />
             </div>
             <NextPanel eyebrow="To take this job" title="Offer the owner 3 Ready Check times" sub="Three different days in the next 3 weeks, 7am–5pm. The owner picks one or suggests other days.">
               <div data-ready-check-offer>
@@ -142,6 +144,7 @@ function OfferPage() {
         ) : (
           <>
             <p className="-mt-1.5 text-[15px]"><span className="text-[22px] font-semibold text-hiv-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</span> <span className="text-sub">your rate for this job</span></p>
+            <NoFormNoPay line className="-mt-2" />
             {mode === "cant" ? (
               <section className="rounded-[18px] border border-line p-4">
                 <h2 className="text-[17px] font-semibold">Suggest another time</h2>

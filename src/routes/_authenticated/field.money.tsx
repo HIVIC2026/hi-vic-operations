@@ -7,9 +7,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { TradeShell, aud } from "@/components/trade/TradeShell";
 import { getTradeMoneyExtras, getTradeMoneyView } from "@/lib/trade-view.functions";
-import { payPill } from "@/lib/trade-view.core";
+import { heldPayPill, payPill } from "@/lib/trade-view.core";
 import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, paidByMonth, shortDay } from "@/lib/installer-screens.core";
-import { Group, LinkRow, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
+import { Group, LinkRow, NoFormNoPay, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/money")({
   validateSearch: (s: Record<string, unknown>): { all?: boolean | undefined } => ({ all: s["all"] === true || s["all"] === "1" ? true : undefined }),
@@ -35,13 +35,13 @@ function Money() {
   const paid = data.rows.filter((r) => r.state.kind === "paid").sort((a, b) => ((b.state as { on: string }).on).localeCompare((a.state as { on: string }).on));
   const rows = [...open, ...paid.slice(0, PAID_SHOWN)];
   const csv = () => {
-    const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...data.rows.map((r) => [r.jobNumber, r.surname, r.suburb ?? "", r.what, String(r.amount ?? ""), payPill(r.state).label])];
+    const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...data.rows.map((r) => [r.jobNumber, r.surname, r.suburb ?? "", r.what, String(r.amount ?? ""), (r.state.kind === "paid" ? null : heldPayPill(r.held))?.label ?? payPill(r.state).label])];
     return `data:text/csv;charset=utf-8,${encodeURIComponent(lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   };
   const tile = (label: string, value: string, sub: string, tone: "mist" | "line", color = "") => <div className={`rounded-[14px] px-3.5 py-3 ${tone === "mist" ? "bg-mist" : "border border-line"}`}><p className="text-xs text-sub">{label}</p><p className={`mt-0.5 text-xl font-semibold ${color}`}>{value}</p><p className="mt-0.5 text-xs text-sub">{sub}</p></div>;
-  const payRow = (r: (typeof data.rows)[number]) => { const p = payPill(r.state); return (
+  const payRow = (r: (typeof data.rows)[number]) => { const h = r.state.kind === "paid" ? null : heldPayPill(r.held); const p = h ?? payPill(r.state); return (
     <Link key={`${r.jobId}:${r.kind}`} to={data.kind === "installer" && r.kind === "installation" ? "/field/money/$jobId" : "/field/$jobId"} params={{ jobId: r.jobId }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
-      <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="mt-0.5 block text-[13px] text-sub">{data.kind === "installer" ? moneyRowSub({ channel: r.channel, doneAt: r.doneAt }) : `${r.what}${r.doneAt ? ` · ${shortDay(r.doneAt)}` : ""}`}</span></span>
+      <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="mt-0.5 block text-[13px] text-sub">{data.kind === "installer" ? moneyRowSub({ channel: r.channel, doneAt: r.doneAt }) : `${r.what}${r.doneAt ? ` · ${shortDay(r.doneAt)}` : ""}`}</span>{h && <span className="mt-0.5 block text-[13px] text-rose" data-payout-held>{h.why}</span>}</span>
       <span className="text-right"><span className="block text-base font-semibold">{aud(r.amount)}</span><span className="mt-1 block"><Pill tone={p.tone}>{p.label}</Pill></span></span>
     </Link>); };
 
@@ -83,6 +83,8 @@ function Money() {
               {tile("This month", `${aud(t.thisMonth.total)} paid`, `${t.thisMonth.installs} install${t.thisMonth.installs === 1 ? "" : "s"}`, "line", "text-hiv-green")}
               {tile("Last month", `${aud(t.lastMonth.total)} paid`, `${t.lastMonth.installs} install${t.lastMonth.installs === 1 ? "" : "s"}`, "line")}
             </div>
+
+            <NoFormNoPay />
 
             <Group title="Jobs">
               {rows.map(payRow)}

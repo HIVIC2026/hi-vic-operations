@@ -22,7 +22,7 @@ import { shortAnswersFromEntries } from "./official-short.core";
 import {
   FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
   FIXES_TEMPLATE_COLUMN, FIXES_TEMPLATE_MISSING, FIXES_TEMPLATE_PENDING_DB,
-  fixesCompletionPlan, fixesDayMissingQuestions, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
+  fixesCompletionPlan, fixesDayMissingQuestions, fixesFormOutcome, type FixesFormEvent, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
 } from "./fixes-day.core";
 
 export const FIXES_SWEEP_MAX = 20;
@@ -162,19 +162,8 @@ export async function fixesFormState(jobId: string): Promise<{ auditId: string |
   const { data: evs } = await admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId)
     .in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false }).limit(50);
   const tpl = await readFixesTemplate();
-  const created = (evs ?? []).find((e) => e.event_type === FIXES_FORM_CREATED_EVENT);
-  const auditId = (created?.details as { audit_id?: string } | null)?.audit_id ?? null;
-  if (!auditId) {
-    const held = (evs ?? []).find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
-    return { auditId: null, createdAt: null, outcome: held ? "held" : null, detail: held ? (held.details as { reason?: string } | null)?.reason ?? held.summary : null, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
-  }
-  const later = (evs ?? []).filter((e) => (e.details as { audit_id?: string } | null)?.audit_id === auditId && e.event_type !== FIXES_FORM_CREATED_EVENT);
-  const done = later.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT);
-  const notDone = later.find((e) => e.event_type === FIXES_FORM_NOT_DONE_EVENT);
-  const held = later.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
-  const outcome = done ? "done" : notDone && (!held || notDone.created_at > held.created_at) ? "not_done" : held ? "held" : "open";
-  const detail = done ? null : notDone && outcome === "not_done" ? (notDone.details as { text?: string } | null)?.text ?? null : held && outcome === "held" ? (held.details as { reason?: string } | null)?.reason ?? null : null;
-  return { auditId, createdAt: created!.created_at, outcome, detail, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
+  const r = fixesFormOutcome((evs ?? []) as FixesFormEvent[]);
+  return { ...r, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
 }
 
 export type FixesCompleteResult = { status: "waiting" | "already" | "not_done" | "missing" | "done" | "held"; detail: string | null };

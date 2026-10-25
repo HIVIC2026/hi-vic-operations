@@ -47,6 +47,25 @@ export function roughValueNote(source: AreaSource): string {
 export type InsulationNow = "none" | "some" | "unknown";
 export const INSULATION_LABEL: Record<InsulationNow, string> = { none: "None", some: "Some", unknown: "Not sure" };
 
+/**
+ * Decision 318 (Jo 25 Oct 2026, wording approved by Jo): one rule, the SAME words on every trade surface — the trade job
+ * page next to the onsite form button, the Money page above the payouts, job offers (one short line), the installer
+ * guide / welcome email and the electrician guide — and as a first-page instruction line on the A3/A4/A5 Mitti forms.
+ * The rule itself is enforced by `trade-payout-gate.core.ts` `tradePayoutBlockers`.
+ */
+export const NO_FORM_NO_PAY = {
+  headline: "No complete form, no payment",
+  body: "We pay for the safety check, electrical fixes and installs only when the Mitti form is 100% finished and you've pressed Complete. Every photo and video must be taken in Mitti on site so it is geotagged. If anything is missing, we can't claim the rebate, so we can't pay you until it's fixed.",
+  offerLine: "Paid only when the Mitti form is complete with every geotagged photo.",
+  mittiInstruction: "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.",
+} as const;
+
+/** Decision 318: a payout held by the form rule shows "Held" and its first reason, whatever its pay state would be. */
+export function heldPayPill(reasons: readonly string[] | null | undefined): { label: string; tone: "blush"; why: string } | null {
+  if (!reasons?.length) return null;
+  return { label: "Held", tone: "blush", why: reasons.length === 1 ? reasons[0]! : `${reasons[0]} (and ${reasons.length - 1} more)` };
+}
+
 /** Money tab pill. */
 export type PayState = { kind: "coming"; on: string } | { kind: "checking" } | { kind: "paid"; on: string };
 export function payPill(p: PayState): { label: string; tone: "blue" | "blush" | "mint" } {
