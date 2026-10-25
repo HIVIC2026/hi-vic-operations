@@ -1,0 +1,135 @@
+// The LIVE full-journey runner (src/lib/journey.server.ts — `bun scripts/journey.ts --keep --no-browser`) driven end to
+// end against an isolated PGlite database seeded the way a fresh live database looks for the TEST personas: the Test
+// Centre's "Create TEST trade accounts" (createQaTrades, real code) and "Prepare TEST access" (prepareQaAccess, real code,
+// which adds the TEST Alpha field worker as pending/unverified) and nothing else. Everything else the run needs must be
+// set up by the runner's own TEST setup (ensureTestTrades) through the real recording paths — this test fails if a
+// newer gate stops a step. Only the external providers are faked (tests/helpers/journey-harness.ts). Never touches the
+// live database or any network.
+import { afterAll, describe, expect, mock, test } from "bun:test";
+import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, type MittiItem } from "./helpers/journey-harness";
+
+const TPL_A1 = "template_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", TPL_A2 = "template_a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2";
+const TPL_A3 = "template_a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3", TPL_A4 = "template_a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4", TPL_A5 = "template_a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5";
+const OFFICE = "40000000-0000-4000-8000-0000000000f9";
+
+for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", SUPABASE_URL: "https://supabase.test", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test" })) process.env[k] = v;
+
+const tplItem = (item_id: string, label: string, type = "textsingle"): MittiItem => ({ item_id, label, type });
+const basic = { items: [tplItem("i_addr", "Site address", "address"), tplItem("i_owner", "Owner name"), tplItem("i_phone", "Homeowner phone"), tplItem("i_email", "Homeowner email"), tplItem("i_when", "Assessment date/time", "datetime")] };
+const providers = fakeProviders({ mittiTemplates: { [TPL_A1]: basic, [TPL_A2]: basic, [TPL_A3]: basic, [TPL_A4]: basic, [TPL_A5]: basic } });
+globalThis.fetch = providers.fetchImpl as typeof fetch;
+
+const j = await journeyDb();
+await loadPendingFunctions(j);
+const { admin: baseAdmin, asUser, storage } = journeyAdmin(j);
+providers.storageFiles.map = storage;
+const q = j.q;
+
+// Supabase Auth admin as the Test Centre uses it: users keep their metadata (qa_test) and magic links carry a token.
+const authUsers = new Map<string, { id: string; email: string; user_metadata: Record<string, unknown> }>();
+let userSeq = 0;
+const authAdmin = {
+  async createUser(u: { email: string; user_metadata?: Record<string, unknown> }) {
+    const id = `6${String(++userSeq).padStart(7, "0")}-0000-4000-8000-000000000000`;
+    const user = { id, email: u.email.toLowerCase(), user_metadata: u.user_metadata ?? {} };
+    authUsers.set(id, user);
+    return { data: { user }, error: null };
+  },
+  async getUserById(id: string) { const u = authUsers.get(id); return u ? { data: { user: u }, error: null } : { data: { user: null }, error: { message: "User not found" } }; },
+  async listUsers() { return { data: { users: [...authUsers.values()] }, error: null }; },
+  async generateLink(p: { email: string }) {
+    const u = [...authUsers.values()].find((x) => x.email === p.email.toLowerCase());
+    return u ? { data: { user: u, properties: { hashed_token: `hash:${u.id}`, action_link: "https://auth.test/link" } }, error: null } : { data: { user: null, properties: null }, error: { message: "no user" } };
+  },
+  async updateUserById(id: string) { return { data: { user: authUsers.get(id) ?? { id } }, error: null }; },
+};
+const admin = { ...baseAdmin, auth: { admin: authAdmin } };
+
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
+mock.module("@tanstack/react-start", serverFnStandIn);
+mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
+// personaClient (a TEST person's own signed-in client): the magic-link token resolves to that user's own client.
+mock.module("@supabase/supabase-js", () => ({
+  createClient: () => {
+    let me: string | null = null;
+    const client = {
+      auth: {
+        verifyOtp: async ({ token_hash }: { token_hash: string }) => { me = token_hash.replace(/^hash:/, ""); return { data: { user: { id: me } }, error: null }; },
+        getSession: async () => ({ data: { session: me ? { user: { id: me } } : null } }),
+        getUser: async () => ({ data: { user: me ? { id: me, user_metadata: {} } : null }, error: null }),
+      },
+    };
+    return new Proxy(client, { get: (t, k) => (k === "auth" ? t.auth : (asUser(me ?? "") as Record<string | symbol, unknown>)[k]) });
+  },
+}));
+const pending: Promise<unknown>[] = [];
+const backgroundErrors: string[] = [];
+mock.module("../src/lib/background.server", () => ({ requestContext: { getStore: () => undefined }, runAfterResponse: (task: () => Promise<unknown>) => { pending.push(task().catch((e: Error) => { backgroundErrors.push(e.message); })); return "wait_until"; } }));
+
+afterAll(async () => { await j.db.close(); });
+
+// ---- the live database before the run: HIV settings, the office actor, and the Test Centre's TEST accounts ----------
+await q(`insert into workflow_settings (id, mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id, mitti_fixes_template_id, auto_send_mitti, customer_comms_enabled, safety_check_payment_inc_gst, payment_option_gate_enabled, ready_check_booking_enabled, piesa_install_window_days)
+  values (1,$1,$2,$3,$4,$5,true,true,349,true,true,30)`, [TPL_A2, TPL_A1, TPL_A3, TPL_A5, TPL_A4]);
+await q(`insert into retail_estimator_settings (is_current, ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier)
+  values (true, 349, 349, 95, 200, 30, 10, 1, 1.1, 1.25)`);
+await q("insert into pricing_settings (version, ap_fee_ex_gst) values (1, 317.27)");
+{ const { lookupLocation } = await import("../src/lib/activity48.core"); const l = lookupLocation("3199")!; await q("insert into veu_location_variables (postcode, metropolitan_or_regional, reticulated_gas, climate_region, climate_zone, source_version) values ($1,$2,$3,$4,$5,$6)", [l.postcode, l.metropolitan_or_regional, l.reticulated_gas, l.climate_region, l.climate_zone, l.source_version]); }
+await q(`insert into profiles (id, full_name, email) values ($1,'Journey Office','admin@hivic.test')`, [OFFICE]);
+await q(`insert into user_roles (user_id, role) values ($1,'admin')`, [OFFICE]);
+authUsers.set(OFFICE, { id: OFFICE, email: "admin@hivic.test", user_metadata: {} });
+
+const officeCtx = { userId: OFFICE, supabase: admin, claims: {} };
+const ta = await import("../src/lib/test-accounts.functions");
+const created = await ta.createTestTradeAccounts({ data: {}, context: officeCtx }) as { results: { status: string }[] };
+// "Prepare TEST access" on an earlier TEST job adds the TEST Alpha field worker (pending, unverified) — as on the live database.
+const [alpha] = await q<{ id: string }>("select id from businesses where name='TEST Alpha Insulation'");
+{
+  const [o] = await q<{ id: string }>("insert into owners (full_name, email) values ('TEST Earlier Owner','qa.owner.earlier@hivic-test.example') returning id");
+  const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('1 Earlier Test Street','Frankston','3199','VIC') returning id");
+  const [jb] = await q<{ id: string }>("insert into jobs (owner_id, property_id, source, stage) values ($1,$2,'qa_test','new_enquiry') returning id", [o!.id, p!.id]);
+  await ta.prepareQaJourneyAccess({ data: { jobId: jb!.id }, context: officeCtx });
+  await ta.archiveQaJourney({ data: { jobId: jb!.id }, context: officeCtx });
+}
+
+const snapshot = async () => ({
+  businesses: await q("select id, name, onboarding_notes from businesses order by name"),
+  workers: await q("select email, approval_status, certification_status, trade_role from partner_workers order by email"),
+});
+
+describe("live journey runner — TEST setup from a fresh live database", () => {
+  test("the Test Centre accounts exist as on the live database (seed sanity)", async () => {
+    expect(created.results.every((r) => r.status === "created")).toBe(true);
+    expect(alpha).toBeTruthy();
+    expect(await q("select email, approval_status, certification_status from partner_workers")).toEqual([{ email: "qa.worker.alpha@hivic-test.example", approval_status: "pending", certification_status: "unverified" }]);
+  });
+
+  let run: Awaited<ReturnType<typeof import("../src/lib/journey.server").runServerJourney>>;
+  test("runServerJourney: every step (1–10) passes", async () => {
+    const jr = await import("../src/lib/journey.server");
+    run = await jr.runServerJourney({ cleanup: false, afterStep: async () => { while (pending.length) await Promise.all(pending.splice(0)); } });
+    for (const s of run.result.steps) {
+      if (!s.passed || process.env["JOURNEY_DEBUG"]) console.log(`${s.passed ? "PASS" : "FAIL"} ${s.label}${s.error ? ` — ${s.error}` : ""}`, s.passed ? "" : JSON.stringify(s.checks.filter((c) => !c.ok)));
+    }
+    expect(run.result.steps.map((s) => [s.key, s.passed ? "pass" : s.error])).toEqual(run.result.steps.map((s) => [s.key, "pass"]));
+    expect(run.result.passed).toBe(true);
+  }, 300_000);
+
+  test("setup only ever touched TEST identities", async () => {
+    const s = await snapshot();
+    expect(s.businesses.every((b) => String((b as { name: string }).name).startsWith("TEST "))).toBe(true);
+    expect(s.workers.every((w) => String((w as { email: string }).email).endsWith("@hivic-test.example"))).toBe(true);
+  });
+
+  test("a second run on the same database passes too (setup is idempotent)", async () => {
+    const jr = await import("../src/lib/journey.server");
+    const before = await q<{ n: number }>("select count(*)::int as n from admin_config_events");
+    const certsBefore = await q<{ n: number }>("select count(*)::int as n from partner_worker_certifications");
+    const again = await jr.runServerJourney({ cleanup: true, afterStep: async () => { while (pending.length) await Promise.all(pending.splice(0)); } });
+    for (const s of again.result.steps) if (!s.passed) console.log(`FAIL (2nd run) ${s.label} — ${s.error}`);
+    expect(again.result.passed).toBe(true);
+    // Nothing recorded twice by the setup itself.
+    expect((await q<{ n: number }>("select count(*)::int as n from partner_worker_certifications"))[0]!.n).toBe(certsBefore[0]!.n);
+    void before;
+  }, 300_000);
+});
