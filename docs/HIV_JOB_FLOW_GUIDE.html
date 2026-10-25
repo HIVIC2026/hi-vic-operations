@@ -173,7 +173,7 @@ footer{color:var(--sub);font-size:14px}
     <div class="stage-head"><span class="num">Step 2</span><h3>The job starts</h3></div>
     <div class="people"><span class="who o">Owner</span><span class="who i">Installer</span><span class="who f">Office</span><span class="who a">Automatic</span></div>
     <div class="grid2">
-      <div class="box do"><h4>What happens</h4><ul><li><b>Our lead:</b> the owner saves their spot. The job shows on Needs me. The office picks one installer.</li><li>The installer has 24 hours. "Not for me" or no answer comes back to the office to choose again.</li><li><b>Installer's customer:</b> the installer uses Add a job. The job starts straight away.</li></ul></div>
+      <div class="box do"><h4>What happens</h4><ul><li><b>Our lead:</b> the owner saves their spot. The job shows on Needs me. <b>For launch</b> the office picks one installer. Automatic installer offers are switched off on purpose and can be turned on later.</li><li>The installer has 24 hours. "Not for me" or no answer comes back to the office to choose again.</li><li><b>Installer's customer:</b> the installer uses Add a job. The job starts straight away.</li></ul></div>
       <div class="box auto"><h4>Automatic</h4><ul><li>Spot saved email and text to the owner.</li><li>Offer text, email and app alert to the installer. Texts wait overnight, 8pm to 7am.</li><li>The Mitti Ready Check form is created for the job.</li></ul></div>
       <div class="box veu"><h4>VEU rules covered</h4><ul><li>Permission to contact: the tick at Add a job.</li><li>Only one open job per address. A repeat at the same address is linked and the office is told.</li></ul></div>
     </div>
@@ -195,7 +195,7 @@ footer{color:var(--sub);font-size:14px}
     <div class="stage-head"><span class="num">Step 4</span><h3>Quote</h3></div>
     <div class="people"><span class="who i">Installer</span><span class="who f">Office</span><span class="who a">Automatic</span></div>
     <div class="grid2">
-      <div class="box do"><h4>What happens</h4><ul><li>The installer presses Complete in Mitti.</li><li><b>Installer's customer:</b> the business owner gets one text with a link to enter their price and inclusions.</li><li>The office opens Needs me › Quotes to check, checks it, and presses <b>Send</b>.</li><li>A quote is held, with the reason shown, if: the price isn't in, the electrician isn't onboarded, or another check fails.</li></ul></div>
+      <div class="box do"><h4>What happens</h4><ul><li>The installer presses Complete in Mitti.</li><li><b>Installer's customer:</b> the business owner gets one text with a link to enter their price and inclusions.</li><li><b>For launch:</b> the office opens Needs me › Quotes to check, checks it, and presses <b>Send</b>. Jo has switched automatic sending off on purpose. Once she turns it on, a quote that passes every check goes to the owner by itself.</li><li>A quote is held, with the reason shown, if: the price isn't in, the electrician isn't onboarded, or another check fails.</li></ul></div>
       <div class="box auto"><h4>Automatic</h4><ul><li>The quote is prepared as soon as the form is complete.</li><li>After Send: quote email and text to the owner.</li><li>Reminders 3 days after sending, and 2 days before the price expires.</li><li>If the owner says "Not for me", the installer and office are told.</li></ul></div>
       <div class="box form"><h4>Screen</h4><ul><li>Office: Needs me › Quotes to check.</li><li>Installer business owner: "Your price" card on the job page.</li></ul></div>
     </div>
@@ -372,15 +372,27 @@ footer{color:var(--sub);font-size:14px}
 </section>
 
 <section aria-labelledby="h-off">
-  <h2 id="h-off">Not switched on yet</h2>
+  <h2 id="h-off">Switched off on purpose for launch</h2>
+  <p class="lede">Jo has deliberately turned these off while we launch, so a person checks each one first. Everything marked automatic in this guide happens by itself once its switch is on. The switches are in the office portal under More › Settings › Switches.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Switch</th><th>While it's off (launch)</th><th>Once Jo turns it on</th></tr></thead>
+    <tbody>
+      <tr><td>Owner and trade emails and texts</td><td>Nothing reaches a real owner, installer or electrician. TEST jobs still go to the test inbox and phone.</td><td>Every automatic email and text in this guide goes out by itself. Jo turns them on one type at a time.</td></tr>
+      <tr><td>Automatic quote sending</td><td>The office checks each quote on Quotes to check and presses Send.</td><td>A quote that passes every check goes to the owner as soon as the installer marks the Ready Check Complete. Held quotes still wait for the office.</td></tr>
+      <tr><td>Automatic installer offers (our leads)</td><td>The office picks one installer for each job.</td><td>The portal offers the job to a covering installer by itself.</td></tr>
+      <tr><td>Mitti-first jobs</td><td>A Ready Check started straight in Mitti waits for the office.</td><td>The portal creates or links the job from the Mitti form by itself.</td></tr>
+      <tr><td>ESC Registry robot</td><td>The office submits install notifications and creates VEECs by hand.</td><td>The robot does both, with a screenshot on the job.</td></tr>
+      <tr><td>Card payments</td><td>Owners pay by bank transfer.</td><td>Owners can also pay the safety check and fixes by card.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Already automatic</h3>
+  <p class="lede">Electrician offers, quote preparation, the 15-minute checks, payment reading from Xero and the AP signature on the VEEC form run now. Their messages still wait for the emails and texts switch.</p>
+  <h3>Still to finish</h3>
   <ul class="off">
-    <li><b>Owner and trade emails and texts</b> are all written and approved but switched off. Nothing reaches a real owner or installer until Jo turns them on, one at a time.</li>
-    <li><b>Quotes</b> are sent by the office pressing Send. Automatic sending is off.</li>
-    <li><b>Our-lead installer offers</b> are chosen by the office. Electrician offers already go out automatically.</li>
     <li><b>Mitti A4</b> needs the latest changes pasted and published, then connecting. <b>Mitti A5</b> isn't connected yet.</li>
     <li><b>Built, waiting to go live:</b> the owner's 30-day tick, the repair tick list, the electrician's no-price tick on our leads, and no $100 on installer customers' fixes. <b>Being built:</b> the fixes-times text to the electrician.</li>
-    <li><b>ESC Registry robot.</b> The ESC has no way for software to connect directly, so a robot uses the Registry website like a person. Steps to switch it on: Jo adds the Registry login as secrets and allows the Registry website; a practice run on a TEST job fills the forms and takes screenshots without submitting; Jo checks the screenshots; then it goes live. It never submits the same notification or VEEC twice. Until then the office does it by hand.</li>
-    <li><b>Card payments</b> need the Stripe keys.</li>
+    <li><b>ESC Registry robot setup.</b> The ESC has no way for software to connect directly, so a robot uses the Registry website like a person. Steps: Jo adds the Registry login as secrets and allows the Registry website; a practice run on a TEST job fills the forms and takes screenshots without submitting; Jo checks the screenshots; then its switch can go on. It never submits the same notification or VEEC twice.</li>
+    <li><b>Card payments</b> need the Stripe keys before their switch can go on.</li>
     <li><b>ECOWOOL</b> warranty PDF is still missing, so the AP signature waits on those jobs.</li>
     <li>The AP signature waits until the owner has paid in full, because the warranty copy goes in the completion pack.</li>
   </ul>
