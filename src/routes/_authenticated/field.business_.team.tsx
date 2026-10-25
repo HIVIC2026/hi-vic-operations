@@ -4,10 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/business-kit";
-import { getTradeBusiness, requestTeamLoginInvite } from "@/lib/trade-view.functions";
+import { getTradeBusiness, requestTeamLoginInvite, setTeamMemberMobile } from "@/lib/trade-view.functions";
 import { createWorkerInvite } from "@/lib/worker-invite.functions";
 import { useBizFile } from "@/components/trade/business-pages";
-import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_RULE, inviteContact, inviteTextLine, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type InviteTextResult } from "@/lib/trade-view.core";
+import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_MOBILE_NOTE, TEAM_RULE, teamMobileButton, inviteContact, inviteTextLine, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type InviteTextResult } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
 
@@ -45,6 +45,7 @@ function Team() {
                   {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
                   {wc && <p data-white-card className={`mt-0.5 text-[13px] font-semibold ${wc.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{wc.text}</p>}
                   {id && <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <MobileInline workerId={id} mobile={m.mobile} onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
                     {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: "Login invite requested" })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>Send login invite</button>)}
                     {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
                     {m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
@@ -60,6 +61,34 @@ function Team() {
         </section>
       </>)}
     </TradeShell>
+  );
+}
+
+/** Decision 377: the business owner saves each person's mobile once; their own safety plan sign link is texted there. */
+function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile: string | null; onSaved: () => void }) {
+  const save = useServerFn(setTeamMemberMobile);
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState(mobile ?? "");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!open) return (
+    <button type="button" data-team-mobile className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => { setV(mobile ?? ""); setMsg(null); setOpen(true); }}>{teamMobileButton(mobile)}</button>
+  );
+  return (
+    <div className="w-full">
+      <label className="block text-[13px] font-semibold text-estimate-navy">Mobile
+        <input className="mt-1 block min-h-11 w-full rounded-[10px] border-2 border-estimate-line bg-white px-3 text-base" value={v} inputMode="tel" autoComplete="tel" placeholder="0412 345 678" onChange={(e) => setV(e.target.value)} />
+      </label>
+      <p className="mt-1 text-[13px] text-estimate-sub">{TEAM_MOBILE_NOTE}</p>
+      {msg && <p role="alert" className="mt-1 text-[13px] font-semibold text-[#8A3B4A]">{msg}</p>}
+      <div className="mt-2 flex gap-2">
+        <button type="button" disabled={busy} className="min-h-11 rounded-[10px] bg-estimate-blue px-4 text-[13px] font-semibold text-white" onClick={async () => {
+          setBusy(true); setMsg(null);
+          try { await save({ data: { workerId, mobile: v } }); setOpen(false); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+        }}>Save</button>
+        <button type="button" className="min-h-11 px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

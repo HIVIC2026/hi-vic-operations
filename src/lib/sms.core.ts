@@ -77,6 +77,9 @@ export const SMS_MESSAGE_TYPES = {
   // My job → the booked trade is told once (installer: offer new times/days; electrician: booking cancelled, don't go).
   // Wording: ownerChangedVisitText (installer-texts.core.ts). Real sends still need the per-type switch.
   owner_changed_visit: { audience: "partner", label: "Owner changed the booked visit on My job – trade told (decision 337)", wordingApproved: true, quietHours: true },
+  // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
+  // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
+  swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -88,8 +91,11 @@ export function withSafetyPlanLinks(body: string, links: readonly (string | null
   return real.length ? `${body} ${safetyPlanLine(real)}` : body;
 }
 /** Decision 364: these texts go to ONE person per job (the allocated installer, else the business owner), so each unsigned
- *  person's OWN sign link is listed as "<name>: <link>" for them to pass on; each link signs only that person's line. */
-export const safetyPlanSignerLinks = (entries: readonly { name: string; link: string }[]) => entries.map((e) => `${e.name}: ${e.link}`);
+ *  person's OWN sign link is listed as "<name>: <link>" for them to pass on; each link signs only that person's line.
+ *  Decision 377: a person whose own sign link was texted to their mobile is listed by name only (no link to pass on);
+ *  anyone without a mobile (or whose text did not go) keeps the decision 364 "<name>: <link>". */
+export const safetyPlanSignerLinks = (entries: readonly { name: string; link: string; ownLinkTexted?: boolean }[]) =>
+  entries.map((e) => (e.ownLinkTexted ? `${e.name} (own link texted)` : `${e.name}: ${e.link}`));
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
 export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 
@@ -142,6 +148,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
   mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
   owner_changed_visit: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's change on My job (recorded once per change before any send; installer-texts.server)
+  swms_sign_link: { kind: "window" }, // key = job + signer + install date + step (booked / day before); recomputed each tick, only while unsigned (swms-sign-text.core)
 };
 
 export type SmsEventInput = {

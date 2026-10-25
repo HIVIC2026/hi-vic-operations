@@ -689,6 +689,21 @@ export async function tradeRequestLoginInvite(userId: string, workerId: string) 
   return { ...(await tradeChangeRequest(userId, "other", `Please send a login invite to ${w.full_legal_name} (team member ${w.id}).`)), already: false };
 }
 
+/** Decision 377: the business owner saves a team member's mobile once on My business (partner_workers.mobile, +61
+ *  format; empty clears it). Their own safety plan sign link is texted there. Business-scoped, owner only. */
+export async function tradeSetWorkerMobile(userId: string, workerId: string, raw: string) {
+  const c = await bossOrThrow(userId);
+  const { crewMobileInput } = await import("./swms-sign-text.core");
+  const v = crewMobileInput(raw);
+  if (!v.ok) throw new WorkflowError(v.error);
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, mobile").eq("id", workerId).is("removed_at", null).maybeSingle();
+  if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
+  if ((w.mobile ?? null) === v.mobile) return { ok: true, mobile: v.mobile };
+  const { error } = await admin.from("partner_workers").update({ mobile: v.mobile }).eq("id", w.id).eq("business_id", c.biz.id);
+  if (error) throw new WorkflowError("The mobile couldn't be saved. Try again.");
+  return { ok: true, mobile: v.mobile };
+}
+
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */
 export async function tradeMittiInvited(userId: string) {
   const c = await tradeContext(userId);
