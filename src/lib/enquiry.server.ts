@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { keepEarlierInsulationAnswers } from "./insulation-answer-keep.core";
 import { buildBase44Evidence, buildBase44Raw, retainOriginalMedia, normaliseState, planBase44Job, properAddress, properName } from "./enquiry.core";
 import { recordContactConsent, importBase44Media } from "./intake.server";
 
@@ -302,7 +303,10 @@ async function completeAddressAtIntake(jobId: string, p: { suburb: string | null
 function mergeEvidence(existing: unknown, input: EnquiryInput): Json {
   const base = existing && typeof existing === "object" && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
   const old = (base['base44'] as { raw?: unknown } | undefined)?.raw;
-  const raw = retainOriginalMedia(old, buildBase44Raw(input));
+  const merged = retainOriginalMedia(old, buildBase44Raw(input));
+  // Decision 400: a repeat enquiry with a blank / missing insulation answer never wipes the earlier real answer.
+  const oldAnswers = (old as { answers?: unknown } | undefined)?.answers;
+  const raw = { ...merged, answers: keepEarlierInsulationAnswers(oldAnswers, merged.answers) };
   return { ...base, base44: { ...buildBase44Evidence(input), raw } } as unknown as Json;
 }
 

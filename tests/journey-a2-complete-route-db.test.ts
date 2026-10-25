@@ -122,10 +122,9 @@ describe("A2 step 1 — the website enquiry arrives (TEST job, our lead)", () =>
     expect(["issued", "reused"]).toContain(link.status);
     const [job] = await q<Record<string, unknown>>("select source, channel, stage from jobs where id=$1", [JOB]);
     expect(job).toMatchObject({ source: "qa_test" });
-    // The same owner sends the calculator again (Base44 sends the whole questionnaire each time). FINDING (documented, not
-    // changed): a repeat WITHOUT the questionnaire answers replaces the stored answers (enquiry.core retainOriginalMedia
-    // keeps only media references), so the owner's "no insulation" answer is lost and Save my spot then waits for an
-    // office desk check.
+    // The same owner sends the calculator again (Base44 sends the whole questionnaire each time). Decision 400 (Jo 26 Oct
+    // 2026): a repeat with a blank or missing insulation answer keeps the earlier answer (insulation-answer-keep.core,
+    // tests/decision-400-insulation-answer-keep.test.ts); a new real answer still updates.
     const again = await upsertEnquiry({ ...input, external_enquiry_id: "qa-journey-a2-repeat", estimated_area_m2: 130 } as never, "qa_test", OFFICE);
     expect(again.job_id).toBe(JOB);
     expect(await q("select id from jobs")).toHaveLength(1);
