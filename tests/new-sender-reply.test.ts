@@ -24,13 +24,12 @@ const skip = (f: NewSenderFacts) => { const d = decideNewSenderReply(f); expect(
 
 describe("the approved wording (decision 292)", () => {
   test("Jo's wording verbatim, the canonical calculator link, Re: subject; flags as approved", () => {
-    expect(WEBSITE_CALCULATOR_URL).toBe(`${CUSTOMER_BASE}/`);
-    expect(WEBSITE_CALCULATOR_URL).toBe("https://estimate.homeinsulationvictoria.com.au/");
+    expect(WEBSITE_CALCULATOR_URL).toBe("https://homeinsulationvictoria.com.au/homeowner"); // decision 387
     expect(newSenderReplyText("Sam")).toBe([
       "Hi Sam,", "",
-      "Thanks for getting in touch with Home Insulation Victoria. The quickest way to see your price and the Victorian Energy Upgrades discount is our 1-minute calculator: https://estimate.homeinsulationvictoria.com.au/.", "",
-      "Answer three quick questions and you'll get your estimate straight away, and you can save your spot for a free Ready Check.", "",
-      "If you have a question the calculator doesn't answer, just reply to this email.", "",
+      "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: https://homeinsulationvictoria.com.au/homeowner.", "",
+      "There are thousands of people on the list, and spots are released in the order they're saved.", "",
+      "If you have any questions, just reply to this email.", "",
       "— Home Insulation Victoria",
     ].join("\n"));
     expect(newSenderReplyText(null).startsWith("Hi there,\n")).toBe(true);
@@ -139,9 +138,9 @@ describe("the O70 email (plain, kit design)", () => {
     expect(m.html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
     expect(m.html).toContain("ABN 44 671 613 979");
     expect(m.html).toContain(">Hi Sam,</p>");
-    expect(m.html).toContain(`Thanks for getting in touch with Home Insulation Victoria. The quickest way to see your price and the Victorian Energy Upgrades discount is our 1-minute calculator: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
-    expect(m.html).toContain("Answer three quick questions and you&#39;ll get your estimate straight away".replace("&#39;", "'"));
-    expect(m.html).toContain("If you have a question the calculator doesn't answer, just reply to this email.");
+    expect(m.html).toContain(`Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
+    expect(m.html).toContain("There are thousands of people on the list");
+    expect(m.html).toContain("If you have any questions, just reply to this email.");
     expect(m.html).toContain(">— Home Insulation Victoria</p>");
     expect(m.html).not.toContain(">Unsubscribe</a>");
     expect(m.html).not.toContain("TEST — only sent to Jo");

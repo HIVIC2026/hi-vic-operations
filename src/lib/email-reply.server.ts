@@ -2,6 +2,8 @@
 // office's "Match this email"), and for unmatched mail from a partner or a new enquirer, write ONE reply draft into the
 // shared mailbox in the same thread — Graph `createReply` then `PATCH` its body (fallback: POST /messages, a draft by
 // default) through the existing connector gateway headers. Decision 250 confirmed draft create/delete on info@.
+// Decision 386 adds ONE other write: `archiveRepliedMessage` moves a single message to Archive after its automatic
+// owner reply was sent (OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED, off; `assertArchiveMoveRequest` allows nothing else).
 // NEVER sends: every write goes through `assertDraftOnlyRequest` (send/sendMail/reply/replyAll/forward refused) and
 // no code path here calls a sender. Idempotent per Outlook message via the `email_reply_drafted` event.
 // Switches: EMAIL_REPLY_DRAFTS_ENABLED (code constant, OFF) and TEST mode (allow-list sender + qa_test jobs only).
@@ -17,12 +19,13 @@ import type { MailMessage } from "./outlook-correspondence.core";
 import { classifyEmailIntents, recentEnoughForAction } from "./email-intent.core";
 import { jobNumbersIn } from "./outlook-guess.core";
 import {
-  EMAIL_REPLY_DRAFTED_EVENT, EMAIL_REPLY_DRAFTS_ENABLED, EMAIL_REPLY_DRAFTS_TEST_ONLY, assertDraftOnlyRequest, composeReply, draftBlocker,
+  ARCHIVE_FOLDER, EMAIL_REPLY_DRAFTED_EVENT, EMAIL_REPLY_DRAFTS_ENABLED, EMAIL_REPLY_DRAFTS_TEST_ONLY, assertArchiveMoveRequest, assertDraftOnlyRequest, composeReply, draftBlocker,
   draftCategories, isEnquiryStage, looksLikeNewEnquiry, wouldAutoSend, type DueStep, type OwnerFacts, type PartnerFacts, type ReplyDraft,
 } from "./email-reply.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { isTestPartner } from "./test-send.core";
+import { OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED } from "./outlook-reply-drafts.core";
 
 const loose = admin as unknown as SupabaseClient;
 export type DraftOrigin = "sync" | "office_matched" | "unmatched";
@@ -55,6 +58,29 @@ async function graphDraftWrite<T>(method: "POST" | "PATCH" | "DELETE", path: str
 }
 
 type GraphDraft = { id?: string; isDraft?: boolean; body?: { contentType?: string; content?: string } };
+
+/** Decision 386: file ONE inbound message in the shared mailbox's Archive folder after its automatic owner reply was
+ *  sent (owner-email-auto-reply.server). The only Outlook write besides drafts: same gateway headers and no-redirect rule
+ *  as the draft writes, path + body checked by `assertArchiveMoveRequest` (POST …/messages/{id}/move to "archive" only).
+ *  Off unless OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED (or a test passes `enabled`). Never throws. */
+export async function archiveRepliedMessage(p: { mailbox: string | null; messageId: string; enabled?: boolean }): Promise<{ status: "archived" | "skipped" | "failed"; detail: string }> {
+  const enabled = p.enabled ?? OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED;
+  if (!enabled) return { status: "skipped", detail: "Filing in Archive is switched off (OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED)" };
+  try {
+    const mailbox = normaliseMailbox(p.mailbox);
+    if (!mailbox) return { status: "skipped", detail: "No confirmed shared mailbox" };
+    if (!process.env["LOVABLE_API_KEY"] || !process.env["MICROSOFT_OUTLOOK_API_KEY"]) return { status: "skipped", detail: "Outlook is not connected" };
+    const path = `${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(p.messageId)}/move`;
+    const body = { destinationId: ARCHIVE_FOLDER };
+    assertArchiveMoveRequest("POST", path, body);
+    const res = await fetch(outlookGatewayUrl(path), { method: "POST", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(20_000), headers: gatewayHeaders(), body: JSON.stringify(body) });
+    if (res.status >= 300 && res.status < 400) return { status: "failed", detail: "Outlook tried to redirect; the request was not followed." };
+    if (!res.ok) return { status: "failed", detail: `Outlook move to Archive failed (HTTP ${res.status}).` };
+    return { status: "archived", detail: "Moved to Archive" };
+  } catch (e) {
+    return { status: "failed", detail: e instanceof Error ? e.message : "Move to Archive failed" };
+  }
+}
 
 /** Create the draft reply in the same thread; fall back to a new draft message when createReply is unavailable. */
 async function writeDraft(mailbox: string, m: MailMessage, d: ReplyDraft): Promise<{ draftId: string; method: "createReply" | "new_message" }> {

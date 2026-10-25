@@ -1,5 +1,5 @@
-// Decision 292: the "O70 – New sender: start on the calculator" email, plain, in the shared kit design (logo card,
-// AP/ABN footer), with Jo's approved wording from new-sender-reply.core verbatim and the website calculator as its one
+// Decision 292: the "O70 – New sender: homeowner enquiry page" email, plain, in the shared kit design (logo card,
+// AP/ABN footer), with Jo's approved wording from new-sender-reply.core verbatim and the homeowner enquiry page (decision 387) as its one
 // link (shown inline, no button, no heading: nothing beyond the approved words). The sample in
 // docs/templates/owner/O70-new-sender-calculator.html is written by scripts/render-decision-292-sample.ts.
 // Pure renderer: nothing is sent here. No unsubscribe link: this is a one-off reply to the sender's own email, never a

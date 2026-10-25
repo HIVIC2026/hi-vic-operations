@@ -11,7 +11,10 @@
 // an unmatched NEW human sender asking an enquiry / price / rebate / eligibility question is SENT one website reply
 // (new-sender-reply.server: TEST mode → allow-list only via test-send; live only behind the approved flag +
 // customer_comms_enabled; never via Outlook); no enquiry, owner or link is ever created from an email, and the
-// `email_unmatched` row stays.
+// `email_unmatched` row stays. Decision 386: a matched OWNER's standard question (save my spot, is it saved, what next,
+// when is my visit, where is my quote, how do I pay) is SENT one automatic reply before any draft
+// (owner-email-auto-reply.server: TEST → test-send; real only behind OWNER_EMAIL_AUTO_REPLY_APPROVED + customer comms);
+// anything unusual keeps the decision-244 draft plus ONE Needs me "reply needed" row; 337 keeps priority for changes.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
@@ -47,8 +50,8 @@ const BUCKET = "job-files";
  *  could not be recorded (pending migration email-unmatched-events.sql not applied, or too old to raise a row);
  *  `notHomeowner` = other unmatched mail left in Outlook (outbound to non-customers). */
 export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number;
-  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number; newSenderReplies?: number; newSenderHeld?: number };
-const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts" | "newSenderReplies" | "newSenderHeld", n = 1) => { c[k] = (c[k] ?? 0) + n; };
+  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number; newSenderReplies?: number; newSenderHeld?: number; ownerAutoReplies?: number };
+const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts" | "newSenderReplies" | "newSenderHeld" | "ownerAutoReplies", n = 1) => { c[k] = (c[k] ?? 0) + n; };
 
 /** Job ids on a route. Rows reserved by the previous release carry a legacy single jobId. */
 export function routeJobIds(route: Route): string[] {
@@ -439,6 +442,20 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   return raised;
 }
 
+/** Decision 386: ONE automatic reply to a matched owner's standard question, before any decision-244 draft. Returns
+ *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before. */
+async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
+  if (m.direction !== "inbound" || !jobIds.length) return false;
+  try {
+    const r = await (await import("./owner-email-auto-reply.server")).autoReplyToOwner({ jobIds, message: m, mailbox });
+    if (r.status === "sent" && counts) bump(counts, "ownerAutoReplies");
+    return r.suppressDraft;
+  } catch (e) {
+    console.error("owner auto reply skipped", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 /** Decision 244: one reply DRAFT per new inbound email (never sent). Switch off = nothing loaded or done. Never throws. */
 async function draftReply(m: MailMessage, mailbox: string | null, jobIds: string[], origin: "sync" | "office_matched" | "unmatched"): Promise<string | null> {
   if (!EMAIL_REPLY_DRAFTS_ENABLED || m.direction !== "inbound") return null;
@@ -483,7 +500,8 @@ export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?:
   const filed = { ...m, attachments: refs };
   const communicationId = await storeOnJob(jobId, filed, "office_matched", visibility);
   const changeRequests = await recordChangeRequests([jobId], filed, refs);
-  const replyDraftId = await draftReply(filed, mailbox, [jobId], "office_matched");
+  const replied = await ownerAutoReply([jobId], filed, mailbox);
+  const replyDraftId = replied ? null : await draftReply(filed, mailbox, [jobId], "office_matched");
   return { communicationId, message: m, changeRequests, replyDraftId };
 }
 
@@ -522,7 +540,8 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     else {
       if (result.stored) { counts.stored++; bump(counts, "matched"); }
       if (result.stored && !window.history) bump(counts, "changeRequests", await recordChangeRequests(routeJobIds(work.route), work.message, work.attachment_refs ?? []));
-      if (result.stored && !window.history && await draftReply(work.message, work.mailbox, routeJobIds(work.route), "sync")) bump(counts, "replyDrafts");
+      const replied = result.stored && !window.history ? await ownerAutoReply(routeJobIds(work.route), { ...work.message, attachments: work.attachment_refs?.length ? work.attachment_refs : work.message.attachments }, work.mailbox, counts) : false;
+      if (result.stored && !window.history && !replied && await draftReply(work.message, work.mailbox, routeJobIds(work.route), "sync")) bump(counts, "replyDrafts");
       if (result.unmatched) counts.unmatched++;
       if (result.closed) counts.closed++;
       if (result.flagged) counts.flagged++;

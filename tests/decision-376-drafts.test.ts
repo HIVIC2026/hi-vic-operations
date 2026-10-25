@@ -1,12 +1,14 @@
-// Decision 376 (Jo 25 Oct 2026): the four moments F13 left record-only now have DRAFT messages wired through the existing
-// senders, each held until Jo approves: O74 (+ text) visit cancelled by the trade → owner; O75 signed Gate B paperwork copy
-// → owner (PDFs attached); E14 (+ text) 24h coordination reminder → the electrician who has not offered safety check times;
-// I71 (+ text) safety check booked → installer, planning only. Pure wording/flags/keys first, then each server module
-// against an in-memory backend with every sender mocked: held while unapproved (no real email; the text goes only to the
-// one real sender, which holds an unapproved type), TEST → test-send, once only, one workflow event before any send.
+// Decision 376 (Jo 25 Oct 2026): the four moments F13 left record-only have messages wired through the existing senders:
+// O74 (+ text) visit cancelled by the trade → owner; O75 signed Gate B paperwork copy → owner (PDFs attached); E14 (+ text)
+// 24h coordination reminder → the electrician who has not offered safety check times; I71 (+ text) safety check booked →
+// installer, planning only. Decision 384 (Jo 25 Oct 2026): all four APPROVED exactly as drafted, so real recipients now go
+// through the existing guarded senders — customer_comms_enabled and each text type's sms_message_switches entry still gate
+// actual delivery. Pure wording/flags/keys first, then each server module against an in-memory backend with every sender
+// mocked: real recipients reach only the guarded senders (paused while customer comms are off; texts held while their
+// switch is off), TEST → test-send, once only, one workflow event before any send.
 // Run: bun test tests/decision-376-drafts.test.ts
 import { describe, expect, mock, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody, smsBlocker } from "../src/lib/sms.core";
 import { VISIT_NEW_TIMES_APPROVED, VISIT_NEW_TIMES_EVENT, renderVisitNewTimesEmail, visitNewTimesKeys, visitNewTimesLink, visitNewTimesText } from "../src/lib/visit-new-times.core";
 import { OWNER_PAPERWORK_COPY_APPROVED, OWNER_PAPERWORK_COPY_EVENT, PAPERWORK_COPY_QUIET_MINUTES, paperworkCopyBatch, paperworkCopyFilename, paperworkCopyKey, renderPaperworkCopyEmail } from "../src/lib/paperwork-copy-email.core";
@@ -16,23 +18,32 @@ import { INSTALLER_PLANNING_NOTICE_APPROVED, INSTALLER_PLANNING_NOTIFIED_EVENT, 
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const read = (f: string) => readFileSync(f, "utf8");
 
-describe("decision 376: drafts are held (nothing real goes until Jo approves)", () => {
-  test("every *_APPROVED flag is false and the three text types are unapproved, under quiet hours, 24h event freshness", () => {
-    expect([VISIT_NEW_TIMES_APPROVED, OWNER_PAPERWORK_COPY_APPROVED, PIESA_TIMES_REMINDER_APPROVED, INSTALLER_PLANNING_NOTICE_APPROVED]).toEqual([false, false, false, false]);
+describe("decision 384: Jo approved the four decision 376 messages (delivery still gated by the switches)", () => {
+  const gate = { to: "0412 345 678", senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-26T02:00:00.000Z" };
+  test("every *_APPROVED flag is true and the three text types are approved, under quiet hours, 24h event freshness", () => {
+    expect([VISIT_NEW_TIMES_APPROVED, OWNER_PAPERWORK_COPY_APPROVED, PIESA_TIMES_REMINDER_APPROVED, INSTALLER_PLANNING_NOTICE_APPROVED]).toEqual([true, true, true, true]);
     for (const [t, audience] of [["visit_new_times", "owner"], ["piesa_times_reminder", "partner"], ["installer_planning_notice", "partner"]] as const) {
-      expect(SMS_MESSAGE_TYPES[t]).toMatchObject({ audience, wordingApproved: false, quietHours: true });
+      expect(SMS_MESSAGE_TYPES[t]).toMatchObject({ audience, wordingApproved: true, quietHours: true });
       expect(SMS_FRESHNESS[t]).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
-      expect(smsBlocker({ type: t, to: "0412 345 678", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-26T02:00:00.000Z" })).toBe("Wording not approved yet");
+      // Approval alone sends nothing: customer comms and the type's own switch must both be on.
+      expect(smsBlocker({ ...gate, type: t, commsEnabled: false, typeSwitchOn: true })).toBe("Customer communications are switched off");
+      expect(smsBlocker({ ...gate, type: t, commsEnabled: true, typeSwitchOn: false })).toContain("texts are switched off");
+      expect(smsBlocker({ ...gate, type: t, commsEnabled: true, typeSwitchOn: true })).toBeNull();
+      expect(smsBlocker({ ...gate, type: t, commsEnabled: true, typeSwitchOn: true, nowIso: "2026-10-26T12:00:00.000Z" })).not.toBeNull(); // 11pm: quiet hours
+      expect(smsBlocker({ ...gate, type: t, commsEnabled: true, typeSwitchOn: true, isTestRecord: true })).toBe("TEST record – use the test sender");
     }
   });
-  test("draft designs are rendered to docs/templates/drafts with JPG previews", () => {
+  test("approved designs are filed by who gets them (owner / electrician / installer), with JPG previews", () => {
     const src = read("scripts/render-decision-376-drafts.ts");
-    for (const f of ["O74-visit-new-times.html", "O74b-visit-new-times-on-the-way.html", "O75-signed-paperwork-copy.html", "E14-piesa-times-reminder.html", "I71-installer-planning-notice.html"]) {
+    for (const f of ["owner/O74-visit-new-times.html", "owner/O74b-visit-new-times-on-the-way.html", "owner/O75-signed-paperwork-copy.html", "electrician/E14-piesa-times-reminder.html", "installer/I71-installer-planning-notice.html"]) {
       expect(src).toContain(f);
-      expect(read(`docs/templates/drafts/${f}`)).toContain("VEU Accredited Person A003654");
+      expect(read(`docs/templates/${f}`)).toContain("VEU Accredited Person A003654");
+      expect(existsSync(`docs/templates/drafts/${f.split("/")[1]}`)).toBe(false);
     }
     for (const c of ["O74", "O74b", "O75", "E14", "I71"]) expect(readFileSync(`docs/designs/${c}.jpg`).length).toBeGreaterThan(5000);
-    expect(read("docs/JO_DECISIONS_LOG.md")).toContain("376. **");
+    const log = read("docs/JO_DECISIONS_LOG.md");
+    expect(log).toContain("376. **");
+    expect(log).toContain("384. **");
   });
 });
 
@@ -159,6 +170,8 @@ function q(table: string) {
   return api;
 }
 const calls = { testEmail: [] as string[], testSms: [] as string[], owner: [] as string[], office: [] as string[], sms: [] as string[] };
+/** The live gates the real senders read (workflow_settings.customer_comms_enabled + sms_message_switches). */
+const gates = { comms: false, switches: {} as Record<string, boolean> };
 const storage = { from: () => ({ download: async (p: string) => ({ data: new Blob([`%PDF ${p}`]), error: null }) }) };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q, storage } }));
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown) => { db.workflow_events!.push({ job_id, event_type, summary, details, created_at: new Date().toISOString() }); } }));
@@ -168,9 +181,15 @@ mock.module("../src/lib/test-send.server", () => ({
   sendTestSms: async (ctx: { label: string }, to: string, body: string) => { calls.testSms.push(`${ctx.label}:${to}:${body}`); return { status: "sent", detail: "test" }; },
 }));
 mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { purpose: string; key: string }) => { calls.owner.push(`${p.purpose}:${p.key}`); return "sent"; } }));
-mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { label: string; to: string }) => { calls.office.push(`${p.label}:${p.to}`); return { status: "sent", detail: "ok" }; } }));
-mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => undefined, customerCommsEnabled: async () => true }));
-mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string; to: string | null; event?: { current?: boolean } }) => { calls.sms.push(`${p.type}:${p.idempotencyKey}:${p.to}:${p.event?.current}`); return { status: "blocked", detail: "Wording not approved yet", sid: null }; } }));
+// sendOfficeEmail pauses partner email while customer comms are off (Jo 24 Oct).
+mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { label: string; to: string }) => { calls.office.push(`${p.label}:${p.to}`); return gates.comms ? { status: "sent", detail: "ok" } : { status: "held", detail: "customer communications are off" }; } }));
+mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (!gates.comms) throw new Error("Customer communications are switched off"); }, customerCommsEnabled: async () => gates.comms }));
+// The one real text sender: the same pure gate it uses, with the live switch states above.
+mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string; to: string | null; event?: { current?: boolean } }) => {
+  calls.sms.push(`${p.type}:${p.idempotencyKey}:${p.to}:${p.event?.current}`);
+  const blocked = smsBlocker({ type: p.type, to: p.to ?? "", commsEnabled: gates.comms, typeSwitchOn: gates.switches[p.type] === true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-26T02:00:00.000Z" });
+  return blocked ? { status: "blocked", detail: blocked, sid: null } : { status: "sent", detail: "SM1", sid: "SM1" };
+} }));
 mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => `${MY_JOB}-${jobId}` }));
 mock.module("../src/lib/readycheck-booking.server", () => ({ ownerReadyCheckWindowState: async () => ({ canPick: true }) }));
 mock.module("../src/lib/allocation.server", () => ({ ownerPiesaWindowState: async () => ({ canPick: false }) }));
@@ -181,7 +200,7 @@ const { sendOwnerPaperworkCopy } = await import("../src/lib/paperwork-copy-email
 const { remindTradeToOfferTimes } = await import("../src/lib/piesa-times-reminder.server");
 const { notifyInstallerPlanning } = await import("../src/lib/installer-planning-notice.server");
 const ev = (job: string, type: string) => db.workflow_events!.filter((e) => e["job_id"] === job && e["event_type"] === type);
-const reset = () => { for (const k of Object.keys(calls) as (keyof typeof calls)[]) calls[k].length = 0; };
+const reset = (g: { comms?: boolean; switches?: Record<string, boolean> } = {}) => { for (const k of Object.keys(calls) as (keyof typeof calls)[]) calls[k].length = 0; gates.comms = g.comms ?? false; gates.switches = g.switches ?? {}; };
 
 describe("O74 server (mocked)", () => {
   test("no visit_times_reopened → nothing; office-arranged fixes visit → nothing", async () => {
@@ -190,17 +209,28 @@ describe("O74 server (mocked)", () => {
     expect(await notifyOwnerVisitNewTimes({ jobId: "job-real", bookingId: "bk1", kind: "rectification", wasIso: "2026-10-28T22:30:00.000Z" })).toContain("office");
     expect(ev("job-real", VISIT_NEW_TIMES_EVENT).length).toBe(0);
   });
-  test("real owner: event first, email held (unapproved), text only to the real sender (which holds it); once only", async () => {
+  test("real owner while customer comms are off: event first, email paused by the guard, text blocked by the real sender; once only", async () => {
     reset();
     db.workflow_events!.push({ job_id: "job-real", event_type: "visit_times_reopened", details: { booking_id: "bk1", kind: "assessment" }, created_at: new Date().toISOString() });
     const r = await notifyOwnerVisitNewTimes({ jobId: "job-real", bookingId: "bk1", kind: "assessment", wasIso: "2026-10-28T22:30:00.000Z" });
-    expect(r).toBe("email not sent — wording awaiting approval; sms blocked: Wording not approved yet");
+    expect(r).toBe("email not sent — Customer communications are switched off; sms blocked: Customer communications are switched off");
     expect(ev("job-real", VISIT_NEW_TIMES_EVENT).map((e) => e["details"])).toEqual([{ booking_id: "bk1", kind: "assessment", owner_picks: false, was: "2026-10-28T22:30:00.000Z" }]);
     expect(calls.owner).toEqual([]);
     expect(calls.sms).toEqual(["visit_new_times:visit-new-times:v1:job-real:bk1:sms:0412 000 111:true"]);
     expect(calls.testEmail.length + calls.testSms.length).toBe(0);
     expect(await notifyOwnerVisitNewTimes({ jobId: "job-real", bookingId: "bk1", kind: "assessment", wasIso: "2026-10-28T22:30:00.000Z" })).toBe("already handled");
     expect(calls.sms.length).toBe(1);
+  });
+  test("real owner with customer comms on: email through the guarded owner sender; text waits for its own switch, then sends", async () => {
+    reset({ comms: true });
+    db.workflow_events!.push({ job_id: "job-real", event_type: "visit_times_reopened", details: { booking_id: "bk2", kind: "installation" }, created_at: new Date().toISOString() });
+    const r = await notifyOwnerVisitNewTimes({ jobId: "job-real", bookingId: "bk2", kind: "installation", wasIso: "2026-11-03T21:00:00.000Z" });
+    expect(r).toBe(`email sent; sms blocked: "${SMS_MESSAGE_TYPES.visit_new_times.label}" texts are switched off`);
+    expect(calls.owner).toEqual(["visit_new_times:visit-new-times:v1:job-real:bk2:email"]);
+    reset({ comms: true, switches: { visit_new_times: true } });
+    db.workflow_events!.push({ job_id: "job-real", event_type: "visit_times_reopened", details: { booking_id: "bk3", kind: "installation" }, created_at: new Date().toISOString() });
+    expect(await notifyOwnerVisitNewTimes({ jobId: "job-real", bookingId: "bk3", kind: "installation", wasIso: "2026-11-03T21:00:00.000Z" })).toBe("email sent; sms sent: SM1");
+    expect(calls.testEmail.length + calls.testSms.length).toBe(0);
   });
   test("TEST job → test-send (email + text), never the real senders", async () => {
     reset();
@@ -215,13 +245,23 @@ describe("O74 server (mocked)", () => {
 
 describe("O75 server (mocked)", () => {
   const now = new Date("2026-10-25T10:00:00.000Z");
-  test("real owner: one batch event (owner items only) before any send, email held while unapproved; never copied twice", async () => {
+  test("real owner while customer comms are off: one batch event (owner items only) before any send, email paused; never copied twice", async () => {
     reset();
-    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("not sent — wording awaiting approval");
+    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("not sent — Customer communications are switched off");
     expect(ev("job-real", OWNER_PAPERWORK_COPY_EVENT).map((e) => e["details"])).toEqual([{ signature_ids: ["s1", "s2"], doc_keys: ["quote_acceptance", "payment_terms"] }]);
     expect(calls.owner).toEqual([]);
     expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("nothing to copy");
     expect(ev("job-real", OWNER_PAPERWORK_COPY_EVENT).length).toBe(1);
+  });
+  test("real owner with customer comms on: ONE email through the guarded owner sender with both PDFs", async () => {
+    reset({ comms: true });
+    db.owner_gate_signatures!.push(
+      { id: "s4", job_id: "job-real", gate: "B", method: "link_code", signed_at: "2026-10-25T09:44:00.000Z", doc_key: "quote_acceptance", copy_path: "job-real/owner-paperwork/s4.pdf" },
+      { id: "s5", job_id: "job-real", gate: "B", method: "link_code", signed_at: "2026-10-25T09:45:00.000Z", doc_key: "payment_terms", copy_path: "job-real/owner-paperwork/s5.pdf" },
+    );
+    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("sent (2 PDFs attached)");
+    expect(calls.owner).toEqual(["owner_paperwork_copy:owner-paperwork-copy:v1:job-real:s4"]);
+    expect(calls.testEmail.length).toBe(0);
   });
   test("TEST job → test-send with the signed PDF attached", async () => {
     reset();
@@ -232,17 +272,22 @@ describe("O75 server (mocked)", () => {
 });
 
 describe("E14 server (mocked)", () => {
-  test("record-only kinds send nothing; real electrician: email held, text to the real sender; TEST → test-send", async () => {
+  test("record-only kinds send nothing; real electrician: email + text through the guarded senders (paused while comms are off); TEST → test-send", async () => {
     reset();
     expect(await remindTradeToOfferTimes({ jobId: "job-real", assignmentId: "el-real", visitKind: "ready_check", remindedAt: new Date().toISOString() })).toBe("record only");
     const r = await remindTradeToOfferTimes({ jobId: "job-real", assignmentId: "el-real", visitKind: "piesa", remindedAt: new Date().toISOString() });
-    expect(r).toBe("electrician email not sent — wording awaiting approval; electrician sms blocked: Wording not approved yet");
-    expect(calls.office).toEqual([]);
+    expect(r).toBe("electrician email held: customer communications are off; electrician sms blocked: Customer communications are switched off");
+    expect(calls.office).toEqual(["piesa_times_reminder:sam@spark.test"]);
     expect(calls.sms).toEqual(["piesa_times_reminder:piesa-times-reminder:v1:el-real:sms:0422 222 222:true"]);
+    reset({ comms: true, switches: { piesa_times_reminder: true } });
+    expect(await remindTradeToOfferTimes({ jobId: "job-real", assignmentId: "el-real", visitKind: "piesa", remindedAt: new Date().toISOString() })).toBe("electrician email sent: ok; electrician sms sent: SM1");
+    reset({ comms: true });
+    expect(await remindTradeToOfferTimes({ jobId: "job-real", assignmentId: "el-real", visitKind: "piesa", remindedAt: new Date().toISOString() })).toBe(`electrician email sent: ok; electrician sms blocked: "${SMS_MESSAGE_TYPES.piesa_times_reminder.label}" texts are switched off`);
+    reset();
     const t = await remindTradeToOfferTimes({ jobId: "job-test", assignmentId: "el-test", visitKind: "piesa", remindedAt: new Date().toISOString() });
     expect(t).toBe("electrician email sent: test; electrician sms sent: test");
     expect(calls.testSms[0]).toContain("https://preview.test/field/job-test");
-    expect(calls.sms.length).toBe(1);
+    expect(calls.sms.length + calls.office.length).toBe(0); // TEST never reaches the real senders
   });
   test("the 24h point is claimed once by the coordination_reminder event before the reminder is sent", () => {
     const alloc = read("src/lib/allocation.server.ts");
@@ -253,13 +298,13 @@ describe("E14 server (mocked)", () => {
 });
 
 describe("I71 server (mocked)", () => {
-  test("real installer: event first, email held, text to the real sender; once per assignment + PIESA time; TEST → test-send", async () => {
-    reset();
+  test("real installer: event first, email + text through the guarded senders (comms on, text switch off); once per assignment + PIESA time; TEST → test-send", async () => {
+    reset({ comms: true });
     db.bookings!.push({ job_id: "job-real", kind: "assessment", status: "confirmed", scheduled_start: "2026-10-28T22:30:00+00:00" });
     const r = await notifyInstallerPlanning({ jobId: "job-real", assignmentId: "inst-real", piesaStartIso: "2026-10-28T22:30:00.000Z" });
-    expect(r).toBe("installer email not sent — wording awaiting approval; installer sms blocked: Wording not approved yet");
+    expect(r).toBe(`installer email sent: ok; installer sms blocked: "${SMS_MESSAGE_TYPES.installer_planning_notice.label}" texts are switched off`);
     expect(ev("job-real", INSTALLER_PLANNING_NOTIFIED_EVENT).length).toBe(1);
-    expect(calls.office).toEqual([]);
+    expect(calls.office).toEqual(["installer_planning_notice:ian@inst.test"]);
     expect(calls.sms).toEqual([`installer_planning_notice:${installerPlanningKeys("inst-real", "2026-10-28T22:30:00.000Z").sms}:0411 111 111:true`]);
     expect(await notifyInstallerPlanning({ jobId: "job-real", assignmentId: "inst-real", piesaStartIso: "2026-10-28T22:30:00Z" })).toBe("already handled");
     expect(calls.sms.length).toBe(1);

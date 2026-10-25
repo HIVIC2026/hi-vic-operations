@@ -46,8 +46,8 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });
   if (plan.office) { await needsOffice(b.job_id, "rectification_new_times", b.kind, b.id, "Electrical fixes visit cancelled — arrange new times with the electrician and owner"); return; }
   if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(b.job_id)).allowed) return;
-  // F13 / decision 376: no outbox row. A TRADE cancellation tells the owner once (O74 + text, visit-new-times.server, DRAFT
-  // until Jo approves); owner-made changes and no-shows are not messaged here.
+  // F13 / decision 376: no outbox row. A TRADE cancellation tells the owner once (O74 + text, visit-new-times.server, approved
+  // by Jo in decision 384); owner-made changes and no-shows are not messaged here.
   await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: times reopened`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
   await admin.from("jobs").update({ next_action: `Waiting for the owner to pick new ${VISIT_LABEL[b.kind]} times` }).eq("id", b.job_id);
 }

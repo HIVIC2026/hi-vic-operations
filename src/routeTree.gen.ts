@@ -121,6 +121,7 @@ import { Route as AuthenticatedFieldMoneyJobIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
+import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
@@ -750,6 +751,12 @@ const ApiPublicHooksCustomerFollowupsRoute =
     path: '/api/public/hooks/customer-followups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksEscRobotRoute =
+  ApiPublicHooksEscRobotRouteImport.update({
+    id: '/api/public/hooks/esc-robot',
+    path: '/api/public/hooks/esc-robot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksExternalActionsRoute =
   ApiPublicHooksExternalActionsRouteImport.update({
     id: '/api/public/hooks/external-actions',
@@ -933,6 +940,7 @@ export interface FileRoutesByFullPath {
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -1054,6 +1062,7 @@ export interface FileRoutesByTo {
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -1181,6 +1190,7 @@ export interface FileRoutesById {
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -1308,6 +1318,7 @@ export interface FileRouteTypes {
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
@@ -1429,6 +1440,7 @@ export interface FileRouteTypes {
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
@@ -1555,6 +1567,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
@@ -1607,6 +1620,7 @@ export interface RootRouteChildren {
   TOFileRoute: typeof TOFileRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
+  ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
@@ -2405,6 +2419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCustomerFollowupsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/esc-robot': {
+      id: '/api/public/hooks/esc-robot'
+      path: '/api/public/hooks/esc-robot'
+      fullPath: '/api/public/hooks/esc-robot'
+      preLoaderRoute: typeof ApiPublicHooksEscRobotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/external-actions': {
       id: '/api/public/hooks/external-actions'
       path: '/api/public/hooks/external-actions'
@@ -2754,6 +2775,7 @@ const rootRouteChildren: RootRouteChildren = {
   TOFileRoute: TOFileRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
+  ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,

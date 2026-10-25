@@ -1,18 +1,19 @@
-// Decision 376 (Jo 25 Oct 2026, DRAFT — awaiting approval): when the TRADE cancels a booked Ready Check, safety check or
+// Decision 376 (Jo 25 Oct 2026; wording APPROVED by Jo in decision 384): when the TRADE cancels a booked Ready Check, safety check or
 // install day (visit-events.server `tradeCancelVisit` → `reopen`, which records `visit_times_reopened`), the owner is told
 // ONCE — email O74 + text — with their own secure My job link on the right screen. Two variants, read from what My job
 // actually lets the owner do after the cancel: "choose new times" (the owner's picker is open) or "you don't need to do
 // anything — new times are on the way" (the trade offers the new times, decisions 53/333 and install days).
 // Owner reschedules / no-shows are NOT told here (they made the change, or the existing one-free-rebook rules apply), and
-// an electrical fixes visit goes to the office (reopenPlan). Replaces the F13 record-only point; nothing goes to a real
-// owner until Jo approves (VISIT_NEW_TIMES_APPROVED + the `visit_new_times` SMS type). PURE: wording, keys, links.
+// an electrical fixes visit goes to the office (reopenPlan). Replaces the F13 record-only point. Approved (decision 384):
+// real owners go through the guarded senders; customer_comms_enabled + the `visit_new_times` text switch still gate
+// delivery. PURE: wording, keys, links.
 import * as K from "./email-kit.core";
 import { changeVisitLink, type ChangeVisit } from "./email-change-reply.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
 import type { VisitKind } from "./visit-events.core";
 
-/** DRAFT (decision 376): false until Jo approves O74 and the text. Real delivery also needs customer_comms_enabled + consent. */
-export const VISIT_NEW_TIMES_APPROVED = false as boolean;
+/** Jo 25 Oct 2026 (decision 384): O74/O74b and the text approved as drafted in decision 376. Real delivery also needs customer_comms_enabled + consent. */
+export const VISIT_NEW_TIMES_APPROVED = true as boolean;
 export const VISIT_NEW_TIMES_TEMPLATE_CODE = "O74";
 export const VISIT_NEW_TIMES_SMS_TYPE = "visit_new_times" as const;
 export const VISIT_NEW_TIMES_PURPOSE = "visit_new_times";

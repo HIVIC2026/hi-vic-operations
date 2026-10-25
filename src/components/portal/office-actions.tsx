@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Btn } from "@/components/portal/kit";
 import { recordManualCommunicationFn } from "@/lib/manual-communication.functions";
+import { markOfficeChanged } from "@/lib/office-list-refresh";
 
 /** Decision 240: an overdue invoice row offers "Chase ›", which logs a call or a note on the job's contact history. */
 export function LogCallDialog({ jobId, jobNumber, context, onClose }: { jobId: string; jobNumber: string; context: string; onClose: () => void }) {
@@ -20,6 +21,7 @@ export function LogCallDialog({ jobId, jobNumber, context, onClose }: { jobId: s
     setBusy(true);
     try {
       await record({ data: { jobId, outcome: kind, note: `${context}: ${note.trim()}` } });
+      markOfficeChanged(); // decision 383: "Last heard" on the office lists
       toast.success(kind === "phoned" ? `Call logged on ${jobNumber}` : `Note logged on ${jobNumber}`);
       await qc.invalidateQueries({ queryKey: ["money-invoices"] });
       onClose();

@@ -157,11 +157,16 @@ export type EstimateFollowupSweep = { checked: number; sent: number; held: numbe
 
 /** 15-minute tick: one decision per estimate-only lead. Counts only, never PII. */
 export async function sweepEstimateFollowups(now = new Date()): Promise<EstimateFollowupSweep> {
-  const { data: jobs, error } = await db.from("jobs")
-    .select("id,job_number,source,stage,deleted_at,qa_archived_at,owner_id,property_id,estimated_area_m2,estimated_area_unknown,owners(full_name,email)")
-    .eq("stage", ESTIMATE_FOLLOWUP_STAGE).is("deleted_at", null).is("qa_archived_at", null);
-  if (error) throw new Error(`Could not read estimate-only leads: ${error.message}`);
-  const rows = (jobs ?? []) as JobRow[];
+  // The API returns at most 1,000 rows per read (1,331 estimate-only leads on 25 Oct 2026), so page through all of them.
+  const rows: JobRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: jobs, error } = await db.from("jobs")
+      .select("id,job_number,source,stage,deleted_at,qa_archived_at,owner_id,property_id,estimated_area_m2,estimated_area_unknown,owners(full_name,email)")
+      .eq("stage", ESTIMATE_FOLLOWUP_STAGE).is("deleted_at", null).is("qa_archived_at", null).order("id").range(from, from + 999);
+    if (error) throw new Error(`Could not read estimate-only leads: ${error.message}`);
+    rows.push(...((jobs ?? []) as JobRow[]));
+    if ((jobs ?? []).length < 1000) break;
+  }
   const facts = await loadEstimateFollowupFacts(rows);
   const out: EstimateFollowupSweep = { checked: rows.length, sent: 0, held: 0, closed: 0, stopped: 0, failed: 0 };
   for (const j of rows) {

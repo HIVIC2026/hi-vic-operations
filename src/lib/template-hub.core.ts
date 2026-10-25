@@ -82,6 +82,7 @@ import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.c
 import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
+import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -388,6 +389,22 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O69", section: "owner", step: "any", kind: "email", code: "O69", name: "Job cancelled", when: "The office cancels the job with the owner tick on", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 291", gate: { kind: "email" },
     source: { builder: "src/lib/cancel-notice.core.ts", fn: "renderOwnerCancelledEmail", sender: "src/lib/cancel-notice.server.ts" }, design: "docs/templates/owner/O69-job-cancelled.html",
     render: () => email(renderOwnerCancelledEmail({ firstName: "Helen", jobNumber: "HV-TEST", address: ADDRESS, officePhone: "03 9000 0000" })) }),
+  // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
+  ENTRY({ id: "owner:O74", section: "owner", step: "any", kind: "email", code: "O74", name: "Your visit needs a new time", when: "The trade cancels a booked Ready Check, safety check or install day: owner chooses new times on My job", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/owner/O74-visit-new-times.html",
+    render: () => email(renderVisitNewTimesEmail({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
+  ENTRY({ id: "owner:O74b", section: "owner", step: "any", kind: "email", code: "O74b", name: "Your visit is moving (new times on the way)", when: "The trade cancels a booked visit and will offer the new times", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/owner/O74b-visit-new-times-on-the-way.html",
+    render: () => email(renderVisitNewTimesEmail({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
+  ENTRY({ id: "owner:sms-visit_new_times", section: "owner", step: "any", kind: "text", code: "", name: "Your visit needs a new time (text)", when: "With O74 / O74b", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "visit_new_times" },
+    source: { builder: "src/lib/visit-new-times.core.ts", fn: "visitNewTimesText", sender: "src/lib/visit-new-times.server.ts" },
+    render: () => texts([
+      { label: "Owner picks new times", body: visitNewTimesText({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book` }) },
+      { label: "New times on the way", body: visitNewTimesText({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book` }) },
+    ]) }),
+  ENTRY({ id: "owner:O75", section: "owner", step: "quote", kind: "email", code: "O75", name: "Your signed paperwork", when: "One email per signing sitting with the signed Gate B PDFs attached", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
+    source: { builder: "src/lib/paperwork-copy-email.core.ts", fn: "renderPaperworkCopyEmail", sender: "src/lib/paperwork-copy-email.server.ts" }, design: "docs/templates/owner/O75-signed-paperwork-copy.html",
+    render: () => email(renderPaperworkCopyEmail({ firstName: "Helen", address: ADDRESS, titles: ["The agreement", "Payment", "Your rebate (VEEC assignment)"], attached: true, myJobUrl: JOB, unsubscribeUrl: null })) }),
   ENTRY({ id: "owner:signing-code", section: "owner", step: "any", kind: "email", code: "", name: "Your signing code (email)", when: "The owner asks for a 6-digit code to sign on My job", who: "Owner", approvalNote: "Jo (sign-in code wording)", gate: { kind: "always" },
     source: { builder: "src/lib/owner-code-delivery.core.ts", fn: "ownerCodeEmail", sender: "src/lib/owner-code-delivery.server.ts" },
     render: () => email({ subject: "Your signing code", html: ownerCodeEmail("123456").html }) }),
@@ -476,6 +493,13 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerDeclinedEmail", sender: "src/lib/installer-declined-email.server.ts" }, design: "docs/templates/installer/I24-owner-declined.html",
     render: () => email(renderInstallerDeclinedEmail({ ...PARTNER_JOB, reasonLabel: "Price too high", reasonNote: "We've decided to wait until next year." })) }),
   // Safety check
+  // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
+  ENTRY({ id: "installer:I71", section: "installer", step: "safety_check", kind: "email", code: "I71", name: "Safety check booked (for your planning)", when: "The safety check is booked: the installer is told the date for planning only", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
+    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "renderInstallerPlanningEmail", sender: "src/lib/installer-planning-notice.server.ts" }, design: "docs/templates/installer/I71-installer-planning-notice.html",
+    render: () => email(renderInstallerPlanningEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD, ownerFirstName: "Helen" })) }),
+  ENTRY({ id: "installer:sms-installer_planning_notice", section: "installer", step: "safety_check", kind: "text", code: "", name: "Safety check booked (for your planning) (text)", when: "With I71", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "installer_planning_notice" },
+    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "installerPlanningText", sender: "src/lib/installer-planning-notice.server.ts" },
+    render: () => text(installerPlanningText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD })) }),
   ENTRY({ id: "installer:piesa-copy", section: "installer", step: "safety_check", kind: "email", code: "O28", name: "Safety check copy (installer)", when: "The signed PIESA is filed (at least 24 hours before the install)", who: "Installer", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-delivery.core.ts", fn: "renderPiesaCopyEmail", sender: "src/lib/piesa-delivery.server.ts" },
     render: () => email(renderPiesaCopyEmail({ recipient: "installer", firstName: "Sam", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: FIELD, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
@@ -542,6 +566,13 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-piesa_offer", section: "electrician", step: "safety_check", kind: "text", code: "", name: "New safety check job (text)", when: "With E1", who: "Electrician", approvalNote: "Jo 24 Oct 2026, decision 93 (text B)", gate: { kind: "text", smsType: "piesa_offer" },
     source: { builder: "src/lib/approved-texts.core.ts", fn: "piesaOfferText", sender: "src/lib/trade-messages.server.ts" },
     render: () => text(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-TEST", pay: 220, link: `${BASE}/field/offer/TEST` })) }),
+  // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
+  ENTRY({ id: "electrician:E14", section: "electrician", step: "safety_check", kind: "email", code: "E14", name: "Offer the owner your safety check times", when: "24 hours after the electrician accepted a safety check and offered no times", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
+    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "renderPiesaTimesReminderEmail", sender: "src/lib/piesa-times-reminder.server.ts" }, design: "docs/templates/electrician/E14-piesa-times-reminder.html",
+    render: () => email(renderPiesaTimesReminderEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD, firstName: "Sam" })) }),
+  ENTRY({ id: "electrician:sms-piesa_times_reminder", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Offer the owner your safety check times (text)", when: "With E14", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "piesa_times_reminder" },
+    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "piesaTimesReminderText", sender: "src/lib/piesa-times-reminder.server.ts" },
+    render: () => text(piesaTimesReminderText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD })) }),
   ENTRY({ id: "electrician:piesa-copy", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Your safety check for the property (PIESA copy)", when: "The official PIESA is filed (again after fixes)", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 317", gate: { kind: "email" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "renderElectricianPiesaEmail", sender: "src/lib/electrician-piesa-copy.server.ts" },
     render: () => email(renderElectricianPiesaEmail({ address: SHORT_ADDRESS, jobNumber: "HV-TEST", version: "initial" })) }),
@@ -666,34 +697,11 @@ const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:trade-invite", section: "waiting", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Would go when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approval: "waiting", approvalNote: "TRADE_INVITE_EMAIL_APPROVED = false (trade-access.core.ts)", gate: { kind: "code_off", flag: "TRADE_INVITE_EMAIL_APPROVED" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "TRADE_INVITE_DRAFT", sender: "src/lib/trade-access.functions.ts" },
     render: () => email({ subject: TRADE_INVITE_DRAFT.subject, html: simpleEmail("Hi Sam,", [fillTemplate(TRADE_INVITE_DRAFT.body, { first_name: "Sam", business: "Sample Insulation Co", sign_in_url: `${BASE}/auth` })], { label: TRADE_INVITE_DRAFT.button, url: `${BASE}/reset-password?token_hash=TEST` }, { testLabel: false }).html }) }),
-  // Decision 376 (Jo 25 Oct 2026): four moments that were record-only, each held behind its own *_APPROVED = false flag.
-  ENTRY({ id: "waiting:O74", section: "waiting", step: "any", kind: "email", code: "O74", name: "Your visit needs a new time", when: "The trade cancels a booked Ready Check, safety check or install day: owner chooses new times on My job", who: "Owner", approval: "waiting", approvalNote: "VISIT_NEW_TIMES_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "VISIT_NEW_TIMES_APPROVED" },
-    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/drafts/O74-visit-new-times.html",
-    render: () => email(renderVisitNewTimesEmail({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
-  ENTRY({ id: "waiting:O74b", section: "waiting", step: "any", kind: "email", code: "O74b", name: "Your visit is moving (new times on the way)", when: "The trade cancels a booked visit and will offer the new times", who: "Owner", approval: "waiting", approvalNote: "VISIT_NEW_TIMES_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "VISIT_NEW_TIMES_APPROVED" },
-    source: { builder: "src/lib/visit-new-times.core.ts", fn: "renderVisitNewTimesEmail", sender: "src/lib/visit-new-times.server.ts" }, design: "docs/templates/drafts/O74b-visit-new-times-on-the-way.html",
-    render: () => email(renderVisitNewTimesEmail({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book`, firstName: "Helen", unsubscribeUrl: null })) }),
-  ENTRY({ id: "waiting:sms-visit_new_times", section: "waiting", step: "any", kind: "text", code: "", name: "Your visit needs a new time (text)", when: "With O74 / O74b", who: "Owner", approval: "waiting", approvalNote: "SMS type visit_new_times not approved (decision 376)", gate: { kind: "text", smsType: "visit_new_times" },
-    source: { builder: "src/lib/visit-new-times.core.ts", fn: "visitNewTimesText", sender: "src/lib/visit-new-times.server.ts" },
-    render: () => texts([
-      { label: "Owner picks new times", body: visitNewTimesText({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book` }) },
-      { label: "New times on the way", body: visitNewTimesText({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book` }) },
-    ]) }),
-  ENTRY({ id: "waiting:O75", section: "waiting", step: "quote", kind: "email", code: "O75", name: "Your signed paperwork", when: "One email per signing sitting with the signed Gate B PDFs attached", who: "Owner", approval: "waiting", approvalNote: "OWNER_PAPERWORK_COPY_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "OWNER_PAPERWORK_COPY_APPROVED" },
-    source: { builder: "src/lib/paperwork-copy-email.core.ts", fn: "renderPaperworkCopyEmail", sender: "src/lib/paperwork-copy-email.server.ts" }, design: "docs/templates/drafts/O75-signed-paperwork-copy.html",
-    render: () => email(renderPaperworkCopyEmail({ firstName: "Helen", address: ADDRESS, titles: ["The agreement", "Payment", "Your rebate (VEEC assignment)"], attached: true, myJobUrl: JOB, unsubscribeUrl: null })) }),
-  ENTRY({ id: "waiting:E14", section: "waiting", step: "safety_check", kind: "email", code: "E14", name: "Offer the owner your safety check times", when: "24 hours after the electrician accepted a safety check and offered no times", who: "Electrician", approval: "waiting", approvalNote: "PIESA_TIMES_REMINDER_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "PIESA_TIMES_REMINDER_APPROVED" },
-    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "renderPiesaTimesReminderEmail", sender: "src/lib/piesa-times-reminder.server.ts" }, design: "docs/templates/drafts/E14-piesa-times-reminder.html",
-    render: () => email(renderPiesaTimesReminderEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD, firstName: "Sam" })) }),
-  ENTRY({ id: "waiting:sms-piesa_times_reminder", section: "waiting", step: "safety_check", kind: "text", code: "", name: "Offer the owner your safety check times (text)", when: "With E14", who: "Electrician", approval: "waiting", approvalNote: "SMS type piesa_times_reminder not approved (decision 376)", gate: { kind: "text", smsType: "piesa_times_reminder" },
-    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "piesaTimesReminderText", sender: "src/lib/piesa-times-reminder.server.ts" },
-    render: () => text(piesaTimesReminderText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD })) }),
-  ENTRY({ id: "waiting:I71", section: "waiting", step: "safety_check", kind: "email", code: "I71", name: "Safety check booked (for your planning)", when: "The safety check is booked: the installer is told the date for planning only", who: "Installer", approval: "waiting", approvalNote: "INSTALLER_PLANNING_NOTICE_APPROVED = false (decision 376)", gate: { kind: "code_off", flag: "INSTALLER_PLANNING_NOTICE_APPROVED" },
-    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "renderInstallerPlanningEmail", sender: "src/lib/installer-planning-notice.server.ts" }, design: "docs/templates/drafts/I71-installer-planning-notice.html",
-    render: () => email(renderInstallerPlanningEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD, ownerFirstName: "Helen" })) }),
-  ENTRY({ id: "waiting:sms-installer_planning_notice", section: "waiting", step: "safety_check", kind: "text", code: "", name: "Safety check booked (for your planning) (text)", when: "With I71", who: "Installer", approval: "waiting", approvalNote: "SMS type installer_planning_notice not approved (decision 376)", gate: { kind: "text", smsType: "installer_planning_notice" },
-    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "installerPlanningText", sender: "src/lib/installer-planning-notice.server.ts" },
-    render: () => text(installerPlanningText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD })) }),
+  // Decision 386: one automatic reply per standard owner question (sent only once Jo approves the wording).
+  ...ANSWER_TYPES.map((answer) => ENTRY({ id: `waiting:${ANSWER_CODES[answer].code}`, section: "waiting", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
+    when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approval: "waiting", approvalNote: "OWNER_EMAIL_AUTO_REPLY_APPROVED = false (decision 386)", gate: { kind: "code_off", flag: "OWNER_EMAIL_AUTO_REPLY_APPROVED" },
+    source: { builder: "src/lib/owner-email-auto-reply.core.ts", fn: "renderOwnerAutoReplyEmail", sender: "src/lib/owner-email-auto-reply.server.ts" }, design: `docs/templates/drafts/${ANSWER_CODES[answer].file}`,
+    render: () => email(renderOwnerAutoReplyEmail({ answer, facts: ANSWER_SAMPLES[answer].facts, theirSubject: ANSWER_SAMPLES[answer].theirSubject })) })),
 ];
 
 /* ---------------------------------------------------------------- daily text sample */

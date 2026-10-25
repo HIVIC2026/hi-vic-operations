@@ -18,3 +18,28 @@ export function checkedLabel(computedAt: string, refreshing: boolean, now = Date
   const mins = Math.max(0, Math.floor((now - new Date(computedAt).getTime()) / 60_000));
   return (mins < 1 ? "just now" : `${mins} min ago`) + (refreshing ? " · updating…" : "");
 }
+
+// Decision 383 (Jo 25 Oct 2026, same complaint): the DEFAULT first page of Jobs › Active and of Enquiries (no search,
+// no filter, default sort, page 1, no TEST jobs) is served the same way, from the same server-only table under its own
+// key. Any other view reads live. After an office action the next open works it out now (never a stale row).
+export const LIST_SNAPSHOT_KEYS = { jobs: "jobs_active:first", enquiries: "enquiries:first" } as const;
+
+/** Lists: like Needs me, except `force` (the office just changed something) works the page out now. */
+export function listSnapshotPlan(ageMs: number | null, force = false): NeedsSnapshotPlan {
+  return force ? "compute_now" : needsSnapshotPlan(ageMs);
+}
+
+/** True only for a filter with no content at all (a blank-looking " " still reads live). */
+function emptyFilter(f: unknown): boolean {
+  if (f == null) return true;
+  if (typeof f !== "object" || Array.isArray(f)) return false;
+  return Object.values(f as Record<string, unknown>).every((v) =>
+    v == null || v === false || v === "" || (Array.isArray(v) && v.length === 0)
+    || (typeof v === "object" && !Array.isArray(v) && Object.values(v as Record<string, unknown>).every((x) => x == null)));
+}
+
+type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined };
+/** The one view that has a saved copy: what the screen shows when it opens. */
+export function isDefaultListView(p: ListView): boolean {
+  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters);
+}
