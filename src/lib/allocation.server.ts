@@ -223,9 +223,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
-  // Decision 157: on our leads the installer's usual electrician is paid their onboarding rate for the PIESA (the owner still pays the standard $349 — decision 373).
-  const usualSel = kind === "piesa" ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates) : null;
-  if (usualSel?.mode === "usual") rates.set(usualSel.businessId, { id: usualSel.rateId, rate: usualSel.rateIncGst });
+  // Decision 374: no usual-electrician preference on our leads — every electrician is paid their own agreed onboarding rate.
   const { offerRateBlocker } = await import("./allocation.core");
   const summary = await offerFacts(jobId);
   const expires = offerExpiryBusinessHours(new Date(), businessHours);
@@ -247,7 +245,6 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     const rows = chosen.map((c) => { const r = row(c.business_id, true); return { ...r, expires_at: exp, summary: (auto ? { ...(r.summary as Record<string, unknown>), auto_offer: true } : r.summary) as Json }; });
     const { data: inserted, error } = await admin.from("partner_offers").insert(rows).select("id, business_id");
     if (error) throw new Error(error.message);
-    if (usualSel?.mode === "usual" && chosen.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
     if (auto) {
       const c = chosen[0]!;
       await logEvent(jobId, actorId, "auto_offer_sent", `Automatic electrician offer: ${c.name} for the PIESA (offer ${auto.attempt} of 2, open 24 hours)`, { kind, business_id: c.business_id, business_name: c.name, offer_id: (inserted ?? []).find((x) => x.business_id === c.business_id)?.id ?? null, attempt: auto.attempt, basis: auto.basis, active_jobs: auto.activeJobs, distance_km: auto.distanceKm, expires_at: exp }, { internal: true });
@@ -273,7 +270,6 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
-  if (usualSel?.mode === "usual" && batch.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Electrical fixes"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }

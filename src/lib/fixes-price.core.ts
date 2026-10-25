@@ -8,7 +8,8 @@
  * repair work" (explanation = the inclusions) — no rate-card lookup, no office pricing — and the existing owner margin
  * (decision 142, `applyRectificationMargin`) is added on top. Anything missing keeps the rate-card path.
  * Decisions 313/349/351 (Jo 25 Oct 2026): the margin follows WHOSE electrician, not the lead route — the installer's own
- * (usual / nominated) electrician is passed through on A1 and A2; our electrician gets the $100 on both (`fixesMarginFor`).
+ * (usual / nominated) electrician is passed through on A1; our electrician gets the $100 — always on our leads since
+ * decision 374 (we always choose the electrician there) (`fixesMarginFor`).
  * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A4 total.
  * Decision 354: when the A4 is complete and every existing check passes, the fixes quote goes to the owner automatically
  * (auto-fixes-quote-send.{core,server}.ts); otherwise it stays a held draft on Needs me with the reason.
@@ -20,8 +21,8 @@ import type { ElectricianSource } from "./our-lead-piesa-electrician.core";
 
 /** Decision 351 (Jo 25 Oct 2026; replaces the channel rule of decisions 313/349): the decision-142 $100 follows WHOSE
  *  electrician, on BOTH routes — our (Home Insulation Victoria-supplied) electrician → +$100, including on installer-
- *  supplied jobs (A1); the installer's own / usual / nominated electrician → no markup ever (`electricianSourceFor` on our
- *  leads, `electricianSourceForA1` on A1, both via `electricianSourceForJob`). The lead route no longer matters.
+ *  supplied jobs (A1); the installer's own / usual / nominated electrician → no markup ever (A1 only —
+ *  `electricianSourceForA1`; our leads are always ours since decision 374, both via `electricianSourceForJob`).
  *  Used by both the A4-price path and the rate-card fallback. */
 export const fixesMarginFor = (electricianSource: ElectricianSource = "ours"): number =>
   electricianSource === "installer_usual" ? 0 : RECTIFICATION_MARGIN_INC_GST;

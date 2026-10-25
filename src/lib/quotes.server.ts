@@ -80,17 +80,13 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
-  // Decision 349 (Jo 25 Oct 2026): the PIESA line follows WHOSE electrician will do it — the same decision-157 selection
-  // the PIESA offer uses. The installer's usual electrician → their onboarding rate exactly (pass-through); our
-  // electrician → HIV's standard price ($349). The safety-check payment (decision 302) and the repeat-PIESA charge
-  // (decision 342) read this line, so they follow automatically.
-  const { recCandidatesFor } = await import("./allocation.server");
-  const piesaSel = await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, (await recCandidatesFor(jobId)).candidates);
+  // Decisions 373/374 (Jo 25 Oct 2026): on our leads WE always choose the electrician (nearest approved REC covering the
+  // postcode), so the PIESA line is always HIV's standard price ($349) and the electrician is ours (paid their own
+  // onboarding rate on the offer). The safety-check payment (decision 302) and the repeat-PIESA charge (decision 342)
+  // read this line, so they follow automatically.
   const { ownerPiesaLineIncGst } = await import("./our-lead-piesa-electrician.core");
-  const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst), piesaSel);
-  const piesaElectrician = piesaSel.mode === "usual"
-    ? { source: "installer_usual" as const, business_id: piesaSel.businessId, rate_inc_gst: piesaSel.rateIncGst, rate_id: piesaSel.rateId }
-    : { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
+  const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst));
+  const piesaElectrician = { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";

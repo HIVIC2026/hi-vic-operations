@@ -41,7 +41,7 @@ export type HivQuoteInput = {
   removalM2: number;
   ownerR5IncPerM2: number; // $30
   ownerRemovalIncPerM2: number; // $15
-  piesaIncGst: number; // $349 with our electrician; the installer's usual electrician's rate (decision 349)
+  piesaIncGst: number; // $349 — our leads always use our electrician at the standard price (decisions 373/374)
   apFeeIncGst: number; // $349
   gstRate: number; // 0.1
   installerR5ExPerM2: number | null; // agreed rate card (stored ex GST)

@@ -14,7 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
 import {
-  AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
+  AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
 } from "./auto-offer.core";
 
@@ -74,21 +74,21 @@ async function electricianCandidates(jobId: string, channel: string | null): Pro
   const alloc = await import("./allocation.server");
   const { postcode, candidates } = await alloc.recCandidatesFor(jobId);
   const ids = candidates.map((c) => c.business_id);
-  const [jobs, { km, test }, rates, sel] = await Promise.all([
+  const [jobs, { km, test }, rates] = await Promise.all([
     activeJobCounts(ids, "electrician"), businessFacts(ids, postcode), alloc.agreedElectricianRates(ids, "piesa"),
-    (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates),
   ]);
-  // Our leads: the quoted installer's usual electrician (decisions 157/173, matched to an approved REC). The
-  // installer's own customers: the electrician the installer chose for this job / their preferred REC.
-  const usualBusinessId = sel.mode === "usual" ? sel.businessId : channel === "installer_sourced" ? candidates.find((c) => c.preferred && !c.blocker)?.business_id ?? null : null;
+  // Decision 374: our leads — nobody goes first, the nearest approved REC covering the postcode gets it (even when the
+  // quoted installer has a usual electrician). The installer's own customers (A1): the electrician the installer chose
+  // for this job / their preferred REC.
+  const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: candidates.find((c) => c.preferred && !c.blocker)?.business_id ?? null });
   return {
     usualBusinessId,
     candidates: candidates.map((c) => ({
       business_id: c.business_id, name: c.name, coversPostcode: c.coverage_verified && c.covers_postcode, paused: c.accepting_new_jobs === false,
       credentialsOk: c.has_valid_licence, workersCleared: c.approved_workers > 0, activeJobs: jobs.get(c.business_id) ?? 0, distanceKm: km.get(c.business_id) ?? null,
       testPartner: testFlag(test, c.business_id),
-      // The guarded sender refuses an electrician without an agreed rate (the usual electrician's onboarding rate counts).
-      blocker: c.blocker ?? (rates.has(c.business_id) || c.business_id === (sel.mode === "usual" ? sel.businessId : null) ? null : "No agreed electrician rate recorded."),
+      // The guarded sender refuses an electrician without an agreed (onboarding) rate.
+      blocker: c.blocker ?? (rates.has(c.business_id) ? null : "No agreed electrician rate recorded."),
     })),
   };
 }

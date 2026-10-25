@@ -1,5 +1,5 @@
-// O2 PIESA card: "Choose electrician" (decisions 157/173). The installer's usual electrician (an approved REC) is
-// pre-marked at the top; tapping one sends the PIESA offer to that electrician only. No multi-tick, no "Send to all",
+// O2 PIESA card: "Choose electrician" (decisions 173/374). We always choose the electrician on our leads — no
+// installer's-usual-electrician mark or preference (decision 374); tapping one sends the PIESA offer to that electrician only. No multi-tick, no "Send to all",
 // no office-picks switch (retired with the automatic dispatch). The 24-hour rule and acceptance stay server-side.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +36,6 @@ export function ChooseElectricianPanel({ jobId }: { jobId: string }) {
       {d.openOffer
         ? <p className="rounded-[10px] border border-line px-3 py-2">Offer sent to <span className="font-semibold">{d.openOffer.business ?? "the electrician"}</span>{d.openOffer.expiresAt ? ` · closes ${when(d.openOffer.expiresAt)}` : ""}. If they say Not for me or don't answer in 24 hours, the job comes back to Needs me.</p>
         : <p className="text-sub">Tap one electrician to send them the PIESA. Only they get it.{d.ownerPrice != null ? ` Owner pays ${money(d.ownerPrice)}.` : ""}</p>}
-      {d.usualElectricianNote && <p className="rounded-[10px] bg-mint px-3 py-2 text-xs">{d.usualElectricianNote}</p>}
       {!d.openOffer && (
         <ul className="divide-y divide-line rounded-[12px] border border-line">
           {shown.length === 0 && <li className="px-3 py-3 text-sub">No approved electricians cover {d.suburb || "this area"}.</li>}
@@ -45,14 +44,14 @@ export function ChooseElectricianPanel({ jobId }: { jobId: string }) {
             return (
               <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-3">
                 <div className="min-w-0">
-                  <p className="font-semibold">{t.business}{t.usualElectrician && <span className="ml-2 rounded-full bg-mint px-2 py-0.5 text-[11px] font-semibold text-hiv-green">Usual electrician · pre-marked</span>}</p>
+                  <p className="font-semibold">{t.business}</p>
                   <p className="text-xs text-sub">{t.matching ? "Covers this area" : "Outside listed area"} · {t.distanceKm != null ? `${t.distanceKm} km` : t.areaNote} · {t.rate != null ? `PIESA ${money(t.rate)}` : "rate not recorded"}</p>
                   {t.alreadyOffered === "declined" && <p className="text-xs text-sub">Said Not for me on this job</p>}
                   {t.alreadyOffered === "expired" && <p className="text-xs text-sub">Didn't answer in 24 hours last time</p>}
                   {t.blocker && <p className="text-xs text-danger">Can't be offered: {t.blocker}</p>}
                   {t.warnings.length > 0 && <p className="text-xs text-danger">⚠ {t.warnings.join(" · ")}</p>}
                 </div>
-                <button type="button" disabled={blocked || !!busy} onClick={() => void pick(t.id, t.business)} className={cn("min-h-[38px] shrink-0 rounded-[10px] px-3.5 text-[13px] font-bold disabled:opacity-50", t.usualElectrician ? "bg-hiv-green text-white" : "border border-line bg-paper text-hiv-blue")}>{busy === t.id ? "Sending…" : "Send offer"}</button>
+                <button type="button" disabled={blocked || !!busy} onClick={() => void pick(t.id, t.business)} className={cn("min-h-[38px] shrink-0 rounded-[10px] px-3.5 text-[13px] font-bold disabled:opacity-50", "border border-line bg-paper text-hiv-blue")}>{busy === t.id ? "Sending…" : "Send offer"}</button>
               </li>
             );
           })}
