@@ -2,12 +2,12 @@
 // pack went out is sent to the owner on its own once it is added, so the owner holds it and the AP auto-signature
 // (decision 271) can proceed. ONE email per job (O73 "Your insulation warranty", PDF attached), key
 // `warranty-followup:v1:{job}`, then `warranty_copy_provided` is recorded with via "warranty_followup".
-// Wording is a DRAFT (docs/templates/drafts/O73-warranty-followup.html, rendered by scripts/render-decision-363-drafts.ts):
+// Wording APPROVED by Jo 25 Oct 2026, decision 375 (docs/templates/drafts/O73-warranty-followup.html, rendered by scripts/render-decision-363-drafts.ts):
 // WARRANTY_FOLLOWUP_APPROVED stays false until Jo approves it — real owners get nothing and nothing is recorded while it is
 // false; TEST (qa_test) jobs use test-send. PURE: rules, key and the renderer. No I/O.
 import * as K from "./email-kit.core";
 
-export const WARRANTY_FOLLOWUP_APPROVED = false as boolean;
+export const WARRANTY_FOLLOWUP_APPROVED = true as boolean; // Jo approved O73 as drafted, 25 Oct 2026 (decision 375)
 export const WARRANTY_FOLLOWUP_TEMPLATE_CODE = "O73";
 export const WARRANTY_FOLLOWUP_PURPOSE = "warranty_followup";
 /** Recorded once per job BEFORE the email is sent (so a tick never sends twice). */

@@ -14,7 +14,7 @@ const due: WarrantyFollowupFacts = { installCompleted: true, deleted: false, mis
 
 describe("decision 363: warranty follow-up rules and the O73 draft", () => {
   test("held until Jo approves; key, code and the new recorder via", () => {
-    expect(WARRANTY_FOLLOWUP_APPROVED).toBe(false);
+    expect(WARRANTY_FOLLOWUP_APPROVED).toBe(true);
     expect(WARRANTY_FOLLOWUP_TEMPLATE_CODE).toBe("O73");
     expect(warrantyFollowupKey("j1")).toBe("warranty-followup:v1:j1");
     expect(WARRANTY_VIA_LABEL.warranty_followup).toContain("decision 363");
@@ -94,12 +94,11 @@ describe("sweepWarrantyFollowups (mocked backend)", () => {
     expect(sent.test).toEqual([]);
     expect(tables["workflow_events"]!).toHaveLength(1);
   });
-  test("real owner while the wording is a draft: held, nothing sent or recorded (the step goes once approved)", async () => {
+  test("real owner: approved wording (decision 375) goes through the guarded owner sender", async () => {
     reset("website");
     const { sendWarrantyFollowup } = await import("../src/lib/warranty-followup.server");
-    expect(await sendWarrantyFollowup("J")).toBe("held — wording awaiting approval");
-    expect(sent.guarded).toEqual([]);
-    expect(tables["workflow_events"]!).toHaveLength(1);
+    expect(await sendWarrantyFollowup("J")).not.toBe("held — wording awaiting approval");
+    expect(sent.guarded.length).toBe(1);
   });
   test("the tick runs the sweep after the completion pack and before the AP auto-signature", () => {
     const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
