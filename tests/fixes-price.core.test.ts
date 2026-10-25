@@ -126,9 +126,9 @@ describe("buildA4FixesQuote", () => {
     expect(q.marginIncGst).toBe(0);
   });
   test("decision 351: the margin follows WHOSE electrician on both routes — installer's own = pass-through, ours = +$100", () => {
-    // installer's own / usual / nominated electrician (A1 or A2) → no markup ever
+    // installer's own / usual / nominated electrician (A1 only since decision 374) → no markup ever
     expect(fixesMarginFor("installer_usual")).toBe(0);
-    // our (HIV-supplied) electrician → +$100 (decision 142), including on A1 jobs
+    // our (HIV-supplied) electrician → +$100 (decision 142), including on A1 jobs and ALWAYS on our leads (decision 374)
     expect(fixesMarginFor("ours")).toBe(RECTIFICATION_MARGIN_INC_GST);
     expect(fixesMarginFor()).toBe(RECTIFICATION_MARGIN_INC_GST);
     expect(RECTIFICATION_MARGIN_INC_GST).toBe(100);

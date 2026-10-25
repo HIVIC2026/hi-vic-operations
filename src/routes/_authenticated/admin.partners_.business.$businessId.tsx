@@ -85,7 +85,7 @@ function BusinessFile() {
         </Panel>
         <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
         {f.canBeUsualElectrician && <Panel title="Usual electrician" action={f.usual ? <Link to="/admin/partners/business/$businessId" params={{ businessId: f.usual.id }} className="text-sm font-semibold text-hiv-blue hover:underline">Open {f.usual.name} ›</Link> : undefined}>
-          <dl data-why="157/173: the installer's usual electrician does the PIESA">
+          <dl data-why="289/374: the usual electrician is an option on the installer's own customers (A1); on our leads we always choose the electrician">
             {f.usual ? <>
               <Row k="Business">{f.usual.name} · {f.usual.approved ? "approved REC" : <Pill tone="rose">not approved yet</Pill>}</Row>
               <Row k="REC">{f.usual.rec ?? "—"}</Row>

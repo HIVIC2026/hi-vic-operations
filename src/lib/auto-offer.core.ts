@@ -1,8 +1,9 @@
 // Decision 246 (Jo 24 Oct 2026): automatic offers by coverage, two switches, both OFF until Jo turns them on.
 // "Automatic installer offers": the Choose installer offer goes to ONE approved installer whose Coverage includes
 // the postcode, picked by fewest active jobs then nearest. "Automatic electrician offers": the PIESA offer goes to
-// the installer's usual electrician (approved REC), else the nearest approved REC whose coverage includes the
-// postcode. Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
+// the nearest approved REC whose coverage includes the postcode (decision 374, Jo 25 Oct 2026: "we ALWAYS choose the
+// electrician – not the installer choosing" — on our leads the installer's usual electrician no longer gets first go;
+// only installer-supplied jobs (A1) put the electrician chosen at Add a job first, `autoOfferPreferredElectrician`). Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
 // to the office (Needs me "Choose again"). With a switch off the office picks as today (decisions 49, 157, 220).
 // Pure rules only: who gets the next automatic offer, or why nobody does. The existing guarded offer senders
 // (officePickReadyCheckInstaller / startPiesaAllocation) still check every gate before anything is written.
@@ -94,7 +95,14 @@ export function rankAutoInstallers(cands: AutoOfferCandidate[], tried: Set<strin
     .sort((a, b) => a.activeJobs - b.activeJobs || byDistance(a, b) || a.name.localeCompare(b.name));
 }
 
-/** Electricians: the installer's usual electrician first (when eligible), then nearest, then fewest active jobs, then name. */
+/** Decision 374: the electrician that goes first. Our leads (A2): nobody — we choose (nearest approved REC covering the
+ *  postcode), even when the quoted installer has a usual electrician. Installer-supplied jobs (A1): the electrician the
+ *  installer chose for this job (their preferred / usual REC), when eligible. */
+export function autoOfferPreferredElectrician(i: { channel: string | null | undefined; a1PreferredBusinessId: string | null | undefined }): string | null {
+  return i.channel === "installer_sourced" ? i.a1PreferredBusinessId ?? null : null;
+}
+
+/** Electricians: the preferred electrician first (A1 only, `autoOfferPreferredElectrician`; when eligible), then nearest, then fewest active jobs, then name. */
 export function rankAutoElectricians(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), usualBusinessId: string | null = null, jobIsTest = false): AutoOfferCandidate[] {
   return cands.filter((c) => !autoOfferExclusion(c, tried, jobIsTest))
     .sort((a, b) => Number(b.business_id === usualBusinessId) - Number(a.business_id === usualBusinessId) || byDistance(a, b) || a.activeJobs - b.activeJobs || a.name.localeCompare(b.name));

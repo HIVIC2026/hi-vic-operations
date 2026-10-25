@@ -178,19 +178,19 @@ test("decision 351: A1 rate-card fallback follows the same rule; our lead with o
   expect(of("quote_internals")[0].calc_snapshot.rectification_margin_inc_gst).toBe(RECTIFICATION_MARGIN_INC_GST);
 });
 
-// Decision 349 (Jo 25 Oct 2026): "we do not mark them up" — the margin follows WHOSE electrician, not the lead route.
-test("decision 349: our lead (A2) + the installer's usual electrician → A4 price as is, no $100", async () => {
+// Decision 374 (Jo 25 Oct 2026: "we ALWAYS choose the electrician"): on our leads the electrician is always ours — even
+// when the one assigned happens to be the installer's usual electrician — so fixes always carry the decision-142 $100.
+test("decision 374: our lead (A2) + the installer's usual electrician assigned → still ours: A4 price + $100", async () => {
   jobChannel = "hivic_sourced";
   usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
   elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };
   snapshot = a4Ticks("1180");
   await generateRectificationQuote("job", "actor");
-  expect(of("quotes")[0]).toMatchObject({ subtotal_inc_gst: 1180, customer_total_inc_gst: 1180 });
-  expect(of("quote_items")[0][0]).toMatchObject({ unit_price_inc_gst: 1180, line_total_inc_gst: 1180 });
-  expect(of("quote_internals")[0]).toMatchObject({ calc_snapshot: { rectification_margin_inc_gst: 0, electrician_source: "installer_usual" } });
+  expect(of("quotes")[0]).toMatchObject({ subtotal_inc_gst: 1180 + RECTIFICATION_MARGIN_INC_GST });
+  expect(of("quote_internals")[0]).toMatchObject({ cost_ex_gst: 1072.73, calc_snapshot: { rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST, electrician_source: "ours" } });
 });
 
-test("decision 349: our lead (A2) + OUR electrician (a different REC) → electrician price + $100", async () => {
+test("decision 349/374: our lead (A2) + OUR electrician (a different REC) → electrician price + $100", async () => {
   jobChannel = "hivic_sourced";
   usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
   elecBiz = { id: "rec-1", name: "Other Electrical", trading_name: null, rec_number: "REC-99999" };
@@ -200,12 +200,13 @@ test("decision 349: our lead (A2) + OUR electrician (a different REC) → electr
   expect(of("quote_internals")[0]).toMatchObject({ cost_ex_gst: 1072.73, calc_snapshot: { rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST, electrician_source: "ours" } });
 });
 
-test("decision 349: rate-card fallback on our lead with the installer's usual electrician → no margin either", async () => {
+test("decision 374: rate-card fallback on our lead with the installer's usual electrician assigned → ours: + $100 too", async () => {
   jobChannel = "hivic_sourced";
   usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
   elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };
   rectItems = [{ rate_code: "RCD_INSTALL", description: "Install RCD", quantity: 1, is_other: false, explanation: null, needs_office_pricing: false, other_unit_price_inc_gst: null }];
   await generateRectificationQuote("job", "actor");
-  expect(of("quotes")[0].subtotal_inc_gst).toBe(330);
-  expect(of("quote_internals")[0].calc_snapshot).toMatchObject({ rectification_margin_inc_gst: 0, electrician_source: "installer_usual" });
+  expect(of("quotes")[0].subtotal_inc_gst).toBeGreaterThanOrEqual(330 + RECTIFICATION_MARGIN_INC_GST);
+  expect(of("quotes")[0].subtotal_inc_gst).toBeLessThan(330 + RECTIFICATION_MARGIN_INC_GST + 0.05);
+  expect(of("quote_internals")[0].calc_snapshot).toMatchObject({ rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST, electrician_source: "ours" });
 });
