@@ -5,16 +5,18 @@
 // Everything else (measurements, insulation, removal, product, price, electrician) is answered in the Mitti form.
 // Uses only the existing guarded server handler (startOnsiteReadyCheck); intake validation is unchanged.
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { CustomerFields, FieldError } from "./customer-fields";
-import { onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
+import { addJobOptions, onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput, OnsiteState } from "@/lib/onsite-ready-check.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
+import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceOptions, electricianChoiceProblem, type ElectricianChoice } from "@/lib/electrician-choice.core";
 import {
-  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, OWNER_CARD_TITLE, SAVE_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer,
+  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer,
   saveErrorMessage, visitPayload, visitProblems, type AddJobBooking, type VisitPick,
 } from "@/lib/add-job-flow.core";
 import { firstName } from "@/lib/installer-screens.core";
@@ -25,7 +27,7 @@ export const PRIMARY_BTN = "flex min-h-14 w-full items-center justify-center rou
 const CARD = "rounded-[18px] bg-mist p-4";
 const CARD_TITLE = "font-display text-[17px] font-bold text-ink";
 
-type Saved = { jobId: string; jobNumber: string | null; booking: AddJobBooking; state?: OnsiteState; customer: OnsiteInput; visit: VisitPick };
+type Saved = { jobId: string; jobNumber: string | null; booking: AddJobBooking; state?: OnsiteState; customer: OnsiteInput; visit: VisitPick; electrician: { choice: ElectricianChoice; usualName: string | null } };
 
 // `onExit` is kept for existing callers/fixtures; the one-screen mock-up has no Cancel button (My work is a tab).
 export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit?: () => void; onReset?: () => void }) {
@@ -37,6 +39,13 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   const [saved, setSaved] = useState<Saved | null>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
+  // Decision 289: the one electrician question. "My usual electrician (<name>)" exists only while one is saved in My
+  // business and is the default then; otherwise Home Insulation Victoria's electrician is the only (and default) choice.
+  const loadOptions = useServerFn(addJobOptions);
+  const options = useQuery({ queryKey: ["add-job-options", businessId], queryFn: () => loadOptions({ data: { businessId } }), retry: 1 });
+  const usual = options.data?.usualElectrician ?? null;
+  const [electrician, setElectrician] = useState<ElectricianChoice | null>(null);
+  useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(usual)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
   useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setCustomer(restoreCustomer(JSON.parse(d))); } catch { /* ignore */ } }, []);
@@ -47,11 +56,12 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
 
   const start = useServerFn(startOnsiteReadyCheck);
 
-  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); onReset?.(); }} />;
+  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(usual)); onReset?.(); }} />;
 
   const problems = (): string[] => {
     const v = visitPayload(visit);
-    return [...customerProblems(customer), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
+    const ecp = electricianChoiceProblem(electrician, usual);
+    return [...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
   };
 
   const save = async () => {
@@ -60,9 +70,10 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit) } });
+      const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(usual);
+      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), electricianChoice: choice } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit });
+      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: usual?.name ?? null } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -76,6 +87,19 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
         <div className="mt-3.5"><CustomerFields value={customer} consentLabel={OWNER_CONTACT_PERMISSION} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
       </section>
+      <fieldset className={CARD} data-electrician-choice>
+        <legend className="sr-only">{ELECTRICIAN_CHOICE_QUESTION}</legend>
+        <p className={CARD_TITLE} aria-hidden>{ELECTRICIAN_CARD.title}</p>
+        <p className="mt-0.5 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.sub}</p>
+        <p className="mt-3 text-[15px] font-bold">{ELECTRICIAN_CHOICE_QUESTION}</p>
+        {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : electricianChoiceOptions(usual).map((o) => (
+          <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
+            <input type="radio" name="add-job-electrician" value={o.value} checked={electrician === o.value} disabled={busy} onChange={() => { setElectrician(o.value); setErr(null); }} />{o.label}
+          </label>
+        ))}
+        {options.isSuccess && !usual && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.noUsual}</p>}
+        <FieldError>{errors.electrician}</FieldError>
+      </fieldset>
       <VisitField value={visit} onChange={setVisit} disabled={busy} error={errors.visit} />
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
       <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err ? "Retry submission" : SAVE_LABEL}</button>
@@ -132,7 +156,7 @@ function SavedResult({ saved, onAddAnother }: { saved: Saved; onAddAnother: () =
   const o = outcomeFor({ booking: saved.booking, state });
   const form = state ? formLabel(state) : null;
   const c = saved.customer;
-  const v = addedView({ jobNumber: saved.jobNumber, address: [c.address_line, c.suburb].filter((x) => x.trim()).join(", "), ownerName: c.full_name, phone: c.phone, ownerFirstName: firstName(c.full_name), booking: saved.booking, visit: saved.visit, state });
+  const v = addedView({ jobNumber: saved.jobNumber, address: [c.address_line, c.suburb].filter((x) => x.trim()).join(", "), ownerName: c.full_name, phone: c.phone, ownerFirstName: firstName(c.full_name), booking: saved.booking, visit: saved.visit, state, electrician: saved.electrician });
   return (
     <div className="space-y-5" data-saved data-outcome={o.tone} data-onsite-state={state?.kind ?? "none"} data-booking={saved.booking}>
       <section className="rounded-[18px] border-2 border-hiv-green bg-[#E9FBF1] px-4 py-[22px] text-center" data-added-header>

@@ -1,7 +1,7 @@
 // Jo 23 Oct 2026: new Mitti Ready Check answers (A1 + A2). Pure — no database, no network.
 // Reads the flat form snapshot ({label, value}); repeated per-area labels are all scanned.
 import { norm, num, yesNo } from "./mitti.core";
-import { isNoSafeAccess, isR2OrAbove, LEAN_Q, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
+import { isNoSafeAccess, isR2OrAbove, LEAN_Q, LEAN_REMOVE, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
 
 type E = { label: string; value: unknown };
 const vals = (entries: E[], labels: string[], prefix = false) => {
@@ -51,13 +51,23 @@ export function removalTotalM2(entries: E[]): number | null {
   return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100 : null;
 }
 
-/** A2 difficult access charge (Ready Check Outcome, Jo 23 Oct): "Is there a difficult access charge?" Yes → amount. */
+/** LEGACY forms only (decision 290, Jo 25 Oct 2026: the charge/fee pair is deleted from A1 and A2). Old A1 forms that
+ *  still carry "Is there a difficult access charge?" Yes + an amount are read so the installer line can say the total
+ *  includes it; the A2 quote no longer reads a fee from the form (the office decides any access charge from the rating). */
 export function difficultAccessFee(entries: E[]): { amountIncGst: number | null; reason: string | null } {
-  const charged = vals(entries, ["Is there a difficult access charge?"]).some((v) => yesNo(v) === true);
+  const charged = vals(entries, [LEAN_REMOVE.accessCharge]).some((v) => yesNo(v) === true);
   if (!charged) return { amountIncGst: null, reason: null };
-  const fees = vals(entries, ["Difficult access fee ($ inc GST)"]).map((v) => num(v));
+  const fees = vals(entries, [LEAN_REMOVE.accessFee]).map((v) => num(v));
   if (!fees.length || fees.some((n) => n == null || n <= 0)) return { amountIncGst: null, reason: "Office needs to: confirm the difficult access fee – the amount is missing or not a number" };
   return { amountIncGst: Math.round((fees as number[]).reduce((a, b) => a + b, 0) * 100) / 100, reason: null };
+}
+
+/** Decision 290: the access FLAG the boss's price card shows — the rating ("How would you rate the ceiling access?")
+ *  and every per-area issue note. Nothing is priced from it. Unknown → nulls, never guessed. */
+export function accessFlagFromEntries(entries: E[]): { rating: string | null; issues: string[] } {
+  const rating = vals(entries, [LEAN_Q.access, "How easy is the ceiling access?"])[0] ?? null;
+  const issues = [...new Set(vals(entries, [LEAN_Q.issueNote, "Please explain"]))];
+  return { rating, issues };
 }
 
 /** A1: the installer ticked "Difficult access charge" in "What's included in your quote?" (already inside their total). */

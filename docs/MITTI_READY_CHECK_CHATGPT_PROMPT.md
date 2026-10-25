@@ -64,61 +64,60 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 ## Group 3: Roof and access
 11. `What type of roof does the home have?` — Pick one: `Tiles` / `Metal sheet` / `Other` — Required (no "describe" text box)
 12. `How would you rate the ceiling access?` — Pick one: `Easy` / `Standard` / `Difficult` / `No safe access` — Required — note required on `Difficult` and on `No safe access` — help text: `No safe access: take the access photo, then go to the last page and answer "No - Ready Check failed".`
-13. `Is there a difficult access charge?` — Yes/No — Required — only show when question 12 = `Difficult`
-14. `Difficult access fee ($ inc GST)` — Number — Required — only show when question 13 = `Yes` — help text **A1:** `Included in the price your business owner enters in the portal; it is shown on the owner's quote.` — help text **A2:** `Your charge to Home Insulation Victoria. Never discussed with the owner.`
-15. `Upload a clear photo of the ceiling access point` — Photo — Not required
+13. `Upload a clear photo of the ceiling access point` — Photo — Not required
 
 ## Group 4: Ceiling areas (repeating section, button `Add a ceiling area`; the installer adds one per area)
 **REMOVE, and do not carry over from the old templates (both A1 and A2):**
 - the per-area sketch upload — A1 wording `Upload your area sketch or floor plan.` (with help text "Rough is fine. Mark this ceiling area and show the measurements used."), A2 wording `Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.` — it exists once in every one of the 22 old A1 area blocks and 21 old A2 area blocks; the software now draws the diagram itself (decision 211);
 - `What is the measured insulation depth (mm)?` (22 / 21 copies);
 - `Please describe the existing insulation type` (22 / 21 copies);
-- `Please explain` under the issues question (22 / 21 copies) — replaced by questions 31 and 32 below (Mitti cannot require a note on a photo, so the note is its own question);
+- `Please explain` under the issues question (22 / 21 copies) — replaced by questions 29 and 30 below (Mitti cannot require a note on a photo, so the note is its own question);
 - the question `How many ceiling areas need to be measured separately?` with its six branches `── Ceiling Area 1 ──` … `── Ceiling Area 6 ──` and every fixed area copy 2–22 inside them — replaced by the ONE repeating group below;
 - the A1 field `CLICK ON ME to add a ceiling area` — replaced by the repeating group's own button `Add a ceiling area`;
-- the single m² entry `Enter the measured ceiling area (m²)` (replaced by questions 17 and 18).
-Also do not carry over `What is the property type?` (the "Other" text under Property type), `Describe the roof type`,
+- the single m² entry `Enter the measured ceiling area (m²)` (replaced by questions 15 and 16).
+Also do not carry over `Is there a difficult access charge?` or `Difficult access fee ($ inc GST)` (decision 290, Jo 25 Oct
+2026: the access rating, the access photo and the issues note are the flag; nothing replaces them), and do not carry over `What is the property type?` (the "Other" text under Property type), `Describe the roof type`,
 `Please explain why the access is difficult`, `Please explain why there is no safe access`, or `Difficult access` as an
 option anywhere. The new group below is complete as written.
-16. `Which part of the home does this ceiling area cover?` — Text — Required — help text: `Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.`
-17. `Length (m)` — Number — Required — help text (on this question only): `Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.`
-18. `Width (m)` — Number — Required
-19. `How was this ceiling area measured?` — Pick one: `Laser measure` / `Tape measure` / `Floor plan` / `Other` — Required
-20. `Tell us how you measured it` — Text — Required — only show when question 19 = `Other`
-21. `Is there existing insulation in this ceiling area?` — Yes/No — Required
-22. `What type of existing insulation is installed? Select all that apply` — Tick all: `Batts` / `Loose fill` / `Other` — Required — only show when question 21 = `Yes`
-23. `What is the determined R value of the existing ceiling insulation?` — Pick one: `Below R2.0` / `R2.0 or above` — Required — only show when question 21 = `Yes` — help text: `R2.0 exactly counts as "R2.0 or above". Typical old 50–70 mm batts or thin loose fill are Below R2.0.`
-24. `Upload a photo clearly showing the measured insulation depth` — Photo — Not required — only show when question 21 = `Yes`
-25. `What is required for the existing insulation?` — Pick one: `Remove` / `Top up` / `Not sure` — Required — only show when question 21 = `Yes`
-26. `How much existing insulation needs to be removed? (m²)` — Number — Required — only show when question 25 = `Remove`
-27. `Slow 360° video of this ceiling area, lit, saying its name` — Video (video attachment with location on) — Required — help text: `This is the before video the rebate needs. Show any existing insulation.`
-28. `Are there recessed downlights in this ceiling area?` — Yes/No — Required
-29. `How many recessed downlights?` — Number — Required — only show when question 28 = `Yes`
-30. `Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards` — Yes/No — Required
-31. `What is the issue, and where is it in this area?` — Text — Required — only show when question 30 = `Yes`
-32. `Describe the issue and add a photo` — Photo — Required — only show when question 30 = `Yes`
+14. `Which part of the home does this ceiling area cover?` — Text — Required — help text: `Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.`
+15. `Length (m)` — Number — Required — help text (on this question only): `Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.`
+16. `Width (m)` — Number — Required
+17. `How was this ceiling area measured?` — Pick one: `Laser measure` / `Tape measure` / `Floor plan` / `Other` — Required
+18. `Tell us how you measured it` — Text — Required — only show when question 17 = `Other`
+19. `Is there existing insulation in this ceiling area?` — Yes/No — Required
+20. `What type of existing insulation is installed? Select all that apply` — Tick all: `Batts` / `Loose fill` / `Other` — Required — only show when question 19 = `Yes`
+21. `What is the determined R value of the existing ceiling insulation?` — Pick one: `Below R2.0` / `R2.0 or above` — Required — only show when question 19 = `Yes` — help text: `R2.0 exactly counts as "R2.0 or above". Typical old 50–70 mm batts or thin loose fill are Below R2.0.`
+22. `Upload a photo clearly showing the measured insulation depth` — Photo — Not required — only show when question 19 = `Yes`
+23. `What is required for the existing insulation?` — Pick one: `Remove` / `Top up` / `Not sure` — Required — only show when question 19 = `Yes`
+24. `How much existing insulation needs to be removed? (m²)` — Number — Required — only show when question 23 = `Remove`
+25. `Slow 360° video of this ceiling area, lit, saying its name` — Video (video attachment with location on) — Required — help text: `This is the before video the rebate needs. Show any existing insulation.`
+26. `Are there recessed downlights in this ceiling area?` — Yes/No — Required
+27. `How many recessed downlights?` — Number — Required — only show when question 26 = `Yes`
+28. `Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards` — Yes/No — Required
+29. `What is the issue, and where is it in this area?` — Text — Required — only show when question 28 = `Yes`
+30. `Describe the issue and add a photo` — Photo — Required — only show when question 28 = `Yes`
 
 ## Group 5: Product and result
-33. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` / `ECOWOOL R5` — Required — always shown (NOT only when the Ready Check passed)
-34. `Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?` — Pick one: `Yes - Ready Check passed` / `No - Ready Check failed` — Required — help text: `The portal also applies the eligibility rules from your answers above.`
-35. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 34 = `No - Ready Check failed`
-36. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
+31. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` / `ECOWOOL R5` — Required — always shown (NOT only when the Ready Check passed)
+32. `Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?` — Pick one: `Yes - Ready Check passed` / `No - Ready Check failed` — Required — help text: `The portal also applies the eligibility rules from your answers above.`
+33. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 32 = `No - Ready Check failed`
+34. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
 
 **No quote page on A1 (decision 278, Jo 25 Oct 2026).** The old A1 page `Your quote to the homeowner` is DELETED and must
 not be rebuilt: no `What’s included in your quote?`, `What else is included?`, `Total quoted price (inc GST)`,
 `Who is doing the electrical safety check?`, `Electrician name`, `Electrician licence number` or `Electrician price (inc GST)`
 question anywhere, on either template. The business owner enters the price, what is included and the electrician in our
-portal, never in Mitti (**A1 only** difference: A1 simply has no question 36 and no quote page).
+portal, never in Mitti (**A1 only** difference: A1 simply has no question 34 and no quote page).
 
 ## Group 6: Sign
-37. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
+35. **A1:** `I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 36 questions and A2 has 37** (Group 4
-counted once; A2 = questions 1–37, A1 = questions 1–35 and 37), in this order; every "only show when" rule;
-Required exactly as marked (the three Photo questions 15, 24 and 27 are the only optional ones); location on for every
-Photo; the repeating section adds a complete copy of questions 16–32 each time; the eight product options spelled
+Finish with a checklist I can use to verify each published template: **A1 has 34 questions and A2 has 35** (Group 4
+counted once; A2 = questions 1–35, A1 = questions 1–33 and 35), in this order; every "only show when" rule;
+Required exactly as marked (the three Photo questions 13, 22 and 25 are the only optional ones); location on for every
+Photo; the repeating section adds a complete copy of questions 14–30 each time; the eight product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each
 **template ID** (in the web address when the template is open, or under the template's settings), because I must send
 both IDs to my software team. Also remind me to keep the old A1 and A2 templates unpublished but not deleted until every

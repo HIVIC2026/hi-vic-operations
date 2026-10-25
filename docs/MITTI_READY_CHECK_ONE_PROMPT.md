@@ -1,5 +1,10 @@
 # The one Ready Check prompt for ChatGPT (25 Oct 2026) — replaces the "tidy" and "final fixes" prompts
 
+Item 5 = decision 278 (no price in Mitti); item 6 = decision 290 as corrected by Jo ("they already say if it's difficult
+access and why"): the charge/fee pair is simply deleted from both templates, nothing added. After publishing, A1 has 34
+questions and A2 has 35 (the ceiling-area section counted once). `tests/lean-ready-check.test.ts` fails if this file
+drifts from `src/lib/ready-check-lean.core.ts`.
+
 Paste everything below the line into ChatGPT.
 
 ---
@@ -29,8 +34,12 @@ In A1 ONLY:
    - `Electrician price (inc GST)` (number)
    Do NOT add anything in its place: the business owner enters the price in our portal, not in Mitti; staff doing the
    Ready Check never see a price.
-6. On `Difficult access fee ($ inc GST)` REPLACE the A1 help text with exactly:
-   `Included in the price your business owner enters in the portal; it is shown on the owner's quote.`
+In BOTH templates:
+
+6. In BOTH templates, DELETE the question `Is there a difficult access charge?` and the question `Difficult access fee ($ inc GST)`
+   (on the Roof and access page), including every "only show when" rule that points at them. Do NOT add anything in
+   their place: the existing `How would you rate the ceiling access?` rating, the access photo and the issues note already
+   say whether access is difficult and why; the business owner (A1) or the office (A2) decides any access charge.
 
 If Mitti cannot calculate across the repeating block or the Ceiling Area 1–6 branches, say so before changing anything
 and tell me the closest thing it can do.
