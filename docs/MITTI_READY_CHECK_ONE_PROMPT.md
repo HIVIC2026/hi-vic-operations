@@ -36,3 +36,26 @@ If Mitti cannot calculate across the repeating block or the Ceiling Area 1–6 b
 and tell me the closest thing it can do.
 
 Publish both templates.
+
+---
+
+## Add-on (paste after the first prompt has finished, same ChatGPT chat)
+
+Three more changes on the SAME templates (A1 and A2), then publish both:
+
+7. Keep ONLY the repeating "add a ceiling area" block as the way to enter areas: DELETE the question
+   `How many ceiling areas need to be measured separately?` (and its help text and any rule that depends on it) and DELETE
+   the fixed sections `Ceiling Area 1` to `Ceiling Area 6` (headers and all their questions) — they duplicate the repeating
+   block. Before deleting, confirm the repeating block has every area question the fixed sections have; copy across any it
+   is missing. Rename the repeating block's labels from `CLICK ON ME to add a ceiling area` to exactly `Add a ceiling area`.
+8. On `What is required for the existing insulation?` (A1: `What needs to happen to it?`) make the answers Remove / Top up /
+   Not sure all NEUTRAL (grey/blue) — none red or green; they are facts, not problems. Same for the insulation-type
+   tick-all question if any of its answers are coloured.
+9. DELETE the questions `Is there a difficult access charge?` and `Difficult access fee ($ inc GST)` on both templates
+   (nothing replaces them; the ceiling-access rating and photo stay).
+
+For item 3 of the first prompt: Mitti DOES support calculated fields (formula with item references) — use one for each
+area's m² and for `Total ceiling area (m²)`.
+
+Make these on the LIVE templates `A1 – Ready Check | Installer-Supplied Customer` and `A2 – Ready Check | HIVIC Sourced
+Customer`, not on any "- duplicate" copy. If you created a duplicate, delete it when done.
