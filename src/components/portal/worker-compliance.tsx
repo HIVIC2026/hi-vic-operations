@@ -5,7 +5,7 @@ import { AlertTriangle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { addLicenceExpiry, myTeamCompliance, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+import { addLicenceExpiry, myTeamCompliance, officeDecideWhiteCard, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWhiteCardFileUrl, officeWorkerCompliance, piisaUploadSlot, saveWhiteCard, savePiisa, whiteCardUploadSlot } from "@/lib/worker-compliance.functions";
 import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
 import { sendCollectionNoticeLink } from "@/lib/trade-view.functions";
 import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
@@ -169,5 +169,58 @@ export function CertLinkInline({ workerId, name }: { workerId: string; name: str
       }}>{busy ? "Creating…" : `Create certificate link for ${name.split(" ")[0]}`}</Button>
       {err && <span role="alert" className="text-xs text-destructive">{err}</span>}
     </span>
+  );
+}
+
+/** Decision 319: upload a White Card (construction induction card) for one installer — the person themself or their
+ *  business owner (same permission as PIISA). Private file; the office verifies it once. */
+export function WhiteCardUploadInline({ workerId, onDone }: { workerId: string; onDone?: () => void }) {
+  const slot = useServerFn(whiteCardUploadSlot); const save = useServerFn(saveWhiteCard);
+  const [file, setFile] = useState<File | null>(null); const [number, setNumber] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [done, setDone] = useState(false);
+  if (done) return <span className="text-[13px] font-semibold text-estimate-green">White Card uploaded — office checking.</span>;
+  const submit = async () => {
+    if (!file) return;
+    const type = file.type as "application/pdf" | "image/jpeg" | "image/png";
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(type)) { setErr("Upload a PDF, JPG or PNG."); return; }
+    setBusy(true); setErr("");
+    try {
+      const s = await slot({ data: { workerId, contentType: type, size: file.size } });
+      const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(s.path, s.token, file, { contentType: type });
+      if (error) throw new Error("Upload failed. Please try again.");
+      await save({ data: { workerId, path: s.path, ...(number.trim() ? { number: number.trim() } : {}) } });
+      setDone(true); onDone?.();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-2 w-full space-y-2" data-white-card-upload>
+      <label className="block text-sm font-medium">White Card (photo or PDF)<Input type="file" accept="application/pdf,image/jpeg,image/png" className="mt-1 h-12" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+      <label className="block text-sm font-medium">Card number (optional)<Input className="mt-1 h-12" value={number} onChange={(e) => setNumber(e.target.value)} /></label>
+      <Button className="h-12 w-full" disabled={!file || busy} onClick={() => void submit()}>{busy ? "Uploading…" : "Upload White Card"}</Button>
+      {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+/** Decision 319, office: open the uploaded White Card and verify it once, or say why it wasn't accepted. */
+export function WhiteCardOfficeInline({ workerId, number: initial, onDone }: { workerId: string; number?: string | null; onDone?: () => void }) {
+  const decide = useServerFn(officeDecideWhiteCard); const file = useServerFn(officeWhiteCardFileUrl);
+  const [number, setNumber] = useState(initial ?? ""); const [reason, setReason] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const run = async (verified: boolean) => {
+    setBusy(true); setErr("");
+    try { await decide({ data: { workerId, verified, ...(number.trim() ? { number: number.trim() } : {}), ...(!verified ? { reason: reason.trim() } : {}) } }); onDone?.(); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+  };
+  const field = "h-9 rounded-md border border-input bg-background px-2 text-sm";
+  return (
+    <div className="flex flex-wrap items-end gap-2" data-white-card-office>
+      <Button size="sm" variant="outline" onClick={async () => { try { const u = await file({ data: { workerId } }); if (u.url) window.open(u.url, "_blank", "noopener"); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't open"); } }}>View White Card</Button>
+      <label className="text-xs">Card no.<br /><input className={`${field} w-32`} aria-label="White Card number" value={number} onChange={(e) => setNumber(e.target.value)} /></label>
+      <Button size="sm" disabled={busy} onClick={() => void run(true)}><Check className="mr-1 h-4 w-4" />Verify White Card</Button>
+      <label className="text-xs">Why not accepted<br /><input className={`${field} w-40`} aria-label="Why the White Card was not accepted" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      <Button size="sm" variant="outline" disabled={busy || !reason.trim()} onClick={() => void run(false)}>Not accepted</Button>
+      {err && <span role="alert" className="text-xs text-destructive">{err}</span>}
+    </div>
   );
 }

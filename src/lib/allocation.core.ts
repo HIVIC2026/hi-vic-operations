@@ -352,7 +352,7 @@ export type NeedsCode =
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
-  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
+  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "white_card_not_verified" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_onsite_install_start";
@@ -391,6 +391,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   esc_update_registry: { why: "Install date moved after the ESC notification was submitted. Update notification in Registry.", next: "Update the notification in the Registry, then record the update with the date and reference.", tab: "compliance", urgency: "urgent" },
   esc_withdraw_resubmit: { why: "Install date moved beyond the notification's 5-day window. Withdraw and resubmit.", next: "Withdraw the old notification in the Registry, submit a new one, then record it.", tab: "compliance", urgency: "urgent" },
   prestart_failed: { why: "Pre-start check failed. Installation form and evidence are locked.", next: "Fix each reason listed; the check re-runs automatically within 15 minutes.", tab: "compliance", urgency: "urgent" },
+  white_card_not_verified: { why: "The lead installer's White Card is not verified (decision 319). Installs booked from 26 Oct 2026 are blocked until it is; earlier bookings go ahead.", next: "Open Partners › People, ask the installer to upload their White Card under My business › Team, then verify it.", tab: "overview", urgency: "today" },
   cert_rerecord_needed: { why: "Lead installer certification has no Full/Provisional level or expiry. Re-record certification as Full with expiry date.", next: "Open Partners, find the installer's certification check and record the level and expiry.", tab: "overview", urgency: "today" },
   install_ten_days_left: { why: "10 days or fewer left in the 30-day installation window and no installation is booked.", next: "Call the owner and the quoted installer and book a day on the Installation section before the window closes.", tab: "compliance", urgency: "urgent" },
   install_days_declined: { why: "The quoted installer could not do any of the owner's install days. The installer is never replaced automatically.", next: "Call the owner and installer to agree a day, or agree a replacement installer with the owner.", tab: "compliance", urgency: "today" },
@@ -449,7 +450,7 @@ export type NeedsInput = {
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
-  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] } | undefined;
+  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[]; whiteCards?: { job_id: string; detail: string }[] } | undefined;
   readyCheckNoTaker?: { job_id: string; created_at: string }[];
   readyCheckReturned?: { job_id: string; created_at: string; detail?: string | undefined }[];
   offerNoTaker?: { job_id: string; kind: string; since: string }[];
@@ -488,6 +489,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.prestart?.esc ?? []) add(e.code as NeedsCode, e.job_id, null, e.detail);
   for (const f of i.prestart?.failed ?? []) add("prestart_failed", f.job_id, f.since, f.detail);
   for (const c of i.prestart?.certs ?? []) add("cert_rerecord_needed", c.job_id, null, c.detail);
+  for (const c of i.prestart?.whiteCards ?? []) add("white_card_not_verified", c.job_id, null, c.detail);
   for (const e of i.escTiming) if (!escTask.has(e.job_id)) add("esc_or_distribution_timing", e.job_id, e.created_at);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) {

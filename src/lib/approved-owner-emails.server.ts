@@ -10,10 +10,16 @@ export async function emailOwnerQuoteReminder(jobId: string, quoteId: string, ki
     render: (f) => renderQuoteReminderEmail({ ...quote, kind, firstName: f.firstName, unsubscribeUrl: null, test: f.test }) });
 }
 
-export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<import("./acceptance-email.core").AcceptanceEmailInput, "firstName" | "installerName" | "myJobUrl" | "test">) {
+export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<import("./acceptance-email.core").AcceptanceEmailInput, "firstName" | "installerName" | "myJobUrl" | "test" | "factsheetAttached">) {
   const { ACCEPTANCE_EMAIL_APPROVED, renderYoureInEmail } = await import("./acceptance-email.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "quote_accepted", key: `youre-in:v1:${quoteId}`, approved: ACCEPTANCE_EMAIL_APPROVED, label: "You're in email", notSentEvent: "youre_in_email_not_sent",
-    render: (f) => renderYoureInEmail({ ...i, firstName: f.firstName, installerName: f.installerName, myJobUrl: f.myJobUrl, test: f.test }) });
+  // Decision 320: the ESC VEU consumer factsheet goes with O22 when it is on file; recorded on the job only after a real send.
+  const { factsheetAttachment, recordFactsheetGiven } = await import("./veu-factsheet.server");
+  const fs = factsheetAttachment();
+  const r = await sendOwnerTemplateEmail({ jobId, purpose: "quote_accepted", key: `youre-in:v1:${quoteId}`, approved: ACCEPTANCE_EMAIL_APPROVED, label: "You're in email", notSentEvent: "youre_in_email_not_sent", ...(fs.attachment ? { attachments: [fs.attachment] } : {}),
+    render: (f) => renderYoureInEmail({ ...i, firstName: f.firstName, installerName: f.installerName, myJobUrl: f.myJobUrl, test: f.test, factsheetAttached: !!fs.attachment }) });
+  const { ownerEmailSent } = await import("./completion-pack.core");
+  await recordFactsheetGiven(jobId, { sent: ownerEmailSent(r), attached: !!fs.attachment, via: "You're in email (O22)", result: r });
+  return r;
 }
 
 export async function emailOwnerSafetyCheckTimes(jobId: string, startsAt: string[], electricianName: string | null, paid: number | null) {
@@ -52,11 +58,25 @@ export async function emailOwnerInstallDayChanged(jobId: string, startIso: strin
     render: (f) => renderInstallDayChangedEmail({ firstName: f.firstName, installerName: f.installerName, installerPhone: f.installerPhone, address: f.address, when: formatInstallDay(startIso), was: formatInstallDay(wasIso), myJobUrl: f.myJobUrl, test: f.test }) });
 }
 
-export async function emailOwnerInstallComplete(jobId: string, i: Omit<import("./completion-emails.core").InstallCompleteInput, "firstName" | "installer" | "test">) {
+export async function emailOwnerInstallComplete(jobId: string, i: Omit<import("./completion-emails.core").InstallCompleteInput, "firstName" | "installer" | "test" | "attachedWarranties">) {
   // Decision 169: this is the day-0 VEEC signing request (one per job by key), sent from veec-reminders.server.ts.
   const { INSTALL_COMPLETE_EMAIL_APPROVED, renderInstallCompleteEmail } = await import("./completion-emails.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent",
-    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
+  // Decision 321: the manufacturer warranty PDF(s) for the installed product(s) go with this email, and
+  // `warranty_copy_provided` is recorded after a confirmed send (no longer waiting for full payment). Missing PDF: send
+  // anyway, record nothing (the AP signature holds with "Warranty copy for <product> not on file").
+  const pw = await import("./product-warranty.server");
+  let decision: Awaited<ReturnType<typeof pw.warrantyDecisionFor>> | null = null;
+  let copies: Awaited<ReturnType<typeof pw.prepareWarrantyCopies>> = { attachments: [], attached: [], missing: [] };
+  try { decision = await pw.warrantyDecisionFor(jobId); copies = await pw.prepareWarrantyCopies(jobId, null, decision); }
+  catch (e) { console.error("All done email: warranty copy skipped", jobId, (e as Error).message); }
+  const attachedNames = copies.attached.map((w) => w.productName);
+  const r = await sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent", ...(copies.attachments.length ? { attachments: copies.attachments } : {}),
+    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, attachedWarranties: attachedNames, test: f.test }) });
+  if (decision) {
+    const { recordWarrantyCopyProvided } = await import("./completion-pack.server");
+    await recordWarrantyCopyProvided(jobId, null, { via: "all_done_email", result: r, decision, attached: copies.attached, missing: copies.missing }).catch((e: Error) => console.error("All done email: warranty record skipped", jobId, e.message));
+  }
+  return r;
 }
 
 /** Decision 209: the installed product line (brand, model, R-value, m², ESC model codes when known) read from the job; null when unknown. */
@@ -76,11 +96,11 @@ export async function emailOwnerFinalInvoice(jobId: string, i: Omit<import("./co
 
 /** Workflow caller: completion-pack.server.ts (install complete + invoice paid), which passes the manufacturer warranty PDF(s) for the installed product(s). */
 export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null,
-  extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[] } = {}) {
+  extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[]; attachedCoes?: boolean } = {}) {
   const { COMPLETION_EMAILS_APPROVED, renderCompletionPackEmail } = await import("./completion-emails.core");
   const installed = await installedLineFor(jobId, installedGiven);
   return sendOwnerTemplateEmail({ jobId, purpose: "completion_pack", key: `completion-pack:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Completion pack email", notSentEvent: "completion_pack_email_not_sent", ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
-    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, attachedWarranties: extras.attachedWarranties ?? [], test: f.test }) });
+    render: (f) => renderCompletionPackEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, downloads, installed, attachedWarranties: extras.attachedWarranties ?? [], attachedCoes: extras.attachedCoes === true, test: f.test }) });
 }
 
 export async function emailOwnerReviewRequest(jobId: string, i: { googleReviewUrl: string; referralUrl: string }) {

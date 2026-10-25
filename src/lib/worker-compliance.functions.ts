@@ -2,7 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { approvalFlags, eecState, licenceWarning, missingItems, piisaState } from "./worker-compliance.core";
+import { approvalFlags, eecState, licenceWarning, missingItems, piisaState, whiteCardState } from "./worker-compliance.core";
 import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 
 const uuid = z.string().uuid();
@@ -35,7 +35,7 @@ export const myTeamCompliance = createServerFn({ method: "POST" }).middleware([r
     const q = admin.from("partner_workers").select(COLS).is("removed_at", null);
     const { data } = ids.length ? await q.or(`business_id.in.(${ids.join(",")}),profile_id.eq.${context.userId}`) : await q.eq("profile_id", context.userId);
     const t = today();
-    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), licenceExpiry: w.licence_expires_on, selfProfile: w.profile_id === context.userId }));
+    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), whiteCard: whiteCardState(w), licenceExpiry: w.licence_expires_on, selfProfile: w.profile_id === context.userId }));
   });
 
 export const addLicenceExpiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -90,7 +90,7 @@ export const officeWorkerCompliance = createServerFn({ method: "POST" }).middlew
       const f = facts.get(w.id);
       const row = f ? { ...w, cii_level: f.level, cii_expires_on: f.expiresOn } : w;
       const cl = f && eecState(w as never) === "verified" ? crewClearance({ certStatus: f.certStatus ?? "verified", level: f.level, expiresOn: f.expiresOn }, t) : null;
-      return { id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(row as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), escNotice: w.collection_notice_acknowledged,
+      return { id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(row as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), whiteCard: whiteCardState(w), escNotice: w.collection_notice_acknowledged,
         cii: cl ? { level: f!.level, expiresOn: f!.expiresOn, cleared: cl.cleared, reason: cl.reason } : null, certNumber: (w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number ?? null };
     }).filter((r) => r.flags.length || r.warning);
   });
@@ -188,5 +188,74 @@ export const officePiisaFileUrl = createServerFn({ method: "POST" }).middleware(
     if (!w?.piisa_certificate_path) throw new Error("No certificate uploaded.");
     const { signFile } = await import("./file-links.server");
     const { data: s } = await signFile("partner-files", w.piisa_certificate_path, 300);
+    return { url: s?.signedUrl ?? null };
+  });
+
+// ---------- White Card per installer person (decision 319, Jo 25 Oct 2026) ----------
+// Same pattern as the PIISA/CII certificate: the person (or their business owner) uploads a photo/PDF of the card into the
+// private partner-files bucket; the office views it and verifies (or rejects) it once. Stored on
+// partner_workers.certification.white_card; each step also writes an append-only admin_config_events row. Nothing is sent.
+
+export const whiteCardUploadSlot = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, contentType: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(10 * 1024 * 1024) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { admin, w } = await canEditWorker(context.supabase as never, context.userId, data.workerId);
+    if (w.trade_role !== "installer") throw new Error("The White Card is for installers.");
+    const { whiteCardPathPrefix } = await import("./worker-compliance.core");
+    const ext = data.contentType === "application/pdf" ? "pdf" : data.contentType === "image/png" ? "png" : "jpg";
+    const path = `${whiteCardPathPrefix(w.id)}${crypto.randomUUID()}.${ext}`;
+    const { data: signed, error } = await admin.storage.from("partner-files").createSignedUploadUrl(path);
+    if (error || !signed) throw new Error("Couldn't prepare the upload. Please try again.");
+    return { path, token: signed.token as string };
+  });
+
+export const saveWhiteCard = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, path: z.string().max(300), number: z.string().trim().max(60).optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { admin, w } = await canEditWorker(context.supabase as never, context.userId, data.workerId);
+    if (w.trade_role !== "installer") throw new Error("The White Card is for installers.");
+    const { whiteCardPathPrefix, withWhiteCardUpload, WHITE_CARD_EVENTS } = await import("./worker-compliance.core");
+    if (!data.path.startsWith(whiteCardPathPrefix(w.id)) || data.path.includes("..")) throw new Error("Invalid upload.");
+    const { data: list } = await admin.storage.from("partner-files").list(`workers/${w.id}`, { search: data.path.split("/").pop() ?? "" });
+    if (!list?.length) throw new Error("Upload not found. Please try again.");
+    { const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server"); const m = allowedUpload(data.path, null); if (!m) throw new Error("That file type isn't accepted."); await verifyStoredUpload("partner-files", data.path, m); }
+    const now = new Date().toISOString();
+    const { error } = await admin.from("partner_workers").update({ certification: withWhiteCardUpload(w.certification, { path: data.path, uploadedAt: now, number: data.number ?? null }) as never }).eq("id", w.id);
+    if (error) throw new Error("Couldn't save. Please try again.");
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: WHITE_CARD_EVENTS.uploaded, summary: "White Card uploaded — office to verify", details: { worker_id: w.id, path: data.path } });
+    return { ok: true };
+  });
+
+/** Office: verify (once) or reject the uploaded White Card. Verified = the person may be lead or crew on new installs. */
+export const officeDecideWhiteCard = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, verified: z.boolean(), number: z.string().trim().max(60).optional(), reason: z.string().trim().max(300).optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, trade_role, certification").eq("id", data.workerId).is("removed_at", null).maybeSingle();
+    if (!w || w.trade_role !== "installer") throw new Error("White Card checks are only for installer workers.");
+    if (!data.verified && !data.reason) throw new Error("Say why the White Card wasn't accepted.");
+    const { withWhiteCardDecision, WHITE_CARD_EVENTS } = await import("./worker-compliance.core");
+    const next = withWhiteCardDecision(w.certification, { verified: data.verified, by: context.userId, at: new Date().toISOString(), number: data.number ?? null, reason: data.reason ?? null });
+    const { error } = await admin.from("partner_workers").update({ certification: next as never }).eq("id", w.id);
+    if (error) throw new Error("Couldn't record the check. Please try again.");
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.verified ? WHITE_CARD_EVENTS.verified : WHITE_CARD_EVENTS.rejected, summary: data.verified ? "White Card verified" : `White Card not accepted: ${data.reason}`, details: { worker_id: w.id, number: data.number ?? null, reason: data.reason ?? null } });
+    return { ok: true };
+  });
+
+/** Office: short-lived signed link to the worker's uploaded White Card (never a public URL). */
+export const officeWhiteCardFileUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("certification").eq("id", data.workerId).maybeSingle();
+    const { whiteCardOf } = await import("./worker-compliance.core");
+    const path = whiteCardOf(w?.certification)?.path ?? null;
+    if (!path) throw new Error("No White Card uploaded.");
+    const { signFile } = await import("./file-links.server");
+    const { data: s } = await signFile("partner-files", path, 300);
     return { url: s?.signedUrl ?? null };
   });

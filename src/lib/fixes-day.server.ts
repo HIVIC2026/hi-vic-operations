@@ -20,7 +20,7 @@ import { MittiError, mittiApi, parseAudit, type MittiCall } from "./mitti.core";
 import { mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { shortAnswersFromEntries } from "./official-short.core";
 import {
-  FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
+  FIXES_COES_DOC_TITLE, FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
   FIXES_TEMPLATE_COLUMN, FIXES_TEMPLATE_MISSING, FIXES_TEMPLATE_PENDING_DB,
   fixesCompletionPlan, fixesDayMissingQuestions, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
 } from "./fixes-day.core";
@@ -283,7 +283,7 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   }
   // 2. Files with the job: CoES + finished-work photo(s) + Mitti's own report.
   const saved = await saveFixesFiles(jobId, auditId, [
-    { label: "Certificate of Electrical Safety", title: "PIESA evidence – Certificate of Electrical Safety (photo or PDF)", media: plan.coesFiles },
+    { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
     { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
   ], fetchMedia);
   const { saveMittiReport } = await import("./mitti.server");

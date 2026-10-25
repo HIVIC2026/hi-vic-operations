@@ -2,6 +2,7 @@
 import { EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
+import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
 export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
@@ -60,7 +61,8 @@ export function prestartRunAt(startIso: string): string {
 }
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
-export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null };
+/** `whiteCard`: decision 319 White Card state of the lead (worker-compliance.core); undefined = not loaded (older callers, never blocks). */
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null };
 export type PrestartFacts = {
   start: string;
   clearance: { cleared: boolean; blocker: string | null };
@@ -75,6 +77,8 @@ export type PrestartFacts = {
   publicLiabilityBlocker?: string | null | undefined;
   /** Decision 261: "Safety plan not signed: …" until the lead and every listed installer signed the portal SWMS; undefined = not loaded (older callers). */
   swmsBlocker?: string | null | undefined;
+  /** Decision 319: when this installation booking was made. Bookings made before `WHITE_CARD_ENFORCED_FROM` are never blocked by the White Card rule. */
+  bookingCreatedAt?: string | null | undefined;
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -92,6 +96,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   else if (f.lead.level !== "full") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} holds a provisional certification, not full.`);
   else if (f.lead.expiresOn < day) out.push(`Lead installer's certification expired on ${f.lead.expiresOn}.`);
   if (f.lead.found && f.lead.noticeAcknowledged === false) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
+  { const wc = f.lead.found ? whiteCardBlocker(f.lead.whiteCard, f.bookingCreatedAt) : null; if (wc) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: ${wc}`); }
   for (const c of f.consentBlockers) out.push(`Owner consent: ${c}`);
   if (!f.piesaCompletedAt) out.push("PIESA completion date is missing.");
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");

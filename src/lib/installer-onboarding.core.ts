@@ -53,6 +53,8 @@ export const EXTRA_ITEMS = [
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
 export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean; piisa_done?: "yes" | "no" | null; piisa_date?: string; piisa_uploaded?: boolean;
+  /** Decision 319: derived server-side from data.white_card_files (never trusted from the browser); optional at onboarding. */
+  white_card_uploaded?: boolean;
   /** ESC collection notice (esc-collection-notice.core.ts): the browser sends the tick; the server stamps `esc_notice_ack`. */
   esc_notice_ticked?: boolean; esc_notice_ack?: OnboardingNoticeAck | null };
 export type InstData = {

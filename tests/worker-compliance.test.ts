@@ -49,7 +49,8 @@ describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
     expect(crewClearance({ ...ok, removed_at: "2026-10-01T00:00:00Z" }, T).reason).toBe(CREW_CLEARANCE_REASON.removed);
   });
   test("office flags: verified without level, or expired, is called out; undefined level facts never invent a flag", () => {
-    const v = { trade_role: "installer", certification_status: "verified" as const, piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01" };
+    // Decision 319: a verified White Card so only the CII facts are under test here.
+    const v = { trade_role: "installer", certification_status: "verified" as const, piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01", certification: { white_card: { path: "w", verified_at: "2026-10-25T00:00:00Z" } } as never };
     expect(approvalFlags(v, T)).toEqual([]);
     expect(approvalFlags({ ...v, cii_level: null, cii_expires_on: null }, T)).toEqual(["CII level and expiry to record"]);
     expect(approvalFlags({ ...v, cii_level: "full", cii_expires_on: "2026-10-01" }, T)).toEqual(["CII certificate expired"]);
@@ -68,7 +69,8 @@ describe("installer PIISA training", () => {
     expect(workerOfferBlocker(inst({ piisa_status: "done", piisa_certificate_path: "x" }), T)).not.toBeNull();
     expect(workerOfferBlocker(inst({ piisa_status: "done", piisa_certificate_path: "x", piisa_verified_at: "2026-10-06" }), T)).toBeNull();
   });
-  test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["piisa"]));
+  // Decision 319: existing installers also show the White Card as missing (an Add it prompt, never a block here).
+  test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["piisa", "white_card"]));
   test("form: Yes needs date + certificate; No passes the PIISA check", () => {
     const one = (x: object) => ({ installers: [{ full_legal_name: "Al", mobile: "0412345678", email: "al@ins.com.au", cii_holds: "not_held", ...x }] }) as never;
     const errs = (x: object) => instErrors("installers" as never, one(x)).join(" | ");

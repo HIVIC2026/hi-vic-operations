@@ -27,7 +27,11 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
       piisa_status: worker.piisa_done === "yes" ? "done" as const : worker.piisa_done === "no" ? "not_done" as const : null,
       piisa_completed_on: worker.piisa_done === "yes" ? worker.piisa_date ?? null : null,
       piisa_certificate_path: ((application as InstData & { piisa_files?: Record<string, string> }).piisa_files ?? {})[email] ?? null,
-      certification: { declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null },
+      certification: {
+        declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null,
+        // Decision 319: a White Card uploaded at onboarding goes onto the staff row unverified; the office verifies it once.
+        ...(((application as InstData & { white_card_files?: Record<string, string> }).white_card_files ?? {})[email] ? { white_card: { path: (application as InstData & { white_card_files?: Record<string, string> }).white_card_files![email], uploaded_at: null, number: null } } : {}),
+      },
     };
   });
 }
