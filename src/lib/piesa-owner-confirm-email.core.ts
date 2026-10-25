@@ -18,10 +18,12 @@ export function renderPiesaOwnerConfirmEmail(i: PiesaOwnerConfirmEmailInput) {
     ? "We can't book your install day until you've confirmed it. It's the government form's owner declaration — you confirm the check was done, we fill in the rest."
     : "The government form needs you to confirm the check was done. Tap the button, enter the 6-digit code we text you, tick and type your name. About a minute.";
   const warn = (strong: boolean) => `Please don't let anyone into the ceiling before the install: ${strong ? K.strong(CEILING_ENTRY_WARNING) : CEILING_ENTRY_WARNING}`;
+  // Jo 25 Oct 2026: remind the owner of the 30-day rule.
+  const thirty = "Your install must be done within 30 days of this safety check. After 30 days it expires and a new safety check is needed.";
   const label = "Confirm my safety check";
   const wrong = "Something look wrong? Reply to this email before confirming.";
-  const body = [K.h1(subject, 8), K.p(what(true), "0 0 14px", true), K.p(why, "0 0 14px"), K.p(warn(true), "0 0 14px", true), K.button(i.confirmUrl, label, "6px 0 4px"), K.small(wrong, "14px 0 0", { size: 14 })].join("\n");
+  const body = [K.h1(subject, 8), K.p(what(true), "0 0 14px", true), K.p(why, "0 0 14px"), K.p(warn(true), "0 0 14px", true), K.p(thirty, "0 0 14px"), K.button(i.confirmUrl, label, "6px 0 4px"), K.small(wrong, "14px 0 0", { size: 14 })].join("\n");
   const html = K.emailShell({ body, previewText: null, testLabel: i.test === true, unsubscribe: i.unsubscribeUrl });
-  const text = K.plainText([subject, "", what(false), "", why, "", warn(false), "", `${label}: ${i.confirmUrl}`, "", wrong], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([subject, "", what(false), "", why, "", warn(false), "", thirty, "", `${label}: ${i.confirmUrl}`, "", wrong], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }
