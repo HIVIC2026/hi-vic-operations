@@ -17,6 +17,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           const denied = await authenticateCronRequest(request);
           if (denied) return denied;
         }
+        const tickStartedAt = Date.now();
         const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
         const out: { ok: boolean; offers?: unknown; coordination?: unknown } = { ok: true };
         try {
@@ -129,15 +130,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: estimate follow-up sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
-        }
-        try {
-          // Decision 281: enquiries missing a suburb / postcode are completed from the address lookup (same provider as
-          // Add a job), 50 per tick oldest first, one lookup per job per 7 days recorded as a workflow event. No sends.
-          const { completeEnquiryAddresses } = await import("@/lib/address-complete.server");
-          (out as Record<string, unknown>)['addressCompletion'] = await completeEnquiryAddresses();
-        } catch (e) {
-          console.error("allocation tick: address completion sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['addressCompletion'] = "failed"; // a lookup outage must not fail the whole tick
         }
         try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
@@ -299,6 +291,22 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: external action outbox failed", (e as Error).message);
           out['ok'] = false;
           (out as Record<string, unknown>)['externalActions'] = "failed";
+        }
+        try {
+          // Decision 281: enquiries missing a suburb / postcode are completed from the address lookup (same provider as
+          // Add a job), oldest first, one lookup per job per 7 days recorded as a workflow event. No sends. Runs LAST and
+          // only with time to spare: on 25 Oct 2026 50 lookups per tick pushed the whole tick past the 55 s cron limit and
+          // starved the Mitti sweeps above, so the batch is small and skipped when the tick is already slow.
+          const elapsedMs = Date.now() - tickStartedAt;
+          if (elapsedMs < 25_000) {
+            const { completeEnquiryAddresses } = await import("@/lib/address-complete.server");
+            (out as Record<string, unknown>)['addressCompletion'] = await completeEnquiryAddresses({ batch: 8 });
+          } else {
+            (out as Record<string, unknown>)['addressCompletion'] = { skipped: "tick already slow", elapsedMs };
+          }
+        } catch (e) {
+          console.error("allocation tick: address completion sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['addressCompletion'] = "failed"; // a lookup outage must not fail the whole tick
         }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
