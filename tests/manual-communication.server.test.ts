@@ -283,7 +283,7 @@ describe("manualCommunicationHistory", () => {
 describe("assumed-size indicative email disclosure (owner-approved OPTION A)", () => {
   // P1-S77: the Office assumed-size copy IS Jo's Template 1, rendered by the same function as every send. OPTION A
   // still requires it to state: (1) the ceiling area is not measured, (2) the quote is preliminary, (3) the measurement
-  // is confirmed at the Ready Check, (4) the final price depends on it. It must also never send.
+  // is confirmed before the owner agrees (decision 388: never "at the Ready Check" before release), (4) the final price depends on it. It must also never send.
   test("the assumed-size email (Jo T1) clearly discloses assumption, preliminary pricing, and confirmation needs", () => {
     const facts = joFactsForSaveSpotVariant("no_insulation_assumed_size", true);
     expect(selectJoOutcomeTemplate(facts)).toBe("eligible_no_insulation_size_unknown");
@@ -299,9 +299,9 @@ describe("assumed-size indicative email disclosure (owner-approved OPTION A)", (
       },
     })!;
     const body = `${mail.html}\n${mail.plainText}`;
-    expect(body).toContain(`Based on a typical ${DEFAULT_ESTIMATED_AREA_M2} m² ceiling (estimated, not measured)`); // (1)+(2)
-    expect(body).toMatch(/Ready Check/);                                // (3)
-    expect(body).toMatch(/tell you the exact price before you agree to anything/i); // (4)
+    expect(body).toContain(`Based on a typical ${DEFAULT_ESTIMATED_AREA_M2} m² ceiling (an estimate, not your actual size)`); // (1)+(2)
+    expect(body).not.toMatch(/Ready Check/);                            // (3) decision 388: spot-only before release
+    expect(body).toMatch(/know the exact price before you agree to anything/i); // (4)
     expect(mail.subject).toBe("Sam, you could save $1,482 on ceiling insulation");
   });
 });

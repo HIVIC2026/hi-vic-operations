@@ -10,11 +10,14 @@ import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-c
 import type { InsulationDeclared } from "@/lib/estimate.core";
 import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/estimate-removal.core";
 import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
+// Decision 388: this page is shown BEFORE the spot is released, so it is spot-only (no Ready Check, times, measuring,
+// quote timing, speed or queue-jumping promises). Changed directly — no approval flag holds page copy.
+import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
-  head: () => ({ meta: [{ title: "Your insulation savings — Home Insulation Victoria" }, { name: "description", content: "Review your preliminary ceiling insulation savings and save your place for a free onsite Ready Check." }, { property: "og:title", content: "Your insulation savings — Home Insulation Victoria" }, { property: "og:description", content: "Review your preliminary ceiling insulation savings." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
+  head: () => ({ meta: [{ title: "Your insulation savings — Home Insulation Victoria" }, { name: "description", content: "Review your preliminary ceiling insulation savings and save your spot. It's free, with no obligation." }, { property: "og:title", content: "Your insulation savings — Home Insulation Victoria" }, { property: "og:description", content: "Review your preliminary ceiling insulation savings." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
   component: CampaignPage,
 });
 
@@ -44,7 +47,7 @@ function CampaignPage() {
       : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video" || !!data.media?.excluded} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} /></div>
       : data.group === "onsite" && data.media?.excluded && !data.saveAllowed ? <section className="estimate-offset mx-auto max-w-[620px] px-6 py-8" role="status"><h1 className="font-display text-3xl font-bold">{data.media.received ? "We've received your insulation photos/video" : "We're checking your enquiry uploads"}</h1><p className="mt-3">{data.mediaReview === "over_r2" || data.response?.desk_check_status === "not_eligible" ? "Our office has assessed your existing insulation as not eligible. Please contact us with any questions." : data.mediaReview === "unclear" || data.response?.desk_check_status === "needs_onsite_check" ? "Your evidence has been reviewed. Our office will help with the next check." : data.media.received ? "Your existing evidence is with our office for review. You do not need to upload it again." : "You do not need to answer these questions or upload again while we check your original enquiry."}</p></section>
       : data.pricing ? <CampaignDesign saveAllowed={data.saveAllowed} ownerQualified={data.ownerQualified} reviewStatus={data.response?.desk_check_status ?? null} group={data.group} token={token} name={data.owner.firstName} suburb={data.home?.suburb ?? null} p={data.pricing} busy={busy} error={error} onSave={() => void act("save")} onOptOut={() => void act("optout")} />
-      : <section className="estimate-offset mx-4 rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">Your estimate is being updated</h1><p className="mt-2 text-sm">Please check back soon.</p></section>}
+      : <section className="estimate-offset mx-4 rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">Your estimate is being updated</h1><p className="mt-2 text-sm">Please check back later.</p></section>}
     </main>
   </div>;
 }
@@ -65,16 +68,16 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
       <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
       <p className="mt-0.5 font-bold text-estimate-logo-green">Your {$(rebate)} rebate is waiting.</p>
-      <p className="mt-2 text-sm">Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.</p>
-      <p className="mt-2 text-sm">We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free {suburb ? `in ${suburb}` : "near you"} to book your free Ready Check.</p>
+      <p className="mt-2 text-sm">{SPOT_REGISTERED} {SPOT_ORDER} You've locked in your place, so there's nothing more you need to do.</p>
+      <p className="mt-2 text-sm">{SPOT_IN_TOUCH}</p>
     </div>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
       <div className="flex justify-between gap-3"><dt>Your rebate</dt><dd className="font-bold text-estimate-logo-green">{$(rebate)}</dd></div>
       <div className="flex justify-between gap-3"><dt>You pay about</dt><dd className="font-bold">{$(customer)}</dd></div>
       {home && <div className="flex justify-between gap-3"><dt>Home</dt><dd className="text-right">{home}</dd></div>}
     </dl>
-    <p className="mt-2 text-xs text-estimate-navy/70">Estimate only. Your final price is confirmed after the free Ready Check.</p>
-    {group === "onsite" && !videoPriority && <div className="mt-5 rounded-xl bg-estimate-mint p-4 text-center"><h2 className="font-display text-lg font-bold text-estimate-navy">Want to jump the queue?</h2><Button asChild className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send a quick video</Link></Button></div>}
+    <p className="mt-2 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
+    {group === "onsite" && !videoPriority && <div className="mt-5 rounded-xl bg-estimate-mint p-4 text-center"><h2 className="font-display text-lg font-bold text-estimate-navy">Help us check your insulation</h2><Button asChild className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send a quick video</Link></Button></div>}
     {referralUrl && <div className="mt-5 rounded-xl bg-estimate-blush p-4 text-center">
       <h2 className="font-display text-lg font-bold text-estimate-navy">Have a friend who needs a spot saved?</h2>
       <p className="mt-1 text-sm text-estimate-navy/80">Send them our free eligibility checker. It takes a minute.</p>
@@ -101,11 +104,11 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       <span className="whitespace-nowrap rounded-full bg-estimate-blush px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.07em]">Free estimate · No obligation</span>
     </header>
     <section className="mt-7">
-      <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Jump the queue" : "🎉 Your rebate is waiting"}</p>
+      <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Check your insulation" : "🎉 Your rebate is waiting"}</p>
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
       <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
-      <p className="mt-3 text-sm font-extrabold">{onsite ? "Your enquiry is currently behind homes whose eligibility we can already confirm. Help us check your insulation so you could move up and save your spot." : "Hundreds of homes have enquired since 1 October. Spots go in order."}</p>
-      <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you for the preliminary queue. Final onsite checks and removal costs remain to be confirmed.</p>}{onsite ? videoBtn : saveBtn}</div>
+      <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : `${SPOT_REGISTERED} ${SPOT_ORDER}`}</p>
+      <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you to save your spot. Your eligibility and any removal costs are confirmed before you agree to anything.</p>}{onsite ? videoBtn : saveBtn}</div>
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </section>
@@ -130,7 +133,6 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       <div className="mt-3.5 rounded-[14px] bg-estimate-white px-4 py-[15px]">
         <p className="mb-1.5 font-display text-sm font-extrabold">What this includes</p>
         {[
-          ["Free Ready Check", "We measure your roof space and confirm the job.", "FREE"],
           [`R5.0 ceiling insulation (${p.areaM2} m² × ${money(p.ratePerM2)})`, "Supplied and fitted by a certified installer.", money(p.installation)],
           ["Pre Insulation Electrical Safety Assessment (PIESA)", "By a licensed electrician, as the rules require.", money(p.assessmentFee)],
           ["Accredited Person fee", "Rebate paperwork, done for you.", money(p.apFee)],
@@ -142,9 +144,9 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       </div>
     </section>
     <section className="mt-5 rounded-[22px] bg-estimate-blush p-5">
-      <h2 className="font-display text-[23px] font-extrabold leading-tight">{onsite ? "Want to jump the queue?" : "Hold your place in line"}</h2>
-      {onsite ? <><p className="mt-3 text-sm leading-relaxed">{INSULATION_REVIEW_INVITATION}</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "An onsite check is needed before we can offer Save my spot." : "Photos and video need office review. No payment. No obligation."}</p></>
-        : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. We'll be in touch to book your free Ready Check as soon as an installer is free near you.</p><div className="mt-4">{ownerQualified && <p className="mb-3 text-sm text-estimate-navy">Your Yes answer qualifies you to save a place in the preliminary queue. Your existing insulation and any removal needs will be checked onsite before the final price is confirmed.</p>}{saveBtn}</div></>}
+      <h2 className="font-display text-[23px] font-extrabold leading-tight">{onsite ? "Help us check your insulation" : "Hold your place in line"}</h2>
+      {onsite ? <><p className="mt-3 text-sm leading-relaxed">{INSULATION_REVIEW_INVITATION}</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "Our office needs to check a few more details before we can offer Save my spot." : "Photos and video need office review. No payment. No obligation."}</p></>
+        : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. {SPOT_FREE} {SPOT_RELEASE_LINE}</p><div className="mt-4">{ownerQualified && <p className="mb-3 text-sm text-estimate-navy">Your Yes answer qualifies you to save your spot. Your existing insulation and any removal needs are confirmed before you agree to a final price.</p>}{saveBtn}</div></>}
     </section>
     <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrician finds something to fix. We never add work or cost without showing you first and getting your OK.</p>
     <footer className="mt-6 border-t border-estimate-line pt-4 text-center text-xs text-estimate-navy/70">

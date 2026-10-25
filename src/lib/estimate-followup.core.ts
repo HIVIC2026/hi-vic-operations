@@ -136,27 +136,28 @@ const REPLY = "Questions? Just reply to this email.";
 
 type Copy = { subject: string; intro: string; saveTitle: string; save: string; after: string | null; closing: string };
 
-/** The three draft wordings (not approved yet). Jo approves these; the design is the O1 kit. */
+/** The three wordings, reworded spot-only for decision 388 and HELD (ESTIMATE_FOLLOWUP_APPROVED = false) until Jo
+ *  approves them again (docs/decision-388-spot-only-wording.md); the design is the O1 kit. */
 export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, rebate: string): Copy {
   switch (step) {
     case "day_2": return {
       subject: `${first}, your ${rebate} rebate spot is still open`,
       intro: `A couple of days ago we sent your ceiling insulation estimate. Nothing has changed: the ${rebate} Victorian Energy Upgrades rebate is still available and your spot is still open.`,
       saveTitle: SAVE_TITLE,
-      save: "Certified installers are in high demand, so we book homes in the order people save their spot. It takes a few seconds. No payment, no obligation.",
+      save: "Thousands of Victorians have registered, and spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_7": return {
       subject: `${first}, still thinking about your ceiling insulation?`,
-      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price, and nothing is locked in until after your free Ready Check.`,
+      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price, and nothing is locked in until you've seen your exact price and agreed to it.`,
       saveTitle: SAVE_TITLE,
-      save: "Save your spot and a certified installer will offer you times for your free Ready Check when one is free near you. No payment, no obligation.",
+      save: "Save your spot to keep your place in line. Spots are released in the order they were saved, and we'll be in touch when your spot is released. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_21": return {
-      subject: `${first}, we'll close your estimate soon`,
+      subject: `${first}, we'll close your estimate in a week`,
       intro: "We sent your ceiling insulation estimate three weeks ago and haven't heard back, so we'll close it in a week to keep our list accurate.",
       saveTitle: "Want to keep your spot? Save it now",
       save: `Save your spot and you stay on the list with your ${rebate} rebate. No payment, no obligation.`,

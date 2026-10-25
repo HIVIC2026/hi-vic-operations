@@ -57,7 +57,7 @@ function OwnerCalculatorPage() {
             {ceilingM2 > 0 && savedArea != null && Math.round(ceilingM2) !== Math.round(savedArea) && <Button type="button" variant="outline" disabled={busy} onClick={() => void doSave(ceilingM2, insulation)} className="mt-3 min-h-12 w-full border-estimate-green text-estimate-navy">{busy ? "Saving…" : `Use ${Math.round(ceilingM2)} m² for my enquiry`}</Button>}
           </div>
         : <Button type="button" disabled={busy || ceilingM2 <= 0} onClick={() => void doSave(ceilingM2, insulation)} className="min-h-12 w-full bg-estimate-green text-estimate-white hover:bg-estimate-accent">{busy ? "Saving…" : "Save my spot"}</Button>}
-      <p className="mt-2 text-center text-xs text-estimate-navy/75">No payment, no obligation. Saving your spot does not book a visit.</p>
+      <p className="mt-2 text-center text-xs text-estimate-navy/75">No payment, no obligation. Spots are released in the order they were saved.</p>
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </div>}
   />;

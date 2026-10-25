@@ -9,7 +9,7 @@ import { PRELIMINARY_BRAND, PRELIMINARY_BUTTON, PRELIMINARY_INTRO, PRELIMINARY_N
 export const Route = createFileRoute("/save-spot-preliminary/$token")({
   ssr: false,
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
-  head: () => ({ meta: [{ title: "Save your spot — Home Insulation Victoria" }, { name: "description", content: "Save your spot for a free Ready Check." }, { property: "og:title", content: "Save your spot — Home Insulation Victoria" }, { property: "og:description", content: "Save your spot for a free Ready Check." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
+  head: () => ({ meta: [{ title: "Save your spot — Home Insulation Victoria" }, { name: "description", content: "Save your spot. It's free, with no obligation." }, { property: "og:title", content: "Save your spot — Home Insulation Victoria" }, { property: "og:description", content: "Save your spot. It's free, with no obligation." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
   component: PreliminarySavePage,
 });
 
@@ -54,7 +54,7 @@ function PreliminarySavePage() {
   );
   if (state === "loading") return shell(<p className="mt-3" role="status">Loading…</p>);
   if (state === "unavailable") return shell(<p className="mt-3">This link isn't available. Please contact Home Insulation Victoria and we'll help.</p>);
-  if (state === "saved") return shell(<><p className="mt-3 font-bold">Your spot is saved</p><p className="mt-3">You're now in our queue for a free Ready Check. We'll contact you when installer availability is confirmed in your area. There's nothing to pay now, and you're under no obligation to proceed.</p></>);
+  if (state === "saved") return shell(<><p className="mt-3 font-bold">Your spot is saved</p><p className="mt-3">You've saved your place in line. Spots are released in the order they were saved, and we'll be in touch when your spot is released. There's nothing to pay now, and you're under no obligation to proceed.</p></>);
   return shell(
     <>
       <p className="mt-3 text-left">{firstName ? `Hi ${firstName},` : "Hi there,"}</p>

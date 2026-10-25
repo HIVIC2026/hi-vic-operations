@@ -257,20 +257,22 @@ function removalCard(f: JoEstimateFigures): { ratePerM2: number; upTo: number } 
 export function basisLine(f: JoEstimateFigures, someInsulation: boolean): string {
   const ins = someInsulation ? "with some existing insulation" : "no existing insulation";
   return f.areaEstimated
-    ? `Based on a typical ${K.m2(f.ceilingAreaM2)} ceiling (estimated, not measured), ${ins}.`
+    ? `Based on a typical ${K.m2(f.ceilingAreaM2)} ceiling (an estimate, not your actual size), ${ins}.`
     : `Based on what you told us: ${K.m2(f.ceilingAreaM2)} ceiling, ${ins}.`;
 }
 
 const O1_INTRO = "This is the Victorian Government's Energy Upgrades (VEU) rebate, taken straight off your price. To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.";
 const O2_INTRO = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Government's Energy Upgrades (VEU) rebate. We bring together the certified installer, licensed electrician and accredited provider you need, and organise the whole job.";
-const O1_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check. No payment, no obligation.";
-const O2_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check, where they'll also check your existing insulation. No payment, no obligation.";
-const O2Q_SAVE = "Certified installers are in high demand, so we book homes in the order people save their spot. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
+// Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): spot-only wording, awaiting Jo's
+// approval in docs/decision-388-spot-only-wording.md. No Ready Check, installer visit, times, measuring or quote timing.
+const O1_SAVE = "Thousands of Victorians have registered, and spots are released in the order they were saved. Saving your spot is free, with no obligation. We'll be in touch when your spot is released.";
+const O2_SAVE = O1_SAVE;
+const O2Q_SAVE = "Thousands of Victorians have registered, and spots are released in the order they were saved. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
 const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's safe. Please don't climb into the roof space.";
-const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
+const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
 const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
-const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. We check all of this at your free Ready Check and tell you the exact price before you agree to anything.";
-const O1_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
+const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll know the exact price before you agree to anything.";
+const O1_CLOSING = K.INCLUDED_CLOSING;
 export const QUESTIONS = [
   { title: "What type is it?", detail: "Loose fill or batts" },
   { title: "About how thick is it?", detail: "Less than a finger, a hand's width, or thicker" },
@@ -309,7 +311,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     `${some ? "Your cost if eligible" : "You pay after the rebate"}: ${price} incl. GST (full price before rebate ${full})`,
     basis,
     calc ? `Try a different ceiling size: ${calc.href}` : null, "",
-    ...(some ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${removal.ratePerM2}/m², only the areas that need it. Up to ${K.whole(removal.upTo)} for your ${K.m2(f.ceilingAreaM2)} ceiling.`, "Prices incl. GST. The installer checks this at your free Ready Check, and you'll know the exact cost before you agree to anything.", ""] : []),
+    ...(some ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${removal.ratePerM2}/m², only the areas that need it. Up to ${K.whole(removal.upTo)} for your ${K.m2(f.ceilingAreaM2)} ceiling.`, "Prices incl. GST. You'll know the exact cost before you agree to anything.", ""] : []),
     ...(variant === "questions"
       ? ["SAVE YOUR SPOT: ANSWER 3 QUICK QUESTIONS", O2Q_SAVE, ...QUESTIONS.map((q, n) => `${n + 1}. ${q.title} (${q.detail})`), `${INSULATION_QUESTIONS_CTA_LABEL}: ${answerUrl}`, O2Q_PHOTOS]
       : variant === "received"

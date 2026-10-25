@@ -11,5 +11,5 @@ describe("My job at Spot saved", () => {
     expect(isSpotSavedStage("preliminary_estimate_ready", { ...saved, opted_out_at: "x" }, false)).toBe(false);
     expect(isSpotSavedStage("preliminary_estimate_ready", null, false)).toBe(false);
   });
-  test("six steps", () => expect(SPOT_SAVED_PROGRESS.map((s) => s.label)).toEqual(["Spot saved", "Free Ready Check", "Your quote", "PIESA", "Install", "Done"]));
+  test("six steps; step 2 is the release, never a Ready Check (decision 388)", () => expect(SPOT_SAVED_PROGRESS.map((s) => s.label)).toEqual(["Spot saved", "Spot released", "Your quote", "PIESA", "Install", "Done"]));
 });

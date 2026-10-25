@@ -37,9 +37,6 @@ import { usualElectricianReminderBody } from "../src/lib/usual-electrician.core"
 /** flag → decision number(s) in docs/JO_DECISIONS_LOG.md. */
 const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }> = {
   LAUNCH_COPY_APPROVED: { value: LAUNCH_COPY_APPROVED, decisions: "66/67 (O1, O2)" },
-  SAVE_SPOT_REAL_SEND_APPROVED: { value: SAVE_SPOT_REAL_SEND_APPROVED, decisions: "66/67 (O1, O2)" },
-  INSULATION_DETAILS_REAL_SEND_APPROVED: { value: INSULATION_DETAILS_REAL_SEND_APPROVED, decisions: "67/69" },
-  INSULATION_QUESTIONS_SEND_APPROVED: { value: INSULATION_QUESTIONS_SEND_APPROVED, decisions: "180 (automatic Save my spot after the 3 questions / photo upload)" },
   READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
   ELECTRICIAN_OFFER_EMAIL_APPROVED: { value: ELECTRICIAN_OFFER_EMAIL_APPROVED, decisions: "93/326 (E1 electrician offer email)" },
   READY_CHECK_TIMES_EMAIL_APPROVED: { value: READY_CHECK_TIMES_EMAIL_APPROVED, decisions: "77 (O11)" },
@@ -76,7 +73,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
 
 /** SMS type → decision. */
 const APPROVED_SMS_TYPES: Record<string, string> = {
-  save_spot_reminder: "72", spot_saved: "71", owner_code: "sign-in code (7 Oct)", quote_ready: "87 (B)",
+  owner_code: "sign-in code (7 Oct)", quote_ready: "87 (B)",
   veec_sign_request: "166", veec_sign_reminder: "168", usual_electrician_missing: "83 (kept by 113)",
   ready_check_incomplete: "83 (missing answers)", job_offer: "76/154", daily_mitti: "83 (morning text)", daily_mitti_update: "83",
   esc_notice_link: "146/154", install_window_reminder: "99/167", install_window_reminder_installer: "99/167",
@@ -96,6 +93,13 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   visit_new_times: "384 (O74 text, drafted in 376)", piesa_times_reminder: "384 (E14 text, drafted in 376)", installer_planning_notice: "384 (I71 text, drafted in 376)",
 };
 
+describe("decision 388 (Jo 25 Oct 2026): pre-release Save my spot wording reworded spot-only and HELD until Jo approves", () => {
+  test("O1/O2 send flags and the two texts are off", () => {
+    expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: false, INSULATION_DETAILS_REAL_SEND_APPROVED: false, INSULATION_QUESTIONS_SEND_APPROVED: false });
+    expect([SMS_MESSAGE_TYPES.spot_saved.wordingApproved, SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved]).toEqual([false, false]);
+  });
+});
+
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {
   for (const [flag, { value, decisions }] of Object.entries(APPROVED_EMAIL_FLAGS)) {
     test(`${flag} (decision ${decisions})`, () => expect(value).toBe(true));
@@ -105,10 +109,10 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
       expect(SMS_MESSAGE_TYPES[type as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(true);
     });
   }
-  test("every SMS type is approved: the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
+  test("every SMS type is approved except the two held by decision 388: the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
-    // Decision 384 (25 Oct 2026): no text wording is waiting for Jo. Delivery still needs customer_comms_enabled + each type's switch.
-    expect(off.sort()).toEqual([]);
+    // Decision 388 (25 Oct 2026): the spot saved and save-spot reminder texts were reworded spot-only and are held for Jo.
+    expect(off.sort()).toEqual(["save_spot_reminder", "spot_saved"]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

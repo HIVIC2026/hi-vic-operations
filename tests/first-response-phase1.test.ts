@@ -39,7 +39,7 @@ const email: JoOutcomeEmailInput = {
 test("acknowledgement uses the approved received-media variant and decides no eligibility", () => {
   const mail = renderJoOutcomeEmail(email)!;
   expect(mail.plainText).toContain("you do not need to upload it again");
-  expect(mail.plainText).toContain("Final eligibility will be confirmed at your free Ready Check");
+  expect(mail.plainText).not.toContain("Ready Check"); // decision 388: no Ready Check before release
   expect(mail.plainText).toContain("Add more photos or video");
   expect(mail.plainText).not.toContain("Please upload clear photos");
   expect(mail.ctas).not.toContain("save_my_spot");

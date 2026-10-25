@@ -8,11 +8,12 @@
 // snapshots use the owner's normal address/ceiling-size estimate (Jo, 23 Oct 2026).
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 
-/** Jo's approved short copy (22 Oct 2026), still shown on the save page. Exact wording – do not reword without Jo's approval. */
+/** Jo's approved short copy (22 Oct 2026), still shown on the save page. Exact wording – do not reword without Jo's approval.
+ *  Decision 388: PRELIMINARY_READY_CHECK (the name is kept for callers) reworded spot-only, awaiting Jo's approval. */
 export const PRELIMINARY_INTRO = "No worries at all! Please don't worry about getting the photos.";
 export const PRELIMINARY_NEXT_STEP = "Based on what you've told us, we can send you through to the next step.";
 export const PRELIMINARY_BUTTON = "Save my spot";
-export const PRELIMINARY_READY_CHECK = "The installer will confirm the ceiling area, existing insulation and eligibility at your free Ready Check. We'll confirm the pricing then too. There's no payment or obligation to go ahead.";
+export const PRELIMINARY_READY_CHECK = "Spots are released in the order they were saved, and we'll be in touch when your spot is released. Your ceiling area, existing insulation, eligibility and price are all confirmed before you agree to anything. There's no payment or obligation to go ahead.";
 export const PRELIMINARY_BRAND = "Home Insulation Victoria";
 
 /** Same primary-scenario figures saved by the normal campaign; never fabricate missing figures. */

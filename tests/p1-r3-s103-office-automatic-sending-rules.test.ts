@@ -75,6 +75,10 @@ mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: asyn
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => null }));
 mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => null }));
 mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({}) }));
+// Decision 388 holds the O1/O2 wording (SAVE_SPOT_REAL_SEND_APPROVED = false; proved in tests/decision-388-spot-only.test.ts).
+// These rules tests exercise the senders as they run once Jo approves the spot-only wording.
+const realHot = await import("../src/lib/hot-leads.core");
+mock.module("../src/lib/hot-leads.core", () => ({ ...realHot, SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: true }));
 
 const core = await import("../src/lib/save-spot-rules.core");
 const server = await import("../src/lib/save-spot-rules.server");

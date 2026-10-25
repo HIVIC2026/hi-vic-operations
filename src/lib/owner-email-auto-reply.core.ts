@@ -36,7 +36,7 @@ export const OWNER_EMAIL_AUTO_REPLY_PURPOSE = "owner_email_auto_reply";
 /** The Needs me row reuses the decision-245 email row (`email_change_request`) with this intent: "reply needed". */
 export const REPLY_NEEDED_INTENT = "reply";
 export const SIGN_OFF = "The Home Insulation Victoria team";
-export const LONG_LIST = "There's a long list of homes waiting, and spots are released in the order they were saved.";
+export const LONG_LIST = "Thousands of Victorians have registered, and spots are released in the order they were saved.";
 
 /** Idempotency: one automatic reply per Outlook message, ever. */
 export function autoReplyKey(providerMessageId: string): string {
@@ -211,7 +211,9 @@ function answerFor(topic: Topic, f: OwnerJobFacts): Pick {
       if (f.quoteStatus === "issued" && QUOTE_SENT_STAGES.has(f.stage)) return { answer: "quote_ready", link: f.myJobLink };
       if (f.quoteStatus) return { draft: "the quote was already accepted or declined" };
       if (QUOTE_PREPARING_STAGES.has(f.stage)) return { answer: "quote_preparing", link: f.myJobLink };
-      if (isWaiting(f) || PICK_TIMES_STAGES.has(f.stage) || (f.stage === "ready_check_scheduled" && f.nextVisit?.kind === "ready_check"))
+      // Decision 388: before release the owner is never told when the quote comes — the spot-saved answer instead.
+      if (isWaiting(f)) return waitingAnswer(f);
+      if (PICK_TIMES_STAGES.has(f.stage) || (f.stage === "ready_check_scheduled" && f.nextVisit?.kind === "ready_check"))
         return { answer: "quote_after_ready_check", link: f.myJobLink, visit: f.nextVisit?.kind === "ready_check" ? f.nextVisit : null };
       return { draft: "no standard quote answer for this stage" };
     case "how_to_pay":
@@ -278,7 +280,8 @@ export type AnswerParagraphs = { greeting: string; lines: string[]; linkLine: st
 export function answerParagraphs(answer: AnswerType, f: AnswerFacts): AnswerParagraphs {
   const greeting = `Hi ${f.firstName ?? "there"},`;
   const v = f.visit ?? null;
-  const waitingNext = "When an installer near you is free, they'll offer you times for your free Ready Check and we'll email you.";
+  // Decision 388: before release, never an installer, times or a Ready Check — only that we'll be in touch.
+  const waitingNext = "We'll be in touch when your spot is released.";
   let lines: string[];
   let linkLine: string;
   switch (answer) {
@@ -317,7 +320,8 @@ export function answerParagraphs(answer: AnswerType, f: AnswerFacts): AnswerPara
     case "quote_after_ready_check":
       lines = [
         "Your quote comes after your free Ready Check, once the installer has measured your ceiling.",
-        v ? `Your Ready Check is booked for ${slotText(v.slot)}.` : `${LONG_LIST} ${waitingNext}`,
+        // Only after release (times offered or a Ready Check booked); waiting owners get the spot-saved answer.
+        v ? `Your Ready Check is booked for ${slotText(v.slot)}.` : "Your installer has offered times for your free Ready Check, so just pick the one that suits you.",
       ];
       linkLine = `You can see where you're up to here: ${f.link}`;
       break;

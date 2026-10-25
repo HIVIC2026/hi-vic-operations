@@ -35,6 +35,9 @@ export type HotSendResult = { jobId: string; jobNumber: string | null; /** "unce
  *  below (S86 / COM-04 owner Option A; guard 9a0adf29). It is NO LONGER a master-off exception. Contact
  *  consent, opt-out, saved-spot and once-per-home checks still apply per lead. Fail-closed on error/missing. */
 export async function realSendingOn() {
+  // Decision 388: the reworded spot-only O1/O2 wording is held until Jo approves it (no switch or row is changed).
+  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  if (!SAVE_SPOT_REAL_SEND_APPROVED) return false;
   const { data, error } = await admin.from("workflow_settings").select("save_my_spot_real_send_enabled, customer_comms_enabled").limit(1).maybeSingle();
   if (error || !data) return false;
   const ws = data as { save_my_spot_real_send_enabled: boolean | null; customer_comms_enabled: boolean | null };

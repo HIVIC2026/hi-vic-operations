@@ -380,7 +380,7 @@ describe('Phase 1 actual initial router → sender boundaries', () => {
     expect(calls.map(c => c.idem)).toEqual([KEYS.B]);
     expect(String(calls[0]!.body.text)).toContain('you do not need to upload it again');
     expect(String(calls[0]!.body.text)).not.toContain('Please upload clear photos');
-    expect(String(calls[0]!.body.text)).toContain('free Ready Check');
+    expect(String(calls[0]!.body.text)).not.toContain('Ready Check'); // decision 388
     expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
     expect(calls).toHaveLength(1);
   });
@@ -426,7 +426,11 @@ describe('Phase 1 actual initial router → sender boundaries', () => {
       beforeFinalSend = () => T.job_communications!.push({ job_id: id, direction: 'outbound', channel: 'email', visibility: 'customer' });
       expect((await maybeAutoRouteLeadEmail(id)).sent).toBe(false);
       expect(calls).toHaveLength(0);
-      expect(sends().find(s => s.job_id === id)).toMatchObject({ status: 'failed', provider: 'not_sent' });
+      // Decision 388: while the O1 wording is held (SAVE_SPOT_REAL_SEND_APPROVED = false) the known-size offer stops before
+      // any reservation; once Jo approves it, the post-reservation correspondence recheck applies again.
+      const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("../src/lib/hot-leads.core");
+      if (id === L && !SAVE_SPOT_REAL_SEND_APPROVED) expect(sends().find(s => s.job_id === id)).toBeUndefined();
+      else expect(sends().find(s => s.job_id === id)).toMatchObject({ status: 'failed', provider: 'not_sent' });
     });
   }
   for (const status of ['sent', 'delivered', 'queued', 'sending_unknown']) {

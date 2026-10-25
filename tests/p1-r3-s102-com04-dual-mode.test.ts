@@ -61,6 +61,10 @@ mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () =
 mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => null }));
 mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({}) }));
 const realComms = await import("../src/lib/comms.server");
+// Decision 388 holds the O1/O2 wording (SAVE_SPOT_REAL_SEND_APPROVED = false; proved in tests/decision-388-spot-only.test.ts).
+// These switch-order tests exercise the senders as they run once Jo approves the spot-only wording.
+const realHot = await import("../src/lib/hot-leads.core");
+mock.module("../src/lib/hot-leads.core", () => ({ ...realHot, SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: true }));
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async () => "comm-1" }));
 
 const { realSendingOn, sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");

@@ -140,7 +140,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           Thanks {done} — we&apos;ve got your details.
         </p>
         <p className="mt-1 text-xs leading-relaxed text-estimate-navy/85">
-          We&apos;ll contact you about your estimate and book your free Ready Check. Nothing has been booked and no payment is due.
+          We&apos;ll contact you about your estimate. It&apos;s free, with no obligation. Nothing has been booked and no payment is due.
         </p>
       </div>
     );
@@ -284,7 +284,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
               Register my interest
             </button>
             <p className="mt-1.5 text-center text-[0.7rem] text-estimate-navy/75">
-              We&apos;ll contact you to discuss your estimate and arrange your free Ready Check.
+              We&apos;ll contact you about your estimate. Free, no obligation.
             </p>
           </div>
         </div>
