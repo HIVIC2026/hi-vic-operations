@@ -268,7 +268,11 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   // Q30 asks the opposite of the official item: "anyone in the ceiling since the PIESA?" Yes = official No.
   const entered = r.yn(Q.ceilingEntered);
   put("p5.noAccess", entered === "Yes" ? "No" : entered === "No" ? "Yes" : null);
-  const row = (name: string | null, cii: string | null) => (name || cii ? { name, cii } : null);
+  // Q35 is this form's Part 8 declaration tick (under the official declaration text, Q34). Night test run 25 Oct 2026: it
+  // was never mapped, so every completed Install day form failed the official PIISA "Required … must be ticked" rule and
+  // the installation could not be recorded. Unticked stays blank (never assumed).
+  put("p8.declaration", r.ticked(Q.declaration) ? "Yes" : null);
+  const row =(name: string | null, cii: string | null) => (name || cii ? { name, cii } : null);
   const second = r.yn(Q.anyoneElse) === "Yes" ? row(r.text(Q.second), r.text(Q.secondCii)) : null;
   const third = r.yn(Q.anyoneElse) === "Yes" && r.yn(Q.third3) === "Yes" ? row(r.text(Q.third), r.text(Q.thirdCii)) : null;
   return { answers: a, crew: [row(r.text(Q.lead), r.text(Q.leadCii)), second, third] };

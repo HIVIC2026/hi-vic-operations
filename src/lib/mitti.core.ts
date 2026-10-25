@@ -4,6 +4,7 @@
 // completeAssessment remains the authoritative gate.
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
+import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
@@ -558,15 +559,27 @@ export function parseAudit(audit: Any) {
   const rcd = yesNo(val(entries, ["RCDs present", "RCD present", "RCD protection present", "Are Residual Current Devices (RCDs) (safety switches) present for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000?"])); if (rcd != null) patch.rcds_present = rcd;
   setInt("rcds_required_qty", ["RCDs required", "RCDs to install", "Number of RCDs required"]);
 
+  // Night test run 25 Oct 2026 (A1 journey): the live A3 asks "Is there life support equipment at the property?" — read it too.
   const ls = yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed", "Is life support equipment"], "piesa"))
-    ?? yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed"]));
+    ?? yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed", LIFE_SUPPORT_PRESENT]));
   if (ls != null) patch.life_support_confirmed = ls;
 
   // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
   const po = norm(val(entries, ["B1 Assessment outcome", "Check ONE option only", "PIESA outcome", "PIESA result", "Electrical fixes outcome", "Electrical fixes required"]));
+  // The live A3 (decisions 294–338) has no B1 question: the electrician answers the Yes/No repair question himself on the
+  // visit and signs the A3 declaration. That answer is the PIESA result (Yes = repair work needed = the official
+  // "rectification required" outcome, recorded as fail exactly like the B1 wording below; No = pass with no electrical
+  // fixes). It still only becomes the job's PIESA when the electrician (or office) presses Complete PIESA in the portal —
+  // completeAssessment keeps every gate (evidence, date, stage entry). Without this, a Complete A3 left the PIESA
+  // outcome pending forever and Complete PIESA was refused ("Still needed: … PIESA outcome").
+  const liveRepair = yesNo(val(entries, [A3_REPAIR_NEEDED_LABEL]));
   // Official B1 wording: "...is not required..." / "...is required..." / "...is not possible...".
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no electrical fixes required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
+  else if (liveRepair === true) patch.piesa_outcome = "fail";
+  // No = pass, but the portal's explicit "No electrical fixes required" tick stays the electrician's own step at
+  // Complete PIESA (never pre-ticked from a form).
+  else if (liveRepair === false) patch.piesa_outcome = "pass";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
   const ad = melbourneDay(val(entries, ["PIESA assessment date", "Date of inspection", "Assessment date/time", "Assessment date", "Assessment datetime", "Conducted on"]));

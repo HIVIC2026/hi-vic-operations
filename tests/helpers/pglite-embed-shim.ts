@@ -165,7 +165,11 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
           else sql = `SELECT ${head ? "count(*)::int AS n" : cols(table, "t0", parts)} FROM ${table} t0${where()}${orderBy}${lim}`;
           try {
             const r = await db.query<Record<string, unknown>>(sql, vals);
-            const rows = r.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])));
+            // One timestamp spelling for top-level and embedded columns (PostgREST serialises both the same way), so a value
+            // read through an embed compares equal to the same value read directly.
+            const TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+            const norm = (v: unknown): unknown => v instanceof Date ? v.toISOString() : typeof v === "string" && TS.test(v) ? new Date(v).toISOString() : Array.isArray(v) ? v.map(norm) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k2, x]) => [k2, norm(x)])) : v;
+            const rows = r.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v && typeof v === "object" ? norm(v) : v])));
             if (head) return { data: null, count: (rows[0]?.n as number) ?? 0, error: null };
             let count: number | null = null;
             if (op === "select" && wantCount) {

@@ -531,8 +531,14 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
     const s = await jobScope(data.jobId);
     const missing: string[] = [];
-    if (!a.switchboard_condition) missing.push("switchboard condition");
-    if (a.rcds_present == null) missing.push("RCDs present");
+    // Night test run 25 Oct 2026: the live A3 (decisions 294–338) asks about the mains / safety switches as ONE Yes/No
+    // question and has no separate switchboard-condition or RCD-present question, so a synced live A3 never fills those
+    // two legacy fields — requiring them refused Complete PIESA on every live A3. They are still required for the manual
+    // portal entry and older forms. The A3's own answers, evidence and the official-form checks are gated below/elsewhere.
+    const { isLiveA3Snapshot, shortAnswersFromEntries: shortFrom } = await import("./official-short.core");
+    const liveA3 = !!a.external_mitti_id && isLiveA3Snapshot(a.mitti_raw_snapshot);
+    if (!a.switchboard_condition && !liveA3) missing.push("switchboard condition");
+    if (a.rcds_present == null && !liveA3) missing.push("RCDs present");
     if (a.life_support_confirmed == null) missing.push("life support confirmation");
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
@@ -557,7 +563,10 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (unpriced?.length) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
     // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
     const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
-    if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+    // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):
+    // that IS today's fixes quote (generated from the A3 after completion, decision 354), so no portal items are needed.
+    const a3Priced = liveA3 && a.piesa_outcome === "fail" && (await import("./fixes-price.core")).fixesPriceSource(shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? [])).path === "a4_price";
+    if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
     if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
     // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were
@@ -581,9 +590,14 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
     await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: context.userId, external_mitti_id: a.external_mitti_id });
     await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
+    // Decision 350: a PIESA done on the Mitti form files the official PIESA signed copy now (held with a reason, never
+    // invented). Best-effort: the completion above stands either way.
+    if (a.external_mitti_id) {
+      try { await (await import("./official-piesa-issue.server")).issueOfficialPiesa(data.jobId, context.userId); } catch (e) { console.error("official PIESA not filed", (e as Error).message); }
+    }
     let res: { advanced: boolean; scope: string };
     if (stage === "piesa_scheduled") {
-      await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
+      await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Priced ? ", electrical fixes priced on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
       res = { advanced: true, scope: s.scope };
     } else res = await advanceSiteRequirements(data.jobId, context.userId);
     if (rectCount && !timesAlreadyGiven && data.rectWindows?.length) {
