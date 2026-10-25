@@ -8,7 +8,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
-  cumulativePaidCents, depositSweepAction, effectiveLedger, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
   provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
 } from "./payments.core";
 
@@ -98,7 +98,10 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   // rate otherwise); the setting is only the fallback when the quote carries no PIESA line.
   const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
   const safety = safetyCheckCentsFor({ lines: piesaLines ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null });
-  const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents: rect ? toCents(rect.customer_total_inc_gst) : 0 });
+  // Decision 366: the fixes are their own step only when the fixes quote was accepted after the installation quote (the
+  // old model folded them into the installation quote — counted there, never twice).
+  const fixesCents = fixesCountedCents({ rectTotalCents: rect ? toCents(rect.customer_total_inc_gst) : 0, rectAcceptedAt: rect?.accepted_at ?? null, installAcceptedAt: quote?.accepted_at ?? null });
+  const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents });
   // Audit F01: reconciled (Xero live payments + card records not yet in Xero), never max(total_paid, ledger sum).
   const raw = await rawPaymentLedger(jobId, inv.id);
   const ledger = effectiveLedger(raw);
@@ -109,7 +112,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const holdExpiresAt = bookedAt ? provisionalHoldExpiresAt(bookedAt, installStart) : null;
   const facts: Partial<Record<PaymentStepKey, PaymentStepFacts>> = {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },
-    fixes: { requestedAt: rect?.accepted_at ?? null },
+    fixes: { requestedAt: fixesCents > 0 ? rect?.accepted_at ?? null : null },
     install_deposit: { requestedAt: bookedAt, dueAt: holdExpiresAt },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
   };
@@ -131,6 +134,14 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   };
 }
 
+/** Decision 366: "The electrical fixes must be paid in full…" while the fixes step is unpaid; null when paid/waived, when
+ *  the job has no separate fixes step (none, or folded into the installation quote) or no invoice. Shared by
+ *  confirmBooking (kind rectification) and stageEntryBlockers("rectification_booked"). */
+export async function fixesPaymentBlockerFor(jobId: string): Promise<string | null> {
+  const v = await jobPaymentView(jobId);
+  return v ? fixesPaymentBlocker(v.plan, v.steps) : null;
+}
+
 /** Downstream of any new payment: confirm a provisional booking, note fixes/balance paid once, then the usual auto-advance. */
 export async function afterPaymentsChanged(jobId: string, invoiceId: string, actorId: string | null) {
   const v = await jobPaymentView(jobId);
@@ -147,7 +158,11 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
   }
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
   if (isStepPaid(v.steps, "safety_check")) await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
-  if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
+  if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) {
+    await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
+    // Decision 366: a fixes time the owner already picked becomes the booking now (the 15-minute tick retries otherwise).
+    await (await import("./owner-fixes.server")).bookPickedFixesTime(jobId, actorId).catch((e) => console.error("fixes booking after payment skipped", (e as Error).message));
+  }
   if (v.paidCents >= v.plan.grandTotalCents && v.plan.grandTotalCents > 0) await once("completion_pack_due", "Invoice fully paid – completion pack can be sent once the install is complete", { paid_cents: v.paidCents });
   const { autoAdvanceJob } = await import("./autoadvance.server");
   await autoAdvanceJob(jobId, actorId, "payment update").catch((e) => console.error("auto-advance after payment skipped", (e as Error).message));

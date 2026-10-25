@@ -4,7 +4,7 @@ import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review";
+export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes";
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 

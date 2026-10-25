@@ -133,6 +133,21 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
   return fallback && fallback.at && Math.round(fallback.paidCents) >= threshold ? fallback.at : null;
 }
 
+/** Decision 366 / audit F03: the fixes amount the owner pays as its OWN step. Only a fixes (rectification) quote accepted
+ *  AFTER the installation quote counts — in the old model the fixes lines were folded into a later installation quote
+ *  (so the invoice total already holds them) and counting the fixes quote too would charge them twice. */
+export function fixesCountedCents(f: { rectTotalCents: number | null | undefined; rectAcceptedAt: string | null | undefined; installAcceptedAt: string | null | undefined }): number {
+  if (!f.rectAcceptedAt || !(Number(f.rectTotalCents) > 0)) return 0;
+  if (f.installAcceptedAt && Date.parse(f.rectAcceptedAt) < Date.parse(f.installAcceptedAt)) return 0;
+  return Math.round(Number(f.rectTotalCents));
+}
+/** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer). */
+export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
+export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {
+  if (plan.fixesCents <= 0) return null;
+  return isStepCleared(steps, "fixes") ? null : FIXES_NOT_PAID_BLOCKER;
+}
+
 export const isStepPaid = (steps: PaymentStep[], key: PaymentStepKey) => (steps.find((s) => s.key === key)?.state ?? "not_yet") === "paid";
 export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["paid", "waived"].includes(steps.find((s) => s.key === key)?.state ?? "not_yet");
 

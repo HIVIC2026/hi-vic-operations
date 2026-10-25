@@ -16,7 +16,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn } from "@/lib/owner-link.functions";
+import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
 import { REVIEW_COPY, REVIEW_FEEDBACK_MAX, parseStars, reviewScreen } from "@/lib/owner-review.core";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
@@ -29,7 +30,8 @@ import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
-const SCREENS = ["home", "spot", "quote", "book", "done", "review"] as const satisfies readonly OwnerScreen[];
+// Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -78,6 +80,7 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
+          : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" || data.stage === "complete" ? <DoneScreen v={data} token={token} />
           : screen === "spot" ? <SpotScreen v={data} token={token} />
@@ -120,6 +123,8 @@ function Home({ v, token }: { v: View; token: string }) {
     {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
     {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
     {v.fixesConfirm && <FixesConfirmCard token={token} />}
+    {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
+    <FixesHomeCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
@@ -580,6 +585,76 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
     <ul className="mt-3 space-y-1 text-sm">{p.payNow.lines.map((l) => <li key={l}>{l}</li>)}</ul>
     {p.paid > 0 && <p className="mt-2 text-xs text-estimate-navy/70">Paid so far: {aud(p.paid)}. Remaining: {aud(p.remaining)}.</p>}
   </section>;
+}
+
+/** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+function FixesHomeCard({ token }: { token: string }) {
+  const load = useServerFn(ownerFixesStateFn);
+  const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
+  if (!data || !ownerFixesNeedsOwner(data.step)) return null;
+  return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
+    <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
+    <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>
+    <p className="mt-1 text-sm">{data.step === "approve" ? OWNER_FIXES_COPY.approve : data.step === "pay" ? OWNER_FIXES_COPY.pay : OWNER_FIXES_COPY.pick}</p>
+    <Link to="/my-job/$token" params={{ token }} search={{ screen: "fixes" }} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">{OWNER_FIXES_COPY.homeButton}</Link>
+  </section>;
+}
+
+/** Decision 366 (audit F03): the electrical fixes screen (?screen=fixes, O29's link). The latest fixes quote (lines + total)
+ *  → Approve (6-digit code session, same acceptance helper as the installation quote, without regenerating it) → pay in full
+ *  (the existing PayNowCard `fixes` step: card when Stripe is on, else bank transfer) → pick one of the electrician's times → booked. */
+function FixesScreen({ v, token }: { v: View; token: string }) {
+  const load = useServerFn(ownerFixesStateFn);
+  const approve = useServerFn(ownerApproveFixesFn);
+  const pick = useServerFn(ownerPickFixesTimeFn);
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
+  const [session, setSession] = useSession();
+  const [needCode, setNeedCode] = useState(false);
+  const [tick, setTick] = useState(false);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["owner-fixes", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]);
+  const run = async (fn: (s: string) => Promise<unknown>) => {
+    if (!session) { setNeedCode(true); return; }
+    setErr(""); setBusy(true);
+    try { await fn(session); await refresh(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical fixes…</p></>;
+  if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical fixes to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical fixes for you to approve.</p></section></>;
+  const q = data.quote;
+  return <>
+    <Back token={token} />
+    <section data-testid="fixes-screen" data-step={data.step} className="space-y-4">
+      <PageIntro kicker={OWNER_FIXES_COPY.kicker} title={OWNER_FIXES_COPY.title}>{v.address}</PageIntro>
+      <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
+        <ul data-testid="fixes-lines">
+          {q.lines.map((l, i) => <li key={i} className={`flex items-start justify-between gap-2.5 py-2.5 ${i ? "border-t border-estimate-line" : ""}`}><span className="min-w-0 break-words text-sm font-bold">{l.description}</span><span className="shrink-0 text-sm tabular-nums">{centsAud(l.amount)}</span></li>)}
+          <li className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">Total (inc GST)</span><span className="font-display text-lg font-extrabold text-estimate-blue" data-testid="fixes-total">{centsAud(q.total)}</span></li>
+        </ul>
+      </section>
+      {data.step === "approve" && <div data-testid="fixes-approve">
+        <p className="text-sm">{OWNER_FIXES_COPY.approve}</p>
+        <TickCard on={tick} set={setTick} title={OWNER_FIXES_COPY.approveTick} />
+        {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
+        <LockedButton ready={tick} busy={busy} busyLabel="Approving…" onClick={() => void run((s) => approve({ data: { token, session: s, quoteId: q.id, ...(q.version != null ? { expectedVersion: q.version } : {}), approve: true } }))}>{OWNER_FIXES_COPY.approveButton}</LockedButton>
+        <DeclineQuote token={token} quoteId={q.id} />
+      </div>}
+      {data.step === "pay" && <><p className="text-sm font-semibold">{OWNER_FIXES_COPY.pay}</p><PayNowCard v={v} token={token} /></>}
+      {data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
+        <p className="text-sm font-semibold">{OWNER_FIXES_COPY.pick}</p>
+        {data.windows.map((w) => <label key={w.id} className="flex min-h-12 items-center gap-3 rounded-2xl border border-estimate-line bg-card px-4 text-sm font-semibold"><input type="radio" name="fixes-time" checked={chosen === w.id} onChange={() => setChosen(w.id)} />{formatPiesaTime(w.startsAt)}</label>)}
+        {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
+        <LockedButton ready={!!chosen} busy={busy} busyLabel="Booking…" onClick={() => void run((s) => pick({ data: { token, session: s, proposalId: chosen! } }))}>{OWNER_FIXES_COPY.pickButton}</LockedButton>
+      </div>}
+      {data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
+      {data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
+      {data.step === "booked" && data.bookedAt && <p data-testid="fixes-booked" className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">{OWNER_FIXES_COPY.booked(formatPiesaTime(data.bookedAt))}</p>}
+      {data.step === "declined" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.declined}</p>}
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <OwnerFooter />
+    </section>
+  </>;
 }
 
 /** Jo insists this is clear and boxed (7 Oct 2026). */
