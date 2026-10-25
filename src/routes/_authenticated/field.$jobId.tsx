@@ -54,6 +54,7 @@ import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { FixesFormCard } from "@/components/trade/FixesFormCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -187,6 +188,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
         stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
+      {stage === "rectification_booked" && <FixesFormCard jobId={jobId} mittiInvited={mittiInvited} />}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
       {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}

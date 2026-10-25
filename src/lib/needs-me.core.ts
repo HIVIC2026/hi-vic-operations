@@ -31,11 +31,16 @@ export type PartnerItem = { key: string; title: string; why: string; dueAt: stri
 export const MITTI_FORMS: [string, string][] = [
   ["A1 Ready Check (installer's own customer)", "mitti_ready_check_priced_template_id"], ["A2 Ready Check (our lead)", "mitti_ready_check_template_id"],
   ["B Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piesa_template_id"], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piisa_template_id"],
+  // Decision 293: listed only once the database column exists (`mitti_fixes_template_id` key present on the row); before
+  // the pending migration the portal-page fallback stands in and a job-level "Fixes form not set up" item is raised when needed.
+  ["A5 Electrical fixes (electrician, later visit)", "mitti_fixes_template_id"],
 ];
+/** Columns a settings row may lack until a pending migration runs: no row is raised while the key is absent. */
+const PENDING_FORM_COLUMNS = new Set(["mitti_fixes_template_id"]);
 const isTestBiz = (n: string | null | undefined) => /^\s*(\[TEST PARTNER\]|TEST\b)/i.test(n ?? "");
 export function movedFromTodo(f: { formIds: Record<string, string | null | undefined> | null; pendingWorkers: { id: string; full_legal_name: string | null; business: string | null }[] }): PartnerItem[] {
   const out: PartnerItem[] = [];
-  for (const [name, col] of MITTI_FORMS) if (f.formIds && !f.formIds[col]) out.push({ key: `mitti-form:${col}`, title: `Onsite form not set up: ${name}`, why: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", dueAt: null, href: "/admin/compliance" });
+  for (const [name, col] of MITTI_FORMS) if (f.formIds && !f.formIds[col] && !(PENDING_FORM_COLUMNS.has(col) && !(col in f.formIds))) out.push({ key: `mitti-form:${col}`, title: `Onsite form not set up: ${name}`, why: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", dueAt: null, href: "/admin/compliance" });
   for (const w of f.pendingWorkers) if (!isTestBiz(w.business)) out.push({ key: `worker:${w.id}`, title: `Approve worker – ${w.full_legal_name?.trim() || "name not given"}`, why: `${w.business ?? "A partner"} added them; they can't be sent jobs until approved.`, dueAt: null, href: "/admin/workers" });
   return out;
 }

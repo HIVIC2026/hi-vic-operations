@@ -147,3 +147,7 @@ One intake (Customer → Job details → Review). Coordination is one of two opt
 - The owner quote's PIESA line follows the current recorded payer: own electrician = not on our quote (electrician invoices the owner); HIV-arranged = standard PIESA fee; undecided = owner quote held. AP fee unchanged.
 - Changing the payer is a material change: quotes are re-drafted/withdrawn/reconfirmed, and the owner fee declaration must be given again for the new arrangement. Blocked once an electrician accepted or the owner's invoice exists (office changes it).
 - This is a billing/coordination change only; all REC, PIESA, evidence and notice checks still apply.
+
+## Electrical fixes on a later visit (decision 293, 25 Oct 2026)
+
+When the PIESA (A4) says repair work is needed and the electrician does not fix it on the same visit, the booked fixes visit creates the short Mitti form "A5 – Electrical fixes" for that electrician (job, electrician details and the listed repair work pre-filled). On Complete: repairs done? → Certificate of Electrical Safety number, date, the CoES photo/PDF and a geotagged photo of the finished work, signed. The portal writes PIESA Part C from it, files the CoES and photos on the job, records the post-rectification PIESA (same path as the portal page), regenerates the official PIESA document and sends the O28 copies — nothing for the office unless the electrician answers No or leaves something out. Fixed on the same visit stays on the PIESA form (q30–q37, q45).

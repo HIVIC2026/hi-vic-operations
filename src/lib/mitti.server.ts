@@ -301,7 +301,7 @@ async function applyPremisesType(jobId: string, actorId: string | null, entries:
 }
 
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
-async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
+export async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
   try {
     const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
