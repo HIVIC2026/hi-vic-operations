@@ -1,7 +1,7 @@
 /**
- * Electrical fixes quote from the A4 PIESA price — pure (decision 305, Jo 25 Oct 2026; ticks: decision 308).
+ * Electrical fixes quote from the A3 PIESA price — pure (decision 305, Jo 25 Oct 2026; ticks: decision 308).
  *
- * The electrician gives ONE total price (inc GST) for all the repair work plus what it includes, inside the A4 Mitti
+ * The electrician gives ONE total price (inc GST) for all the repair work plus what it includes, inside the A3 Mitti
  * PIESA form (official-short.core). Decision 308 ("No free text"): what it includes is TICKED (`fixesWork`, with
  * `fixesDownlightCount` / `fixesRcdCount` / `fixesOtherDetail`); decision 305's free-text `fixesIncluded` is read only as
  * the fallback for old forms. When the price and the inclusions are there the owner's fixes quote is ONE line "Electrical
@@ -10,8 +10,8 @@
  * Decisions 313/349/351 (Jo 25 Oct 2026): the margin follows WHOSE electrician, not the lead route — the installer's own
  * (usual / nominated) electrician is passed through on A1; our electrician gets the $100 — always on our leads since
  * decision 374 (we always choose the electrician there) (`fixesMarginFor`).
- * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A4 total.
- * Decision 354: when the A4 is complete and every existing check passes, the fixes quote goes to the owner automatically
+ * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A3 total.
+ * Decision 354: when the A3 is complete and every existing check passes, the fixes quote goes to the owner automatically
  * (auto-fixes-quote-send.{core,server}.ts); otherwise it stays a held draft on Needs me with the reason.
  */
 import { applyRectificationMargin, RECTIFICATION_MARGIN_INC_GST, type RectificationLine } from "./rectification-pricing.core";
@@ -23,7 +23,7 @@ import type { ElectricianSource } from "./our-lead-piesa-electrician.core";
  *  electrician, on BOTH routes — our (Home Insulation Victoria-supplied) electrician → +$100, including on installer-
  *  supplied jobs (A1); the installer's own / usual / nominated electrician → no markup ever (A1 only —
  *  `electricianSourceForA1`; our leads are always ours since decision 374, both via `electricianSourceForJob`).
- *  Used by both the A4-price path and the rate-card fallback. */
+ *  Used by both the A3-price path and the rate-card fallback. */
 export const fixesMarginFor = (electricianSource: ElectricianSource = "ours"): number =>
   electricianSource === "installer_usual" ? 0 : RECTIFICATION_MARGIN_INC_GST;
 

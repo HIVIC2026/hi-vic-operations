@@ -108,7 +108,7 @@ describe("source pins", () => {
     expect(fns).not.toContain("@tanstack/react-start/server");
     expect(read("src/routes/_authenticated/field.$jobId.tsx")).toContain('{role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}');
   });
-  test("wired: A5 completion after the regeneration, and the 15-minute tick; O28 untouched", () => {
+  test("wired: A4 completion after the regeneration, and the 15-minute tick; O28 untouched", () => {
     const fd = read("src/lib/fixes-day.server.ts");
     expect(fd.indexOf("sendElectricianPiesaCopy(jobId)")).toBeGreaterThan(fd.indexOf("regenerateOfficialPiesa(jobId, actorId, merged"));
     expect(read("src/routes/api/public/hooks/allocation-tick.ts")).toContain("sweepElectricianPiesaCopies()");

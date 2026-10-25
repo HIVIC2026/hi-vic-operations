@@ -1,4 +1,4 @@
-// Decisions 260–264: the "A3 – Install day" template. Wording drift against the build prompt, and the reader that turns an
+// Decisions 260–264: the "A5 – Install day" template. Wording drift against the build prompt, and the reader that turns an
 // audit into the official PIISA answers (pure, run with `bun test`).
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";

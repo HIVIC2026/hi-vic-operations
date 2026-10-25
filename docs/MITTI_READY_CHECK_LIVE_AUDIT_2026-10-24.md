@@ -1,5 +1,7 @@
 # Mitti Ready Check templates — LIVE audit, 24 Oct 2026
 
+> **Form numbers (decision 390, 25 Oct 2026):** this dated audit uses the numbering of the time. Today A3 = Electrical safety check (PIESA), A4 = Electrical fixes, A5 = Install day; this audit's form "A3" is today's A5. Audit item IDs such as A3-1 are unchanged.
+
 Jo: "not sure the Mitti forms are great, go check." This is the check, done against the **live** template definitions
 (fetched 24 Oct ~10:25 UTC through Lovable, `GET /templates/v1/templates/{id}`), not against the portal's idea of them.
 Read-only: no code and no Mitti template was changed. It reconciles `docs/MITTI_TEMPLATES_AUDIT_2026-10-24.md`

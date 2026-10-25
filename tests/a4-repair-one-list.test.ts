@@ -1,4 +1,4 @@
-// Decision 324 (Jo 25 Oct 2026: "the whole quoting part for electrician is clunky" → ONE list). The A4 Repair work page asks
+// Decision 324 (Jo 25 Oct 2026: "the whole quoting part for electrician is clunky" → ONE list). The A3 Repair work page asks
 // the plain tick list (+ counts / Other), then the total price LAST. "Please tick the repair work that is required." and
 // "Please describe the other repair work." are no longer asked: the official PIESA B2 ticks and "Other (indicate below)"
 // details are DERIVED from the plain list. Old forms that answered the official ticks keep them exactly as before.
@@ -80,7 +80,7 @@ describe("decision 324: one plain repair list, price last", () => {
     const older = shortAnswersFromEntries("piesa", [{ label: NEEDED, value: "Yes" }, { label: REPAIR_TICKS_LEGACY_LABEL, value: B2_OPTIONS[5] }, { label: REPAIR_OTHER_LEGACY_LABEL, value: "Loose junction box" }]);
     expect(repairWorkList(older)).toEqual(["Other: Loose junction box"]);
   });
-  test("downstream readers use the derived ticks: A5 repair list, fixes form, fixes times, fixes price", () => {
+  test("downstream readers use the derived ticks: A4 repair list, fixes form, fixes times, fixes price", () => {
     const short = sync(`${DL}, ${SOLAR}`, [{ label: "How many downlights are you replacing?", value: "4" }, { label: FIXES_PRICE_LABEL, value: "$880" }]);
     expect(repairWorkList(short)).toEqual([B2_OPTIONS[0], `Other: ${SOLAR}`]);
     expect(fixesFormNeeded(short)).toBe(true);
@@ -92,7 +92,7 @@ describe("decision 324: one plain repair list, price last", () => {
     expect(onsite["rectificationOutcome"]).toBe(RECTIFICATION_OUTCOMES[2]);
     expect(fixesFormNeeded(onsite)).toBe(false);
   });
-  test("the three A4 docs carry the new order and tell Jo to delete the two questions", () => {
+  test("the three A3 docs carry the new order and tell Jo to delete the two questions", () => {
     for (const f of ["docs/MITTI_PIESA_CHATGPT_PROMPT.md", "docs/MITTI_PIESA_BUILD_PROMPT.md", "docs/MITTI_PIESA_FORM_SPEC.md"]) {
       const doc = readFileSync(f, "utf8");
       expect(doc, f).toContain("Decision 324");

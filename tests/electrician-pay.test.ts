@@ -1,4 +1,4 @@
-// Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the fixes (A5) 7 days after their
+// Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A3) and the fixes (A4) 7 days after their
 // Mitti form is 100% complete AND the owner has paid that step. Installer pay is unchanged.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -37,7 +37,7 @@ describe("electricianPayState: 7 days after the later of form complete and owner
 });
 
 describe("form complete time (decision 318 gate first)", () => {
-  test("safety check = the A4 completion; fixes = the A5 completion; same-visit fixes follow the A4", () => {
+  test("safety check = the A3 completion; fixes = the A4 completion; same-visit fixes follow the A3", () => {
     expect(electricianFormCompleteAt("assessment", facts())).toBe(A4_DONE);
     expect(electricianFormCompleteAt("rectification", facts())).toBe("2026-10-06T03:00:00Z");
     expect(electricianFormCompleteAt("rectification", facts({ fixes: { sameVisitOnPiesa: true, outcome: null, detail: null } }))).toBe(A4_DONE);
@@ -46,7 +46,7 @@ describe("form complete time (decision 318 gate first)", () => {
     expect(electricianFormCompleteAt("assessment", facts({ piesa: { mittiForm: true, completed: false, evidence: [], completedAt: null } }))).toBeNull();
     expect(electricianFormCompleteAt("assessment", facts({ piesa: { mittiForm: true, completed: true, evidence: ["photo missing"], completedAt: A4_DONE } }))).toBeNull();
     expect(electricianFormCompleteAt("rectification", facts({ fixes: { sameVisitOnPiesa: false, outcome: "open", detail: null } }))).toBeNull();
-    expect(PAYOUT_FORM_NOT_COMPLETE.assessment).toContain("A4");
+    expect(PAYOUT_FORM_NOT_COMPLETE.assessment).toContain("A3");
   });
 });
 

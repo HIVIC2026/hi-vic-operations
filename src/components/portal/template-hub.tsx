@@ -24,7 +24,7 @@ const PAGE_FILES = import.meta.glob(["/docs/templates/owner/P*.html", "/docs/tem
 const DOC_FILES = import.meta.glob(["/docs/templates/compliance/**/*.pdf", "/docs/official-forms/*.docx", "/docs/product-warranties/*.pdf"], { query: "?url", import: "default" }) as Record<string, () => Promise<string>>;
 
 const TONE: Record<"green" | "amber" | "rose" | "neutral", PillTone> = { green: "green", amber: "amber", rose: "rose", neutral: "plain" };
-const MITTI_KEY: Record<string, FormKey> = { A1: "ready_check_priced", A2: "ready_check", A3: "piisa", A4: "piesa", A5: "fixes" };
+const MITTI_KEY: Record<string, FormKey> = { A1: "ready_check_priced", A2: "ready_check", A3: "piesa", A4: "fixes", A5: "piisa" };
 
 export function TemplatesHub({ cat, t }: { cat: TemplateSection; t?: string }) {
   const navigate = useNavigate();

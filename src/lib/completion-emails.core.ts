@@ -130,7 +130,7 @@ export type CompletionPackInput = {
   installed?: InstalledLine | null;
   /** VEU checklist G1: product names whose manufacturer warranty PDF is attached to this email (completion-pack.server.ts); [] = none attached. */
   attachedWarranties?: string[];
-  /** Decision 322: the electrician's Certificate of Electrical Safety (A5 fixes form) is attached to this email. */
+  /** Decision 322: the electrician's Certificate of Electrical Safety (A4 fixes form) is attached to this email. */
   attachedCoes?: boolean;
 };
 

@@ -15,7 +15,7 @@ describe("old To action list retired (Jo 7 Oct)", () => {
   });
   test("Needs me now shows unconnected Mitti forms", () => {
     const rows = movedFromTodo({ formIds: { mitti_ready_check_template_id: "a", mitti_ready_check_priced_template_id: "b", mitti_piesa_template_id: null, mitti_piisa_template_id: "" }, pendingWorkers: [] });
-    expect(rows.map((r) => r.title)).toEqual(["Onsite form not set up: B Pre Insulation Electrical Safety Assessment (PIESA)", "Onsite form not set up: C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)"]);
+    expect(rows.map((r) => r.title)).toEqual(["Onsite form not set up: A3 Electrical safety check (PIESA, electrician)", "Onsite form not set up: A5 Install day (PIISA, lead installer)"]);
     expect(rows.every((r) => r.href === "/admin/compliance")).toBe(true);
     expect(movedFromTodo({ formIds: Object.fromEntries(MITTI_FORMS.map(([, c]) => [c, "x"])), pendingWorkers: [] })).toEqual([]);
   });

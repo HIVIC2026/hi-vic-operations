@@ -1,6 +1,6 @@
-// Decision 328 (Jo, 25 Oct 2026): confirm the "A3 – Install day" Mitti form before the installer leaves site. Rules and
+// Decision 328 (Jo, 25 Oct 2026): confirm the "A5 – Install day" Mitti form before the installer leaves site. Rules and
 // wording are pure in install-day-confirm.core.ts. This module:
-//  - `checkInstallDayForm`: runs the single-job A3 sync (`syncPiisaDeclaration`, the same path as the 15-minute Mitti sync)
+//  - `checkInstallDayForm`: runs the single-job A5 sync (`syncPiisaDeclaration`, the same path as the 15-minute Mitti sync)
 //    and turns what it read into ONE result; when the audit is Complete and the install is today, the lead installer is
 //    texted that result once per audit revision (`install_day_form_result_sent` recorded BEFORE any send).
 //  - `sweepInstallDayForms` (15-minute allocation tick): today's installs only — runs the check, then the 5pm reminder
@@ -65,7 +65,7 @@ async function loadJob(jobId: string): Promise<JobRow | null> {
   return (data ?? null) as unknown as JobRow | null;
 }
 
-/** Check the job's A3 now (the single-job sync) and, when it is Complete on an install day, text the result once per revision. */
+/** Check the job's A5 now (the single-job sync) and, when it is Complete on an install day, text the result once per revision. */
 export async function checkInstallDayForm(jobId: string, opts: { actorId?: string | null; now?: Date; call?: MittiCall | undefined } = {}): Promise<InstallDayCheck> {
   const now = opts.now ?? new Date();
   const job = await loadJob(jobId);

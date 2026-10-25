@@ -103,7 +103,7 @@ export async function fileReadyCheckAreaDiagram(jobId: string, actorId: string |
   }
 }
 
-/** Install complete → file the final plan and let it stand as the A3 "final plan" evidence (decision 211). Never throws. */
+/** Install complete → file the final plan and let it stand as the A5 "final plan" evidence (decision 211). Never throws. */
 export async function fileFinalAreaDiagram(jobId: string, actorId: string | null, installZones: InstallZoneConfirmation[] | null = null): Promise<FileDiagramResult> {
   try {
     const f = await finalDiagramInput(jobId, installZones);
@@ -129,7 +129,7 @@ async function satisfyFinalZonePlanRequirement(jobId: string, documentId: string
   if (req.status === "outstanding") await admin.from("evidence_requirements").update({ status: "uploaded" }).eq("id", req.id).eq("status", "outstanding");
 }
 
-/** True when a generated final plan is on the job file (A3 `final_plan` satisfied, decision 211). */
+/** True when a generated final plan is on the job file (A5 `final_plan` satisfied, decision 211). */
 export async function hasGeneratedFinalPlan(jobId: string): Promise<boolean> {
   const { data } = await admin.from("documents").select("id").eq("job_id", jobId).eq("kind", FINAL_AREA_DIAGRAM_KIND).limit(1);
   return (data ?? []).length > 0;

@@ -1,9 +1,9 @@
-# Mitti paste 2 of 3 — A5 Electrical fixes
+# Mitti paste 2 of 3 — A4 Electrical fixes
 
 Copy everything in the box below into ChatGPT.
 
 ```
-Edit the Mitti template "A5 – Electrical fixes". Make ONLY these changes, then publish.
+Edit the Mitti template "A4 – Electrical fixes". Make ONLY these changes, then publish.
 
 1. First page, first item, a Text item (not a question):
 "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged."

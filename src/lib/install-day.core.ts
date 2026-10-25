@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// "A3 – Install day" Mitti template (decisions 260–262, Jo 24 Oct 2026). PURE: no database, no network.
+// "A5 – Install day" Mitti template (decisions 260–262, Jo 24 Oct 2026). PURE: no database, no network.
 // The exact wording of every question, option, help text and stop line is fixed here; docs/MITTI_INSTALL_FORM_FIX_PROMPT.md
 // is the ChatGPT build prompt and tests/install-day.test.ts fails if the two drift apart (same pattern as the lean Ready
 // Check). The portal reads every answer by its question text: this module turns an audit into the official PIISA answers
-// (parseA3Answers delegates here for this template), the four A3 photo items, the two signatures and the crew rows, and
+// (parseA3Answers delegates here for this template), the four A5 photo items, the two signatures and the crew rows, and
 // builds the "portal fills this in" prefill. The safety plan (SWMS) is NOT on this form (decision 261, swms.core.ts);
 // Q19 is the installer's own confirmation that it is signed. The light, cable and downlight answers of official Part 5
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
@@ -13,7 +13,7 @@ import { onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS } from "./official-forms.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
-export const INSTALL_DAY_TEMPLATE_NAME = "A3 – Install day";
+export const INSTALL_DAY_TEMPLATE_NAME = "A5 – Install day";
 export const INSTALL_DAY_RULE = "install-day-2026-10-24";
 export const INSTALL_DAY_SOLAR_BACK_OPTIONS = ["Yes", "No", "There isn't one"] as const;
 /** Q37, a text item (not a question) after the declaration signature. Decision 328 (Jo 25 Oct 2026) wording. */
@@ -193,7 +193,7 @@ export function labelledItems(doc: unknown): Labelled[] {
 /** Items with this exact first-line label, in form order. */
 export const allWithLabel = (items: Labelled[], label: string) => items.filter((i) => labelKey(i.label) === labelKey(label));
 
-/** Is this template / audit the "A3 – Install day" form? (Two labels no other form carries.) */
+/** Is this template / audit the "A5 – Install day" form? (Two labels no other form carries.) */
 export function isInstallDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
   return allWithLabel(items, Q.declaration).length > 0 && allWithLabel(items, Q.afterVideos).length > 0;
@@ -274,7 +274,7 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   return { answers: a, crew: [row(r.text(Q.lead), r.text(Q.leadCii)), second, third] };
 }
 
-/** The A3 photo items of this form by the A3 evidence keys, plus the two after-install multi-file items (decisions 263/264). */
+/** The A5 photo items of this form by the A5 evidence keys, plus the two after-install multi-file items (decisions 263/264). */
 export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[]; after_videos: MittiMediaFile[]; depth_photos: MittiMediaFile[] } {
   const r = readInstallDay(audit);
   return { installer_photos: [...r.media(Q.leadPhoto), ...r.media(Q.secondPhoto), ...r.media(Q.thirdPhoto)], electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
@@ -333,10 +333,10 @@ export type InstallDayPrefillFacts = {
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /**
- * Decision 338 (Jo 25 Oct 2026): Q29 "Does the PIESA need an electrician here at the start?" comes from the A4 question
- * "Does an electrician need to be on site at the start of the install?" (Yes → Yes, No → No) when the stored A4 answered it;
+ * Decision 338 (Jo 25 Oct 2026): Q29 "Does the PIESA need an electrician here at the start?" comes from the A3 question
+ * "Does an electrician need to be on site at the start of the install?" (Yes → Yes, No → No) when the stored A3 answered it;
  * an old form falls back to its decision-314 tick, then to the signed PIESA's B1 outcome (third option = Yes) as before.
- * `a4Short` = shortAnswersFromEntries("piesa", stored A4 snapshot); `b1` = the signed official PIESA's B1 answer.
+ * `a4Short` = shortAnswersFromEntries("piesa", stored A3 snapshot); `b1` = the signed official PIESA's B1 answer.
  */
 export function electricianAtStartPrefill(i: { a4Short: Record<string, unknown> | null | undefined; b1: string | null | undefined }): boolean {
   const q = String(i.a4Short?.["onsiteStartNeeded"] ?? "").trim();

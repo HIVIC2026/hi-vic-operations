@@ -1,4 +1,4 @@
-// Decision 293: the electrician's job page shows the "A5 – Electrical fixes" Mitti form for the booked fixes visit.
+// Decision 293: the electrician's job page shows the "A4 – Electrical fixes" Mitti form for the booked fixes visit.
 // Presentation only: the form, its state and the refresh all come from fixes-day.functions; the portal "record fixes
 // done" page below it stays as the fallback.
 import { useState } from "react";

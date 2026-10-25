@@ -116,14 +116,14 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const mv = kind === "assessment" ? holds.moveHoldForPiesa : holds.moveHoldForRectification;
     await mv(jobId, start, actorId).catch((e) => console.error("install hold move skipped", (e as Error).message));
   }
-  // Decision 293: a booked electrical fixes visit gets the electrician's "A5 – Electrical fixes" Mitti form (one per visit,
+  // Decision 293: a booked electrical fixes visit gets the electrician's "A4 – Electrical fixes" Mitti form (one per visit,
   // only when the PIESA left repair work for a later visit). Any problem is an office item, never a booking failure.
   if (kind === "rectification") {
     await (await import("./fixes-day.server")).onRectificationBooked(jobId, inserted.id, actorId).catch((e) => console.error("fixes form creation skipped", (e as Error).message));
   }
   // Stage 5 (Jo 23 Oct): a rescheduled (or re-confirmed) Ready Check updates the booked date on the job's
   // existing Mitti form. A no-op when no form exists yet — the form is created with the booked date.
-  // Decision 327: the A4 needs the electrician at the start of the install day → ask them for THIS booking (a moved day is a
+  // Decision 327: the A3 needs the electrician at the start of the install day → ask them for THIS booking (a moved day is a
   // new booking, so it is asked again), or auto-confirm a day they already said they can do. Never a booking failure.
   if (kind === "installation") {
     await (await import("./install-attendance.server")).onInstallBooked(jobId, actorId).catch((e) => console.error("electrician attendance skipped", (e as Error).message));

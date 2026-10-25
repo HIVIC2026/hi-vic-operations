@@ -10,12 +10,12 @@ const NATIVE_A3_IDS = new Set(Object.values(A3_NATIVE_IDS).flat());
 /** Pure-ish dispatcher (exported for tests). PIISA saved as the native A3 is compared with its own stable-ID contract. */
 export function validateSavedDefinition(form: FormKey, definition: unknown): { ok: boolean; issues: string[]; unreadable?: boolean; basis: string } {
   if (!definitionReadable(definition)) return { ok: false, unreadable: true, basis: "none", issues: ["Mitti's reply had no readable question items (metadata-only or unsupported format). This does not prove any question is missing."] };
-  // Decision 262: the "A3 – Install day" template, checked by its exact wording (install-day.core).
+  // Decision 262: the "A5 – Install day" template, checked by its exact wording (install-day.core).
   if (form === "piisa" && isInstallDayDoc(definition)) {
     const missing = installDayMissingQuestions(definition);
     return { ok: missing.length === 0, issues: missing.map((q) => `Install day form: "${q}" not found (exact wording)`), basis: "install day form — every question by exact wording (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md)" };
   }
-  // Decision 293: the "A5 – Electrical fixes" template, checked by its exact wording (fixes-day.core).
+  // Decision 293: the "A4 – Electrical fixes" template, checked by its exact wording (fixes-day.core).
   if (form === "fixes") {
     const missing = fixesDayMissingQuestions(definition);
     return { ok: missing.length === 0, issues: missing.map((q) => `Electrical fixes form: "${q}" not found (exact wording)`), basis: "fixes day form — every question by exact wording (docs/MITTI_FIXES_FORM_PROMPT.md)" };

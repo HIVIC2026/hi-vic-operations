@@ -89,7 +89,7 @@ export function stagedDirectCrewPrefill(selection: CrewSelection, staff: StaffOp
   return { items, ...checked };
 }
 /** Direct text entries must match BOTH current legal name and CII number in the assigned company. */
-/** `choices` defaults to the direct A3 fields; the install day form passes its own typed rows (decision 262). */
+/** `choices` defaults to the direct A5 fields; the install day form passes its own typed rows (decision 262). */
 export function resolveDirectCrew(audit: unknown, staff: StaffOption[], typed?: CrewChoice[]) {
   const answers: Record<string, string> = {}, blockers: string[] = [];
   const choices = typed ?? stagedDirectCrewChoices(audit), seen = new Set<string>();

@@ -1,8 +1,8 @@
 // Decision 336 (Jo 25 Oct 2026: "WHERE IS THE ELECTRICIAN'S SIGNATURE?"): the electrician's ACTUAL signature images captured in
-// Mitti — A4 "Electrician signature" (PIESA Part B3) and A5 "Electrician signature" (PIESA Section C) — are downloaded through
+// Mitti — A3 "Electrician signature" (PIESA Part B3) and A4 "Electrician signature" (PIESA Section C) — are downloaded through
 // the same Mitti media path as the evidence files, kept with the job (private job-files bucket + a documents row) and recorded
 // once per media id as an internal `piesa_signature_saved` event (audit id, media id, the signature's OWN timestamp, path,
-// SHA-256). The official Word form / PDF read them back from storage (officialSignatureImages). The PIISA (A3 lead installer)
+// SHA-256). The official Word form / PDF read them back from storage (officialSignatureImages). The PIISA (A5 lead installer)
 // image is the one already stored by the start-of-work capture (piisa-prestart.server `storeSignatureImage`).
 // Never sends anything; a failure is one internal event and never throws.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -37,7 +37,7 @@ export async function savePiesaSignatureImage(jobId: string, actorId: string | n
     if (up.error && !/exists/i.test(up.error.message)) throw new Error(`storage upload failed: ${up.error.message}`);
     const key = `${auditId}:${sig.mediaId}`;
     const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-    if (!ex) await admin.from("documents").insert({ job_id: jobId, kind: "piesa_evidence", title: role === "a4" ? "PIESA – electrician signature (Mitti A4)" : "PIESA Section C – electrician signature (Mitti A5)", storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `signature-${sig.mediaId}.${ext}`, size_bytes: bytes.length });
+    if (!ex) await admin.from("documents").insert({ job_id: jobId, kind: "piesa_evidence", title: role === "a4" ? "PIESA – electrician signature (Mitti A3)" : "PIESA Section C – electrician signature (Mitti A4)", storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `signature-${sig.mediaId}.${ext}`, size_bytes: bytes.length });
     const rec: StoredPiesaSignature = { role, audit_id: auditId, media_id: sig.mediaId, item_id: sig.itemId ?? null, signer_name: sig.name, signed_at: sig.signedAt, path, sha256, content_type: contentType };
     await logEvent(jobId, actorId, PIESA_SIGNATURE_SAVED_EVENT, role === "a4" ? "Electrician's PIESA signature image kept with the job (decision 336)" : "Electrician's Section C signature image kept with the job (decision 336)", rec as unknown as Record<string, unknown>, { internal: true });
     return rec;
@@ -47,7 +47,7 @@ export async function savePiesaSignatureImage(jobId: string, actorId: string | n
   }
 }
 
-/** The latest stored signature record for a role (the A4 one for the job's current PIESA audit when known). */
+/** The latest stored signature record for a role (the A3 one for the job's current PIESA audit when known). */
 export async function latestPiesaSignature(jobId: string, role: PiesaSignatureRole): Promise<StoredPiesaSignature | null> {
   const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PIESA_SIGNATURE_SAVED_EVENT).order("created_at", { ascending: false }).limit(20);
   const recs = (data ?? []).map((r) => r.details as unknown as StoredPiesaSignature).filter((d) => d?.role === role && !!d.path);
@@ -70,7 +70,7 @@ export type OfficialSignatures = { signatures: Partial<Record<SignatureSlot, Sig
 /**
  * The signature images for the official Word form / PDF of `key`, read from the job's private files. `answers` = the official
  * answers being filled (Section C is only looked up when it is filled). A missing image is a flag
- * ("Electrician signature image not available") and the box keeps the typed name. PIISA: the A3 lead installer image stored
+ * ("Electrician signature image not available") and the box keeps the typed name. PIISA: the A5 lead installer image stored
  * at the start-of-work capture (`prestart`, else the job's latest one).
  */
 export async function officialSignatureImages(jobId: string, key: OfficialKey, answers: Record<string, unknown>, prestart?: { image_path: string; content_type: string; signed_at: string } | null): Promise<OfficialSignatures> {

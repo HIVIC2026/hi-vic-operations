@@ -70,7 +70,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['rectification'] = "failed";
         }
         try {
-          // Decision 293: open "A5 – Electrical fixes" Mitti forms — on Complete, Section C is recorded and the files kept.
+          // Decision 293: open "A4 – Electrical fixes" Mitti forms — on Complete, Section C is recorded and the files kept.
           const { sweepFixesForms } = await import("@/lib/fixes-day.server");
           (out as Record<string, unknown>)['fixesForms'] = await timed("sweepFixesForms", () => sweepFixesForms());
         } catch (e) {
@@ -123,7 +123,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['spotReleases'] = "failed";
         }
         try {
-          // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A5 fixes form; days 1/3, office day 5.
+          // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A4 fixes form; days 1/3, office day 5.
           const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
           (out as Record<string, unknown>)['piesaFixesConfirm'] = await timed("sweepOwnerFixesConfirmations", () => sweepOwnerFixesConfirmations());
         } catch (e) {
@@ -357,7 +357,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['tradeMessages'] = "failed";
         }
         try {
-          // Decision 354: catch-up for the automatic electrical fixes quote send (A4 complete + every check passed).
+          // Decision 354: catch-up for the automatic electrical fixes quote send (A3 complete + every check passed).
           const { sweepAutoFixesQuotes } = await import("@/lib/auto-fixes-quote-send.server");
           (out as Record<string, unknown>)['autoFixesQuotes'] = await timed("sweepAutoFixesQuotes", () => sweepAutoFixesQuotes());
         } catch (e) {
@@ -407,7 +407,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['readyCheckForms'] = "failed";
         }
         try {
-          // Decision 328: today's installs only — an A3 Install day form newly marked Complete is checked and the lead
+          // Decision 328: today's installs only — an A5 Install day form newly marked Complete is checked and the lead
           // installer texted the result once per form revision; at 5pm a still-incomplete form gets ONE reminder.
           // Runs before the long Mitti sync so today's sites are never starved. Events recorded before any send.
           const { sweepInstallDayForms } = await import("@/lib/install-day-confirm.server");

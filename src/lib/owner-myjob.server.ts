@@ -105,7 +105,7 @@ export async function resolveOwnerJob(token: unknown) {
     // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
     veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
     // Decision 296: between the electrician's PIESA and the install day the owner confirms the PIESA here (the card reads its own facts via ownerPiesaConfirmFn).
-    // Decision 330: after the A5 electrical fixes the owner confirms them here (the card reads its own facts; nothing without a fixes record).
+    // Decision 330: after the A4 electrical fixes the owner confirms them here (the card reads its own facts; nothing without a fixes record).
     fixesConfirm: ["rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(stage),
     piesaConfirm: ["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(stage),
   };

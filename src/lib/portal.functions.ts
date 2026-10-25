@@ -628,7 +628,7 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       const p = await piesaStatus(data.jobId);
       if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
     }
-    // Decision 293: the same writes the Mitti "A5 – Electrical fixes" completion makes (piesa-record.server.ts).
+    // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");
     await applyPiesaRecord({ jobId: data.jobId, actorId: context.userId, kind: data.kind, outcome: data.outcome, completedDate: data.completedDate, sectionCSignedDate: data.sectionCSignedDate ?? null, notes: data.notes ?? null, source: { kind: "portal" } });
     return { ok: true };

@@ -1,9 +1,9 @@
-// Decision 354 (Jo 25 Oct 2026): the electrician-priced (A4) electrical fixes quote goes to the owner automatically
-// when the A4 is complete and every existing check passes. Rules: auto-fixes-quote-send.core.ts. Delivery goes ONLY
+// Decision 354 (Jo 25 Oct 2026): the electrician-priced (A3) electrical fixes quote goes to the owner automatically
+// when the A3 is complete and every existing check passes. Rules: auto-fixes-quote-send.core.ts. Delivery goes ONLY
 // through the shared release (fixes-quote-release.server.ts `releaseFixesQuote`, the same path as the office Send
 // button: same checks, same O29 owner email + link, TEST jobs → test-send). Idempotent: a quote is issued once (the
 // status flips only from draft) and a held reason is recorded once per quote + reason.
-// Triggers: the A4 sync when the form is Complete (mitti.server `syncMittiAssessment`), the electrician giving the fixes
+// Triggers: the A3 sync when the form is Complete (mitti.server `syncMittiAssessment`), the electrician giving the fixes
 // times (rectification.server `recordRectificationWindows`) and the 15-minute tick (`sweepAutoFixesQuotes`, catch-up).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -19,8 +19,8 @@ async function heldOnce(jobId: string, quoteId: string, reason: string) {
 }
 
 /**
- * One job. `generate`: when the A4 is Complete with the electrician's repair price and the job has no fixes quote yet,
- * prepare it first (generateRectificationQuote, A4-price path only — rate-card quotes stay with the office).
+ * One job. `generate`: when the A3 is Complete with the electrician's repair price and the job has no fixes quote yet,
+ * prepare it first (generateRectificationQuote, A3-price path only — rate-card quotes stay with the office).
  * Never throws: a failure is returned as `error` (callers are best-effort).
  */
 export async function maybeAutoSendFixesQuote(jobId: string, opts: { actorId?: string | null; generate?: boolean; enabled?: boolean } = {}): Promise<AutoFixesOutcome> {
@@ -42,7 +42,7 @@ export async function maybeAutoSendFixesQuote(jobId: string, opts: { actorId?: s
       const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
       const { shortAnswersFromEntries } = await import("./official-short.core");
       const { fixesPriceSource } = await import("./fixes-price.core");
-      if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A4", null);
+      if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
       const quoteId = await (await import("./quotes.server")).generateRectificationQuote(jobId, opts.actorId ?? null);
       const { data: fresh, error: fe } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at, created_at, quote_internals(calc_snapshot)").eq("id", quoteId).maybeSingle();
       if (fe) throw new Error(fe.message);
@@ -75,14 +75,14 @@ export async function maybeAutoSendFixesQuote(jobId: string, opts: { actorId?: s
   }
 }
 
-/** 15-minute tick catch-up: every live job at a fixes-quote stage with a completed A4 (bounded, one job at a time). */
+/** 15-minute tick catch-up: every live job at a fixes-quote stage with a completed A3 (bounded, one job at a time). */
 export async function sweepAutoFixesQuotes(limit = 100) {
   if (!AUTO_FIXES_QUOTE_SEND_ENABLED) return { checked: 0, sent: 0, held: 0, errors: 0 };
   const { data: jobs, error } = await admin.from("jobs").select("id").in("stage", [...AUTO_FIXES_STAGES]).is("deleted_at", null).is("qa_archived_at", null).order("updated_at", { ascending: false }).limit(limit);
   if (error) throw new Error(`Could not read jobs for the automatic fixes quote send: ${error.message}`);
   const ids = (jobs ?? []).map((j) => j.id);
   const { data: done, error: de } = ids.length ? await admin.from("assessments").select("job_id").in("job_id", ids).eq("mitti_completed", true) : { data: [] as { job_id: string }[], error: null };
-  if (de) throw new Error(`Could not read the A4 forms for the automatic fixes quote send: ${de.message}`);
+  if (de) throw new Error(`Could not read the A3 forms for the automatic fixes quote send: ${de.message}`);
   const res = { checked: 0, sent: 0, held: 0, errors: 0 };
   for (const { job_id } of done ?? []) {
     const r = await maybeAutoSendFixesQuote(job_id, { actorId: null, generate: true });

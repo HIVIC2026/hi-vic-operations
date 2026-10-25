@@ -1,10 +1,10 @@
-# Prompt for ChatGPT: answer colours + settings on "A3 – Install day" (25 Oct 2026)
+# Prompt for ChatGPT: answer colours + settings on "A5 – Install day" (25 Oct 2026)
 
 Paste everything below the line into ChatGPT. Nothing about the questions changes; only answer colours and two settings.
 
 ---
 
-Edit the Mitti template `A3 – Install day`. Make ONLY these changes, then publish.
+Edit the Mitti template `A5 – Install day`. Make ONLY these changes, then publish.
 
 1. Create two new response sets by duplicating the existing Yes/No set:
    - `Yes/No (Yes is bad)`: Yes coloured RED, No coloured GREEN.

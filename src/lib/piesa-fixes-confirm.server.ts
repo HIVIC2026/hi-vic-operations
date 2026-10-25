@@ -8,7 +8,7 @@ import {
   validateOwnerFixesConfirmation, type PiesaFixesConfirmFacts,
 } from "./piesa-fixes-confirm.core";
 
-/** The latest post_rectification PIESA record (the A5 fixes) with what the page needs. Null = no fixes recorded. */
+/** The latest post_rectification PIESA record (the A4 fixes) with what the page needs. Null = no fixes recorded. */
 export async function ownerFixesConfirmFacts(jobId: string): Promise<PiesaFixesConfirmFacts | null> {
   const { data: rec } = await admin.from("piesa_records").select("id, completed_date, created_at").eq("job_id", jobId).eq("kind", "post_rectification").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!rec || !rec.completed_date) return null;

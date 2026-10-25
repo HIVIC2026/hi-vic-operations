@@ -45,23 +45,23 @@ export const SMS_MESSAGE_TYPES = {
   // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
   piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: true, quietHours: true },
   // Decision 330 (Jo 25 Oct 2026, wording approved): the owner confirms the ELECTRICAL FIXES on their secure link — request
-  // when the A5 fixes form is complete, reminders days 1/3 (piesa-fixes-confirm.core.ts).
+  // when the A4 fixes form is complete, reminders days 1/3 (piesa-fixes-confirm.core.ts).
   piesa_owner_fixes_confirm: { audience: "owner", label: "Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: true, quietHours: true },
-  // Decision 315 (Jo 25 Oct 2026, route approved): the A4 PIESA says electrical fixes are needed and no fixes times exist →
+  // Decision 315 (Jo 25 Oct 2026, route approved): the A3 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
   fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
-  // Decision 327 (Jo 25 Oct 2026, route approved): the A4 says the electrician must be on site at the start of the install
+  // Decision 327 (Jo 25 Oct 2026, route approved): the A3 says the electrician must be on site at the start of the install
   // day → once the day is booked (and on every change) the assigned electrician is asked to confirm on their job page.
   // Wording: attendanceSmsText (install-attendance.core.ts).
   electrician_install_attendance: { audience: "partner", label: "Install day booked – electrician needed at the start: confirm on the job page / 24h reminder / booked on a day they can do (decision 327)", wordingApproved: true, quietHours: true },
   // Decision 327: the electrician can't make the booked install day → the installer is told once with the days the electrician
   // can do. Wording: installerCantAttendText (install-attendance.core.ts), given by Jo.
   electrician_cant_attend_installer: { audience: "partner", label: "Electrician can't make the install day – installer offers new days the electrician can do (decision 327)", wordingApproved: true, quietHours: true },
-  // Decision 328 (Jo 25 Oct 2026, route approved): the A3 Install day form marked Complete → the lead installer gets the
+  // Decision 328 (Jo 25 Oct 2026, route approved): the A5 Install day form marked Complete → the lead installer gets the
   // result ("All filled in ✓ You can leave site." / "Not finished — …"), once per form revision. Same-day result: exempt
   // from the 8pm quiet hours, never before 7am. Wording: install-day-confirm.core.ts.
   install_day_form_result: { audience: "partner", label: "Install day form checked – all filled in / not finished, to the lead installer (decision 328)", wordingApproved: true, quietHours: false, notBefore7am: true },
-  // Decision 328: 5pm on the install day, the A3 still not Complete → ONE reminder to the lead installer.
+  // Decision 328: 5pm on the install day, the A5 still not Complete → ONE reminder to the lead installer.
   install_day_form_reminder: { audience: "partner", label: "Install day form not complete at 5pm – reminder to the lead installer (decision 328)", wordingApproved: true, quietHours: true },
   // Decision 326 (25 Oct 2026): approved wordings that had no sender. Wording verbatim in approved-texts.core.ts; each text
   // records one `approved_text_prepared` event before sending (approved-texts.server.ts). Switches start off (fail closed).
@@ -147,7 +147,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
   piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
   piesa_owner_fixes_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per post_rectification record before any send (piesa-fixes-confirm-send.server)
-  fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A4 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
+  fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A3 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
   electrician_install_attendance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the request / reminder recorded for this install booking (install-attendance.server); re-offered by the tick only while unanswered
   electrician_cant_attend_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the electrician's "Can't make it" (recorded once per released booking before any send)
   install_day_form_result: { kind: "window" }, // key = job + audit + revision; recorded once before any send, only on an install day (install-day-confirm.server)

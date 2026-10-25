@@ -1,6 +1,6 @@
 # Install day form — old build prompt (superseded)
 
-**Superseded (24 Oct 2026, decisions 260–266).** The install day form is now a NEW Mitti template, `A3 – Install day`,
+**Superseded (24 Oct 2026, decisions 260–266).** The install day form is now a NEW Mitti template, `A5 – Install day`,
 built from `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` — that file is the only build prompt. Its wording is fixed in
 `src/lib/install-day.core.ts` and `tests/install-day.test.ts` fails if the two drift apart.
 

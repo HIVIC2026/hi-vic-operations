@@ -1,7 +1,7 @@
-// Decision 314 follow-up (stage machinery): an A4 whose ONLY repair tick is "Be on site at the start of the install day"
+// Decision 314 follow-up (stage machinery): an A3 whose ONLY repair tick is "Be on site at the start of the install day"
 // clears on `electrician_at_start` (fixes quote accepted + payment rule cleared) and then advances straight to
 // installation_scheduling and is bookable — the open fixes items are done on the install day (never marked completed),
-// no A5 fixes form and no fixes booking. Every other job keeps its old routing and entry blockers.
+// no A4 fixes form and no fixes booking. Every other job keeps its old routing and entry blockers.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { planStep, type AdvanceFacts } from "../src/lib/autoadvance.core";
@@ -21,7 +21,7 @@ const clearance = { piesaOutcome: "fail" as const, piesaCompletedAt: "2026-10-01
 describe("on-site-only job: accepted + paid fixes quote → straight to installation scheduling, bookable", () => {
   const cleared = electricalClearance({ ...clearance, onsiteStartOnly: onsiteStartOnly(onsiteShort) });
   const f: AdvanceFacts = { ...base, openRectItems: 1, rectQuoteAccepted: true, onsiteStartOnly: true, onsiteStartCleared: onsiteStartAtInstall(cleared) };
-  test("the A4 answer is on-site-only and clears on electrician_at_start", () => {
+  test("the A3 answer is on-site-only and clears on electrician_at_start", () => {
     expect(onsiteStartOnly(onsiteShort)).toBe(true);
     expect(cleared).toMatchObject({ cleared: true, basis: "electrician_at_start" });
     expect(onsiteStartAtInstall(cleared)).toBe(true);
@@ -34,7 +34,7 @@ describe("on-site-only job: accepted + paid fixes quote → straight to installa
     // Still needs a current PIESA.
     expect(installEntryElectricalBlockers({ openRectItems: 1, piesaDate: null, piesaOutcome: null, onsiteStartCleared: true })).toEqual([PASSING_PIESA_BLOCKER]);
   });
-  test("no A5 fixes form and no fixes times are needed", () => {
+  test("no A4 fixes form and no fixes times are needed", () => {
     expect(fixesFormNeeded(onsiteShort)).toBe(false);
     expect(fixesTimesNeeded(onsiteShort)).toBe(false);
   });

@@ -1,4 +1,4 @@
-// A3 PIISA prestart capture: reads the CURRENT (normally in-progress) audit via GET, stores the signature IMAGE itself and an
+// A5 PIISA prestart capture: reads the CURRENT (normally in-progress) audit via GET, stores the signature IMAGE itself and an
 // immutable prestart snapshot BEFORE final completion. After-work media never block this check. No audit writes, no sends.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
@@ -32,7 +32,7 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
   const { answersFromDocument } = await import("./official-forms.core");
   const pe = await currentCopy(jobId, "piesa");
   const b1 = pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] : null;
-  // Decision 338: the A4 "on site at the start of the install" question decides first; old forms fall back to the tick / B1.
+  // Decision 338: the A3 "on site at the start of the install" question decides first; old forms fall back to the tick / B1.
   const { data: asmt } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const a4Entries = Array.isArray(asmt?.mitti_raw_snapshot) ? (asmt!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
   const a4Short = a4Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a4Entries) : null;
@@ -42,7 +42,7 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
 }
 
 /**
- * Decision 262: official answers the portal fills for the "A3 – Install day" form — Part 5 lights / cables / downlights
+ * Decision 262: official answers the portal fills for the "A5 – Install day" form — Part 5 lights / cables / downlights
  * from the job's signed PIESA (piesaPart5Answers) and Part 6 existing insulation from the current Ready Check record
  * (readyCheckPart6Answers). `missing` lists every fact neither record establishes (pre-start blockers); `conductive`
  * feeds the official P6 foil rule as the portal-side conductivity record.

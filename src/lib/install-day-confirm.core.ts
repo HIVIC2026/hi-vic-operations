@@ -1,10 +1,10 @@
-// Decision 328 (Jo, 25 Oct 2026): installers miss the AFTER-work part of the "A3 – Install day" Mitti form, so the portal
+// Decision 328 (Jo, 25 Oct 2026): installers miss the AFTER-work part of the "A5 – Install day" Mitti form, so the portal
 // confirms the form before they leave site. PURE: no database, no network.
-//  - When the A3 audit is marked Complete in Mitti, the portal checks it (the single-job A3 sync) and texts the lead
+//  - When the A5 audit is marked Complete in Mitti, the portal checks it (the single-job A5 sync) and texts the lead
 //    installer ONE result per audit revision: "All filled in ✓ You can leave site." or "Not finished — <first 3 items>…".
 //  - The installer can run the same check from "Check my form now" on /field/day/{jobId} and /field/{jobId}; the screen
 //    shows the same result.
-//  - At 5pm Melbourne on the (last) install day, if the A3 is still not Complete, the lead installer gets ONE reminder.
+//  - At 5pm Melbourne on the (last) install day, if the A5 is still not Complete, the lead installer gets ONE reminder.
 // Wording is Jo's, verbatim (the sender adds "Home Insulation Victoria: "). Senders: install-day-confirm.server.ts.
 import type { InstallEvidenceSummary } from "./install-evidence.core";
 
@@ -16,7 +16,7 @@ export const INSTALL_DAY_RESULT_EVENT = "install_day_form_result_sent" as const;
 export const INSTALL_DAY_REMINDER_EVENT = "install_day_form_reminder_sent" as const;
 /** 5pm Melbourne on the install day. */
 export const INSTALL_DAY_REMINDER_HOUR = 17;
-/** The final A3 tick (decision 328) — unticked = the form is not complete. Same words as the blocker in install-evidence.core. */
+/** The final A5 tick (decision 328) — unticked = the form is not complete. Same words as the blocker in install-evidence.core. */
 export const FINAL_TICK_MISSING = "Final tick (every answer, photo and video filled in) not ticked";
 
 // ---- wording (verbatim, Jo 25 Oct 2026) ----
@@ -38,20 +38,20 @@ export function firstMissing(missing: readonly string[], n = 3): string {
 // ---- the result ----
 export type InstallDayFormState = "not_complete" | "all_filled_in" | "not_finished";
 export type InstallDayFormInput = {
-  /** Mitti reports the A3 audit marked Complete. */
+  /** Mitti reports the A5 audit marked Complete. */
   formCompleted: boolean;
-  /** The "A3 – Install day" template (the final tick applies). The old A3 has no final tick. */
+  /** The "A5 – Install day" template (the final tick applies). The old A3 has no final tick. */
   installDayForm: boolean;
   /** The decision-328 final tick is ticked on the form. */
   finalTickTicked: boolean;
-  /** The single-job A3 sync outcome: the signed installer declaration saved (saved / already) or why not. */
+  /** The single-job A5 sync outcome: the signed installer declaration saved (saved / already) or why not. */
   declaration: { ok: boolean; message: string };
   /** The install-day evidence read from the same audit (null = not read). */
   summary: Pick<InstallEvidenceSummary, "applies" | "blockers"> | null;
 };
 export type InstallDayFormResult = { state: InstallDayFormState; missing: string[] };
 
-/** Pure: is the Complete A3 really all filled in? Evidence first, then the declaration, then the final tick. */
+/** Pure: is the Complete A5 really all filled in? Evidence first, then the declaration, then the final tick. */
 export function installDayFormResult(i: InstallDayFormInput): InstallDayFormResult {
   if (!i.formCompleted) return { state: "not_complete", missing: [] };
   const missing: string[] = [];

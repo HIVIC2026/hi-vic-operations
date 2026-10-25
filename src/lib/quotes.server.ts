@@ -187,17 +187,17 @@ export async function deriveRectificationItems(jobId: string, actorId: string) {
   return count ?? 0;
 }
 
-/** Decision 305: the electrician's one total for the repair work, read from the synced A4 PIESA snapshot (pure decision in fixes-price.core). */
+/** Decision 305: the electrician's one total for the repair work, read from the synced A3 PIESA snapshot (pure decision in fixes-price.core). */
 async function a4FixesPriceSource(jobId: string) {
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]) : [];
   return fixesPriceSource(entries.length ? shortAnswersFromEntries("piesa", entries) : null);
 }
 
-/** Decision 305 (Jo 25 Oct 2026): ONE line from the electrician's A4 total + the decision-142 margin; no rate-card lookup.
+/** Decision 305 (Jo 25 Oct 2026): ONE line from the electrician's A3 total + the decision-142 margin; no rate-card lookup.
  *  Same supersede/insert/release shape as the rate-card path below — the quote is still a held draft for office review.
  *  Decision 308: `included` is built from the electrician's ticks (fixes-price.core). Decision 310 (Jo 25 Oct 2026):
- *  office-added rectification_items are NOT added on top of the electrician's total — the A4 price is the whole price. */
+ *  office-added rectification_items are NOT added on top of the electrician's total — the A3 price is the whole price. */
 async function generateA4FixesQuote(jobId: string, actorId: string | null, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number, electricianSource: "installer_usual" | "ours") {
   // quotes.rate_card_id is nullable: keep the electrician's active card for reference when there is one, never required here.
   const { data: cards } = await admin.from("rate_cards").select("id, version").eq("kind", "electrical").eq("is_active", true).eq("business_id", businessId).order("version", { ascending: false }).limit(1);
@@ -231,7 +231,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string 
   const settings = await activePricing();
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the electrical fixes quote.");
-  // Decision 305: the electrician's own total from the A4 PIESA wins; older forms without it keep the rate-card path below.
+  // Decision 305: the electrician's own total from the A3 PIESA wins; older forms without it keep the rate-card path below.
   // Decision 351: the $100 follows WHOSE electrician on both routes — ours (incl. on A1) → +$100; the installer's own /
   // usual / nominated electrician → passed through as is.
   const electricianSource = await (await import("./our-lead-piesa-electrician.server")).electricianSourceForJob(jobId, rec.business_id);

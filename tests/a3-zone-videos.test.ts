@@ -1,4 +1,4 @@
-// Old A3 forms (24 Oct 2026): the whole-job A3 videos were deleted and each zone's own before / after video stands in.
+// Old A3 forms (24 Oct 2026): the whole-job A5 videos were deleted and each zone's own before / after video stands in.
 import { describe, expect, test } from "bun:test";
 import { INSTALL_EVIDENCE_QUESTIONS as Q, zoneVideoFiles } from "../src/lib/install-evidence.core";
 import { A3_MEDIA_IDS, A3_REQUIREMENT_LABELS, a3CompletionBlockers, a3EvidenceChecklist, a3MediaFiles, a3MediaSummary, a3MissingFields, a3PrestartBlockers, type A3EvidenceCtx } from "../src/lib/piisa-a3.core";

@@ -108,7 +108,7 @@ describe("crew resolved against CURRENT verified staff", () => {
 });
 
 describe("AP gate", () => {
-  test("stored blockers and late capture block; non-A3 unaffected", () => {
+  test("stored blockers and late capture block; non-A5 unaffected", () => {
     expect(a3EvidenceGate(null)).toEqual([]);
     expect(a3EvidenceGate({ a3_evidence: { prestart_blockers: [], completion_blockers: ["x"], crew_blockers: ["y"], prestart_captured_from: "completed_audit" } }).length).toBe(3);
     expect(a3EvidenceGate({ a3_evidence: { prestart_blockers: [], completion_blockers: [], crew_blockers: [], prestart_captured_from: "in_progress_audit" } })).toEqual([]);

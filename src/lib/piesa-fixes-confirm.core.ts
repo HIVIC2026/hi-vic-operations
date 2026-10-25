@@ -1,4 +1,4 @@
-// Decision 330 (Jo, 25 Oct 2026): when the A5 electrical fixes form is Complete (fixes-day.server completeFixesForm → the
+// Decision 330 (Jo, 25 Oct 2026): when the A4 electrical fixes form is Complete (fixes-day.server completeFixesForm → the
 // post_rectification PIESA record), the owner is asked ONCE (email O72 + text) to confirm on the same secure My job page
 // (decision 296's P6 card, decision 306: no code) that the electrical fixes were done: one tick "The electrical fixes were
 // completed on {date}" + typed full name. Reminders on days 1 and 3, office row only if still unconfirmed 5 days after (as O71).
@@ -26,7 +26,7 @@ export const OFFICIAL_FIXES_DECLARATION = "I confirm that any electrical rectifi
 
 export type OwnerFixesConfirmation = { name: string; authority: "owner" | "authorised_representative"; signedAt: string; recordId: string };
 export type PiesaFixesConfirmFacts = {
-  /** The latest `post_rectification` piesa_records row (the A5 fixes record). */
+  /** The latest `post_rectification` piesa_records row (the A4 fixes record). */
   recordId: string;
   /** Date the fixes were certified (YYYY-MM-DD) and when the record was written (ISO) — the reminder clock starts here. */
   fixesDate: string; completedAt: string;

@@ -1,4 +1,4 @@
-# Prompt for ChatGPT: build "A4 – Electrical safety check (PIESA)" in Mitti (25 Oct 2026)
+# Prompt for ChatGPT: build "A3 – Electrical safety check (PIESA)" in Mitti (25 Oct 2026)
 
 Paste everything below the line into ChatGPT (same Mitti connector as the Ready Check edits). Wording is fixed by `src/lib/official-short.core.ts` / the PIESA spec.
 
@@ -7,8 +7,8 @@ Paste everything below the line into ChatGPT (same Mitti connector as the Ready 
 
 You are helping me build a form template in **Mitti** (mitti.com.au field inspection app, web template builder). I will follow your instructions click by click in the Mitti web app. Give me the build as a numbered list of steps I can tick off, nothing skipped. The question wording, answer types, Required settings and "only show when" logic below are **fixed and must be copied exactly, character for character, including punctuation and capitals**, because a connected software system reads every answer by its question text and fills the Victorian Government's official "Pre-installation electrical safety assessment" (PIESA) Word form from these answers. Do not reword, reorder, merge, split, add or drop any question. If Mitti does not offer an answer type I name, tell me the closest Mitti type and ask me before substituting.
 
-**Template name:** `A4 – Electrical safety check (PIESA)`
-Build it as a NEW template in Mitti yourself and publish it; do not change A1, A2 or A3.
+**Template name:** `A3 – Electrical safety check (PIESA)`
+Build it as a NEW template in Mitti yourself and publish it; do not change A1, A2 or A5.
 **Inspection title:** Job Reference ID + Address including postcode (use questions 1 and 2).
 **Pages:** you may put a page break between the groups shown with ##, page breaks do not matter to the reading software.
 **Photo questions:** turn on location/GPS for every photo item so the photo is geotagged. Photos sit with the question they belong to (decision 297); the owner confirms the assessment through their own secure link, not on this form (decision 296).
@@ -67,7 +67,7 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 
 ## Group 7: Repair work
 20. `Is any electrical repair work needed before insulation can be installed?` — Yes/No — Required — Yes red
-   - Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation (same visit or the A5 fixes visit). Do NOT ask `Can the repair work be done before installation?` and do NOT add the instruction `No means an electrician must be present on installation day instead.` — delete both if they are on the form.
+   - Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation (same visit or the A4 fixes visit). Do NOT ask `Can the repair work be done before installation?` and do NOT add the instruction `No means an electrician must be present on installation day instead.` — delete both if they are on the form.
 21. `What will you do? Tick everything included in your price.` — Tick all: `Replace downlights with IC-4 rated LED downlights` / `Install RCD safety switches` / `Upgrade circuit protection (breakers) for insulation` / `Replace old cables with TPS cable` / `Secure and support loose cables in the ceiling` / `Repair or replace damaged connections or junction boxes` / `Identify and mark the mains cable in the ceiling` / `Remove or make safe old unused cables` / `Label and protect solar or battery cables in the ceiling` / `Other` — NOT Required (decision 338: it may be empty when the only work is being on site at the start; the portal flags `No repair work ticked and no on-site attendance` if both are empty) — only show when question 20 = Yes — Mitti colours: all these grey (decisions 308/324: the portal fills the official form's repair ticks from this list)
 21a. `How many downlights are you replacing?` — Number — Required — only show when question 21 has `Replace downlights with IC-4 rated LED downlights` ticked (decision 308)
 21b. `How many RCD safety switches are you installing?` — Number — Required — only show when question 21 has `Install RCD safety switches` ticked (decision 308)
@@ -76,7 +76,7 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 22. `Your total price for all the repair work, including GST` — Number — Required — only show when question 20 = Yes — LAST question on this page — for the owner's fixes quote only, not part of the official form (decisions 305/324)
    - Decision 324 (Jo 25 Oct 2026, ONE list): do NOT ask `Please tick the repair work that is required.` or `Please describe the other repair work.` — delete both from the form (old answers are still read). The repair questions are the tick list, the two counts, `Describe the other work`, `Does an electrician need to be on site at the start of the install?` (decision 338), then the price LAST.
    - If Mitti can't show a question based on one tick-all option, make it not Required with help text `Only if you ticked …` (naming the option).
-   - Decision 338 (replaces the decision-314 tick): `Does an electrician need to be on site at the start of the install?` = Yes is priced inside the same total. The portal records the official "electrician present at the start of installation" outcome, lines the electrician up for the install day (decision 327), and if nothing else is ticked no fixes visit (A5 form) is needed. Remove `Be on site at the start of the install day` from the tick list (old forms that ticked it are still read the same way).
+   - Decision 338 (replaces the decision-314 tick): `Does an electrician need to be on site at the start of the install?` = Yes is priced inside the same total. The portal records the official "electrician present at the start of installation" outcome, lines the electrician up for the install day (decision 327), and if nothing else is ticked no fixes visit (A4 form) is needed. Remove `Be on site at the start of the install day` from the tick list (old forms that ticked it are still read the same way).
    - Decision 308 replaces the old `What's included in that price?` text question — delete it from the form (old answers are still read).
 
 ## Group 8: Electrician declaration

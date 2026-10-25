@@ -44,7 +44,7 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea",
     originalFile: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx",
-    // Jo 24 Oct 2026: "PIISA is ready" — mapping approved for live use (the A3 native Mitti form is connected).
+    // Jo 24 Oct 2026: "PIISA is ready" — mapping approved for live use (the A5 native Mitti form is connected).
     mappingVersion: "piisa-map-2.0.0", approved: { by: "Jo (Home Insulation Victoria)", at: "2026-10-24" }, superseded: false, effectiveFrom: "2026-10-24",
   },
 };

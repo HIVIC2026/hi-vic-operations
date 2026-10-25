@@ -23,9 +23,9 @@
 //
 // Decision 336 (Jo 25 Oct 2026: "WHERE IS THE ELECTRICIAN'S SIGNATURE?") — the ACTUAL signature images captured in Mitti are
 // embedded as inline pictures (`fillOfficialDocxParts`: a media part + an image relationship + the content type, and a
-// `<w:drawing>` run): PIESA Section C "Signature" box (A5 signature) and the PIISA Part 8 "Signature" box (A3 lead installer),
+// `<w:drawing>` run): PIESA Section C "Signature" box (A4 signature) and the PIISA Part 8 "Signature" box (A5 lead installer),
 // each with "Signed in Mitti on DD/MM/YYYY" written as the box's text under the picture. Part B3 of the PIESA prints no
-// signature box, so the A4 signature is placed in a paragraph of its own straight after the B3 declaration (no form wording
+// signature box, so the A3 signature is placed in a paragraph of its own straight after the B3 declaration (no form wording
 // changes). A signature without a usable image keeps the typed text (the caller flags it). Owner boxes stay typed e-signatures.
 import { answerItems, splitSelections, type OfficialAnswers, type OfficialItem, type OfficialKey, type Value } from "./official-forms.core";
 

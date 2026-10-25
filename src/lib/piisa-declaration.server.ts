@@ -8,7 +8,7 @@ import { logEvent } from "./workflow.server";
 import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
-/** Decision 328: what the A3 sync read, for the install day confirmation (install-day-confirm.server). */
+/** Decision 328: what the A5 sync read, for the install day confirmation (install-day-confirm.server). */
 export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
 
 export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch; onA3?: (info: A3SyncInfo) => void } = {}): Promise<PiisaDeclSync> {
@@ -29,13 +29,13 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (p.templateId !== expectedTpl) return { status: "error", message: "This Mitti audit is not the PIISA form." };
   if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) return { status: "error", message: `Mitti Job Reference ID (${p.jobNumber ?? "missing"}) does not match ${job.job_number}.` };
   const { PIISA_A3_TEMPLATE_ID: A3_TPL } = await import("./piisa-a3.core");
-  // Decision 262: the "A3 – Install day" template (connected as the PIISA form) is read like the native A3, by wording.
+  // Decision 262: the "A5 – Install day" template (connected as the PIISA form) is read like the native A3, by wording.
   const { isInstallDayDoc } = await import("./install-day.core");
   const installDay = isInstallDayDoc(audit);
   const isA3 = expectedTpl === A3_TPL || installDay;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
   const finalPostworkVersion = "a3-final-postwork-2026-10-08";
-  // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A3 sync,
+  // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A5 sync,
   // signed or not — the gate reads the latest record; a failed read leaves the gate closed, never open.
   let installEvidence: import("./install-evidence.core").InstallEvidenceSummary | null = null;
   if (isA3) {
@@ -76,7 +76,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     await finishInstall(true);
     return { status: "already", message: "Declaration already saved." };
   }
-  // A3: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
+  // A5: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
   let prestart: import("./piisa-prestart.server").StoredPrestart | null = null;
   if (isA3) {
     const { capturePiisaPrestart } = await import("./piisa-prestart.server");
@@ -89,7 +89,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
   const native = await import("./piisa-native-version.core");
   const direct = isA3 && !installDay && native.isDirectPiisaAudit(audit);
-  /** Typed crew + product review + declaration from the form's own tick and signature: the direct A3 and the install day form. */
+  /** Typed crew + product review + declaration from the form's own tick and signature: the direct A5 and the install day form. */
   const directLike = direct || installDay;
   const finalPostwork = direct && auditOwnedFinalPostwork;
   let actualProducts: Awaited<ReturnType<typeof import("./piisa-products.server").verifiedInstalledProductAnswers>> | null = null;
@@ -152,9 +152,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     return { status: "missing", message: sig.present ? "The PIISA signature has no time recorded, so it can't be used. Ask the installer to sign again in Mitti." : "The PIISA has no signature image, so it can't be used. Ask the installer to sign in Mitti." };
   }
   if (isA3 && (!prestart || prestart.snapshot.signature.media_id !== sig.mediaId)) return { status: "error", message: "The PIISA signature does not match the captured start-of-work check — office review required." };
-  // A3: the prestart signature's OWN time, captured before completion and kept immutable.
+  // A5: the prestart signature's OWN time, captured before completion and kept immutable.
   const signedAt = prestart ? prestart.snapshot.signature.signed_at : sig.signedAt;
-  // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
+  // A5: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
   let crewBlockers: string[] = [];
   let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown; a3_evidence?: unknown } | null = null;
   if (expectedTpl === PIISA_A3_TEMPLATE_ID || installDay) {
@@ -208,7 +208,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { facts } = await materialFacts(jobId, piesa);
     const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
-    // Decision 336: the A3 lead installer's ACTUAL signature image (stored at the start-of-work capture) in the Part 8 box.
+    // Decision 336: the A5 lead installer's ACTUAL signature image (stored at the start-of-work capture) in the Part 8 box.
     const sigImgs = await (await import("./official-signature.server")).officialSignatureImages(jobId, "piisa", answers, prestart?.signature_image ?? null).catch(() => null);
     const r = renderOfficialDocx("piisa", answers as never, sigImgs?.signatures ?? {});
     if (sigImgs?.flags.length) await logEvent(jobId, actorId, "piisa_signature_image_missing", sigImgs.flags.join(" "), { audit_id: auditId, flags: sigImgs.flags }, { internal: true });

@@ -1,4 +1,4 @@
-// Decision 293 (Jo 25 Oct 2026): the "A5 – Electrical fixes" form. Pure rules + prompt drift, no database.
+// Decision 293 (Jo 25 Oct 2026): the "A4 – Electrical fixes" form. Pure rules + prompt drift, no database.
 import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
@@ -116,7 +116,7 @@ describe("Part C lands in the stored PIESA answers where the same-visit answers 
     expect(merged.filter((e) => e.label === L("b3.licence")).map((e) => e.value)).toEqual(["B3-A1"]); // the PIESA's own answer wins
     const ces = merged.find((e) => e.label === PIESA_EVIDENCE_BY_ID.ces_file.label)!;
     expect(ces.media).toHaveLength(1);
-    expect(merged.filter((e) => e.label === L("b3.recName")).map((e) => [e.value, e.section])).toEqual([["Sparks P/L", "fixes day (A5)"]]); // appended when absent
+    expect(merged.filter((e) => e.label === L("b3.recName")).map((e) => [e.value, e.section])).toEqual([["Sparks P/L", "fixes day (A4)"]]); // appended when absent
     expect(short["c.licence"]).toBeUndefined(); // Section C is derived by expandPiesa from Part B3, not stored twice
   });
 });

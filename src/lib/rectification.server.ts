@@ -101,7 +101,7 @@ export async function rectificationWindowsExist(jobId: string): Promise<boolean>
   return (count ?? 0) > 0;
 }
 
-/** Decision 315 facts from the stored A4 PIESA snapshot: are fixes times needed, and did the A4 sync see it completed. */
+/** Decision 315 facts from the stored A3 PIESA snapshot: are fixes times needed, and did the A3 sync see it completed. */
 export async function fixesTimesFacts(jobId: string): Promise<{ timesNeeded: boolean; onsiteStartOnly: boolean; piesaCompleted: boolean; auditId: string | null; hasSnapshot: boolean }> {
   const { data: a } = await admin.from("assessments").select("external_mitti_id, mitti_completed, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
@@ -111,7 +111,7 @@ export async function fixesTimesFacts(jobId: string): Promise<{ timesNeeded: boo
   return { timesNeeded: fixesTimesNeeded(short), onsiteStartOnly: onsiteStartOnly(short), piesaCompleted: a?.mitti_completed === true, auditId: a?.external_mitti_id ?? null, hasSnapshot: true };
 }
 
-/** Decision 315 quote hold for the electrical fixes quote (office card + Send). A job without an A4 snapshot (manual
+/** Decision 315 quote hold for the electrical fixes quote (office card + Send). A job without an A3 snapshot (manual
  *  PIESA) gave its times at the portal submit, so the hold reads the windows alone there. */
 export async function fixesTimesHoldFor(jobId: string): Promise<string | null> {
   const [f, windowsExist] = await Promise.all([fixesTimesFacts(jobId), rectificationWindowsExist(jobId)]);

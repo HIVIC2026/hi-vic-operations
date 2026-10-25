@@ -1,4 +1,4 @@
-// Decision 330: ask the owner to confirm the ELECTRICAL FIXES (email O72 + text) once the A5 fixes form is complete
+// Decision 330: ask the owner to confirm the ELECTRICAL FIXES (email O72 + text) once the A4 fixes form is complete
 // (completeFixesForm calls `sendFixesConfirmStep(jobId, "request")` right after the post_rectification record), remind on
 // days 1 and 3, raise the office row on day 5 — the same schedule, guards and senders as the decision-296 O71 path
 // (piesa-owner-confirm-send.server). Every step is recorded once as a `piesa_owner_fixes_confirm_reminder` event (keyed to the
