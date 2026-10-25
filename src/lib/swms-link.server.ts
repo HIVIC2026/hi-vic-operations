@@ -48,8 +48,10 @@ export async function swmsSignLink(jobId: string, key: string, nowMs = Date.now(
 }
 
 /** Each unsigned person's own link (lead first). Null = the plan can't be read, nobody is chosen yet, or links aren't
- *  configured — the caller keeps the decision 266 job-page link instead. Empty = everyone has signed. */
-export async function unsignedSwmsSignerLinks(jobId: string): Promise<{ name: string; link: string }[] | null> {
+ *  configured — the caller keeps the decision 266 job-page link instead. Empty = everyone has signed.
+ *  Decision 377: `ownLinkTexted` = that person's own link already went to their own mobile (swms-sign-text.server), so
+ *  the lead's text lists them by name only. */
+export async function unsignedSwmsSignerLinks(jobId: string): Promise<{ name: string; link: string; ownLinkTexted: boolean }[] | null> {
   try {
     const { loadSwms } = await import("./swms.server");
     const { swmsUnsignedSigners } = await import("./swms.core");
@@ -57,7 +59,8 @@ export async function unsignedSwmsSignerLinks(jobId: string): Promise<{ name: st
     if (status.complete) return [];
     const todo = swmsUnsignedSigners(plan, signatures);
     if (!todo.length) return null;
-    return await Promise.all(todo.map(async (s) => ({ name: s.name, link: await swmsSignLink(jobId, s.key) })));
+    const texted = await (await import("./swms-sign-text.server")).swmsOwnLinkTextedKeys(jobId);
+    return await Promise.all(todo.map(async (s) => ({ name: s.name, link: await swmsSignLink(jobId, s.key), ownLinkTexted: texted.has(s.key) })));
   } catch { return null; }
 }
 

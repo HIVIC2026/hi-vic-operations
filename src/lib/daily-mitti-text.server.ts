@@ -201,7 +201,8 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
 
 /** Decision 266: safety plan links for today's installs whose safety plan is not yet signed. Decision 364: each unsigned
  *  person's OWN sign link ("<name>: <link>", this text goes to one person per business); the secure job-page link only
- *  when those can't be made (plan unreadable, no crew chosen, links not configured). */
+ *  when those can't be made (plan unreadable, no crew chosen, links not configured). Decision 377: someone whose own link
+ *  was already texted to their mobile is listed by name only. */
 async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
   const { unsignedSwmsSignerLinks } = await import("./swms-link.server");
   const { safetyPlanSignerLinks } = await import("./sms.core");

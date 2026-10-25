@@ -296,7 +296,10 @@ export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { t
 }
 
 /** Decision 161 in one line under the team list. */
-export const TEAM_RULE = "Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.";
+/** Decision 377: each person's mobile, saved once on Team; their own safety plan sign link is texted there. */
+export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here before each install.";
+export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
+export const TEAM_RULE ="Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.";
 
 export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
 /** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded). */

@@ -114,6 +114,7 @@ export async function textInstallerInstallTomorrow(jobId: string, booking: { id:
   const base = installTomorrowText({ startIso: booking.scheduled_start, address: installerTextAddress(ctx.job.properties?.address_line, ctx.job.properties?.suburb), jobNumber: ctx.job.job_number, link: await jobLink(jobId) });
   // Decision 266: while the safety plan is unsigned the text says so. Decision 364: this text goes to ONE person, so it
   // lists each unsigned person's OWN sign link ("<name>: <link>") to pass on; the job-page link only when those can't be made.
+  // Decision 377: a person whose own link was already texted to their mobile is listed by name only.
   const sms = await import("./sms.core");
   const own = await (await import("./swms-link.server")).unsignedSwmsSignerLinks(jobId);
   const body = sms.withSafetyPlanLinks(base, own ? sms.safetyPlanSignerLinks(own) : [await jobLink(jobId)]);
@@ -152,8 +153,10 @@ export async function textTeamMemberInvite(p: { inviteId: string; businessId: st
 }
 
 /** 15-minute tick: tomorrow's installs (from the afternoon before), plus a 24h catch-up for 79/82 triggers missed live. */
-export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; daysSuggested: number; booked: number }> {
-  const out = { installTomorrow: 0, daysSuggested: 0, booked: 0 };
+export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; daysSuggested: number; booked: number; swmsSignLinks: number }> {
+  const out = { installTomorrow: 0, daysSuggested: 0, booked: 0, swmsSignLinks: 0 };
+  // Decision 377: each crew member's own safety plan sign link first, so the install-tomorrow text below can list them by name.
+  try { out.swmsSignLinks = await (await import("./swms-sign-text.server")).sweepSwmsSignLinks(now); } catch (e) { console.error("safety plan sign link sweep failed", (e as Error).message); }
   const since = new Date(now.getTime() - INSTALLER_TEXT_SWEEP_HOURS * 3_600_000).toISOString();
   const { melbourneMidnight } = await import("./daily-brief.core");
   const { addYmd } = await import("./melbourne-time.core");
