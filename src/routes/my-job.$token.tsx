@@ -12,30 +12,37 @@ import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn } from "@/lib/owner-link.functions";
+import { REVIEW_COPY, REVIEW_FEEDBACK_MAX, parseStars, reviewScreen } from "@/lib/owner-review.core";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
+import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime } from "@/lib/piesa-times.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
-const SCREENS = ["home", "spot", "quote", "book", "done"] as const satisfies readonly OwnerScreen[];
+// Decision 335: "review" = the O51 star links (?screen=review&stars=N).
+const SCREENS = ["home", "spot", "quote", "book", "done", "review"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
   // Same rule as the former zod schema (optional enum, anything else rejected) without pulling zod into every page's first load (decision 280).
   // SCREENS mirrors the OwnerScreen union in owner-myjob.core.
-  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen } => {
+  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number } => {
     const screen = s["screen"];
     if (screen === undefined) return {};
-    if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) return { screen: screen as OwnerScreen };
+    if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) {
+      // Decision 335: ?stars=1..5 only on the review screen; anything else is ignored (never an error page from an email).
+      const stars = screen === "review" ? parseStars(s["stars"]) : null;
+      return stars ? { screen: screen as OwnerScreen, stars } : { screen: screen as OwnerScreen };
+    }
     throw new Error("Invalid screen");
   },
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
@@ -59,7 +66,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday
 
 function MyJobPage() {
   const { token } = Route.useParams();
-  const { screen = "home" } = Route.useSearch();
+  const { screen = "home", stars } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
   return (
@@ -69,6 +76,7 @@ function MyJobPage() {
       <main className="mx-auto max-w-[560px] space-y-4 px-4 pt-5 sm:px-5">
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
+          : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" || data.stage === "complete" ? <DoneScreen v={data} token={token} />
@@ -185,6 +193,49 @@ function StatusSnapshot({ v }: { v: View }) {
 }
 
 function useSession() { return useState<string | null>(null); }
+
+/** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
+ *  set), 1–3 → a private "What could we have done better?" box (never Google). Link token only — it signs nothing. */
+function ReviewScreen({ token, initialStars }: { token: string; initialStars: number | null }) {
+  const load = useServerFn(ownerReviewStateFn);
+  const rate = useServerFn(ownerReviewStarsFn);
+  const sendFeedback = useServerFn(ownerReviewFeedbackFn);
+  const { data: st } = useQuery({ queryKey: ["owner-review", token], queryFn: () => load({ data: { token } }), retry: false });
+  const [stars, setStars] = useState<number | null>(initialStars);
+  const [google, setGoogle] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const recorded = useRef(false);
+  const tap = async (n: number) => {
+    setStars(n); setErr("");
+    try { const r = await rate({ data: { token, stars: n } }); setGoogle(r.googleUrl); } catch (e) { setErr(errText(e)); }
+  };
+  useEffect(() => { if (initialStars && !recorded.current) { recorded.current = true; void tap(initialStars); } }, [initialStars]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (st && !st.open) return <section className="rounded-[22px] bg-card p-6 text-center shadow-sm"><p className="font-display text-xl font-extrabold">{REVIEW_COPY.title}</p><p className="mt-2 text-sm">You can rate us once your install is done.</p></section>;
+  const view = reviewScreen(stars, google ?? st?.googleUrl ?? null);
+  return (
+    <section data-testid="owner-review" className="space-y-4 rounded-[22px] bg-card p-6 shadow-sm">
+      <h1 className="font-display text-2xl font-extrabold">{REVIEW_COPY.title}</h1>
+      <p className="text-sm">{REVIEW_COPY.sub}</p>
+      <div className="flex justify-between gap-1" role="group" aria-label="Star rating">
+        {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" aria-label={`${n} star${n > 1 ? "s" : ""}`} aria-pressed={stars === n} disabled={busy} onClick={() => void tap(n)} className={`h-14 w-14 rounded-2xl border text-3xl ${stars != null && n <= stars ? "border-estimate-green bg-estimate-mint text-estimate-green" : "border-estimate-line text-estimate-navy/40"}`}>★</button>)}
+      </div>
+      {view.kind === "thanks" && <div data-review-thanks>
+        <p className="font-bold">{REVIEW_COPY.thanksHappy}</p>
+        {view.googleUrl && <><p className="mt-2 text-sm">{REVIEW_COPY.googleAsk}</p><a href={view.googleUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">{REVIEW_COPY.googleButton}</a></>}
+      </div>}
+      {view.kind === "feedback" && (sent || st?.feedbackSent ? <p className="font-bold" data-review-feedback-sent>{REVIEW_COPY.feedbackSent}</p> : <div data-review-feedback>
+        <p className="font-bold">{REVIEW_COPY.feedbackTitle}</p>
+        <p className="mt-1 text-sm">{REVIEW_COPY.feedbackSub}</p>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={REVIEW_FEEDBACK_MAX} aria-label={REVIEW_COPY.feedbackTitle} className="mt-3 w-full rounded-2xl border border-estimate-line p-3 text-base" />
+        <button type="button" className={`${signBtn} mt-3`} disabled={busy || !text.trim()} onClick={async () => { setErr(""); setBusy(true); try { await sendFeedback({ data: { token, stars: stars!, feedback: text } }); setSent(true); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>{busy ? "Sending…" : REVIEW_COPY.feedbackButton}</button>
+      </div>)}
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link>
+    </section>
+  );
+}
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
 /** Approved P2 "Say yes" (decisions 126/127): two ticks, full name, the 18+/owner tick, typed signature, one locked button.
@@ -268,8 +319,12 @@ function BookPickers({ token }: { token: string }) {
   const takeDay = useServerFn(ownerTakeInstallDayFn);
   const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
   const changeDay = useServerFn(ownerChangeInstallDayFn);
-  const changePiesa = useServerFn(ownerChangePiesaFn);
+  const takePiesa = useServerFn(ownerTakePiesaTimeLinkFn);
+  const suggestPiesa = useServerFn(ownerSuggestPiesaDaysLinkFn);
   const [changing, setChanging] = useState(false);
+  const [piesaSuggesting, setPiesaSuggesting] = useState(false);
+  const [piesaDays, setPiesaDays] = useState<string[]>([]);
+  const changePiesa = useServerFn(ownerChangePiesaFn);
   const [changingPiesa, setChangingPiesa] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
@@ -280,10 +335,15 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (!data) return null;
   const installMove = data.install.turn === "owner_to_answer";
+  // Decision 333: the electrician offers the safety check times; the owner taps one or suggests days (old jobs keep the old picker).
+  const pt = data.piesaTimes as { applies: boolean; turn: string; open: { id: string; starts_at: string }[]; days: string[]; thirtyDayAck: { needed: boolean; wording: string } } | undefined;
+  const piesaMove = !!pt?.applies && pt.turn === "owner_to_answer";
+  const ackBlock = !!pt?.thirtyDayAck?.needed && !understands;
   const piesaBooked = data.piesa.booked as { startsAt: string; canChange: boolean; late: boolean } | null;
-  const any = data.piesa.canPick || installMove || changing || changingPiesa;
+  const any = data.piesa.canPick || piesaMove || installMove || changing || changingPiesa;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
-  const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); setPiesaDays([]); setPiesaSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const piesaWaiting = pt?.applies && !data.piesa.windows.length ? (pt.turn === "electrician_to_offer" ? "Your electrician will offer you 3 safety check times shortly." : pt.turn === "electrician_to_answer" ? "Your days are with your electrician. They'll take one and choose the time, or offer you new times." : pt.turn === "no_electrician" ? "We're arranging your electrician. They'll offer you 3 safety check times to choose from." : null) : null;
   return <>
     {/* Decision 337: a booked safety check can be changed here; the electrician is told and new times go out as a new offer. */}
     {piesaBooked && <section data-testid="piesa-booked" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
@@ -294,7 +354,7 @@ function BookPickers({ token }: { token: string }) {
         <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChangingPiesa(false)}>Keep it</button>
       </> : null)}
     </section>}
-    {!any && !piesaBooked && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && !piesaBooked && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : piesaWaiting ? <p className="font-bold" data-piesa-times-waiting>{piesaWaiting}</p> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
@@ -305,6 +365,22 @@ function BookPickers({ token }: { token: string }) {
       </label>}
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
       <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(() => choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }))}>Send my {picks.length} times</button>
+    </section>}
+    {any && session && piesaMove && pt && <section className="rounded-[22px] bg-card p-5 shadow-sm" data-piesa-times-owner>
+      <h3 className="font-display text-lg font-extrabold">Choose your Pre Insulation Electrical Safety Assessment (PIESA) time</h3>
+      <p className="mt-1 text-sm">Your electrician can come at these times. Tap one to book it.</p>
+      {/* Decision 307 kept by decision 333: the 30-day box is ticked before a time can be taken. */}
+      {pt.thirtyDayAck?.needed && <label className="mt-3 flex items-start gap-3 rounded-2xl border border-estimate-line p-3 text-sm">
+        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={understands} onChange={(e) => setUnderstands(e.target.checked)} />
+        <span>{pt.thirtyDayAck.wording}</span>
+      </label>}
+      <div className="mt-3 grid gap-2">{pt.open.map((o) => <button key={o.id} className={tile(false)} disabled={busy || ackBlock} onClick={() => go(() => takePiesa({ data: { token, session, proposalId: o.id, understandsThirtyDays: understands } }))}>{formatPiesaTime(o.starts_at)}</button>)}</div>
+      {ackBlock && <p className="mt-2 text-xs font-semibold">Please tick the box above first.</p>}
+      {!piesaSuggesting ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" disabled={busy} onClick={() => setPiesaSuggesting(true)}>None of these suit – suggest other days</button> : <>
+        <p className="mt-4 text-sm font-semibold">Pick up to {PIESA_OWNER_SUGGEST_MAX} days that suit you. Your electrician will take one and choose the time, or offer new times.</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">{pt.days.map((d) => { const on = piesaDays.includes(d); return <button key={d} className={tile(on)} onClick={() => setPiesaDays(on ? piesaDays.filter((x) => x !== d) : piesaDays.length < PIESA_OWNER_SUGGEST_MAX ? [...piesaDays, d] : piesaDays)}>{day(d + "T02:00:00Z")}</button>; })}</div>
+        <button className={`${signBtn} mt-4`} disabled={busy || !piesaDays.length || ackBlock} onClick={() => go(() => suggestPiesa({ data: { token, session, days: piesaDays, understandsThirtyDays: understands } }))}>Send my {piesaDays.length || ""} day{piesaDays.length === 1 ? "" : "s"}</button>
+      </>}
     </section>}
     {any && session && installMove && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Choose your install day</h3>

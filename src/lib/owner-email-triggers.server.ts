@@ -44,7 +44,7 @@ async function safetyCheckPaid(jobId: string): Promise<number | null> {
 
 // ---------- O26: safety check times / booked ----------
 
-/** O26: the electrician proposed PIESA time(s) to the owner (pilot.functions.ts proposeTime). */
+/** O26: the electrician offered PIESA time(s) to the owner (piesa-times.server.ts, decision 333; old pilot.functions.ts proposeTime). */
 export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
   return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
     const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
@@ -179,6 +179,72 @@ export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promi
     console.error("owner email O22 skipped", jobId, errText(e));
     return `not sent — ${errText(e)}`;
   }
+}
+
+// ---------- O45: final invoice (decision 334) ----------
+
+/** Facts + due check for one job's final invoice; null when it is not due (with the reason). Read-only. */
+type FinalInvoiceDue = { ok: false; reason: string } | { ok: true; invoiceId: string; facts: ReturnType<typeof import("./final-invoice-email.core").finalInvoiceFacts> };
+async function finalInvoiceFor(jobId: string, now: Date): Promise<FinalInvoiceDue> {
+  const { finalInvoiceBlocker, finalInvoiceFacts } = await import("./final-invoice-email.core");
+  const [{ data: job }, { data: inv }] = await Promise.all([
+    admin.from("jobs").select("stage, deleted_at, qa_archived_at, installation_completed_at").eq("id", jobId).maybeSingle(),
+    admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid, xero_invoice_id, xero_invoice_number, quotes(veec_discount_inc_gst, quote_items(code, description, quantity, unit_price_inc_gst, line_total_inc_gst, sort))").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (!job) return { ok: false, reason: "Job not found" };
+  const { paymentLedger } = await import("./payments.server");
+  const ledger = inv ? await paymentLedger(jobId, inv.id) : [];
+  const quote = (inv?.quotes ?? null) as { veec_discount_inc_gst: number | string | null; quote_items: { code: string | null; description: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number; sort: number | null }[] } | null;
+  // Decision 209: the same itemised insulation wording as the Xero invoice (amounts untouched).
+  const { itemiseInvoiceLines } = await import("./invoice-itemisation.core");
+  const { installedProductFacts } = await import("./invoice-itemisation.server");
+  const items = quote ? itemiseInvoiceLines(quote.quote_items.map((q) => ({ ...q, sort: Number(q.sort ?? 0) })).sort((a, b) => a.sort - b.sort), await installedProductFacts(jobId)).items : [];
+  const facts = inv && job.installation_completed_at ? finalInvoiceFacts({
+    invoiceNumber: inv.xero_invoice_number ?? "", completedAt: job.installation_completed_at, items, invoiceTotalIncGst: inv.total_inc_gst,
+    veecIncentiveIncGst: quote?.veec_discount_inc_gst ?? null, ledger, totalPaid: inv.total_paid,
+  }) : null;
+  const done = inv ? (await recordedKeys([jobId], "O45")).has(ownerEmailKey.finalInvoice(inv.id)) : false;
+  const reason = finalInvoiceBlocker({
+    installationCompletedAt: job.installation_completed_at, stage: job.stage as string, deletedAt: job.deleted_at, qaArchivedAt: job.qa_archived_at,
+    invoice: inv ? { id: inv.id, xeroInvoiceId: inv.xero_invoice_id, xeroInvoiceNumber: inv.xero_invoice_number } : null,
+    balanceDueCents: facts?.balanceDueCents ?? 0, done,
+  }, now);
+  if (reason || !inv || !facts) return { ok: false, reason: reason ?? "No invoice facts" };
+  return { ok: true, invoiceId: inv.id as string, facts };
+}
+
+/**
+ * O45 (decision 334): install recorded complete with a balance due → the final invoice email, once per invoice
+ * (install-complete.server.ts recordInstallationComplete; the 15-minute sweep retries once the Xero invoice number exists).
+ * Bank transfer only: the bank details come from HIV_BANK_* (payments.server bankDetails), the invoice number is the
+ * reference. No Xero PDF is fetched (the Xero integration reads JSON only), so "Invoice PDF attached" is never printed.
+ */
+export async function onFinalInvoiceDue(jobId: string, now = new Date()): Promise<string> {
+  try {
+    const due = await finalInvoiceFor(jobId, now);
+    if (!due.ok) return `not due — ${due.reason}`;
+    const invoiceId = due.invoiceId;
+    const { balanceDueCents: _b, ...facts } = due.facts;
+    return fireOwnerEmailOnce(jobId, "O45", ownerEmailKey.finalInvoice(invoiceId), async () => {
+      const { bankDetails } = await import("./payments.server");
+      const { emailOwnerFinalInvoice } = await import("./approved-owner-emails.server");
+      return emailOwnerFinalInvoice(jobId, invoiceId, { ...facts, bank: bankDetails(), invoicePdfAttached: false });
+    }, { invoice_id: invoiceId, balance_due: facts.balanceDue });
+  } catch (e) {
+    console.error("owner email O45 skipped", jobId, errText(e));
+    return `not sent — ${errText(e)}`;
+  }
+}
+
+/** O45 retry on the 15-minute tick: installs recorded complete in the last FINAL_INVOICE_WITHIN_DAYS days. */
+export async function sweepFinalInvoices(now = new Date()): Promise<{ checked: number; sent: number }> {
+  const { FINAL_INVOICE_WITHIN_DAYS } = await import("./final-invoice-email.core");
+  const from = new Date(now.getTime() - FINAL_INVOICE_WITHIN_DAYS * 86_400_000).toISOString();
+  const { data: jobs, error } = await admin.from("jobs").select("id").gte("installation_completed_at", from).is("deleted_at", null).limit(500);
+  if (error) throw new Error(error.message);
+  let sent = 0;
+  for (const j of jobs ?? []) if (/^sent\b/.test(await onFinalInvoiceDue(j.id, now))) sent++;
+  return { checked: (jobs ?? []).length, sent };
 }
 
 // ---------- 15-minute tick: O19 quote reminders, O51 review request ----------

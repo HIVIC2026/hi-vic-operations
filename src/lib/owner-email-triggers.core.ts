@@ -5,20 +5,22 @@
 //
 //   O19 Quote reminder       15-minute tick: 3 days after the quote is sent, and 2 days before the price expires (decisions 88/89/134)
 //   O22 You're in + receipt  when the safety check payment on the accepted quote's invoice is received (decision 90)
-//   O26 Safety check times   when the electrician proposes a PIESA time (decision 94); booked version when the PIESA is booked
+//   O26 Safety check times   when the electrician offers PIESA times (decisions 94/333); booked version when the PIESA is booked
 //   O29 Fixes quote          when the office sends the reviewed electrical fixes quote (decision 95)
 //   O33 Pick your install day when the installer offers install days (decision 96)
 //   O42 Install day changed  when a booked install day moves (decision 135)
-//   O51 Review request       15-minute tick: a week after the install (decision 105), held until a review screen + Google URL exist
+//   O45 Final invoice        install recorded complete with a balance due, once per invoice (decision 334, bank transfer only)
+//   O51 Review request       15-minute tick: a week after the install (decision 105); the My job stars screen exists (decision 335),
+//                            still held until the Google review link (HIV_GOOGLE_REVIEW_URL) is set
 import { quoteExpiresAt } from "./quote-expiry.core";
 
 /** One internal workflow event per owner email, recorded BEFORE the send (decision 165: a switch flip never re-fires an old step). */
 export const OWNER_EMAIL_TRIGGER_EVENT = "owner_email_triggered";
 
-export type OwnerEmailCode = "O19" | "O22" | "O26" | "O26_booked" | "O29" | "O33" | "O42" | "O51";
+export type OwnerEmailCode = "O19" | "O22" | "O26" | "O26_booked" | "O29" | "O33" | "O42" | "O45" | "O51";
 export const OWNER_EMAIL_LABEL: Record<OwnerEmailCode, string> = {
   O19: "Quote reminder email", O22: "You're in email", O26: "Safety check times email", O26_booked: "Safety check booked email",
-  O29: "Electrical fixes quote email", O33: "Install days email", O42: "Install day changed email", O51: "Review request email",
+  O29: "Electrical fixes quote email", O33: "Install days email", O42: "Install day changed email", O45: "Final invoice email", O51: "Review request email",
 };
 
 export type QuoteReminderKind = "day3" | "expiry";
@@ -33,6 +35,8 @@ export const ownerEmailKey = {
   installDays: (jobId: string, startsAt: string[]) => `install-days:v1:${jobId}:${[...startsAt].sort().join(",")}`,
   installDayChanged: (jobId: string, startIso: string) => `install-day-changed:v1:${jobId}:${startIso}`,
   reviewRequest: (jobId: string) => `review-request:v1:${jobId}`,
+  /** Decision 334: once per invoice. */
+  finalInvoice: (invoiceId: string) => `final-invoice:v1:${invoiceId}`,
 } as const;
 
 const DAY = 86_400_000;
@@ -76,11 +80,12 @@ export const REVIEW_REQUEST_LAST_DAY = 21;
 export const REVIEW_REQUEST_STOP_STAGES = ["cancelled", "on_hold"] as const;
 
 /**
- * The O51 star buttons link to My job `?screen=review&stars=N`. That screen does not exist yet (My job only accepts
- * home/spot/quote/book/done and errors on anything else), so the email would send owners to an error page.
- * Flip to true only once the review screen records the star tap.
+ * The O51 star buttons link to My job `?screen=review&stars=N`. Decision 335 (Jo 25 Oct 2026): that screen now exists —
+ * it records the stars (append-only `owner_review_stars`), sends 4–5 stars to the Google review link and keeps 1–3 stars
+ * private (feedback box + one Needs me row). The sweep still needs HIV_GOOGLE_REVIEW_URL, the approval flag and
+ * customer_comms_enabled.
  */
-export const OWNER_REVIEW_SCREEN_READY = false as boolean;
+export const OWNER_REVIEW_SCREEN_READY = true as boolean;
 
 /** Why the review request cannot go yet (null = it may). Needs a real https Google review link and the review screen. */
 export function reviewRequestBlocker(i: { googleReviewUrl: string | null | undefined; reviewScreenReady: boolean }): string | null {

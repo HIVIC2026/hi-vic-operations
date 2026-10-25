@@ -206,6 +206,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
     for (const r of await (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => [])) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
+    // Decision 335: 1–3 star private feedback from the My job review screen → ONE row per job for 14 days (the job is
+    // often already closed, so this reads the events directly rather than the live-job list).
+    const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
+    const fb = await all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(now - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b));
+    if (fb.length) {
+      const fbIds = [...new Set(fb.map((e) => String(e["job_id"])))];
+      const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
+      for (const r of await byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)))
+        fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
+      system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
+    }
   }
   return { now, jobs, facts, emails, system };
 }
