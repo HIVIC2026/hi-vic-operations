@@ -4,6 +4,7 @@
 // (official-docx.core.ts). PURE: no I/O. Questions are full plain sentences — never shorthand.
 import type { FormField } from "./mitti-forms.core";
 import { B2_OPTIONS } from "./official-forms.core";
+import { priceFromPortal } from "./installer-price.core";
 
 const yn = (id: string, label: string, when?: string): FormField => ({ id, label, type: "yesno", required: true, choices: ["Yes", "No"], ...(when ? { when } : {}), source: "short onsite form" });
 const pre = (id: string, label: string, type: FormField["type"] = "text", when?: string): FormField => ({ id, label, type, required: true, prefill: true, ...(when ? { when } : {}), source: "portal prefill — signer confirms" });
@@ -42,6 +43,39 @@ export const RECTIFICATION_OUTCOMES = [
   "Repair work is not possible, so an electrician must be present on installation day",
 ] as const;
 
+/** Decision 312 (Jo 25 Oct 2026): on OUR leads (A2) the electrician confirms he won't discuss price with the owner; not on
+ *  installer-supplied jobs (A1). The portal prefills "Whose customer is this?" from the same A1/A2 classifier the quote
+ *  code uses (installer-price.core `priceFromPortal`: jobs.channel = installer_sourced → A1). Quote/office only —
+ *  expandPiesa ignores both. */
+export const CUSTOMER_OF_LABEL = "Whose customer is this?";
+export const CUSTOMER_OF_HIVIC = "Home Insulation Victoria";
+export const CUSTOMER_OF_INSTALLER = "The installer's customer";
+export const CUSTOMER_OF_HELP = "Filled in by the portal. Don't change it.";
+export const NO_PRICE_TALK_LABEL = "I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.";
+export const NO_PRICE_TALK_ISSUE = "Electrician hasn't confirmed they won't discuss prices with the owner";
+/** The prefill answer for "Whose customer is this?" (A1 → the installer's customer, everything else → us). */
+export const customerOfOption = (channel: string | null | undefined): string => (priceFromPortal(channel) ? CUSTOMER_OF_INSTALLER : CUSTOMER_OF_HIVIC);
+/** Decision 312 office item: a COMPLETED A4 on one of our leads without the no-price tick. Old forms that never asked the
+ *  question raise nothing; installer-supplied jobs raise nothing. Never a blocker for the official PIESA. */
+export function noPriceTalkIssue(i: { channel: string | null | undefined; completed: boolean; entries: { label: string; value: unknown }[] }): string | null {
+  if (!i.completed || priceFromPortal(i.channel)) return null;
+  const nrm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const first = (l: string) => nrm(String(l ?? "").split("\n")[0] ?? "");
+  const asked = i.entries.some((e) => first(e.label) === nrm(CUSTOMER_OF_LABEL) || first(e.label) === nrm(NO_PRICE_TALK_LABEL));
+  if (!asked) return null;
+  const tick = i.entries.find((e) => first(e.label) === nrm(NO_PRICE_TALK_LABEL));
+  const v = tick?.value;
+  const ok = v === true || /^(yes|true|ticked|checked)$/i.test(String(v ?? "").trim());
+  return ok ? null : NO_PRICE_TALK_ISSUE;
+}
+
+/** Decision 309: the retired A4 question (old forms only). */
+export const REPAIR_POSSIBLE_LEGACY_LABEL = "Can the repair work be done before installation?";
+/** Derived marker: an old form said the repair could not be done before installation (decision 309 office flag). */
+export const REPAIR_LEGACY_NOT_BEFORE = "rectificationLegacyNotBefore";
+/** Decision 309 office flag (expandPiesa → sync review issues). */
+export const REPAIR_LEGACY_NOT_BEFORE_FLAG = "Electrical fixes: this older form said the repair work can't be done before installation. Repairs now always happen before installation (decision 309) — check the fixes visit is booked.";
+
 const LIFE_SUPPORT_RECORD = "Office life support record";
 const LIFE_SUPPORT_CONFIRM = "Is the life support record shown above still correct?";
 const LIFE_SUPPORT_WHEN = "Life support confirmed Yes";
@@ -54,11 +88,60 @@ const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
 /** Short PIESA (electrician). Life support is confirmed against the enquiry record, never re-asked from scratch. */
 /** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
 export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?"; // retired by decision 295; read from old forms only
-/** Decision 305 (Jo 25 Oct 2026): the electrician's ONE total price for the repair work and what it covers (A4 Repair work
- *  page). Quote-only — never part of the official PIESA; the owner's fixes quote is built from these (fixes-price.core). */
+/** Decision 305 (Jo 25 Oct 2026): the electrician's ONE total price for the repair work (A4 Repair work page); what it
+ *  covers is ticked (decision 308). Quote-only — never part of the official PIESA; the owner's fixes quote is built from these (fixes-price.core). */
 export const FIXES_PRICE_LABEL = "Your total price for all the repair work, including GST";
+/** Decision 305's free-text inclusions — retired by decision 308; read from old forms only (fallback), never asked. */
 export const FIXES_INCLUDED_LABEL = "What's included in that price?";
 export const FIXES_INCLUDED_HELP = "List each thing you'll do, e.g. replace 6 downlights with IC-4 LEDs, install 1 RCD.";
+/** Decision 308 (Jo 25 Oct 2026: "No free text … the common things they will have to repair and an Other option"):
+ *  tick-all list of what the price covers, with a count for downlights and RCDs and a description for Other. */
+export const FIXES_WORK_LABEL = "What will you do? Tick everything included in your price.";
+export const FIXES_WORK_OPTIONS = [
+  "Replace downlights with IC-4 rated LED downlights",
+  "Install RCD safety switches",
+  "Upgrade circuit protection (breakers) for insulation",
+  "Replace old cables with TPS cable",
+  "Secure and support loose cables in the ceiling",
+  "Repair or replace damaged connections or junction boxes",
+  "Identify and mark the mains cable in the ceiling",
+  "Remove or make safe old unused cables",
+  "Label and protect solar or battery cables in the ceiling",
+  // Decision 314 (Jo 25 Oct 2026): priced inside the same total; ticked = the official "electrician present at the start of
+  // installation" outcome (deriveRectificationOutcome) and an office item to tell both trades the day.
+  "Be on site at the start of the install day",
+  "Other",
+] as const;
+export const FIXES_DOWNLIGHT_OPTION = FIXES_WORK_OPTIONS[0];
+export const FIXES_RCD_OPTION = FIXES_WORK_OPTIONS[1];
+export const FIXES_ONSITE_OPTION = FIXES_WORK_OPTIONS[9];
+export const FIXES_OTHER_OPTION = FIXES_WORK_OPTIONS[10];
+/** Decision 314 office item (Needs me line). */
+export const ONSITE_START_EVENT = "electrician_onsite_install_start";
+export const ONSITE_START_CLEARED_EVENT = "electrician_onsite_install_start_cleared";
+export const ONSITE_START_OFFICE_TEXT = "Electrician must be on site at the start of the install day — tell the installer and electrician the day once booked";
+
+const nrmTick = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+/** The ticked decision-308/314 options, in form order. Mitti joins multi-select labels with ", " (the portal also accepts
+ *  " | ", new lines, ";" and arrays). Known options are matched by their full wording; "Other" only as its own answer. */
+export function fixesWorkTicks(raw: unknown): string[] {
+  const parts = (Array.isArray(raw) ? raw.map(String) : typeof raw === "string" ? [raw] : []).flatMap((x) => x.split(/\s*(?:\||\n|;)\s*/));
+  const joined = ` ${nrmTick(parts.join(" , "))} `;
+  const tokens = parts.flatMap((x) => x.split(/\s*,\s*/)).map(nrmTick).filter(Boolean);
+  return FIXES_WORK_OPTIONS.filter((o) => (o === FIXES_OTHER_OPTION ? tokens.some((t) => t === "other" || t.startsWith("other ")) : joined.includes(` ${nrmTick(o)} `)));
+}
+/** Decision 314: the electrician ticked "Be on site at the start of the install day". */
+export const onsiteStartTicked = (short: Record<string, unknown>): boolean => fixesWorkTicks(short["fixesWork"]).includes(FIXES_ONSITE_OPTION);
+/** Decision 314: repair work other than being on site at the start (needs the A5 fixes visit). An answer from before
+ *  decision 308 (no ticks at all) counts as repair work, as before. */
+export const repairWorkBesidesOnsite = (short: Record<string, unknown>): boolean => {
+  const t = fixesWorkTicks(short["fixesWork"]);
+  return t.length === 0 || t.some((x) => x !== FIXES_ONSITE_OPTION);
+};
+export const FIXES_DOWNLIGHT_COUNT_LABEL = "How many downlights are you replacing?";
+export const FIXES_RCD_COUNT_LABEL = "How many RCD safety switches are you installing?";
+export const FIXES_OTHER_LABEL = "Describe the other work";
+export const FIXES_OTHER_HELP = "Say exactly what you'll do, where, and how many.";
 /** Decision 295: the repeating "Add an appliance or flue" block on the PIESA (A4). */
 export const APPLIANCE_BLOCK = "Add an appliance or flue";
 export const APPLIANCE_Q = { what: "What is it and where is it?", photo: "Photo of it", safe: "Can insulation be safely installed around it as it is?" } as const;
@@ -79,6 +162,9 @@ export function applianceRows(short: Record<string, unknown>): ApplianceRow[] {
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
+  // Decision 312: prefilled by the portal; the tick shows (and is Required) only on our leads.
+  { id: "customerOf", label: CUSTOMER_OF_LABEL, type: "choice", required: true, prefill: true, choices: [CUSTOMER_OF_HIVIC, CUSTOMER_OF_INSTALLER], source: "portal prefill (decision 312) – not part of the official form" },
+  { id: "noPriceTalk", label: NO_PRICE_TALK_LABEL, type: "tick", required: true, when: `${CUSTOMER_OF_LABEL} = ${CUSTOMER_OF_HIVIC}`, source: "Home Insulation Victoria (decision 312) – not part of the official form" },
   { id: "inspectionDate", label: "Date of inspection", type: "date", required: true, source: "short onsite form" },
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
   yn("lifeSupportPresent", LIFE_SUPPORT_PRESENT),
@@ -103,16 +189,24 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "applianceWhat", label: APPLIANCE_Q.what, type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
   { id: "appliancePhoto", label: APPLIANCE_Q.photo, type: "media", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
   yn("applianceSafe", APPLIANCE_Q.safe, "appliancesPresent = Yes"),
-  // Jo 25 Oct 2026: Yes/No so Mitti can branch on it (a pick-one could not); "possible?" is the second half. The official
-  // three-way outcome (`rectificationOutcome`, RECTIFICATION_OUTCOMES) is DERIVED from these two in shortAnswersFromEntries;
-  // an old form that answered the pick-one is still read.
+  // Jo 25 Oct 2026: Yes/No so Mitti can branch on it (a pick-one could not). The official outcome (`rectificationOutcome`,
+  // RECTIFICATION_OUTCOMES) is DERIVED in shortAnswersFromEntries; an old form that answered the pick-one is still read.
   yn("rectificationNeeded", "Is any electrical repair work needed before insulation can be installed?"),
-  yn("rectificationPossible", "Can the repair work be done before installation?", "rectificationNeeded = Yes"),
+  // Decision 309 (Jo 25 Oct 2026: "Remove it"): repairs ALWAYS happen before installation (same visit or the A5 fixes visit),
+  // so "Can the repair work be done before installation?" is no longer asked. LEGACY (portalOnly): an old form's "No" is still
+  // read, mapped to the before-installation outcome and flagged for the office (deriveRectificationOutcome).
+  { ...yn("rectificationPossible", REPAIR_POSSIBLE_LEGACY_LABEL, "rectificationNeeded = Yes"), required: false, portalOnly: true, source: "LEGACY (retired by decision 309) – read from old forms only" },
   { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationNeeded = Yes", source: "short onsite form" },
   { id: "rectificationOther", label: "Please describe the other repair work.", type: "text", required: true, when: "Other is ticked", source: "short onsite form" },
-  // Decision 305 (Jo 25 Oct 2026): quote-only answers for the owner's fixes quote; expandPiesa never reads them.
+  // Decisions 305/308 (Jo 25 Oct 2026): quote-only answers for the owner's fixes quote; expandPiesa never reads them.
   { id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decision 305) – not part of the official form" },
-  { id: "fixesIncluded", label: FIXES_INCLUDED_LABEL, type: "text", required: true, when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decision 305) – not part of the official form" },
+  // Decision 308 (Jo 25 Oct 2026): no free text — tick what the price covers, with counts / an Other description.
+  { id: "fixesWork", label: FIXES_WORK_LABEL, type: "multichoice", required: true, choices: [...FIXES_WORK_OPTIONS], when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decision 308) – not part of the official form" },
+  { id: "fixesDownlightCount", label: FIXES_DOWNLIGHT_COUNT_LABEL, type: "number", required: true, when: `"${FIXES_DOWNLIGHT_OPTION}" is ticked`, source: "Home Insulation Victoria fixes quote (decision 308) – not part of the official form" },
+  { id: "fixesRcdCount", label: FIXES_RCD_COUNT_LABEL, type: "number", required: true, when: `"${FIXES_RCD_OPTION}" is ticked`, source: "Home Insulation Victoria fixes quote (decision 308) – not part of the official form" },
+  { id: "fixesOtherDetail", label: FIXES_OTHER_LABEL, type: "text", required: true, when: `"${FIXES_OTHER_OPTION}" is ticked in "${FIXES_WORK_LABEL}"`, source: "Home Insulation Victoria fixes quote (decision 308) – not part of the official form" },
+  // Decision 305's free-text inclusions: LEGACY — never asked on a new build (portalOnly), still read from old forms.
+  { id: "fixesIncluded", label: FIXES_INCLUDED_LABEL, type: "text", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "LEGACY (decision 305, retired by decision 308) – read from old forms only" },
   // Jo 25 Oct 2026 ("Full name and name???"): plain labels instead of the official form's; the portal pre-fills all five
   // and copies them into Section C itself, so the "after repair work" repeat (old 33–37) is gone from the Mitti form.
   pre("b3.licence", "Electrician licence number"),
@@ -197,10 +291,25 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
   return out;
 }
 
-/** The official three-way outcome from the Yes/No pair (or the old pick-one answer, which arrives under the same label). */
+/** The official outcome from the Yes/No answer (or the old pick-one answer, which arrives under the same label).
+ *  Decision 309 (Jo 25 Oct 2026): repair needed → "Yes, repair work is needed" (before installation) — EXCEPT decision 314:
+ *  when the electrician ticked "Be on site at the start of the install day" the outcome is the official third one
+ *  (electrician present at the start of installation). An old form that said the repair could NOT be done before installation
+ *  (the retired "No", or the old pick-one third option) is read as the same before-installation outcome and marked
+ *  `REPAIR_LEGACY_NOT_BEFORE` so expandPiesa raises one office flag. */
 export function deriveRectificationOutcome(out: Record<string, string>): void {
   const needed = String(out["rectificationNeeded"] ?? "").trim();
-  if ((RECTIFICATION_OUTCOMES as readonly string[]).includes(needed)) { out["rectificationOutcome"] = needed; out["rectificationNeeded"] = needed === RECTIFICATION_OUTCOMES[0] ? "No" : "Yes"; if (needed === RECTIFICATION_OUTCOMES[2]) out["rectificationPossible"] = "No"; return; }
+  if ((RECTIFICATION_OUTCOMES as readonly string[]).includes(needed)) {
+    out["rectificationNeeded"] = needed === RECTIFICATION_OUTCOMES[0] ? "No" : "Yes";
+    out["rectificationOutcome"] = needed === RECTIFICATION_OUTCOMES[0] ? RECTIFICATION_OUTCOMES[0] : RECTIFICATION_OUTCOMES[1];
+    if (needed === RECTIFICATION_OUTCOMES[2]) { out["rectificationPossible"] = "No"; out[REPAIR_LEGACY_NOT_BEFORE] = "Yes"; }
+    return;
+  }
   if (/^no\b/i.test(needed)) out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[0];
-  else if (/^yes\b/i.test(needed)) out["rectificationOutcome"] = /^no\b/i.test(String(out["rectificationPossible"] ?? "")) ? RECTIFICATION_OUTCOMES[2] : RECTIFICATION_OUTCOMES[1];
+  else if (/^yes\b/i.test(needed)) {
+    // Decision 314: "Be on site at the start of the install day" ticked = the official third outcome.
+    if (onsiteStartTicked(out)) { out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[2]; return; }
+    out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[1];
+    if (/^no\b/i.test(String(out["rectificationPossible"] ?? ""))) out[REPAIR_LEGACY_NOT_BEFORE] = "Yes";
+  }
 }

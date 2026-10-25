@@ -109,13 +109,13 @@ describe("facts + gate", () => {
     tables["piesa_records"] = [{ id: REC, job_id: J, kind: "initial", outcome: "pass", completed_date: "2026-10-24", created_at: T0, signed_off_by: null, is_current: true }];
     expect(await S.ownerPiesaConfirmFacts(J)).toBeNull();
   });
-  test("outcome facts: open repair items = repair needed; the three-way Mitti answer = electrician on install day", async () => {
+  test("outcome facts: open repair items = repair needed; an old 'can't be done before installation' answer is no longer electrician-on-install-day (decision 309)", async () => {
     tables["rectification_items"] = [{ job_id: J, status: "required" }];
     expect((await S.ownerPiesaConfirmFacts(J))!.rectificationRequired).toBe(true);
     tables["rectification_items"] = [{ job_id: J, status: "removed" }];
     expect((await S.ownerPiesaConfirmFacts(J))!.rectificationRequired).toBe(false);
     tables["assessments"] = [{ job_id: J, mitti_raw_snapshot: [{ label: "Is any electrical repair work needed before insulation can be installed?", value: "Yes" }, { label: "Can the repair work be done before installation?", value: "No" }] }];
-    expect((await S.ownerPiesaConfirmFacts(J))!.electricianOnInstallDay).toBe(true);
+    expect((await S.ownerPiesaConfirmFacts(J))!.electricianOnInstallDay).toBe(false);
   });
   test("the owner signs once: event with name/time/session/hashes/copy; idempotent; the gate opens; the official form gets name + date", async () => {
     const r = await signHelen();
