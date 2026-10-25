@@ -64,7 +64,9 @@ export async function campaignLink(token: unknown) {
 }
 
 export function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof campaignLink>>>, deskStatus: string | null | undefined) {
-  if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || c.mediaReview === "unclear") return false;
+  // Jo 26 Oct 2026 (Matt Purdie HV-2772): a no-insulation owner (group "likely") never needs photos, so an "unclear" photo
+  // review can't block their Save my spot. R2-or-above ("over_r2") still blocks everyone.
+  if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || (c.mediaReview === "unclear" && c.group !== "likely")) return false;
   if (c.mediaReview === "below_r2" && c.criteriaPassed) return true;
   if (c.media?.excluded) return (deskStatus === "looks_eligible" || !!c.answeredQuestions) && c.criteriaPassed;
   return campaignSaveAllowed(c.group, deskStatus, c.ownerQualified);

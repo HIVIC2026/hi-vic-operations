@@ -51,3 +51,13 @@ test('photo owners who answered the 3 questions may save their spot; photos alon
   expect(campaignPermission({ ...base, answeredQuestions: true, mediaReview: 'over_r2' }, 'pending')).toBe(false);
   expect(campaignPermission({ ...base, answeredQuestions: true }, 'not_eligible')).toBe(false);
 });
+// Jo 26 Oct 2026 (Matt Purdie HV-2772): an owner who said NO insulation never needs photos, so an "unclear" photo review
+// (e.g. a floor plan uploaded) can't block Save my spot. "over_r2" still blocks.
+test('no-insulation owner: an unclear photo review does not block Save my spot; over_r2 still does', async () => {
+  tables.jobs![0]!.properties = { enrichment: { base44: { raw: { answers: { insulation: 'none' } } } } };
+  tables.customer_engagement_events = [{ id: 'u', job_id: 'job', event_type: 'intake_media_reviewed', source: 'office', metadata: { outcome: 'unclear' }, occurred_at: '2026-10-20T11:00:00Z' }];
+  const r = await campaignLink(token);
+  expect(r?.group).toBe('likely');
+  expect(campaignPermission(r!, null)).toBe(true);
+  expect(campaignPermission({ ...r!, mediaReview: 'over_r2' }, null)).toBe(false);
+});
