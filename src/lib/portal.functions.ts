@@ -1070,25 +1070,7 @@ export const runComplianceReview = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: job } = await admin.from("jobs").select("eligibility_outcome").eq("id", data.jobId).single();
-    const p = await piesaStatus(data.jobId);
-    const { data: decl } = await admin.from("declarations").select("kind").eq("job_id", data.jobId);
-    const kinds = new Set((decl ?? []).map((d) => d.kind));
-    const { data: ev } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("required", true);
-    const { count: openRect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
-    const auto: Record<string, boolean> = {
-      eligibility: job?.eligibility_outcome === "likely_eligible" || job?.eligibility_outcome === "needs_onsite_confirmation",
-      owner_consent: kinds.has("owner_consent"),
-      owner_authority: await assignmentEffective(data.jobId),
-      electrical_assessment: p?.piesa_outcome === "pass",
-      rectification: (openRect ?? 0) === 0,
-      installation_evidence: (ev ?? []).every((e) => e.status === "verified"),
-      declarations: kinds.has("installer_declaration") && kinds.has("owner_consent"),
-    };
-    for (const [key, ok] of Object.entries(auto))
-      await admin.from("compliance_checks").update({ status: ok ? "pass" : "fail", checked_by: context.userId, checked_at: new Date().toISOString(), notes: "Automated check" }).eq("job_id", data.jobId).eq("check_key", key);
-    await logEvent(data.jobId, context.userId, "compliance_reviewed", "Automated compliance review run", auto, { internal: true });
-    await autoAdvanceJob(data.jobId, context.userId, "compliance review");
+    await (await import("./compliance-review.server")).runAutomatedComplianceReview(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -1096,10 +1078,7 @@ export const setComplianceCheck = createServerFn({ method: "POST" }).middleware(
   .inputValidator((d) => z.object({ checkId: uuid, status: z.enum(["pending", "pass", "fail"]), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: c } = await admin.from("compliance_checks").update({ status: data.status, notes: data.notes ?? null, checked_by: context.userId, checked_at: new Date().toISOString() }).eq("id", data.checkId).select("job_id,label").single();
-    if (c) await logEvent(c.job_id, context.userId, "compliance_check", `${c.label}: ${data.status}`, { notes: data.notes }, { internal: true });
-    if (c) await autoAdvanceJob(c.job_id, context.userId, "compliance check");
-    return { ok: true };
+    return (await import("./compliance-review.server")).setComplianceCheckStatus(context.userId, data);
   });
 
 export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

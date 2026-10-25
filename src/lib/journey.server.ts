@@ -73,13 +73,14 @@ const s1: StepFn = async (ctx, r) => {
   const { data: ins, error } = await admin.from("calculator_interests").insert({
     full_name: `TEST Journey ${ctx.runId.slice(0, 6)}`, mobile: "0400000" + String(Math.floor(100 + Math.random() * 899)), email: ctx.ownerEmail,
     address_line: `${10 + Math.floor(Math.random() * 80)} Journey Test Street`, suburb: "Frankston", postcode: "3199", ceiling_m2: 120, insulation_declared: "none", consent_version: "journey-test",
-  }).select("id").single();
+  }).select("id, mobile").single();
   check(r, "calculator registration saved", !error && !!ins, error?.message);
   ctx.calculatorInterestId = ins!.id;
+  ctx.notes["owner_phone"] = ins!.mobile;
   // The owner's enquiry arrives as an isolated TEST job (Base44 intake path, qa_test source).
   const { upsertEnquiry } = await import("./enquiry.server");
   const res = await upsertEnquiry({
-    external_enquiry_id: `qa-journey-${ctx.runId}`, full_name: `Test Journey`, email: ctx.ownerEmail, phone: null,
+    external_enquiry_id: `qa-journey-${ctx.runId}`, full_name: `Test Journey`, email: ctx.ownerEmail, phone: ins!.mobile,
     address_line: `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
     estimated_area_m2: 120, life_support: false, life_support_status: "no", declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no",
     contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), age_confirmed: true,
@@ -131,7 +132,7 @@ const s2: StepFn = async (ctx, r) => {
   const { upsertEnquiry } = await import("./enquiry.server");
   const { data: prop } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", ctx.jobId!).single();
   const p = prop!.properties as { address_line: string; suburb: string; postcode: string };
-  const again = await upsertEnquiry({ full_name: "Test Journey", email: ctx.ownerEmail, address_line: p.address_line, suburb: p.suburb, postcode: p.postcode, estimated_area_m2: 130 } as never, "qa_test", ctx.actorId);
+  const again = await upsertEnquiry({ full_name: "Test Journey", email: ctx.ownerEmail, phone: ctx.notes["owner_phone"] as string, address_line: p.address_line, suburb: p.suburb, postcode: p.postcode, estimated_area_m2: 130 } as never, "qa_test", ctx.actorId);
   check(r, "repeat calculator enquiry attaches to the same job", again.job_id === ctx.jobId, `got ${again.job_number}`);
   ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/estimate/${ctx.token}/campaign`, mustSee: ["spot"] });
   ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/estimate/${ctx.token}/calculator` });
@@ -142,7 +143,9 @@ const s2: StepFn = async (ctx, r) => {
 /** Owner signs every outstanding item for the given gates via the real secure-link path: code request → 6-digit
  *  code → signing session → signGateDoc. On this TEST job only, the code's stored hash is set to a known code
  *  (we can't read a real one, and nothing is delivered to the TEST address). */
-async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" | "C" | "D")[], answers: Record<string, string> = {}) {
+/** The owner's verified signing session on the secure link: code request → 6-digit code → session. On this TEST job only,
+ *  the code's stored hash is set to a known code (we can't read a real one, and nothing is delivered to the TEST address). */
+async function ownerLinkSession(ctx: JourneyCtx, r: StepResult) {
   await assertOwnTestJob(ctx);
   const ov = await import("./owner-verify.server");
   const { hashToken } = await import("./worker-links.core");
@@ -153,7 +156,11 @@ async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" 
   let wrong = false; try { await ov.verifyOwnerCode(ctx.token, "000000"); } catch { wrong = true; }
   check(r, "wrong 6-digit code is refused", wrong);
   const { session } = await ov.verifyOwnerCode(ctx.token, known);
-  const s = await ov.ownerSession(ctx.token, session);
+  return ov.ownerSession(ctx.token, session);
+}
+
+async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" | "C" | "D")[], answers: Record<string, string> = {}) {
+  const s = await ownerLinkSession(ctx, r);
   const og = await import("./owner-gates.server");
   const signed: string[] = [];
   for (let i = 0; i < 15; i++) {
@@ -534,12 +541,67 @@ const s7: StepFn = async (ctx, r) => {
 // ---------- Step 8: AP sign-off; installer payout shows "Coming" ----------
 const s8: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
-  const now = new Date().toISOString();
-  const { error } = await admin.from("evidence_requirements").update({ status: "verified" } as never).eq("job_id", ctx.jobId!).eq("status", "uploaded");
-  check(r, "office verifies the uploaded evidence", !error, error?.message);
-  await admin.from("evidence_files").update({ verified_at: now, verified_by: ctx.actorId } as never).eq("job_id", ctx.jobId!);
-  const { transition } = await import("./workflow.server");
-  await act(r, "AP sign-off → ready for VEEC", () => transition(ctx.jobId!, "ready_for_veec", ctx.actorId, "TEST journey: AP approved"));
+  // Decision 139: the balance is paid on the install day (bank transfer) — a TEST payment in the Xero Demo Company.
+  await payStep(ctx, r, "balance", "balance paid in full (TEST payment, Demo Company)");
+  // Decision 276 (G1): the completion pack (O47) is the one sender that gives the owner the product warranty copy. The TEST
+  // owner's address is not on the send allowlist, so the TEST sender holds it; the copy is then recorded through the pack's
+  // own recorder as a simulated send for this TEST job.
+  {
+    const cp = await import("./completion-pack.server");
+    const pack = await act(r, "completion pack emailed to the owner (the tick's sender)", () => cp.sendCompletionPack(ctx.jobId!, ctx.actorId));
+    const { count: provided } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "warranty_copy_provided");
+    if (!provided) {
+      check(r, "completion pack held only because the TEST owner is not on the allowlist", pack.outcome === "not_sent" && /allowlist/.test(pack.detail), `${pack.outcome}: ${pack.detail}`);
+      (r.simulated ??= []).push("Completion pack email to the TEST owner (held by the TEST sender; the warranty copy recorded as given for this TEST job)");
+      await act(r, "product warranty copy recorded as given to the owner (simulated email)", async () => {
+        await assertOwnTestJob(ctx);
+        const pw = await import("./product-warranty.server");
+        const decision = await pw.warrantyDecisionFor(ctx.jobId!);
+        const copies = await pw.prepareWarrantyCopies(ctx.jobId!, ctx.actorId, decision);
+        const ok = await cp.recordWarrantyCopyProvided(ctx.jobId!, ctx.actorId, { via: "completion_pack", result: "sent", decision, attached: copies.attached, missing: copies.missing });
+        if (!ok) throw new Error(`warranty copy not recorded (products ${decision.products.join(", ") || "none"}; missing ${copies.missing.map((m) => m.product).join(", ") || "none"})`);
+      });
+    }
+  }
+  // The VEEC assignment form (decisions 119/120/271): lead installer (Part B) → AP (Part A, automatic) → owner (Section 4).
+  const asg = await import("./assignment.server");
+  const lead = ctx.notes["lead_installer"] as { name: string } | undefined;
+  // The office prepares Section 2 from the job facts (Compliance › VEEC assignment), supplying the one field the reviewed
+  // product labels don't carry: the ESC product type of the batts installed (48A).
+  await act(r, "office prepares the VEEC assignment form (Section 2 from the job facts)", async () => {
+    const { PRODUCT_TYPES } = await import("./veec-assignment-form.core");
+    return asg.prepareFinalAssignment(ctx.jobId!, ctx.actorId, { area_1_product_type: PRODUCT_TYPES[0] });
+  });
+  await act(r, "lead installer signs the VEEC assignment form (Part B)", () => asg.signFinalAssignment({ jobId: ctx.jobId!, actorId: ctx.installer.id, party: "installer", signatureName: lead?.name ?? "TEST Lead Installer", ip: "127.0.0.1", userAgent: "journey-test" }));
+  const ap = await act(r, "AP declaration (Part A) signs itself once every prerequisite is recorded", () => import("./veec-ap-auto.server").then((m) => m.tryAutoApSignature(ctx.jobId!)));
+  const cur = await asg.currentAssignment(ctx.jobId!);
+  check(r, "AP part signed", !!cur?.ap_signed_at, JSON.stringify(ap).slice(0, 300));
+  const s = await ownerLinkSession(ctx, r);
+  await act(r, "owner signs the VEEC assignment form on the secure link (Section 4 Part B)", () => asg.signFinalAssignment({ jobId: ctx.jobId!, actorId: s.userId, party: "consumer", signatureName: "Test Journey", signatoryName: "Test Journey", authorityType: "owner", over18: true, confirmsSection2: true, ip: "127.0.0.1", userAgent: "journey-test" }));
+  await ownerSignGates(ctx, r, ["D"]);
+  // Activity 48: the signed copy goes to the owner (O62). TEST owner → held by the TEST sender; the office records the copy as
+  // given (the owner also has it on My job).
+  {
+    const sentCopy = await act(r, "signed VEEC assignment copy emailed to the owner (the tick's sender)", () => import("./veec-copy-email.server").then((m) => m.sendVeecCopyEmail(ctx.jobId!)));
+    (r.simulated ??= []).push(`VEEC assignment copy email to the TEST owner (${String(sentCopy).slice(0, 80)}); the office records the copy as given`);
+    const rec = await import("./job-records.server");
+    await act(r, "office records the signed VEEC assignment copy given to the owner", () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key: "assignment_copy_to_consumer", occurredAt: melbourneDate(0), reference: "TEST journey: copy on the owner's My job page", notes: null, actorId: ctx.actorId }));
+  }
+  // The office's Final check: every uploaded evidence item reviewed, the automated compliance review, the office's own
+  // checks recorded, then AP approval (decision 372) — the one path to Ready for VEEC.
+  {
+    const er = await import("./evidence-review.server");
+    const { data: up } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("status", "uploaded");
+    for (const e of up ?? []) await act(r, "office verifies an uploaded evidence item", () => er.reviewEvidence(ctx.actorId, { requirementId: e.id, status: "verified" }));
+    const cr = await import("./compliance-review.server");
+    await act(r, "office runs the automated compliance review", () => cr.runAutomatedComplianceReview(ctx.jobId!, ctx.actorId));
+    const { data: checks } = await admin.from("compliance_checks").select("id, check_key, label, status").eq("job_id", ctx.jobId!).eq("blocking", true);
+    const automated = new Set(["eligibility", "owner_consent", "owner_authority", "electrical_assessment", "rectification", "installation_evidence", "declarations"]);
+    for (const c of (checks ?? []).filter((x) => !automated.has(x.check_key) && x.status !== "pass")) await act(r, `office passes ${c.label}`, () => cr.setComplianceCheckStatus(ctx.actorId, { checkId: c.id, status: "pass", notes: "TEST journey: office Final check" }));
+    const failed = (await admin.from("compliance_checks").select("label, status").eq("job_id", ctx.jobId!).eq("blocking", true)).data?.filter((c) => c.status !== "pass") ?? [];
+    check(r, "every compliance check passed", failed.length === 0, failed.map((c) => c.label).join(", "));
+  }
+  await act(r, "AP approves on the Final check → ready for VEEC", () => import("./ap-approve.server").then((m) => m.approveApJobAs(ctx.jobId!, ctx.actorId, "TEST journey")));
   const tv = await import("./trade-view.server");
   const money = await tv.tradeMoney(ctx.installer.id);
   const row = money.rows.find((x) => x.jobId === ctx.jobId);
@@ -615,7 +677,9 @@ async function allowlist(ctx: JourneyCtx, r: StepResult) {
     check(r, "no customer email delivered for a non-TEST job", nonTest === 0, `${nonTest} non-TEST`);
   }
   const addr = (v: unknown): string[] => Array.isArray(v) ? v.flatMap((x) => typeof x === "string" ? [x] : x && typeof x === "object" ? Object.values(x as Record<string, unknown>).filter((y): y is string => typeof y === "string" && /@|^\+?\d{8,}$/.test(y)) : []) : [];
-  const delivered = (comms ?? []).filter((c) => c.sent_at || c.delivery_status === "sent" || c.delivery_status === "delivered").flatMap((c) => addr(c.recipients));
+  // The TEST sender stamps sent_at on every attempt it records, including the ones it held (blocked_prelaunch / failed):
+  // only messages a provider actually accepted count as delivered.
+  const delivered = (comms ?? []).filter((c) => (c.sent_at || c.delivery_status === "sent" || c.delivery_status === "delivered") && !/^(blocked|failed|held)/.test(String(c.delivery_status ?? ""))).flatMap((c) => addr(c.recipients));
   const outside = recipientsOutsideAllowlist(delivered);
   check(r, "every delivered message went to the allowlist", outside.length === 0, outside.length ? `${outside.length} outside` : `${delivered.length} delivered, all allowlisted`);
 }

@@ -6,6 +6,7 @@
 // newer gate stops a step. Only the external providers are faked (tests/helpers/journey-harness.ts). Never touches the
 // live database or any network.
 import { afterAll, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, type MittiItem } from "./helpers/journey-harness";
 
 const TPL_A1 = "template_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", TPL_A2 = "template_a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2";
@@ -32,6 +33,14 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
 
 const j = await journeyDb();
 await loadPendingFunctions(j);
+// The live database's invoice_status view (pending migration 0080) reads straight from invoices; the harness makes views
+// empty tables (and SQL functions depend on its row type), so the rows the view would show are mirrored on every write.
+await j.db.exec(`create function journey_invoice_status_mirror() returns trigger language plpgsql as $$ begin
+  delete from public.invoice_status where id = new.id;
+  insert into public.invoice_status (id, job_id, quote_id, kind, xero_invoice_number, xero_online_url, total_inc_gst, deposit_amount, deposit_paid_amount, deposit_paid_at, balance_due_date, balance_paid_at, total_paid, created_at)
+    values (new.id, new.job_id, new.quote_id, new.kind, new.xero_invoice_number, new.xero_online_url, new.total_inc_gst, new.deposit_amount, new.deposit_paid_amount, new.deposit_paid_at, new.balance_due_date, new.balance_paid_at, new.total_paid, new.created_at);
+  return new; end $$;
+create trigger journey_invoice_status_mirror after insert or update on public.invoices for each row execute function journey_invoice_status_mirror();`);
 // The live database seeds every new job's evidence checklist, compliance checks and VEEC row (migration 0000 trigger).
 await j.db.exec("create trigger jobs_seed_requirements after insert on public.jobs for each row execute function public.seed_job_requirements();");
 const { admin: baseAdmin, asUser, storage } = journeyAdmin(j);
@@ -103,6 +112,11 @@ const officeCtx = { userId: OFFICE, supabase: admin, claims: {} };
     const [t] = await q<{ id: string }>("select id from compliance_templates where template_key=$1 and version='live-1'", [key]);
     await pf.approveComplianceTemplate({ data: { id: t!.id }, context: officeCtx });
   }
+  // The official ESC VEEC assignment form v1.1 (pending migration 0225, loaded unapproved) as Jo approves it in Compliance
+  // Setup. ASSUMPTION for the live run: until Jo approves it there, step 8 stops at "VEEC assignment is not ready".
+  await j.db.exec(readFileSync(new URL("../docs/pending-migrations/0225_veec_assignment_v1_1.sql", import.meta.url), "utf8"));
+  const [veecForm] = await q<{ id: string }>("select id from compliance_templates where template_key='consumer_declaration' order by created_at desc limit 1");
+  await pf.approveComplianceTemplate({ data: { id: veecForm!.id }, context: officeCtx });
   await pf.addEscConfig({ data: { version: "live-esc-config-1", fields: [], source_note: "ESC notification fields" }, context: officeCtx });
   const [cfg] = await q<{ id: string }>("select id from esc_notification_config where version='live-esc-config-1'");
   await pf.approveEscConfig({ data: { id: cfg!.id }, context: officeCtx });
@@ -139,6 +153,7 @@ describe("live journey runner — TEST setup from a fresh live database", () => 
     for (const s of run.result.steps) {
       if (!s.passed || process.env["JOURNEY_DEBUG"]) console.log(`${s.passed ? "PASS" : "FAIL"} ${s.label}${s.error ? ` — ${s.error}` : ""}`, s.passed ? "" : JSON.stringify(s.checks.filter((c) => !c.ok)));
     }
+    if (!run.result.passed) console.log("DELIVERED", JSON.stringify(await q("select channel, source_event, recipients, delivery_status, sent_at from job_communications where direction='outbound' and (sent_at is not null or delivery_status in ('sent','delivered'))")));
     if (!run.result.passed && run.ctx.jobId) console.log((await q<{ event_type: string; summary: string }>("select event_type, summary from workflow_events where job_id=$1 order by created_at desc limit 25", [run.ctx.jobId])).map((e) => `${e.event_type}: ${e.summary}`).join("\n"));
     expect(run.result.steps.map((s) => [s.key, s.passed ? "pass" : s.error])).toEqual(run.result.steps.map((s) => [s.key, "pass"]));
     expect(run.result.passed).toBe(true);

@@ -31,7 +31,7 @@ const fail = (what: string, e: { message: string } | null | undefined) => { if (
 
 /** Hard stop unless the business is a TEST partner ("TEST …" name AND the [TEST PARTNER] mark). */
 export async function assertTestBusiness(id: string) {
-  const { data: b, error } = await admin.from("businesses").select("id, name, business_type, capabilities, onboarding_notes, rec_number, licence_number, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads, receives_hivic_leads, accepting_new_jobs").eq("id", id).maybeSingle();
+  const { data: b, error } = await admin.from("businesses").select("id, name, business_type, capabilities, onboarding_notes, rec_number, licence_number, address, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads, receives_hivic_leads, accepting_new_jobs").eq("id", id).maybeSingle();
   fail("read business", error);
   if (!b?.name?.startsWith("TEST ") || !isTestPartner(b)) throw new Error("SAFETY STOP: a journey trade is not a TEST business.");
   return b;
@@ -82,6 +82,8 @@ export async function ensureTestBusinessReady(actorId: string, businessId: strin
   // Electricians: the REC number (and licence number) the office records at onboarding — a gate on PIESA offers and acceptance.
   if (role === "electrician" && !b.rec_number) patch["rec_number"] = "TEST-REC-DELTA";
   if (role === "electrician" && !b.licence_number) patch["licence_number"] = "TEST-ESV-DELTA";
+  // The electrician's company address is printed in Section 2 of the VEEC assignment form.
+  if (role === "electrician" && !b.address) patch["address"] = "1 TEST Electrical Way, Frankston VIC 3199";
   if (Object.keys(patch).length) {
     const { error } = await admin.from("businesses").update(patch as never).eq("id", businessId).like("name", "TEST %");
     fail("business coverage", error);
