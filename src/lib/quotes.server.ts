@@ -80,6 +80,17 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
+  // Decision 349 (Jo 25 Oct 2026): the PIESA line follows WHOSE electrician will do it — the same decision-157 selection
+  // the PIESA offer uses. The installer's usual electrician → their onboarding rate exactly (pass-through); our
+  // electrician → HIV's standard price ($349). The safety-check payment (decision 302) and the repeat-PIESA charge
+  // (decision 342) read this line, so they follow automatically.
+  const { recCandidatesFor } = await import("./allocation.server");
+  const piesaSel = await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, (await recCandidatesFor(jobId)).candidates);
+  const { ownerPiesaLineIncGst } = await import("./our-lead-piesa-electrician.core");
+  const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst), piesaSel);
+  const piesaElectrician = piesaSel.mode === "usual"
+    ? { source: "installer_usual" as const, business_id: piesaSel.businessId, rate_inc_gst: piesaSel.rateIncGst, rate_id: piesaSel.rateId }
+    : { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
@@ -96,7 +107,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     calc = priceHivQuote({
       areaM2: qi.areaM2, removalM2: qi.removalM2,
       ownerR5IncPerM2: Number(rs.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.removal_inc_gst_per_m2),
-      piesaIncGst: Number(rs.piesa_assessment_inc_gst),
+      piesaIncGst: piesaOwnerIncGst,
       apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst),
       gstRate: Number(settings.gst_rate),
       installerR5ExPerM2: rate("R5_BATTS"), installerRemovalExPerM2: rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL"), installerTravelEx: rate("TRAVEL"),
@@ -151,7 +162,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   ]);
   const { error: internalsError } = itemsError ? { error: null } : await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
-    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, access_rating: accessRating, difficult_access_pass_through: calc.difficultAccess, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, piesa_electrician: piesaElectrician, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, access_rating: accessRating, difficult_access_pass_through: calc.difficultAccess, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   if (itemsError || internalsError) {
     await admin.from("quotes").update({ status: "superseded" }).eq("id", q.id); // withdraw the incomplete new quote; the previous one stays current
@@ -191,7 +202,7 @@ async function a4FixesPriceSource(jobId: string) {
  *  Same supersede/insert/release shape as the rate-card path below — the quote is still a held draft for office review.
  *  Decision 308: `included` is built from the electrician's ticks (fixes-price.core). Decision 310 (Jo 25 Oct 2026):
  *  office-added rectification_items are NOT added on top of the electrician's total — the A4 price is the whole price. */
-async function generateA4FixesQuote(jobId: string, actorId: string, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number) {
+async function generateA4FixesQuote(jobId: string, actorId: string, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number, electricianSource: "installer_usual" | "ours") {
   // quotes.rate_card_id is nullable: keep the electrician's active card for reference when there is one, never required here.
   const { data: cards } = await admin.from("rate_cards").select("id, version").eq("kind", "electrical").eq("is_active", true).eq("business_id", businessId).order("version", { ascending: false }).limit(1);
   const card = cards?.[0] ?? null;
@@ -206,7 +217,7 @@ async function generateA4FixesQuote(jobId: string, actorId: string, businessId: 
     .single();
   if (error || !q) throw new Error(error?.message);
   await admin.from("quote_items").insert(built.lines.map((l) => ({ ...l, quote_id: q.id })));
-  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, rectification_margin_inc_gst: built.marginIncGst, rate_card_version: card?.version ?? null } });
+  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, rectification_margin_inc_gst: built.marginIncGst, electrician_source: electricianSource, rate_card_version: card?.version ?? null } });
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({
     hasNonStandardItem: false,
@@ -225,11 +236,13 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the electrical fixes quote.");
   // Decision 305: the electrician's own total from the A4 PIESA wins; older forms without it keep the rate-card path below.
-  // Decision 313: the $100 owner margin is for our leads only; installer-supplied jobs (A1) get the electrician's price as is.
+  // Decision 313: installer-supplied jobs (A1) get the electrician's price as is. Decision 349: on our leads the $100 is
+  // added ONLY with our electrician — the installer's own (usual) electrician is passed through too.
   const { data: jobRow } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
-  const margin = fixesMarginFor((jobRow as { channel?: string | null } | null)?.channel ?? null);
+  const electricianSource = await (await import("./our-lead-piesa-electrician.server")).electricianSourceForJob(jobId, rec.business_id);
+  const margin = fixesMarginFor((jobRow as { channel?: string | null } | null)?.channel ?? null, electricianSource);
   const a4 = await a4FixesPriceSource(jobId);
-  if (a4.path === "a4_price") return generateA4FixesQuote(jobId, actorId, rec.business_id, a4, settings, margin);
+  if (a4.path === "a4_price") return generateA4FixesQuote(jobId, actorId, rec.business_id, a4, settings, margin, electricianSource);
   const card = await activeRateCard("electrical", rec.business_id, false);
   const rates = card.rate_card_items as { code: string; description: string; unit: string; display_unit?: string | null; unit_price_ex_gst: number }[];
   const { data: items } = await admin.from("rectification_items").select("*").eq("job_id", jobId).eq("status", "required");
@@ -252,7 +265,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     lines.push({ code: it.rate_code, description: it.description, quantity: Number(it.quantity), unit: approved?.display_unit || approved?.unit || "each", unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * Number(it.quantity)), is_other: it.is_other, explanation: it.explanation, sort: lines.length });
   }
   // Decision 142: owner price = electrician price + the margin spread over the lines; trade cost below stays unmarked.
-  // Decision 313: no margin on installer-supplied jobs (A1).
+  // Decision 313: no margin on installer-supplied jobs (A1); decision 349: none with the installer's own electrician either.
   const priced = margin > 0 ? applyRectificationMargin(lines, margin) : lines;
   const subtotal = r2(priced.reduce((a, l) => a + l.line_total_inc_gst, 0));
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
@@ -263,7 +276,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     .single();
   if (error || !q) throw new Error(error?.message);
   await admin.from("quote_items").insert(priced.map((l) => ({ ...l, quote_id: q.id })));
-  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version, rectification_margin_inc_gst: margin } });
+  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version, rectification_margin_inc_gst: margin, electrician_source: electricianSource } });
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({
     hasNonStandardItem: items.some((item) => item.is_other),

@@ -65,7 +65,7 @@ export function jobMargin(i: JobMarginInput): JobMargin {
     { key: "gst", label: "GST", amount: priceInc != null && priceEx != null ? -r2(priceInc - priceEx) : null },
     { key: "installer", label: "Installer pay", amount: i.installerPayEx != null ? -r2(i.installerPayEx) : null },
     { key: "piesa", label: "Electrician PIESA cost", amount: i.piesaCostEx != null ? -r2(i.piesaCostEx) : null },
-    { key: "fixes", label: "Electrician fixes cost (the $100 on fixes stays ours)", amount: -r2(Math.max(0, i.fixesCostEx)) },
+    { key: "fixes", label: "Electrician fixes cost (the $100 on fixes with our electrician stays ours)", amount: -r2(Math.max(0, i.fixesCostEx)) },
     { key: "veec_value", label: "VEEC value we receive", amount: i.veecValue != null ? r2(i.veecValue) : null },
     { key: "veec_incentive", label: "VEEC incentive given to the owner", amount: -r2(Math.max(0, i.veecIncentive)) },
   ];
