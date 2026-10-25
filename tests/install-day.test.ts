@@ -155,15 +155,54 @@ describe("official Part 5 light and cable answers come from the PIESA", () => {
 describe("official Part 6 existing insulation comes from the Ready Check record", () => {
   const none = { suitable: null, conductive: null, reason: null };
   test("no existing insulation: Part 6 is 'No' and nothing else is needed", () => {
-    expect(readyCheckPart6Answers([{ present: false }, { present: false }], none)).toEqual({ answers: { "p6.present": "No" }, missing: [], conductive: null });
+    expect(readyCheckPart6Answers([{ present: false }, { present: false }], none)).toEqual({ answers: { "p6.present": "No" }, missing: [], conductive: null, conductiveEvidence: null, fullRemoval: false });
   });
   test("existing insulation: depth, treatment, condition, reason and foil come from the record; each gap is a pre-start blocker", () => {
-    const r = readyCheckPart6Answers([{ present: true, depthMm: 40, rValue: 1.5, removal: false }], { suitable: true, conductive: false, reason: "Good condition, topped up" });
-    expect(r).toEqual({ answers: { "p6.present": "Yes", "p6.height": "40", "p6.rValue": "1.5", "p6.treatment": ["Topped Up"], "p6.reason": "Good condition, topped up", "p6.suitable": "Yes" }, missing: [], conductive: false });
-    const gaps = readyCheckPart6Answers([{ present: true, depthMm: null, removal: true }], none);
-    expect(gaps.answers).toEqual({ "p6.present": "Yes", "p6.treatment": ["Removed"] });
-    expect(gaps.missing).toEqual(["Ready Check: existing insulation depth (mm) not recorded", "Ready Check: condition of the existing insulation (suitable to lay over) not recorded", "Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded"]);
+    const r = readyCheckPart6Answers([{ present: true, depthMm: 40, rValue: 1.5, removal: false }], { suitable: true, conductive: false, reason: "Good condition, topped up", conductiveEvidence: "mitti:a:item:p" });
+    expect(r).toEqual({ answers: { "p6.present": "Yes", "p6.height": "40", "p6.rValue": "1.5", "p6.treatment": ["Topped Up"], "p6.reason": "Good condition, topped up", "p6.suitable": "Yes" }, missing: [], conductive: false, conductiveEvidence: "mitti:a:item:p", fullRemoval: false });
+    const gaps = readyCheckPart6Answers([{ present: true, depthMm: null, removal: false }], none);
+    expect(gaps.answers).toEqual({ "p6.present": "Yes", "p6.treatment": ["Topped Up"] });
+    expect(gaps.missing).toEqual([
+      "Ready Check: existing insulation depth (mm) not recorded",
+      "Ready Check: reason the existing insulation is being kept not recorded",
+      "Ready Check: condition of the existing insulation (suitable to lay over) not recorded",
+      "Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded",
+      "Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added",
+    ]);
     expect(readyCheckPart6Answers([], none).missing[0]).toContain("no current measure-up");
+  });
+  test("decision 359: the per-area Ready Check answers fill Part 6 for a top-up (no extra needed)", () => {
+    const r = readyCheckPart6Answers([
+      { name: "Main house", present: true, depthMm: 60, removal: false, suitable: true, conductive: false, conductiveEvidence: "mitti:rc:item:p1", keepReason: "Batts in good condition" },
+      { name: "Garage", present: false },
+    ]);
+    expect(r.missing).toEqual([]);
+    expect(r.answers).toMatchObject({ "p6.present": "Yes", "p6.treatment": ["Topped Up"], "p6.suitable": "Yes", "p6.reason": "Batts in good condition" });
+    expect(r).toMatchObject({ conductive: false, conductiveEvidence: "mitti:rc:item:p1", fullRemoval: false });
+    // Two top-up areas: any unsuitable = No (the official rule then refuses the top-up); differing reasons are named per area.
+    const two = readyCheckPart6Answers([
+      { name: "Main", present: true, depthMm: 60, removal: false, suitable: true, conductive: false, conductiveEvidence: "e1", keepReason: "Good" },
+      { name: "Rear", present: true, depthMm: 60, removal: false, suitable: false, conductive: true, conductiveEvidence: "e2", keepReason: "Owner wants it kept" },
+    ]);
+    expect(two.answers["p6.suitable"]).toBe("No");
+    expect(two.answers["p6.reason"]).toBe("Main: Good; Rear: Owner wants it kept");
+    expect(two.conductive).toBe(true);
+    // An old form (no new answers) on a top-up names the areas still missing.
+    const old = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 60, removal: false }, { name: "Rear", present: true, depthMm: 60, removal: false, suitable: true, conductive: false, conductiveEvidence: "e", keepReason: "x" }]);
+    expect(old.missing).toContain("Ready Check: reason the existing insulation is being kept not recorded (Main)");
+    expect(old.missing).toContain("Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added (Main)");
+  });
+  test("decision 360: every area removed → the portal fills Part 6 (not laid over, no reason, no foil answer needed)", () => {
+    const r = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 50, removal: true }, { name: "Garage", present: false }]);
+    expect(r.answers).toEqual({ "p6.present": "Yes", "p6.height": "50", "p6.treatment": ["Removed"], "p6.suitable": "No" });
+    expect(r.missing).toEqual([]);
+    expect(r).toMatchObject({ conductive: null, fullRemoval: true });
+    // A recorded foil answer on a removal area is kept (removal is what the note requires).
+    expect(readyCheckPart6Answers([{ present: true, depthMm: 50, removal: true, conductive: true, conductiveEvidence: "e" }]).conductive).toBe(true);
+    // Mixed: the top-up area still needs its answers.
+    const mixed = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 50, removal: true }, { name: "Rear", present: true, depthMm: 50, removal: false }]);
+    expect(mixed.fullRemoval).toBe(false);
+    expect(mixed.missing.length).toBe(4);
   });
 });
 

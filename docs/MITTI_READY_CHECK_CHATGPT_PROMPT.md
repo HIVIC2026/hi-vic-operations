@@ -90,6 +90,10 @@ option anywhere. The new group below is complete as written.
 22. `Upload a photo clearly showing the measured insulation depth` — Photo — Not required — only show when question 19 = `Yes`
 23. `What is required for the existing insulation?` — Pick one: `Remove` / `Top up` / `Not sure` — Required — only show when question 19 = `Yes`
 24. `How much existing insulation needs to be removed? (m²)` — Number — Required — only show when question 23 = `Remove`
+24a. `Is the existing insulation in good enough condition to lay new insulation over?` — Yes/No — Required — only show when question 23 = `Top up`
+24b. `Is the existing insulation foil-backed, metallic or electrically conductive?` — Yes/No — Required — only show when question 19 = `Yes`
+24c. `Photo showing whether it is foil-backed or conductive` — Photo — Required — only show when question 19 = `Yes`
+24d. `Why is the existing insulation being kept?` — Text — Required — only show when question 23 = `Top up`
 25. `Slow 360° video of this ceiling area, lit, saying its name` — Video (video attachment with location on) — Required — help text: `This is the before video the rebate needs. Show any existing insulation.`
 26. `Are there recessed downlights in this ceiling area?` — Yes/No — Required
 27. `How many recessed downlights?` — Number — Required — only show when question 26 = `Yes`
@@ -114,10 +118,10 @@ portal, never in Mitti (**A1 only** difference: A1 simply has no question 34 and
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 34 questions and A2 has 35** (Group 4
-counted once; A2 = questions 1–35, A1 = questions 1–33 and 35), in this order; every "only show when" rule;
-Required exactly as marked (the three Photo questions 13, 22 and 25 are the only optional ones); location on for every
-Photo; the repeating section adds a complete copy of questions 14–30 each time; the eight product options spelled
+Finish with a checklist I can use to verify each published template: **A1 has 38 questions and A2 has 39** (Group 4
+counted once; A2 = questions 1–35 plus 24a–24d, A1 = questions 1–33, 24a–24d and 35), in this order; every "only show when" rule;
+Required exactly as marked (the Photo questions 13 and 22 are the only optional ones); location on for every
+Photo; the repeating section adds a complete copy of questions 14–30 (with 24a–24d) each time; the eight product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each
 **template ID** (in the web address when the template is open, or under the template's settings), because I must send
 both IDs to my software team. Also remind me to keep the old A1 and A2 templates unpublished but not deleted until every

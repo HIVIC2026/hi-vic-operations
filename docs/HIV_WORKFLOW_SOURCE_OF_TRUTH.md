@@ -183,3 +183,7 @@ When the PIESA (A4) says repair work is needed and the electrician does not fix 
 - **Electrician pay (355):** see "Electrician rate vs customer PIESA price" above.
 - **New-sender reply is live (356):** `NEW_SENDER_REPLY_TEST_ONLY = false`; still behind `NEW_SENDER_REPLY_APPROVED`, `customer_comms_enabled` and the recipient boundary. Its migration `new-sender-reply-events.sql` is applied live (APPLIED_MANUALLY.md).
 - **Estimate follow-up O66–O68 (357):** approved as drafted (as decision 242); `ESTIMATE_FOLLOWUP_APPROVED = true`, designs in `docs/templates/approved/O66–O68`, sends behind `customer_comms_enabled`.
+
+## Existing insulation for the official PIISA Part 6 (decisions 359/360, 25 Oct 2026)
+
+The Ready Check (A1 and A2) asks, per ceiling area and only when there is existing insulation: whether it is in good enough condition to lay new insulation over (Top up only), whether it is foil-backed, metallic or electrically conductive, a photo showing that, and why it is being kept (Top up only). The portal fills official PIISA Part 6 from those answers on install day; the installer is not asked again. When every area with existing insulation is Removed, the portal fills Part 6 itself (not laid over, no reason, the foil note satisfied by removal). A top-up on a Ready Check done before these questions existed is listed as "not recorded" and holds the PIISA until recorded.

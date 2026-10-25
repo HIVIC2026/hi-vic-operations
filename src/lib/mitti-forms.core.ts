@@ -22,6 +22,9 @@ export type FormField = {
   /** Official repeating table row. */ row?: { group: string; rows: number };
   /** Printed heading/statement: reproduced verbatim, never answered. */ statement?: "heading" | "statement";
   /** Portal evidence kept outside the official form. */ supplemental?: boolean;
+  /** Added to live templates later by a paste prompt (e.g. 359 = docs/MITTI_READY_CHECK_PART6_PROMPT.md): asked as written on
+   *  new builds, but a template built before that decision still validates without it (its old forms read as "not recorded"). */
+  addedByDecision?: number;
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
 import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
@@ -143,6 +146,11 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.depthPhoto, type: "media", required: false, perArea: true, when: WHEN_EXISTING, aliases: al("depthPhoto"), source: `${G} Table 4 – optional on the form; missing = install-day photo lock` },
   { label: LEAN_Q.existingAction, type: "choice", required: true, perArea: true, choices: [...EXISTING_ACTION_OPTIONS], when: WHEN_EXISTING, aliases: al("existingAction"), source: `${G} removal criteria; Not sure goes to office review` },
   { label: LEAN_Q.removeM2, type: "number", required: true, perArea: true, when: `${LEAN_Q.existingAction} = Remove`, types: ["text"], aliases: al("removeM2"), source: "portal – removal pricing (summed over areas)" },
+  // Decision 359 (Jo 25 Oct 2026): official PIISA Part 6 facts per area (piisa-a3.core readyCheckPart6Answers).
+  { label: LEAN_Q.existingSuitable, type: "yesno", required: true, perArea: true, choices: [...YES_NO], when: `${LEAN_Q.existingAction} = Top up`, addedByDecision: 359, source: "official PIISA Part 6 – suitable to lay new insulation over (decision 359)" },
+  { label: LEAN_Q.existingConductive, type: "yesno", required: true, perArea: true, choices: [...YES_NO], when: WHEN_EXISTING, addedByDecision: 359, source: "official PIISA Part 6 foil note – HI VIC conductivity record (decision 359)" },
+  { label: LEAN_Q.existingConductivePhoto, type: "media", required: true, perArea: true, when: WHEN_EXISTING, addedByDecision: 359, source: "HI VIC conductivity photo – supporting evidence outside the official PIISA (decision 359)" },
+  { label: LEAN_Q.existingKeepReason, type: "text", required: true, perArea: true, when: `${LEAN_Q.existingAction} = Top up`, addedByDecision: 359, source: "official PIISA Part 6 – reason the existing insulation is retained (decision 359)" },
   { label: LEAN_Q.beforeVideo, type: "media", required: true, perArea: true, aliases: al("beforeVideo"), source: `${G} Table 4 – the before video of this area (decision 264); counts as the install's before-work video` },
   { label: LEAN_Q.downlights, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("downlights"), source: "portal – observation only; electrician confirms ratings at PIESA" },
   { label: LEAN_Q.downlightsCount, type: "number", required: true, perArea: true, when: `${LEAN_Q.downlights} = Yes`, types: ["text"], aliases: al("downlightsCount"), source: "portal – luminaire count (PIISA P5 prefill)" },
@@ -189,9 +197,10 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   fixes: { title: FIXES_DAY_TEMPLATE_NAME, role: "electrician", fields: FIXES_DAY_QUESTIONS.map(fixesField) },
 };
 
-/** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded). */
-export function leanQuestionCount(key: "ready_check" | "ready_check_priced"): number {
-  return FORMS[key].fields.filter((f) => !f.portalOnly).length;
+/** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded).
+ *  `beforeDecision`: the count on a template built before that decision's paste-prompt additions (e.g. 359 → 34 / 35). */
+export function leanQuestionCount(key: "ready_check" | "ready_check_priced", opts: { beforeDecision?: number } = {}): number {
+  return FORMS[key].fields.filter((f) => !f.portalOnly && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -224,7 +233,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   // Deduplicated: a curly/straight apostrophe alias normalises to the same key and must not count the item twice.
   const labelsOf = (f: FormField) => [...new Set([norm(f.label), ...(f.aliases ?? []).map(norm)])];
   const typeOk = (f: { type: FieldType; types?: FieldType[] }, t: string) => [f.type, ...(f.types ?? [])].some((ty) => TYPE_ALIASES[ty].includes(String(t).toLowerCase()));
-  const optional = (f: FormField) => f.required === false || (f.notRequiredIf?.some((l) => (byLabel.get(norm(l)) ?? []).length > 0) ?? false);
+  const optional = (f: FormField) => f.required === false || f.addedByDecision != null || (f.notRequiredIf?.some((l) => (byLabel.get(norm(l)) ?? []).length > 0) ?? false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const checked = new Set<string>();
   for (const f of fields) {

@@ -47,7 +47,7 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
  * (readyCheckPart6Answers). `missing` lists every fact neither record establishes (pre-start blockers); `conductive`
  * feeds the official P6 foil rule as the portal-side conductivity record.
  */
-export async function installDayPortalAnswers(jobId: string): Promise<{ answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null }> {
+export async function installDayPortalAnswers(jobId: string): Promise<{ answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null; conductiveEvidence: string | null; fullRemoval: boolean }> {
   const { currentCopy } = await import("./official-forms.server");
   const { answersFromDocument } = await import("./official-forms.core");
   const { piesaPart5Answers } = await import("./install-day.core");
@@ -55,9 +55,10 @@ export async function installDayPortalAnswers(jobId: string): Promise<{ answers:
   const { readyCheckAreas } = await import("./piisa-a3.server");
   const pe = await currentCopy(jobId, "piesa");
   const p5 = piesaPart5Answers(pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>) : null);
-  // The Ready Check record holds no condition, reason or foil answer today: those stay missing until recorded.
-  const p6 = readyCheckPart6Answers(await readyCheckAreas(jobId), { suitable: null, conductive: null, reason: null });
-  return { answers: { ...p5.answers, ...p6.answers }, missing: [...p5.missing, ...p6.missing], conductive: p6.conductive };
+  // Decisions 359/360: condition, reason, foil/conductive and its photo come from each Ready Check area (old forms without
+  // them stay missing for a top-up); a full removal is filled by the portal.
+  const p6 = readyCheckPart6Answers(await readyCheckAreas(jobId));
+  return { answers: { ...p5.answers, ...p6.answers }, missing: [...p5.missing, ...p6.missing], conductive: p6.conductive, conductiveEvidence: p6.conductiveEvidence, fullRemoval: p6.fullRemoval };
 }
 
 export async function storeSignatureImage(jobId: string, auditId: string, sig: A3PrestartSnapshot["signature"], fetchMedia: MittiMediaFetch): Promise<StoredSignature> {

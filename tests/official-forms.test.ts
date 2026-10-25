@@ -241,8 +241,15 @@ describe("PIISA installation-day gate", () => {
     expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", resolvedHazards: ["appliance#0"] } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(false);
     expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", resolvedHazards: ["appliance#1"] } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(true);
   });
+  test("decision 360: a complete removal needs no conductivity answer or photo; any top-up still does", () => {
+    const removed = copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed"], "p6.suitable": "No" }, "2026-10-10");
+    const r = base({ piisa: removed, conductiveExistingInsulation: null, conductivityEvidence: null }).blockers;
+    expect(r.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED) || b.includes("Home Insulation Victoria supporting evidence"))).toBe(false);
+    const mixed = copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed", "Topped Up"], "p6.suitable": "Yes", "p6.reason": "Rear kept" }, "2026-10-10");
+    expect(base({ piisa: mixed, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
+  });
   test("rule B: conductivity blank is never No; needs answer and evidence", () => {
-    const a = { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed"], "p6.suitable": "Yes" };
+    const a = { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Topped Up"], "p6.suitable": "Yes", "p6.reason": "Good condition, topped up" };
     const p = copy("piisa", a, "2026-10-10");
     expect(base({ piisa: p, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
     const noPhoto = base({ piisa: p, conductivityEvidence: null }).blockers;
