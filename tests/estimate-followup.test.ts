@@ -175,10 +175,11 @@ const matches = (row: Row, f: { op: string; col: string; val: any }) => {
 };
 function q(table: string) {
   const filters: { op: string; col: string; val: any }[] = [];
-  let mode: "select" | "update" = "select", patch: Row = {}, single = false;
-  const rows = () => (db[table] ?? []).filter((r) => filters.every((f) => matches(r, f)));
+  let mode: "select" | "update" = "select", patch: Row = {}, single = false, page: [number, number] | null = null;
+  const rows = () => { const all = (db[table] ?? []).filter((r) => filters.every((f) => matches(r, f))); return page ? all.slice(page[0], page[1] + 1) : all; };
   const api: any = {
     select() { return api; }, order() { return api; }, limit() { return api; },
+    range(from: number, to: number) { page = [from, to]; return api; },
     eq(col: string, val: any) { filters.push({ op: "eq", col, val }); return api; },
     in(col: string, val: any[]) { filters.push({ op: "in", col, val }); return api; },
     is(col: string, val: any) { filters.push({ op: "is", col, val }); return api; },
