@@ -17,6 +17,19 @@ export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: str
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
+/** Decision 365: the payment steps exactly as `paymentPlan()` charges them (payments.core, decisions 139/140/141/302).
+ *  {fee} = the quote's PIESA line, {deposit} = 10% of {remaining} (= total − fee), {balance} = the rest, {total} = quote
+ *  total after the VEU discount. Amounts always come from the server, never from owner answers. */
+export const PAYMENT_TERMS_VERSION = "steps-2026-10-25";
+export const PAYMENT_TERMS_BODY = [
+  "How I'll pay for this job. Everything is on one invoice of {total} inc GST, and there is no card fee.",
+  "1. Safety check: {fee} for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.",
+  "2. Electrical fixes, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the fixes in full then, by card or bank transfer.",
+  "3. Install deposit: {deposit} (10% of the remaining {remaining}) to book my install day, by bank transfer or PayID.",
+  "4. Balance: {balance} on install day, by bank transfer or PayID.",
+  "I can pay whatever is left at any time by bank transfer or PayID.",
+].join("\n\n");
+
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
 export const LAWYER_V = "lawyer-2026-10-06-v1";
 export const LAWYER_APPROVAL_NOTE = "Jo Lowe — lawyer sign-off 6 Oct 2026";
@@ -45,9 +58,13 @@ export const GATE_DOCS: GateDoc[] = [
   // PENDING: two cooling-off variants await Jo's answer. Stays DRAFT and blocks real jobs.
   { key: "cooling_off_notice", gate: "B", title: "Cooling-off", version: "pending-jo-variants", draftNote: "Pending — awaiting Jo's choice of variant", signer: "owner", tick: "I have read this",
     body: `${DRAFT}\n\nCooling-off wording pending Jo's choice between two variants.` },
-  // Jo approved this PIESA-fee wording 21 Oct 2026 (replaces draft-2026-10-07; signed copies keep their stored text).
-  { key: "payment_terms", gate: "B", title: "Payment", version: "jo-2026-10-21", approvalNote: "Jo Lowe — approved 21 Oct 2026", signer: "owner", tick: "I agree",
-    body: "{safety_fee_text}\n\n{payment_option_text}" },
+  // Decision 365 (Jo 25 Oct 2026, "Yes, replace it"): ONE plain statement of the real payment steps (paymentPlan) replaces
+  // the retired 50/50 instalment choice of "jo-2026-10-21" (signed copies keep their stored text as history). No option is
+  // chosen. New wording = NEW version, so it stays unapproved (DRAFT: TEST jobs only) until Jo approves it in Settings ›
+  // Owner paperwork (owner_paperwork_approvals row for this exact version + body). Draft copy:
+  // docs/templates/drafts/owner-payment-terms-steps-2026-10-25.md.
+  { key: "payment_terms", gate: "B", title: "Payment", version: PAYMENT_TERMS_VERSION, signer: "owner", tick: "I agree",
+    body: PAYMENT_TERMS_BODY },
   { key: "piesa_copy_receipt", gate: "C", title: "Your safety check copy", ...L, signer: "owner", tick: "I have received it",
     body: "I have received a copy of the signed electrical safety check (PIESA) for my home. [View my copy]" },
   { key: "life_support_plan", gate: "C", title: "Life support plan", ...L, signer: "owner", tick: "I have uploaded it",
@@ -56,12 +73,6 @@ export const GATE_DOCS: GateDoc[] = [
     body: `${DRAFT}\n\nCompleted in the Mitti PIESA form once the form mapping is approved.` },
 ];
 
-/** Approved payment option wording (options offered still depend on Jo's payment rule). */
-export const SAFETY_FEE_TEXT = "I'll pay the {fee} Pre Insulation Electrical Safety Assessment (PIESA) fee now. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.";
-export const PAYMENT_OPTION_TEXT = {
-  two_instalments: "Pay the balance of {balance} in two instalments: {half} when my install is booked and {half2} on install day.",
-  pay_in_full: "Pay the full {total} now.",
-} as const;
 
 /** Lawyer-approved screen copy (version LAWYER_V). Presentation only. */
 export const PAPERWORK_SCREENS = {
@@ -85,23 +96,25 @@ export const PAPERWORK_SCREENS = {
 
 export const gateDoc = (k: GateDocKey) => GATE_DOCS.find((d) => d.key === k)!;
 
-/** Human labels for the owner's answers, merged into the signed text. */
-export type PaymentMoney = { fee: string; balance: string; half: string; half2: string; total: string };
-/** Filled Step B payment choices (amounts always come from the server, never from owner answers). */
-export function paymentChoices(m: PaymentMoney) {
-  return { safetyFee: fillTemplate(SAFETY_FEE_TEXT, m), options: (Object.keys(PAYMENT_OPTION_TEXT) as (keyof typeof PAYMENT_OPTION_TEXT)[]).map((k) => ({ key: k, text: fillTemplate(PAYMENT_OPTION_TEXT[k], m) })) };
+/** Money for the payment statement (decision 365), formatted from `paymentPlan()` cents. */
+export type PaymentMoney = { fee: string; deposit: string; remaining: string; balance: string; total: string };
+const MONEY_KEYS = ["fee", "deposit", "remaining", "balance", "total", "half", "half2"] as const;
+const audC = (c: number) => `$${(c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function paymentTermsMoney(plan: { quoteTotalCents: number; safetyCheckCents: number; installDepositCents: number; balanceCents: number }): PaymentMoney {
+  return { fee: audC(plan.safetyCheckCents), deposit: audC(plan.installDepositCents), remaining: audC(plan.quoteTotalCents - plan.safetyCheckCents), balance: audC(plan.balanceCents), total: audC(plan.quoteTotalCents) };
 }
+/** The exact payment statement the owner signs (no choice to make). */
+export const paymentTermsText = (m: PaymentMoney) => fillTemplate(PAYMENT_TERMS_BODY, m);
+/** Human labels for the owner's answers, merged into the signed text. Money placeholders are server-only: an answer can
+ *  never set them (the server's figures are applied last). */
 export function answerVars(a: Record<string, string>, money?: PaymentMoney): Record<string, string> {
   const own = Object.fromEntries(PAPERWORK_SCREENS.A.ownership);
   const out: Record<string, string> = { ...a };
   if (a["role"]) out["role"] = own[a["role"]] ?? a["role"];
   if (a["life_support"]) out["life_support"] = a["life_support"] === "yes" ? "Yes" : "No";
-  const po = a["payment_option"] as keyof typeof PAYMENT_OPTION_TEXT | undefined;
-  for (const k of ["fee", "balance", "half", "half2", "total"]) delete out[k];
-  if (money) {
-    if (po && PAYMENT_OPTION_TEXT[po]) out["payment_option_text"] = fillTemplate(PAYMENT_OPTION_TEXT[po], money);
-    out["safety_fee_text"] = fillTemplate(SAFETY_FEE_TEXT, money);
-  }
+  for (const k of MONEY_KEYS) delete out[k];
+  delete out["payment_option"]; // decision 365: no option is chosen any more
+  if (money) Object.assign(out, money);
   return out;
 }
 

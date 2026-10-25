@@ -162,7 +162,7 @@ async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" 
     const next = p.todo.find((t) => (gates as string[]).includes(t.gate));
     if (!next) break;
     await og.signGateDoc({ jobId: s.jobId, key: next.key as never, signatoryName: "Test Journey", ticked: true, method: "link_code", signedBy: s.userId, ip: "127.0.0.1", userAgent: "journey-test",
-      answers: { role: "owner", life_support: "no", payment_option: "two_instalments", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
+      answers: { role: "owner", life_support: "no", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
     signed.push(next.key);
   }
   const left = (await og.ownerPaperworkToSign(ctx.jobId!)).todo.filter((t) => (gates as string[]).includes(t.gate));

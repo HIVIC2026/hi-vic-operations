@@ -66,15 +66,12 @@ export function OwnerPaperwork({ token }: { token: string }) {
       <div className="rounded-[22px] bg-card p-5 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{d.gate === "A" ? S.A.heading : d.gate === "B" ? S.B.heading : S.C.heading} · {todo.length} to go</p>
         <h3 className="mt-1 font-display text-lg font-extrabold">{d.title}</h3>
-        {d.draft && <p className="mt-2 rounded-2xl bg-estimate-blush p-3 text-sm font-bold">{d.key === "payment_terms" ? "Draft, awaiting lawyer" : "DRAFT wording"}{data.isTest ? " — TEST job only" : ""}</p>}
+        {d.draft && <p className="mt-2 rounded-2xl bg-estimate-blush p-3 text-sm font-bold">{d.key === "payment_terms" ? "Draft, awaiting Jo's approval" : "DRAFT wording"}{data.isTest ? " — TEST job only" : ""}</p>}
         <p className="mt-3 whitespace-pre-line rounded-2xl bg-estimate-mist p-3 text-sm">{d.text.replace(/^DRAFT[^\n]*\n\n/, "")}</p>
         {d.key === "details_confirmation" && choice("role", S.A.ownership)}
         {d.key === "details_confirmation" && ans["role"] === "tenant" && <p className="mt-2 text-sm">{S.A.tenantNote}</p>}
         {d.key === "life_support_answer" && choice("life_support", [["no", "No"], ["yes", "Yes"]])}
         {d.key === "life_support_answer" && ans["life_support"] === "yes" && <p className="mt-2 text-sm">{S.A.lifeSupportYes}</p>}
-        {d.key === "payment_terms" && (d as { paymentOptions?: { key: string; text: string }[] }).paymentOptions && <div data-testid="payment-options" className="mt-3 space-y-2" role="radiogroup" aria-label="How you'd like to pay the balance">
-          {(d as { paymentOptions?: { key: string; text: string }[] }).paymentOptions!.map((o) => <button key={o.key} type="button" role="radio" aria-checked={ans["payment_option"] === o.key} onClick={() => setAns({ ...ans, payment_option: o.key })} className={`block min-h-12 w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold ${ans["payment_option"] === o.key ? "border-estimate-navy bg-estimate-navy text-estimate-canvas" : "border-estimate-line bg-card"}`}>{o.text}</button>)}
-        </div>}
         {d.gate === "B" && d.key === "quote_acceptance" && <div className="mt-3 space-y-2 rounded-2xl bg-estimate-blush p-3 text-sm"><p className="font-bold">What happens next</p>{S.B.next.map((t) => <p key={t}>{t}</p>)}</div>}
         {d.gate === "C" && <div className="mt-3 space-y-1 rounded-2xl bg-estimate-blush p-3 text-sm"><p className="font-bold">Please remember</p>{S.C.remember.map((t) => <p key={t}>{t}</p>)}</div>}
         {d.key === "tenancy_details" && <div className="mt-3 space-y-2">
@@ -87,7 +84,7 @@ export function OwnerPaperwork({ token }: { token: string }) {
         <div className="rounded-[22px] bg-card p-5 shadow-sm">
           <label className="block text-sm font-semibold">{S.sign.name}<input className={`${input} mt-1 font-display italic`} value={name} onChange={(e) => setName(e.target.value)} /></label>
           <Tick on={tick} set={setTick}>{d.tick}</Tick>
-          <button className={`${signBtn} mt-2`} disabled={busy || !tick || name.trim().length < 2 || (d.key === "payment_terms" && !ans["payment_option"])} onClick={submit}>{d.gate === "A" ? S.A.button : d.gate === "B" ? S.B.button : S.C.button}</button>
+          <button className={`${signBtn} mt-2`} disabled={busy || !tick || name.trim().length < 2} onClick={submit}>{d.gate === "A" ? S.A.button : d.gate === "B" ? S.B.button : S.C.button}</button>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{err}</p>}
         </div>
       )}
