@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 25 Oct 09:28 read-only counts
-- [ ] Count all estimate-stage leads with the real read-facts loader and pure decisions; count tomorrow's daily Mitti recipients and first-day Ready Check effects with sending/writes blocked; delete the temporary script.
+- [x] Read-only counts complete: all 1,331 leads paged; 256 send decisions / 254 unique real owners; 0 real tomorrow daily-text recipients; booking switch alone sends 0 while auto-installer offers remain OFF. GET/HEAD guard blocked writes/providers; temporary script deleted.
 - [ ] Finish the interrupted Outlook archive action after fresh checks; last read batch was cancelled before execution and no messages have been moved.
 ## Monitoring findings (Jo 23 Oct 21:24 UTC)
 - [ ] Restore owner insulation-question saving without bypassing pending persistence activation; confirmed real-owner gate blocks submission. Await approval of the repair plan; no live writes or sends.
