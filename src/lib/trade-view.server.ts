@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { COULDNT_GET_IN, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -394,7 +394,8 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
   return { ok: true };
 }
 
-/** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
+/** Money rows: own pay only. Paid = office marked paid; Coming = installers 7 days after AP approval (decisions 30/109/344),
+ *  electricians 7 days after the form is complete AND the owner paid that step (decision 355); else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
@@ -428,6 +429,9 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { payoutGateFacts } = await import("./trade-payout-gate.server");
   const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
   const gate = await payoutGateFacts(ids);
+  // Decision 355: electricians — 7 days after the form is 100% complete AND the owner paid that step (later of the two).
+  const ep = kind === "electrician" ? await import("./electrician-pay.server") : null;
+  const ownerPaid = ep ? await ep.ownerElectricalStepsPaidAt(ids) : null;
   const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
@@ -435,8 +439,12 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
-    const timed = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const gf = gate.get(b.job_id);
+    const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
+    const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf, ownerPaid?.get(b.job_id)) : null;
+    const timed: PayState = et
+      ? electricianPayState({ paidAt: pe?.created_at ?? null, formCompleteAt: et.formCompleteAt, ownerPaidAt: et.ownerPaidAt })
+      : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
     const state: PayState = held.length ? { kind: "checking" } : timed;

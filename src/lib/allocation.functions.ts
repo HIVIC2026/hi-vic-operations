@@ -96,27 +96,9 @@ export const sendRectificationQuote = createServerFn({ method: "POST" }).middlew
   .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { rectificationSendBlocker } = await import("./allocation.core");
-    const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, office_reviewed_at").eq("id", data.quoteId).single();
-    if (!q) throw new WorkflowError("Quote not found.");
-    const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
-    // Decision 315: the fixes quote never reaches the owner before the electrician's fixes times exist (the owner picks one).
-    const fixesTimesHold = await (await import("./rectification.server")).fixesTimesHoldFor(q.job_id);
-    const b = rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: q.office_reviewed_at, has_unpriced_items: !!count, fixes_times_hold: fixesTimesHold }, true);
-    if (b) throw new WorkflowError(b);
-    // Decision 315: times given on the job page before this draft existed carry their hours on the event; copy them over.
-    const { data: hq } = await admin.from("quotes").select("rect_estimated_hours").eq("id", q.id).maybeSingle();
-    if (hq && hq.rect_estimated_hours == null) {
-      const { data: ge } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "rectification_windows_given").order("created_at", { ascending: false }).limit(1).maybeSingle();
-      const h = Number((ge?.details as { hours?: unknown } | null)?.hours);
-      if (Number.isFinite(h) && h > 0) await admin.from("quotes").update({ rect_estimated_hours: h }).eq("id", q.id).eq("status", "draft");
-    }
-    const { data: u } = await admin.from("quotes").update({ status: "issued", sent_at: new Date().toISOString() }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
-    if (!u) throw new WorkflowError("This quote is no longer a draft.");
-    await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed electrical fixes quote to the owner for approval", { quote_id: q.id });
-    // Decision 325: O29 "Your safety check found something to fix first" to the owner (guarded; best-effort, never undoes the send).
-    await (await import("./owner-email-triggers.server")).onFixesQuoteIssued(q.job_id, q.id).catch((e) => console.error("fixes quote email skipped", (e as Error).message));
+    // The one shared release (also used by the decision-354 automatic send): same checks, same O29 owner email path.
+    const { releaseFixesQuote } = await import("./fixes-quote-release.server");
+    await releaseFixesQuote(data.quoteId, context.userId, "office");
     return { ok: true };
   });
 

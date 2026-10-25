@@ -306,6 +306,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['tradeMessages'] = "failed";
         }
         try {
+          // Decision 354: catch-up for the automatic electrical fixes quote send (A4 complete + every check passed).
+          const { sweepAutoFixesQuotes } = await import("@/lib/auto-fixes-quote-send.server");
+          (out as Record<string, unknown>)['autoFixesQuotes'] = await sweepAutoFixesQuotes();
+        } catch (e) {
+          console.error("allocation tick: automatic fixes quote sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['autoFixesQuotes'] = "failed";
+        }
+        try {
           const { sweepDailyBrief } = await import("@/lib/daily-brief.server");
           (out as Record<string, unknown>)['dailyBrief'] = await sweepDailyBrief();
         } catch (e) {

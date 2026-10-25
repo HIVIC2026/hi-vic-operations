@@ -185,7 +185,9 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
         ownerR5IncPerM2: Number(rs.data.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.data.removal_inc_gst_per_m2),
         installerR5IncPerM2: r5, installerRemovalIncPerM2: rem,
         apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
-        piesaCustomerInc, electricianPiesaRateInc: usualPiesaRate ?? piesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
+        // Decisions 352/353: we pay whoever does the PIESA THEIR own onboarding rate (the assigned electrician's
+        // electrician_rates row); the quoted usual-electrician rate is only the fallback before anyone is assigned.
+        piesaCustomerInc, electricianPiesaRateInc: piesaRate ?? usualPiesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
         currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
         acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
         lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,

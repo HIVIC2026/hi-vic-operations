@@ -11,6 +11,7 @@ import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
+import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -90,6 +91,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (st?.key === "signoff.ap") x.finalCheck = { at: st.since, flags: 0 };
     // 30-day window lapsed with no install (decision 1/2): watch.
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
+  }
+
+  // Decision 354: an electrician-priced fixes quote goes out by itself; a draft whose automatic send was held keeps the
+  // "Electrical fixes quote to check" row with the latest reason (cleared once the draft is sent or replaced).
+  const [rectDrafts, rectHolds] = await Promise.all([
+    all("fixes quote drafts", (a, b) => scoped(admin.from("quotes").select("id, job_id, created_at")).eq("kind", "rectification").eq("status", "draft").range(a, b)),
+    all("fixes quote holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", AUTO_FIXES_QUOTE_HELD_EVENT).order("created_at", { ascending: false }).range(a, b)),
+  ]);
+  for (const q of rectDrafts) {
+    const x = f(String(q["job_id"])); if (!x) continue;
+    const h = rectHolds.find((e) => e["job_id"] === q["job_id"] && (e["details"] as { quote_id?: string } | null)?.quote_id === q["id"]);
+    if (h) x.fixesQuoteToCheck = { at: String(h["created_at"]), reason: s((h["details"] as { reason?: string } | null)?.reason) };
   }
 
   // Quotes to check — the one shared read (held with reasons, ready drafts, declined by the owner).

@@ -1,7 +1,7 @@
 // Facts for the trade "where is this job up to?" line and timeline. Scoped to the signed-in trade's own jobs.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { payState } from "./trade-view.core";
+import { electricianPayState, payState } from "./trade-view.core";
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";
 import { safetyCheckPayState } from "./payment-gate.core";
 import type { DueSettings } from "./waiting.core";
@@ -28,6 +28,13 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   ]);
   const settings: DueSettings | null = ws ? { tradeWarnHours: Number(ws.due_trade_reply_warn_hours ?? 24), tradeExceptionHours: Number(ws.due_trade_reply_exception_hours ?? 48), ownerReminderDays: Number(ws.due_owner_reminder_days ?? 3), ownerFlagDays: Number(ws.due_owner_flag_days ?? 7) } : null;
   const now = new Date();
+  // Decision 355: an electrician's pay follows their own form + the owner's payment for that step (not AP approval).
+  const realIds = (jobs ?? []).map((j) => j.id);
+  const elecPay = c.kind === "electrician" && realIds.length ? await Promise.all([
+    (await import("./trade-payout-gate.server")).payoutGateFacts(realIds),
+    (await import("./electrician-pay.server")).ownerElectricalStepsPaidAt(realIds),
+    import("./electrician-pay.server"),
+  ]) : null;
   const out = new Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>();
   for (const j of jobs ?? []) {
     const e = (ev ?? []).filter((x) => x.job_id === j.id);
@@ -66,7 +73,11 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
       rcTimesAskedAt: e.find((x) => x.event_type === "installer_ready_check_times_delivery" || x.event_type === "ready_check_more_times_requested")?.created_at ?? null,
       rcTimesGivenAt: (rcw ?? []).find((w) => w.job_id === j.id)?.created_at ?? null,
       rectQuoteSentAt: rect?.sent_at ?? null, paidInFullAt: full, apApprovedAt: apAt,
-      payout: workDone ? payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }) : null,
+      payout: !workDone ? null : elecPay ? (() => {
+        const kind = bs.some((b) => b.mine && b.kind === "rectification" && b.status === "completed") ? "rectification" as const : "assessment" as const;
+        const t = elecPay[2].electricianPayTiming(kind, elecPay[0].get(j.id), elecPay[1].get(j.id));
+        return electricianPayState({ paidAt: paidOut, formCompleteAt: t.formCompleteAt, ownerPaidAt: t.ownerPaidAt });
+      })() : payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }),
       settings,
     });
   }

@@ -148,7 +148,7 @@ describe("source pins", () => {
   });
   test("new literal createServerFn chain → trade-view.server → the ONE shared write; the old portal path uses the same write", () => {
     const f = read("src/lib/trade-view.functions.ts");
-    expect(f).toMatch(/export const saveTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator\([\s\S]+?\)\n\s+\.handler\(async \(\{ data, context \}\) => \(await import\("\.\/trade-view\.server"\)\)\.tradeSaveFixesTimes\(/);
+    expect(f).toMatch(/export const saveTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator\([\s\S]+?\)\n\s+\.handler\(async \(\{ data, context \}\) => \{\n\s+const r = await \(await import\("\.\/trade-view\.server"\)\)\.tradeSaveFixesTimes\(/);
     expect(f).toMatch(/export const getTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator/);
     expect(f).not.toContain("@tanstack/react-start/server");
     const tv = read("src/lib/trade-view.server.ts");
@@ -166,7 +166,9 @@ describe("source pins", () => {
   });
   test("the hold goes through the existing fixes-quote send check; the office card shows it", () => {
     const af = read("src/lib/allocation.functions.ts");
-    const send = af.slice(af.indexOf("export const sendRectificationQuote"));
+    expect(af.slice(af.indexOf("export const sendRectificationQuote"))).toContain('releaseFixesQuote(data.quoteId, context.userId, "office")');
+    // Decision 354: the one shared release (office Send + automatic send) carries the check.
+    const send = read("src/lib/fixes-quote-release.server.ts");
     expect(send.indexOf("fixesTimesHoldFor(q.job_id)")).toBeLessThan(send.indexOf("rectificationSendBlocker({"));
     expect(send).toContain("fixes_times_hold: fixesTimesHold");
     expect(read("src/components/portal/allocation.tsx")).toContain("data-fixes-times-hold");

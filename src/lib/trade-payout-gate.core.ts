@@ -13,8 +13,10 @@
 
 export type PayoutKind = "assessment" | "rectification" | "installation";
 
-export type PiesaFormFacts = { mittiForm: boolean; completed: boolean; evidence: string[] };
-export type FixesFormFacts = { sameVisitOnPiesa: boolean; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null };
+/** `completedAt` (decision 355): when the form became 100% complete (the A4 sync that saw it Complete with its evidence;
+ *  the A5 completion event), null/absent when unknown or not complete. */
+export type PiesaFormFacts = { mittiForm: boolean; completed: boolean; evidence: string[]; completedAt?: string | null };
+export type FixesFormFacts = { sameVisitOnPiesa: boolean; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null; completedAt?: string | null };
 export type InstallFormFacts = { formCompleted: boolean; evidence: string[] };
 export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null };
 
@@ -54,6 +56,14 @@ export function tradePayoutBlockers(kind: PayoutKind, f: TradePayoutFacts): stri
   if (!i) return [PAYOUT_FORM_NOT_COMPLETE.installation];
   const ev = evidenceLines("installation", i.evidence);
   return [...(i.formCompleted ? [] : [PAYOUT_FORM_NOT_COMPLETE.installation]), ...ev];
+}
+
+/** Decision 355: when the electrician's form for this payout was 100% complete — null while the gate still holds it
+ *  (or the time is unknown). Fixes done on the same visit follow the A4. */
+export function electricianFormCompleteAt(kind: "assessment" | "rectification", f: TradePayoutFacts): string | null {
+  if (tradePayoutBlockers(kind, f).length) return null;
+  if (kind === "rectification" && !f.fixes?.sameVisitOnPiesa) return f.fixes?.completedAt ?? null;
+  return f.piesa?.completedAt ?? null;
 }
 
 /** One short line for a held payout (office table / trade money row): first reason + "and N more". */

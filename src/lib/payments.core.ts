@@ -116,6 +116,20 @@ export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partia
   });
 }
 
+/** Decision 355: WHEN a step was paid — the payment that took the cumulative total (in paid-at order) to the step's
+ *  threshold. `fallback` covers money the Xero mirror shows (invoices.total_paid) without ledger rows. Null = not paid
+ *  (or nothing to pay for that step). */
+export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { amountCents: number; paidAt: string }[], fallback?: { paidCents: number; at: string | null } | null): string | null {
+  if (stepAmountCents(plan, key) <= 0) return null;
+  const threshold = plan.thresholds[key];
+  let sum = 0;
+  for (const r of [...records].sort((a, b) => a.paidAt.localeCompare(b.paidAt))) {
+    sum += Math.max(0, Math.round(r.amountCents));
+    if (sum >= threshold) return r.paidAt;
+  }
+  return fallback && fallback.at && Math.round(fallback.paidCents) >= threshold ? fallback.at : null;
+}
+
 export const isStepPaid = (steps: PaymentStep[], key: PaymentStepKey) => (steps.find((s) => s.key === key)?.state ?? "not_yet") === "paid";
 export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["paid", "waived"].includes(steps.find((s) => s.key === key)?.state ?? "not_yet");
 

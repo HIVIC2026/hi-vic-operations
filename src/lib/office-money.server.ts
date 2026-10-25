@@ -86,11 +86,12 @@ export async function moneyMargins(now = new Date()) {
     const committed = inst ? items.some((it) => it.quote_id === inst.id) : null;
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct";
     const elec = asg.find((a) => a.job_id === id)?.business_id;
-    // Decision 349: with the installer's usual electrician (our leads) we pay exactly the quoted PIESA line (their
-    // onboarding rate); otherwise the electrician's own agreed onboarding rate (electrician_rates PIESA row).
+    // Decisions 349/352/353: we pay whoever does the PIESA THEIR own onboarding rate (electrician_rates PIESA row of the
+    // assigned electrician) — for the installer's usual electrician that is the quoted line; if our electrician did it
+    // instead, the owner's quoted price stands and we pay ours their rate. The quoted usual rate is only the fallback.
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
-    const piesaCostEx = ownerDirect ? 0 : usualPiesaEx ?? (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : fallbackPiesa);
+    const piesaCostEx = ownerDirect ? 0 : (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : usualPiesaEx ?? fallbackPiesa);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
@@ -106,11 +107,18 @@ export async function moneyMargins(now = new Date()) {
   return { rows, month, spot: spot.price };
 }
 
-/** Payouts (decisions 30/109): what we owe each installer / electrician once the job is through Final check. Mark paid = existing markPayoutPaid. */
+/** Payouts (decisions 30/109/355): what we owe each installer (once the job is through Final check) and each electrician
+ *  (7 days after their form is complete and the owner paid that step). Mark paid = existing markPayoutPaid. */
 export async function moneyPayouts() {
   const { data: js, error } = await db.from("jobs").select("id").in("stage", ["ready_for_veec", "complete"]).neq("source", "qa_test").is("deleted_at", null).limit(2000);
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
-  const jobs = await liveJobs(((js ?? []) as { id: string }[]).map((j) => j.id));
+  // Decision 355: electrician pay falls due long before Final check (7 days after the form is complete AND the owner paid
+  // that step), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
+  const { data: eb, error: ebe } = await db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed").limit(4000);
+  if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
+  const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
+  const elecVisits = (eb ?? []) as { job_id: string; kind: string }[];
+  const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])]);
   const ids = [...jobs.keys()];
   const [asg, quotes, paidEv, apEv] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string; businesses: { name: string; trading_name: string | null } | null }>("job_assignments", "job_id, business_id, role, businesses(name, trading_name)", ids, (q) => q.eq("active", true)),
@@ -133,19 +141,31 @@ export async function moneyPayouts() {
     const dueAt = ap ? new Date(Date.parse(ap) + 7 * 86_400_000).toISOString() : null;
     const paidFor = (kind: string) => paidEv.filter((e) => e.job_id === id && ((e.details?.kind ?? "installation") === kind)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null;
     const name = (a?: { businesses: { name: string; trading_name: string | null } | null }) => a?.businesses?.trading_name || a?.businesses?.name || "Not assigned";
+    const atFinal = finalIds.has(id);
     const inst = asg.find((a) => a.job_id === id && a.role === "installer");
-    lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation") });
+    // Installer pay unchanged: 7 days after AP approval (Final check jobs only).
+    if (atFinal) lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation") });
     const elec = asg.find((a) => a.job_id === id && a.role === "electrician");
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
+    const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
     if (elec && !ownerDirect) {
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt, paidAt: paidFor("assessment") });
-      if (quotes.some((q) => q.job_id === id && q.kind === "rectification")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt, paidAt: paidFor("rectification") });
+      // dueAt for electrician lines is set below from the decision-355 rule.
+      if (atFinal || visited("assessment")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
+      if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
   // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.
+  // Decision 355: an electrician payout is due 7 days after its form is complete AND the owner paid that step.
+  const elecJobs = [...new Set(lines.filter((l) => l.kind !== "installation").map((l) => l.jobId))];
   const unpaidJobs = [...new Set(lines.filter((l) => !l.paidAt).map((l) => l.jobId))];
-  const facts = await payoutGateFacts(unpaidJobs);
-  for (const l of lines) if (!l.paidAt) { const f = facts.get(l.jobId); l.held = f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]; }
+  const facts = await payoutGateFacts([...new Set([...unpaidJobs, ...elecJobs])]);
+  const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
+  const ownerPaid = await ownerElectricalStepsPaidAt(elecJobs);
+  for (const l of lines) {
+    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId), ownerPaid.get(l.jobId));
+    if (t) l.dueAt = t.dueAt;
+    if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? [])]; }
+  }
   const g = groupPayouts(lines);
   return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }

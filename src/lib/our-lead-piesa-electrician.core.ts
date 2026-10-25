@@ -7,9 +7,17 @@
 // rate (pass-through, e.g. $220); with OUR electrician (no usual one, or it can't take the job) the owner pays HIV's
 // standard price (retail_estimator_settings.piesa_assessment_inc_gst, $349) and we pay that electrician their own agreed
 // onboarding rate (electrician_rates PIESA row). `electricianSourceFor` keys the decision-142 fixes margin the same way.
-// Pure rules only. A1 (installer's own customers) keeps `resolveMittiElectrician`; this never applies to them.
+// Decision 353 (Jo 25 Oct 2026): the usual electrician's REAL rate is THEIR OWN onboarding PIESA rate (their active
+// `electrician_rates` PIESA row from REC onboarding) — never the price the installer typed on My business
+// (`usual.priceIncGst`, kept only as a declared note). A usual electrician without an approved onboarding rate is not
+// usable as "usual": the job falls back to our electrician at $349 (as decision 303 rules for unonboarded electricians).
+// Decision 351 (Jo 25 Oct 2026): the fixes markup follows WHOSE electrician on BOTH routes (`electricianSourceFor` here,
+// `electricianSourceForA1` for installer-supplied jobs). Decision 352: once the quote is out the owner's safety-check
+// price is fixed — a later switch to our electrician never re-prices; we pay whoever does it their own onboarding rate.
+// Pure rules only. A1 (installer's own customers) keeps `resolveMittiElectrician` for the PIESA line.
 import type { UsualElectrician } from "./usual-electrician.core";
 
+/** Rate ids on offers made before decision 353 (the My business price); new offers carry the electrician_rates row id. */
 export const USUAL_ELECTRICIAN_RATE_ID_PREFIX = "usual_electrician:";
 export const USUAL_ELECTRICIAN_APPLIED_EVENT = "piesa_usual_electrician_applied";
 export const USUAL_ELECTRICIAN_BADGE = "Installer's usual electrician";
@@ -23,6 +31,8 @@ export type UsualMatchCandidate = {
   worker_licences?: (string | null | undefined)[];
   /** Existing eligibility blocker from `recEligibilityBlocker`; a blocked REC is never auto-selected. */
   blocker?: string | null;
+  /** Decision 353: the business's ACTIVE onboarded PIESA rate (electrician_rates via selectAgreedRate), null = none. */
+  piesa_rate?: { id: string; rate_inc_gst: number | string } | null;
 };
 
 export type OurLeadPiesaSelection =
@@ -49,11 +59,19 @@ export function matchUsualElectrician(usual: UsualElectrician, candidates: Usual
 export const NO_USUAL_ELECTRICIAN_NOTE = "The installer has no usual electrician saved — send the PIESA to any approved electrician in the area.";
 export const usualNotOnboardedNote = (u: UsualElectrician) => `The installer's usual electrician (${u.name}, licence ${u.licence}) is not an approved electrician on the portal — send the PIESA to any approved electrician in the area.`;
 export const usualBlockedNote = (u: UsualElectrician, blocker: string) => `The installer's usual electrician (${u.name}) can't take this job right now: ${blocker} Send the PIESA to any approved electrician in the area.`;
-export const usualAppliedNote = (u: UsualElectrician) => `${USUAL_ELECTRICIAN_BADGE}: ${u.name} at their onboarding rate of $${u.priceIncGst.toFixed(2)} inc GST.`;
+export const usualAppliedNote = (u: UsualElectrician, rateIncGst: number) => `${USUAL_ELECTRICIAN_BADGE}: ${u.name} at their onboarding rate of $${rateIncGst.toFixed(2)} inc GST.`;
+export const usualNoRateNote = (u: UsualElectrician) => `The installer's usual electrician (${u.name}) has no approved onboarding PIESA rate — send the PIESA to any approved electrician in the area (owner pays the standard price).`;
+/** Decision 353: the matched REC's own onboarded PIESA rate (inc GST, 2 dp), or null when it has none. */
+export function onboardedPiesaRate(c: Pick<UsualMatchCandidate, "piesa_rate"> | null | undefined): { id: string; rateIncGst: number } | null {
+  const r = c?.piesa_rate;
+  const n = r ? Number(r.rate_inc_gst) : NaN;
+  return r && Number.isFinite(n) && n > 0 ? { id: r.id, rateIncGst: Math.round(n * 100) / 100 } : null;
+}
 
 /**
  * Who should do the PIESA on this job and what we pay them.
- * `revision` = id of the config event the usual electrician came from (kept on the offer as the rate reference).
+ * `revision` = id of the config event the usual electrician came from (identity only since decision 353; the rate
+ * reference kept on the offer is the electrician's own `electrician_rates` row id).
  */
 export function ourLeadPiesaElectrician(i: { channel: string | null | undefined; usual: UsualElectrician | null; revision?: string | null; candidates: UsualMatchCandidate[] }): OurLeadPiesaSelection {
   if (i.channel === "installer_sourced") return { mode: "not_our_lead", businessId: null, rateIncGst: null, note: null };
@@ -61,7 +79,10 @@ export function ourLeadPiesaElectrician(i: { channel: string | null | undefined;
   const m = matchUsualElectrician(i.usual, i.candidates);
   if (!m) return { mode: "usual_not_onboarded", businessId: null, rateIncGst: null, note: usualNotOnboardedNote(i.usual) };
   if (m.blocker) return { mode: "usual_not_onboarded", businessId: null, rateIncGst: null, note: usualBlockedNote(i.usual, m.blocker) };
-  return { mode: "usual", businessId: m.business_id, rateIncGst: i.usual.priceIncGst, note: usualAppliedNote(i.usual), rateId: `${USUAL_ELECTRICIAN_RATE_ID_PREFIX}${i.revision ?? "unknown"}` };
+  // Decision 353: their own onboarding rate (electrician_rates), never the My business price; none → not usable as usual.
+  const rate = onboardedPiesaRate(m);
+  if (!rate) return { mode: "usual_not_onboarded", businessId: null, rateIncGst: null, note: usualNoRateNote(i.usual) };
+  return { mode: "usual", businessId: m.business_id, rateIncGst: rate.rateIncGst, note: usualAppliedNote(i.usual, rate.rateIncGst), rateId: rate.id };
 }
 
 /**
@@ -80,9 +101,9 @@ export function ownerPiesaLineIncGst(standardIncGst: number, sel: OurLeadPiesaSe
   return sel.mode === "usual" && Number.isFinite(sel.rateIncGst) && sel.rateIncGst > 0 ? Math.round(sel.rateIncGst * 100) / 100 : standardIncGst;
 }
 
-/** Decision 349: whose electrician is doing the electrical work. `installer_usual` = the installer's own usual
- *  electrician (pass-through: no PIESA margin, no fixes margin); `ours` = Home Insulation Victoria's / an approved REC we
- *  chose (owner pays $349 for the PIESA and the decision-142 margin on fixes). */
+/** Decisions 349/351: whose electrician is doing the electrical work, on BOTH routes. `installer_usual` = the
+ *  installer's own (usual / nominated) electrician (pass-through: no PIESA margin, no fixes margin); `ours` = Home
+ *  Insulation Victoria's / an approved REC we chose (owner pays $349 for the PIESA and the decision-142 $100 on fixes). */
 export type ElectricianSource = "installer_usual" | "ours";
 
 /** Is the assigned electrician business the installer's usual electrician? Same identity rule as decision 157
@@ -90,4 +111,16 @@ export type ElectricianSource = "installer_usual" | "ours";
 export function electricianSourceFor(i: { usual: UsualElectrician | null; assigned: UsualMatchCandidate | null }): ElectricianSource {
   if (!i.usual || !i.assigned) return "ours";
   return matchUsualElectrician(i.usual, [i.assigned]) ? "installer_usual" : "ours";
+}
+
+/** Decision 351 (Jo 25 Oct 2026), installer-supplied jobs (A1): whose electrician is doing the work. The job's electrician
+ *  choice (decision 289, `resolveElectricianChoice`: recorded → legacy answer → usual → HIV) of "hivic" → ours. "usual"
+ *  (or a legacy "different" electrician the installer nominated) → `installer_usual` ONLY when the electrician actually
+ *  assigned IS that nominated electrician (the approved REC the quote resolved — `nominatedBusinessIds` — or the My
+ *  business usual electrician by licence/REC number, then exact name); anyone else doing it (HIV stepped in) → ours. */
+export function electricianSourceForA1(i: { choice: "hivic" | "usual" | "different"; usual: UsualElectrician | null; nominatedBusinessIds: (string | null | undefined)[]; assigned: UsualMatchCandidate | null }): ElectricianSource {
+  if (i.choice === "hivic" || !i.assigned) return "ours";
+  if (i.nominatedBusinessIds.some((id) => !!id && id === i.assigned!.business_id)) return "installer_usual";
+  if (i.choice === "usual") return electricianSourceFor({ usual: i.usual, assigned: i.assigned });
+  return "ours";
 }

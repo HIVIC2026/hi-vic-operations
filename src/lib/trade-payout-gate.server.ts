@@ -33,7 +33,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
   const out = new Map<string, TradePayoutFacts>();
   if (!ids.length) return out;
   const [assess, fixEv, decl, ieEv] = await Promise.all([
-    inJobs<{ job_id: string; external_mitti_id: string | null; mitti_completed: boolean | null; mitti_raw_snapshot: unknown }>("assessments", "job_id, external_mitti_id, mitti_completed, mitti_raw_snapshot", ids),
+    inJobs<{ job_id: string; external_mitti_id: string | null; mitti_completed: boolean | null; mitti_raw_snapshot: unknown; mitti_synced_at: string | null; mitti_modified_at: string | null }>("assessments", "job_id, external_mitti_id, mitti_completed, mitti_raw_snapshot, mitti_synced_at, mitti_modified_at", ids),
     inJobs<FixesFormEvent & { job_id: string }>("workflow_events", "job_id, event_type, created_at, summary, details", ids, (q) => q.in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false })),
     inJobs<{ job_id: string }>("installer_declarations", "job_id", ids, (q) => q.eq("status", "signed")),
     inJobs<{ job_id: string; details: { summary?: InstallEvidenceSummary } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "install_evidence_synced").order("created_at", { ascending: false })),
@@ -46,8 +46,12 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
       mittiForm: !!a.external_mitti_id,
       completed: a.mitti_completed === true,
       evidence: a.external_mitti_id ? piesaEvidenceBlockersFromSnapshot(a.mitti_raw_snapshot, (e) => shortAnswersFromEntries("piesa", e)) : [],
+      // Decision 355: the sync that saw the A4 Complete with its evidence stamps mitti_synced_at.
+      completedAt: a.mitti_completed === true ? a.mitti_synced_at ?? a.mitti_modified_at ?? null : null,
     } : null;
-    const fo = fixesFormOutcome(fixEv.filter((e) => e.job_id === id));
+    const jobFixEv = fixEv.filter((e) => e.job_id === id);
+    const fo = fixesFormOutcome(jobFixEv);
+    const fixesDoneAt = fo.outcome === "done" ? jobFixEv.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT && (e.details as { audit_id?: string } | null)?.audit_id === fo.auditId)?.created_at ?? null : null;
     // Fixes done on the same visit are recorded on the A4 (q30 Yes): no A5 form exists, the A4 rule applies.
     const sameVisitOnPiesa = !fo.auditId && entries.length > 0 && !fixesFormNeeded(shortAnswersFromEntries("piesa", entries));
     const summary = ieEv.find((e) => e.job_id === id)?.details?.summary ?? null;
@@ -56,7 +60,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
     const installDate = !declared && !summary ? null : summary?.installDate ?? await installStartDate(id).catch(() => null);
     out.set(id, {
       piesa,
-      fixes: { sameVisitOnPiesa, outcome: fo.outcome, detail: fo.detail },
+      fixes: { sameVisitOnPiesa, outcome: fo.outcome, detail: fo.detail, completedAt: fixesDoneAt },
       install: { formCompleted: declared, evidence: !declared && !summary ? [] : installEvidenceGateLines(summary, installDate) },
     });
   }

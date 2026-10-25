@@ -107,6 +107,11 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
     // Decision 318: no payment until the matching Mitti form is Complete and its evidence checks pass (fails closed).
     const { payoutBlockersFor } = await import("./trade-payout-gate.server");
     const held = await payoutBlockersFor(data.jobId, data.kind ?? "installation");
+    // Decision 355: an electrician payout also waits for the owner to have paid that step (safety check / fixes).
+    if (data.kind === "assessment" || data.kind === "rectification") {
+      const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
+      held.push(...electricianPayTiming(data.kind, undefined, (await ownerElectricalStepsPaidAt([data.jobId])).get(data.jobId)).waiting);
+    }
     if (held.length) throw new Error(`Payout held — not payable yet: ${held.join("; ")}`);
     const { logEvent } = await import("./workflow.server");
     await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}) }, { internal: true });

@@ -88,6 +88,27 @@ export function payState(f: { paidAt: string | null; apApprovedAt: string | null
   return { kind: "checking" };
 }
 
+/** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the fixes (A5) 7 days after BOTH
+ *  (1) their Mitti form is 100% complete (Complete pressed, every check passed — the decision-318 gate) and (2) the owner
+ *  has paid THAT step (safety check / fixes) — the later of the two. Installer pay is unchanged (`payState`). */
+export type ElectricianPayKind = "assessment" | "rectification";
+/** Electrician Money page "How pay works" line (decision 355). */
+export const ELECTRICIAN_PAY_RULE_LINE = "Paid 7 days after your Mitti form is complete and the owner has paid for that visit";
+export const ELECTRICIAN_PAY_WAITING: Record<ElectricianPayKind, string> = {
+  assessment: "Owner hasn't paid the safety check yet",
+  rectification: "Owner hasn't paid the electrical fixes yet",
+};
+export function electricianPayState(f: { paidAt: string | null; formCompleteAt: string | null; ownerPaidAt: string | null }): PayState {
+  if (f.paidAt) return { kind: "paid", on: f.paidAt };
+  if (!f.formCompleteAt || !f.ownerPaidAt) return { kind: "checking" };
+  return { kind: "coming", on: new Date(Math.max(Date.parse(f.formCompleteAt), Date.parse(f.ownerPaidAt)) + 7 * 86_400_000).toISOString() };
+}
+/** When an electrician payout falls due (null = not yet: form not complete or the owner hasn't paid that step). */
+export const electricianPayDueAt = (f: { formCompleteAt: string | null; ownerPaidAt: string | null }): string | null => {
+  const s = electricianPayState({ paidAt: null, ...f });
+  return s.kind === "coming" ? s.on : null;
+};
+
 /** Quick setup steps (Jo-approved order). Team is optional. */
 export const SETUP_STEPS = [
   { key: "details", title: "Check your details" },
