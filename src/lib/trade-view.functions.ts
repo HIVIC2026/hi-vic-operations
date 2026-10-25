@@ -199,3 +199,13 @@ export const saveTradeSwmsNote = createServerFn({ method: "POST" }).middleware([
 export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));
+
+/** Decision 317: the electrician's "Safety check (PIESA)" document row (electricians only; business-scoped read). */
+export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSafetyCheckDoc(data.jobId, context.userId)));
+
+/** Decision 317: download the current official PIESA PDF (bytes, private — no public URL). */
+export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSafetyCheckPdf(data.jobId, context.userId));

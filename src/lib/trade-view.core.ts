@@ -400,3 +400,11 @@ export const GUIDE_WORDS = {
   pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
   back: "Back to My work",
 } as const;
+
+// Decision 317: the electrician's "Safety check (PIESA)" document row on their job page.
+export const SAFETY_CHECK_DOC_TITLE = "Safety check (PIESA)";
+/** One line under the row: the signed date and, after the fixes, that this version includes them. */
+export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes: boolean }): string {
+  const d = shortDate(x.signatureDate);
+  return [d ? `Signed ${d}` : "Official copy", x.afterFixes ? "includes your fixes and CoES" : null, "Download PDF"].filter(Boolean).join(" · ");
+}

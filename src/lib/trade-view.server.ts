@@ -996,3 +996,31 @@ export async function tradeSaveFixesTimes(jobId: string, userId: string, hours: 
   await (await import("./rectification.server")).recordRectificationWindows(jobId, userId, hours, windows);
   return { ok: true };
 }
+
+// ---- Decision 317: the electrician's "Safety check (PIESA)" document row (/field/{jobId}). Electricians only,
+// business-scoped through requireJobElectrician (active ELECTRICIAN assignment for this business). The PDF is the same
+// document the electrician is emailed (official-piesa-pdf.server), returned as bytes — no public URL. Never a sender. ----
+export async function tradeSafetyCheckDoc(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const { currentCopy } = await import("./official-forms.server");
+  const [pe, { data: rec }] = await Promise.all([
+    currentCopy(jobId, "piesa").catch(() => ({ copy: null, unavailable: true })),
+    admin.from("piesa_records").select("kind, created_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+  ]);
+  if (pe.unavailable || !pe.copy) return { show: false as const };
+  const signedAt = pe.copy.snapshot?.serverTimestamp ? Date.parse(pe.copy.snapshot.serverTimestamp) : NaN;
+  const afterFixes = rec?.kind === "post_rectification" && Number.isFinite(signedAt) && signedAt >= Date.parse(rec.created_at);
+  const { SAFETY_CHECK_DOC_TITLE, safetyCheckDocLine } = await import("./trade-view.core");
+  return { show: true as const, title: SAFETY_CHECK_DOC_TITLE, line: safetyCheckDocLine({ signatureDate: pe.copy.signatureDate, afterFixes }) };
+}
+
+export async function tradeSafetyCheckPdf(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can download the safety check.");
+  const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+  if (!job) throw new WorkflowError("Job not found.");
+  const pdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
+  if (!pdf) throw new WorkflowError("The official safety check isn't ready yet.");
+  return { fileName: pdf.fileName, base64: toB64(pdf.bytes) };
+}
