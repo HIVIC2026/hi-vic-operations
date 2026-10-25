@@ -12714,6 +12714,7 @@ export type Database = {
           measurement_variance_tolerance_pct: number | null
           min_building_age_years: number
           mitti_auto_quote_enabled: boolean
+          mitti_fixes_template_id: string | null
           mitti_measureup_template_id: string | null
           mitti_pickup_auto_enabled: boolean
           mitti_piesa_template_id: string | null
@@ -12767,6 +12768,7 @@ export type Database = {
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_auto_quote_enabled?: boolean
+          mitti_fixes_template_id?: string | null
           mitti_measureup_template_id?: string | null
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
@@ -12820,6 +12822,7 @@ export type Database = {
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_auto_quote_enabled?: boolean
+          mitti_fixes_template_id?: string | null
           mitti_measureup_template_id?: string | null
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
