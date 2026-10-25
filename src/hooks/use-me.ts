@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { currentUser } from "@/lib/route-guards";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
+import { markOfficeChanged } from "@/lib/office-list-refresh";
 
 export type AppRole = "admin" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -32,6 +33,7 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
     try {
       const out = await call({ data });
+      markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
       if (success) toast.success(success);
       if (options?.refresh !== false) await qc.invalidateQueries();
       return out;

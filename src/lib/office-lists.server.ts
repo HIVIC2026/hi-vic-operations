@@ -28,6 +28,8 @@ async function all(what: string, page: (from: number, to: number) => PromiseLike
 }
 async function byIds(what: string, ids: string[], q: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Row[]> {
   const chunks: string[][] = [];
+  // 150 ids per request (not office.server's 200): an enquiry has several sends, and a chunk over 1,000 rows pages
+  // into a second, sequential request.
   for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
   const out: Row[] = [];
   // At most eight chunks in flight: bounded parallel reads.
@@ -168,14 +170,16 @@ export async function loadActiveJobsList(p: JobsListParams) {
   ]);
   const ex = new Map(extra.map((r) => [String(r["id"]), r]));
   const live = base.filter((r) => { const e = ex.get(String(r["id"])); return e && !e["deleted_at"] && !e["qa_archived_at"]; });
-  // Status line: the office rulebook (office-status.core via loadOffice). One call: loadOffice chunks the job ids itself
-  // and reads every chunk at once (perf 25 Oct 2026; was one sequential loadOffice per 150 jobs).
+  // Status line: the office rulebook (office-status.core via loadOffice, status facts only, one wave). Perf 25 Oct 2026
+  // (decision 383): worked out only for the jobs that need it — every job when the search or the Status sort reads it,
+  // otherwise just the page shown (filters, counts and the other sorts never read the status line).
   const statusOf = new Map<string, string>();
-  const liveIds = live.map((r) => String(r["id"]));
-  if (liveIds.length) {
-    const o = await loadOffice(admin, { includeTest: true, onlyIds: liveIds });
+  const statusFor = async (ids: string[]) => {
+    if (!ids.length) return;
+    const o = await loadOffice(admin, { includeTest: true, onlyIds: ids, statusOnly: true });
     for (const j of o.jobs) if (j.status) statusOf.set(j.id, `${j.status.label}${j.status.detail ? ` · ${j.status.detail}` : ""}`);
-  }
+  };
+  const statusLine = (r: { id: string; onHold: boolean }) => (r.onHold ? `On hold${statusOf.get(r.id) ? ` · ${statusOf.get(r.id)}` : ""}` : statusOf.get(r.id) ?? "Check this job's status");
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
   const rows: (JobsListRow & { id: string })[] = [];
@@ -190,7 +194,7 @@ export async function loadActiveJobsList(p: JobsListParams) {
     const last = heard.last.get(id) ?? null;
     rows.push({
       id, jobNumber: String(r["job_number"]), owner: s(r["owner_name"]) ?? "", surname: surnameOf(s(r["owner_name"])), suburb: prop?.suburb ?? null, stage,
-      status: r["stage"] === "on_hold" ? `On hold${statusOf.get(id) ? ` · ${statusOf.get(id)}` : ""}` : statusOf.get(id) ?? "Check this job's status",
+      status: "", // filled in below by statusLine (same rule as before)
       lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null, installer, ownJob, onHold: r["stage"] === "on_hold", lifeSupport: r["life_support"] === true, isTest: r["source"] === "qa_test",
       insulation: insulationChip(normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation)), region: regionChip(prop?.postcode), source: sourceChip({ source: s(r["source"]), channel: s(r["channel"]) }),
       heard: lastHeardChip(last?.at ?? null, now), createdAt: String(r["created_at"]), lastActivityAt: s(r["last_activity_at"]),
@@ -200,11 +204,14 @@ export async function loadActiveJobsList(p: JobsListParams) {
   const ownCount = rows.filter((r) => r.ownJob).length;
   const installers = [...new Set(rows.map((r) => r.installer).filter((x): x is string => !!x))].sort();
   const q = p.search.trim().toLowerCase();
-  const filtered = rows.filter((r) => matchesChips({ ...r, size: "none" }, p.filters) && (!q || [r.jobNumber, r.owner, r.suburb ?? "", r.installer ?? "", r.status].join(" ").toLowerCase().includes(q)));
   const SORTS: Record<string, keyof JobsListRow> = { heard: "lastHeardAt", job: "jobNumber", owner: "surname", suburb: "suburb", stage: "stage", status: "status", installer: "installer", created: "createdAt", activity: "lastActivityAt" };
   const key = SORTS[p.sort] ?? "lastHeardAt";
+  const everyStatus = !!q || key === "status";
+  if (everyStatus) { await statusFor(rows.map((r) => r.id)); for (const r of rows) r.status = statusLine(r); }
+  const filtered = rows.filter((r) => matchesChips({ ...r, size: "none" }, p.filters) && (!q || [r.jobNumber, r.owner, r.suburb ?? "", r.installer ?? "", r.status].join(" ").toLowerCase().includes(q)));
   const STAGE_ORDER: Record<JobsStage, number> = { choose_installer: 1, ready_check: 2, quote: 3, piesa: 4, install: 5, final_check: 6 };
   const sorted = key === "stage" ? [...filtered].sort((a, b) => (STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]) * (p.dir === "asc" ? 1 : -1) || a.id.localeCompare(b.id)) : sortRows(filtered, key, p.sort ? p.dir : "desc");
   const page = pageOf(sorted, p.page);
+  if (!everyStatus) { await statusFor(page.rows.map((r) => r.id)); for (const r of page.rows) r.status = statusLine(r); }
   return { ...page, total: page.total, all: rows.length, stageCounts, ownCount, installers };
 }

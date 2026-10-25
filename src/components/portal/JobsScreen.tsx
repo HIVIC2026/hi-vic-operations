@@ -17,6 +17,8 @@ import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functi
 import { JOBS_STAGES, JOBS_STAGE_LABEL, closedWhy, surnameOf, type JobsStage } from "@/lib/office-jobs.core";
 import { CLOSED_FILTERS, type JobClosedFilter, type JobClosedView } from "@/lib/job-list-page.core";
 import { HEARD_CHIPS, INSULATION_CHIPS, INSULATION_LABEL, LAST_HEARD_LABEL, REGION_CHIPS, REGION_LABEL, SOURCE_CHIPS, SOURCE_LABEL, type ChipFilters, type SortDir } from "@/lib/office-filters.core";
+import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
+import { readOfficeList } from "@/lib/office-list-refresh";
 import { NewFromInstallers } from "@/components/portal/NewFromInstallers";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { ActionsMenu, ChipGroup, FilterPanel, Pager, ReasonDialog, SortHead, heardLabel } from "@/components/portal/office-lists";
@@ -70,7 +72,16 @@ export function ActiveJobs({ includeTest = false, initialStage }: { includeTest?
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<string | null>(null);
   const filters: ChipFilters = { ...f, ...(stage.length ? { stage } : {}), ...(own ? { ownJobs: true } : {}) };
-  const q = useQuery({ queryKey: ["office-active-jobs", filters, sort, page, includeTest], queryFn: () => load({ data: { search: "", sort: sort.k, dir: sort.d, page, filters, includeTest } }), placeholderData: keepPreviousData, staleTime: 30_000 });
+  // Decision 383: the opening view comes from the server's saved copy (worked out now after an office action in this
+  // tab); while the server refreshes it, ask again in 5 s. One retry, not three, for the office's heaviest list.
+  const q = useQuery({
+    queryKey: ["office-active-jobs", filters, sort, page, includeTest],
+    queryFn: () => {
+      const view = { search: "", sort: sort.k, dir: sort.d, page, filters, includeTest };
+      return readOfficeList("jobs", isDefaultListView(view), (refresh) => load({ data: { ...view, refresh } }));
+    },
+    placeholderData: keepPreviousData, staleTime: 30_000, retry: 1, refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false),
+  });
   const cancel = useAction(bulkCancelOfficeJobs);
   const bulk = useAction(bulkJobAction);
   const d = q.data;
@@ -99,7 +110,7 @@ export function ActiveJobs({ includeTest = false, initialStage }: { includeTest?
         <ChipGroup label="Source" options={SOURCE_CHIPS} labels={SOURCE_LABEL} value={f.source ?? []} onChange={(v) => set({ source: v })} />
       </FilterPanel>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-sub">{d ? `${d.total} of ${d.all} match` : ""}{q.isFetching && d ? " · updating…" : ""}</span>
+        <span className="text-sm text-sub">{d ? `${d.total} of ${d.all} match` : ""}{d?.fromCopy ? ` · checked ${checkedLabel(d.computedAt, false)}` : ""}{(q.isFetching || d?.refreshing) && d ? " · updating…" : ""}</span>
         <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "cancel", label: "Cancel", danger: true }, { key: "hold", label: "Put on hold" }, { key: "mark_test", label: "Mark as test" }, { key: "delete", label: "Delete (test jobs only)", danger: true }]} />
       </div>
       {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Jobs could not be loaded. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (

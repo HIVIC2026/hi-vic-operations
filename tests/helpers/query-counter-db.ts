@@ -6,12 +6,15 @@
 // Writes (insert/update/upsert/delete) are recorded and refused, so a read path that writes fails loudly.
 type Row = Record<string, any>;
 export type QueryLog = { site?: string; table: string; op: string; filters: string[]; inSizes: number[]; rows: number; at: number; ms: number };
-export type CounterStats = { requests: number; waves: number; rows: number; byTable: Record<string, number>; log: QueryLog[]; maxInFlight: number; writes: string[] };
+/** depth = the longest chain of requests that each started after the previous one finished (sequential round trips). */
+export type CounterStats = { requests: number; waves: number; depth: number; rows: number; byTable: Record<string, number>; log: QueryLog[]; maxInFlight: number; writes: string[] };
 
-export function makeCounterDb(tables: Record<string, Row[]>, opts: { rtt?: number; perRow?: number; maxIn?: number } = {}) {
-  const rtt = opts.rtt ?? 40, perRow = opts.perRow ?? 0.05;
-  const stats: CounterStats = { requests: 0, waves: 0, rows: 0, byTable: {}, log: [], maxInFlight: 0, writes: [] };
-  let inFlight = 0;
+export function makeCounterDb(tables: Record<string, Row[]>, opts: { rtt?: number; perRow?: number; maxIn?: number; conn?: number } = {}) {
+  // conn: open connections at once (a Cloudflare Worker allows 6 simultaneous subrequests; the rest queue).
+  const rtt = opts.rtt ?? 40, perRow = opts.perRow ?? 0.05, conn = opts.conn ?? Infinity;
+  let open = 0; const queue: (() => void)[] = [];
+  const stats: CounterStats = { requests: 0, waves: 0, depth: 0, rows: 0, byTable: {}, log: [], maxInFlight: 0, writes: [] };
+  let inFlight = 0, doneDepth = 0;
   const t0 = Date.now();
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const get = (r: Row, c: string) => (c in r ? r[c] : undefined);
@@ -48,12 +51,14 @@ export function makeCounterDb(tables: Record<string, Row[]>, opts: { rtt?: numbe
       if (op !== "select") { stats.writes.push(`${op}:${table}`); return { data: null, error: { message: `counter db refuses ${op} on ${table}` } }; }
       const start = Date.now();
       if (inFlight === 0) stats.waves++;
+      const depth = doneDepth + 1;
       inFlight++; stats.maxInFlight = Math.max(stats.maxInFlight, inFlight);
       let rows = (tables[table] ?? []).filter((r) => preds.every((p) => p(r)));
       const total = rows.length;
       rows = rows.slice(from, Math.min(to + 1, from + limit));
-      await sleep(rtt + rows.length * perRow);
-      inFlight--;
+      while (open >= conn) await new Promise<void>((r) => queue.push(r));
+      open++; await sleep(rtt + rows.length * perRow); open--; queue.shift()?.();
+      inFlight--; doneDepth = Math.max(doneDepth, depth); stats.depth = Math.max(stats.depth, depth);
       stats.requests++; stats.rows += rows.length; stats.byTable[table] = (stats.byTable[table] ?? 0) + 1;
       stats.log.push({ site, table, op, filters, inSizes, rows: rows.length, at: start - t0, ms: Date.now() - start });
       if (head) return { data: null, error: null, count: total };

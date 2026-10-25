@@ -11,6 +11,7 @@ import { OfficeSearch } from "@/components/portal/office";
 import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
 import { getNeedsMePage } from "@/lib/office-screens.functions";
 import { checkedLabel } from "@/lib/office-needs-snapshot.core";
+import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
 import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
@@ -131,6 +132,7 @@ function NeedsMe() {
   useEffect(() => { setDone(new Set()); }, [data?.computedAt]);
   const refresh = (key?: string) => {
     if (key) setDone((d) => new Set(d).add(key));
+    markOfficeChanged(); // decision 383: Jobs › Active and Enquiries work themselves out fresh on their next read
     void load({ data: { includeTest, refresh: true } }).then((fresh) => qc.setQueryData(["needs-me-v2", includeTest], fresh)).catch(() => undefined);
   };
   return (

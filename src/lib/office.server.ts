@@ -32,9 +32,14 @@ type Ranged = { range: (a: number, b: number) => PromiseLike<{ data: unknown[] |
 const byChunks = (what: string, ids: string[], q: (chunk: string[]) => Ranged): Promise<Row[]> =>
   ids.length ? Promise.all(chunksOf(ids).map((c) => all(what, (a, b) => q(c).range(a, b)))).then((r) => r.flat()) : Promise.resolve([]);
 
-export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; onlyIds?: string[]; openOnly?: boolean } = {}) {
+export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; onlyIds?: string[]; openOnly?: boolean; statusOnly?: boolean } = {}) {
   const now = Date.now();
   const listMode = !opts.onlyIds;
+  // Jobs › Active (perf 25 Oct 2026, decision 383): only `status` is used, so the reads that feed Needs me alone
+  // (snoozes, trade picks/timed offers, failures, reassignments, owner paperwork, dispatch settings) are skipped and
+  // every per-job read starts in the FIRST wave, scoped to the given ids (rows of jobs that drop out are never used).
+  const statusOnly = !!opts.statusOnly && !!opts.onlyIds;
+  const none = <T,>(empty: T, read: () => PromiseLike<T>): PromiseLike<T> => (statusOnly ? Promise.resolve(empty) : read());
   // Perf 25 Oct 2026: the job read is filtered in the database (deleted / QA-archived / TEST, and — for Needs me —
   // complete / cancelled, whose status is always "ended"), and every per-job read below is scoped to those job ids
   // instead of reading whole tables (stage history, sends, bookings, quotes, the PIESA-deadline view…). Two waves:
@@ -47,42 +52,16 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     if (chunk) q = q.in("id", chunk);
     return q;
   };
-  const dispatch = import("./offer-dispatch.server");
+  const dispatch = statusOnly ? null : import("./offer-dispatch.server");
   // Started now, awaited where the partner rows are built (an unhandled rejection is impossible: it is always awaited
   // unless an earlier read throws, and then the whole load fails anyway).
   const expiryReads = listMode ? tradeExpiryReads(admin) : null;
   expiryReads?.catch(() => undefined);
-  const [jobs, settingsRes, onsiteOnly, snoozes, apps, picks, mittiErr, changeReqs, textFails, pendingWorkersRows, dts, mode, hours, appr] = await Promise.all([
-    opts.onlyIds ? byChunks("jobs", opts.onlyIds, (c) => jobQ(c).order("created_at")) : all("jobs", (a, b) => jobQ().order("created_at").range(a, b)),
-    // Whole row: office_time_limits + the form ids for movedFromTodo (the decision-293 fixes column may not exist yet).
-    admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle(),
-    listMode ? onsiteOnlyOfficeJobIds(admin) : Promise.resolve(new Set<string>()),
-    all("snoozes", (a, b) => admin.from("office_snoozes").select("job_id, rule_key, snoozed_until, snooze_count").range(a, b)),
-    listMode ? all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)) : Promise.resolve([]),
-    opts.onlyIds
-      ? byChunks("office picks", opts.onlyIds, (c) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true }).in("job_id", c))
-      : all("office picks", (a, b) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true }).range(a, b)),
-    listMode ? all("Mitti syncs", (a, b) => admin.from("external_sync_logs").select("entity_id, system, error, created_at").eq("status", "error").gte("created_at", new Date(now - 3 * 86_400_000).toISOString()).range(a, b)) : Promise.resolve([]),
-    listMode ? all("partner change requests", (a, b) => (admin as unknown as { from: (t: string) => any }).from("partner_change_requests").select("id, kind, message, created_at, businesses(name)").eq("status", "open").range(a, b)) : Promise.resolve([]), // eslint-disable-line @typescript-eslint/no-explicit-any
-    listMode ? all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("id, detail, melbourne_date, businesses(name)").eq("status", "failed").is("acknowledged_at", null).range(a, b)) : Promise.resolve([]), // eslint-disable-line @typescript-eslint/no-explicit-any
-    listMode ? all("pending workers", (a, b) => admin.from("partner_workers").select("id, full_legal_name, businesses(name)").eq("approval_status", "pending").is("removed_at", null).range(a, b)) : Promise.resolve([]),
-    listMode ? import("./daily-mitti-text.server").then((m) => m.dailyTextSettings()) : Promise.resolve(null),
-    dispatch.then((m) => m.dispatchMode()),
-    dispatch.then((m) => m.offerSuggestHours()),
-    import("./owner-gates.server").then((m) => m.approvedVersions()),
-  ]);
-  if (settingsRes.error) throw new Error(`Could not load time limits: ${settingsRes.error.message}`);
-  const settingsRow = (settingsRes.data ?? null) as unknown as Record<string, unknown> | null;
-  const lim = limits((settingsRow?.["office_time_limits"] ?? {}) as Record<string, unknown>);
-  const live = jobs.filter((j) => !onsiteOnly.has(String(j['id'])) && (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
-  const ids = live.map((j) => String(j["id"]));
-  const idSet = new Set(ids);
-  const want = (r: Row) => idSet.has(String(r["job_id"]));
-  const scoped = (what: string, q: (chunk: string[]) => Ranged) => byChunks(what, ids, q);
-  const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
-  const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
-  const tIds = timed.map((j) => String(j["id"]));
-  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows] = await Promise.all([
+  // Per-job reads (all chunks in flight together). statusOnly: started with the first wave on the given ids.
+  const perJob = (ids: string[], pickJobs: string[], tIds: string[]) => {
+    const scoped = (what: string, q: (chunk: string[]) => Ranged) => byChunks(what, ids, q);
+    const skip = (what: string, q: (chunk: string[]) => Ranged) => (statusOnly ? Promise.resolve([] as Row[]) : scoped(what, q));
+    return Promise.all([
     scoped("stage changes", (c) => admin.from("workflow_events").select("job_id, to_stage, created_at").eq("event_type", "stage_changed").in("job_id", c).order("created_at")),
     scoped("campaign replies", (c) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, video_requested, media_received_at, desk_check_status, queue_priority, created_at").in("job_id", c)),
     scoped("estimate links", (c) => admin.from("customer_estimate_links").select("job_id, created_at").is("revoked_at", null).in("job_id", c)),
@@ -99,15 +78,15 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("payouts", (c) => admin.from("workflow_events").select("job_id, created_at").eq("event_type", "payout_marked_paid").in("job_id", c)),
     // Only a set deadline is used (deadline.get(id) ?? null), and the view's PIESA lookup now runs for these ids only.
     scoped("install deadlines", (c) => admin.from("job_piesa_deadlines").select("job_id, install_deadline").not("install_deadline", "is", null).in("job_id", c)),
-    scoped("Xero problems", (c) => admin.from("invoices").select("job_id, status, last_sync_error").or("last_sync_error.not.is.null,status.eq.xero_sync_error").in("job_id", c)),
-    scoped("ESC notices", (c) => admin.from("esc_notifications").select("job_id, last_error").not("last_error", "is", null).is("sent_at", null).in("job_id", c)),
-    scoped("outgoing actions", (c) => admin.from("external_action_outbox").select("job_id, action_type, last_error_code, status").eq("status", "failed").in("job_id", c)),
-    scoped("messages", (c) => admin.from("job_communications").select("job_id, channel, delivery_status").in("delivery_status", ["bounced", "failed", "undelivered"]).in("job_id", c)),
-    scoped("emails", (c) => admin.from("customer_email_sends").select("job_id, status, error").in("status", ["failed", "bounced"]).in("job_id", c)),
+    skip("Xero problems", (c) => admin.from("invoices").select("job_id, status, last_sync_error").or("last_sync_error.not.is.null,status.eq.xero_sync_error").in("job_id", c)),
+    skip("ESC notices", (c) => admin.from("esc_notifications").select("job_id, last_error").not("last_error", "is", null).is("sent_at", null).in("job_id", c)),
+    skip("outgoing actions", (c) => admin.from("external_action_outbox").select("job_id, action_type, last_error_code, status").eq("status", "failed").in("job_id", c)),
+    skip("messages", (c) => admin.from("job_communications").select("job_id, channel, delivery_status").in("delivery_status", ["bounced", "failed", "undelivered"]).in("job_id", c)),
+    skip("emails", (c) => admin.from("customer_email_sends").select("job_id, status, error").in("status", ["failed", "bounced"]).in("job_id", c)),
     // Decision 371: every stored expiry (a renewal supersedes the old date), so ONE row per document is decided below.
     listMode ? all("certificates", (a, b) => admin.from("business_credentials").select("id, business_id, profile_id, label, kind, expires_at").not("expires_at", "is", null).range(a, b)) : Promise.resolve([]),
     // D-10: homeowner requests for a different installer/electrician belong in Needs me (same "open" rule as the old To-action list).
-    scoped("reassignment requests", (c) => admin.from("reassignment_requests").select("job_id, role, reason, created_at").is("resolved_at", null).in("job_id", c)),
+    skip("reassignment requests", (c) => admin.from("reassignment_requests").select("job_id, role, reason, created_at").is("resolved_at", null).in("job_id", c)),
     byChunks("offers after picks", pickJobs, (c) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").in("job_id", c)),
     byChunks("timed offers", tIds, (c) => admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).in("job_id", c)),
     byChunks("trade assignments", tIds, (c) => admin.from("job_assignments").select("job_id, role").eq("active", true).in("job_id", c)),
@@ -115,8 +94,41 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("owner messages sent", (c) => admin.from("job_communications").select("job_id, sent_at").eq("direction", "outbound").not("sent_at", "is", null).in("job_id", c)),
     scoped("Ready Check requests", (c) => admin.from("ready_check_acceptances").select("job_id").in("job_id", c)),
     scoped("measure-ups", (c) => admin.from("ceiling_measurements").select("job_id, created_at").eq("is_current", true).in("job_id", c)),
-    scoped("owner paperwork signatures", (c) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", c).order("signed_at").order("id")),
+    skip("owner paperwork signatures", (c) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", c).order("signed_at").order("id")),
+    ]);
+  };
+  const early = statusOnly ? perJob(opts.onlyIds!, [], []) : null;
+  early?.catch(() => undefined);
+  const [jobs, settingsRes, onsiteOnly, snoozes, apps, picks, mittiErr, changeReqs, textFails, pendingWorkersRows, dts, mode, hours, appr] = await Promise.all([
+    opts.onlyIds ? byChunks("jobs", opts.onlyIds, (c) => jobQ(c).order("created_at")) : all("jobs", (a, b) => jobQ().order("created_at").range(a, b)),
+    // Whole row: office_time_limits + the form ids for movedFromTodo (the decision-293 fixes column may not exist yet).
+    admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle(),
+    listMode ? onsiteOnlyOfficeJobIds(admin) : Promise.resolve(new Set<string>()),
+    none([] as Row[], () => all("snoozes", (a, b) => admin.from("office_snoozes").select("job_id, rule_key, snoozed_until, snooze_count").range(a, b))),
+    listMode ? all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)) : Promise.resolve([]),
+    statusOnly ? Promise.resolve([] as Row[]) : opts.onlyIds
+      ? byChunks("office picks", opts.onlyIds, (c) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true }).in("job_id", c))
+      : all("office picks", (a, b) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true }).range(a, b)),
+    listMode ? all("Mitti syncs", (a, b) => admin.from("external_sync_logs").select("entity_id, system, error, created_at").eq("status", "error").gte("created_at", new Date(now - 3 * 86_400_000).toISOString()).range(a, b)) : Promise.resolve([]),
+    listMode ? all("partner change requests", (a, b) => (admin as unknown as { from: (t: string) => any }).from("partner_change_requests").select("id, kind, message, created_at, businesses(name)").eq("status", "open").range(a, b)) : Promise.resolve([]), // eslint-disable-line @typescript-eslint/no-explicit-any
+    listMode ? all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("id, detail, melbourne_date, businesses(name)").eq("status", "failed").is("acknowledged_at", null).range(a, b)) : Promise.resolve([]), // eslint-disable-line @typescript-eslint/no-explicit-any
+    listMode ? all("pending workers", (a, b) => admin.from("partner_workers").select("id, full_legal_name, businesses(name)").eq("approval_status", "pending").is("removed_at", null).range(a, b)) : Promise.resolve([]),
+    listMode ? import("./daily-mitti-text.server").then((m) => m.dailyTextSettings()) : Promise.resolve(null),
+    dispatch ? dispatch.then((m) => m.dispatchMode()) : null,
+    dispatch ? dispatch.then((m) => m.offerSuggestHours()) : 0,
+    none({} as Record<string, string>, () => import("./owner-gates.server").then((m) => m.approvedVersions())),
   ]);
+  if (settingsRes.error) throw new Error(`Could not load time limits: ${settingsRes.error.message}`);
+  const settingsRow = (settingsRes.data ?? null) as unknown as Record<string, unknown> | null;
+  const lim = limits((settingsRow?.["office_time_limits"] ?? {}) as Record<string, unknown>);
+  const live = jobs.filter((j) => !onsiteOnly.has(String(j['id'])) && (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
+  const ids = live.map((j) => String(j["id"]));
+  const idSet = new Set(ids);
+  const want = (r: Row) => idSet.has(String(r["job_id"]));
+  const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
+  const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
+  const tIds = timed.map((j) => String(j["id"]));
+  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows] = await (early ?? perJob(ids, pickJobs, tIds));
   const { chosenTradeNoAnswer } = await import("./trade-choice.core");
   const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
   const pickAllBy = new Map<string, Row[]>(); for (const o of pickAll) { const k = String(o["job_id"]); if (!pickAllBy.has(k)) pickAllBy.set(k, []); pickAllBy.get(k)!.push(o); }
@@ -126,7 +138,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   }
   // Office picks first (Jo, 7 Oct): "Choose trades for this job", and "no taker after 24h — add more trades".
   const offerChoice = new Map<string, NonNullable<NeedsJob["offerChoice"]>>();
-  if (timed.length) {
+  if (timed.length && !statusOnly) {
     const { officePicks, needsChooseTrades } = await import("./offer-dispatch.core");
     const { offersWithNoTaker } = await import("./offer-timing.core");
     const { readyCheckOfficeItem } = await import("./ready-check-times.core");
@@ -191,7 +203,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   for (const r of mittiErr) if (r["system"] === "mitti" && idSet.has(String(r["entity_id"]))) fail(r["entity_id"], `Mitti sync failed: ${String(r["error"] ?? "").slice(0, 80)}`);
 
   // Owner paperwork: jobs sitting in (or waiting to start) a stage whose gate isn't signed.
-  {
+  if (!statusOnly) {
     const { evaluateOwnerGates, gatesForStage, installerVisitFromSiteCheck } = await import("./owner-gates.core");
     // Signatures were read with the other per-job reads (bounded id chunks), in signed order.
     type Sig = { job_id: string; doc_key: string; doc_version: string; doc_draft: boolean; answers: unknown };

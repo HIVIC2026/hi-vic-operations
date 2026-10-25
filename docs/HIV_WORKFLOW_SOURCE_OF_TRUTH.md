@@ -211,3 +211,6 @@ The business owner adds each team member's mobile once on My business › Team. 
 
 ## Needs me saved copy (decision 382, 25 Oct 2026)
 - Needs me is served from `office_needs_snapshot` (server-only) and refreshed after the response when older than 60 s or after an office action; the 15-minute tick refreshes the live copy; never older than 20 minutes on screen. Same rows and rules as before — only when they are worked out changes.
+
+## Jobs › Active and Enquiries saved opening view (decision 383, 25 Oct 2026)
+- The opening view (no search/filter/sort, page 1, no TEST jobs) of Jobs › Active and Enquiries is served from `office_needs_snapshot` keys `jobs_active:first` / `enquiries:first` with the Needs me timings (60 s fresh, refreshed after the response, 15-minute tick, never older than 20 minutes); after an office action in the tab the next open is worked out now. Every other view reads live. Jobs › Active computes status lines only for the jobs shown unless search or the Status sort needs all. Same rows and rules — only when they are worked out changes.
