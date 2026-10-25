@@ -325,12 +325,13 @@ export function lifecycleExclusion(stage: string | null | undefined): string | n
 }
 
 /** Jo 23 Oct 2026 4:10pm: the existing-insulation offer route is never held by the chosen insulation answers or the
- *  open eligibility outcome it needs. Every other configured filter is unchanged. */
-export function existingInsulationRules(rules: AutomaticRuleFilters): AutomaticRuleFilters {
+ *  open eligibility outcome it needs. Every other configured filter is unchanged. Decision 392: the "don't know" offer
+ *  adds only "unknown" (the owner's real answer); the present offer still adds only "present". */
+export function existingInsulationRules(rules: AutomaticRuleFilters, answer: "present" | "unknown" = "present"): AutomaticRuleFilters {
   const add = <T,>(xs: readonly T[], v: T) => (xs.includes(v) ? [...xs] : [...xs, v]);
   return {
     ...rules,
-    insulation: { ...rules.insulation, values: add(rules.insulation.values, "present") },
+    insulation: { ...rules.insulation, values: add(rules.insulation.values, answer) },
     eligibility: { ...rules.eligibility, outcomes: add(add(rules.eligibility.outcomes, "likely_eligible"), "needs_onsite_confirmation") },
   };
 }

@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PRE_RELEASE_FORBIDDEN, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
-import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
+import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
@@ -54,6 +54,8 @@ describe("pre-release emails and texts are spot-only", () => {
     const variants = [
       { outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true },
       { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, declaredThinPatchy: true },
+      // Decision 392: the O2 "don't know" intro (new website enquirer ticked don't know).
+      { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, declaredExisting: true, declaredUnknown: true },
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, insulationQuestions: true },
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, mediaAlreadyReceived: true },
     ] as const;
@@ -64,6 +66,7 @@ describe("pre-release emails and texts are spot-only", () => {
       clean(`${JSON.stringify(v)} html`, m.html.replace(/<[^>]+>/g, " "));
       clean(`${JSON.stringify(v)} subject`, m.subject);
     }
+    clean("O2 don't know intro (decision 392)", O2_DONT_KNOW_INTRO);
   });
   test("the shared included / not-included cards end with the spot-only closing line", () => {
     const t = includedAndNotIncludedText({ price: 2188, rebate: 1610 });

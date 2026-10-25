@@ -99,15 +99,16 @@ describe("B. clearly ineligible", () => {
   });
 });
 
-describe("C. insulation status unknown → information request, never ineligible", () => {
-  test("unknown insulation requests photos/video", () => {
+describe("C. insulation status unknown → existing-insulation Save my spot (decision 392), never ineligible", () => {
+  test("unknown insulation gets the existing-insulation Save my spot, not the questions email", () => {
     const r = automaticLeadEmail(enquiry({ declaredInsulation: "unknown" }));
-    expect(r.email).toBe("request_insulation");
+    expect(r).toMatchObject({ email: "offer_spot", existingInsulation: true, insulationUnknown: true });
     expect(selectJoTemplate({ outcome: "likely_eligible", insulation: "unknown", ceilingSizeKnown: true })).toBe("potentially_eligible_unknown_size_known");
   });
 
-  test("unknown insulation with no ceiling size still requests information (T5)", () => {
-    expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false })).email).toBe("request_insulation");
+  test("unknown insulation with no ceiling size gets the same offer on the labelled typical size; Office-reviewed keeps the request (T5)", () => {
+    expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false }))).toMatchObject({ email: "offer_spot", assumedArea: true });
+    expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false, officeReviewed: true })).email).toBe("request_insulation");
     expect(selectJoTemplate({ outcome: "likely_eligible", insulation: "unknown", ceilingSizeKnown: false })).toBe("potentially_eligible_unknown_size_unknown");
   });
 });

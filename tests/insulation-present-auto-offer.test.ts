@@ -13,7 +13,8 @@ describe("Jo 23 Oct 4:10pm: insulation present -> existing-insulation Save my sp
   }
   test("likely eligible with insulation present also gets it", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible" }).existingInsulation).toBe(true));
   test("an Office review keeps the reviewed path", () => expect(automaticLeadEmail({ ...base, officeReviewed: true }).email).toBe("request_insulation"));
-  test("owner unsure whether insulation exists still gets the details request", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" }).email).toBe("request_insulation"));
+  test("decision 392: owner unsure whether insulation exists gets the same offer (don't-know wording), not the details request", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true }));
+  test("decision 392: an Office review of an unsure owner keeps the reviewed path", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown", officeReviewed: true }).email).toBe("request_insulation"));
   test("no-insulation owners are unchanged", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible", declaredInsulation: "none" })).toEqual({ email: "offer_spot", blocker: null }));
   test("TEST enquiries never auto-email", () => expect(automaticLeadEmail({ ...base, source: "qa_test" }).email).toBe("none"));
   test("rules no longer hold present insulation or onsite-confirmation on this route; others unchanged", () => {
@@ -27,5 +28,8 @@ describe("Jo 23 Oct 4:10pm: insulation present -> existing-insulation Save my sp
   test("the automatic qualification lets the owner save a spot", () => {
     expect(qualifyingDeclaration([{ event_type: PRESENT_AUTO_OFFER_EVENT, details: presentAutoOfferDetails() }])).toBe(true);
     expect(qualifyingDeclaration([{ event_type: PRESENT_AUTO_OFFER_EVENT, details: { ...presentAutoOfferDetails(), declaration_type: "x" } }])).toBe(false);
+    // Decision 392: the honest "don't know" record qualifies too, only in its exact shape.
+    expect(qualifyingDeclaration([{ event_type: PRESENT_AUTO_OFFER_EVENT, details: presentAutoOfferDetails("unknown") }])).toBe(true);
+    expect(qualifyingDeclaration([{ event_type: PRESENT_AUTO_OFFER_EVENT, details: { ...presentAutoOfferDetails("unknown"), answer: "yes" } }])).toBe(false);
   });
 });

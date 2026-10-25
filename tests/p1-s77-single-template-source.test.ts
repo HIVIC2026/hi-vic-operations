@@ -113,10 +113,10 @@ describe("Part B — one template source; superseded templates unreachable", () 
     expect(h).toMatch(/followup\) \{[\s\S]{0,900}c\.mediaReview === "below_r2" \|\| desk === "looks_eligible"[\s\S]{0,400}deskCheckStatus: "looks_eligible"/);
   });
 
-  test("Templates page shows Jo's enquiry designs (O1, O2 ×2, O6) through renderJoOutcomeEmail and none of the superseded entries (decision 379)", () => {
+  test("Templates page shows Jo's enquiry designs (O1, O2 ×3 incl. decision 392 don't know, O6) through renderJoOutcomeEmail and none of the superseded entries (decision 379)", () => {
     const ids = TEMPLATE_ENTRIES.map((e) => e.id);
     for (const r of ["email:likely_estimate", "email:save_my_spot", "email:save_my_spot_no_size", "email:onsite_estimate", "email:insulation_details", "email:ineligible_result", "email:jo:ready_check_invitation"]) expect(ids).not.toContain(r);
-    expect(TEMPLATE_ENTRIES.filter((e) => e.source.fn === "renderJoOutcomeEmail").map((e) => e.code)).toEqual(["O1", "O2", "O2", "O6"]);
+    expect(TEMPLATE_ENTRIES.filter((e) => e.source.fn === "renderJoOutcomeEmail").map((e) => e.code)).toEqual(["O1", "O2", "O2", "O2", "O6"]);
     expect(JSON.stringify(TEMPLATE_ENTRIES.map(({ render: _r, ...e }) => e))).not.toContain("/admin/campaign-emails");
   });
 

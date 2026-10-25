@@ -7,7 +7,7 @@ const base = { source: "base44", channel: "hivic_sourced", decisionSource: "syst
 const ok = { lifeSupport: "no", buildDecade: "2000_2009", overFiveYears: "yes", state: "VIC", propertyType: "House" };
 describe("Jo 23 Oct 6:13pm: offer every new enquiry", () => {
   it("switch is off until Jo says go", () => expect(ALL_NEW_ENQUIRIES_OFFER_APPROVED).toBe(false));
-  it("don't know gets Save my spot with removal", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" })).toMatchObject({ email: "offer_spot", existingInsulation: true }));
+  it("don't know gets Save my spot with removal", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" })).toMatchObject({ email: "offer_spot", existingInsulation: true, insulationUnknown: true }));
   it("no insulation needing onsite check gets Save my spot without removal", () => { const r = automaticLeadEmail({ ...base, declaredInsulation: "none" }); expect(r.email).toBe("offer_spot"); expect(r.existingInsulation).toBeUndefined(); });
   it("red flag blocks", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "present", redFlag: "Life support declared — office first" }).email).toBe("none"));
   it("life support yes is a red flag", () => expect(newEnquiryRedFlag({ ...ok, lifeSupport: "yes" })).not.toBeNull());
