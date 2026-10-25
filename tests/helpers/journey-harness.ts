@@ -158,6 +158,8 @@ export function fakeProviders(opts: { mittiTemplates: Record<string, { items: Mi
     if (url.host === "connector-gateway.lovable.dev" && url.pathname.startsWith("/xero")) { note("xero", path.replace(/^\/xero/, "")); return xeroRoute(method, path.replace(/^\/xero/, ""), body as Record<string, unknown> | null); }
     if (url.host === "api.stripe.com") {
       note("stripe", path);
+      // Review R02: the webhook reads the PaymentIntent (GET) for its charge id — a read, never a new checkout session.
+      if (method === "GET" && path.startsWith("/v1/payment_intents/")) return json(200, { id: decodeURIComponent(path.split("/").pop() ?? ""), latest_charge: "ch_test_1" });
       const form = Object.fromEntries(new URLSearchParams(typeof init?.body === "string" ? init.body : ""));
       const key = headers["idempotency-key"] ?? null;
       const prior = stripe.sessions.find((x) => key && x.idempotencyKey === key);
