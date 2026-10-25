@@ -17,15 +17,14 @@ any question. If Mitti does not offer an answer type I name, tell me the closest
 substituting.
 
 **Template name:** `A5 – Electrical fixes`
-Build it as a NEW template. The existing "PIESA – Electrician safety assessment" template is not changed.
+Build it as a NEW template. The existing "A4 – Electrical safety check (PIESA)" template is not changed.
 
 **Inspection title:** Job number + Address (Q1 and Q2).
 **Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for Q14.
 **Pages:** one page per ## group below.
 **Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
 editable items so the electrician can correct them. Q8 is a read-only list the portal fills in; it is not Required.
-**Colours:** none. A `Yes` answer is the good outcome and needs no colour; a `No` answer needs no colour either, the
-office follows it up from the portal.
+**Colours:** Q9 `Yes` = GREEN, `No` = RED. Nothing else is coloured.
 
 Answer-type key: Text = single line text (Q8 and Q10 may be multi-line text); Date = date; Yes/No = two choices `Yes`
 and `No`; Photo = photo with location on ("several files allowed" = let the electrician attach more than one; "PDF
