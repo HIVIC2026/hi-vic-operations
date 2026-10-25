@@ -94,16 +94,25 @@ afterEach(() => {
   expect(tables["owners"]!.length).toBe(1);
 });
 
-describe("defaults: approved wording, TEST mode", () => {
+const TEST_MODE = { approved: true, testOnly: true };
+describe("defaults (decision 356): live mode, still behind customer_comms_enabled", () => {
+  test("a real new sender with the master switch off is held — nothing recorded, nothing sent", async () => {
+    seed();
+    expect(await replyToNewSender(msg(), { mailbox: MAILBOX, now })).toEqual({ status: "held", reason: HELD_COMMS_OFF });
+    expect([events().length, testSends.length, liveSends.length, commsReads]).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe("TEST mode (allow-list only)", () => {
   test("a real new sender is held (not on the allow-list) — nothing recorded, nothing sent, no sender module touched", async () => {
     seed();
-    expect(await replyToNewSender(msg(), { mailbox: MAILBOX, now })).toEqual({ status: "held", reason: HELD_TEST_ONLY });
+    expect(await replyToNewSender(msg(), { mailbox: MAILBOX, now, switches: TEST_MODE })).toEqual({ status: "held", reason: HELD_TEST_ONLY });
     expect([events().length, testSends.length, liveSends.length, commsReads]).toEqual([0, 0, 0, 0]);
   });
   test("the allow-listed sender (Jo) gets the TEST copy through test-send, recorded once per message", async () => {
     seed();
     const m = msg({ from: "jolowexo@hotmail.com", fromName: "Jo Tester", subject: "Price?" });
-    expect(await replyToNewSender(m, { mailbox: MAILBOX, now })).toMatchObject({ status: "sent", mode: "test" });
+    expect(await replyToNewSender(m, { mailbox: MAILBOX, now, switches: TEST_MODE })).toMatchObject({ status: "sent", mode: "test" });
     expect(testSends).toHaveLength(1);
     expect(testSends[0]).toMatchObject({ to: "jolowexo@hotmail.com", subject: "Re: Price?", ctx: { jobId: null, jobSource: null, partnerIsTest: true, label: "new_sender_reply:O70", actorId: null } });
     expect(testSends[0]!.html).toContain("TEST — only sent to Jo");
@@ -112,13 +121,13 @@ describe("defaults: approved wording, TEST mode", () => {
     expect(liveSends).toHaveLength(0);
     expect(events()).toHaveLength(1);
     expect(events()[0]!["details"]).toMatchObject({ mode: "test", from: "jolowexo@hotmail.com", message_id: m.providerMessageId, delivery: "sent", template: "O70" });
-    expect(await replyToNewSender(m, { mailbox: MAILBOX, now })).toMatchObject({ status: "skipped", reason: "A test reply was already sent for this email" });
-    expect(await replyToNewSender(msg({ from: "jolowexo@hotmail.com" }), { mailbox: MAILBOX, now })).toMatchObject({ status: "sent", mode: "test" });
+    expect(await replyToNewSender(m, { mailbox: MAILBOX, now, switches: TEST_MODE })).toMatchObject({ status: "skipped", reason: "A test reply was already sent for this email" });
+    expect(await replyToNewSender(msg({ from: "jolowexo@hotmail.com" }), { mailbox: MAILBOX, now, switches: TEST_MODE })).toMatchObject({ status: "sent", mode: "test" });
     expect(testSends).toHaveLength(2);
   });
   test("a blocked test send is held, not recorded as a reply", async () => {
     seed(); testSendStatus = "blocked";
-    expect(await replyToNewSender(msg({ from: "jolowexo@hotmail.com" }), { mailbox: MAILBOX, now })).toMatchObject({ status: "held", reason: "Test send blocked: Recipient is not on the test allowlist" });
+    expect(await replyToNewSender(msg({ from: "jolowexo@hotmail.com" }), { mailbox: MAILBOX, now, switches: TEST_MODE })).toMatchObject({ status: "held", reason: "Test send blocked: Recipient is not on the test allowlist" });
     expect(events()).toHaveLength(0);
   });
   test("unapproved → held for everyone, Jo included", async () => {

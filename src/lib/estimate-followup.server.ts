@@ -6,8 +6,8 @@
 // cancelled_reason "no response after estimate", prior_stage kept so the office can reopen it). Every step is recorded
 // ONCE as a workflow event BEFORE anything is sent, so a tick never repeats a step.
 // Real owners: only through sendGuardedOwnerEmail, behind customer_comms_enabled + contact consent
-// (assertCustomerDeliveryAllowed) and ESTIMATE_FOLLOWUP_APPROVED (false until Jo approves the wording — nothing is
-// recorded while it is false, so the right step goes the moment it is approved). TEST (qa_test) jobs use test-send only.
+// (assertCustomerDeliveryAllowed) and ESTIMATE_FOLLOWUP_APPROVED (true since decisions 242/357; were it false, nothing
+// would be recorded, so the right step goes the moment it is approved). TEST (qa_test) jobs use test-send only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {

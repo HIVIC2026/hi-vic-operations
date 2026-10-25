@@ -15,11 +15,12 @@ import { REPLY_TEST_ALLOWLIST } from "./outlook-reply-drafts.core";
 /** Jo approved the route and the wording in decision 292 (25 Oct 2026). Real senders still also need
  *  `customer_comms_enabled` and TEST mode off. */
 export const NEW_SENDER_REPLY_APPROVED: boolean = true;
-/** TEST mode: only senders on the reply allow-list (REPLY_TEST_ALLOWLIST) get the reply, through test-send. Going live
- *  for real new senders = set this to false (with `customer_comms_enabled` on). */
-export const NEW_SENDER_REPLY_TEST_ONLY: boolean = true;
+/** TEST mode: only senders on the reply allow-list (REPLY_TEST_ALLOWLIST) get the reply, through test-send.
+ *  Decision 356 (Jo 25 Oct 2026): LIVE for real new senders — TEST mode off. Still behind NEW_SENDER_REPLY_APPROVED and
+ *  `customer_comms_enabled` (nothing reaches a real sender while that master switch is off) and the recipient boundary. */
+export const NEW_SENDER_REPLY_TEST_ONLY: boolean = false;
 
-/** The one job-less workflow event per reply (pending migration docs/pending-migrations/new-sender-reply-events.sql). */
+/** The one job-less workflow event per reply (migration docs/pending-migrations/new-sender-reply-events.sql, applied live 25 Oct 2026 — APPLIED_MANUALLY.md). */
 export const NEW_SENDER_REPLIED_EVENT = "email_new_sender_replied";
 
 export const NEW_SENDER_REPLY_TEMPLATE = "O70";

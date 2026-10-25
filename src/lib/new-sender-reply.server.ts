@@ -9,7 +9,7 @@
 //   reply-to info@) only when `customer_comms_enabled` is on AND the non-production recipient boundary allows it.
 //   Never Outlook send/sendMail/reply (decision 244 forbids it); never a draft — this reply is sent.
 // - Records: ONE job-less `email_new_sender_replied` per reply. Live: written BEFORE the send as the once-ever claim
-//   (unique idempotency key per normalised sender address, pending migration new-sender-reply-events.sql); nothing is
+//   (unique idempotency key per normalised sender address, migration new-sender-reply-events.sql — applied live 25 Oct 2026); nothing is
 //   sent when it cannot be written. The delivery result goes to admin_config_events (the workflow log is append-only).
 // Best-effort: never throws to the copier. Static imports stay harness-loadable (core + client only); senders and the
 // comms switch are dynamic imports reached only when a send is actually due.
@@ -36,7 +36,7 @@ async function recordReply(summary: string, details: Record<string, unknown>): P
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: NEW_SENDER_REPLIED_EVENT, internal: true, summary, details });
   if (!error) return "recorded";
   if (error.code === "23505") return "duplicate"; // the per-sender unique key: someone already claimed this sender
-  // 23502 / 23514 = the pending migration (job-less event type) is not applied yet: counted, not an error.
+  // 23502 / 23514 = the new-sender-reply-events.sql migration is missing (applied live 25 Oct 2026; kept as a fail-safe for other databases): counted, not an error.
   if (error.code !== "23502" && error.code !== "23514") console.error("new sender reply not recorded", error.message);
   return "not_recorded";
 }

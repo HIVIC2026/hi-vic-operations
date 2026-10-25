@@ -8,12 +8,13 @@
 // reopen possible) one week after the day-21 email — unless the owner saved a spot, replied, opted out or the job
 // moved stage in the meantime. One workflow event per send and per auto-close.
 //
-// Wording is NOT approved yet: ESTIMATE_FOLLOWUP_APPROVED stays false until Jo approves the drafts under
-// docs/templates/drafts/ (O66 day 2, O67 day 7, O68 day 21). While it is false, real owners get nothing and nothing
-// is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs use test-send so the flow can be checked.
+// Wording APPROVED (decision 242, reconfirmed decision 357, Jo 25 Oct 2026): designs filed under docs/templates/approved/
+// (O66 day 2, O67 day 7, O68 day 21). Real owners still need `customer_comms_enabled` (and consent); if the flag were
+// ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
+// use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
 
-export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242)
+export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242; reconfirmed 25 Oct, decision 357)
 
 export type EstimateFollowupStep = "day_2" | "day_7" | "day_21";
 export const ESTIMATE_FOLLOWUP_STEPS: readonly EstimateFollowupStep[] = ["day_2", "day_7", "day_21"];

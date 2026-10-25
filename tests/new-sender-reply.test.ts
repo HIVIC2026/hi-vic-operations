@@ -36,7 +36,7 @@ describe("the approved wording (decision 292)", () => {
     expect(newSenderReplyText(null).startsWith("Hi there,\n")).toBe(true);
     expect((newSenderReplyText(null).match(/https?:\/\//g) ?? []).length).toBe(1);
     expect(NEW_SENDER_REPLY_APPROVED).toBe(true); // Jo approved route + wording (292)
-    expect(NEW_SENDER_REPLY_TEST_ONLY).toBe(true); // TEST mode until go-live
+    expect(NEW_SENDER_REPLY_TEST_ONLY).toBe(false); // decision 356: live (still behind customer_comms_enabled)
     expect(NEW_SENDER_REPLIED_EVENT).toBe("email_new_sender_replied");
   });
   test("subject is Re: their subject (never Re: Re:)", () => {
