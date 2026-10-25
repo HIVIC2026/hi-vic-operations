@@ -13,6 +13,7 @@ import { getNeedsMePage } from "@/lib/office-screens.functions";
 import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
 import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
+import { INSTALLER_WAITING_PATH, chooseInstallersLinkLabel, foldChooseInstaller } from "@/lib/installer-waiting-columns.core";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/needs-me")({
@@ -133,11 +134,19 @@ function NeedsMe() {
       ) : isPending || !data ? <p className="text-sub">Checking every job…</p> : (
         <>
           {NEEDS_GROUPS.map((g) => {
-            const rows = data.groups[g.key];
+            // Decision 378: "Spot saved · waiting for an installer" rows fold into ONE link to Jobs › Choose installer.
+            const { rows, chooseInstaller } = foldChooseInstaller(data.groups[g.key]);
+            const total = rows.length + chooseInstaller.length;
             return (
               <section key={g.key} className="mb-6" aria-label={g.label} data-why={g.key === "today" ? "due or overdue now: 220 lapsed offer, 159 held quote, 123 consent, 195 ESC window, 213 final check, 245/247 email asks, send failed" : g.key === "week" ? "due within 7 days: 49 choose installer, 157 choose electrician, 119/121 VEEC Part A" : "alerts: 240 payments not in Xero, 2 ten-day clock, 215 second no-access, 120 VEEC day 10, lapsed window"}>
-                <h2 className="mb-1 font-display text-lg font-bold text-ink">{g.label} · {rows.length}</h2>
-                {rows.length === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}.</p> : (
+                <h2 className="mb-1 font-display text-lg font-bold text-ink">{g.label} · {total}</h2>
+                {chooseInstaller.length > 0 && (
+                  <Link to={INSTALLER_WAITING_PATH} data-why="decision 378: one link, no duplicated rows (one pile per job)" className="mb-2 flex items-center justify-between gap-3 rounded-[14px] border border-line bg-paper px-4 py-3 text-sm hover:bg-mist">
+                    <span><span className="font-semibold text-ink">{chooseInstallersLinkLabel(chooseInstaller.length)}</span><span className="text-sub"> · spots saved, waiting for an installer · longest {ageLabel(chooseInstaller.reduce((a, r) => (r.since < a ? r.since : a), chooseInstaller[0]!.since), data.now)}</span></span>
+                    <span className={cn(btn, "bg-hiv-green text-white")}>Open list</span>
+                  </Link>
+                )}
+                {total === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}.</p> : rows.length === 0 ? null : (
                   <ul className="rounded-[14px] border border-line bg-paper px-4">{rows.map((r) => <Row key={r.key} row={r} now={data.now} onDone={refresh} />)}</ul>
                 )}
               </section>
