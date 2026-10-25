@@ -3,6 +3,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { clearanceFacts } from "./electrical-clearance.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaRequestFacts } from "./workflow.server";
 import { credentialState, electricianWorkEligibility, requiredCredentialKinds, verifiedServiceAreaMatch, partnerWorkBlocker, type BusinessLike } from "./pilot.core";
@@ -468,30 +469,8 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
   return { ok: true };
 }
 
-export async function clearanceFacts(jobId: string) {
-  // Decision 316 (Jo 25 Oct 2026): the 30 days run from the official PIESA. The anchor is the latest official PIESA
-  // (initial, or a reassessment after an expired window) — it stays the anchor after a post_rectification row becomes current.
-  const [{ data: initial }, { data: rect }, { data: rq }] = await Promise.all([
-    admin.from("piesa_records").select("outcome, completed_date, signed_off_by").eq("job_id", jobId).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("piesa_records").select("rectification_completed_at, section_c_signed_at, outcome").eq("job_id", jobId).neq("kind", "initial").eq("is_current", true).maybeSingle(),
-    admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-  ]);
-  const { count: items } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId);
-  // Decision 314 follow-up: an A4 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
-  // accepted fixes quote + the payment rule (no fixes visit, no Section C). Read only once the fixes quote is accepted.
-  const onsiteOnly = rq?.status === "accepted" ? await (await import("./rectification.server")).fixesTimesFacts(jobId).then((x) => x.onsiteStartOnly).catch(() => false) : false;
-  const fixesPaymentCleared = onsiteOnly ? await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false) : false;
-  return {
-    piesaOutcome: (initial?.outcome as "pass" | "fail" | null) ?? null,
-    piesaCompletedAt: initial?.completed_date && initial.signed_off_by ? initial.completed_date : null,
-    rectificationRequired: (items ?? 0) > 0 || initial?.outcome === "fail",
-    rectificationQuoteAccepted: rq?.status === "accepted",
-    rectificationCompletedAt: rect?.rectification_completed_at ?? null,
-    sectionCSignedAt: rect?.section_c_signed_at ?? null,
-    onsiteStartOnly: onsiteOnly,
-    fixesPaymentCleared,
-  };
-}
+// Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
+export { clearanceFacts } from "./electrical-clearance.server";
 
 /** 24h reminders (queued, sending switches decide delivery) for released visits with no proposed time. */
 export async function sweepCoordination(actorId: string | null = null) {
