@@ -27,7 +27,7 @@ Build it as a NEW template. The existing "A3 - PIISA + AP Evidence" stays as it 
 **Inspection title:** Portal Job Number + Site address (Q1 and Q2).
 **Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for every Photo and Video question.
 **Pages:** one page per ## group below.
-**Colours (decision 304):** a Yes/No answer that means safe or done = GREEN; an answer with a stop line, or a problem = RED; plain facts (is there solar, anyone else installing, more than one day, who turned it back on) = grey. No other colours.
+**Colours (decisions 304 + 339):** the safe or easier answer is GREEN, a problem or stop is RED, a plain fact with no good or bad side is GREY. Q9/Q13 grey; Q17 Yes green No red; Q18 No green Yes grey; Q19 Yes green No red; Q21 Yes green No red; Q22 Yes green No red; Q23 No green Yes grey; Q24 Yes green No red; Q25 Yes green No red; Q26 Yes green No red; Q28 Yes green No red; Q29 No green Yes grey; Q30 Yes green No red; Q32 No green Yes red; Q40 grey; Q42 Yes green No red; Q45 Yes green, There isn't one green, No red.
 **Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
 editable items so the installer can correct them.
 **Stop lines** are short red text items that only show when the answer before them is `No`; they are not questions.
