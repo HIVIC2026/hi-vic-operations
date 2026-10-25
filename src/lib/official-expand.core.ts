@@ -6,6 +6,7 @@
 import { applianceRows } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
 
 export type ShortAnswers = Record<string, Value>;
 export type ExpandContext = {
@@ -15,6 +16,9 @@ export type ExpandContext = {
   /** Signed PIESA answers on the same job (PIISA expansion only). */ piesaAnswers?: OfficialAnswers | null;
   /** File id of the life-support consent/plan attached to the signed PIESA. */ piesaLifeSupportAttachment?: string | null;
   /** Accepted measure-up: existing insulation recorded? */ measuredInsulationPresent?: boolean | null;
+  /** Decision 296: the owner's secure-link confirmation of THIS PIESA (piesa-owner-confirm.core `ownerConfirmationForForm`):
+   *  typed name + the Melbourne date they signed. Absent = the owner block stays blank and is flagged; the Mitti form is never read for it. */
+  ownerConfirmation?: { name: string; date: string } | null;
 };
 export type ExpandResult = { answers: OfficialAnswers; flagged: string[] };
 
@@ -60,7 +64,7 @@ const copy = (out: OfficialAnswers, short: ShortAnswers, ids: string[]) => {
 export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResult {
   const out: OfficialAnswers = {};
   const flagged: string[] = [];
-  copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone", "o.name", "o.date"]);
+  copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone"]);
   // Section C electrician details = the same person as Part B3 (Jo 25 Oct 2026: the Mitti form no longer repeats them);
   // filled only once repair work is recorded (Section C is otherwise left blank on the official form).
   if (isYes(short["rectificationComplete"]) || txt(short["coesNumber"])) {
@@ -193,13 +197,17 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     else flagged.push("Section C: certification date missing.");
   }
 
-  // Owner declaration.
-  if (isYes(short["ownerConfirm"])) for (let i = 1; i <= 4; i++) out[`o.tick${i}`] = true;
-  else flagged.push("Owner declaration: not confirmed.");
+  // Owner declaration (decision 296, Jo 25 Oct 2026): filled ONLY from the owner's secure-link confirmation record — the
+  // owner block left the Mitti form ("the owner might not be there"), so nothing here reads ownerConfirm / o.name / o.date /
+  // ownerSignature from the short answers any more. No record = blank + flagged, never guessed.
+  if (ctx.ownerConfirmation) {
+    for (let i = 1; i <= 4; i++) out[`o.tick${i}`] = true;
+    out["o.name"] = ctx.ownerConfirmation.name;
+    out["o.date"] = ctx.ownerConfirmation.date;
+  } else flagged.push(`${OWNER_CONFIRMATION_NOT_SIGNED_FLAG} (secure link).`);
 
-  // Signatures live in the signed snapshot, not as form text.
+  // The electrician's signature lives in the signed snapshot, not as form text.
   if (!txt(short["electricianSignature"])) flagged.push("Electrician signature missing.");
-  if (!txt(short["ownerSignature"])) flagged.push("Owner signature missing.");
   return { answers: out, flagged };
 }
 

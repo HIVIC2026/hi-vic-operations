@@ -83,9 +83,10 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
       expect(SMS_MESSAGE_TYPES[type as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(true);
     });
   }
-  test("every SMS type is approved (the Ready Check booking text was removed by decision 171)", () => {
+  test("every SMS type is approved (the Ready Check booking text was removed by decision 171) except the decision-296 DRAFT", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
-    expect(off).toEqual([]);
+    // Decision 296 (Jo 25 Oct 2026): the owner PIESA-confirmation text is written but awaits Jo's approval (piesa-owner-confirm.core.ts).
+    expect(off).toEqual(["piesa_owner_confirm"]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

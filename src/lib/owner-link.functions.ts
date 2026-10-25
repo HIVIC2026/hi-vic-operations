@@ -181,6 +181,27 @@ export const ownerSignVeecAssignmentFn = createServerFn({ method: "POST" }).midd
     return { ok: true };
   });
 
+/** Decision 296: what the owner confirms about the electrician's PIESA (date, electrician, result, warning) — null when there is no PIESA yet. Link token only (read). */
+export const ownerPiesaConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { ownerPiesaConfirmFacts } = await import("./piesa-owner-confirm.server");
+    const { piesaConfirmPage } = await import("./piesa-owner-confirm.core");
+    const facts = await ownerPiesaConfirmFacts(jobId);
+    return facts ? JSON.parse(JSON.stringify(piesaConfirmPage(facts))) as ReturnType<typeof piesaConfirmPage> : null;
+  });
+
+/** Decision 296: the owner confirms the PIESA via the secure link after a fresh 6-digit code (typed full name = signature, one tick). Idempotent per PIESA. */
+export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, ...signer, confirmed: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { signOwnerPiesaConfirmation } = await import("./piesa-owner-confirm.server");
+    return signOwnerPiesaConfirmation({ jobId: s.jobId, userId: s.userId, codeId: s.codeId, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
+  });
+
 /** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).
  *  Link token only: the page merely opens Stripe's own payment page for our exact amount; no money moves without Stripe's flow. */
 export const ownerCardCheckoutFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

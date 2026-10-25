@@ -76,6 +76,8 @@ export type JobNextFacts = {
   priceEntered?: boolean | null;
   /** The viewer is the business owner (business_admin). Staff never see or set the price. */
   boss?: boolean;
+  /** Decision 296: the owner has confirmed the current PIESA on their secure link (false = waiting; null/undefined = no PIESA yet or not read). */
+  ownerPiesaConfirmed?: boolean | null;
 };
 export type JobNextPanel =
   | "sign_rebate" | "install_done" | "offer_install_days" | "install_answer_owner" | "install_waiting_owner" | "install_booked" | "install_expired"
@@ -106,6 +108,7 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
+import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -176,6 +179,8 @@ export function jobNext(f: JobNextFacts): JobNext {
   // Approved state M2-install-booked: "Install booked · Tue 27 Oct at 7:30am" / "Install by Fri 21 Nov · 25 days left."
   if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", ownerReady: ownerReadyLine(f.ownerReady) };
   if (f.installTurn === "expired") return { panel: "install_expired", title: "A new safety check is needed", sub: "The 30-day window after the safety check has passed. Home Insulation Victoria arranges the new check.", yours: false };
+  // Decision 296: the install day can't be booked until the owner confirms the safety check on their secure link — nothing for the installer until then.
+  if (f.ownerPiesaConfirmed === false && ["installer_to_offer", "installer_to_answer", "owner_to_answer"].includes(f.installTurn ?? "")) return { panel: "waiting", title: OWNER_PIESA_CONFIRM_WAITING, sub: `${window ? `${window} · ` : ""}We've asked ${owner} by email and text. Once they confirm, you offer 3 install days.`, yours: false };
   if (f.installTurn === "installer_to_offer") return { panel: "offer_install_days", title: `Offer ${owner} 3 install days`, sub: window, yours: true };
   if (f.installTurn === "installer_to_answer") return { panel: "install_answer_owner", title: `${owner} suggested other days — pick one or offer 3 new days`, sub: window, yours: true };
   if (f.installTurn === "owner_to_answer") return { panel: "install_waiting_owner", title: `Waiting for ${owner} to pick an install day`, sub: window, yours: false };

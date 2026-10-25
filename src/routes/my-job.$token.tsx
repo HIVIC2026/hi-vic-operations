@@ -16,13 +16,13 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
-import { OFFICE_EMAIL, P2, P3, P4, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
+import { OFFICE_EMAIL, P2, P3, P4, P6, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
@@ -109,6 +109,8 @@ function Home({ v, token }: { v: View; token: string }) {
   return <>
     {/* Approved P3 (decision 128): when the ESC consent is waiting, it is the page; everything else follows below. */}
     {v.consent && <ConsentCard v={v} token={token} />}
+    {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
+    {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
@@ -517,6 +519,56 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
     <Numbers v={v} />
   </>;
 }
+/** Decision 296 (mock-up P6): "Your electrical safety check — please confirm". The date, the electrician, the result and the
+ *  ceiling-entry warning come from the job record; one tick ("The assessment was completed on …"), typed full name =
+ *  signature, 6-digit code asked for on the button. After signing: "Confirmed on <date>". Nothing when there is no PIESA yet. */
+function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
+  const load = useServerFn(ownerPiesaConfirmFn);
+  const sign = useServerFn(ownerSignPiesaConfirmFn);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["owner-piesa-confirm", token], queryFn: () => load({ data: { token } }) });
+  const [session, setSession] = useSession();
+  const [needCode, setNeedCode] = useState(false);
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
+  const [tick, setTick] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  if (data.confirmed) return <section data-testid="piesa-confirmed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
+    <div><p className="font-display text-lg font-extrabold">{P6.confirmedTitle}</p><p className="text-sm">{P6.confirmedOn(data.confirmed.signedOn, data.confirmed.name)}</p></div>
+  </section>;
+  const ready = tick && f.name.trim().length >= 2;
+  const doSign = async () => {
+    if (!session) { setNeedCode(true); return; }
+    setErr(""); setBusy(true);
+    try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await Promise.all([qc.invalidateQueries({ queryKey: ["owner-piesa-confirm", token] }), qc.invalidateQueries({ queryKey: ["my-job", token] })]); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  return <section data-testid="piesa-confirm" className="space-y-4">
+    <PageIntro kicker={P6.kicker} title={P6.title}>{P6.sub(data.assessmentDate)}</PageIntro>
+    <InfoBox><b>{P6.whyLead}</b>{P6.why}</InfoBox>
+    <FormCard eyebrow={P6.formEyebrow}>
+      <SectionTitle className="mt-1.5 mb-1">{P6.factsTitle}</SectionTitle>
+      <FactRows rows={[{ label: P6.rows.date, value: data.assessmentDate }, { label: P6.rows.electrician, value: data.electricianLine }, { label: P6.rows.result, value: data.outcome }]} />
+      <p className="mt-3 rounded-[10px] bg-estimate-blush p-3 text-[13px] leading-relaxed"><b>{P6.warningLead}</b>{data.warning}</p>
+      <p className="mt-2 text-xs text-estimate-sub">{P3.wrong} <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent(`My electrical safety check${v.jobNumber ? ` – ${v.jobNumber}` : ""}`)}`}>Tell us before you confirm</a></p>
+      <SectionTitle className="mt-[18px]">{P6.declareTitle}</SectionTitle>
+      <TickCard on={tick} set={setTick} title={data.tick} sub={P6.declare} read="Read the four declarations ›" readBody={(data.declarations as string[]).map((d) => `• ${d}`).join("\n")} />
+      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
+      <TypedField label={P6.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P6.typeHere} autoComplete="name" />
+      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P6.dateLine(longDate(new Date().toISOString()))}</p>
+    </FormCard>
+    {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    <div>
+      <LockedButton ready={ready} busy={busy} busyLabel={P6.signing} onClick={() => void doSign()}>{P6.button}</LockedButton>
+      {!ready && <LockHint>{P6.lockHint}</LockHint>}
+      <SmallNote>{P6.afterNote}</SmallNote>
+      <OwnerFooter />
+    </div>
+  </section>;
+}
+
 /** Decision 119/120: the official ESC VEEC assignment form, shown read-only and signed by the owner ONLY after the install
  *  is recorded complete (never at acceptance). Installer → AP sign first; the owner is the last signature. */
 /** Approved P4 (decision 129): Section 1 summarised with the full text a tap away, Section 2 read-only, Section 4

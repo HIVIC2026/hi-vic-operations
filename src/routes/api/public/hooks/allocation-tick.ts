@@ -79,6 +79,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
         }
         try {
+          // Decision 296: owner asked to confirm the PIESA on their secure link (email O71 + text) after the electrician completes it,
+          // reminders days 1/3, office alert day 5. DRAFT wording: real owners get nothing until approved; TEST jobs use test-send.
+          const { sweepOwnerPiesaConfirmations } = await import("@/lib/piesa-owner-confirm-send.server");
+          (out as Record<string, unknown>)['piesaOwnerConfirm'] = await sweepOwnerPiesaConfirmations();
+        } catch (e) {
+          console.error("allocation tick: PIESA owner confirmation sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['piesaOwnerConfirm'] = "failed";
+        }
+        try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
           const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
           (out as Record<string, unknown>)['veecReminders'] = await sweepVeecReminders();
