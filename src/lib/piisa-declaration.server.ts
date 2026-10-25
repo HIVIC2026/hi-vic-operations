@@ -162,7 +162,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // Decision 262: Part 5 lights / cables from the PIESA and Part 6 from the Ready Check (never asked on the form).
     let portalConductive: boolean | null = null, portalConductiveEvidence: string | null = null;
     if (installDay) {
-      const portal = await (await import("./piisa-prestart.server")).installDayPortalAnswers(jobId);
+      const portal = await (await import("./piisa-prestart.server")).installDayPortalAnswers(jobId, audit);
       if (portal.missing.length) return { status: "missing", message: `Official PIISA can't be completed from the job records: ${portal.missing.join(" • ")}` };
       Object.assign(answers, { ...portal.answers, ...answers });
       portalConductive = portal.conductive;

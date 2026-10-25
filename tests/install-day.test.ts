@@ -4,11 +4,12 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   INSTALL_DAY_AFTER_INSTALL_TEXT, INSTALL_DAY_AFTER_SIGN_TEXT, INSTALL_DAY_DECLARATION_START, INSTALL_DAY_READ_FIRST_TEXT, INSTALL_DAY_Q as Q, INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME,
-  electricianPresentAnswer, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, installDayPrefillItems, isInstallDayDoc, piesaPart5Answers, readInstallDay,
+  ELECTRICIAN_AT_START_MISSING, electricianPresentAnswer, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, installDayPrefillItems, isInstallDayDoc, piesaPart5Answers, readInstallDay,
   type InstallDayQuestion,
 } from "../src/lib/install-day.core";
 import { choiceOption } from "../src/lib/mitti.core";
 import { readyCheckPart6Answers } from "../src/lib/piisa-a3.core";
+import { B1_OPTIONS } from "../src/lib/official-forms.core";
 
 const prompt = readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8");
 const TYPE: Record<string, InstallDayQuestion["type"]> = { Text: "text", Number: "number", Date: "date", "Yes/No": "yes_no", "Pick one": "pick_one", Photo: "photo", Video: "video", Checkbox: "checkbox", Signature: "signature" };
@@ -149,6 +150,21 @@ describe("official Part 5 light and cable answers come from the PIESA", () => {
     expect(r.missing).toEqual(["PIESA Section C: basic protection not confirmed by the electrician"]);
     expect(piesaPart5Answers(null).missing[0]).toContain("No signed PIESA");
     expect(piesaPart5Answers({ "p6.recessed": "Yes" }).missing).toEqual(["PIESA Part 6: number of recessed lights not recorded", "PIESA outcome (B1) not recorded"]);
+  });
+  test("decision 362: 'electrician at the start' (B1 option 3) → confirmations Yes as for no fixes; present = Yes only from 'Is the electrician here?' = Yes with the photo", () => {
+    const pe = { b1: B1_OPTIONS[2], "p6.recessed": "No" };
+    const ok = piesaPart5Answers(pe, { electricianHere: "Yes", electricianPhoto: true });
+    expect(ok).toEqual({ answers: { "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes", "p5.electricianPresent": "Yes" }, missing: [] });
+    for (const here of [{ electricianHere: "No" as const, electricianPhoto: true }, { electricianHere: "Yes" as const, electricianPhoto: false }, { electricianHere: null, electricianPhoto: false }, null]) {
+      const r = piesaPart5Answers(pe, here);
+      expect(r.answers["p5.electricianPresent"]).toBeUndefined();
+      expect(r.answers["p5.basic"]).toBe("Yes");
+      expect(r.missing).toEqual([ELECTRICIAN_AT_START_MISSING]);
+    }
+    // From the real form: Q28 "Is the electrician here?" + the electrician photo.
+    const audit = { items: [{ item_id: "h", label: Q.electricianHere, responses: { selected: [{ label: "Yes" }] } }, { item_id: "p", label: Q.electricianPhoto, media: [{ media_id: "m1" }] }] };
+    const rd = readInstallDay(audit);
+    expect(piesaPart5Answers(pe, { electricianHere: rd.yn(Q.electricianHere), electricianPhoto: rd.media(Q.electricianPhoto).length > 0 }).missing).toEqual([]);
   });
 });
 
