@@ -2,8 +2,11 @@
 // the one saved under My business (`installer_usual_electrician_saved` config events: name, licence, price inc GST) —
 // at the rate entered at onboarding. If none is saved, or that electrician is not an approved REC on the portal, the
 // office sends the PIESA to any approved REC in the area through the existing Choose trades / offer path.
-// The owner's quote is NOT changed by this: the owner pays HIV's standard safety-check price either way
-// (retail_estimator_settings.piesa_assessment_inc_gst); only what we pay the electrician follows the onboarding rate.
+// Decision 349 (Jo 25 Oct 2026, supersedes the "owner price unchanged" rule of decision 157): "we do not mark them up".
+// When the installer's usual electrician does the PIESA the owner's safety-check line IS that electrician's onboarding
+// rate (pass-through, e.g. $220); with OUR electrician (no usual one, or it can't take the job) the owner pays HIV's
+// standard price (retail_estimator_settings.piesa_assessment_inc_gst, $349) and we pay that electrician their own agreed
+// onboarding rate (electrician_rates PIESA row). `electricianSourceFor` keys the decision-142 fixes margin the same way.
 // Pure rules only. A1 (installer's own customers) keeps `resolveMittiElectrician`; this never applies to them.
 import type { UsualElectrician } from "./usual-electrician.core";
 
@@ -71,7 +74,20 @@ export function piesaPayableRate(sel: OurLeadPiesaSelection, businessId: string,
   return agreed ? { ...agreed, source: "agreed_rate" } : null;
 }
 
-/** Owner-facing safety-check line on an our-lead quote: always HIV's standard price, whoever does the PIESA. */
-export function ownerPiesaLineIncGst(standardIncGst: number, _sel: OurLeadPiesaSelection): number {
-  return standardIncGst;
+/** Owner-facing safety-check line on an our-lead quote (decision 349): the installer's usual electrician → their
+ *  onboarding rate exactly (no margin); anyone else (our electrician) → HIV's standard price. */
+export function ownerPiesaLineIncGst(standardIncGst: number, sel: OurLeadPiesaSelection): number {
+  return sel.mode === "usual" && Number.isFinite(sel.rateIncGst) && sel.rateIncGst > 0 ? Math.round(sel.rateIncGst * 100) / 100 : standardIncGst;
+}
+
+/** Decision 349: whose electrician is doing the electrical work. `installer_usual` = the installer's own usual
+ *  electrician (pass-through: no PIESA margin, no fixes margin); `ours` = Home Insulation Victoria's / an approved REC we
+ *  chose (owner pays $349 for the PIESA and the decision-142 margin on fixes). */
+export type ElectricianSource = "installer_usual" | "ours";
+
+/** Is the assigned electrician business the installer's usual electrician? Same identity rule as decision 157
+ *  (`matchUsualElectrician`: licence/REC number first, then exact business name). No usual saved / no assignment → ours. */
+export function electricianSourceFor(i: { usual: UsualElectrician | null; assigned: UsualMatchCandidate | null }): ElectricianSource {
+  if (!i.usual || !i.assigned) return "ours";
+  return matchUsualElectrician(i.usual, [i.assigned]) ? "installer_usual" : "ours";
 }

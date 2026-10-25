@@ -12,11 +12,14 @@ let inserts: { table: string; row: any }[] = [];
 let updates: { table: string; patch: any }[] = [];
 let events: { type: string; details: any }[] = [];
 let jobChannel: string | null = null;
+// Decision 349: the installer's saved usual electrician (admin_config_events) and the assigned electrician business.
+let usualCfg: Row | null = null;
+let elecBiz: Row | null = null;
 
 mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: { from(table: string) {
   let update: any = null; let insert: any = null;
   const q: any = {
-    select() { return q; }, eq() { return q; }, is() { return q; }, in() { return q; }, neq() { return q; }, order() { return q; }, limit() { return q; },
+    select() { return q; }, eq() { return q; }, contains() { return q; }, is() { return q; }, in() { return q; }, neq() { return q; }, order() { return q; }, limit() { return q; },
     update(p: any) { update = p; updates.push({ table, patch: p }); return q; },
     insert(r: any) { insert = r; inserts.push({ table, row: r }); return q; },
     single() { return Promise.resolve(result(true)); }, maybeSingle() { return Promise.resolve(result(true)); },
@@ -31,6 +34,9 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
     if (table === "assessments") return { data: { mitti_raw_snapshot: snapshot }, error: null };
     if (table === "rate_cards") return { data: one ? electricalCards[0] ?? null : electricalCards, error: null };
     if (table === "rectification_items") return { data: rectItems, error: null };
+    if (table === "admin_config_events") return { data: usualCfg, error: null };
+    if (table === "businesses") return { data: elecBiz, error: null };
+    if (table === "partner_workers") return { data: [], error: null };
     if (table === "workflow_settings") return { data: { auto_send_quote: true, customer_comms_enabled: true }, error: null };
     return { data: null, error: null };
   }
@@ -50,7 +56,7 @@ const a4 = (price: string | null, included: string | null) => [
 const card = { id: "card-1", version: 2, rate_card_items: [{ code: "CALLOUT", description: "Call-out", unit: "flat", unit_price_ex_gst: 100 }, { code: "RCD_INSTALL", description: "Install RCD", unit: "each", unit_price_ex_gst: 200 }] };
 const of = (t: string) => inserts.filter((i) => i.table === t).map((i) => i.row);
 
-beforeEach(() => { jobChannel = null; snapshot = []; electricalCards = [card]; rectItems = []; inserts = []; updates = []; events = []; });
+beforeEach(() => { usualCfg = null; elecBiz = null; jobChannel = null; snapshot = []; electricalCards = [card]; rectItems = []; inserts = []; updates = []; events = []; });
 
 test("A4 price + included → ONE 'Electrical repair work' line at electrician price + margin; cost = price ex GST", async () => {
   snapshot = a4("$1,100.00", "Replace 6 downlights with IC-4 LEDs, install 1 RCD");
@@ -138,4 +144,36 @@ test("decision 313: installer-supplied job (A1) — rate-card fallback has no ma
   expect(of("quotes")[0].subtotal_inc_gst).toBeGreaterThanOrEqual(330 + RECTIFICATION_MARGIN_INC_GST);
   expect(of("quotes")[0].subtotal_inc_gst).toBeLessThan(330 + RECTIFICATION_MARGIN_INC_GST + 0.05);
   expect(of("quote_internals")[0].calc_snapshot.rectification_margin_inc_gst).toBe(RECTIFICATION_MARGIN_INC_GST);
+});
+
+// Decision 349 (Jo 25 Oct 2026): "we do not mark them up" — the margin follows WHOSE electrician, not the lead route.
+test("decision 349: our lead (A2) + the installer's usual electrician → A4 price as is, no $100", async () => {
+  jobChannel = "hivic_sourced";
+  usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
+  elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };
+  snapshot = a4Ticks("1180");
+  await generateRectificationQuote("job", "actor");
+  expect(of("quotes")[0]).toMatchObject({ subtotal_inc_gst: 1180, customer_total_inc_gst: 1180 });
+  expect(of("quote_items")[0][0]).toMatchObject({ unit_price_inc_gst: 1180, line_total_inc_gst: 1180 });
+  expect(of("quote_internals")[0]).toMatchObject({ calc_snapshot: { rectification_margin_inc_gst: 0, electrician_source: "installer_usual" } });
+});
+
+test("decision 349: our lead (A2) + OUR electrician (a different REC) → electrician price + $100", async () => {
+  jobChannel = "hivic_sourced";
+  usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
+  elecBiz = { id: "rec-1", name: "Other Electrical", trading_name: null, rec_number: "REC-99999" };
+  snapshot = a4Ticks("1180");
+  await generateRectificationQuote("job", "actor");
+  expect(of("quotes")[0]).toMatchObject({ subtotal_inc_gst: 1180 + RECTIFICATION_MARGIN_INC_GST });
+  expect(of("quote_internals")[0]).toMatchObject({ cost_ex_gst: 1072.73, calc_snapshot: { rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST, electrician_source: "ours" } });
+});
+
+test("decision 349: rate-card fallback on our lead with the installer's usual electrician → no margin either", async () => {
+  jobChannel = "hivic_sourced";
+  usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
+  elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };
+  rectItems = [{ rate_code: "RCD_INSTALL", description: "Install RCD", quantity: 1, is_other: false, explanation: null, needs_office_pricing: false, other_unit_price_inc_gst: null }];
+  await generateRectificationQuote("job", "actor");
+  expect(of("quotes")[0].subtotal_inc_gst).toBe(330);
+  expect(of("quote_internals")[0].calc_snapshot).toMatchObject({ rectification_margin_inc_gst: 0, electrician_source: "installer_usual" });
 });
