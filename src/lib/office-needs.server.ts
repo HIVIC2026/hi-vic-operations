@@ -7,6 +7,7 @@ import { sendFailedRows } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
+import { apAutoHoldAlert } from "./veec-ap-auto.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -99,11 +100,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     }
   }
   for (const c of consents) { const x = f(String(c["job_id"])); if (x && !["cancelled", "stale", "superseded"].includes(String(c["status"]))) { const start = s(c["scheduled_start"]); x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null }; } }
-  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"]);
+  // Decision 271: Part A signs itself; the office sees a row only once the automatic signature has been held >24h, with the reasons.
+  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"] && apAutoHoldAlert({ installerSignedAt: String(v["installer_signed_at"]), now, reasons: ["pending"] }).alert);
   if (partA.length && partA.length <= 40) {
-    const { apPrerequisites } = await import("./assignment.server");
-    await Promise.all(partA.map(async (v) => { const x = f(String(v["job_id"])); if (!x) return; const missing = await apPrerequisites(String(v["job_id"])).catch(() => ["unknown"]); x.veecPartA = { at: String(v["installer_signed_at"]), missing: missing.length }; }));
-  } else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecPartA = { at: String(v["installer_signed_at"]), missing: 0 }; }
+    const { apAutoHoldReasons } = await import("./veec-ap-auto.server");
+    await Promise.all(partA.map(async (v) => { const x = f(String(v["job_id"])); if (!x) return; const reasons = await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]); if (reasons.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; }));
+  } else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
   for (const e of escRows) {
     const x = f(String(e["job_id"])); if (!x || ["cancelled", "withdrawn", "superseded", "stale"].includes(String(e["status"]))) continue;
     const opens = s(e["earliest_send_at"]);
@@ -113,7 +115,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const r of sendFailedRows({ now, emails: emailFails.map((e) => ({ job_id: String(e["job_id"]), purpose: String(e["purpose"]), status: String(e["status"]), created_at: String(e["created_at"]), error: s(e["error"]) })), sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) })) {
     const x = f(r.jobId); if (x) x.sendFailed = { at: r.latestAt, text: r.text };
   }
-  for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft = { at: String(t["install_10day_flagged_at"]), deadline: jobs.find((j) => j.id === t["id"])?.facts.installDeadline ?? null }; }
+  // Decision 272: the ESC Registry robot failed on a job → the office does that submission by hand (cleared once it is recorded).
+  const { openRobotFailureRows } = await import("./esc-registry-robot.server");
+  for (const r of await openRobotFailureRows(opts.onlyIds)) { const x = f(r.jobId); if (x && !x.robotFailed) x.robotFailed = { at: r.at, text: r.text, task: r.task }; }
+  for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft ={ at: String(t["install_10day_flagged_at"]), deadline: jobs.find((j) => j.id === t["id"])?.facts.installDeadline ?? null }; }
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobs.find((k) => k.id === e["job_id"]); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }

@@ -1,6 +1,6 @@
 // Office list filters, sorting and the Enquiries priority rank (decisions 225, 226, 228; O3/O4 approved).
-// PURE: chips on every column (multi-select), every column sortable, and a visible priority number per enquiry
-// (1 = hottest: no insulation, size known, recent contact, in a covered area). No I/O.
+// PURE: chips on every column (multi-select), every column sortable, and the Enquiries priority rank (hottest first:
+// no insulation, size known, recent contact, in a covered area) — decision 283: used only to sort, never shown. No I/O.
 import { regionForPostcode } from "./coverage-regions.core";
 
 export type InsulationChip = "no" | "some" | "not_sure";
@@ -82,7 +82,7 @@ export function priorityScore(p: PriorityFacts, now: number): number {
   return (p.insulation === "no" ? 8 : 0) + (sizeChip(p.areaM2) !== "none" ? 4 : 0) + (recent ? 2 : 0) + (p.covered ? 1 : 0);
 }
 
-/** Visible rank 1..n (1 = hottest). Ties: newest enquiry first, then id for a stable order. */
+/** Rank 1..n, hottest first — used only to order the list, never shown (decision 283). Ties: newest enquiry first, then id. */
 export function rankByPriority<T extends PriorityFacts & { id: string }>(rows: T[], now: number): (T & { priority: number; score: number })[] {
   return rows
     .map((r) => ({ ...r, score: priorityScore(r, now) }))

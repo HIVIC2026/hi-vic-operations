@@ -89,7 +89,7 @@ export function OwnerInstallDaysCard({ jobId }: { jobId: string }) {
 /** Installer's install-day state, read once per job (shared by the job page's Next panel and this form). */
 export function useInstallerInstallDays(jobId: string) {
   const getState = useServerFn(getInstallerInstallDays);
-  return useQuery({ queryKey: ["installer-install-days", jobId], queryFn: () => getState({ data: { jobId } }) as Promise<DayState> });
+  return useQuery({ queryKey: ["installer-install-days", jobId], queryFn: () => getState({ data: { jobId } }) as Promise<DayState>, staleTime: 20_000 });
 }
 
 /** Quoted installer (mock-up M2, decisions 1/19/43/163/186): offer 3 days with an exact arrival time each; take one of

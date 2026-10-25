@@ -22,12 +22,13 @@ describe("2. Bulk import owners", () => {
     const { exactLike } = await import("../src/lib/email-match");
     expect(exactLike("a_b%c@x.com")).toBe("a\\_b\\%c@x.com");
   });
-  test("bulk import never reuses an existing owner", () => {
+  test("bulk import never reuses an existing owner; duplicates are decided by address only (decision 282)", () => {
     const src = readFileSync("src/lib/bulk-import.server.ts", "utf8");
     const fn = src.slice(src.indexOf("async function createBulkJob"), src.indexOf("async function draftQuoteFromImport"));
     expect(fn).not.toMatch(/ownerId\s*=\s*existing/);
-    expect(fn).toContain("possible_duplicate_owner");
-    expect(src).not.toMatch(/\.ilike\("email", (?!exactLike)/);
+    expect(fn).toContain("findOpenJobAtAddress");
+    expect(fn).not.toContain("possible_duplicate_owner");
+    expect(src).not.toMatch(/\.ilike\("email"/);
   });
 });
 

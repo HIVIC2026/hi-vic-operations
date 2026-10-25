@@ -1,7 +1,7 @@
 # Inbox reply drafts — 5 samples for approval (decisions 244 and 255)
 
 Drafts only: the portal writes these into info@ as Outlook drafts in the same thread; Jo or Chris presses Send. Nothing is sent automatically (each type stays manual until Jo switches it on).
-Decision 255: replies point people to their own homeowner page, never the calculator. A new sender with no job gets an enquiry created from their email (name and email from the email, the address only when the email gives a complete one) and the reply carries that enquiry's own page link; with no address the reply asks for it and the enquiry waits in Enquiries › Fix details. Those drafts are always marked “Check before sending” until Jo has seen a few.
+Decision 255: replies point people to their own homeowner page, never the calculator. A new sender with no job gets an enquiry created from their email (name and email from the email, the address only when the email gives a complete one) and the reply carries that enquiry's own page link; with no address the reply asks for it and the enquiry waits in Enquiries without an address (decision 281: no Fix details pile). Those drafts are always marked “Check before sending” until Jo has seen a few.
 Every name, address, job number, link and email below is invented. Figures follow the approved O18 quote example.
 
 ## Where is my job — Owner asking when their free Ready Check is
@@ -94,7 +94,7 @@ Your price depends on the size of your ceiling, and the VEU rebate comes straigh
 Jo, Home Insulation Victoria
 ```
 
-Check before sending: yes — New enquiry HV-3191 created from this email — check before sending (decision 255); No complete street address in the email — the enquiry is in Enquiries › Fix details
+Check before sending: yes — New enquiry HV-3191 created from this email — check before sending (decision 255); No complete street address in the email — the enquiry has no address yet; this reply asks for it
 
 ## Installer / electrician — Installer asking where the Mitti form is and when they're paid
 

@@ -77,6 +77,23 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['veecReminders'] = "failed";
         }
         try {
+          // VEU checklist G1 (Jo 25 Oct): completion pack (O47) once the install is complete and the invoice paid in full, with the
+          // installed product's manufacturer warranty attached, filed on the job and `warranty_copy_provided` recorded at that send.
+          const { sweepCompletionPacks } = await import("@/lib/completion-pack.server");
+          (out as Record<string, unknown>)['completionPacks'] = await sweepCompletionPacks();
+        } catch (e) {
+          console.error("allocation tick: completion pack sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['completionPacks'] = "failed";
+        }
+        try {
+          // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
+          const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
+          (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
+        } catch (e) {
+          console.error("allocation tick: automatic AP signature sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['veecApAuto'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
         } catch (e) {
@@ -112,6 +129,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: estimate follow-up sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
+        }
+        try {
+          // Decision 281: enquiries missing a suburb / postcode are completed from the address lookup (same provider as
+          // Add a job), 50 per tick oldest first, one lookup per job per 7 days recorded as a workflow event. No sends.
+          const { completeEnquiryAddresses } = await import("@/lib/address-complete.server");
+          (out as Record<string, unknown>)['addressCompletion'] = await completeEnquiryAddresses();
+        } catch (e) {
+          console.error("allocation tick: address completion sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['addressCompletion'] = "failed"; // a lookup outage must not fail the whole tick
         }
         try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the

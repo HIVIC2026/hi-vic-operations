@@ -1,13 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 import { createSupabaseClient } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
-const searchSchema = z.object({ token_hash: z.string().min(20).optional(), type: z.literal("magiclink").optional(), next: z.string().regex(/^\/(?![\/\\])/, "same-site path only").catch("/home").default("/home") });
+// Same rules as the former zod schema, written out so zod is not part of every page's first load (decision 280):
+// token_hash = optional string of 20+ characters (else rejected); type = optional literal "magiclink" (else rejected);
+// next = same-site path, anything else (missing, wrong type or off-site) falls back to "/home".
+const SAME_SITE_PATH = /^\/(?![/\\])/;
+function parseQaSearch(s: Record<string, unknown>): { token_hash?: string; type?: "magiclink"; next: string } {
+  const out: { token_hash?: string; type?: "magiclink"; next: string } = { next: "/home" };
+  const th = s["token_hash"];
+  if (th !== undefined) { if (typeof th !== "string" || th.length < 20) throw new Error("Invalid token_hash"); out.token_hash = th; }
+  const ty = s["type"];
+  if (ty !== undefined) { if (ty !== "magiclink") throw new Error("Invalid type"); out.type = "magiclink"; }
+  const nx = s["next"];
+  if (typeof nx === "string" && SAME_SITE_PATH.test(nx)) out.next = nx;
+  return out;
+}
 
 export const Route = createFileRoute("/qa-access")({
-  validateSearch: (search) => searchSchema.parse(search),
+  validateSearch: parseQaSearch,
   component: QaAccess,
 });
 

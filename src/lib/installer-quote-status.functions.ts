@@ -20,6 +20,9 @@ export const getMyOwnerQuote = createServerFn({ method: "POST" }).middleware([re
     const { installerQuoteLine } = await import("./installer-quote-status.core");
     // Jo 24 Oct: on our leads the installer sees the quote's status only — never the owner's price or our margin.
     if (a.channel === "hivic_sourced") return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line: installerQuoteLine(a) };
+    // Decision 278: on the installer's own jobs the figures are the business owner's — a team member gets the status only.
+    const ctx = await (await import("./trade-view.server")).tradeContext(context.userId).catch(() => null);
+    if (!ctx?.boss) return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line: installerQuoteLine(a) };
     const blockers = a.sent ? [] : await (await import("./office-quote-review.server")).officeQuoteBlockers(data.jobId, a.quote);
     const q = a.quote;
     return {

@@ -2,7 +2,6 @@
 // files, uses AI only to map messy spreadsheet columns onto known fields, matches files to rows,
 // sorts each job, and — only after explicit confirmation — creates installer-sourced jobs.
 // Nothing customer-facing is ever sent from here. Old/non-geotagged photos inform sorting only.
-import { exactLike } from "./email-match";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
@@ -343,9 +342,18 @@ export async function ensureBulkJob(e: BulkExtracted, batch: { id: string; busin
 }
 
 async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string, importStage: ImportStage) {
-  // Security review (Jo, 6 Oct): an installer upload NEVER reuses an existing owner. A new owner is always created;
-  // an exact (case-insensitive) email match is only flagged for the office under Possible duplicates.
+  // Security review (Jo, 6 Oct): an installer upload NEVER reuses an existing owner. A new owner is always created.
+  // Decision 282 (Jo 25 Oct): email/phone are never duplicate signals; only an OPEN job at the same address is — that
+  // row is linked to the existing job with an office flag and refused with the job number (no new job).
   const email = e.email?.trim().toLowerCase() || null;
+  const { intakeSourceFor } = await import("./pilot.server");
+  const source = await intakeSourceFor(actorId, batch.business_id, "bulk_import");
+  const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
+  const open = await findOpenJobAtAddress({ address_line: e.address_line, suburb: e.suburb ?? null, postcode: e.postcode ?? null, source });
+  if (open) {
+    await flagDuplicateAddress(open, actorId, { from: "upload_jobs", business_id: batch.business_id, business_name: await businessNameFor(batch.business_id), request_key: `bulk:${rowId}`, full_name: e.full_name ?? null, email, phone: e.phone ?? null, address_line: e.address_line ?? null, suburb: e.suburb ?? null, postcode: e.postcode ?? null });
+    throw new BulkImportError((await import("./duplicate-address.core")).duplicateAddressMessage(open.job_number));
+  }
   const { createInstallerOwner } = await import("./installer-owner.server");
   const created = await createInstallerOwner(admin, batch.business_id, { full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null });
   const ownerId = created.id;
@@ -357,14 +365,11 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     if (count === 0) await admin.from("owners").delete().eq("id", ownerId);
   };
   try {
-  const sameEmail = email ? (await admin.from("owners").select("id").ilike("email", exactLike(email)).neq("id", ownerId).limit(5)).data ?? [] : [];
   const { data: prop, error: pe } = await admin.from("properties").insert({
     owner_id: ownerId, address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
   }).select("id").single();
   if (pe || !prop) throw new BulkImportError(pe?.message ?? "Property could not be created.");
   propId = prop.id;
-  const { intakeSourceFor } = await import("./pilot.server");
-  const source = await intakeSourceFor(actorId, batch.business_id, "bulk_import");
   const placement = stagePlacement[importStage];
   const { data: job, error: je } = await admin.from("jobs").insert({
     owner_id: ownerId, property_id: prop.id, stage: placement.stage, source, business_unit: "hivic", installer_led: true,
@@ -385,7 +390,6 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     throw new BulkImportError(je?.message ?? "Job could not be created.");
   }
   propId = null;
-  if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
   return job;
   } catch (err) { if (propId) await cleanup(); throw err; }
 }

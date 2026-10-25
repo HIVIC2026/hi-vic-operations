@@ -11,9 +11,11 @@ export async function recordReadyCheckProgress(p: {
   jobId: string; actorId: string | null; auditId: string; entries: { label: string; value: unknown }[];
   completed: boolean; modifiedAt: string | null; priced: boolean; now?: Date;
 }): Promise<{ status: "clean" | "waiting" | "recorded" | "unchanged"; missing: string[] }> {
-  const choice = contactAnswersFromEntries(p.entries as { label: string; value: string | null }[]).electricianChoice;
-  const price = p.entries.find((e) => /^total quoted price/i.test(String(e.label ?? "").trim()))?.value;
-  const facts = readyCheckFactsFromEntries(p.entries, {
+  // Decision 278: the A1 price/electrician come from the business owner's portal entry first (old forms as fallback).
+  const entries = p.priced ? await (await import("./installer-price.server")).entriesWithInstallerPrice(p.jobId, p.entries) : p.entries;
+  const choice = contactAnswersFromEntries(entries as { label: string; value: string | null }[]).electricianChoice;
+  const price = entries.find((e) => /^total quoted price/i.test(String(e.label ?? "").trim()))?.value;
+  const facts = readyCheckFactsFromEntries(entries, {
     formComplete: p.completed,
     electricianDecided: p.priced ? choice != null : true,
     priceKnown: p.priced ? price != null && String(price).trim() !== "" : true,

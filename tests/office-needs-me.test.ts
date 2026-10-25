@@ -15,7 +15,7 @@ test("O1 groups: Today / This week / Watch with one button each", () => {
     job("3150", { sendFailed: { at: "2026-10-24T02:20:00Z", text: "Text failed: Install days email, today" } }),
     job("3188", { spotSaved: { at: "2026-10-24T01:00:00Z" } }),
     job("3104", { electricianToChoose: { at: "2026-10-23T23:00:00Z", usual: "Volt Right Electrical" } }),
-    job("3071", { veecPartA: { at: "2026-10-22T00:00:00Z", missing: 0 } }),
+    job("3071", { veecApHeld: { at: "2026-10-22T00:00:00Z", reasons: ["Product warranty copy (minimum 5 years) given to the consumer is not recorded."] } }),
     job("3110", { paymentNotInXero: { at: "2026-10-22T00:00:00Z", text: "$349 owner says paid" } }),
     job("3057", { tenDaysLeft: { at: "2026-10-24T00:00:00Z", deadline: "2026-11-03" } }),
     job("3049", { secondNoAccess: { at: "2026-10-24T00:00:00Z", reason: null } }),
@@ -27,7 +27,7 @@ test("O1 groups: Today / This week / Watch with one button each", () => {
     ["HV-3141", "quote_check", "Check & send"], ["HV-3044", "final_check", "Approve"],
   ]);
   expect(g.week.map((r) => [r.jobNumber, r.kind, r.button.label])).toEqual([
-    ["HV-3188", "choose_installer", "Choose installer"], ["HV-3104", "choose_electrician", "Send offer"], ["HV-3088", "esc_window", "Open Registry block"], ["HV-3071", "sign_veec_a", "Sign"],
+    ["HV-3188", "choose_installer", "Choose installer"], ["HV-3104", "choose_electrician", "Send offer"], ["HV-3088", "esc_window", "Open Registry block"], ["HV-3071", "veec_a_held", "Open job"],
   ]);
   expect(g.watch.map((r) => r.kind)).toEqual(["second_no_access", "ten_days_left", "veec_day_10", "payment_not_in_xero"]);
   // Payment rows are watch-only and never offer "Record payment" (decision 240).

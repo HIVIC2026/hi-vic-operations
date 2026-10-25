@@ -1,6 +1,8 @@
 // Decision 216 / 238 (Jo 24 Oct): the portal tidies capitalisation itself and splits every address into
-// street · suburb · postcode the same way for every source; the office only fixes what it cannot ("Fix details").
-// PURE: no I/O. Used by the Enquiries Fix details pile (O4), the inline fix (applied on save) and intake.
+// street · suburb · postcode the same way for every source. Decision 281 (Jo 25 Oct): what the split cannot read is
+// completed by the address lookup (address-complete.core), never by an office button; a first-name-only, odd or
+// missing name is tidied to what it is and blocks nothing. PURE: no I/O. Used by Enquiries (O4), the audited
+// enquiry details save and intake.
 
 const SMALL_PARTICLES = new Set(["de", "da", "di", "del", "della", "der", "den", "van", "von", "la", "le", "du", "dos", "das", "bin", "binti", "al"]);
 const STREET_TYPES = [
@@ -11,8 +13,6 @@ const STREET_TYPES = [
 ];
 const STREET_TYPE_SET = new Set(STREET_TYPES);
 const STATE_WORDS = new Set(["vic", "victoria"]);
-/** Keyboard mashes and placeholder words the website has received instead of a name. */
-const JUNK_WORDS = new Set(["asdf", "asdfg", "asdfgh", "qwerty", "qwer", "zxcv", "test", "testing", "abc", "aaa", "xxx", "na", "n/a", "none", "nil", "name", "unknown", "anon", "anonymous", "me", "owner", "homeowner", "customer", "hi", "hello"]);
 
 /** One word with the first letter up; Mc/Mac, O', hyphenated and apostrophe parts handled. */
 function capWord(word: string, index: number): string {
@@ -46,22 +46,6 @@ export function hasCaseProblem(raw: string | null | undefined): boolean {
   const letters = (raw ?? "").replace(/[^A-Za-z]/g, "");
   if (letters.length < 2) return false;
   return letters === letters.toUpperCase() || letters === letters.toLowerCase();
-}
-
-export type NameProblem = "missing" | "one_word" | "junk";
-
-/** Why the office must fix a name by hand (null = the portal's own tidy is enough). */
-export function nameProblem(raw: string | null | undefined): NameProblem | null {
-  const name = (raw ?? "").replace(/\s+/g, " ").trim();
-  if (!name) return "missing";
-  const words = name.split(" ").filter(Boolean);
-  const lower = name.toLowerCase();
-  const lettersOnly = lower.replace(/[^a-z]/g, "");
-  if (/[@\d]/.test(name) || JUNK_WORDS.has(lower) || words.every((w) => JUNK_WORDS.has(w.toLowerCase()))) return "junk";
-  if (lettersOnly.length < 2 || !/[aeiouy]/.test(lettersOnly) || /(.)\1\1/.test(lettersOnly)) return "junk";
-  if (words.length < 2) return "one_word";
-  if (words.some((w) => w.replace(/[^A-Za-z]/g, "").length === 0)) return "junk";
-  return null;
 }
 
 export type AddressSplit = { street: string; suburb: string; postcode: string; state: string };
@@ -115,36 +99,23 @@ export function splitAddress(line: string | null | undefined, suburb?: string | 
   return { street: titleAddress(street), suburb: titleAddress(sub), postcode: pc, state: "VIC" };
 }
 
-export type DetailsProblem = "name_missing" | "name_one_word" | "name_junk" | "street_missing" | "suburb_missing" | "postcode_missing";
-export const DETAILS_PROBLEM_LABEL: Record<DetailsProblem, string> = {
-  name_missing: "No name", name_one_word: "First name only", name_junk: "Name looks wrong",
-  street_missing: "No street", suburb_missing: "Suburb not split", postcode_missing: "No postcode",
-};
+/** What the address is still missing after the tidy (decision 281: the lookup fills these; names are never a problem). */
+export type DetailsProblem = "street_missing" | "suburb_missing" | "postcode_missing";
+export const DETAILS_PROBLEM_LABEL: Record<DetailsProblem, string> = { street_missing: "No street", suburb_missing: "No suburb yet", postcode_missing: "No postcode yet" };
 
 export type TidiedDetails = { fullName: string; street: string; suburb: string; postcode: string; problems: DetailsProblem[]; changed: boolean };
 
 /**
- * The automatic tidy (capitalisation + address split) and what is still wrong after it. `problems` empty = nothing for the
- * office (the tidy is applied when the record is saved, and at intake). `changed` = the tidy differs from what is stored.
+ * The automatic tidy (capitalisation + address split) and which address parts are still blank after it (the automatic
+ * lookup fills them; the list shows them as stored meanwhile). `changed` = the tidy differs from what is stored.
  */
 export function tidyEnquiryDetails(i: { fullName: string | null; addressLine: string | null; suburb: string | null; postcode: string | null }): TidiedDetails {
   const fullName = tidyPersonName(i.fullName);
   const split = splitAddress(i.addressLine, i.suburb, i.postcode);
   const problems: DetailsProblem[] = [];
-  const np = nameProblem(fullName);
-  if (np) problems.push(`name_${np}` as DetailsProblem);
   if (!split.street) problems.push("street_missing");
   if (!split.suburb) problems.push("suburb_missing");
   if (!/^[38]\d{3}$/.test(split.postcode)) problems.push("postcode_missing");
   const changed = fullName !== (i.fullName ?? "").trim() || split.street !== (i.addressLine ?? "").trim() || split.suburb !== (i.suburb ?? "").trim() || split.postcode !== (i.postcode ?? "").trim();
   return { fullName, street: split.street, suburb: split.suburb, postcode: split.postcode, problems, changed };
-}
-
-/** Fix details pile membership (decision 238/239): only what the automatic tidy cannot fix. */
-export const needsFixDetails = (i: Parameters<typeof tidyEnquiryDetails>[0]) => tidyEnquiryDetails(i).problems.length > 0;
-
-/** Office save: validates the hand-fixed values after tidying them. Returns errors (empty = may save). */
-export function fixDetailsErrors(v: { fullName: string; street: string; suburb: string; postcode: string }): string[] {
-  const t = tidyEnquiryDetails({ fullName: v.fullName, addressLine: v.street, suburb: v.suburb, postcode: v.postcode });
-  return t.problems.map((p) => DETAILS_PROBLEM_LABEL[p]);
 }

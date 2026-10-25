@@ -38,11 +38,12 @@ export function cardStates(current: JobsStage | null, closed: "complete" | "canc
 export function buildStageCards(f: StageCardFacts): StageCard[] {
   const st = cardStates(f.current, f.closed);
   const e = f.enquiry, r = f.readyCheck, q = f.quote, p = f.piesa, i = f.install, c = f.finalCheck;
-  const estimate = e.estimateTotal != null ? `${money(e.estimateTotal)} after the VEEC incentive${e.linkViewedAt ? ` · link opened ${day(e.linkViewedAt)}` : e.linkSentAt ? ` · link sent ${day(e.linkSentAt)}` : ""}` : e.linkSentAt ? `Link sent ${day(e.linkSentAt)}${e.linkViewedAt ? ` · opened ${day(e.linkViewedAt)}` : ""}` : f.ownJob ? "Not used for installers' own customers" : dash;
+  const estimate = e.estimateTotal != null ? `${money(e.estimateTotal)} after the VEEC incentive${e.linkViewedAt ? ` · link opened ${day(e.linkViewedAt)}` : e.linkSentAt ? ` · link sent ${day(e.linkSentAt)}` : ""}` : e.linkSentAt ? `Link sent ${day(e.linkSentAt)}${e.linkViewedAt ? ` · opened ${day(e.linkViewedAt)}` : ""}` : dash;
   return [
     { key: "enquiry", n: 1, title: "Enquiry", state: st.enquiry, lines: [
       { label: "Received", value: `${dayTime(e.receivedAt)} · ${e.source}` },
-      { label: "Estimate", value: estimate },
+      // Installers' own customers get no estimate (decision 54): nothing to show, so no row.
+      ...(f.ownJob ? [] : [{ label: "Estimate", value: estimate }]),
       { label: "Owner said", value: e.ownerSaid ?? dash },
       { label: "Eligibility", value: e.eligibility ?? dash },
       { label: "Photos", value: e.photos ? `${e.photos} roof-space photo${e.photos === 1 ? "" : "s"}` : "None" },

@@ -67,7 +67,7 @@ export const SAMPLES: Sample[] = [
     input: {
       subject: "Insulation rebate", from: "sam.person@example.org", fromName: "SAM PERSON", fromPartner: false, now: SAMPLE_NOW,
       body: "Hi,\n\nIs the insulation rebate still available, and how much would it cost for our place?\n\nThanks,\nSam",
-      // The enquiry the portal created from this email: name tidied from the From line, no address yet (Fix details).
+      // The enquiry the portal created from this email: name tidied from the From line, no address yet (the reply asks for it).
       owner: newSenderEnquiry({ jobNumber: "HV-3191", ownerFullName: "Sam Person", suburb: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3" }),
       emailEnquiry: { created: true, addressFound: false },
     },

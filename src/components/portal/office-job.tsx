@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { MenuPanel } from "@/components/portal/kit";
 import { useAction } from "@/hooks/use-me";
 import { CARD_STATE_LABEL, type CardKey, type StageCard } from "@/lib/office-stage-cards.core";
 import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, type ContactRow } from "@/lib/contact-history.core";
@@ -343,12 +344,15 @@ const HOLD_REASONS = ["Owner asked us to wait", "Waiting on the owner", "Waiting
 function Chips({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   return <div className="flex flex-wrap gap-1.5">{options.map((o) => <button key={o} type="button" aria-pressed={value === o} onClick={() => onChange(o)} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", value === o ? "border-ink bg-ink text-white" : "border-line bg-paper text-sub")}>{value === o ? "✓ " : ""}{o}</button>)}</div>;
 }
-function TellTicks({ owner, installer, set }: { owner: boolean; installer: boolean; set: (o: boolean, i: boolean) => void }) {
+/** Decision 291: Cancel ticks SEND the approved emails (O69 owner, I70 installer — email only); Hold ticks are still recorded only. */
+function TellTicks({ owner, installer, set, sends }: { owner: boolean; installer: boolean; set: (o: boolean, i: boolean) => void; sends: boolean }) {
   return (
     <div className="space-y-1 text-sm">
       <label className="flex items-center gap-2"><input type="checkbox" checked={owner} onChange={(e) => set(e.target.checked, installer)} /> Email the owner</label>
-      <label className="flex items-center gap-2"><input type="checkbox" checked={installer} onChange={(e) => set(owner, e.target.checked)} /> Text the installer</label>
-      {(owner || installer) && <p className="text-xs text-rose">Recorded only — nothing is sent until Jo approves this wording (decision 227).</p>}
+      <label className="flex items-center gap-2"><input type="checkbox" checked={installer} onChange={(e) => set(owner, e.target.checked)} /> Email the installer</label>
+      {(owner || installer) && (sends
+        ? <p className="text-xs text-sub">Sends the approved “Job cancelled” email now (decision 291); TEST jobs go to the TEST inbox only.</p>
+        : <p className="text-xs text-rose">Recorded only — nothing is sent until Jo approves the hold wording (decision 233).</p>)}
     </div>
   );
 }
@@ -369,7 +373,7 @@ export function CancelDialog({ h, open, onOpenChange, onDone }: { h: Header; ope
           <Chips options={CANCEL_REASONS} value={reason} onChange={setReason} />
           {reason === "Other" && <Input value={other} onChange={(e) => setOther(e.target.value)} placeholder="Reason" aria-label="Other reason" />}
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. owner called, selling the house" aria-label="Note" />
-          <TellTicks owner={tell.owner} installer={tell.installer} set={(o, i) => setTell({ owner: o, installer: i })} />
+          <TellTicks owner={tell.owner} installer={tell.installer} set={(o, i) => setTell({ owner: o, installer: i })} sends />
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={why.length < 3} className={cn(btn, "bg-rose text-white")} onClick={async () => { if (await cancel({ jobId: h.jobId, reason: why, ...(note.trim() ? { note: note.trim() } : {}), tellOwner: tell.owner, tellInstaller: tell.installer }, "Job cancelled")) { onOpenChange(false); onDone(); } }}>Cancel job</button>
             <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => onOpenChange(false)}>Keep the job</button>
@@ -400,7 +404,7 @@ export function HoldDialog({ h, open, onOpenChange }: { h: Header; open: boolean
           <label className="block text-sm font-semibold">Until <Input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="mt-1" aria-label="Until" /></label>
           <p className="text-xs text-sub">Or leave blank until you resume it.</p>
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. owner overseas until 9 Nov" aria-label="Note" />
-          <TellTicks owner={tell.owner} installer={tell.installer} set={(o, i) => setTell({ owner: o, installer: i })} />
+          <TellTicks owner={tell.owner} installer={tell.installer} set={(o, i) => setTell({ owner: o, installer: i })} sends={false} />
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={why.length < 3} className={cn(btn, "bg-ink text-white")} onClick={async () => { if (await hold({ jobId: h.jobId, reason: why, ...(until ? { until } : {}), ...(note.trim() ? { note: note.trim() } : {}), tellOwner: tell.owner, tellInstaller: tell.installer }, "On hold")) onOpenChange(false); }}>Put on hold</button>
             <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => onOpenChange(false)}>Keep going</button>
@@ -472,8 +476,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
   return (
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className={cn(btn, "border border-line bg-paper text-hiv-blue")}>More ▾</button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-12 z-30 w-60 rounded-[14px] border border-line bg-paper p-1 shadow-lg" onClick={() => setOpen(false)}>
+      <MenuPanel open={open} onPick={() => setOpen(false)}>
           {h.stage === "on_hold" ? <button role="menuitem" type="button" className={item} onClick={() => void resume({ jobId: h.jobId, action: "resume" }, "Resumed")}>Resume</button>
             : !closed && <button role="menuitem" type="button" className={item} onClick={() => setDialog("hold")}>Put on hold</button>}
           {!h.isTest && <button role="menuitem" type="button" className={item} onClick={() => setDialog("test")}>Mark as test</button>}
@@ -481,8 +484,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
           {h.canReopen && <button role="menuitem" type="button" className={item} onClick={() => setDialog("reopen")}>Reopen…</button>}
           {h.canDelete && <button role="menuitem" type="button" className={cn(item, "text-rose")} onClick={() => setDialog("delete")}>Delete (test jobs only)</button>}
           {!closed && visitKind && <button role="menuitem" type="button" className={item} onClick={() => setDialog("override")}>Set a visit time by hand…</button>}
-        </div>
-      )}
+      </MenuPanel>
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
       <HoldDialog h={h} open={dialog === "hold"} onOpenChange={(v) => setDialog(v ? "hold" : null)} />
       <ReasonDialog title={`Mark ${h.jobNumber} as test`} description="It moves to Jobs › Closed › Removed / test and leaves every live list." action="Mark as test" tone="ink" open={dialog === "test"} onOpenChange={(v) => setDialog(v ? "test" : null)} run={async (reason) => !!(await markTest({ jobId: h.jobId, reason }, "Marked as test"))} />

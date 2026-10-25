@@ -1,9 +1,10 @@
 // Shared portal look (Jo approved 7 Oct 2026, phase 1). Presentation only: these pieces never decide
 // workflow, prices or access — pages pass in facts they already have.
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { menuOffset } from "@/lib/portal-presentation.core";
 import { Button } from "@/components/ui/button";
 
 /* ---------- Page frame ---------- */
@@ -49,6 +50,35 @@ export function Btn({ tone = "primary", className, ...p }: React.ButtonHTMLAttri
   return <button type="button" {...p} className={btnClass(tone, className)} />;
 }
 
+/* ---------- Dropdown menu panel ---------- */
+/**
+ * The panel under a "More ▾" / "Actions ▾" button. Render it inside the button's `relative` wrapper. It anchors to the
+ * button's start edge, flips to the end edge when it would run past the right of the viewport, and is clamped inside
+ * the viewport either way, so a button at the left of a phone screen and one at the right both show the whole menu.
+ * Presentation only.
+ */
+export function MenuPanel({ open, onPick, children, className, width = 240 }: { open: boolean; onPick?: () => void; children: ReactNode; className?: string; width?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [left, setLeft] = useState(0);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const el = ref.current, anchor = el?.parentElement;
+      if (!el || !anchor) return;
+      const a = anchor.getBoundingClientRect();
+      setLeft(menuOffset({ anchorLeft: a.left, anchorWidth: a.width, menuWidth: el.offsetWidth || width, viewportWidth: window.innerWidth }));
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open, width]);
+  if (!open) return null;
+  return (
+    <div ref={ref} role="menu" style={{ left, width }} className={cn("absolute top-[calc(100%+6px)] z-30 max-w-[calc(100vw-16px)] rounded-[14px] border border-line bg-paper p-1 shadow-lg", className)} onClick={onPick}>
+      {children}
+    </div>
+  );
+}
 /* ---------- Pills ---------- */
 export type PillTone = "plain" | "green" | "rose" | "amber";
 const PILL: Record<PillTone, string> = { plain: "bg-mist text-hiv-blue", green: "bg-mint text-hiv-green", rose: "bg-pink text-rose", amber: "bg-warning-soft text-foreground" };

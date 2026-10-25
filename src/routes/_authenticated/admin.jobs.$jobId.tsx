@@ -8,7 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { getOfficeJobPage } from "@/lib/office-screens.functions";
-import { parseJobSection } from "@/lib/allocation.core";
+import { parseJobSection } from "@/lib/job-section.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
 import { ContactHistory, FileList, JobHeader, JobMoreMenu, LogNoteDialog, MoneyCard, NextPanel, StageCards, StageWorkspace } from "@/components/portal/office-job";
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { closedWhy, enquiryPile, ENQUIRY_PILES, jobsStage, JOBS_STAGES, reopenBlocker, reopenPlan, waitingOnLine } from "../src/lib/office-jobs.core";
+import { closedWhy, enquiryPile, ENQUIRY_LIST, jobsStage, JOBS_STAGES, reopenBlocker, reopenPlan, waitingOnLine } from "../src/lib/office-jobs.core";
 import { CLOSED_FILTERS, JOB_STAGES, closedAllCount } from "../src/lib/job-list-page.core";
 import { readFileSync } from "node:fs";
 
@@ -22,18 +22,11 @@ test("Jobs: every open stage maps to exactly one of the six stages; spot saved w
   expect(jobsStage({ stage: "on_hold", priorStage: "installation_booked", hasInstaller: true })).toBe("install");
 });
 
-test("Enquiries: exactly two piles, every enquiry in one of them", () => {
-  expect(ENQUIRY_PILES.map((p) => p.label)).toEqual(["Fix details", "Waiting on owner"]);
-  const samples = [
-    { fullName: "jo", addressLine: "12 wattle st clayton", suburb: null, postcode: null },
-    { fullName: "MARGARET DOYLE", addressLine: "8 Carrington Rd, Box Hill 3128", suburb: null, postcode: null },
-    { fullName: "asdf", addressLine: "15 Lum Road Wheelers Hill 3150", suburb: null, postcode: null },
-    { fullName: "Nadia Petrova", addressLine: "3 Lakeview Drive", suburb: "Lilydale", postcode: "3140" },
-    { fullName: "Aisha Karim", addressLine: "unit 3/22 High Street Road", suburb: null, postcode: null },
-  ];
-  const piles = samples.map(enquiryPile);
-  expect(piles).toEqual(["fix_details", "waiting_owner", "fix_details", "waiting_owner", "fix_details"]);
-  for (const p of piles) expect(ENQUIRY_PILES.filter((x) => x.key === p)).toHaveLength(1);
+test("Enquiries: ONE list (decision 281) — every enquiry is Waiting on owner, whatever its name or address looks like", () => {
+  expect(ENQUIRY_LIST).toEqual({ key: "waiting_owner", label: "Waiting on owner" });
+  for (let i = 0; i < 5; i++) expect(enquiryPile()).toBe("waiting_owner"); // one pile per job holds trivially
+  const core = readFileSync("src/lib/office-jobs.core.ts", "utf8");
+  expect(core).not.toMatch(/fix_details|needsFixDetails|Fix details"/);
 });
 
 test("Waiting on column", () => {

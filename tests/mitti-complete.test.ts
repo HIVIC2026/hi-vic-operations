@@ -44,7 +44,7 @@ test("wiring: one completion step for both forms, behind the switch; retry/watch
   const srv = readFileSync("src/lib/mitti-complete.server.ts", "utf8");
   // Jo 24 Oct "manual for the first few weeks": preparation on, automatic send off (office presses Send).
   expect(srv).toContain("const enabled = i.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;");
-  expect(srv).toContain("enabled: sendEnabled });");
+  expect(srv).toContain("enabled: sendEnabled, entries: i.entries });"); // decision 278: the form snapshot rides along for the price check
   expect(srv).toContain(".neq(\"status\", \"complete\")"); // completes once (compare-and-swap)
   expect(srv).toContain("stageEntryBlockers(jobId, to)"); // guarded stage moves, held with reasons
   expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepCompletedMittiReadyChecks()");

@@ -155,8 +155,22 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
     const repeat = await findOpenRepeatJob(source, email ?? "", input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
     if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
   }
-
   if (!owner) throw new Error("Owner could not be saved.");
+
+  // Decision 282 (Jo 25 Oct): only the address matters. Any OTHER open job at this address (whoever the owner is,
+  // whichever channel) gets the office flag and no second job is made: an installer path is told the job number
+  // (never assigned to someone else's job — trade isolation), the website/office/email paths get that job back.
+  if (!existingJob) {
+    const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
+    const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, source });
+    if (open) {
+      const { duplicateAddressFrom, duplicateAddressMessage } = await import("./duplicate-address.core");
+      const installer = origin.channel === "installer_sourced";
+      await flagDuplicateAddress(open, actorId, { from: duplicateAddressFrom(source, origin.channel), business_id: installer ? origin.businessId : null, business_name: installer ? await businessNameFor(origin.businessId) : null, request_key: input.external_enquiry_id ?? null, full_name: input.full_name, email, phone: input.phone ?? null, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null });
+      if (installer) throw new Error(duplicateAddressMessage(open.job_number));
+      return { job_id: open.id, job_number: open.job_number, created: false, post_intake: "none" as const, duplicate_address: true as const };
+    }
+  }
   // Decision 216: every address is stored as street / suburb / postcode the same way for every source. A website
   // one-line address with no suburb is split by the pure tidy (never inventing a suburb or postcode); installers'
   // own entries are kept exactly as typed.
@@ -181,6 +195,7 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
       await logEvent(existingJob.id, actorId, "repeat_enquiry_attached", `Same owner filled in the calculator again; attached to this job instead of creating a new one.${sizeNote}`, { repeat_external_enquiry_id: repeatOf, previous_area_m2: before, area_m2: after });
     }
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
+    if (addrChanged) await completeAddressAtIntake(existingJob.id, propFields, source, preserveEntered);
     if (source === "base44") await completeIntake(existingJob.id, owner!.id, input as EnquiryInput);
     if (source === "qa_test") return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: "none" as const };
     const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
@@ -214,6 +229,7 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: Home Insulation Victoria-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
+  await completeAddressAtIntake(job.id, propFields, source, preserveEntered);
   if (source === "base44") await completeIntake(job.id, owner!.id, input as EnquiryInput);
   // QA records stay permanently isolated from live post-intake automation.
   if (source === "qa_test") return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
@@ -221,6 +237,19 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
   const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
   if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback
   return { job_id: job.id, job_number: job.job_number, created: true, post_intake: queued };
+}
+
+/**
+ * Decision 281: a website / phone / email enquiry whose suburb or Victorian postcode is still blank after the split is
+ * completed from the address lookup NOW (bounded 4s, same provider as Add a job, fills blanks only, audited as
+ * `address_completed` / `address_lookup_unresolved`); the 15-minute tick retries later. Installer-entered addresses
+ * are kept as typed and TEST jobs never call the live provider. Never fails intake.
+ */
+async function completeAddressAtIntake(jobId: string, p: { suburb: string | null; postcode: string | null }, source: string, preserveEntered: boolean) {
+  if (preserveEntered || source === "qa_test") return;
+  if ((p.suburb ?? "").trim() && /^[38]\d{3}$/.test((p.postcode ?? "").trim())) return;
+  try { await (await import("./address-complete.server")).completeJobAddress(jobId, { trigger: "intake" }); }
+  catch (e) { console.error("address completion at intake skipped", e instanceof Error ? e.message : e); }
 }
 
 /** Merge Base44 Gate 1 evidence under enrichment.base44 without touching other keys (e.g. verified portal facts). */

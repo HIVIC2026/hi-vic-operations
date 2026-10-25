@@ -189,20 +189,21 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { admin, l, w, bizName } = await resolveLink(data.token);
     await admin.from("worker_job_links").update({ last_opened_at: new Date().toISOString(), open_count: (l.open_count ?? 0) + 1 }).eq("id", l.id);
-    const [{ data: j }, { data: events }, { data: msgs }, { data: a }, { data: m }, { data: books }] = await Promise.all([
+    // Speed (decision 280): every read here depends only on the link — one round trip, not three (this page polls every 20s).
+    const [{ data: j }, { data: events }, { data: msgs }, { data: a }, { data: m }, { data: books }, { data: mb }, { data: rels }, { visitIsCurrent }] = await Promise.all([
       admin.from("job_overview").select("job_number, stage, next_action, property_address, owner_name, piesa_date, install_deadline, days_remaining, life_support").eq("id", l.job_id).maybeSingle(),
       admin.from("workflow_events").select("summary, created_at").eq("job_id", l.job_id).eq("internal", false).order("created_at", { ascending: false }).limit(15),
       admin.from("messages").select("id, body, created_at, sender_label, worker_id, sender_id, profiles(full_name)").eq("job_id", l.job_id).eq("internal", false).order("created_at"),
       admin.from("assessments").select("external_mitti_id").eq("job_id", l.job_id).maybeSingle(),
       admin.from("ceiling_measurements").select("external_id, external_source").eq("job_id", l.job_id).eq("is_current", true).maybeSingle(),
       admin.from("bookings").select("kind, scheduled_start, status").eq("job_id", l.job_id).in("status", ["proposed", "confirmed"]).order("scheduled_start"),
+      admin.from("businesses").select("mitti_account_invited").eq("id", l.business_id).maybeSingle(),
+      // Approved direct-contact rule: owner name, phone and email for the active visit only.
+      admin.from("contact_releases").select("visit_kind, job_assignments!inner(business_id, active)").eq("job_id", l.job_id).is("revoked_at", null).eq("job_assignments.business_id", l.business_id),
+      import("./allocation.core"),
     ]);
     if (!j) throw new Error("This job is no longer available.");
-    const { data: mb } = await admin.from("businesses").select("mitti_account_invited").eq("id", l.business_id).maybeSingle();
     const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
-    // Approved direct-contact rule: owner name, phone and email for the active visit only.
-    const { data: rels } = await admin.from("contact_releases").select("visit_kind, job_assignments!inner(business_id, active)").eq("job_id", l.job_id).is("revoked_at", null).eq("job_assignments.business_id", l.business_id);
-    const { visitIsCurrent } = await import("./allocation.core");
     const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {

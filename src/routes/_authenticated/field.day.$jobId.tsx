@@ -35,8 +35,8 @@ function DayPage() {
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
   const done = useAction(completeInstallation);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000 });
-  const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000 });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000 });
+  const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const [started, setStarted] = useState(false);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);

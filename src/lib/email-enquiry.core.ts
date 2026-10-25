@@ -56,7 +56,7 @@ export function phoneIn(text: string): string | null {
 }
 
 export type EmailEnquiryPlan = {
-  /** Display name tidied (decision 216); empty when the From has no usable name (the Fix details pile asks the office). */
+  /** Display name tidied (decision 216); empty when the From has no usable name (stored as is, editable on the job page — decision 281). */
   fullName: string;
   email: string;
   phone: string | null;

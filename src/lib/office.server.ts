@@ -195,7 +195,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const apAt = entered.get(`${id}:ready_for_veec`) ?? null;
     const facts: JobFacts = {
       id, stage, createdAt: String(j["created_at"]), lastActivityAt: s(j["last_activity_at"]), enteredStageAt: entered.get(`${id}:${stage}`) ?? null,
-      holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]),
+      holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]), ownJob: j["channel"] === "installer_sourced",
       campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]), queuePriority: s(c["queue_priority"]) } : null,
       estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null, measurementStartedAt: measAt.get(id) ?? null,
       proposalPending: proposal.get(id) ?? null,

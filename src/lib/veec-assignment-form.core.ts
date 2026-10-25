@@ -12,6 +12,7 @@
 //     is alerted on day 10. Wording here is DRAFT until Jo approves; sends stay TEST-only behind the flags below.
 import type { FieldValue, FormField } from "./assignment.core";
 import { addMelbourneBusinessDays } from "./melbourne-time.core";
+import { warrantyHoldReason } from "./product-warranty.core";
 
 export const VEEC_FORM_VERSION = "ESC-Activity48-VEEC-Assignment-v1.1-20261001";
 export const VEEC_FORM_TITLE = "VEEC Assignment Form Template: Ceiling Insulation (Activity 48) – Residential Premises";
@@ -241,6 +242,8 @@ export type ApPrerequisiteFacts = {
   piesaCopyToOwnerAt: string | null;
   escNotificationSentAt: string | null;
   warrantyCopyProvidedAt: string | null;
+  /** VEU checklist G1: installed product option(s) whose manufacturer warranty PDF is not on file, so the completion pack could not give the consumer a copy (product-warranty.core). Omitted/[] = not known or all on file. */
+  warrantyProductsNotOnFile?: string[];
   /** Installer names on the form → when their collection notice was recorded (null = not recorded). */
   collectionNotices: { installer: string; providedAt: string | null }[];
 };
@@ -255,7 +258,12 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
   if (!before24h(x.piesaCopyToInstallerAt, x.installStart)) b.push("PIESA copy to the lead installer is not recorded at least 24 hours before the installation started.");
   if (!before24h(x.piesaCopyToOwnerAt, x.installStart)) b.push("PIESA copy to the owner is not recorded at least 24 hours before the installation started.");
   if (!before24h(x.escNotificationSentAt, x.installStart)) b.push("ESC installation notification is not recorded as sent at least 24 hours before the installation started.");
-  if (!x.warrantyCopyProvidedAt) b.push("Product warranty copy (minimum 5 years) given to the consumer is not recorded.");
+  if (!x.warrantyCopyProvidedAt) {
+    // G1: the completion pack records the copy itself when the manufacturer's PDF is on file; name the product that stops it.
+    const gaps = (x.warrantyProductsNotOnFile ?? []).filter(Boolean);
+    if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p));
+    else b.push("Product warranty copy (minimum 5 years) given to the consumer is not recorded.");
+  }
   if (!x.collectionNotices.length) b.push("No installer is listed on the form yet.");
   for (const n of x.collectionNotices) if (!n.providedAt) b.push(`ESC scheme participant collection notice to ${n.installer} is not recorded.`);
   return b;

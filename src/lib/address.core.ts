@@ -164,3 +164,41 @@ export function suburbFromLine(line: string): string {
   const tail = withoutPostcode.slice(withoutPostcode.lastIndexOf(",") + 1);
   return tail.replace(/\bVIC\b/gi, "").replace(/\s+/g, " ").trim();
 }
+
+// ---------- Decision 282 (Jo 25 Oct 2026): the property address is the ONLY duplicate key. ----------
+// Pure normalisation shared by Add a job, Upload jobs, the website and Mitti pickup: unit / number / street /
+// suburb / postcode, case- and abbreviation-insensitive ("Unit 2, 5 Smith St" = "2/5 smith street").
+const STREET_WORDS: [RegExp, string][] = [
+  [/\bst\b/g, "street"], [/\brd\b/g, "road"], [/\bave?\b/g, "avenue"], [/\bdr\b/g, "drive"], [/\bcr?t\b/g, "court"],
+  [/\bcres\b/g, "crescent"], [/\bcr\b/g, "crescent"], [/\bpl\b/g, "place"], [/\bhwy\b/g, "highway"], [/\bblvd\b/g, "boulevard"],
+  [/\bpde\b/g, "parade"], [/\btce\b/g, "terrace"], [/\bgr\b/g, "grove"], [/\bgrv\b/g, "grove"], [/\bcl\b/g, "close"], [/\bln\b/g, "lane"],
+  [/\bcct\b/g, "circuit"], [/\besp\b/g, "esplanade"], [/\bsq\b/g, "square"], [/\bgdns\b/g, "gardens"],
+];
+const addrNorm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9/]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** "Unit 2, 5 Smith St" / "U2 5 Smith Street" / "2 / 5 smith st" → "2/5 smith street". Empty when no street text. */
+export function normaliseStreetLine(line: string | null | undefined): string {
+  const raw = String(line ?? "");
+  // "Unit 2, 5 Smith St, Bundoora VIC 3083": the unit's own comma is kept, everything after the street part goes.
+  const unitLead = raw.match(/^\s*(?:unit|apt|apartment|flat|shop|u)\s*([0-9]+[a-z]?)\s*,\s*/i);
+  const street = unitLead ? `${unitLead[1]}/${raw.slice(unitLead[0].length).split(",")[0]}` : raw.split(",")[0]!;
+  let k = addrNorm(street);
+  k = k.replace(/^(?:unit|apt|apartment|flat|shop|u)\s*([0-9]+[a-z]?)\s+(?=[0-9])/, "$1/");
+  k = k.replace(/^([0-9]+[a-z]?)\s*\/\s*/, "$1/");
+  for (const [re, full] of STREET_WORDS) k = k.replace(re, full);
+  return k.replace(/\s+/g, " ").trim();
+}
+
+export type AddressKeyInput = { address_line: string | null | undefined; suburb: string | null | undefined; postcode: string | null | undefined };
+/**
+ * The duplicate key: street line + postcode (the postcode names the place more reliably than typed suburb spellings);
+ * the suburb stands in only when no postcode is known anywhere. Null when there is no street to compare.
+ */
+export function addressKey(a: AddressKeyInput): string | null {
+  const street = normaliseStreetLine(a.address_line);
+  if (!street) return null;
+  const postcode = String(a.postcode ?? "").match(/\d{4}/)?.[0] ?? extractPostcode(String(a.address_line ?? ""));
+  const suburb = addrNorm(a.suburb).replace(/\bvic(toria)?\b/g, "").replace(/\s+/g, " ").trim();
+  const place = postcode || suburb;
+  return place ? `${street}|${place}` : null;
+}

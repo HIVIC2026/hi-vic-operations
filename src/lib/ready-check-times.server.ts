@@ -183,8 +183,8 @@ export async function acceptOfferWithTimes(offerId: string, userId: string, pick
 
 /** Installer view: whose move, open times, and the days/times they may offer. */
 export async function installerReadyCheckState(jobId: string, userId: string) {
-  await requireInstaller(jobId, userId);
-  const c = await context(jobId);
+  // Speed (decision 280): the access check and the read-only context run together; a refused check still throws first.
+  const [, c] = await Promise.all([requireInstaller(jobId, userId), context(jobId)]);
   const canOffer = c.job?.channel === "hivic_sourced" && c.job.stage === "ready_check_ready_to_schedule" && (c.turn === "installer_to_offer" || c.turn === "installer_to_answer");
   const canChange = c.turn === "booked" && changeBlockers(c).length === 0;
   return { ...view(c), applies: c.job?.channel === "hivic_sourced", canChange, days: canOffer || canChange ? allowedReadyCheckDays() : [] };

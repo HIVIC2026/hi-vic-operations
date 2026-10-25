@@ -19,9 +19,11 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
   });
   test("ACT postcode still refused", () => expect(onsiteProblems({ ...restoreCustomer({}), postcode: "2604" })).toContain("We can only take Victorian jobs — this one can't be added"));
   test("save label never says Start or Book", () => expect(SAVE_LABEL).toBe("Add job"));
-  test("duplicate email errors become the neutral office line", () => {
+  test("raw unique-key errors become the neutral office line; the address message (decision 282) is shown as is", () => {
     expect(saveErrorMessage('duplicate key value violates unique constraint "owners_email_uq"')).toBe(NEUTRAL_SAVE_ERROR);
     expect(saveErrorMessage("This email is already on another customer record. Contact the office")).toBe(NEUTRAL_SAVE_ERROR);
+    expect(saveErrorMessage("This address already has an open job (HV-3201) — the office has been told. No new job was added; your details are kept.")).toContain("HV-3201");
+    expect(readFileSync("src/lib/add-job-flow.core.ts", "utf8")).not.toContain("customer who isn't yours"); // decision-273 email passthrough is gone
   });
   test("form state uses the server's own reason", () => {
     expect(formLabel({ kind: "open", url: "x" }).label).toBe("Form available");

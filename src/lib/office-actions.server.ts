@@ -1,30 +1,57 @@
-// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, O4 inline fix). The O1 email rows use
+// Office actions behind the redesigned screens (O2 More menu, O3/O4 Actions, the audited enquiry details save). The O1 email rows use
 // the backend's email-office.server (decisions 245/247).
-// Every change is audited through workflow_events and uses the existing guarded paths; nothing here sends a message.
+// Every change is audited through workflow_events and uses the existing guarded paths; the only sends are the ticked
+// Cancel notices (decision 291), delegated to cancel-notice.server.ts behind the existing guarded senders.
 // Server-only; callers (office-screens.functions.ts) have already checked requireAdmin.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { fixDetailsErrors, tidyEnquiryDetails } from "./name-address-tidy.core";
+import { tidyEnquiryDetails } from "./name-address-tidy.core";
 import { reopenPlan } from "./office-jobs.core";
 
-/** Owner email / installer text on Cancel and Hold: the dialog is approved (228) but the wording is not yet (227), so the
- *  ticks are recorded for the office and NOTHING is sent until Jo approves the wording and a guarded sender exists. */
-export const CANCEL_HOLD_NOTICE_WORDING_APPROVED = false;
+/** Owner email / installer notice on Hold (decision 233): the dialog is approved (228) but the HOLD wording is not, so the
+ *  ticks are recorded for the office and NOTHING is sent until Jo approves it. Cancel notices are approved (decision 291:
+ *  O69 / I70, `cancel-notice.core.ts` CANCEL_NOTICE_EMAILS_APPROVED) and sent by `cancel-notice.server.ts`. */
+export const HOLD_NOTICE_WORDING_APPROVED = false;
 
 export type TellTicks = { owner: boolean; installer: boolean };
+
+type InstallerRecipient = import("./cancel-notice.server").InstallerRecipient;
+
+/** Decision 291: who gets I70 — the installer business active on the job (read BEFORE the cancel ends it), else the originating business. */
+async function installerRecipientFor(jobId: string, originatingBusinessId: string | null): Promise<InstallerRecipient | null> {
+  const { isTestPartner } = await import("./test-send.core");
+  type Biz = { name: string | null; trading_name: string | null; email: string | null; onboarding_notes: string | null };
+  const { data: asg } = await admin.from("job_assignments").select("business_id, profiles:user_id(full_name, email), businesses(name, trading_name, email, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
+  if (asg) {
+    const biz = (asg.businesses ?? null) as Biz | null;
+    const prof = (asg.profiles ?? null) as { full_name: string | null; email: string | null } | null;
+    return { businessId: asg.business_id ?? null, contactName: prof?.full_name ?? biz?.trading_name ?? biz?.name ?? null, email: biz?.email ?? prof?.email ?? null, isTestPartner: isTestPartner(biz) };
+  }
+  if (!originatingBusinessId) return null;
+  const { data: biz } = await admin.from("businesses").select("name, trading_name, email, onboarding_notes").eq("id", originatingBusinessId).maybeSingle();
+  if (!biz) return null;
+  const b = biz as Biz;
+  return { businessId: originatingBusinessId, contactName: b.trading_name ?? b.name ?? null, email: b.email ?? null, isTestPartner: isTestPartner(b) };
+}
 
 /**
  * Decision 227: Cancel at any time. Reason required; moves the job to Closed; stops reminders and texts (every reminder
  * path skips cancelled jobs, and open ESC notices are cancelled); releases any held install day and the installer
  * (future bookings cancelled, open day offers superseded, pending trade offers withdrawn, active assignments ended);
- * keeps history (nothing deleted). Owner email / installer text only when ticked — recorded, not sent (wording to approve).
+ * keeps history (nothing deleted). Decision 291: when ticked, the owner gets email O69 and the installer email I70
+ * through the guarded senders (`cancel-notice.server.ts`), one event per send, never twice for the same cancellation.
  */
 export async function cancelJobFully(jobId: string, reason: string, actorId: string, opts: { note?: string | null; tell?: TellTicks; bulk?: boolean } = {}) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
-  const { data: job, error } = await admin.from("jobs").select("stage, job_number").eq("id", jobId).maybeSingle();
+  const { data: job, error } = await admin.from("jobs").select("stage, job_number, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (error || !job) throw new WorkflowError("Job not found.");
   if (job.stage === "cancelled") throw new WorkflowError(`${job.job_number} is already cancelled.`);
   if (job.stage === "complete") throw new WorkflowError(`${job.job_number} is complete — a completed job cannot be cancelled.`);
+  const tell = opts.tell ?? { owner: false, installer: false };
+  // Decision 291: the installer to tell is read before the assignment is ended below; the cancel number keys the notices.
+  const installerRecipient = tell.installer ? await installerRecipientFor(jobId, (job as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null) : null;
+  const { data: priorCancels } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "job_cancel_released");
+  const cancelSeq = priorCancels?.length ?? 0;
   const full = opts.note?.trim() ? `${reason.trim()} · ${opts.note.trim()}` : reason.trim();
   const { applyHoldOrCancel } = await import("./job-disposition.server");
   await applyHoldOrCancel(jobId, "cancel", full, actorId, { decision: 227, reason: reason.trim(), note: opts.note?.trim() || null, ...(opts.bulk ? { bulk: true } : {}) });
@@ -41,10 +68,20 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
   for (const r of [books, props, offers, asg, esc, holds]) if (r.error) throw new Error(`Cancelled, but releasing the job's bookings failed: ${r.error.message}. Open the job and check.`);
   await admin.from("jobs").update({ next_action: null }).eq("id", jobId);
   const released = { bookings: books.data?.length ?? 0, dayOffers: props.data?.length ?? 0, tradeOffers: offers.data?.length ?? 0, trades: asg.data?.length ?? 0, escNotices: esc.data?.length ?? 0, installHolds: holds.data?.length ?? 0 };
-  await logEvent(jobId, actorId, "job_cancel_released", `Cancelled: released ${released.bookings} booking(s), ${released.trades} trade(s), ${released.tradeOffers} open offer(s); reminders and texts stop. History kept.`, { ...released, decision: 227 }, { internal: true });
-  const tell = opts.tell ?? { owner: false, installer: false };
-  if (tell.owner || tell.installer) await logEvent(jobId, actorId, "cancel_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "text the installer"].filter(Boolean).join(" and ")} — not sent: the wording is still to be approved (decision 227).`, { tell, wording_approved: CANCEL_HOLD_NOTICE_WORDING_APPROVED }, { internal: true });
-  return { ok: true, released, noticesSent: false };
+  await logEvent(jobId, actorId, "job_cancel_released", `Cancelled: released ${released.bookings} booking(s), ${released.trades} trade(s), ${released.tradeOffers} open offer(s); reminders and texts stop. History kept.`, { ...released, cancel_seq: cancelSeq, decision: 227 }, { internal: true });
+  let notices: import("./cancel-notice.server").CancelNoticeResult = { owner: null, installer: null };
+  if (tell.owner || tell.installer) {
+    // History: the ticks themselves (decision 227), then one event per send / hold (decision 291).
+    const { CANCEL_NOTICE_EMAILS_APPROVED } = await import("./cancel-notice.core");
+    await logEvent(jobId, actorId, "cancel_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "email the installer"].filter(Boolean).join(" and ")} — sending by email (decision 291).`, { tell, wording_approved: CANCEL_NOTICE_EMAILS_APPROVED, cancel_seq: cancelSeq }, { internal: true });
+    try {
+      const { sendCancelNotices } = await import("./cancel-notice.server");
+      notices = await sendCancelNotices(jobId, actorId, tell, { cancelSeq, installer: installerRecipient });
+    } catch (e) {
+      await logEvent(jobId, actorId, "cancel_notice_held", `Cancel notices could not be sent: ${(e as Error).message}`, { tell, cancel_seq: cancelSeq, decision: 291 }, { internal: true }).catch(() => undefined);
+    }
+  }
+  return { ok: true, released, notices, noticesSent: notices.owner?.status === "sent" || notices.installer?.status === "sent" };
 }
 
 /** Decision 227 (+ office gaps A4): a closed job reopens with a reason — every closed reason except Completed. Undoes
@@ -93,7 +130,7 @@ export async function holdJob(jobId: string, reason: string, actorId: string, op
   await applyHoldOrCancel(jobId, "hold", full, actorId, { decision: 233, reason: reason.trim(), until: opts.until ?? null });
   if (opts.until) { const { error } = await admin.from("jobs").update({ hold_revisit_at: opts.until }).eq("id", jobId); if (error) throw new Error(error.message); }
   const tell = opts.tell ?? { owner: false, installer: false };
-  if (tell.owner || tell.installer) await logEvent(jobId, actorId, "hold_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "text the installer"].filter(Boolean).join(" and ")} — not sent: the wording is still to be approved.`, { tell, wording_approved: CANCEL_HOLD_NOTICE_WORDING_APPROVED }, { internal: true });
+  if (tell.owner || tell.installer) await logEvent(jobId, actorId, "hold_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "email the installer"].filter(Boolean).join(" and ")} — not sent: the hold wording is still to be approved.`, { tell, wording_approved: HOLD_NOTICE_WORDING_APPROVED }, { internal: true });
   return { ok: true, noticesSent: false };
 }
 
@@ -120,19 +157,26 @@ export async function logCallOrNote(jobId: string, actorId: string, i: { what: L
   return { id };
 }
 
-/** O4 inline fix (decision 216/238): the tidy runs on save; only a complete, valid name + split address is accepted. */
-export async function saveFixDetails(jobId: string, actorId: string, v: { fullName: string; street: string; suburb: string; postcode: string }) {
-  const errors = fixDetailsErrors(v);
-  if (errors.length) throw new WorkflowError(`Still to fix: ${errors.join(", ")}.`);
+/**
+ * The one audited save for an enquiry's name / street / suburb / postcode (decision 216 tidy on save; decision 281: used
+ * by the automatic address completion — the inline form on Enquiries is gone). Nothing is required beyond a street: a
+ * first-name-only or odd name is stored tidied, as it is, and is editable on the job page like any other field.
+ * `event` lets the completion record its own workflow event type, summary and details.
+ */
+export async function saveEnquiryDetails(jobId: string, actorId: string | null, v: { fullName: string; street: string; suburb: string; postcode: string },
+  event: { type?: string; summary?: string; details?: Record<string, unknown> } = {}) {
   const t = tidyEnquiryDetails({ fullName: v.fullName, addressLine: v.street, suburb: v.suburb, postcode: v.postcode });
+  if (!t.street) throw new WorkflowError("A street address is needed.");
+  if (t.postcode && !/^[38]\d{3}$/.test(t.postcode)) throw new WorkflowError("The postcode must be a Victorian postcode.");
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, owners(full_name), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) throw new WorkflowError("Job not found.");
   const before = { name: (job.owners as { full_name?: string } | null)?.full_name ?? null, ...(job.properties as Record<string, unknown> | null) };
   const [o, p] = await Promise.all([
     admin.from("owners").update({ full_name: t.fullName }).eq("id", job.owner_id),
-    admin.from("properties").update({ address_line: t.street, suburb: t.suburb, postcode: t.postcode, state: "VIC" }).eq("id", job.property_id),
+    admin.from("properties").update({ address_line: t.street, suburb: t.suburb || null, postcode: t.postcode || null, state: "VIC" }).eq("id", job.property_id),
   ]);
   if (o.error || p.error) throw new Error(`Details could not be saved: ${(o.error ?? p.error)!.message}`);
-  await logEvent(jobId, actorId, "enquiry_details_fixed", `Details fixed: ${t.fullName} · ${t.street}, ${t.suburb} ${t.postcode}`, { before, after: { name: t.fullName, address_line: t.street, suburb: t.suburb, postcode: t.postcode }, decision: 216 }, { internal: true });
+  await logEvent(jobId, actorId, event.type ?? "enquiry_details_fixed", event.summary ?? `Details fixed: ${t.fullName} · ${t.street}, ${t.suburb} ${t.postcode}`,
+    { before, after: { name: t.fullName, address_line: t.street, suburb: t.suburb, postcode: t.postcode }, decision: 216, ...(event.details ?? {}) }, { internal: true });
   return { ok: true, fullName: t.fullName, street: t.street, suburb: t.suburb, postcode: t.postcode };
 }

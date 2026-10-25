@@ -28,6 +28,9 @@ test("complete = all done; cancelled keeps what was done and nothing is Now; enq
 
 test("installers' own customers: no estimate, installer arranges the visit", () => {
   const own = buildStageCards({ ...facts, ownJob: true, enquiry: { ...facts.enquiry, estimateTotal: null, linkSentAt: null, linkViewedAt: null }, readyCheck: { ...facts.readyCheck, visitAt: null } });
-  expect(own[0]!.lines[1]!.value).toBe("Not used for installers' own customers");
+  // Nothing to show = no row: the Enquiry card has no Estimate line for an installer's own customer.
+  expect(own[0]!.lines.map((l) => l.label)).toEqual(["Received", "Owner said", "Eligibility", "Photos"]);
   expect(own[1]!.lines[1]!.value).toBe("Installer arranges directly");
+  // A website enquiry keeps its Estimate row.
+  expect(buildStageCards(facts)[0]!.lines.find((l) => l.label === "Estimate")!.value).toContain("$5,120 after the VEEC incentive");
 });

@@ -1,5 +1,6 @@
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
-// Who's doing this, Messages, More. The electrician's visit flow shares this route unchanged.
+// Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
+// and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
@@ -31,7 +32,7 @@ import { installTimeLabel } from "@/lib/install-days.core";
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
 function useMittiInvited() {
   const load = useServerFn(getMyMittiInvited);
-  return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
+  return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load(), staleTime: 300_000 }).data?.invited === true;
 }
 import { MeasurementReadOnly, useJobScope } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
@@ -41,8 +42,8 @@ import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
-import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, sendMessage } from "@/lib/portal.functions";
-import { aud, fmtDateTime } from "@/lib/workflow";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment } from "@/lib/portal.functions";
+import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -51,8 +52,8 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
-import { completeView, electricianRow, firstName, installRow, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
-import { QUICK_ACTIONS } from "@/lib/messaging.core";
+import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -62,7 +63,7 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
 function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
-  const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
+  const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   if (role === "installer") return <TradeShell installer><InstallerFlow jobId={jobId} job={job} /></TradeShell>;
@@ -93,7 +94,7 @@ function FieldJob() {
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
-        <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" ? { role } : {})} /></div></details>
+        <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History and documents</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} />{role === "electrician" && <MessagesPanel jobId={jobId} isAdmin={false} role="electrician" />}</div></details>
       </div>
       </div>
     </TradeShell>
@@ -280,7 +281,7 @@ type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
 
 function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const load = useServerFn(getTradeJobPage);
-  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000 });
+  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);
@@ -294,9 +295,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
     piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
+    formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss,
   }) : null;
-  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length }) : null;
+  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
+  // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
+  const status = page ? installerStatusLine({ channel: page.channel, formLinked: page.form.linked, formCompleted: page.form.completed, formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, quoteLine: page.quote?.line ?? null }) : null;
   const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
+  const showQuoteStatus = !!status && (status.kind === "quote" || status.kind === "none");
   const atReadyCheck = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(job.stage ?? "");
   const elecRow = page ? electricianRow({ name: page.piesa.electrician ?? (page.form.electrician?.startsWith("Home Insulation Victoria") ? "Home Insulation Victoria electrician" : page.form.electrician), piesaBookedAt: page.piesa.bookedAt, piesaPassedOn: page.piesa.passedOn, fixesNote: page.piesa.fixesNote }) : null;
   const installLine = page ? installRow({ doneAt: page.install.recordedAt, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 }) : null;
@@ -344,14 +349,15 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextPanel>
       )}
 
-      {page && (
+      {page && (showQuoteStatus || (page.boss && page.channel === "installer_sourced") || page.pay.amount != null) && (
         <Group title="Quote">
-          <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />
+          {showQuoteStatus && <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />}
           {/* Approved M2-quote-declined: the pay line is hidden when there is no install. */}
           {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
           {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
-          {!page.quote && page.form.linked && page.channel === "installer_sourced" && <Note>Your price goes in the Mitti form. We add the $349 Accredited Provider fee and send the owner their quote.</Note>}
-          <OwnerQuoteCard jobId={jobId} hideStatus />
+          {/* Decision 278: the business owner's price card — the server returns nothing for team members. */}
+          {page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}
+          {showQuoteStatus && <OwnerQuoteCard jobId={jobId} hideStatus />}
           {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
           {installLine && <Row label="Install" value={installLine} last />}
         </Group>
@@ -363,7 +369,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       {page && readyCheck && (atReadyCheck || page.form.linked) && (
         <Group title="Ready Check">
           {(readyCheck.visit !== "Not booked yet" || page.channel === "hivic_sourced") && <Row label="Visit" value={readyCheck.visit} />}
-          {readyCheck.form && <Row label="Mitti form" value={page.form.linked && !page.form.completed && page.form.missing.length === 0 && page.form.stops.length === 0 && !page.readyCheck.done ? "Ready · nothing filled in yet" : readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
+          {readyCheck.form && <Row label="Mitti form" value={readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
           {page.form.linked && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
           {!page.form.linked && page.channel === "hivic_sourced" && <MittiOnly jobId={jobId} which="ready_check" />}
         </Group>
@@ -371,43 +377,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
 
-      <InstallerMessages jobId={jobId} />
-
       <details>
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>More · staff job links</span><span className="text-xl">›</span></summary>
         <div className="py-3"><WorkerLinksPanel jobId={jobId} /></div>
       </details>
     </Screen>
-  );
-}
-
-/** Messages (decisions 36/40): the latest message, the three quick replies, and "Write a message". Direct contact is
- *  by Call/Text above — this is the shared job conversation the office can also see. */
-function InstallerMessages({ jobId }: { jobId: string }) {
-  const [writing, setWriting] = useState(false);
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const send = useAction(sendMessage);
-  const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
-  const { data, refetch } = useQuery({ queryKey: ["messages", jobId], refetchInterval: 60_000, queryFn: async () => (await supabase.from("messages").select("*, profiles(full_name)").eq("job_id", jobId).eq("internal", false).order("created_at")).data ?? [] });
-  const submit = async (text: string) => { if (!text.trim() || busy) return; setBusy(true); try { await send({ jobId, body: text, internal: false }); setBody(""); setWriting(false); await refetch(); } finally { setBusy(false); } };
-  const shown = writing ? (data ?? []).slice(-5) : (data ?? []).slice(-1);
-  return (
-    <Group title="Messages">
-      {shown.length === 0 && <p className="py-2.5 text-[15px] text-sub">No messages yet.</p>}
-      {shown.map((m) => { const mine = me && m.sender_id === me; return (
-        <div key={m.id} className="border-b border-line py-2.5">
-          <p className="text-[13px] text-sub">{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria"} · {fmtDateTime(m.created_at)}</p>
-          <p className="mt-0.5 whitespace-pre-wrap text-[15px] leading-[1.45]">{m.body}</p>
-        </div>
-      ); })}
-      <div className="mt-2.5 flex flex-wrap gap-2">{QUICK_ACTIONS.installer.map((q) => <button key={q} type="button" disabled={busy} className="inline-flex min-h-10 items-center rounded-full border border-line px-3.5 text-sm disabled:opacity-50" onClick={() => void submit(q)}>{q}</button>)}</div>
-      {!writing ? <div className="mt-1.5"><LinkRow onClick={() => setWriting(true)}>Write a message</LinkRow></div> : (
-        <div className="mt-3 space-y-2">
-          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={4000} placeholder="Your message to the owner" />
-          <div className="flex gap-2"><button type="button" disabled={busy || !body.trim()} className="min-h-11 flex-1 rounded-xl border border-hiv-blue text-[15px] font-semibold text-hiv-blue disabled:opacity-45" onClick={() => void submit(body)}>{busy ? "Sending…" : "Send"}</button><button type="button" className="min-h-11 px-4 text-[15px] font-semibold text-sub" onClick={() => setWriting(false)}>Cancel</button></div>
-        </div>
-      )}
-    </Group>
   );
 }

@@ -218,7 +218,7 @@
   --radius: 0.5rem;
   /* Portal design tokens (Jo approved 7 Oct 2026). */
   --hiv-ink: #22376b;
-  --hiv-sub: #65728d;
+  --hiv-sub: #5a6785; /* decision 277: 5.7:1 on white, 5.2:1 on mist (was #65728d, 4.5:1 on mist) */
   --hiv-blue: #3c51c4;
   --hiv-green: #07864b;
   --hiv-line: #e4e9f5;
@@ -449,7 +449,8 @@
 .portal-theme [data-slot="input"] { min-height: 42px; padding: 11px 12px; }
 
 /* Installer redesign, Style A (approved mock-ups M1–M3, decision 198): mock-up tokens for the opted-in trade screens. */
-.estimate-brand.portal-theme.installer-redesign { --hiv-sub: #5a6785; --hiv-mist: #f2f4fc; --hiv-green: #07bf61; --hiv-canvas: #ffffff; --estimate-green: #07bf61; }
+/* Decision 277: trade-screen sub text is #4b5a7c (6.9:1 on white, 6.3:1 on mist) so row labels pass WCAG AA. */
+.estimate-brand.portal-theme.installer-redesign { --hiv-sub: #4b5a7c; --hiv-mist: #f2f4fc; --hiv-green: #07bf61; --hiv-canvas: #ffffff; --estimate-green: #07bf61; }
 
 /* Trade portal — approved design (7 Oct 2026): older trade page classes pick up the approved look. */
 .estimate-brand.portal-theme { --estimate-green: #07864b; --estimate-accent: #07864b; --estimate-line: var(--hiv-line); }

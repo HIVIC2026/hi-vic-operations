@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/partner/import")({
 function ImportPage() {
   const navigate = useNavigate();
   const loadProfile = useServerFn(getPartnerProfile);
-  const { data: profile, isLoading, isError, isFetching, refetch } = useQuery({ queryKey: ["partner-profile", "mine"], queryFn: () => loadProfile({ data: {} }), retry: 1 });
+  const { data: profile, isLoading, isError, isFetching, refetch } = useQuery({ queryKey: ["partner-profile", "mine"], queryFn: () => loadProfile({ data: {} }), retry: 1, staleTime: 30_000 });
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer redesign>

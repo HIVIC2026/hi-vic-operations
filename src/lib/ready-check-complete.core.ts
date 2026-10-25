@@ -40,8 +40,9 @@ export function readyCheckFactsFromEntries(
     lifeSupportReviewed: !stops.includes(STOP_LIFE_SUPPORT) && !/^y/i.test(String(find(entries, ["Office life support result"]) ?? "")),
     builtLast5Years: stops.includes(STOP_BUILT_5),
     noSafeAccess: stops.includes(STOP_NO_SAFE_ACCESS),
-    // Photos are optional in Mitti (Jo 23 Oct): missing ones move to the install-day lock, never block the quote.
-    depthPhoto: depthPhoto || belowR2Tick || insulationNo,
+    // Decision 268 (Jo 25 Oct): the ruler photo is REQUIRED whenever existing insulation is present; the old
+    // "No photo? I confirm below R2" tick no longer stands in for it. Still counts as on file when there is none.
+    depthPhoto: depthPhoto || insulationNo,
     overviewPhoto: overviewPhoto || insulationYes,
     contactPermission: contactAnswersFromEntries(entries as { label: string; value: string | null }[]).contactPermission,
     electricianDecided: opts.electricianDecided,

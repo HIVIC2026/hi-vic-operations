@@ -6,6 +6,9 @@
 // to the office (Needs me "Choose again"). With a switch off the office picks as today (decisions 49, 157, 220).
 // Pure rules only: who gets the next automatic offer, or why nobody does. The existing guarded offer senders
 // (officePickReadyCheckInstaller / startPiesaAllocation) still check every gate before anything is written.
+// TEST parity: a qa_test job is offered automatically too (so the TEST phone run sees the offer), but ONLY to
+// [TEST PARTNER] businesses, and a live job is never offered to a TEST partner (same rule as `partnerAllowedForJob`
+// / `offerPairBlocker` in test-send.core, which the senders enforce again before any row is written).
 
 export type AutoOfferKind = "ready_check" | "piesa";
 export const AUTO_OFFER_OPEN_HOURS = 24;
@@ -18,6 +21,14 @@ export const AUTO_OFFER_RETURNED_EVENT = "auto_offer_returned_to_office";
 export const AUTO_OFFER_SWITCH: Record<AutoOfferKind, "auto_installer_offers" | "auto_electrician_offers"> = {
   ready_check: "auto_installer_offers", piesa: "auto_electrician_offers",
 };
+/** Stages a job waits in for this offer. PIESA: after the owner accepts the measured quote the job sits in
+ *  `measured_quote_accepted` (decisions 139–141: the $349 safety check clears the PIESA request gate; nothing moves the
+ *  stage until the first electrician offer goes out), or it is back in `piesa_and_install_window_pending` after a
+ *  cancelled PIESA booking. The server checks the PIESA request gate itself before treating such a job as ready. */
+export const AUTO_OFFER_READY_STAGES: Record<AutoOfferKind, readonly string[]> = {
+  ready_check: ["ready_check_ready_to_schedule"], piesa: ["measured_quote_accepted", "piesa_and_install_window_pending"],
+};
+export const autoOfferStageReady = (kind: AutoOfferKind, stage: string | null | undefined): boolean => !!stage && AUTO_OFFER_READY_STAGES[kind].includes(stage);
 export const AUTO_OFFER_KIND_LABEL: Record<AutoOfferKind, string> = { ready_check: "Ready Check (installer)", piesa: "PIESA (electrician)" };
 
 /** Fails closed: only an explicit boolean true turns a switch on. */
@@ -41,6 +52,8 @@ export type AutoOfferCandidate = {
   workersCleared: boolean;
   /** Any other existing eligibility blocker (approval, own-customers-only, no agreed rate, owner times …); null = none. */
   blocker: string | null;
+  /** `isTestPartner` (test-send.core): the business carries the [TEST PARTNER] mark. */
+  testPartner: boolean;
   activeJobs: number;
   /** Straight-line km from the business base to the job postcode; null = unknown (sorted last). */
   distanceKm: number | null;
@@ -52,8 +65,17 @@ export type AutoOfferStep =
   | { action: "offer"; businessId: string; name: string; attempt: number; basis: "usual_electrician" | "coverage"; activeJobs: number; distanceKm: number | null }
   | { action: "return_to_office"; reason: "two_misses" | "no_match"; misses: number; tried: string[] };
 
+/** Test/live parity (fails closed both ways): a TEST job only to TEST partners, a live job never to a TEST partner. */
+export function autoOfferParityBlocker(c: Pick<AutoOfferCandidate, "testPartner">, jobIsTest: boolean): string | null {
+  if (jobIsTest && c.testPartner !== true) return "A TEST job can only be offered to TEST partners.";
+  if (!jobIsTest && c.testPartner === true) return "A real job can never be offered to a TEST partner.";
+  return null;
+}
+
 /** Why a candidate can't get the automatic offer (null = it can). */
-export function autoOfferExclusion(c: AutoOfferCandidate, tried: Set<string>): string | null {
+export function autoOfferExclusion(c: AutoOfferCandidate, tried: Set<string>, jobIsTest = false): string | null {
+  const parity = autoOfferParityBlocker(c, jobIsTest);
+  if (parity) return parity;
   if (tried.has(c.business_id)) return "Already offered this job (declined or lapsed).";
   if (c.paused) return "Paused — not accepting new jobs.";
   if (!c.credentialsOk) return "A required document (e.g. public liability) has expired.";
@@ -67,14 +89,14 @@ const byDistance = (a: AutoOfferCandidate, b: AutoOfferCandidate) =>
   (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY);
 
 /** Installers: eligible only, fewest active jobs, then nearest, then name. */
-export function rankAutoInstallers(cands: AutoOfferCandidate[], tried: Set<string> = new Set()): AutoOfferCandidate[] {
-  return cands.filter((c) => !autoOfferExclusion(c, tried))
+export function rankAutoInstallers(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), jobIsTest = false): AutoOfferCandidate[] {
+  return cands.filter((c) => !autoOfferExclusion(c, tried, jobIsTest))
     .sort((a, b) => a.activeJobs - b.activeJobs || byDistance(a, b) || a.name.localeCompare(b.name));
 }
 
 /** Electricians: the installer's usual electrician first (when eligible), then nearest, then fewest active jobs, then name. */
-export function rankAutoElectricians(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), usualBusinessId: string | null = null): AutoOfferCandidate[] {
-  return cands.filter((c) => !autoOfferExclusion(c, tried))
+export function rankAutoElectricians(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), usualBusinessId: string | null = null, jobIsTest = false): AutoOfferCandidate[] {
+  return cands.filter((c) => !autoOfferExclusion(c, tried, jobIsTest))
     .sort((a, b) => Number(b.business_id === usualBusinessId) - Number(a.business_id === usualBusinessId) || byDistance(a, b) || a.activeJobs - b.activeJobs || a.name.localeCompare(b.name));
 }
 
@@ -85,8 +107,10 @@ export function autoOfferMisses(rows: AutoOfferRow[]): number {
 
 export type AutoOfferFacts = {
   kind: AutoOfferKind; switchOn: boolean;
-  /** Right stage/channel, not deleted, not a TEST job, and (PIESA) the office-picks mode with no per-job override. */
+  /** Right stage/channel, not deleted, (PIESA) request gate cleared, office-picks mode with no per-job override. */
   jobReady: boolean;
+  /** jobs.source === "qa_test": candidates are limited to TEST partners (and live jobs never reach them). Missing = live. */
+  jobIsTest?: boolean;
   hasTrade: boolean;
   /** An `auto_offer_returned_to_office` event already exists for this kind: the office has it now. */
   returned: boolean;
@@ -114,7 +138,8 @@ export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandida
   const blocked = autoOfferBlocked(f);
   if (blocked) return blocked;
   const done = new Set(tried(f.rows));
-  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done) : rankAutoElectricians(f.candidates, done, f.usualBusinessId ?? null);
+  const jobIsTest = f.jobIsTest === true;
+  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, f.usualBusinessId ?? null, jobIsTest);
   const misses = autoOfferMisses(f.rows);
   const pick = ranked[0];
   if (!pick) return { action: "return_to_office", reason: "no_match", misses, tried: [...done] };

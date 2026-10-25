@@ -42,7 +42,7 @@ describe("M1 states", () => {
 describe("M2 states", () => {
   test("own customer before the Ready Check: arrange it directly, time entry panel", () => {
     const own: JobNextFacts = { ...base, channel: "installer_sourced", stage: "ready_check_ready_to_schedule", ownerFirstName: "Mei", formCompleted: false, quoteLine: null, readyCheckTurn: null, readyCheckBookedAt: null };
-    expect(jobNext(own)).toMatchObject({ panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: "You arrange the visit with Mei directly. Measurements, photos, product and your price all go in the form.", yours: true });
+    expect(jobNext(own)).toMatchObject({ panel: "ready_check_set_time", title: "Do the Ready Check and fill in the Mitti form", sub: "You arrange the visit with Mei directly. Measurements, photos and product all go in the form.", yours: true });
     expect(quoteStatusRow(null, { formLinked: true }).label).toBe("Prepared once you press Complete in Mitti");
   });
   test("needs finishing: 'Add 4 things in Mitti' with the approved list from ready-check-basics", () => {
@@ -118,7 +118,7 @@ describe("M2 states", () => {
       pay: { amount: 2890, state: { kind: "coming", on: "2026-11-02T21:00:00Z" } }, piisaSignedAt: "2026-10-26T21:00:00Z", installerSignedAt: "2026-10-26T22:00:00Z", ownerSignedAt: "2026-10-27T22:00:00Z", apSignedAt: "2026-10-28T22:00:00Z" });
     expect(v.heading).toBe("HV-3117 · Glen Waverley");
     expect(v.sub).toBe("Home Insulation Victoria lead · Job complete Tue 27 Oct");
-    expect(v.done).toEqual({ title: "Nothing more to do", body: "Rebate form signed by you and the owner. The office has checked the photos. Owner contact details are no longer shown." });
+    expect(v.done).toEqual({ title: "Nothing more to do", body: "Rebate form signed by you and the owner. Part A of the rebate form is signed. Owner contact details are no longer shown." });
     expect(v.summary).toEqual([["Installed", "Bradford Gold R5.0 · 137.6 m²"], ["Removed", "40 m²"], ["Crew", "Raj Kumar, Deep Singh"], ["Your pay", "$2,890 · Coming Tue 3 Nov"]]);
     expect(v.paperwork).toEqual([["PIISA", "Signed Tue 27 Oct"], ["Rebate form Part B", "Signed Tue 27 Oct"], ["Owner's part", "Signed Wed 28 Oct"]]);
     expect(completeView({ jobNumber: null, suburb: null, channel: null, completedAt: null, product: null, areaM2: null, removalM2: null, crew: [], pay: null, piisaSignedAt: null, installerSignedAt: null, ownerSignedAt: null, apSignedAt: null }).paperwork[2]).toEqual(["Owner's part", "Not signed yet"]);
@@ -136,6 +136,24 @@ describe("M2 states", () => {
     expect(s.button).toBe("Allocate to Raj");
     expect(allocationSheet({ kind: "install", visitAt: null, suburb: null, chosen: "tom", options: s.rows.map((r) => ({ workerId: r.workerId, name: r.name, mobile: null, allowed: r.allowed, reason: null, picked: false })) }).button).toBeNull();
     expect(allocationSheet({ kind: "ready_check", visitAt: null, suburb: null, chosen: null, options: [] }).title).toBe("Who does the Ready Check?");
+  });
+  test("decision 277: no Messages section or quick replies on the installer job page; headings navy, labels readable", () => {
+    const page = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
+    expect(page).not.toMatch(/InstallerMessages|QUICK_ACTIONS|title="Messages"|Write a message/);
+    expect(page).toMatch(/<ContactButtons phone=/); // the installer still contacts the owner by Call / Text / Directions
+    const core = readFileSync("src/lib/messaging.core.ts", "utf8");
+    expect(core).not.toMatch(/installer:\s*\[|sent you 3 days|Running 15 min late/);
+    const kit = readFileSync("src/components/trade/installer-kit.tsx", "utf8");
+    expect(kit).toMatch(/uppercase tracking-\[1\.1px\] text-ink/); // Group heading
+    const css = readFileSync("src/styles.css", "utf8");
+    expect(css).toMatch(/\.installer-redesign \{ --hiv-sub: #4b5a7c;/);
+    const mockups = ["docs/templates/approved/installer-redesign/M2-job-page.html", ...["change-allocation", "complete", "install-booked", "needs-finishing", "own-before-ready-check", "piesa-booked", "quote-declined", "quote-held", "quote-sent", "sign-rebate-form"].map((s) => `docs/templates/approved/installer-redesign/states/M2-${s}.html`)];
+    for (const f of mockups) {
+      const html = readFileSync(f, "utf8");
+      expect(html, f).not.toMatch(/>Messages<|Write a message|sent you 3 days|Running 15 min late|I'm on my way/);
+      expect(html, f).not.toMatch(/text-transform:uppercase;color:#5A6785/);
+      expect(html, f).not.toMatch(/font-size:15px;"><span style="color:#5A6785;/);
+    }
   });
 });
 
@@ -159,7 +177,7 @@ describe("M4 states", () => {
     expect(leadInstallerDeclaration({ address: null, installedOn: null, product: null, areaM2: null, removalM2: null })).toBe("I was the lead installer. The information in Section 2 is true and correct.");
     expect(signRebateChecks({ installFormCompletedAt: "2026-10-27T03:40:00Z", evidenceChecked: true, crew: [], piisaSigned: true, swmsComplete: true })).toEqual(["Install form Complete · Tue 27 Oct at 2:40pm", "SWMS and PIISA signed", "Photos and videos checked by the portal"]);
     expect(signRebateChecks({ installFormCompletedAt: null, evidenceChecked: false, crew: [], piisaSigned: true })).toEqual(["PIISA signed"]);
-    expect(signRebateThen("Anita", 2890, "hivic_sourced")).toEqual([["Owner", "Anita signs their part by secure link"], ["Office", "Checks the photos and signs it off"], ["Your pay", "$2,890 · within 7 days of our approval"]]);
+    expect(signRebateThen("Anita", 2890, "hivic_sourced")).toEqual([["Owner", "Anita signs their part by secure link"], ["Office", "Does the final check; Part A of the form signs itself"], ["Your pay", "$2,890 · within 7 days of our approval"]]);
     expect(signRebateThen(null, null, "installer_sourced")).toHaveLength(2);
   });
 });
@@ -262,7 +280,7 @@ describe("M3 heavier Add a job (decision 237)", () => {
     expect(v.line1).toBe("HV-3166 · 18 Bogong Avenue, Glen Waverley");
     expect(v.line2).toBe("Helen Yang · 0412 345 678");
     expect(v.card).toEqual({ title: "Your Ready Check form is ready in Mitti", body: "Ready Check Mon 26 Oct at 7:30am — it's in your 6:30am text. Fill in as much as you can at the visit. Press Complete only when it's fully finished — that sends Helen their quote.", button: "Open Mitti form" });
-    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your form: your price plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
+    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your Ready Check and the price you enter on the job page, plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
     expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "preparing", message: "soon" } }).card).toMatchObject({ title: "Your Ready Check form is being set up in Mitti", button: null });
     expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "retry", message: "No signal." } }).card).toMatchObject({ title: "Job added — form not ready yet", button: "Try again" });
   });

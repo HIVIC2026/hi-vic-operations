@@ -9,6 +9,7 @@ import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
+import type { InstallerQuote } from "./installer-quote-status.server";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
 
@@ -89,33 +90,52 @@ export async function tradeHome(userId: string) {
   const wk0 = new Date(now); wk0.setDate(now.getDate() - ((now.getDay() + 6) % 7)); wk0.setHours(0, 0, 0, 0);
   const wk1 = new Date(wk0.getTime() + 7 * 86_400_000);
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
+  // Speed (decision 280): the month figures, status facts, Ready Check quote lines and ended assignments do not depend
+  // on each other — one round trip instead of five in a row, and the quote facts in one batch instead of one read per job.
+  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine }] = await Promise.all([
+    import("./job-status.server"), import("./installer-progress.core"), import("./installer-home.core"), import("./installer-quote-status.server"), import("./installer-quote-status.core"),
+  ]);
+  const liveIds = live.map((j) => j.id);
+  const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
+  const [moneyAll, sf, rcQuotes, { data: ended }] = await Promise.all([
+    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
+    statusFactsFor(c, liveIds),
+    // Installer quote status — one plain line, no approval step (Jo 24 Oct). A failed read drops the lines, never the page.
+    c.kind === "installer" ? loadInstallerQuotes(liveIds).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
+    c.boss ? histQ : histQ.eq("user_id", userId),
+  ]);
   // This month (business owner only, own pay only): installs done this month and what was paid to this business this month.
-  const money = c.boss ? (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.billing === "hivic") : [];
+  const money = moneyAll.filter((r) => r.billing === "hivic");
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
   const paidThisMonth = money.filter((r) => r.state.kind === "paid" && new Date(r.state.on) >= m0).reduce((t, r) => t + (r.amount ?? 0), 0);
   const offerList = (offers ?? []).filter((o) => myOffer(o.kind))
     .map((o) => { const s = (o.summary ?? {}) as { suburb?: string | null; approx_area_m2?: number | null }; return { id: o.id, kind: o.kind, suburb: s.suburb ?? null, areaM2: s.approx_area_m2 ?? null, expiresAt: o.expires_at }; });
   const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Arranging the Ready Check time", ready_check_complete: "Office checking your Ready Check", on_hold: "On hold (office review)" };
-  const { statusFactsFor, statusView } = await import("./job-status.server");
-  const sf = await statusFactsFor(c, live.map((j) => j.id));
   const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!.place, status: (j as { next_action?: string | null }).next_action?.startsWith("Needs finishing") ? (j as { next_action: string }).next_action : STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j) }));
   // Done: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, source, terminal reason) — no owner, address, contact or price, and no reopened access.
-  const { installerTab, doneReason } = await import("./installer-progress.core");
-  // Installer quote status — one plain line, no approval step (Jo 24 Oct).
   const quoteLine = new Map<string, string>();
-  if (c.kind === "installer") {
-    const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]);
-    const { loadInstallerQuote } = await import("./installer-quote-status.server");
-    const { installerQuoteLine } = await import("./installer-quote-status.core");
-    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadInstallerQuote(id).catch(() => null); if (ap?.applies) quoteLine.set(id, installerQuoteLine(ap)); }
+  for (const [id, ap] of rcQuotes) if (ap.applies) quoteLine.set(id, installerQuoteLine(ap));
+  // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
+  // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
+  const formFacts = new Map<string, { linked: boolean; completed: boolean; hasAnswers: boolean | null }>();
+  const priced = new Set<string>();
+  if (c.kind === "installer" && live.length) {
+    const ids = live.map((j) => j.id);
+    const [{ data: ms }, { data: basics }, prices] = await Promise.all([
+      admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
+      admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+      (await import("./installer-price.server")).readInstallerPrices(ids),
+    ]);
+    const latest = new Map<string, { completed?: boolean; answered?: boolean }>();
+    for (const b of basics ?? []) if (b.job_id && !latest.has(b.job_id)) latest.set(b.job_id, (b.details ?? {}) as { completed?: boolean; answered?: boolean });
+    for (const m of ms ?? []) if (m.external_source === "mitti" && m.external_id) { const d = latest.get(m.job_id); formFacts.set(m.job_id, { linked: true, completed: d?.completed === true, hasAnswers: typeof d?.answered === "boolean" ? d.answered : null }); }
+    for (const id of prices.keys()) priced.add(id);
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
   const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") ? "action" as const : "progress" as const : j.tab }));
-  const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
-  const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
   const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));
   const { data: histJobs } = histIds.length
     ? await admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
@@ -125,12 +145,13 @@ export async function tradeHome(userId: string) {
     ...(histJobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, channel: j.channel as string | null, stage: j.stage, endedAt: j.updated_at ?? null, reason: doneReason(j.stage), open: false })),
   ];
   // Installer home (mock-up M1): one "Next:" line and one group per job, from the pure rules only.
-  const { installerHomeGroups } = await import("./installer-home.core");
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null,
+    formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
+    priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
   }))) : null;
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, home, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
@@ -140,17 +161,25 @@ export async function tradeOffer(offerId: string, userId: string) {
   const c = await ctxOrThrow(userId);
   const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, expires_at, offered_at, superseded_at").eq("id", offerId).maybeSingle();
   if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
-  const timing = offerTiming(o.offered_at, await offerSuggestHours());
+  // Speed (decision 280): once the offer row is known, the suggest-hours setting, the owner's PIESA windows, this
+  // business's live assignment, the owner's own answers and the job number are independent — one round trip, not five.
+  const [hours, { data: winRows }, { data: liveAsg }, says, { data: jn }] = await Promise.all([
+    offerSuggestHours(),
+    // Jo 24 Oct 2026 (decision 52): a Ready Check offer is accepted by offering the owner 3 times — the owner gives none.
+    o.kind === "ready_check"
+      ? Promise.resolve({ data: [] as { id: string; starts_at: string; ends_at: string | null; status: string }[] })
+      : admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).not("piesa_window_round", "is", null).order("starts_at"),
+    // Review B: contact details only while this business still holds an ACTIVE assignment on the job (and, for a worker, their own).
+    o.status === "accepted" ? assignmentQuery(c, userId).eq("job_id", o.job_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
+    // Decision 201: the two plain lines come from the owner's OWN answers on the job (never an aerial/measured figure).
+    o.kind === "ready_check" ? ownerSaysFor(o.job_id) : Promise.resolve({ areaM2: null, insulation: null } as Awaited<ReturnType<typeof ownerSaysFor>>),
+    o.kind === "ready_check" ? admin.from("jobs").select("job_number").eq("id", o.job_id).maybeSingle() : Promise.resolve({ data: null as { job_number: string | null } | null }),
+  ]);
+  const timing = offerTiming(o.offered_at, hours);
   const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
-  // Jo 24 Oct 2026 (decision 52): a Ready Check offer is accepted by offering the owner 3 times — the owner gives none.
-  const { data: winRows } = o.kind === "ready_check"
-    ? { data: [] as { id: string; starts_at: string; ends_at: string | null; status: string }[] }
-    : await admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).not("piesa_window_round", "is", null).order("starts_at");
   const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
   const rcDays = o.kind === "ready_check" && o.status === "pending" ? (await import("./ready-check-times.core")).allowedReadyCheckDays() : [];
   let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
-  // Review B: contact details only while this business still holds an ACTIVE assignment on the job (and, for a worker, their own).
-  const { data: liveAsg } = o.status === "accepted" ? await assignmentQuery(c, userId).eq("job_id", o.job_id).limit(1).maybeSingle() : { data: null };
   if (o.status === "accepted" && liveAsg) {
     const bk = o.kind === "ready_check" ? "ready_check" : o.kind === "piesa" ? "assessment" : o.kind;
     const [{ data: b }, { data: j }] = await Promise.all([
@@ -161,9 +190,6 @@ export async function tradeOffer(offerId: string, userId: string) {
     const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
     if (b) locked = { owner: ow?.full_name ?? null, phone: ow?.phone ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b.scheduled_start, end: b.scheduled_end };
   }
-  // Decision 201: the two plain lines come from the owner's OWN answers on the job (never an aerial/measured figure).
-  const says = o.kind === "ready_check" ? await ownerSaysFor(o.job_id) : { areaM2: null, insulation: null };
-  const { data: jn } = o.kind === "ready_check" ? await admin.from("jobs").select("job_number").eq("id", o.job_id).maybeSingle() : { data: null };
   // Accepted (owner picking): the installer's own open times, so the accepted state can list them (approved state M5-accepted).
   const times = o.kind === "ready_check" && o.status === "accepted" && liveAsg ? (await (await import("./ready-check-times.server")).installerReadyCheckState(o.job_id, userId).catch(() => null)) : null;
   return {
@@ -274,7 +300,8 @@ export async function requireTradeJob(userId: string, jobId: string) {
 export async function tradeDay(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
-  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
+  // Speed (decision 280): every read here depends only on the job and the business — one round trip, not three.
+  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }, { data: mine }, { data: cgi }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
     admin.from("jobs").select("job_number, stage, channel, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
     admin.from("assessments").select("status, piesa_outcome, external_mitti_id").eq("job_id", jobId).maybeSingle(),
@@ -284,14 +311,14 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle(),
     admin.from("rectification_items").select("description").eq("job_id", jobId).neq("status", "cancelled"),
+    admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", kinds as never),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const b = (bks ?? [])[0] ?? null;
-  const { data: mine } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", kinds as never);
   const showContact = contactVisible(mine ?? []);
   const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
-  const { data: cgi } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle();
   let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string; visit: "ready_check" | "install" } = null;
   const cgiD = cgi?.details as { reason?: string; visit?: string } | null;
   if (cgi && dayKind === "ready_check" && j?.stage === "ready_check_ready_to_schedule" && cgiD?.visit !== "install") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "ready_check" };
@@ -366,15 +393,16 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const rows = (books ?? []).filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test"));
   const ids = [...new Set(rows.map((r) => r.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
-  const [{ data: paid }, { data: ap }, { data: offers }] = await Promise.all([
+  // Speed (decision 280): all five follow-up reads depend only on the job ids — one round trip, not three.
+  const [{ data: paid }, { data: ap }, { data: offers }, { data: invs }, { data: accQ }] = await Promise.all([
     admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "payout_marked_paid").in("job_id", ids.length ? ids : none),
     admin.from("workflow_events").select("job_id, created_at").eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").in("job_id", ids.length ? ids : none),
     admin.from("partner_offers").select("job_id, kind, summary").eq("business_id", bizId).eq("status", "accepted").in("job_id", ids.length ? ids : none),
+    // Owner paid in full (Xero mirror): needed alongside AP approval before the 7-day payout clock starts.
+    admin.from("invoices").select("job_id, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none),
+    // Committed contract snapshot: does the accepted HIV quote carry this electrical line?
+    admin.from("quotes").select("job_id, kind, quote_items(code, description), quote_internals(cost_ex_gst)").in("job_id", ids.length ? ids : none).eq("status", "accepted"),
   ]);
-  // Owner paid in full (Xero mirror): needed alongside AP approval before the 7-day payout clock starts.
-  const { data: invs } = await admin.from("invoices").select("job_id, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none);
-  // Committed contract snapshot: does the accepted HIV quote carry this electrical line?
-  const { data: accQ } = await admin.from("quotes").select("job_id, kind, quote_items(code, description), quote_internals(cost_ex_gst)").in("job_id", ids.length ? ids : none).eq("status", "accepted");
   // Our leads: the install pay is the installer's agreed-rate cost on the accepted quote (inc GST) until the office records the payout.
   const ratePay = (jobId: string): number | null => {
     const q = (accQ ?? []).find((x) => x.job_id === jobId && x.kind === "installation");
@@ -730,25 +758,30 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
 
 export async function tradeJobPage(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
-  const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti] = await Promise.all([
+  // Speed (decision 280): modules first (cached after the first call), then every independent read in one round trip —
+  // including the boss's own pay rows, which used to wait for everything else.
+  const [{ loadInstallerQuote }, { clearanceFacts }, { electricalClearance }, { mittiJobPresentation }, { needsFinishingTask }, { installerQuoteLine }, { needsFinishingList }, { currentAllocation }] = await Promise.all([
+    import("./installer-quote-status.server"), import("./allocation.server"), import("./allocation.core"), import("./mitti-job-presentation.server"),
+    import("./trade-view.core"), import("./installer-quote-status.core"), import("./installer-screens.core"), import("./visit-allocation.core"),
+  ]);
+  const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows] = await Promise.all([
     admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single(),
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
-    (await import("./installer-quote-status.server")).loadInstallerQuote(jobId),
+    loadInstallerQuote(jobId),
     installerPayForJob(jobId),
     installFormFacts(jobId),
-    (async () => { const { clearanceFacts } = await import("./allocation.server"); const { electricalClearance } = await import("./allocation.core"); return electricalClearance(await clearanceFacts(jobId)); })(),
-    c.kind === "installer" ? (await import("./mitti-job-presentation.server")).mittiJobPresentation(jobId, userId).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    clearanceFacts(jobId).then(electricalClearance),
+    c.kind === "installer" ? mittiJobPresentation(jobId, userId).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
   ]);
-  const { needsFinishingTask } = await import("./trade-view.core");
-  const { installerQuoteLine } = await import("./installer-quote-status.core");
-  const { needsFinishingList } = await import("./installer-screens.core");
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
-  const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }] = await Promise.all([
+  // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
+  const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady] = await Promise.all([
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
@@ -758,26 +791,27 @@ export async function tradeJobPage(jobId: string, userId: string) {
     admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
     admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    (async () => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null)(),
   ]);
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
   const evidence = (evEv?.details as { summary?: { blockers?: string[] } ; blockers?: string[] } | null) ?? null;
   const evidenceBlockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
-  const { currentAllocation } = await import("./visit-allocation.core");
   const installAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "install");
   const rcAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "ready_check");
   const crew = [...new Set([decl?.installer_name, installAlloc?.worker_name, rcAlloc?.worker_name].filter((x): x is string => !!x && x.trim().length > 0))];
   const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
-  const payRows = c.boss ? (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.jobId === jobId && r.kind === "installation") : [];
   const payRow = payRows[0] ?? null;
-  // Decision 251: only once the install is booked (the M2-install-booked state); nothing is read before that.
-  const ownerReady = inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null;
   return {
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
-      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null }
-      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null },
+      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null, hasAnswers: mitti.hasAnswers as boolean | null }
+      : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null, hasAnswers: null as boolean | null },
+    // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
+    // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
+    price: { entered: j?.channel === "installer_sourced" ? !!(await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null)) : null },
+    boss: c.boss,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },

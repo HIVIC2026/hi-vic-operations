@@ -27,7 +27,8 @@ function MyWork() {
   const [onlyChasing, setOnlyChasing] = useState(false);
   const [onlyMoving, setOnlyMoving] = useState(false);
   const [offersOpen, setOffersOpen] = useState(false);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000 });
+  // staleTime (decision 280): coming back from a job shows the last answer at once; the 60s poll and every action's invalidation still refresh it.
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000, staleTime: 20_000 });
   if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 min-h-11 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
   if (data === null) return <TradeShell installer={false}><p className={`${card} text-sm`}>Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out.</p></TradeShell>;

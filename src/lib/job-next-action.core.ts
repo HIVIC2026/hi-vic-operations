@@ -11,7 +11,7 @@ export type NextAction = { who: NextWho; sentence: string; button: { label: stri
 
 export type NextInput = {
   facts: NeedsFacts | null;
-  status: { label: string; waitingOn: string; detail: string | null; dueAt: string | null } | null;
+  status: { key?: string; label: string; waitingOn: string; detail: string | null; dueAt: string | null } | null;
   stage: JobsStage | null;
   closed: { kind: "cancelled" | "complete" | "ineligible"; reason: string | null } | null;
   onHold: { reason: string | null; until: string | null } | null;
@@ -27,7 +27,7 @@ const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   sign_consent: () => "Sign the ESC owner consent as the AP representative before the install.",
   esc_window: () => "Submit the ESC installation notification inside its window.",
   final_check: () => "Install complete — do the final check and approve.",
-  sign_veec_a: (f) => (f.veecPartA?.missing ? "Record the remaining prerequisites, then sign VEEC Part A." : "Sign VEEC Part A — the prerequisites are recorded."),
+  veec_a_held: (f) => `VEEC Part A signs itself once these are recorded: ${(f.veecApHeld?.reasons ?? []).join(" ")}`,
   send_failed: (f) => `A message to the owner failed: ${f.sendFailed?.text ?? ""}`,
 };
 
@@ -50,6 +50,8 @@ export function nextAction(i: NextInput, now: number): NextAction {
     };
   }
   if (!i.status) return { who: "us", sentence: "This job's status could not be worked out — check its records.", button: null, blocked: null };
+  // Installer's own customer at the Ready Check (decision 54): the installer arranges and does it; the office only watches.
+  if (i.status.key === "ready_check.installer_own") return { who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
   const who = WHO_FROM_STATUS[i.status.waitingOn] ?? "us";
   const tail = i.status.detail ? ` · ${i.status.detail}` : "";
   const sentence = who === "nobody" ? `${i.status.label}${tail}. Nothing for the office to do — it happens automatically.` : who === "us" ? `${i.status.label}${tail}.` : `Waiting for the ${who}: ${i.status.label.charAt(0).toLowerCase()}${i.status.label.slice(1)}${tail}.`;

@@ -1,10 +1,15 @@
-// Shared pieces for O3 Jobs and O4 Enquiries (decisions 225, 226, 227, 228): multi-select filter chips on every
-// column, sortable column headers, the quiet Actions ▾ menu with bulk Cancel, and the reason dialog. Presentation only.
+// Shared pieces for O3 Jobs and O4 Enquiries (decisions 225, 226, 227, 228, 286): multi-select filter chips (Jobs),
+// sortable column headers, column headings that sort AND filter from a small popover (Enquiries, decision 286), the
+// quiet Actions ▾ menu with bulk Cancel, and the reason dialog. Presentation only.
 import { useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { MenuPanel } from "@/components/portal/kit";
 import type { SortDir } from "@/lib/office-filters.core";
+import type { EnquiryColumn, Range } from "@/lib/enquiry-columns.core";
 
 export function ChipGroup<T extends string>({ label, options, labels, value, onChange }: { label: string; options: readonly T[]; labels: Record<T, string>; value: T[]; onChange: (v: T[]) => void }) {
   return (
@@ -37,18 +42,61 @@ export function SortHead({ label, k, sort, dir, onSort, className }: { label: st
   );
 }
 
+export type ColumnFilterValue = string | Range | string[] | undefined;
+
+/**
+ * Decision 286: a column heading that sorts AND filters. Tapping it opens a small popover: sort A→Z / Z→A, then the
+ * column's own filter — free text (Job / Owner / Address), min–max (Size / Estimate) or picks (Insulation / Last heard).
+ * A filtered heading shows a dot; "Clear" drops just this column's filter.
+ */
+export function ColumnHead({ col, sort, dir, value, onSort, onFilter, className }: {
+  col: EnquiryColumn; sort: string; dir: SortDir; value: ColumnFilterValue; onSort: (k: string, d: SortDir) => void; onFilter: (k: string, v: ColumnFilterValue) => void; className?: string;
+}) {
+  const on = sort === col.key;
+  const active = col.filter === "text" ? !!(value as string | undefined)?.trim() : col.filter === "range" ? (value as Range | undefined)?.min != null || (value as Range | undefined)?.max != null : !!(value as string[] | undefined)?.length;
+  const num = (s: string) => (s.trim() === "" ? undefined : Number.isFinite(Number(s)) ? Number(s) : undefined);
+  const sortBtn = (d: SortDir, label: string) => <button type="button" className={cn("rounded-[8px] border border-line px-2.5 py-1 text-xs font-semibold", on && dir === d ? "bg-ink text-white" : "bg-paper text-ink")} onClick={() => onSort(col.key, d)}>{label}</button>;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={cn("inline-flex items-center gap-1 text-left text-[11px] font-bold uppercase tracking-wide", on || active ? "text-ink" : "text-sub hover:text-ink", className)} aria-label={`Sort or filter by ${col.label}`}>
+          {col.label}{on ? (dir === "asc" ? " ▲" : " ▼") : ""}{active && <span aria-label="filtered" className="inline-block h-1.5 w-1.5 rounded-full bg-hiv-blue" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 rounded-[12px] border-line bg-paper p-3 text-sm">
+        <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wide text-sub">{col.label}</span>{active && <button type="button" className="text-xs font-semibold text-hiv-blue underline" onClick={() => onFilter(col.key, undefined)}>Clear</button>}</div>
+        <div className="mb-3 flex gap-1.5">{sortBtn("asc", col.filter === "range" ? "Low → high" : col.filter === "pick" && col.key === "heard" ? "Oldest first" : "A → Z")}{sortBtn("desc", col.filter === "range" ? "High → low" : col.filter === "pick" && col.key === "heard" ? "Newest first" : "Z → A")}</div>
+        {col.filter === "text" && <Input value={(value as string | undefined) ?? ""} onChange={(e) => onFilter(col.key, e.target.value || undefined)} placeholder={`Filter ${col.label.toLowerCase()}…`} className="h-9 bg-paper" aria-label={`Filter ${col.label}`} />}
+        {col.filter === "range" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-sub">Min {col.unit}<Input inputMode="numeric" value={(value as Range | undefined)?.min ?? ""} onChange={(e) => onFilter(col.key, { ...((value as Range | undefined) ?? {}), min: num(e.target.value) })} className="mt-1 h-9 bg-paper" /></label>
+            <label className="text-xs font-semibold text-sub">Max {col.unit}<Input inputMode="numeric" value={(value as Range | undefined)?.max ?? ""} onChange={(e) => onFilter(col.key, { ...((value as Range | undefined) ?? {}), max: num(e.target.value) })} className="mt-1 h-9 bg-paper" /></label>
+          </div>
+        )}
+        {col.filter === "pick" && (
+          <div className="flex flex-wrap gap-1.5">
+            {(col.options as readonly string[]).map((o) => {
+              const picked = ((value as string[] | undefined) ?? []).includes(o);
+              const label = (col.labels as Record<string, string>)[o] ?? o;
+              return <button key={o} type="button" aria-pressed={picked} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", picked ? "border-hiv-blue bg-hiv-blue text-white" : "border-line bg-paper text-ink")} onClick={() => { const cur = ((value as string[] | undefined) ?? []); const next = picked ? cur.filter((x) => x !== o) : [...cur, o]; onFilter(col.key, next.length ? next : undefined); }}>{label}</button>;
+            })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export type BulkAction = { key: string; label: string; danger?: boolean; needsSelection?: boolean };
 export function ActionsMenu({ actions, selected, onPick }: { actions: BulkAction[]; selected: number; onPick: (key: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="inline-flex min-h-[38px] items-center rounded-[10px] border border-line bg-paper px-3 text-[13px] font-bold text-hiv-blue">Actions ▾{selected ? ` (${selected})` : ""}</button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-11 z-30 w-60 rounded-[14px] border border-line bg-paper p-1 shadow-lg" onClick={() => setOpen(false)}>
-          {selected === 0 && <p className="px-3 py-2 text-xs text-sub">Tick rows first.</p>}
-          {actions.map((a) => <button key={a.key} role="menuitem" type="button" disabled={selected === 0} onClick={() => onPick(a.key)} className={cn("block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist disabled:opacity-40", a.danger && "text-rose")}>{a.label}{selected ? ` (${selected})` : ""}</button>)}
-        </div>
-      )}
+      <MenuPanel open={open} onPick={() => setOpen(false)}>
+        {selected === 0 && <p className="px-3 py-2 text-xs text-sub">Tick rows first.</p>}
+        {actions.map((a) => <button key={a.key} role="menuitem" type="button" disabled={selected === 0} onClick={() => onPick(a.key)} className={cn("block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist disabled:opacity-40", a.danger && "text-rose")}>{a.label}{selected ? ` (${selected})` : ""}</button>)}
+      </MenuPanel>
     </div>
   );
 }

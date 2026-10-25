@@ -26,6 +26,7 @@ import { renderConsentCopyEmail, CONSENT_COPY_EMAIL_APPROVED } from "../src/lib/
 import { renderDepositReleasedEmail, PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "../src/lib/deposit-release-notice.core";
 import { collectionNoticeEmail, COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_PARAGRAPHS } from "../src/lib/esc-collection-notice.core";
 import { bankDetailLines, HIV_BANK_DETAILS } from "../src/lib/payments.core";
+import { renderOwnerCancelledEmail, renderInstallerCancelledEmail, CANCEL_NOTICE_EMAILS_APPROVED } from "../src/lib/cancel-notice.core";
 
 const JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const EST = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
@@ -227,6 +228,20 @@ describe("approved owner email designs", () => {
     expect(m.html).toBe(readFileSync("docs/templates/approved/O64-deposit-released.html", "utf8"));
     expect(PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED).toBe(true);
   });
+  // Decision 291 (Jo 25 Oct 2026): the sample in docs/templates/approved is written by scripts/render-decision-291-samples.ts from this data.
+  test("O69 Job cancelled (owner): Jo's wording verbatim, no link, no price; matches the approved file", () => {
+    const m = renderOwnerCancelledEmail({ firstName: "Helen", jobNumber: "HV-3117", address: "824 High Street Road, Glen Waverley VIC 3150", officePhone: "03 9000 0000" });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("Your ceiling insulation job HV-3117 has been cancelled");
+    has(m.html, [">Job cancelled</h1>", ">Hi Helen,</p>", "We've cancelled your ceiling insulation job at 824 High Street Road, Glen Waverley VIC 3150, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.", "If this was a mistake or you'd like to pick it up again later, reply to this email or call us on 03 9000 0000.", ">Home Insulation Victoria</p>"]);
+    expect(m.html).not.toMatch(/\$\d|href=/);
+    has(m.text, ["Hi Helen,", "call us on 03 9000 0000.", "Home Insulation Victoria"]);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/O69-job-cancelled.html", "utf8"));
+    // No office number on file: the reply line only (nothing invented).
+    expect(renderOwnerCancelledEmail({ firstName: null, jobNumber: "HV-3117", address: null, officePhone: null }).html).toContain("If this was a mistake or you'd like to pick it up again later, reply to this email.</p>");
+    expect(renderOwnerCancelledEmail({ firstName: null, jobNumber: "HV-3117", address: null, officePhone: null }).html).toContain(">Hi there,</p>");
+    expect(CANCEL_NOTICE_EMAILS_APPROVED).toBe(true);
+  });
 });
 
 describe("approved installer email designs", () => {
@@ -279,6 +294,18 @@ describe("approved installer email designs", () => {
     const fixed = renderInstallClearanceEmail({ jobNumber: "HV-3117", ownerFirstName: null, fixesSignedOff: true, deadlineLabel: "23 November 2026", jobUrl: job.jobUrl });
     expect(fixed.html).toContain("The electrical safety check is done, and the fixes are signed off. Offer the owner three install days with arrival times from your job page.");
     expect(INSTALL_CLEARANCE_EMAIL_APPROVED).toBe(true);
+  });
+  test("I70 Job cancelled (installer, decision 291): email not text, Jo's wording verbatim, no owner name or price; matches the approved file", () => {
+    const m = renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: "824 High Street Road, Glen Waverley", officePhone: "03 9000 0000" });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("HV-3117 cancelled – 824 High Street Road, Glen Waverley");
+    has(m.html, [">HV-3117 cancelled</h1>", "HIV: HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.", ">Questions: 03 9000 0000.</p>"]);
+    expect(m.html).not.toMatch(/\$\d|href=|Helen/);
+    expect(m.text).toContain("HIV: HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.\n\nQuestions: 03 9000 0000.");
+    expect(m.html).toBe(readFileSync("docs/templates/approved/I70-job-cancelled.html", "utf8"));
+    expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain("HIV: HV-3117 at the property has been cancelled.");
+    expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain(">Questions: reply to this email.</p>");
+    expect(CANCEL_NOTICE_EMAILS_APPROVED).toBe(true);
   });
 });
 

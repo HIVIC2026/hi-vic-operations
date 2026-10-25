@@ -92,8 +92,8 @@ Server functions (all literal `createServerFn().middleware([requireSupabaseAuth]
 
 | Element | Route / condition | Server fn | Test | Why |
 |---|---|---|---|---|
-| Two piles: Fix details · Waiting on owner | `ENQUIRY_PILES`, `enquiryPile` | `getEnquiriesList` → `loadEnquiriesList` | N4, `enquiry-piles-one-pile-practice-db` | 238, 239 |
-| Inline fix with capitalisation tidy + address split, applied on save | `FixForm` | `saveEnquiryFixDetails` → `tidyEnquiryDetails`, `fixDetailsErrors` | N1 | 216 |
+| One list (decision 281 — no Fix details pile) | `ENQUIRY_LIST` | `getEnquiriesList` → `loadEnquiriesList` | N4, `enquiry-piles-one-pile-practice-db` | 238, 281 |
+| Automatic address completion (suburb / postcode from the lookup), tidy applied on save | — (no form) | `completeEnquiryAddresses` → `saveEnquiryDetails` → `tidyEnquiryDetails` | N1, `address-complete` | 216, 281 |
 | Tidy/split also at intake | `enquiry.server.ts` (one-line address, no suburb; not installer-sourced) | — | N1 | 216 |
 | Filters + priority rank (1 = hottest) | `rankByPriority` | — | N2 | 226 |
 | "Waiting on" column | `waitingOnLine` | — | N4 | 238 |

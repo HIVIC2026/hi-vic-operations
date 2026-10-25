@@ -11,8 +11,8 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
-  | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched"
-  | "choose_installer" | "choose_electrician" | "sign_veec_a"
+  | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed"
+  | "choose_installer" | "choose_electrician" | "veec_a_held"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
@@ -43,14 +43,16 @@ export type NeedsFacts = {
   fixesQuoteToCheck?: { at: string; reason: string | null } | null;
   /** ESC owner consent signed by the owner, waiting for the AP signature; dueAt = 24h before install. */
   consentToSign?: { at: string; dueAt: string | null } | null;
-  /** VEEC form: installer Part B signed, AP Part A not; prerequisites still missing. */
-  veecPartA?: { at: string; missing: number } | null;
+  /** VEEC form: installer Part B signed, Part A's automatic signature held >24h (decision 271) with the blocker reasons. Never "sign". */
+  veecApHeld?: { at: string; reasons: string[] } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
   finalCheck?: { at: string; flags: number } | null;
   /** Failed customer email / text (send-failed.core row text). */
   sendFailed?: { at: string; text: string } | null;
+  /** ESC Registry robot failed (decision 272): the office submits by hand (install notification → Registry block; VEEC → Final check). */
+  robotFailed?: { at: string; text: string; task: "install_notification" | "veec_creation" } | null;
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
   paymentOverdue?: { at: string; text: string } | null;
@@ -71,6 +73,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
+  if (f.robotFailed) add({ rank: 12, group: "today", kind: "robot_failed", line: f.robotFailed.text, since: f.robotFailed.at, button: f.robotFailed.task === "veec_creation" ? { label: "Lodge VEEC", to: "job", section: "final-check" } : { label: "Open Registry block", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
@@ -87,7 +90,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (f.spotSaved) add({ rank: 100, group: "week", kind: "choose_installer", line: "Spot saved · waiting for an installer", since: f.spotSaved.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
   if (f.electricianToChoose) add({ rank: 105, group: "week", kind: "choose_electrician", line: `Quote accepted · $349 paid · PIESA next${f.electricianToChoose.usual ? ` · usual electrician ${f.electricianToChoose.usual}` : ""}`, since: f.electricianToChoose.at, button: { label: "Send offer", to: "job", section: "piesa" } });
-  if (f.veecPartA) add({ rank: 120, group: "week", kind: "sign_veec_a", line: f.veecPartA.missing ? `VEEC Part A · ${f.veecPartA.missing} prerequisite${f.veecPartA.missing === 1 ? "" : "s"} still to record` : "VEEC Part A · prerequisites recorded", since: f.veecPartA.at, button: { label: "Sign", to: "job", section: "final-check" } });
+  if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
