@@ -84,3 +84,5 @@ reuse the `0149`/`0202` numbers for unrelated changes; refer to this record.
 - Live: workflow_settings.mitti_piisa_template_id set to 1f325828-3f71-4b1a-988f-083c83414f95 (A3 – Install day) on 25 Oct 2026 after PR #5 merged, with Jo's go.
 
 - Decision 269 (auto_electrician_offers = true) was applied to live workflow_settings on 25 Oct 2026 by Claude at Jo's instruction; auto_installer_offers stays false (decision 270).
+
+- 25 Oct 2026 (after PR #7, Claude at Jo's instruction): applied owners-email-not-unique.sql (owners_email_uq dropped, owners_email_idx added) and 0227_trade_speed_indexes.sql (four business-led indexes) to the live database.
