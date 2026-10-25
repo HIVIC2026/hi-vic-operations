@@ -823,6 +823,10 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
           try { await transition(q.job_id, "rectification_scheduling", context.userId, "Owner approved the electrical fixes – the owner pays the fixes in full, then picks the electrician's time"); }
           catch (e) { await logEvent(q.job_id, context.userId, "fixes_approved_stage_held", `Electrical fixes approved, but fixes scheduling could not open yet: ${(e as Error).message}`, { quote_id: q.id, needs_office: true }, { internal: true }); }
         }
+        // Audit R07: the approved fixes go onto the job's ONE Xero invoice (or are held for the office as one Needs me row).
+        // Best-effort: the owner's approval is already committed; every later Sync / webhook / poll retries it.
+        try { await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId); }
+        catch (e) { await logEvent(q.job_id, context.userId, "xero_invoice_repairs_failed", `Electrical fixes approved, but adding them to the Xero invoice failed – Sync retries: ${(e as Error)?.message ?? e}`, { quote_id: q.id }, { internal: true }).catch(() => null); }
         if (pickedWindow) await (await import("./owner-fixes.server")).bookPickedFixesTime(q.job_id, context.userId).catch(() => undefined);
         return { ok: true };
       }

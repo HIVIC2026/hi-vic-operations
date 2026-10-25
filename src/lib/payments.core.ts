@@ -141,6 +141,15 @@ export function fixesCountedCents(f: { rectTotalCents: number | null | undefined
   if (f.installAcceptedAt && Date.parse(f.rectAcceptedAt) < Date.parse(f.installAcceptedAt)) return 0;
   return Math.round(Number(f.rectTotalCents));
 }
+/** Audit R07: the plan's quote part. Once the approved fixes are on the ONE Xero invoice (`xero-repairs.core`), the
+ *  invoice total is quote + fixes; the plan keeps the accepted installation quote as its quote part so the fixes are
+ *  counted once and the plan's grand total equals the Xero invoice total. Otherwise the invoice total, as before. */
+export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number }): number {
+  const q = f.quoteTotalCents == null ? null : Math.round(f.quoteTotalCents);
+  if (f.fixesCents > 0 && q != null && Math.round(f.invoiceTotalCents) === q + Math.round(f.fixesCents)) return q;
+  return Math.round(f.invoiceTotalCents);
+}
+
 /** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer). */
 export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
 export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {
