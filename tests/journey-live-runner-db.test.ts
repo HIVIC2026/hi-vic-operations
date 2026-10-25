@@ -137,6 +137,7 @@ describe("live journey runner — TEST setup from a fresh live database", () => 
     for (const s of run.result.steps) {
       if (!s.passed || process.env["JOURNEY_DEBUG"]) console.log(`${s.passed ? "PASS" : "FAIL"} ${s.label}${s.error ? ` — ${s.error}` : ""}`, s.passed ? "" : JSON.stringify(s.checks.filter((c) => !c.ok)));
     }
+    if (!run.result.passed && run.ctx.jobId) console.log((await q<{ event_type: string; summary: string }>("select event_type, summary from workflow_events where job_id=$1 order by created_at desc limit 25", [run.ctx.jobId])).map((e) => `${e.event_type}: ${e.summary}`).join("\n"));
     expect(run.result.steps.map((s) => [s.key, s.passed ? "pass" : s.error])).toEqual(run.result.steps.map((s) => [s.key, "pass"]));
     expect(run.result.passed).toBe(true);
   }, 300_000);

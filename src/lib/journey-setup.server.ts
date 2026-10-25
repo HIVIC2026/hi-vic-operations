@@ -201,7 +201,25 @@ export async function ensureTestNoticeAcks(installerBiz: string, log: SetupLog) 
   }
 }
 
-export async function ensureTestInstallerPeople(actorId: string, installerBiz: string, log: SetupLog) {
+/** The business owner lists themself as an installer (My business › Team: pending, CII declared, not verified) — the
+ *  person who leads the TEST install, as on every installer business the office approved. Only when not listed yet. */
+async function ensureBossListed(actorId: string, installerBiz: string, boss: { id: string; email: string; full_name?: string | null }, log: SetupLog) {
+  if (!isTestEmail(boss.email)) throw new Error("SAFETY STOP: the journey installer is not a TEST person.");
+  const b = await assertTestBusiness(installerBiz);
+  const listed = (await testWorkers(installerBiz, "installer")).some((w) => w.profile_id === boss.id || w.email.trim().toLowerCase() === boss.email.trim().toLowerCase());
+  if (listed) return;
+  const { installerQualification } = await import("./partner-activation.core");
+  const { error } = await admin.from("partner_workers").insert({ business_id: installerBiz, profile_id: boss.id, trade_role: "installer", full_legal_name: boss.full_name?.trim() || `${b.name} Owner`, email: boss.email.trim().toLowerCase(), mobile: "0400000101", qualification: installerQualification({}), approval_status: "pending", certification_status: "unverified", account_status: "linked", added_by: actorId } as never);
+  fail("installer person", error);
+  log.push(`${b.name}: business owner listed as an installer (TEST)`);
+}
+
+export type LeadInstaller = { workerId: string; name: string };
+
+/** Every TEST installer person cleared for offers and crews; returns the business owner's own row as the lead installer
+ *  (null when the office has rejected them or they are otherwise not cleared). */
+export async function ensureTestInstallerPeople(actorId: string, installerBiz: string, boss: { id: string; email: string; full_name?: string | null }, log: SetupLog): Promise<LeadInstaller | null> {
+  await ensureBossListed(actorId, installerBiz, boss, log);
   for (const w of await testWorkers(installerBiz, "installer")) {
     await ensureApproved(actorId, w, log);
     await ensureEecCleared(actorId, w, log);
@@ -209,6 +227,9 @@ export async function ensureTestInstallerPeople(actorId: string, installerBiz: s
     await ensurePiisa(actorId, w, log);
   }
   await ensureTestNoticeAcks(installerBiz, log);
+  const mine = (await testWorkers(installerBiz, "installer")).find((w) => w.profile_id === boss.id);
+  if (!mine || mine.approval_status !== "approved" || mine.certification_status !== "verified" || whiteCardState(mine) !== "verified") return null;
+  return { workerId: mine.id, name: mine.full_legal_name };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -257,13 +278,13 @@ export async function ensureTestElectricianRates(actorId: string, electricianBiz
 }
 
 /** Everything the journey's TEST trades need, in order. Returns the business fields as they were (cleanup restores them). */
-export async function ensureJourneyTestTrades(actorId: string, installer: { business_id: string }, electrician: { id: string; business_id: string; email: string; full_name?: string | null }) {
+export async function ensureJourneyTestTrades(actorId: string, installer: { id: string; business_id: string; email: string; full_name?: string | null }, electrician: { id: string; business_id: string; email: string; full_name?: string | null }) {
   const log: SetupLog = [];
   const before = [
     await ensureTestBusinessReady(actorId, installer.business_id, "installer", log),
     await ensureTestBusinessReady(actorId, electrician.business_id, "electrician", log),
   ];
-  await ensureTestInstallerPeople(actorId, installer.business_id, log);
+  const lead = await ensureTestInstallerPeople(actorId, installer.business_id, installer, log);
   await ensureTestElectricianPeople(actorId, electrician.business_id, electrician, log);
-  return { before, log };
+  return { before, log, lead };
 }

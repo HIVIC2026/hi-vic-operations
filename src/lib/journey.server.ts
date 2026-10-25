@@ -46,9 +46,9 @@ export async function personaSession(email: string) {
 function check(r: StepResult, name: string, ok: boolean, detail?: string) { r.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); if (!ok) throw new StepFail(`${name}${detail ? `: ${detail}` : ""}`); }
 
 async function profileByEmail(email: string) {
-  const { data } = await admin.from("profiles").select("id, business_id").eq("email", email).maybeSingle();
+  const { data } = await admin.from("profiles").select("id, business_id, full_name").eq("email", email).maybeSingle();
   if (!data?.business_id) throw new Error(`TEST account ${email} is missing — run "Create TEST trade accounts" in Test Centre first.`);
-  return data as { id: string; business_id: string };
+  return data as { id: string; business_id: string; full_name: string | null };
 }
 
 /** Hard stop if the job is anything but this run's own TEST job. */
@@ -281,6 +281,46 @@ function melbourneDate(daysAhead: number) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
+/** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
+ *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
+async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "install_deposit", label: string) {
+  await assertOwnTestJob(ctx);
+  const { jobPaymentView } = await import("./payments.server");
+  const v = await jobPaymentView(ctx.jobId!);
+  check(r, `${label}: the owner's payment plan is ready`, !!v);
+  const owing = v!.steps.find((s) => s.key === step)?.outstandingCents ?? 0;
+  if (owing <= 0) { check(r, `${label} (nothing owing)`, true); return; }
+  const x = await import("./xero.server");
+  await act(r, label, () => x.recordDemoTestPayment(v!.invoiceId, owing / 100, ctx.actorId));
+  const after = (await jobPaymentView(ctx.jobId!))!.steps.find((s) => s.key === step);
+  check(r, `${step.replace(/_/g, " ")} step paid`, after?.state === "paid", after?.state);
+}
+
+/** The office's product label review on the install day form (piisa-products.core): the installed product as declared on the
+ *  Ready Check form, the measured area. Through the office review path (evidence-review.server). */
+async function reviewProductEvidence(ctx: JourneyCtx) {
+  await assertOwnTestJob(ctx);
+  const { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("category", "product_evidence" as never).order("sort").limit(1).maybeSingle();
+  if (!req) throw new Error("No product label evidence was read from the install day form.");
+  const { productBrandModel } = await import("./insulation-product.core");
+  const bm = productBrandModel({ option: "Bradford Gold R5" });
+  return (await import("./evidence-review.server")).reviewEvidence(ctx.actorId, { requirementId: req.id, status: "verified", actualProducts: [{ brand: bm.brand, model: `${bm.model} R5.0`, rValue: 5 }], installedAreaM2: 120 });
+}
+
+/** One TEST PIESA copy the TEST sender held (TEST address, not on the allowlist), recorded through the sender's own
+ *  delivery recorder as a simulated email. This run's own TEST job and TEST-domain recipients only. */
+async function recordTestPiesaCopy(ctx: JourneyCtx, to: "owner" | "installer", recordDelivery: typeof import("./piesa-delivery.server").recordDelivery) {
+  await assertOwnTestJob(ctx);
+  const { currentCopy } = await import("./official-forms.server");
+  const pe = await currentCopy(ctx.jobId!, "piesa");
+  const { data: prec } = await admin.from("piesa_records").select("id").eq("job_id", ctx.jobId!).eq("is_current", true).single();
+  const email = to === "installer"
+    ? (await admin.from("profiles").select("email").eq("id", ctx.installer.id).single()).data?.email ?? null
+    : ((await admin.from("jobs").select("owners(email)").eq("id", ctx.jobId!).single()).data?.owners as { email: string | null } | null)?.email ?? null;
+  if (!pe.copy || !prec || !email?.endsWith(TEST_DOMAIN)) throw new Error("SAFETY STOP: no signed PIESA copy, or the recipient is not a TEST address.");
+  await recordDelivery({ jobId: ctx.jobId!, recipient: to, piesaRecordId: prec.id, signedCopyId: pe.copy.id, recipientUserId: to === "installer" ? ctx.installer.id : null, to: email, detail: "TEST journey: simulated email — TEST addresses are not on the send allowlist" });
+}
+
 /** Run a real portal step; any error becomes a named failed check (never a silent pass). */
 async function act<T>(r: StepResult, name: string, fn: () => Promise<T>): Promise<T> {
   try { const v = await fn(); r.checks.push({ name, ok: true }); return v; }
@@ -329,7 +369,8 @@ const s5: StepFn = async (ctx, r) => {
   if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
   { const { data: linked } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", iv!.id).single();
     if (!linked?.xero_invoice_id) throw new Error(`Invoice not in the Xero Demo Company: ${linked?.last_sync_error ?? "unknown reason"}`); }
-  await act(r, "Pre Insulation Electrical Safety Assessment (PIESA) payment recorded (TEST payment, Demo Company)", () => x.recordDemoTestPayment(iv!.id, 349, ctx.actorId));
+  // Decision 302: the upfront safety check is the quote's PIESA line (read from the payment plan, never a fixed $349).
+  await payStep(ctx, r, "safety_check", "Pre Insulation Electrical Safety Assessment (PIESA) payment recorded (TEST payment, Demo Company)");
   ctx.notes["invoice_id"] = iv!.id;
   ctx.screens.push({ step: "s5_owner_accept", persona: "owner_token", path: `/my-job/${ctx.token}`, mustNotSee: ["version —"] });
 };
@@ -354,23 +395,35 @@ const s6: StepFn = async (ctx, r) => {
   check(r, "owner sees the electrician's 3 times", ost.turn === "owner_to_answer" && ost.open.length === 3, ost.turn);
   await act(r, "owner ticks the 30-day box and takes the first time", () => pt.ownerTakePiesaTime(ctx.jobId!, ost.open[0]!.id, ctx.actorId, { understandsThirtyDays: true, ip: null, userAgent: null }));
   ctx.notes["piesa_offer_id"] = mine!.id;
-  // Mitti PIESA form + certificate: SIMULATED (no Mitti in TEST). Writes the same assessment the Mitti sync writes.
-  r.simulated = ["Mitti PIESA form and certificate (pass written as the Mitti sync would)"];
+  // Mitti A3 PIESA form: SIMULATED (no phone fills it in for a TEST job). Booking the PIESA made the A3 form (decision 398);
+  // when that form could not be made (the TEST electrician has no Mitti account) the office backup "Create Mitti form" path
+  // makes it here. Either way the electrician's answers are filled in an in-memory Mitti and read by the REAL Mitti sync
+  // (evidence rule, decision 178); the real Mitti is never read or written.
+  r.simulated = ["Mitti A3 PIESA form (a completed pass, filled in a simulated Mitti and read by the real Mitti sync)"];
   const now = new Date().toISOString();
-  const { data: a } = await admin.from("assessments").select("id").eq("job_id", ctx.jobId!).maybeSingle();
-  const fields = { status: "complete", piesa_outcome: "pass", completed_at: now, assessed_on: melbourneDate(0), no_rectification_confirmed: true, notes: "TEST journey: simulated Mitti PIESA (pass)" };
-  const ae = a ? await admin.from("assessments").update(fields as never).eq("id", a.id) : await admin.from("assessments").insert({ job_id: ctx.jobId!, ...fields } as never);
-  check(r, "PIESA result recorded", !ae.error, ae.error?.message);
-  // Same signed PIESA record the real completion writes (portal completeAssessment), which install booking checks.
-  const { data: a2 } = await admin.from("assessments").select("id").eq("job_id", ctx.jobId!).maybeSingle();
-  const { count: pr } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("is_current", true).eq("outcome", "pass");
-  check(r, "current PIESA records before sign-off", true, String(pr));
-  if (!pr) { const pe = await admin.from("piesa_records").insert({ job_id: ctx.jobId!, assessment_id: a2?.id ?? null, kind: "initial", outcome: "pass", completed_date: melbourneDate(0), signed_off_by: ctx.electrician.id, notes: "TEST journey: simulated Mitti PIESA sign-off" } as never); check(r, "PIESA sign-off recorded", !pe.error, pe.error?.message); }
+  const sim = await import("./journey-sim.core");
+  const { data: ws } = await admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle();
+  const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
+  const { data: a0 } = await admin.from("assessments").select("id, external_mitti_id, mitti_template_id").eq("job_id", ctx.jobId!).maybeSingle();
+  const tpl = a0?.mitti_template_id ?? ws?.mitti_piesa_template_id?.trim() ?? "";
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician" });
+  const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems(pass.items) }, users: [{ id: "sim-mitti-electrician", email: el!.email! }] });
+  let auditId = a0?.external_mitti_id ?? null;
+  if (auditId) mitti.seed(auditId, tpl);
+  else auditId = (await act(r, "office backup: the A3 form is made for the electrician", () => import("./mitti.server").then((m) => m.createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })))).auditId;
+  mitti.fill(auditId, pass.items);
+  const synced = await act(r, "electrician completes the A3 → read by the Mitti sync", async () => { await assertOwnTestJob(ctx); return (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, async () => ({ bytes: TINY_JPEG, contentType: "image/jpeg" })); });
+  check(r, "A3 synced as complete with its geotagged evidence", synced.completed, synced.issues.join("; "));
+  // The electrician's own "No electrical fixes required" tick on the job page (the same assessment field saveAssessment writes).
+  const tick = await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("job_id", ctx.jobId!).neq("status", "complete");
+  check(r, "electrician ticks No electrical fixes required", !tick.error, tick.error?.message);
   for (const c of ["switchboard_cables", "piesa_signoff"]) await uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
+  // Complete PIESA (the electrician's button): PIESA record, the official PIESA signed copy (decision 350), PIESA complete.
+  await act(r, "electrician presses Complete PIESA", async () => { await assertOwnTestJob(ctx); return (await import("./piesa-complete.server")).completePiesaAssessment({ jobId: ctx.jobId! }, ctx.electrician.id); });
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "assessment").eq("status", "confirmed");
-  const { transition } = await import("./workflow.server");
-  if ((await stageOf(ctx)) !== "piesa_complete") await act(r, "job moves to Pre Insulation Electrical Safety Assessment (PIESA) complete", () => transition(ctx.jobId!, "piesa_complete", ctx.actorId, "TEST journey: PIESA passed"));
-  check(r, "stage is Pre Insulation Electrical Safety Assessment (PIESA) complete", (await stageOf(ctx)) === "piesa_complete", await stageOf(ctx) ?? "");
+  const { count: issued } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "official_piesa_issued");
+  check(r, "official PIESA signed copy filed", (issued ?? 0) > 0, `${issued ?? 0} issued`);
+  check(r, "PIESA complete (install scheduling opens after a pass)", ["piesa_complete", "installation_scheduling"].includes(await stageOf(ctx) ?? ""), await stageOf(ctx) ?? "");
   ctx.screens.push({ step: "s6_electrician", persona: "electrician", path: `/field/day/${ctx.jobId}` });
 };
 
@@ -379,6 +432,8 @@ const s7: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
   const { transition } = await import("./workflow.server");
   if ((await stageOf(ctx)) !== "installation_scheduling") await act(r, "install scheduling opens after the PIESA pass", () => transition(ctx.jobId!, "installation_scheduling", ctx.actorId, "TEST journey: install scheduling"));
+  // Decision 296: the owner confirms the safety check on their secure link before an install day can be booked.
+  await act(r, "owner confirms the safety check (PIESA) on the secure link", () => import("./piesa-owner-confirm.server").then((m) => m.signOwnerPiesaConfirmation({ jobId: ctx.jobId!, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" })));
   const days: string[] = []; for (let d = 3; d < 20 && days.length < 3; d++) { const x = melbourneDate(d); const wd = new Date(`${x}T12:00:00Z`).getUTCDay(); if (wd > 0 && wd < 6) days.push(x); }
   const idays = await import("./install-days.server");
   await act(r, "installer offers 3 install days (within 30 days of the PIESA)", () => idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))));
@@ -386,7 +441,9 @@ const s7: StepFn = async (ctx, r) => {
   check(r, "owner sees the installer's 3 days", st.turn === "owner_to_answer" && st.open.length === 3, st.turn);
   await act(r, "owner takes one of the installer's days", () => idays.ownerTakeDay(ctx.jobId!, st.open[0]!.id, ctx.actorId));
   check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
-  for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
+  for (const c of ["installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
+  // Decision 367: the 10% install deposit (bank transfer) — a TEST payment in the Xero Demo Company.
+  await payStep(ctx, r, "install_deposit", "10% install deposit paid (TEST payment, Demo Company)");
   // Before the install day, the same real paths the office, electrician and owner use (no check bypassed):
   {
     const cs = await import("./consent.server");
@@ -395,28 +452,66 @@ const s7: StepFn = async (ctx, r) => {
     await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
     // Decision 370: the AP part normally signs itself right after the owner; the office path runs only if it was held.
     if ((await cs.currentConsent(ctx.jobId!))?.status === "awaiting_ap") await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
-    await act(r, "ESC pre-install notice prepared for the booked day", async () => { await (await import("./esc.server")).regenerateEscNotification(ctx.jobId!, ctx.actorId); });
-    for (const to of ["owner", "installer"] as const) await act(r, `signed PIESA copy recorded as given to the ${to}`, () => rec.recordPiesaCopyDelivery({ jobId: ctx.jobId!, recipient: to, deliveredAt: now, method: "portal", actorId: ctx.actorId }));
+    const esc = await import("./esc.server");
+    await act(r, "ESC pre-install notice prepared for the booked day", async () => { await esc.regenerateEscNotification(ctx.jobId!, ctx.actorId); });
+    // The office submits the notice in the VEU Registry and records the reference (SIMULATED for a TEST job: no Registry).
+    (r.simulated ??= []).push("ESC Registry submission (the office records a TEST reference; nothing goes to the Registry)");
+    const { data: n } = await admin.from("esc_notifications").select("id").eq("job_id", ctx.jobId!).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    check(r, "ESC notification prepared", !!n);
+    await act(r, "office records the ESC notification as submitted", () => esc.recordEscSubmission({ notificationId: n!.id, reference: `TEST-ESC-${ctx.runId}`, sentAt: new Date().toISOString(), method: "manual_portal", confirmed: true, actorId: ctx.actorId }));
+    // Decision 111: the signed PIESA copy is emailed to the owner and the installer (the 15-minute tick's own sender). TEST
+    // addresses are never on the send allowlist, so the TEST sender holds those emails; each held copy is then recorded the
+    // way an accepted email is (SIMULATED for this TEST job) so PIISA Part 8(a) and the pre-start check read a real record.
+    const pd = await import("./piesa-delivery.server");
+    const sent = await act(r, "signed PIESA copies emailed to the owner and the installer (the tick's sender)", () => pd.deliverPiesaCopies(ctx.jobId!));
+    check(r, "PIESA copies not held for another reason", !sent.hold, sent.hold ?? "");
+    for (const to of ["owner", "installer"] as const) {
+      if (sent.sent.includes(to)) continue;
+      check(r, `PIESA copy to the ${to} held only because the TEST address is not on the allowlist`, /not on the test allowlist/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
+      (r.simulated ??= []).push(`Signed PIESA copy email to the TEST ${to} (held by the TEST sender; recorded as delivered for this TEST job)`);
+      await act(r, `signed PIESA copy recorded as delivered to the ${to} (simulated email)`, () => recordTestPiesaCopy(ctx, to, pd.recordDelivery));
+    }
+    void now;
     await act(r, "office records pre-install consumer documents given", () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key: "pre_install_consumer_docs", occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
   }
   await ownerSignGates(ctx, r, ["C"]); // owner confirms receipt of the safety check copy (real secure-link path)
-  await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed");
-  await act(r, "install done → evidence outstanding", () => transition(ctx.jobId!, "evidence_outstanding", ctx.actorId, "TEST journey: install done"));
-  // Installer declaration comes back inside the Mitti PIISA (simulated; TEST job only).
+  // The installer picks the install crew (the TEST business owner as lead), then signs the safety plan (decision 261).
+  const lead = ctx.notes["lead_installer"] as { workerId: string; name: string } | undefined;
+  check(r, "TEST lead installer is listed and cleared", !!lead, "no cleared TEST lead installer");
+  await act(r, "installer chooses the install crew (lead installer)", () => import("./piisa-a3.server").then((m) => m.saveCrewSelection(ctx.jobId!, ctx.installer.id, { lead: lead!.workerId, additional: [] })));
   {
-    const pd = await import("./piisa-declaration.core");
-    const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
-    const { data: jn } = await admin.from("jobs").select("job_number").eq("id", ctx.jobId!).single();
-    const auditId = `journey-piisa-${ctx.jobId}`; const tpl = "journey-piisa-template";
-    const { logEvent } = await import("./workflow.server");
-    await logEvent(ctx.jobId!, ctx.actorId, "mitti_piisa_audit_created", "TEST journey: simulated PIISA sent in Mitti", { audit_id: auditId });
-    let refused = ""; try { await transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: before declaration"); } catch (e) { refused = e instanceof Error ? e.message : String(e); }
-    check(r, "Final check refused without the PIISA declaration", refused.includes(pd.MISSING_INSTALLER_DECLARATION), refused || "allowed");
-    const unsigned = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: false }), { testTemplateId: tpl });
-    check(r, "PIISA without signed declaration shows Missing evidence", unsigned.status === "missing", unsigned.message);
-    const signed = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: true }), { testTemplateId: tpl });
-    check(r, "signed PIISA declaration saved as the job's record", signed.status === "saved", signed.message);
+    const tv = await import("./trade-view.server");
+    const sw = await tv.tradeSwms(ctx.jobId!, ctx.installer.id) as { myKeys?: string[] };
+    check(r, "safety plan lists the lead installer's line", (sw.myKeys ?? []).length > 0);
+    for (const key of sw.myKeys ?? []) await act(r, "lead installer signs the safety plan (SWMS)", () => tv.tradeSwmsSign(ctx.jobId!, ctx.installer.id, key, lead!.name));
   }
+  // Noon the day before: the pre-start check (deposit, ESC notice, PIESA copies 24h ahead + Gate C receipt, the lead
+  // installer's CII / White Card / ESC notice, safety plan — decisions 153/319/367/395) runs as the 15-minute tick would then.
+  const { data: bk } = await admin.from("bookings").select("scheduled_start").eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed").maybeSingle();
+  const startMs = Date.parse(bk!.scheduled_start);
+  const ps = await import("./prestart.server");
+  const pre = await act(r, "pre-start check at noon the day before", () => ps.runPrestart(ctx.jobId!, "journey", new Date(startMs - 20 * 3_600_000 + 30 * 60_000)));
+  check(r, "pre-start check passed", pre?.passed === true, (pre?.failures ?? ["did not run"]).join(" "));
+  // The install day form (A5, decision 262) is created by the real path; Mitti itself is SIMULATED (in-memory, never contacted).
+  (r.simulated ??= []).push("Mitti A5 install day form (created by the real path in a simulated Mitti; the lead installer's answers filled in there)");
+  const sim = await import("./journey-sim.core");
+  const idc = await import("./install-day.core");
+  const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
+  const tplId = ws?.mitti_piisa_template_id?.trim() ?? "";
+  const { data: boss } = await admin.from("profiles").select("email").eq("id", ctx.installer.id).single();
+  const mitti = sim.simulatedMitti({ templates: { [tplId]: sim.simulatedInstallDayTemplate(idc.INSTALL_DAY_QUESTIONS) }, users: [{ id: "sim-mitti-user", email: boss!.email! }] });
+  const created = await act(r, "install day form (A5) created for the lead installer", () => import("./mitti.server").then((m) => m.createPiisaMittiAudit(ctx.jobId!, ctx.actorId, mitti.call)));
+  const zones = await (await import("./install-evidence.server")).jobUpgradeZones(ctx.jobId!);
+  const a5 = sim.simulatedCompletedA5({ q: idc.INSTALL_DAY_Q as unknown as Record<string, string>, ruler: idc.INSTALL_DAY_RULER_Q, capturedAt: new Date(startMs + 2 * 3_600_000).toISOString(), seed: `${ctx.runId}-a5`, lead: lead!.name, areas: zones.length });
+  const syncA5 = async () => { await assertOwnTestJob(ctx); return (await import("./piisa-declaration.server")).syncPiisaDeclaration(ctx.jobId!, ctx.installer.id, mitti.call, { fetchMedia: async (_audit, mediaId) => ({ bytes: TINY_JPEG, contentType: a5.videoIds.has(mediaId) ? "video/mp4" : "image/jpeg" }) }); };
+  const early = await syncA5();
+  check(r, "nothing is recorded before the install day form is complete", early.status !== "saved" && (await stageOf(ctx)) === "installation_booked", `${early.status}: ${early.message}`);
+  mitti.fill(created.auditId, a5.items);
+  await act(r, "lead installer completes the install day form (every answer, photo, video and ruler photo)", () => syncA5());
+  // Product labels are a human office review (piisa-products.core): the office confirms the installed product.
+  await act(r, "office reviews the product label evidence", () => reviewProductEvidence(ctx));
+  const done = await act(r, "install day form read again → installation recorded", () => syncA5());
+  check(r, "installation recorded from the install day form", (await stageOf(ctx)) === "evidence_outstanding", `${done.status}: ${done.message} (stage ${await stageOf(ctx)})`);
   {
     const rec = await import("./job-records.server");
     for (const key of ["installer_safety_assessment", "completion_consumer_docs"] as const) await act(r, `office records ${key.replace(/_/g, " ")}`, () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key, occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
@@ -542,8 +637,8 @@ export async function newJourneyCtx(): Promise<JourneyCtx> {
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
   // Bring the TEST trades up to every current gate (TEST identities only, idempotent): journey-setup.server.ts.
   const { ensureJourneyTestTrades } = await import("./journey-setup.server");
-  const setup = await ensureJourneyTestTrades(actor!.id, installer, { ...electrician, email: TEST_ELECTRICIAN_EMAIL });
-  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: setup.before, setup: setup.log }, screens: [] };
+  const setup = await ensureJourneyTestTrades(actor!.id, { ...installer, email: TEST_INSTALLER_EMAIL }, { ...electrician, email: TEST_ELECTRICIAN_EMAIL });
+  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: setup.before, setup: setup.log, lead_installer: setup.lead }, screens: [] };
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */
