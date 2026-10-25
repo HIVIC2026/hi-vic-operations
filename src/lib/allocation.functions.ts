@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withRequestMeta } from "./request-meta";
 import { requireAdmin, requireJobRole, WorkflowError, logEvent } from "./workflow.server";
 
 const uuid = z.string().uuid();
@@ -120,15 +121,16 @@ export const getOwnerPiesaWindows = createServerFn({ method: "POST" }).middlewar
     return ownerPiesaWindowState(data.jobId);
   });
 
-/** Owner: choose 3–5 PIESA times (2-hour windows) on at least 3 different days. */
-export const chooseOwnerPiesaWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, picks: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).min(1).max(5) }).parse(d))
+/** Owner: choose 3–5 PIESA times (2-hour windows) on at least 3 different days. Decision 307: refused until the 30-day box
+ *  is ticked for this PIESA cycle (`understandsThirtyDays: true`), recorded once per cycle — same as the secure-link path. */
+export const chooseOwnerPiesaWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, picks: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).min(1).max(5), understandsThirtyDays: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["owner"]);
     const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });
     if (!isOwner) throw new WorkflowError("Only the owner can choose PIESA times.");
     const { submitOwnerPiesaWindows } = await import("./allocation.server");
-    return submitOwnerPiesaWindows(data.jobId, context.userId, data.picks);
+    return submitOwnerPiesaWindows(data.jobId, context.userId, data.picks, { understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
   });
 
 /** Owner/office: the electrician's rectification windows the owner may still pick (24h+ away), plus estimated hours. */

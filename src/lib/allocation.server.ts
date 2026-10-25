@@ -581,7 +581,7 @@ async function sweepPiesaWindows(actorId: string | null) {
 
 /** Owner submits 3–5 PIESA windows — old way only (decision 333): round 2 when asked for more times, or after a reopen
  *  on a job that already had a round. New jobs: the electrician offers 3 times (piesa-times.server.ts). */
-export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
+export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[], ack: { understandsThirtyDays: boolean | undefined; ip: string | null; userAgent: string | null }) {
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));
@@ -603,6 +603,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested");
     if (!count) throw new WorkflowError("Your PIESA times are already with our electricians.");
   }
+  // Decision 307 (F17): every owner path (signed-in or secure link) ticks the 30-day box before times are saved.
+  await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId, userId, ...ack });
   const round = w.round + 1;
   const rows = picks.map((p) => ({ job_id: jobId, kind: "assessment" as const, proposed_by: userId, proposer_role: "owner", piesa_window_round: round, ...windowBounds(p.date, p.slot) }));
   const { error } = await admin.from("appointment_proposals").insert(rows as never);
@@ -631,5 +633,8 @@ export async function ownerPiesaWindowState(jobId: string) {
   // Decision 333: the old 3–5 window picker only for jobs that started the old way (oldOwnerPickerOpen); new jobs use piesa-times.
   const { oldOwnerPickerOpen } = await import("./piesa-times.core");
   const canPick = stageOk && !elec && w.futureOpen === 0 && oldOwnerPickerOpen({ round: w.round, moreTimesAsked: !!asked, reopened });
-  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round) };
+  // Decision 307 (F17): the old picker asks the 30-day box too (a read failure shows the box; the server still decides).
+  const { THIRTY_DAY_ACK_WORDING } = await import("./thirty-day-ack.core");
+  const ack = canPick ? await (await import("./thirty-day-ack.server")).ownerThirtyDayAckState(jobId).catch(() => ({ needed: true, wording: THIRTY_DAY_ACK_WORDING })) : { needed: false, wording: THIRTY_DAY_ACK_WORDING };
+  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round), thirtyDayAck: { needed: ack.needed, wording: ack.wording } };
 }

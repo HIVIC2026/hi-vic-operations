@@ -55,6 +55,7 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
   const { data } = useQuery({ queryKey: ["piesa-windows", jobId], queryFn: () => getState({ data: { jobId } }) });
   const [picks, setPicks] = useState<PiesaWindowPick[]>([]);
   const [busy, setBusy] = useState(false);
+  const [understands, setUnderstands] = useState(false);
   if (!data) return null;
   if (!data.canPick) {
     const open = data.windows.filter((w) => w.status === "proposed");
@@ -70,6 +71,8 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
   const has = (date: string, slot: PiesaSlot) => picks.some((p) => p.date === date && p.slot === slot);
   const toggle = (date: string, slot: PiesaSlot) => setPicks((cur) => has(date, slot) ? cur.filter((p) => !(p.date === date && p.slot === slot)) : cur.length >= PIESA_WINDOW_MAX ? cur : [...cur, { date, slot }]);
   const blockers = piesaWindowBlockers(picks);
+  // Decision 307: the 30-day box before the first times of each PIESA cycle (the server refuses without it).
+  const ackBlock = data.thirtyDayAck.needed && !understands;
   return (
     <Section title="Choose times for your Pre Insulation Electrical Safety Assessment (PIESA)">
       <p className="text-sm">{data.moreTimes ? "None of the electricians could make your earlier times. Please choose some new times." : `Please choose ${PIESA_WINDOW_MIN} to ${PIESA_WINDOW_MAX} times that suit you, on at least ${PIESA_WINDOW_MIN_DAYS} different days.`} The first electrician to take one of your times is booked, and we'll let you know.</p>
@@ -84,8 +87,9 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
         ))}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">{picks.length} of {PIESA_WINDOW_MAX} chosen.{picks.length > 0 && blockers.length ? ` ${blockers[0]}` : ""}</p>
-      <Button size="field" className="mt-2 w-full" disabled={busy || blockers.length > 0}
-        onClick={async () => { setBusy(true); try { await choose({ jobId, picks }, "Times sent to our electricians"); setPicks([]); await qc.invalidateQueries({ queryKey: ["piesa-windows", jobId] }); } finally { setBusy(false); } }}>
+      {data.thirtyDayAck.needed && <label className="mt-3 flex items-start gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={understands} onChange={(e) => setUnderstands(e.target.checked)} /><span>{data.thirtyDayAck.wording}</span></label>}
+      <Button size="field" className="mt-2 w-full" disabled={busy || ackBlock || blockers.length > 0}
+        onClick={async () => { setBusy(true); try { await choose({ jobId, picks, understandsThirtyDays: understands }, "Times sent to our electricians"); setPicks([]); await qc.invalidateQueries({ queryKey: ["piesa-windows", jobId] }); } finally { setBusy(false); } }}>
         Send my times
       </Button>
     </Section>

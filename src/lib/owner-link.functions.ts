@@ -102,8 +102,8 @@ export const ownerChoosePiesaFn = createServerFn({ method: "POST" }).middleware(
   .inputValidator((d) => z.object({ token, session, picks, understandsThirtyDays: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
-    await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId: s.jobId, userId: s.userId, understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
-    return (await import("./allocation.server")).submitOwnerPiesaWindows(s.jobId, s.userId, data.picks);
+    // The 30-day acknowledgement is checked inside submitOwnerPiesaWindows (after the stage/round checks, before saving).
+    return (await import("./allocation.server")).submitOwnerPiesaWindows(s.jobId, s.userId, data.picks, { understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
   });
 
 /** Decision 333: the owner takes one of the electrician's safety check times (= booked). Decision 307: refused until the
