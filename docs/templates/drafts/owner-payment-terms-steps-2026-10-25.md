@@ -6,7 +6,7 @@ choice; they tick "I agree" and type their name. Owners who already signed `jo-2
 history and are not asked again.
 
 Status: **NOT approved.** Until Jo approves it, real owners cannot sign this item (TEST jobs only), so Gate B stays open
-on new real acceptances. To approve: Office › Settings › Owner paperwork › "Payment" › Approve (records an
+on new real acceptances. To approve: Office › Settings › Owner documents (Gate B) › "Payment" › Approve (records an
 `owner_paperwork_approvals` row for this exact version and wording). Any change to the wording below needs a new version.
 
 Placeholders are filled by the server from the accepted quote (never from the owner):
