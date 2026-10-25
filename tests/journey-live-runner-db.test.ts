@@ -28,6 +28,11 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
     providers.xero.payments.push(p);
     return new Response(JSON.stringify({ Payments: [p] }), { status: 200, headers: { "content-type": "application/json" } });
   }
+  // Xero's invoice lookup by Reference, matched on the whole decoded reference (the shared fake stops at the first escape).
+  if (url.host === "connector-gateway.lovable.dev" && url.pathname === "/xero/api.xro/2.0/Invoices" && (init?.method ?? "GET").toUpperCase() === "GET" && url.searchParams.get("where")) {
+    const ref = /Reference=="([^"]*)"/.exec(url.searchParams.get("where")!)?.[1];
+    if (ref !== undefined) return new Response(JSON.stringify({ Invoices: [...providers.xero.invoices.values()].filter((i) => i["Reference"] === ref) }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   return providers.fetchImpl(input, init);
 }) as typeof fetch;
 
