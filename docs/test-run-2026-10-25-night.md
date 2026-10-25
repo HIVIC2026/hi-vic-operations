@@ -41,7 +41,7 @@
 
 ## Needs you (nothing changed)
 1. **Stripe:** when you connect it, also tick the `charge.refunded` event on the webhook, so refunds come through.
-2. **Owner paperwork B wording is still marked DRAFT.** Real owners are refused until each part is approved in Settings › Owner documents.
+2. ~~Owner paperwork B is still DRAFT~~ **Checked 26 Oct: wrong, nothing to approve.** Twelve parts were approved on 6 Oct with the lawyer wording, and the text is unchanged. Cooling-off was retired (Jo, 6 Oct). The safety-check declaration is done in Mitti.
 3. **Automatic quote send is still OFF** (your go-live order).
 4. **The A5 form says "All filled in, you can leave site"** while install-day photos still lock completion. This needs a wording decision.
 5. **The pre-start check doesn't look at some "before install" items:**
