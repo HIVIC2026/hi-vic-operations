@@ -1,0 +1,2116 @@
+{
+ "template": {
+  "id": "01ee0428-be6d-4435-b34d-8b738935f099",
+  "name": "A1 – Ready Check | Installer-Supplied Customer",
+  "items": [
+   {
+    "id": "f3245d39-ea77-11e1-aff1-0800200c9a66",
+    "label": "Title Page",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "eb4177ca-ef17-4375-aa7d-6963007d3534",
+      "label": "Portal Job Number",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": false
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "d9425ebb-d476-49ed-a804-5798516c21b6",
+      "label": "Site address",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "79f30518-0848-44a2-ba55-14b82f1a4747",
+      "label": "Homeowner name",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "fdf7ee5e-0f76-4dff-b7e9-0b3d3205538a",
+      "label": "Homeowner phone",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "4ad66cbc-c9c1-4dc3-8f97-d8623161f1a7",
+      "label": "Homeowner email",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "576404b7-8641-45cf-bb18-bec323f276ea",
+      "label": "Homeowner agrees to be contacted by Home Insulation Victoria",
+      "children": [],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "20b92e64-fff4-407d-b967-1567e4899c6e",
+       "calculation_data": null,
+       "failed_responses": [
+        "efcdca82-7f71-43a9-a9a3-f9ea884def04"
+       ]
+      }
+     },
+     {
+      "id": "e16696d1-06e4-4945-9ca6-d4b6d4f0e8ac",
+      "label": "Property type",
+      "children": [
+       {
+        "id": "04219b51-5c32-46fc-a6e3-f8a50f36f2e6",
+        "label": "",
+        "children": [
+         {
+          "id": "7591ff1e-b300-4f77-99d5-bc0dd8c0ae58",
+          "label": "What is the property type?",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "3d882a2f-10f9-404f-bdd7-73d6837520de"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "737a560e-10d4-4591-946a-895ce79028c1",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "fdac68a3-7bfe-4d2b-a0bf-2d993f36e895",
+      "label": "Life support equipment at property?",
+      "children": [],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "a303e65f-6e3b-4ea3-8370-ce040fc91128",
+       "calculation_data": null,
+       "failed_responses": [
+        "320b6cdf-e34f-4b6a-94b3-6de5b4737ef3"
+       ]
+      }
+     },
+     {
+      "id": "c2b56bf8-a6ae-4012-bcec-514297b5a1cc",
+      "label": "Was the ceiling or roof built or replaced in the last 5 years?",
+      "children": [],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "152fb318-087b-4214-8529-acd1dfcec50d",
+       "calculation_data": null,
+       "failed_responses": [
+        "86f085cf-8eb8-4248-a9e0-9e4ad774d7e6"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "e938312d-ea67-4e93-b789-c39622e65dc4",
+    "label": "Site Verification",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "992b9039-7516-4718-b930-b02adcbf289b",
+      "label": "What type of roof does the home have? ",
+      "children": [
+       {
+        "id": "a2b4b2e5-9e1c-4b76-a597-1abd78a331e4",
+        "label": "",
+        "children": [
+         {
+          "id": "8848a4d5-2c15-4066-9341-9db3971811ec",
+          "label": "Describe the roof type",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "feb23429-f48b-49d5-822e-ce2933ede891"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "9a22ee71-72b8-4800-9998-c752dcf36aa5",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "37281377-4611-4c50-9833-9c91c30784ee",
+      "label": "How would you rate the ceiling access?",
+      "children": [
+       {
+        "id": "1dacc059-3ec2-4d65-9294-5f29a3ccbe1d",
+        "label": "",
+        "children": [
+         {
+          "id": "f640cafe-602a-4e19-8a68-b5d635492ea2",
+          "label": "Please explain why the access is difficult",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "99b99600-2b3d-48cb-b499-7d69f85812ed"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       },
+       {
+        "id": "4b10fbdd-b230-420a-ab2e-99f1a5389fa8",
+        "label": "",
+        "children": [
+         {
+          "id": "d3360a83-1e63-4cf3-9877-5113a591ac19",
+          "label": "Please explain why there is no safe access",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "508d88be-a9b5-4efd-a4dc-d72c13ee2084"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "cb3fcb36-89b1-44c5-a4fb-8d9a15ff4235",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "71b26bc3-8dde-41d2-8f66-80113f3b6256",
+      "label": "Upload a clear photo of the ceiling access point",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": false
+       }
+      },
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": "d6c6ec61-1428-4b75-b1e2-14fd28710c4f",
+    "label": "Ceiling Assessment",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "589d7eed-72bf-4bc4-976b-ab218dc3682d",
+      "label": "Add a ceiling area",
+      "children": [
+       {
+        "id": "ff06401f-abd9-411a-8066-7dec517cb973",
+        "label": "Which part of the home does this ceiling area cover?\ne.g. Main house – bedrooms and hallway",
+        "children": [],
+        "textsingle": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": true
+         },
+         "text_format": "TEXT",
+         "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+         "calculation_data": null,
+         "reading_config_id": ""
+        }
+       },
+       {
+        "id": "95f47c0b-b01d-4f7d-9c72-db6e05f8bdd5",
+        "label": "How was this ceiling area measured?",
+        "children": [
+         {
+          "id": "39703827-e4c2-4719-abad-6769abcd5dc8",
+          "label": "",
+          "children": [
+           {
+            "id": "52a31ab1-a842-4467-bfad-49c653d92f66",
+            "label": "Tell us how you measured it",
+            "children": [],
+            "textsingle": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             },
+             "text_format": "TEXT",
+             "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+             "calculation_data": null,
+             "reading_config_id": ""
+            }
+           }
+          ],
+          "logicfield": {
+           "skip_to": null,
+           "response_is": {
+            "responses": [
+             "356dd863-7dbd-4bf4-b633-713558cce6eb"
+            ]
+           },
+           "require_note": false,
+           "require_media": false,
+           "require_action": false,
+           "procurement_trigger": false,
+           "preset_action_type_ids": []
+          }
+         }
+        ],
+        "question": {
+         "options": {
+          "weighting": 1,
+          "is_mandatory": true
+         },
+         "response_set_id": "3b148a97-c0b3-4e3a-b88c-6c01325b973e",
+         "calculation_data": null,
+         "failed_responses": [
+          "ad485718-9d24-4b46-abbf-d9af8d907812"
+         ]
+        }
+       },
+       {
+        "id": "87ff65af-58fa-44e2-a6b7-5179b9ffebd3",
+        "label": "Length (m)",
+        "children": [],
+        "textsingle": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": true
+         },
+         "text_format": "NUMBER",
+         "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+         "calculation_data": null,
+         "reading_config_id": ""
+        }
+       },
+       {
+        "id": "5fd69b88-e3bf-44f2-b292-d888cbb436bf",
+        "label": "Longest length of this ceiling area. Split an L-shaped ceiling into two areas.",
+        "children": [],
+        "instruction": {
+         "text": {}
+        }
+       },
+       {
+        "id": "8dcd4c1c-3209-4c40-aaec-cbc17a8b7934",
+        "label": "Width (m)",
+        "children": [],
+        "textsingle": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": true
+         },
+         "text_format": "NUMBER",
+         "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+         "calculation_data": null,
+         "reading_config_id": ""
+        }
+       },
+       {
+        "id": "0770fb3e-4dfd-4c4b-a37e-94c2505efae6",
+        "label": "Enter the measured ceiling area (m²)",
+        "children": [],
+        "textsingle": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": false
+         },
+         "text_format": "NUMBER",
+         "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+         "calculation_data": {
+          "formula": "${87ff65af-58fa-44e2-a6b7-5179b9ffebd3} * ${8dcd4c1c-3209-4c40-aaec-cbc17a8b7934}",
+          "autofill_item_id": ""
+         },
+         "reading_config_id": ""
+        }
+       },
+       {
+        "id": "d1a37464-32c3-450e-8899-0009df4bc51c",
+        "label": "Is there existing insulation in this ceiling area?",
+        "children": [
+         {
+          "id": "a09039e3-655f-4b49-b646-2bbd6244c724",
+          "label": "",
+          "children": [
+           {
+            "id": "82f09444-25fe-433b-a7fd-9e825850d488",
+            "list": {
+             "options": {
+              "weighting": 1,
+              "is_mandatory": true
+             },
+             "response_set_id": "9bcb0f7f-2aa3-4466-a8f4-2bc0e4a63922",
+             "calculation_data": null,
+             "failed_responses": [],
+             "multiple_selection": true
+            },
+            "label": "What type of existing insulation is installed? Select all that apply",
+            "children": [
+             {
+              "id": "3f5bcf2f-bae5-4efe-abcb-178ea91dc3a7",
+              "label": "",
+              "children": [
+               {
+                "id": "01445d1a-8a56-43e3-bcb4-3dcb990a8fe1",
+                "label": "Please describe the existing insulation type ",
+                "children": [],
+                "textsingle": {
+                 "options": {
+                  "weighting": null,
+                  "is_mandatory": true
+                 },
+                 "text_format": "TEXT",
+                 "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                 "calculation_data": null,
+                 "reading_config_id": ""
+                }
+               }
+              ],
+              "logicfield": {
+               "skip_to": null,
+               "response_is": {
+                "responses": [
+                 "63278103-c151-4285-9606-68b506a83ee9"
+                ]
+               },
+               "require_note": false,
+               "require_media": false,
+               "require_action": false,
+               "procurement_trigger": false,
+               "preset_action_type_ids": []
+              }
+             }
+            ]
+           },
+           {
+            "id": "c4d7478b-dea5-4f19-bcdc-1438a56e1c12",
+            "label": "What is the measured insulation depth (mm)?",
+            "children": [],
+            "textsingle": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             },
+             "text_format": "NUMBER",
+             "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+             "calculation_data": null,
+             "reading_config_id": ""
+            }
+           },
+           {
+            "id": "5aa2c405-ddad-433d-9e4e-3d36d80af446",
+            "label": "What is the determined R value of the existing ceiling insulation?",
+            "children": [],
+            "question": {
+             "options": {
+              "weighting": 1,
+              "is_mandatory": true
+             },
+             "response_set_id": "22f7cbf7-d061-48be-a29b-e3cfad1e9950",
+             "calculation_data": null,
+             "failed_responses": [
+              "3319b854-ac21-45b9-85a5-e95e8518c2db"
+             ]
+            }
+           },
+           {
+            "id": "443e93ec-45a9-4d48-a58a-8716ce176269",
+            "label": "Upload a photo clearly showing the measured insulation depth",
+            "media": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             }
+            },
+            "children": []
+           },
+           {
+            "id": "cdc6f659-6d7b-4ac2-80e3-f927efb52b35",
+            "label": "What is required for the existing insulation?",
+            "children": [
+             {
+              "id": "8ecffb47-95c0-412c-9742-2233e7451afe",
+              "label": "",
+              "children": [
+               {
+                "id": "0d1d4f7c-ff28-49e4-8038-a64fceea5049",
+                "label": "How much existing insulation needs to be removed? (m²)",
+                "children": [],
+                "textsingle": {
+                 "options": {
+                  "weighting": null,
+                  "is_mandatory": true
+                 },
+                 "text_format": "NUMBER",
+                 "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                 "calculation_data": null,
+                 "reading_config_id": ""
+                }
+               }
+              ],
+              "logicfield": {
+               "skip_to": null,
+               "response_is": {
+                "responses": [
+                 "6b9d74e4-c984-4d34-9e5c-240431223e74"
+                ]
+               },
+               "require_note": false,
+               "require_media": false,
+               "require_action": false,
+               "procurement_trigger": false,
+               "preset_action_type_ids": []
+              }
+             }
+            ],
+            "question": {
+             "options": {
+              "weighting": 1,
+              "is_mandatory": true
+             },
+             "response_set_id": "444e8492-4a03-41f0-bf9f-c68a8d853330",
+             "calculation_data": null,
+             "failed_responses": []
+            }
+           }
+          ],
+          "logicfield": {
+           "skip_to": null,
+           "response_is": {
+            "responses": [
+             "53d2fb42-7e31-45f3-a8d5-f9b454ea711b"
+            ]
+           },
+           "require_note": false,
+           "require_media": false,
+           "require_action": false,
+           "procurement_trigger": false,
+           "preset_action_type_ids": []
+          }
+         }
+        ],
+        "question": {
+         "options": {
+          "weighting": 1,
+          "is_mandatory": true
+         },
+         "response_set_id": "094e53bd-1068-45f9-a4a9-656e054e673f",
+         "calculation_data": null,
+         "failed_responses": []
+        }
+       },
+       {
+        "id": "7c56bb9d-237a-4dc9-bac1-263014a6ce1b",
+        "label": "Upload an overview photo of this ceiling area",
+        "media": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": false
+         }
+        },
+        "children": []
+       },
+       {
+        "id": "c0a231bd-bf67-4fb6-8649-d1eb1f77c33d",
+        "label": "Are there recessed downlights in this ceiling area?",
+        "children": [
+         {
+          "id": "69932026-91d1-483d-b3fc-33aa30ba32a7",
+          "label": "",
+          "children": [
+           {
+            "id": "66251dec-b3c7-422e-a6e6-956b8d9a7868",
+            "label": "How many recessed downlights?",
+            "children": [],
+            "textsingle": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             },
+             "text_format": "NUMBER",
+             "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+             "calculation_data": null,
+             "reading_config_id": ""
+            }
+           }
+          ],
+          "logicfield": {
+           "skip_to": null,
+           "response_is": {
+            "responses": [
+             "1cf7cf11-5599-404a-a443-abe58ebacb18"
+            ]
+           },
+           "require_note": false,
+           "require_media": false,
+           "require_action": false,
+           "procurement_trigger": false,
+           "preset_action_type_ids": []
+          }
+         }
+        ],
+        "question": {
+         "options": {
+          "weighting": 1,
+          "is_mandatory": true
+         },
+         "response_set_id": "3fd0a25e-301a-48b7-a7fe-834c7d86215f",
+         "calculation_data": null,
+         "failed_responses": [
+          "1cf7cf11-5599-404a-a443-abe58ebacb18"
+         ]
+        }
+       },
+       {
+        "id": "84e9d312-7293-4418-af04-b0d9f3ca3ce2",
+        "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+        "children": [
+         {
+          "id": "cb01795c-1d62-4a8a-ac55-66886b7dc3a0",
+          "label": "",
+          "children": [
+           {
+            "id": "5a7d079e-57be-46b7-aeab-dbcef1dd6511",
+            "label": "Please explain",
+            "children": [],
+            "textsingle": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             },
+             "text_format": "TEXT",
+             "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+             "calculation_data": null,
+             "reading_config_id": ""
+            }
+           },
+           {
+            "id": "295f4c47-f346-452d-8710-e3c0edc82197",
+            "label": "Describe the issue and add a photo",
+            "media": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             }
+            },
+            "children": []
+           }
+          ],
+          "logicfield": {
+           "skip_to": null,
+           "response_is": {
+            "responses": [
+             "320b6cdf-e34f-4b6a-94b3-6de5b4737ef3"
+            ]
+           },
+           "require_note": false,
+           "require_media": false,
+           "require_action": false,
+           "procurement_trigger": false,
+           "preset_action_type_ids": []
+          }
+         }
+        ],
+        "question": {
+         "options": {
+          "weighting": 1,
+          "is_mandatory": true
+         },
+         "response_set_id": "a303e65f-6e3b-4ea3-8370-ce040fc91128",
+         "calculation_data": null,
+         "failed_responses": [
+          "320b6cdf-e34f-4b6a-94b3-6de5b4737ef3"
+         ]
+        }
+       },
+       {
+        "id": "d5e9eb2f-1d57-4f1c-b850-2a9f42967f8b",
+        "label": "Slow 360° video of this ceiling area, lit, saying its name",
+        "media": {
+         "options": {
+          "weighting": null,
+          "is_mandatory": true
+         }
+        },
+        "children": []
+       },
+       {
+        "id": "0ae36939-d5e2-4481-a271-6f040b18f956",
+        "label": "This is the before video the rebate needs. Show any existing insulation.",
+        "children": [],
+        "instruction": {
+         "text": {}
+        }
+       }
+      ],
+      "dynamicfield": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": false
+       }
+      }
+     },
+     {
+      "id": "19ceaf52-5607-4421-ab3c-bb39a103db07",
+      "label": "Total ceiling area (m²)",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": false
+       },
+       "text_format": "NUMBER",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": {
+        "formula": "SUM(${0770fb3e-4dfd-4c4b-a37e-94c2505efae6})",
+        "autofill_item_id": ""
+       },
+       "reading_config_id": ""
+      }
+     }
+    ]
+   },
+   {
+    "id": "5a6bb7b3-5b53-4d83-b983-ca71bec7c662",
+    "label": "Ready Check Outcome",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "61ddb768-e509-4d6d-b209-f14127a6470d",
+      "label": "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?",
+      "children": [
+       {
+        "id": "eb72140f-452d-42af-be6a-1d276ebf7f2f",
+        "label": "",
+        "children": [
+         {
+          "id": "48d00958-f68d-4d04-a5cd-8e510d257eaa",
+          "list": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "6d030f47-898b-400e-8859-2ccadadd1fd5",
+           "calculation_data": null,
+           "failed_responses": [],
+           "multiple_selection": true
+          },
+          "label": "Why did the property fail the ready check? Select all that apply",
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "158af88d-c8f7-4d7e-b3bc-1a84e7e4c59b"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       },
+       {
+        "id": "a63c29a5-11fc-415f-91b4-69cc1eef41d1",
+        "label": "",
+        "children": [
+         {
+          "id": "7bfc1697-e927-4807-a1eb-0a4549cebade",
+          "list": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "1b1bde96-d34d-488f-a0d0-d743e34c523f",
+           "calculation_data": null,
+           "failed_responses": [],
+           "multiple_selection": false
+          },
+          "label": "What insulation product will you be using on this job?",
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "76f84ac1-0e9e-41dc-a559-0e52b3e321a4"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "33cdf48c-070a-4e6e-b531-6dc6637bc927",
+       "calculation_data": null,
+       "failed_responses": [
+        "158af88d-c8f7-4d7e-b3bc-1a84e7e4c59b"
+       ]
+      }
+     },
+     {
+      "id": "e1672a3c-98e2-4b33-9f81-8dc786cf7b90",
+      "label": "I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.",
+      "children": [],
+      "signature": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "media": [
+   {
+    "id": "021d89fb-94af-4b63-8365-3dcdf8d27288",
+    "token": "790edd5daa146876d0a8134d8bd678629186917e5d53730c1554aab1cc4f8fb0",
+    "filename": "IMG_1377 (002).PNG",
+    "media_type": "MEDIA_TYPE_IMAGE"
+   }
+  ],
+  "owner": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "author": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "added_at": "2026-10-01T00:25:23.629Z",
+  "archived": false,
+  "settings": {
+   "is_add_note_disabled": false,
+   "is_attach_media_disabled": false,
+   "is_create_action_disabled": false,
+   "is_inspection_completion_dialog_confirmation_disabled": false
+  },
+  "last_used": "2026-10-25T00:15:30Z",
+  "created_at": "2026-10-01T00:25:23.629Z",
+  "description": "Your customer. Your quote. We manage the VEU pathway.",
+  "modified_at": "2026-10-25T00:10:15.133Z",
+  "permissions": {
+   "edit": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "view": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "owner": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    }
+   ],
+   "delete": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "context": [
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ]
+  },
+  "revision_id": "51-a370f03bd6a44143bbef50416609a007",
+  "title_rules": [
+   "eb4177ca-ef17-4375-aa7d-6963007d3534",
+   "d9425ebb-d476-49ed-a804-5798516c21b6"
+  ],
+  "access_level": "ACCESS_LEVEL_DELETE",
+  "revision_key": "84ef4367-9ef9-4158-8d80-be92bb949e46",
+  "response_sets": [
+   {
+    "id": "5b69aee5-0532-46a4-b2f5-d020d4d5381d",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca20",
+      "color": "19,133,95",
+      "label": "Good",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca21",
+      "color": "255,176,0",
+      "label": "Fair",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca22",
+      "color": "198,0,34",
+      "label": "Poor",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca23",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "a8950a85-365f-41e7-b67c-3ca32c6d1474",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "f4c1cb3b-93a5-4a79-be5f-8e6273c8438b",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "b9bc9cb7-3c3c-4c0a-86ab-93ae7e434f37",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "dfdac085-53e8-452f-add8-8f440dd286bf",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "3b62315e-7cd0-4a25-9504-a4c9c99d6f65",
+      "color": "0,68,163",
+      "label": "Batts",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "f5c32f34-cfbf-4224-8c5a-c8a525b0996d",
+      "color": "0,68,163",
+      "label": "Loose fill",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "fcf7a519-967f-442b-ad90-8f0ff30adbde",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ca9db0ea-6aa4-4a0d-8605-eae0790415ab",
+      "color": "129,181,50",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "223d24d1-f83c-4817-8506-91cd75886be0",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "3e14d4c9-ae9e-4521-b16c-d6bca5a34ea9",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "d964dc61-473a-466b-a2da-5219788a6f50",
+      "color": "129,181,50",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ab34f89a-8c51-4961-9929-a1c451d56e93",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "7e7eb9b7-a3e5-490c-9524-c8b2507b322a",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "8e9bd330-45bb-400d-86e5-e712b3571910",
+      "color": "112,112,112",
+      "label": "Batts",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "e8addfd3-3e7b-4467-a5b9-c5038a979fbb",
+      "color": "112,112,112",
+      "label": "Loose fill",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5c187b51-01d0-4657-9997-098211cd096c",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "9d3c7592-1596-43f4-9726-03411cabbfb3",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "c71e0195-fa49-4171-98cf-82ddb218968a",
+      "color": "0,68,163",
+      "label": "House",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "a2d06eb5-769a-45e2-9eb0-556daa5740d6",
+      "color": "0,68,163",
+      "label": "Townhouse",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2bdd9f21-ed2b-47f2-846d-de3d5f003332",
+      "color": "0,68,163",
+      "label": "Unit or apartment",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "1b1bde96-d34d-488f-a0d0-d743e34c523f",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "27c1a975-9610-439a-96d9-83f26e7db31c",
+      "color": "112,112,112",
+      "label": "Bradford Gold R5",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "9f660a8f-12be-454c-bbb0-316ae3df35cb",
+      "color": "112,112,112",
+      "label": "Bradford Gold R6",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "087b771b-f583-4187-ad00-33b32f90af89",
+      "color": "112,112,112",
+      "label": "Bradford Gold R7",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "8e25a75c-8e5c-42db-b225-6fbbd90a9d82",
+      "color": "112,112,112",
+      "label": "Fletchers Pink Batts R5",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "ae202d15-739d-4d07-ba5b-dcd483f419d0",
+      "color": "112,112,112",
+      "label": "Fletchers Pink Batts R6",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "9258f0cf-ccc9-4777-affa-3f6853c9feaf",
+      "color": "112,112,112",
+      "label": "Fletchers Pink Batts R7",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "282409b3-cf2b-47b7-9e5a-3406ec09d100",
+      "color": "112,112,112",
+      "label": "Earthwool R5",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "52416afd-89f9-4dad-9a3d-af587717426b",
+      "color": "112,112,112",
+      "label": "ECOWOOL R5",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "3c3eea03-f3e9-49ee-b8e7-65391fbacc2c",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "dc87a004-15f5-4f9d-8497-126beb0c879f",
+      "color": "129,181,50",
+      "label": "Below R2.0",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "0eedcee9-05fa-4f8e-837a-61a47a1d81a9",
+      "color": "198,0,34",
+      "label": "Above R2.0",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "7d6af5be-ae35-4bb4-abdb-eb6def9e7cc2",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "b6352917-a047-4051-a6f1-dcf9f821e9ab",
+      "color": "112,112,112",
+      "label": "Ceiling insulation - supply & install",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2cb2424a-64d6-4de8-a639-9f08fb6085f2",
+      "color": "112,112,112",
+      "label": "Removal of existing insulation",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3861d6d1-647b-46d0-9f9d-d7024346ded6",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "b3b55e93-fe1b-436b-bd12-e923933c0272",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "74c17dab-e23b-4d26-92e2-45b964f14ce4",
+      "color": "112,112,112",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "d6b12a8c-acc4-42f9-8449-9c197b5486ef",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "094e53bd-1068-45f9-a4a9-656e054e673f",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "53d2fb42-7e31-45f3-a8d5-f9b454ea711b",
+      "color": "0,68,163",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "77560b55-0cfa-44bb-9acb-614e800fdbf4",
+      "color": "0,68,163",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "3b148a97-c0b3-4e3a-b88c-6c01325b973e",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "119a406b-37a6-4374-97ab-46b09cc025a2",
+      "color": "0,68,163",
+      "label": "Laser measure",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "ad485718-9d24-4b46-abbf-d9af8d907812",
+      "color": "0,68,163",
+      "label": "Tape measure",
+      "score": 0,
+      "score_enabled": false
+     },
+     {
+      "id": "e593071d-3b0e-4f39-8161-2080abee5e55",
+      "color": "0,68,163",
+      "label": "Floor plan",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "356dd863-7dbd-4bf4-b633-713558cce6eb",
+      "color": "0,68,163",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "6d030f47-898b-400e-8859-2ccadadd1fd5",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "90efea89-5736-4154-9668-e7d953f55820",
+      "color": "112,112,112",
+      "label": "Existing insulation R2 or above",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "2629a2ee-b8d5-49fc-95a8-22058ed9ceaf",
+      "color": "112,112,112",
+      "label": "Life support at property",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "f9d5fdb5-0bfc-46d2-a523-3b4aab202c2c",
+      "color": "112,112,112",
+      "label": "Ceiling or roof built or replaced in last 5 years",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "49628af3-d5f2-40ea-b318-73e768e12630",
+      "color": "112,112,112",
+      "label": "No safe access",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "03af109b-724c-455f-886c-70094cdd2924",
+      "color": "112,112,112",
+      "label": "Owner didn't agree to be contacted",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "684db387-f993-45e0-b3a9-8188d5ae6993",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "70ea938f-ab6e-41cf-88d2-1cc12899892c",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "dbd9f3cf-b93c-499d-a040-489426faad26",
+      "color": "112,112,112",
+      "label": "Earthwool",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "f8bb0d42-60fe-44b9-9f96-3d719cc1e9a1",
+      "color": "112,112,112",
+      "label": "Bradford",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "96d49fcc-41ba-4b69-adcb-349ed82da085",
+      "color": "112,112,112",
+      "label": "Pink Batts",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "a8e9cddc-99d3-49fc-b99a-915341934cdc",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "737a560e-10d4-4591-946a-895ce79028c1",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "7137e0b1-43d6-47f4-9115-ef680c87f750",
+      "color": "112,112,112",
+      "label": "House",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "4655bf14-29d6-445c-b494-6821ea791e40",
+      "color": "112,112,112",
+      "label": "Townhouse",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "212677b0-7b6e-4fbb-8d99-cfae90b7b2a5",
+      "color": "112,112,112",
+      "label": "Unit or apartment",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "3d882a2f-10f9-404f-bdd7-73d6837520de",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "77faf11a-cb02-4cf5-a7ad-f0a142dfc100",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "d10e13ca-f5e5-4ca5-a4ab-79448fe06b87",
+      "color": "112,112,112",
+      "label": "R5.0 ceiling insulation - supply & install",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "b3e7546b-fd2b-4752-b5e1-46afd9c109ba",
+      "color": "112,112,112",
+      "label": "Existing insulation removal",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "a811b0fe-7aba-43aa-9694-63c846e2b749",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
+      "color": "19,133,95",
+      "label": "Pass",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
+      "color": "198,0,34",
+      "label": "Fail",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "1874d37a-33ce-4d67-9b02-04630210570c",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "7e88ad4c-bdec-4402-b18a-1d122e077129",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "3cd5a4bf-c9c3-4af0-8f7e-f302e27932b3",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "20b92e64-fff4-407d-b967-1567e4899c6e",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "cdb06738-b788-4c24-a2c6-ad23ea635e4a",
+      "color": "129,181,50",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "efcdca82-7f71-43a9-a9a3-f9ea884def04",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "22faeabb-0f91-46d7-965a-6ed9e2689731",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "fbcf9630-3993-4a6f-b0eb-844eb7d1c020",
+      "color": "0,68,163",
+      "label": "1",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "485f3d7f-75c5-419f-998a-66bd3d8ff741",
+      "color": "0,68,163",
+      "label": "2",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "abb7ffd7-66c1-4086-8745-146357a7149f",
+      "color": "0,68,163",
+      "label": "3",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5c77aae0-a8b0-498c-bbf4-38187c2cf60d",
+      "color": "0,68,163",
+      "label": "4",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1d749202-d168-4517-bed7-c17684cfdfdb",
+      "color": "0,68,163",
+      "label": "5",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "63df6c5e-ec94-4632-befc-2bace24a9991",
+      "color": "0,68,163",
+      "label": "6+",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "c6c011ed-4ade-460d-a04b-da730834b667",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "060ace00-1f61-468e-9c42-918fa93badcf",
+      "color": "19,133,95",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace01-1f61-468e-9c42-918fa93badcf",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace02-1f61-468e-9c42-918fa93badcf",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "cacb19f2-379c-48b6-8b7a-48e523bf3a16",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "289960b6-0688-4b91-9e0e-4189a5cf53c8",
+      "color": "112,112,112",
+      "label": "My usual product",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "26348839-a135-4c92-a62c-a34f3692e4c9",
+      "color": "112,112,112",
+      "label": "A different product",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "22f7cbf7-d061-48be-a29b-e3cfad1e9950",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "19916502-4d0b-4e57-a495-71e010bc6d96",
+      "color": "129,181,50",
+      "label": "Below R2.0",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "3319b854-ac21-45b9-85a5-e95e8518c2db",
+      "color": "198,0,34",
+      "label": "Above R2.0",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "a303e65f-6e3b-4ea3-8370-ce040fc91128",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "320b6cdf-e34f-4b6a-94b3-6de5b4737ef3",
+      "color": "211,47,47",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3314000f-fba5-48ab-ab01-fbe8108771ca",
+      "color": "46,125,50",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "cb3fcb36-89b1-44c5-a4fb-8d9a15ff4235",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "037ad2c3-eb56-4923-ab33-60b8e84abaf1",
+      "color": "129,181,50",
+      "label": "Easy",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "0a6135bd-a38e-4fad-8d4b-9f95f3f53f25",
+      "color": "129,181,50",
+      "label": "Standard",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "99b99600-2b3d-48cb-b499-7d69f85812ed",
+      "color": "247,166,25",
+      "label": "Difficult",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "508d88be-a9b5-4efd-a4dc-d72c13ee2084",
+      "color": "198,0,34",
+      "label": "No safe access",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "3fd0a25e-301a-48b7-a7fe-834c7d86215f",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "1cf7cf11-5599-404a-a443-abe58ebacb18",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "72faa9aa-7ee0-4dae-8fff-75aca7b302d1",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "152fb318-087b-4214-8529-acd1dfcec50d",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "86f085cf-8eb8-4248-a9e0-9e4ad774d7e6",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "2da55c88-b55a-4ed8-9466-822c68be1e43",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "3d955ed4-2f02-46b5-bf26-f81500128488",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "f8de7d6a-2ec8-4304-9ee0-1a19b6e7dcf4",
+      "color": "112,112,112",
+      "label": "Home Insulation Victoria electrician",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "762153f5-ce74-423b-a2e3-4c04b655a4c5",
+      "color": "112,112,112",
+      "label": "My usual electrician",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "dbda9197-b9f1-4b4c-b4bb-95a318ab713a",
+      "color": "112,112,112",
+      "label": "A different electrician",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "7601fb75-80ae-4409-b31a-9acd58d45445",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "af89ffa0-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "19,133,95",
+      "label": "Safe",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa1-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "198,0,34",
+      "label": "At Risk",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa2-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "81529532-ce7b-4636-868f-3de76af8b516",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ecc62de1-9bcd-4b6e-9ab0-21dcc88d4cad",
+      "color": "112,112,112",
+      "label": "R5.0 ceiling insulation supply & install",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "a4d0b6c6-4967-4835-9340-44af08cd31cb",
+      "color": "112,112,112",
+      "label": "Existing insulation removal",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "d8f5d3cb-077a-4af3-9b5d-6809e1bf78ed",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "98fce650-afa7-4535-9222-0d64ef08cf4f",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "c06d55d4-9d44-4bd0-9ec2-7324d615f9eb",
+      "color": "112,112,112",
+      "label": "R5.0",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "cce6ab4a-7810-4003-b263-0c0c458451b2",
+      "color": "112,112,112",
+      "label": "R6.0",
+      "score": 1,
+      "score_enabled": false
+     },
+     {
+      "id": "a94bbc47-5187-4578-879b-11867addbe61",
+      "color": "112,112,112",
+      "label": "R7.0",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "9a22ee71-72b8-4800-9998-c752dcf36aa5",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "f46e469f-b9d8-4533-90ef-4b3c1aaffd5e",
+      "color": "0,68,163",
+      "label": "Tiles",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1b3a9e33-dfe8-4069-ad54-054c4fdaeb61",
+      "color": "0,68,163",
+      "label": "Metal sheet",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "feb23429-f48b-49d5-822e-ce2933ede891",
+      "color": "0,68,163",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "9bcb0f7f-2aa3-4466-a8f4-2bc0e4a63922",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ae03c0c2-8fb8-4373-a17e-69a04e97fd1c",
+      "color": "112,112,112",
+      "label": "Batts",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "0b173a86-7d8d-4dcb-a00c-008d893d9db1",
+      "color": "112,112,112",
+      "label": "Loose fill",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "63278103-c151-4285-9606-68b506a83ee9",
+      "color": "112,112,112",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "9bd0b469-b655-40d4-b79e-0533650a99a7",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "44fbfecc-dba4-42b6-abc2-18f636dcaa54",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "da17769c-81d5-435c-ac1c-566490305b59",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "730e2b7b-7f1e-4301-b939-0fced24001db",
+      "color": "247,166,25",
+      "label": "Not sure",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "bf366fce-57ed-43fa-b9b9-ee9ae430b2d9",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "b1877494-8d90-437f-9600-43493435afb9",
+      "color": "0,68,163",
+      "label": "R5.0 supply and install",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3846157a-e952-4a9a-863b-d54e7bbea595",
+      "color": "0,68,163",
+      "label": "Removal of existing insulation",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5fff3102-d1ae-4e45-9e58-b692e2764f4d",
+      "color": "0,68,163",
+      "label": "Difficult access",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6d52dd1f-903d-42ec-8c86-75478159721b",
+      "color": "0,68,163",
+      "label": "Tile lift",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1c706801-92e9-4ce5-824e-098818d76d69",
+      "color": "0,68,163",
+      "label": "Metal sheet access",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "316488b0-7da2-48d0-a1d5-5d45cc15d36e",
+      "color": "0,68,163",
+      "label": "Other",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "d743f356-a147-472c-a790-0c46a187de92",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
+      "color": "19,133,95",
+      "label": "Compliant",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
+      "color": "198,0,34",
+      "label": "Non-Compliant",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "444e8492-4a03-41f0-bf9f-c68a8d853330",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "6b9d74e4-c984-4d34-9e5c-240431223e74",
+      "color": "102,102,102",
+      "label": "Remove",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "466bc64b-e752-4f39-b513-93e733d7b4ba",
+      "color": "102,102,102",
+      "label": "Top up",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1bdd2f09-be98-4d37-8ae3-ba2f5e415616",
+      "color": "102,102,102",
+      "label": "Not sure",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "33cdf48c-070a-4e6e-b531-6dc6637bc927",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "76f84ac1-0e9e-41dc-a559-0e52b3e321a4",
+      "color": "129,181,50",
+      "label": "Yes - Ready Check passed",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "158af88d-c8f7-4d7e-b3bc-1a84e7e4c59b",
+      "color": "198,0,34",
+      "label": "No - Ready Check failed",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   }
+  ],
+  "document_links": [],
+  "format_version": "FORMAT_VERSION_3",
+  "metadata_image": {
+   "id": "021d89fb-94af-4b63-8365-3dcdf8d27288",
+   "token": "790edd5daa146876d0a8134d8bd678629186917e5d53730c1554aab1cc4f8fb0",
+   "filename": "IMG_1377 (002).PNG",
+   "media_type": "MEDIA_TYPE_IMAGE"
+  },
+  "translation_id": "",
+  "draft_author_name": "",
+  "origin_information": null,
+  "date_draft_modified": "1970-01-01T00:00:00Z",
+  "global_response_sets": [],
+  "mandatory_mark_as_complete": false,
+  "procurement_order_settings": null,
+  "is_locked_from_shared_library": false,
+  "support_site_as_question_type": true
+ }
+}

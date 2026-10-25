@@ -247,7 +247,9 @@ export function buildSheet(key: FormKey): string {
 }
 
 /** Flattens a v1 template definition into {label,type}. The item type is its type-named key (e.g. "textsingle"). */
-const NON_QUESTION = new Set(["section", "category", "instruction", "logicfield"]);
+// `dynamicfield` is the repeating "Add a ceiling area" block (decision 222): a container, never a question. Without it the
+// lean Ready Check templates read as "unreadable" and the saved-form health check could prove nothing about them.
+const NON_QUESTION = new Set(["section", "category", "instruction", "logicfield", "dynamicfield"]);
 /**
  * Template questions from header_items + items (nested children or flat parent_id), typed deterministically by
  * mittiItemType (explicit `type`, else a known Mitti type key — never "first object-valued property", so
