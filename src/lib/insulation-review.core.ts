@@ -20,15 +20,24 @@ export function declarationCriteriaPassed(x: { outcome: string | null; decisionS
 }
 /** Jo 23 Oct 2026: owner said insulation is present -> automatic existing-insulation offer qualification. */
 export const PRESENT_AUTO_OFFER_EVENT = "owner_insulation_present_auto_offer";
-export function presentAutoOfferDetails() {
+/** Decision 392 (Jo 25 Oct 2026): the owner ticked "don't know" — recorded honestly as answer "unknown", never "yes". */
+export function presentAutoOfferDetails(answer: "present" | "unknown" = "present") {
+  if (answer === "unknown") return { answer: "unknown", preliminary_queue_qualification: true, basis: "owner_declared", declaration_type: "unknown_auto_offer", rule: "jo_2026_10_25_insulation_unknown" };
   return { answer: "yes", preliminary_queue_qualification: true, basis: "owner_declared", declaration_type: "present_auto_offer", rule: "jo_2026_10_23_insulation_present" };
 }
 export function qualifyingDeclaration(events: { event_type: string; details: unknown }[]): boolean {
   return events.some((event) => {
     if (!event.details || typeof event.details !== "object") return false;
     const m = event.details as Record<string, unknown>;
-    return m['answer'] === "yes" && m['preliminary_queue_qualification'] === true && m['basis'] === "owner_declared" &&
+    if (m['preliminary_queue_qualification'] !== true || m['basis'] !== "owner_declared") return false;
+    // Decision 392: the automatic "don't know" offer qualification (exact shape only; never stands in for any other declaration).
+    if (event.event_type === PRESENT_AUTO_OFFER_EVENT && m['answer'] === "unknown" && m['declaration_type'] === "unknown_auto_offer") return true;
+    return m['answer'] === "yes" &&
       ((event.event_type === "owner_insulation_loose_fill_only_declared" && m['declaration_type'] === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m['declaration_type'] === "below_r2") || (event.event_type === PRESENT_AUTO_OFFER_EVENT && m['declaration_type'] === "present_auto_offer"));
   });
+}
+/** The owner actually answered the insulation questions (or said it is present): excludes the decision 392 "don't know" record. */
+export function answeredInsulationDeclaration(events: { event_type: string; details: unknown }[]): boolean {
+  return qualifyingDeclaration(events.filter((e) => e.event_type === PRESENT_AUTO_OFFER_EVENT && (e.details as Record<string, unknown> | null)?.['declaration_type'] === "present_auto_offer"));
 }
 export const INSULATION_REVIEW_INVITATION = "Help us check your existing insulation. Choose one option below. Is your existing insulation loose-fill only (no batts)? Is your existing insulation less than R2? If you answer Yes to either question and the other initial checks pass, you can save your spot. Alternatively, upload photos of your existing insulation or take a video from the manhole for office review. Record from the manhole opening. Please do not climb into the roof space. Not sure? You can upload photos or a video for office review. Final eligibility and compliance checks still apply before you agree to anything.";

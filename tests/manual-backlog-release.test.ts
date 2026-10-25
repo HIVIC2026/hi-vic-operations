@@ -99,7 +99,7 @@ describe("trusted backlog context", () => {
     );
     const r = src("src/lib/lead-email-routing.server.ts");
     expect(r).toContain(
-      'automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(route.existingInsulation ? { existingInsulationOffer: true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) })',
+      'automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(route.existingInsulation ? { existingInsulationOffer: route.insulationUnknown ? "unknown" as const : true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) })',
     );
     expect(r).toContain("sendDecisionIneligibleEmail(jobId, manualBacklog ? ctx : {})");
     // Service coverage is still checked before the gate on every path.
