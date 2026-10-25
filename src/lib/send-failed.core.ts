@@ -41,6 +41,9 @@ export const PURPOSE_LABEL: Record<string, string> = {
   // Decision 326
   ready_check_times_owner: "Ready Check times text", ready_check_booked_owner: "Ready Check booked text", visit_tomorrow_owner: "See you tomorrow text",
   safety_check_booked_owner: "Safety check booked text", quote_reminder_sms: "Quote reminder text", install_moved: "Install moved text", piesa_offer: "Safety check job offer text",
+  // Decision 376 (drafts)
+  visit_new_times: "Visit cancelled – new times", owner_paperwork_copy: "Signed paperwork copy email",
+  piesa_times_reminder: "Safety check times reminder text", installer_planning_notice: "Safety check booked text (installer)",
 };
 
 export function sendLabel(key: string, channel: "email" | "sms"): string {

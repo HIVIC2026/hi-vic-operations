@@ -115,6 +115,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaFixesConfirm'] = "failed";
         }
         try {
+          // Decision 376: ONE copy of the owner's signed Gate B paperwork per signing sitting (email O75, PDFs attached).
+          // DRAFT wording: real owners get nothing until approved; TEST jobs use test-send.
+          const { sweepOwnerPaperworkCopies } = await import("@/lib/paperwork-copy-email.server");
+          (out as Record<string, unknown>)['paperworkCopies'] = await sweepOwnerPaperworkCopies();
+        } catch (e) {
+          console.error("allocation tick: signed paperwork copy sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['paperworkCopies'] = "failed";
+        }
+        try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
           const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
           (out as Record<string, unknown>)['veecReminders'] = await sweepVeecReminders();

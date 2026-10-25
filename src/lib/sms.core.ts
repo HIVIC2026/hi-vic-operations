@@ -80,6 +80,13 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
   // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
   swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377)", wordingApproved: false, quietHours: true },
+  // Decision 376 (Jo 25 Oct 2026): DRAFT wording — held until Jo approves. Each records one workflow event before any send.
+  // The trade cancelled a booked visit → the owner (O74 text, visit-new-times.core visitNewTimesText).
+  visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  // 24h after accepting a safety check job with no times offered → the electrician (E14 text, piesa-times-reminder.core).
+  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
+  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -149,6 +156,9 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
   owner_changed_visit: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's change on My job (recorded once per change before any send; installer-texts.server)
   swms_sign_link: { kind: "window" }, // key = job + signer + install date + step (booked / day before); recomputed each tick, only while unsigned (swms-sign-text.core)
+  visit_new_times: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the trade's cancel (visit_times_reopened); also needs the visit still not rebooked
+  piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered
+  installer_planning_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
 };
 
 export type SmsEventInput = {
