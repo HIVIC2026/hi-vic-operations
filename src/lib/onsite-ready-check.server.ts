@@ -1,6 +1,7 @@
 // Installer "Add a job" persistence (Jo, 7 Oct 2026; basics only since decisions 34/115, 24 Oct 2026).
 // Creates the installer-supplied job the same way Upload jobs does (always a new owner, stage Ready Check ready to
-// schedule, no booking), records the owner's contact permission, then creates the installer's Mitti Ready Check form
+// schedule, no booking) unless the address already has an OPEN job (decision 282: linked + office flag, no new job),
+// records the owner's contact permission, then creates the installer's Mitti Ready Check form
 // straight away through the existing claim-guarded createAssignMittiAudit path (decision 115: no booking needed).
 // Decision 116: an optional visit day + time is saved through the same path as the job page (tradeSetReadyCheckTime).
 // Mitti stays hidden until the office ticks "Mitti account invited" for the business.
@@ -28,11 +29,19 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   if (problems.length) throw new WorkflowError(problems.join(" • "));
 
   const email = input.email.trim().toLowerCase();
+  const source = await intakeSourceFor(userId, businessId, "installer_onsite");
+  // Decision 282 (Jo 25 Oct): only the address matters. An open job at this address is told to the office and the
+  // installer sees its number; nothing is created. Email/phone are never a reason to refuse.
+  const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
+  const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source });
+  if (open) {
+    await flagDuplicateAddress(open, userId, { from: "add_a_job", business_id: businessId, business_name: await businessNameFor(businessId), full_name: input.full_name.trim(), email, phone: input.phone.trim(), address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim() });
+    throw new WorkflowError((await import("./duplicate-address.core")).duplicateAddressMessage(open.job_number));
+  }
   const { createInstallerOwner } = await import("./installer-owner.server");
   const owner = await createInstallerOwner(admin, businessId, { full_name: input.full_name.trim(), email, phone: input.phone.trim() });
   const { data: prop, error: pe } = await admin.from("properties").insert({ owner_id: owner.id, address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim(), state: "VIC" }).select("id").single();
   if (pe || !prop) throw new WorkflowError(pe?.message ?? "Property could not be saved.");
-  const source = await intakeSourceFor(userId, businessId, "installer_onsite");
   // Decision 34: basics only. The visit, measurements, existing insulation, removal, product, price and electrician are
   // all answered in the Mitti Ready Check form, so nothing here claims a visit or a quote.
   const { data: job, error: je } = await admin.from("jobs").insert({

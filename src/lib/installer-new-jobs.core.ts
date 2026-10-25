@@ -14,7 +14,7 @@ export const PRE_READY_CHECK_STAGES = [
 /** Events that prove Ready Check answers have reached the portal from Mitti. */
 export const FORM_STARTED_EVENTS = ["ready_check_basics", "mitti_measureup_synced", "mitti_synced"] as const;
 /** Office-flagged Mitti events that were previously written to the timeline only. */
-export const FLAG_EVENTS = ["mitti_pickup_clash", "mitti_pickup_installer_started_a2"] as const;
+export const FLAG_EVENTS = ["mitti_pickup_clash", "mitti_pickup_installer_started_a2", "duplicate_address_linked"] as const;
 export const HELD_EVENTS = ["installer_quote_held", "ready_check_needs_office", "quote_auto_send_held"] as const;
 /** A quote going to the owner clears an earlier "Quote held" warning. */
 export const QUOTE_SENT_EVENTS = ["quote_sent_by_office", "quote_sent_automatically"] as const;

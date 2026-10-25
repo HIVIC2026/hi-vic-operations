@@ -155,8 +155,22 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
     const repeat = await findOpenRepeatJob(source, email ?? "", input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
     if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
   }
-
   if (!owner) throw new Error("Owner could not be saved.");
+
+  // Decision 282 (Jo 25 Oct): only the address matters. Any OTHER open job at this address (whoever the owner is,
+  // whichever channel) gets the office flag and no second job is made: an installer path is told the job number
+  // (never assigned to someone else's job — trade isolation), the website/office/email paths get that job back.
+  if (!existingJob) {
+    const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
+    const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, source });
+    if (open) {
+      const { duplicateAddressFrom, duplicateAddressMessage } = await import("./duplicate-address.core");
+      const installer = origin.channel === "installer_sourced";
+      await flagDuplicateAddress(open, actorId, { from: duplicateAddressFrom(source, origin.channel), business_id: installer ? origin.businessId : null, business_name: installer ? await businessNameFor(origin.businessId) : null, request_key: input.external_enquiry_id ?? null, full_name: input.full_name, email, phone: input.phone ?? null, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null });
+      if (installer) throw new Error(duplicateAddressMessage(open.job_number));
+      return { job_id: open.id, job_number: open.job_number, created: false, post_intake: "none" as const, duplicate_address: true as const };
+    }
+  }
   // Decision 216: every address is stored as street / suburb / postcode the same way for every source. A website
   // one-line address with no suburb is split by the pure tidy (never inventing a suburb or postcode); installers'
   // own entries are kept exactly as typed.

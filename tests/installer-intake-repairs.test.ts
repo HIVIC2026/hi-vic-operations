@@ -25,23 +25,35 @@ describe("private insurance files", () => {
   test("own renewed certificate uses job-files", () => expect(partnerFileBucket(business, `partners/${business}/credentials/test.pdf`, false)).toBe("job-files"));
   test("path traversal and another business prefix rejected", () => { expect(partnerFileBucket(business, `partners/${business}/../test.pdf`, true)).toBeNull(); expect(partnerFileBucket(business, "partners/other/credentials/test.pdf", true)).toBeNull(); });
 });
-function dbFor(ownerId: string | null, insertCode = "23505") {
+function dbFor(ownerId: string | null, insertCode: string | null = "23505") {
   const calls: string[] = [];
+  let inserted = 0;
   const db = { from: (table: string) => {
     calls.push(table);
-    const q: any = { insert: () => q, select: () => q, eq: (key: string, value: string) => { calls.push(`${key}:${value}`); return q; }, ilike: () => q, limit: () => q, single: async () => ({ data: insertCode ? null : { id: "new-owner" }, error: insertCode ? { code: insertCode } : null }), maybeSingle: async () => ({ data: ownerId ? { owner_id: ownerId } : null, error: null }) };
+    const q: any = { insert: () => q, select: () => q, eq: (key: string, value: string) => { calls.push(`${key}:${value}`); return q; }, ilike: () => q, limit: () => q, single: async () => ({ data: insertCode ? null : { id: `new-owner-${++inserted}` }, error: insertCode ? { code: insertCode } : null }), maybeSingle: async () => ({ data: ownerId ? { owner_id: ownerId } : null, error: null }) };
     return q;
   } };
   return { db, calls };
 }
-describe("duplicate email safely recovers", () => {
+describe("decision 282: one email, any number of owners and jobs", () => {
   const input = { full_name: "Test Owner", email: "owner@example.test", phone: "0412345678" };
-  test("only same originating installer customer reused and never updated", async () => {
+  test("the same email twice makes two owner rows (two jobs), with no email lookup at all", async () => {
+    const { db, calls } = dbFor(null, null);
+    expect(await createInstallerOwner(db, "business-1", input)).toEqual({ id: "new-owner-1" });
+    expect(await createInstallerOwner(db, "business-1", input)).toEqual({ id: "new-owner-2" });
+    expect(calls).toEqual(["owners", "owners"]);
+  });
+  test("until owners-email-not-unique.sql is applied: the installer's own earlier customer is reused, never updated", async () => {
     const { db, calls } = dbFor("same-business-owner");
     expect(await createInstallerOwner(db, "business-1", input)).toEqual({ id: "same-business-owner" });
     expect(calls).toContain("originating_installer_business_id:business-1");
     expect(calls).toContain("channel:installer_sourced");
   });
-  test("unrelated duplicate stops with office-review message", async () => { const { db } = dbFor(null); await expect(createInstallerOwner(db, "business-1", input)).rejects.toThrow("customer who isn't yours"); });
+  test("until the migration: any other collision is the neutral save error — never \"customer who isn't yours\"", async () => {
+    const { db } = dbFor(null);
+    const err = await createInstallerOwner(db, "business-1", input).catch((e: Error) => e.message);
+    expect(err).toBe("The customer could not be saved. Please contact the office for help; your entered details are kept.");
+    expect(err).not.toMatch(/isn't yours|another installer|our leads/);
+  });
   test("other insert failures never reuse customer", async () => { const { db, calls } = dbFor("owner", "42501"); await expect(createInstallerOwner(db, "business-1", input)).rejects.toThrow("could not be saved"); expect(calls).toEqual(["owners"]); });
 });
