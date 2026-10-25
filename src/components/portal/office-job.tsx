@@ -45,6 +45,7 @@ import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { AdminBookingOverride } from "@/components/portal/partner";
 import { manualVisitKind } from "@/lib/pilot.core";
 import { AssessmentView, Compliance, ComplianceRecords, EligibilityForm, JobCoverage, Veec } from "@/components/portal/office-job-parts";
+import { FinalCheckScreen } from "@/components/portal/final-check";
 
 export type JobPage = Awaited<ReturnType<typeof import("@/lib/office-job-page.server").loadJobPage>>;
 type Header = JobPage["header"];
@@ -123,7 +124,7 @@ export function StageCards({ cards, open, onOpen }: { cards: StageCard[]; open: 
 }
 
 /** The working tools behind each card — the kept, guarded panels (audit Part 5 §4). */
-export function StageWorkspace({ jobId, k, page }: { jobId: string; k: CardKey; page: JobPage }) {
+export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: CardKey; page: JobPage; onGo?: (k: CardKey | "money" | "contact") => void }) {
   const h = page.header;
   const regen = useAction(regenerateRectificationQuote);
   const complete = useAction(completeInstallation);
@@ -175,8 +176,9 @@ export function StageWorkspace({ jobId, k, page }: { jobId: string; k: CardKey; 
         <SectionDocuments jobId={jobId} categories={["Installation"]} />
       </>;
       case "final-check": return <>
+        <FinalCheckScreen jobId={jobId} {...(onGo ? { onGo } : {})} />
         <ComplianceRecords jobId={jobId} />
-        <Compliance jobId={jobId} atFinalCheck={h.stage === "ap_review"} />
+        <Compliance jobId={jobId} />
         <AdminAssignmentPanel jobId={jobId} sections={[4]} />
         <Veec jobId={jobId} />
         <EvidencePanel jobId={jobId} role="admin" excludeGates={["installation"]} />

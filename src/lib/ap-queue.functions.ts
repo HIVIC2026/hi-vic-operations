@@ -10,7 +10,17 @@ export const getApQueue = createServerFn({ method: "GET" }).middleware([requireS
     return loadApQueue();
   });
 
-/** AP approves ONE job. Its own permanent record (who, when, note, flags shown). Never bulk, never automatic. */
+/** Decision 372: the one-screen Final check for ONE job (every check, tick/cross, why, evidence link). Read-only. */
+export const getFinalCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { finalCheckScreen } = await import("./final-check.server");
+    return finalCheckScreen(data.jobId, context.userId);
+  });
+
+/** AP approves ONE job. Its own permanent record (who, when, note, flags shown). Never bulk, never automatic.
+ *  Decision 372: refused unless every Final check item passes (the same list the screen shows); transition re-runs every guard. */
 export const approveApJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), note: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
@@ -21,7 +31,10 @@ export const approveApJob = createServerFn({ method: "POST" }).middleware([requi
     const flags = (await jobApFlags([data.jobId])).get(data.jobId) ?? [];
     const block = approvalNoteBlocker(flags, data.note);
     if (block) throw new WorkflowError(block);
+    const { finalCheckScreen } = await import("./final-check.server");
+    const fc = await finalCheckScreen(data.jobId, context.userId);
+    if (!fc.ready) throw new WorkflowError(`Final check not passed: ${fc.reasons.join(" · ")}`);
     await transition(data.jobId, "ready_for_veec", context.userId, "AP approved – Ready for VEEC");
-    await logEvent(data.jobId, context.userId, "ap_approved", flags.length ? `AP approved a flagged job: ${data.note!.trim()}` : `AP approved${data.note?.trim() ? `: ${data.note.trim()}` : ""}`, { note: data.note?.trim() || null, flags, approved_at: new Date().toISOString() }, { internal: true });
+    await logEvent(data.jobId, context.userId, "ap_approved", flags.length ? `AP approved a flagged job: ${data.note!.trim()}` : `AP approved${data.note?.trim() ? `: ${data.note.trim()}` : ""}`, { note: data.note?.trim() || null, flags, approved_at: new Date().toISOString(), final_check: fc.items.map((i) => ({ key: i.key, state: i.state })) }, { internal: true });
     return { ok: true };
   });

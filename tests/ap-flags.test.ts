@@ -51,8 +51,10 @@ describe("AP approval only through the queue (static)", () => {
   });
   test("old Ready for VEEC action refuses AP review jobs", () => expect(pf).toContain("Final AP approval happens only in the AP approval queue"));
   test("Final check card approves one job through approveApJob (no bulk, no AP queue detour)", () => {
-    const parts = readFileSync(new URL("../src/components/portal/office-job-parts.tsx", import.meta.url), "utf8");
+    // Decision 372: the Approve moved from the compliance card to the one-screen Final check (same human action).
+    const parts = readFileSync(new URL("../src/components/portal/final-check.tsx", import.meta.url), "utf8");
     expect(parts).toContain("useAction(approveApJob)");
     expect(parts).toContain("approve({ jobId,");
+    expect(readFileSync(new URL("../src/components/portal/office-job-parts.tsx", import.meta.url), "utf8")).not.toContain("approveApJob");
   });
 });
