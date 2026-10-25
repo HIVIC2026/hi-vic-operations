@@ -12,3 +12,13 @@ export function isRecoverableTransportError(error: unknown): boolean {
     error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return TRANSPORT_ERROR.test(message);
 }
+
+// Named lazy route exports can be absent in an already-open tab after a deployment.
+// Keep this pure so the router and pre-hydration document use the exact same classifier.
+export const STALE_CHUNK_ERROR =
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|undefined is not an object \(evaluating '[^']*(?:default|component|errorComponent|pendingComponent|notFoundComponent)|Cannot read properties of undefined \(reading '(?:default|component|errorComponent|pendingComponent|notFoundComponent)'\)/i;
+
+export function isStaleChunkError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return STALE_CHUNK_ERROR.test(message);
+}
