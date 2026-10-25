@@ -91,5 +91,5 @@ export const robotApiOps: RobotApiOps = {
     await assertLive(i.jobId, "Recording robot-created VEECs");
     return recordRobotVeecSubmitted(i);
   }),
-  storeRobotScreenshot: refusals(async (i) => storeRobotScreenshot(i)),
+  storeRobotScreenshot: refusals(async ({ reference, at, ...i }) => storeRobotScreenshot({ ...i, reference: reference ?? null, ...(at ? { at } : {}) })),
 };
