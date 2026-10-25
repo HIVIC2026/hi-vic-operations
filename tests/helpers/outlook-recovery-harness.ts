@@ -25,6 +25,10 @@ export async function outlookHarness() {
     CREATE TYPE job_stage AS ENUM ('new_enquiry','eligibility_review','preliminary_estimate_ready',
       'ready_check_awaiting_acceptance','installation_booked','cancelled','complete');
     CREATE TABLE owners(id uuid PRIMARY KEY, email text);
+    CREATE TABLE businesses(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text, signer_email text);
+    CREATE TABLE partner_workers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text);
+    CREATE TABLE partner_enquiries(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text);
+    CREATE TABLE profiles(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text);
     CREATE TABLE properties(id uuid PRIMARY KEY, address_line text, postcode text);
     CREATE TABLE jobs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_number text,owner_id uuid REFERENCES owners(id),
       property_id uuid REFERENCES properties(id),stage job_stage NOT NULL DEFAULT 'new_enquiry',prior_stage job_stage,
@@ -148,7 +152,8 @@ export async function outlookHarness() {
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const module = { exports: {} }; modules.set(name, module.exports);
     const require = (path: string) => path === "@/integrations/supabase/client.server" ? { supabaseAdmin: admin }
-      : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core" || path === "./email-intent.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
+      : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core" || path === "./email-intent.core"
+        || path === "./new-sender-reply.core" || path === "./new-sender-reply.server" || path === "./engagement.core" || path === "./estimatelink.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
     new Function("require", "module", "exports", "process", "fetch", output)(require, module, module.exports,
       { env: { LOVABLE_API_KEY: "fixture-gateway-key", MICROSOFT_OUTLOOK_API_KEY: "fixture-connection-key" } },
       async (url: string, options: RequestInit) => { requests.push({ url, options }); return control.fetch(url, options); });

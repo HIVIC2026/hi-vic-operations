@@ -1,14 +1,14 @@
-// Renders the decision-244/255 sample reply drafts into docs/templates/drafts/email-reply-samples.md for Jo.
+// Renders the decision-244 sample reply drafts into docs/templates/drafts/email-reply-samples.md for Jo.
 // Pure: no network, no database. Usage: bun scripts/render-email-reply-samples.ts
 import { mkdirSync, writeFileSync } from "node:fs";
 import { composeReply, draftCategories, REPLY_TYPE_LABEL } from "../src/lib/email-reply.core";
 import { SAMPLES } from "../tests/fixtures/email-reply-samples";
 
 const out: string[] = [
-  `# Inbox reply drafts — ${SAMPLES.length} samples for approval (decisions 244 and 255)`,
+  `# Inbox reply drafts — ${SAMPLES.length} samples for approval (decision 244)`,
   "",
   "Drafts only: the portal writes these into info@ as Outlook drafts in the same thread; Jo or Chris presses Send. Nothing is sent automatically (each type stays manual until Jo switches it on).",
-  "Decision 255: replies point people to their own homeowner page, never the calculator. A new sender with no job gets an enquiry created from their email (name and email from the email, the address only when the email gives a complete one) and the reply carries that enquiry's own page link; with no address the reply asks for it and the enquiry waits in Enquiries without an address (decision 281: no Fix details pile). Those drafts are always marked “Check before sending” until Jo has seen a few.",
+  "Matched owners' replies point to their own homeowner page, never the calculator. Decision 292 (replaces 255 for new senders): a NEW sender with no job is not drafted for and no enquiry is created from their email — they are sent the one website reply (O70, docs/templates/approved/O70-new-sender-calculator.html) pointing to the calculator; every other unmatched email waits on Needs me › Match this email.",
   "Every name, address, job number, link and email below is invented. Figures follow the approved O18 quote example.",
   "",
 ];

@@ -92,10 +92,10 @@ export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sou
 /** Pure intake fact guards (Jo, 22 Oct 2026): only authenticated manual (portal) intake may record an
  *  unknown ceiling size (null + area_unknown) or an unknown life-support status. Signed Base44 intake
  *  keeps its locked numeric-area invariant, and no origin ever fabricates a fact or its provenance. */
-export function intakeJobFacts(input: { estimated_area_m2: number | null | undefined; area_unknown?: boolean | undefined; life_support?: boolean | undefined; life_support_status?: string | null | undefined }, source: string, origin: JobOrigin, opts: { emailIntake?: boolean } = {}) {
-  // Decision 255: an enquiry created from an owner's email (source 'email'; its TEST twin is qa_test) never knows the
-  // ceiling size either, so it records it as unknown exactly like manual portal intake — never a made-up number.
-  const unknownAllowed = source === "portal" || (opts.emailIntake === true && (source === "email" || source === "qa_test"));
+export function intakeJobFacts(input: { estimated_area_m2: number | null | undefined; area_unknown?: boolean | undefined; life_support?: boolean | undefined; life_support_status?: string | null | undefined }, source: string, origin: JobOrigin) {
+  // Decision 292 (replaces 255): no enquiry is created from an email any more, so only manual portal intake may record
+  // an unknown ceiling size; existing source 'email' jobs stay as history.
+  const unknownAllowed = source === "portal";
   const manualUnknownArea = unknownAllowed && input.area_unknown === true;
   if (input.estimated_area_m2 == null && origin.channel !== "installer_sourced" && !manualUnknownArea) throw new Error("estimated_area_m2 is required");
   if (!unknownAllowed && input.area_unknown === true) throw new Error("Only manual portal intake may record an unknown ceiling area.");
@@ -110,8 +110,8 @@ export function intakeJobFacts(input: { estimated_area_m2: number | null | undef
   };
 }
 
-export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }, opts: { mistypedEmail?: string | undefined; emailIntake?: boolean } = {}) {
-  const facts = intakeJobFacts(input, source, origin, { emailIntake: opts.emailIntake === true });
+export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }, opts: { mistypedEmail?: string | undefined } = {}) {
+  const facts = intakeJobFacts(input, source, origin);
   // Email may be null only for Mitti pick-ups marked "Needs finishing" (Jo 22 Oct): a fresh owner row, never matched.
   // Also for a website enquiry whose email was mistyped (Jo 23 Oct): kept so the lead isn't lost; office fixes the email.
   const mistyped = source === "base44" && opts.mistypedEmail != null;

@@ -5,7 +5,11 @@
 // until the office matches it (email-office.server). Decision 245: a matched inbound email that asks for a change
 // (cancel, can't make it, new contact details, a photo/document) raises `email_change_request` on the job; the
 // office applies or ignores it. Neither ever sends, closes or moves anything. Decision 244: new inbound mail may get ONE
-// Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent).
+// Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent). Decision 292 (replaces 255):
+// an unmatched NEW human sender asking an enquiry / price / rebate / eligibility question is SENT one website reply
+// (new-sender-reply.server: TEST mode → allow-list only via test-send; live only behind the approved flag +
+// customer_comms_enabled; never via Outlook); no enquiry, owner or link is ever created from an email, and the
+// `email_unmatched` row stays.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
@@ -41,8 +45,8 @@ const BUCKET = "job-files";
  *  could not be recorded (pending migration email-unmatched-events.sql not applied, or too old to raise a row);
  *  `notHomeowner` = other unmatched mail left in Outlook (outbound to non-customers). */
 export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number;
-  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number };
-const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts", n = 1) => { c[k] = (c[k] ?? 0) + n; };
+  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number; newSenderReplies?: number; newSenderHeld?: number };
+const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts" | "newSenderReplies" | "newSenderHeld", n = 1) => { c[k] = (c[k] ?? 0) + n; };
 
 /** Job ids on a route. Rows reserved by the previous release carry a legacy single jobId. */
 export function routeJobIds(route: Route): string[] {
@@ -431,6 +435,20 @@ async function draftReply(m: MailMessage, mailbox: string | null, jobIds: string
   }
 }
 
+/** Decision 292: ONE website reply to a new human sender whose unmatched mail is an enquiry / price / rebate question
+ *  (never an enquiry; held in TEST mode unless allow-listed). Runs right after the `email_unmatched` row so the office can still Match.
+ *  Never throws. */
+async function newSenderReply(m: MailMessage, mailbox: string, counts: SyncCounts): Promise<void> {
+  if (m.direction !== "inbound") return;
+  try {
+    const r = await (await import("./new-sender-reply.server")).replyToNewSender(m, { mailbox });
+    if (r.status === "sent") bump(counts, "newSenderReplies");
+    else if (r.status === "held") bump(counts, "newSenderHeld");
+  } catch (e) {
+    console.error("new sender reply skipped", e instanceof Error ? e.message : e);
+  }
+}
+
 /** Office matched an unmatched email (decision 247): re-read the full message from Outlook (read-only), store its
  *  files privately for this job, file it on the job with the copier's own storeOnJob, then raise any change request.
  *  Idempotent per job (storeOnJob returns null when already filed). Throws when Outlook can't be read — nothing filed. */
@@ -557,7 +575,11 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       // History catch-ups and old mail stay record-only in Outlook, as before.
       if (route.kind === "unmatched" && m.direction === "inbound") {
         const r = !window.history && recentEnoughForAction(m.at) ? await recordUnmatched(m, mailbox, route.candidateJobIds, route.reason) : "not_recorded";
-        if (r === "recorded") { bump(counts, "unmatched"); if (await draftReply(m, mailbox, [], "unmatched")) bump(counts, "replyDrafts"); }
+        if (r === "recorded") {
+          bump(counts, "unmatched");
+          if (await draftReply(m, mailbox, [], "unmatched")) bump(counts, "replyDrafts");
+          await newSenderReply(m, mailbox, counts); // decision 292: website reply, never an enquiry
+        }
         else if (r === "duplicate") counts.duplicate++;
         else { counts.notHomeowner++; bump(counts, "unmatchedNotRecorded"); }
       } else counts.notHomeowner++;

@@ -2,14 +2,15 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  CHECK_BEFORE_SENDING, EMAIL_REPLY_DRAFTS_ENABLED, EMAIL_REPLY_DRAFTS_TEST_ONLY, HOMEOWNER_PAGE_LINE, REPLY_AUTO_SEND, SIGN_OFF, TRADE_PORTAL_URL,
+  CHECK_BEFORE_SENDING, EMAIL_REPLY_DRAFTS_ENABLED, EMAIL_REPLY_DRAFTS_TEST_ONLY, REPLY_AUTO_SEND, SIGN_OFF, TRADE_PORTAL_URL,
   assertDraftOnlyRequest, bodySentences, composeReply, draftBlocker, draftCategories, firstNameOf, forbiddenContentProblems, money, pickReplyType,
   slotText, wouldAutoSend, type ReplyDraft, type ReplyInput,
 } from "../src/lib/email-reply.core";
 import { classifyEmailIntents } from "../src/lib/email-intent.core";
 import { PUBLIC_CALCULATOR_URL } from "../src/lib/estimate-email";
 import { CUSTOMER_BASE } from "../src/lib/engagement.core";
-import { SAMPLES, SAMPLE_NOW, baseOwner, basePartner, newSenderEnquiry } from "./fixtures/email-reply-samples";
+import { SAMPLES, SAMPLE_NOW, baseOwner, basePartner, enquiryStageOwner } from "./fixtures/email-reply-samples";
+import { WEBSITE_CALCULATOR_URL } from "../src/lib/new-sender-reply.core";
 
 const owner = (body: string, o: Parameters<typeof baseOwner>[0] = {}, extra: Partial<ReplyInput> = {}): ReplyInput => ({
   subject: "Re: Home Insulation Victoria HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: SAMPLE_NOW, owner: baseOwner(o), ...extra,
@@ -43,17 +44,19 @@ describe("the sample drafts (shown to Jo)", () => {
     for (const s of SAMPLES) expect(doc).toContain(draft(s.input).text);
   });
   test("sample facts appear verbatim; nothing is invented", () => {
-    const [status, enquiry, price, newPrice, partner] = SAMPLES.map((s) => draft(s.input));
+    const [status, enquiry, price, estimatePrice, partner] = SAMPLES.map((s) => draft(s.input));
     expect(status!.text).toContain("Your free Ready Check is booked for Wednesday 28 October at 9am.");
     expect(status!.checkBeforeSending).toBe(false);
-    // Decision 255: the new sender's own homeowner page (three questions + Save my spot), never the calculator.
+    // Matched owners get their OWN homeowner page (Save my spot), never the calculator (decision 292: new senders are
+    // not drafted for at all — see new-sender-reply.core).
     expect(enquiry!.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2/campaign");
-    expect(enquiry!.text).toContain(`${HOMEOWNER_PAGE_LINE} ${enquiry!.link}`);
-    expect(enquiry!.checkBeforeSending).toBe(true); // decision 255: checked until Jo has seen a few
-    expect(newPrice!.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3/campaign");
-    expect(newPrice!.text).toContain("street address and suburb");
-    expect(newPrice!.text).not.toMatch(/\$\d/);
-    expect(newPrice!.flags.join(" ")).toContain("no address yet");
+    expect(enquiry!.text).toContain(`Save your free spot here, no payment and no obligation: ${enquiry!.link}`);
+    expect(enquiry!.text).toContain("Your estimate for your Ringwood home is ready");
+    expect(enquiry!.checkBeforeSending).toBe(false);
+    expect(estimatePrice!.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3");
+    expect(estimatePrice!.text).toContain("Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188");
+    expect(estimatePrice!.flags.join(" ")).toContain("R2.0"); // some insulation declared → checked on site
+    expect(estimatePrice!.text).not.toContain("street address");
     expect(price!.text).toContain("$4,050");
     expect(price!.text).toContain("$1,850 VEU rebate");
     expect(price!.text).toContain("you pay $2,200");
@@ -73,9 +76,12 @@ describe("type selection", () => {
   test("rebate eligibility question", () => expect(pick("Am I eligible for the rebate? We have some old batts.")).toBe("price_rebate_eligibility"));
   test("partners always get a partner reply", () => expect(pick("Where do I find the Mitti form?", { fromPartner: true })).toBe("partner"));
   test("an enquiry-stage owner gets the estimate / Save my spot reply", () => expect(pick("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false })).toBe("new_enquiry"));
-  test("unmatched sender: only a new enquiry gets a draft", () => {
-    expect(pick("Hi, I'd like a quote for ceiling insulation please.", { matchedJob: false, enquiryCue: true })).toBe("new_enquiry");
+  test("decision 292: an unmatched non-partner sender never gets a draft (new senders get the website reply; the rest wait for Match)", () => {
+    expect(pick("Hi, I'd like a quote for ceiling insulation please.", { matchedJob: false, enquiryCue: true })).toBeNull();
+    expect(pick("How much is the rebate and what would it cost?", { matchedJob: false, enquiryCue: false })).toBeNull();
     expect(pick("Please see attached invoice.", { matchedJob: false })).toBeNull();
+    // Trade-sounding unmatched mail still gets the partner draft.
+    expect(pickReplyType({ hits: [{ intent: "trade", phrase: "any jobs available" }], fromPartner: false, matchedJob: false, stage: null, spotSaved: false, enquiryCue: false })).toBe("partner");
   });
   test("a plain thank-you gets no draft", () => expect(composeReply(owner("Thanks so much, see you then!"))).toBeNull());
 });
@@ -161,33 +167,16 @@ describe("new_enquiry", () => {
     expect(d.checkBeforeSending).toBe(false);
     wellFormed(d, "Helen");
   });
-  const newSender = (o: Parameters<typeof newSenderEnquiry>[0], addressFound: boolean): ReplyInput => ({
-    subject: "Ceiling insulation", body: "Hi, I'd like a quote for ceiling insulation please.", from: "new.person@example.org", fromName: "New Person", fromPartner: false, now: SAMPLE_NOW,
-    owner: newSenderEnquiry({ ownerFullName: "New Person", ...o }), emailEnquiry: { created: true, addressFound },
+  test("decision 292: a new sender with no job produces NO draft at all (never an enquiry, never the calculator)", () => {
+    for (const body of ["Hi, I'd like a quote for ceiling insulation please.", "Is the rebate still available and how much is it?", "Do you install ceiling insulation in Ringwood?"])
+      expect(composeReply({ subject: "Ceiling insulation", body, from: "new.person@example.org", fromName: "New Person", fromPartner: false, now: SAMPLE_NOW, owner: null })).toBeNull();
   });
-  test("decision 255: new sender, no address → page link AND asks for street address and suburb (no-address flag)", () => {
-    const d = draft(newSender({}, false));
-    expect(d.type).toBe("new_enquiry");
-    expect(d.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN/campaign");
-    expect(d.text).toContain("Could you reply with your home's street address and suburb");
-    expect(d.flags.join(" ")).toContain("no address yet; this reply asks for it");
-    expect(d.checkBeforeSending).toBe(true);
-    wellFormed(d, "New");
-  });
-  test("decision 255: new sender, page not ready yet → no link at all, says the page will follow, flagged", () => {
-    const d = draft(newSender({ ownerLink: null }, true));
-    expect(d.link).toBeNull();
-    expect(d.text).toContain("We'll send you your own page");
-    expect(d.flags).toContain("No homeowner page link yet — add it before sending");
-    wellFormed(d, "New");
-  });
-  test("decision 255: no reply ever carries the calculator", () => {
-    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), newSender({}, false), newSender({ ownerLink: null }, false),
-      { subject: "Quote", body: "I'd like a quote for ceiling insulation", from: "x@example.org", fromName: "X Y", fromPartner: false, now: SAMPLE_NOW, owner: null }];
+  test("no reply ever carries the calculator or the website eligibility check (matched owners get their own page)", () => {
+    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), owner("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false }), owner("How much is it?", { stage: "spot_saved" })];
     for (const i of inputs) {
       const d = draft(i);
       for (const url of d.text.match(/https:\/\/\S+/g) ?? []) {
-        expect([PUBLIC_CALCULATOR_URL, CUSTOMER_BASE, `${CUSTOMER_BASE}/`, `${CUSTOMER_BASE}/calculator`]).not.toContain(url.replace(/[.,]$/, ""));
+        expect([PUBLIC_CALCULATOR_URL, CUSTOMER_BASE, `${CUSTOMER_BASE}/`, `${CUSTOMER_BASE}/calculator`, WEBSITE_CALCULATOR_URL]).not.toContain(url.replace(/[.,]$/, ""));
         expect(url).not.toMatch(/\/calculator\b/);
       }
       expect(d.text).not.toMatch(/calculator/i);
@@ -209,21 +198,14 @@ describe("price_rebate_eligibility", () => {
     expect(d.text).toContain("Not included, only if needed");
     wellFormed(d, "Helen");
   });
-  test("unknown sender, enquiry not created: no figures, NO link (never the calculator), asks for the address, flagged", () => {
-    const d = draft({ subject: "Rebate question", body: "Is the rebate still available and how much is it?", from: "someone@example.org", fromName: "Sam Person", fromPartner: false, now: SAMPLE_NOW, owner: null });
-    expect(d.type).toBe("price_rebate_eligibility");
-    expect(d.text).not.toMatch(/\$\d/);
-    expect(d.link).toBeNull();
-    expect(d.text).toContain("street address and suburb");
-    expect(d.checkBeforeSending).toBe(true);
-    expect(d.flags.join(" ")).toContain("create it by hand");
-    wellFormed(d, "Sam");
+  test("decision 292: an unknown sender's rebate question gets no draft here (the website reply handles it)", () => {
+    expect(composeReply({ subject: "Rebate question", body: "Is the rebate still available and how much is it?", from: "someone@example.org", fromName: "Sam Person", fromPartner: false, now: SAMPLE_NOW, owner: null })).toBeNull();
   });
-  test("new sender, enquiry created with an address: their own page link, no address ask", () => {
+  test("matched enquiry-stage owner asking about price: estimate figures and their own page (never /campaign for a price question)", () => {
     const d = draft({ subject: "Rebate question", body: "How much is the rebate? We're at 3/22 Long Rd, Box Hill 3128.", from: "sam@example.org", fromName: "Sam Person", fromPartner: false, now: SAMPLE_NOW,
-      owner: newSenderEnquiry({ ownerFullName: "Sam Person" }), emailEnquiry: { created: true, addressFound: true } });
+      owner: enquiryStageOwner({ ownerFullName: "Sam Person" }) });
     expect(d.type).toBe("price_rebate_eligibility");
-    expect(d.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN/campaign");
+    expect(d.link).toBe("https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN");
     expect(d.text).not.toContain("street address and suburb");
     expect(d.text).toContain("Not included, only if needed");
     wellFormed(d, "Sam");

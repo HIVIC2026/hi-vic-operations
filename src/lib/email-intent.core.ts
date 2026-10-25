@@ -137,6 +137,13 @@ export function proposedChanges(m: IntentInput): ProposedChange[] {
   return out;
 }
 
+/** Decision 244/292: does the email read like a NEW enquiry ("interested in", "a quote for", "do you install …")?
+ *  Shared by the reply drafter (matched owners at enquiry stages) and the new-sender website reply (decision 292). */
+const ENQUIRY_CUE = /\b(interested in|enquir(e|y|ing)|get a quote|a quote for|quote (me|us)|insulation for (my|our)|looking (to|for|at) (get|have|insulat)|would like (to get|a quote|insulation|some insulation)|can you (insulate|quote|help)|do you (do|install|service|cover)|need (ceiling )?insulation|ceiling insulation|insulate (my|our))\b/i;
+export function looksLikeNewEnquiry(subject: string | null, body: string): boolean {
+  return ENQUIRY_CUE.test(`${subject ?? ""}\n${body}`);
+}
+
 /** Whether a message is recent enough to raise an office row (history catch-ups and stale replays never do). */
 export function recentEnoughForAction(at: string, now: Date = new Date()): boolean {
   const t = Date.parse(at);

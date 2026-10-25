@@ -1,7 +1,7 @@
-# Inbox reply drafts — 5 samples for approval (decisions 244 and 255)
+# Inbox reply drafts — 5 samples for approval (decision 244)
 
 Drafts only: the portal writes these into info@ as Outlook drafts in the same thread; Jo or Chris presses Send. Nothing is sent automatically (each type stays manual until Jo switches it on).
-Decision 255: replies point people to their own homeowner page, never the calculator. A new sender with no job gets an enquiry created from their email (name and email from the email, the address only when the email gives a complete one) and the reply carries that enquiry's own page link; with no address the reply asks for it and the enquiry waits in Enquiries without an address (decision 281: no Fix details pile). Those drafts are always marked “Check before sending” until Jo has seen a few.
+Matched owners' replies point to their own homeowner page, never the calculator. Decision 292 (replaces 255 for new senders): a NEW sender with no job is not drafted for and no enquiry is created from their email — they are sent the one website reply (O70, docs/templates/approved/O70-new-sender-calculator.html) pointing to the calculator; every other unmatched email waits on Needs me › Match this email.
 Every name, address, job number, link and email below is invented. Figures follow the approved O18 quote example.
 
 ## Where is my job — Owner asking when their free Ready Check is
@@ -27,7 +27,7 @@ Jo, Home Insulation Victoria
 
 Check before sending: no
 
-## New enquiry — Website-style enquiry sent by email (new sender)
+## New enquiry — Website lead (estimate sent, spot not saved) emails asking for a quote
 
 **Incoming email** (from Priya Example <priya.k.example@gmail.com>, subject “Ceiling insulation quote”):
 
@@ -38,17 +38,17 @@ Check before sending: no
 > Thanks,
 > Priya
 
-**Draft reply** (Outlook categories: Portal draft, Portal: New enquiry, Check before sending):
+**Draft reply** (Outlook categories: Portal draft, Portal: New enquiry):
 
 ```text
 Hi Priya,
 
-Thanks for getting in touch about ceiling insulation. Certified installers are in high demand, so we book homes in the order people save their spot. Here's your own page: you can answer three quick questions and save your free spot: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2/campaign
+Thanks for getting in touch. Your estimate for your Ringwood home is ready: you could save $1,610 with the VEU rebate and pay $2,188 (full price $3,798 incl. GST). Certified installers are in high demand, so we book homes in the order people save their spot. Save your free spot here, no payment and no obligation: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2/campaign
 
 Jo, Home Insulation Victoria
 ```
 
-Check before sending: yes — New enquiry HV-3190 created from this email — check before sending (decision 255)
+Check before sending: no
 
 ## Price, rebate and eligibility — Owner says the price seems high and asks what the rebate covers
 
@@ -73,9 +73,9 @@ Jo, Home Insulation Victoria
 
 Check before sending: no
 
-## Price, rebate and eligibility — New sender asks about the rebate and price (no address in the email)
+## Price, rebate and eligibility — Owner with an estimate (no quote yet) asks about the rebate and price
 
-**Incoming email** (from SAM PERSON <sam.person@example.org>, subject “Insulation rebate”):
+**Incoming email** (from Sam Person <sam.person@example.org>, subject “Re: Your ceiling insulation estimate HV-3191”):
 
 > Hi,
 > 
@@ -89,12 +89,12 @@ Check before sending: no
 ```text
 Hi Sam,
 
-Your price depends on the size of your ceiling, and the VEU rebate comes straight off it, with nothing for you to claim. That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. Could you reply with your home's street address and suburb, so your enquiry is for the right home? Here's your own page: you can answer three quick questions and save your free spot: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3/campaign
+Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about. That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us, and you'll know the exact price before you agree to anything. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3
 
 Jo, Home Insulation Victoria
 ```
 
-Check before sending: yes — New enquiry HV-3191 created from this email — check before sending (decision 255); No complete street address in the email — the enquiry has no address yet; this reply asks for it
+Check before sending: yes — Owner has (or isn't sure about) existing insulation — R2.0 is checked at the Ready Check
 
 ## Installer / electrician — Installer asking where the Mitti form is and when they're paid
 
