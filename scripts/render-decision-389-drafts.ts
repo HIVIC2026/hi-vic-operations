@@ -1,4 +1,4 @@
-// Renders the decision 389 DRAFT "It's your turn" email O77 (and its day-2 reminder) into docs/templates/drafts with fixed
+// Renders the decision 389 approved "It's your turn" email O77 (and its day-2 reminder) into docs/templates/owner with fixed
 // sample data, prints the subjects, plain text and both SMS bodies, and with --jpg also saves a 640px-wide JPG preview of
 // the O77 design into docs/designs/O77.jpg (Playwright Chromium, local files only). Pure renderers; nothing is sent.
 // Flags stay off until Jo sees the picture: SPOT_RELEASED_APPROVED (spot-release.core) + SMS type `spot_released`.
@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { renderSpotReleasedEmail } from "../src/lib/spot-release-email.core";
 import { spotReleasePageLink, spotReleasedText } from "../src/lib/spot-release.core";
 
-const TEMPLATES = new URL("../docs/templates/drafts/", import.meta.url).pathname;
+const TEMPLATES = new URL("../docs/templates/owner/", import.meta.url).pathname;
 const DESIGNS = new URL("../docs/designs/", import.meta.url).pathname;
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const LINK = spotReleasePageLink(MY_JOB);

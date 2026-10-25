@@ -102,7 +102,7 @@ const ON = { email: true, sms: true };
 describe("Release", () => {
   beforeEach(() => seed(null));
   test("REAL job while unapproved → refused with the clear message; nothing recorded or sent", async () => {
-    await expect(S.releaseSpot("job-1", "jo", "biz-1")).rejects.toThrow(SPOT_RELEASE_UNAPPROVED);
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: { email: false, sms: false } })).rejects.toThrow(SPOT_RELEASE_UNAPPROVED);
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0);
   });
   test("REAL job approved → ONE pending release, owner email + text, installer NOT offered", async () => {

@@ -1,6 +1,6 @@
 // Decision 389: O77 "It's your turn — confirm your free Ready Check" (and its day-2 reminder). PURE renderer on the email
 // kit; kept apart from spot-release.core.ts so the owner page that reads the rules never bundles the kit.
-// DRAFT until Jo sees the rendered picture (SPOT_RELEASED_APPROVED = false): docs/templates/drafts/O77-spot-released.html,
+// Approved by Jo 25 Oct 2026 (SPOT_RELEASED_APPROVED = true, decision 389): docs/templates/owner/O77-spot-released.html,
 // preview docs/designs/O77.jpg (scripts/render-decision-389-drafts.ts --jpg).
 import * as K from "./email-kit.core";
 import { CONFIRM_BUTTON, SPOT_RELEASED_LINE, SPOT_RELEASED_REMINDER_LINE, SPOT_RELEASED_REMINDER_SUBJECT, SPOT_RELEASED_SUBJECT, WHAT_HAPPENS_NEXT } from "./spot-release.core";

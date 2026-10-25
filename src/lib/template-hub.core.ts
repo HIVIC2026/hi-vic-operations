@@ -427,6 +427,13 @@ const OWNER: TemplateEntry[] = [
     ENTRY({ id: `owner:paperwork:${d.key}`, section: "owner", step: "quote", kind: "paperwork", code: "", name: `Paperwork: ${d.title}`, when: d.signer === "office" ? "Gate B (before the install is booked) — the office records it" : "Gate B: signed or ticked by the owner on My job before the install is booked", who: d.signer === "office" ? "Office records (owner's landlord)" : "Owner", approvalNote: d.approvalNote ?? `Version ${d.version}: approval stored in Settings › Owner paperwork`, gate: { kind: "always" },
       source: { builder: "src/lib/owner-gates.core.ts", fn: "GATE_DOCS", sender: "src/lib/owner-gates.server.ts" }, paperworkKey: d.key,
       render: () => ({ kind: "doc", title: `${d.title} — ${d.version}`, body: `${d.key === "payment_terms" ? paymentTermsText(paymentTermsMoney({ quoteTotalCents: 220000, safetyCheckCents: 34900, installDepositCents: 18510, balanceCents: 166590 })) : fillTemplate(d.body, SAMPLE_VARS)}\n\n[ ] ${d.tick}`, note: "Sample values filled in. The tick label is what the owner presses." }) })),
+  // Decision 389: Jo releases a saved spot → "It's your turn" to the owner (email + text, day-2 reminder). Approved by Jo 25 Oct 2026.
+  ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
+    source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/owner/O77-spot-released.html",
+    render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
+    source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
+    render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */
@@ -704,13 +711,6 @@ const WAITING: TemplateEntry[] = [
     when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approval: "waiting", approvalNote: "OWNER_EMAIL_AUTO_REPLY_APPROVED = false (decision 386)", gate: { kind: "code_off", flag: "OWNER_EMAIL_AUTO_REPLY_APPROVED" },
     source: { builder: "src/lib/owner-email-auto-reply.core.ts", fn: "renderOwnerAutoReplyEmail", sender: "src/lib/owner-email-auto-reply.server.ts" }, design: `docs/templates/drafts/${ANSWER_CODES[answer].file}`,
     render: () => email(renderOwnerAutoReplyEmail({ answer, facts: ANSWER_SAMPLES[answer].facts, theirSubject: ANSWER_SAMPLES[answer].theirSubject })) })),
-  // Decision 389: Jo releases a saved spot → "It's your turn" to the owner (email + text, day-2 reminder). Draft until Jo sees it.
-  ENTRY({ id: "waiting:O77", section: "waiting", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approval: "waiting", approvalNote: "SPOT_RELEASED_APPROVED = false (decision 389)", gate: { kind: "code_off", flag: "SPOT_RELEASED_APPROVED" },
-    source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/drafts/O77-spot-released.html",
-    render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
-  ENTRY({ id: "waiting:sms-spot_released", section: "waiting", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approval: "waiting", approvalNote: "SMS type spot_released wordingApproved: false (decision 389)", gate: { kind: "code_off", flag: "SPOT_RELEASED_APPROVED" },
-    source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
-    render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
 ];
 
 /* ---------------------------------------------------------------- daily text sample */

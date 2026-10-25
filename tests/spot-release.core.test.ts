@@ -52,8 +52,9 @@ describe("Release plan (approval gating; a confirmed owner is never asked again)
   const none: SpotReleaseState = { state: "none" };
   const st = (events: SpotReleaseEventRow[]) => spotReleaseState(events);
   test("unapproved: REAL job refuses with the clear message; TEST job releases", () => {
-    expect(SPOT_RELEASED_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES.spot_released.wordingApproved).toBe(false);
+    // Jo approved O77 + the text on 25 Oct 2026 (decision 389); the gate itself stays covered below.
+    expect(SPOT_RELEASED_APPROVED).toBe(true);
+    expect(SMS_MESSAGE_TYPES.spot_released.wordingApproved).toBe(true);
     expect(releasePlan({ state: none, testJob: false, emailApproved: false, smsApproved: false })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
     expect(releasePlan({ state: none, testJob: false, emailApproved: true, smsApproved: false })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
     expect(SPOT_RELEASE_UNAPPROVED).toBe("The 'It's your turn' message isn't approved yet");
@@ -186,8 +187,8 @@ describe("owner page and wording", () => {
     expect(r.subject).toMatch(/^Just checking — it's your turn/);
     expect(r.text).toContain("Just checking — it's your turn!");
   });
-  test("SMS type: owner, quiet hours, window freshness, draft", () => {
-    expect(SMS_MESSAGE_TYPES.spot_released).toMatchObject({ audience: "owner", wordingApproved: false, quietHours: true });
+  test("SMS type: owner, quiet hours, window freshness, approved", () => {
+    expect(SMS_MESSAGE_TYPES.spot_released).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.spot_released).toEqual({ kind: "window" });
   });
 });

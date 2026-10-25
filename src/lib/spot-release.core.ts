@@ -21,7 +21,7 @@ export const SPOT_RELEASE_EVENTS = [SPOT_RELEASED_EVENT, SPOT_RELEASE_CONFIRMED_
 export type SpotReleaseEventType = (typeof SPOT_RELEASE_EVENTS)[number];
 
 /** O77 email wording approval. false = real owners get nothing and Release on a REAL job refuses (TEST jobs work). */
-export const SPOT_RELEASED_APPROVED = false;
+export const SPOT_RELEASED_APPROVED = true; // Jo approved the O77 picture + text 25 Oct 2026 (decision 389)
 /** The one real SMS sender type (sms.core `spot_released`, wordingApproved:false until Jo sees the rendered picture). */
 export const SPOT_RELEASED_SMS_TYPE = "spot_released" as const;
 export const SPOT_RELEASED_PURPOSE = "spot_released";
