@@ -45,6 +45,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['quotes'] = "failed";
         }
         try {
+          // Decision 325: O19 quote reminder emails (3 days after the quote, 2 days before the price expires) and the O51
+          // review request a week after the install (held until the review screen + Google link exist). One
+          // `owner_email_triggered` event per email before sending; TEST → test-send; real → guarded owner path.
+          const { sweepQuoteReminders, sweepReviewRequests } = await import("@/lib/owner-email-triggers.server");
+          (out as Record<string, unknown>)['ownerEmails'] = { quoteReminders: await sweepQuoteReminders(), reviewRequests: await sweepReviewRequests() };
+        } catch (e) {
+          console.error("allocation tick: owner email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['ownerEmails'] = "failed";
+        }
+        try {
           const { sweepRectQuotes, sweepHeldRectWindows } = await import("@/lib/rectification.server");
           (out as Record<string, unknown>)['rectification'] = { ...(await sweepRectQuotes()), ...(await sweepHeldRectWindows()) };
         } catch (e) {

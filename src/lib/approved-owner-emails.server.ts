@@ -1,54 +1,55 @@
 // Server functions for the approved owner emails whose workflow step is still being built (decision 137: designs applied,
 // nothing sent). Each one renders the approved design and goes through `sendOwnerTemplateEmail`, so a real owner can only
 // receive it once its *_APPROVED flag is true and customer messages are on; TEST jobs get it through test-send now.
-// Only `emailOwnerInstallComplete` is called from a workflow (the VEEC day-0 request); Office/QA may call the rest for TEST jobs.
+// Workflow callers: `emailOwnerInstallComplete` (VEEC day-0 request), `emailOwnerCompletionPack` (completion-pack.server.ts) and,
+// since decision 325, owner-email-triggers.server.ts for O19/O22/O26/O29/O33/O42 (O51 held until the review screen exists).
+// O45 final invoice is still not called by a workflow: its approved wording offers card payment for the balance (decisions 140/141).
 import { sendOwnerTemplateEmail } from "./owner-template-send.server";
+import { ownerEmailKey } from "./owner-email-triggers.core";
 
 export async function emailOwnerQuoteReminder(jobId: string, quoteId: string, kind: "day3" | "expiry", quote: Omit<import("./owner-quote-email.core").OwnerQuoteEmailInput, "firstName" | "unsubscribeUrl" | "test">) {
   const { QUOTE_REMINDER_EMAIL_APPROVED, renderQuoteReminderEmail } = await import("./owner-quote-email.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "quote_reminder", key: `quote-reminder:v1:${quoteId}:${kind}`, approved: QUOTE_REMINDER_EMAIL_APPROVED, label: "Quote reminder", notSentEvent: "quote_reminder_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "quote_reminder", key: ownerEmailKey.quoteReminder(quoteId, kind), approved: QUOTE_REMINDER_EMAIL_APPROVED, label: "Quote reminder", notSentEvent: "quote_reminder_email_not_sent",
     render: (f) => renderQuoteReminderEmail({ ...quote, kind, firstName: f.firstName, unsubscribeUrl: null, test: f.test }) });
 }
 
-export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<import("./acceptance-email.core").AcceptanceEmailInput, "firstName" | "installerName" | "myJobUrl" | "test">) {
+export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<import("./acceptance-email.core").AcceptanceEmailInput, "firstName" | "installerName" | "myJobUrl" | "test">, attachments: import("./email-kit.core").EmailAttachment[] = []) {
   const { ACCEPTANCE_EMAIL_APPROVED, renderYoureInEmail } = await import("./acceptance-email.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "quote_accepted", key: `youre-in:v1:${quoteId}`, approved: ACCEPTANCE_EMAIL_APPROVED, label: "You're in email", notSentEvent: "youre_in_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "quote_accepted", key: ownerEmailKey.youreIn(quoteId), approved: ACCEPTANCE_EMAIL_APPROVED, label: "You're in email", notSentEvent: "youre_in_email_not_sent", ...(attachments.length ? { attachments } : {}),
     render: (f) => renderYoureInEmail({ ...i, firstName: f.firstName, installerName: f.installerName, myJobUrl: f.myJobUrl, test: f.test }) });
 }
 
 export async function emailOwnerSafetyCheckTimes(jobId: string, startsAt: string[], electricianName: string | null, paid: number | null) {
   const { SAFETY_CHECK_EMAILS_APPROVED, renderSafetyCheckTimesEmail } = await import("./safety-check-emails.core");
   const { formatReadyCheckTime } = await import("./ready-check-times.core");
-  const key = [...startsAt].sort().join(",");
-  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_times", key: `safety-check-times:v1:${jobId}:${key}`, approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check times email", notSentEvent: "safety_check_times_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_times", key: ownerEmailKey.safetyCheckTimes(jobId, startsAt), approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check times email", notSentEvent: "safety_check_times_email_not_sent",
     render: (f) => renderSafetyCheckTimesEmail({ firstName: f.firstName, electricianName, times: [...startsAt].sort().map((s) => formatReadyCheckTime(s)), myJobUrl: f.myJobUrl, paid, test: f.test }) });
 }
 
 export async function emailOwnerSafetyCheckBooked(jobId: string, startIso: string, electrician: { name: string | null; phone?: string | null }, changed: boolean) {
   const { SAFETY_CHECK_EMAILS_APPROVED, renderSafetyCheckBookedEmail } = await import("./safety-check-emails.core");
   const { formatReadyCheckTime } = await import("./ready-check-times.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_booked", key: `safety-check-booked:v1:${jobId}:${startIso}`, approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check booked email", notSentEvent: "safety_check_booked_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_booked", key: ownerEmailKey.safetyCheckBooked(jobId, startIso), approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check booked email", notSentEvent: "safety_check_booked_email_not_sent",
     render: (f) => renderSafetyCheckBookedEmail({ firstName: f.firstName, when: formatReadyCheckTime(startIso), electricianName: electrician.name, electricianPhone: electrician.phone ?? null, address: f.address, changed, myJobUrl: f.myJobUrl, test: f.test }) });
 }
 
 export async function emailOwnerFixesQuote(jobId: string, quoteId: string, i: Omit<import("./rectification-quote-email.core").FixesQuoteEmailInput, "firstName" | "approveUrl" | "test">) {
   const { FIXES_QUOTE_EMAIL_APPROVED, renderFixesQuoteEmail } = await import("./rectification-quote-email.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "fixes_quote", key: `fixes-quote:v1:${quoteId}`, approved: FIXES_QUOTE_EMAIL_APPROVED, label: "Electrical fixes quote email", notSentEvent: "fixes_quote_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "fixes_quote", key: ownerEmailKey.fixesQuote(quoteId), approved: FIXES_QUOTE_EMAIL_APPROVED, label: "Electrical fixes quote email", notSentEvent: "fixes_quote_email_not_sent",
     render: (f) => renderFixesQuoteEmail({ ...i, firstName: f.firstName, approveUrl: `${f.myJobUrl}?screen=quote`, test: f.test }) });
 }
 
 export async function emailOwnerInstallDays(jobId: string, startsAt: string[], balanceIncGst: number | null, installBy: string | null) {
   const { INSTALL_DAYS_EMAIL_APPROVED, renderInstallDaysEmail } = await import("./install-days-email.core");
   const { formatInstallDay } = await import("./install-days.core");
-  const key = [...startsAt].sort().join(",");
-  return sendOwnerTemplateEmail({ jobId, purpose: "install_days", key: `install-days:v1:${jobId}:${key}`, approved: INSTALL_DAYS_EMAIL_APPROVED, label: "Install days email", notSentEvent: "install_days_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "install_days", key: ownerEmailKey.installDays(jobId, startsAt), approved: INSTALL_DAYS_EMAIL_APPROVED, label: "Install days email", notSentEvent: "install_days_email_not_sent",
     render: (f) => renderInstallDaysEmail({ firstName: f.firstName, installerName: f.installerName, days: [...startsAt].sort().map((s) => formatInstallDay(s)), myJobUrl: f.myJobUrl, balanceIncGst, installBy, test: f.test }) });
 }
 
 export async function emailOwnerInstallDayChanged(jobId: string, startIso: string, wasIso: string) {
   const { INSTALL_DAYS_EMAIL_APPROVED, renderInstallDayChangedEmail } = await import("./install-days-email.core");
   const { formatInstallDay } = await import("./install-days.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "install_day_changed", key: `install-day-changed:v1:${jobId}:${startIso}`, approved: INSTALL_DAYS_EMAIL_APPROVED, label: "Install day changed email", notSentEvent: "install_day_changed_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "install_day_changed", key: ownerEmailKey.installDayChanged(jobId, startIso), approved: INSTALL_DAYS_EMAIL_APPROVED, label: "Install day changed email", notSentEvent: "install_day_changed_email_not_sent",
     render: (f) => renderInstallDayChangedEmail({ firstName: f.firstName, installerName: f.installerName, installerPhone: f.installerPhone, address: f.address, when: formatInstallDay(startIso), was: formatInstallDay(wasIso), myJobUrl: f.myJobUrl, test: f.test }) });
 }
 
@@ -85,6 +86,6 @@ export async function emailOwnerCompletionPack(jobId: string, downloads: import(
 
 export async function emailOwnerReviewRequest(jobId: string, i: { googleReviewUrl: string; referralUrl: string }) {
   const { COMPLETION_EMAILS_APPROVED, renderReviewRequestEmail } = await import("./completion-emails.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "review_request", key: `review-request:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Review request email", notSentEvent: "review_request_email_not_sent",
+  return sendOwnerTemplateEmail({ jobId, purpose: "review_request", key: ownerEmailKey.reviewRequest(jobId), approved: COMPLETION_EMAILS_APPROVED, label: "Review request email", notSentEvent: "review_request_email_not_sent",
     render: (f) => renderReviewRequestEmail({ firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, starUrl: (n) => `${f.myJobUrl}?screen=review&stars=${n}`, googleReviewUrl: i.googleReviewUrl, referralUrl: i.referralUrl, test: f.test }) });
 }

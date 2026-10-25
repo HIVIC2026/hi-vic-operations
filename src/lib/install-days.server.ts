@@ -78,6 +78,9 @@ export async function installerOfferDays(jobId: string, userId: string, picks: {
   await propose(jobId, userId, "installer", picks, allowedInstallDays({ deadline: c.deadline }));
   await logEvent(jobId, userId, "install_days_offered_by_installer", `Installer offered ${picks.length} install day${picks.length === 1 ? "" : "s"} to the owner`, { days: picks, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's install days" }).eq("id", jobId);
+  // Decision 325: O33 "Pick your install day" to the owner (guarded; best-effort, the offer stands either way).
+  const starts = picks.map((p) => installDayBounds(p.day, p.time).starts_at);
+  await (await import("./owner-email-triggers.server")).onInstallDaysOffered(jobId, starts, c.deadline).catch((e) => console.error("install days email skipped", (e as Error).message));
   return { ok: true };
 }
 
@@ -106,8 +109,12 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     await releaseInstallationContacts(jobId, userId);
     // Decision 139: the day is provisional for 48h until the 10% install deposit is received (bank transfer / PayID).
     await (await import("./payments.server")).noteProvisionalBooking(jobId, userId).catch((e) => console.error("provisional booking note skipped", (e as Error).message));
-    // Owner "Your install is booked" email (best-effort; held until Jo approves the wording and messages are on).
-    await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
+    // Decision 325: a new day after the installer moved a booked one → O42 "Your install day has changed" (it points back
+    // to the booking email's checklist); otherwise the owner "Your install is booked" email. Both best-effort.
+    const triggers = await import("./owner-email-triggers.server");
+    const movedFrom = await triggers.installDayMoveFor(jobId, startsAt);
+    if (movedFrom) await triggers.onInstallDayMoved(jobId, startsAt, movedFrom).catch((e) => console.error("install day changed email skipped", (e as Error).message));
+    else await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
     return { ok: true, booked: true };
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
