@@ -1,6 +1,6 @@
 // After-install owner emails (Jo 24 Oct 2026, decisions 101–105, 119–120, 132–133).
 //   O44 "All done!"            docs/templates/approved/O44-install-complete.html  (summary card, sign your rebate form, what you'll get)
-//   O45 Final invoice          docs/templates/approved/O45-final-invoice.html     (tax invoice lines, balance due today, Pay button)
+//   O45 Final invoice          docs/templates/approved/O45-final-invoice.html     (tax invoice lines, balance due today; decision 334: pay by bank transfer)
 //   O47 Completion pack        docs/templates/approved/O47-completion-pack.html   (downloads, who to contact, care tips)
 //   O51 Review request         docs/templates/approved/O51-review.html           (tap a star, Google review, refer a friend)
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
@@ -9,6 +9,7 @@
 import * as K from "./email-kit.core";
 import { AP_DETAILS } from "./veec-assignment-form.core";
 import { insulationLineWithCodes } from "./invoice-itemisation.core";
+import { bankDetailLines, type BankDetails } from "./payments.core";
 
 /** Decision 209: the installed product line as it appears on the Xero invoice, with the exact ESC model code(s) when known. */
 export type InstalledLine = { description: string; escModelCodes: string[] };
@@ -73,19 +74,24 @@ export type FinalInvoiceInput = {
   lines: { description: string; amount: number }[];
   totalIncGst: number; gst: number | null; rebate: number;
   payments: { label: string; amount: number }[];
-  balanceDue: number; payUrl: string; test?: boolean;
+  /** Decision 334 (Jo 25 Oct 2026): the balance is paid by bank transfer only (card stays for the safety check and fixes,
+   *  decisions 140/144). Bank details from HIV_BANK_* (payments.server bankDetails); the invoice number is the reference. */
+  balanceDue: number; bank: BankDetails; test?: boolean;
+  /** Decision 334: "Invoice PDF attached" prints only when the Xero invoice PDF really is attached. */
+  invoicePdfAttached?: boolean;
   /** Decision 209: installed product itemisation (brand, model, R-value, m², ESC model codes); omitted when unknown. */
   installed?: InstalledLine | null;
 };
 
-/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today, Pay button.
- *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line. */
+/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today.
+ *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line.
+ *  Decision 334: no card wording or Pay button — "Pay by bank transfer" with the bank details and the invoice number as the reference. */
 export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
-  if (!/^https:\/\//.test(i.payUrl)) throw new Error("Payment link is unavailable.");
+  if (!i.invoiceNumber?.trim()) throw new Error("Invoice number is unavailable.");
   const first = K.cleanName(i.firstName) ?? "there";
   const installer = i.installer?.name?.trim() || "Your installer";
   const subject = `${first}, your install is done. Here's your final invoice`;
-  const intro = `${installer} finished today. Your balance is due today, as agreed when you booked. Tap the button to pay by card, and you'll get your receipt straight away.`;
+  const intro = `${installer} finished today. Your balance is due today, as agreed when you booked. Please pay by bank transfer using the details below, with your invoice number as the reference.`;
   const balance = K.cents(i.balanceDue);
   const rows = [
     ...i.lines.map((l) => ({ label: l.description, amount: K.cents(l.amount) })),
@@ -100,16 +106,19 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
     ...(i.address?.trim() ? [`Installation address: ${i.address.trim()}`] : []),
     ...(i.installed ? [`Installed: ${insulationLineWithCodes(i.installed)}`] : []),
   ];
+  const bankLines = [...bankDetailLines(i.bank, i.invoiceNumber.trim()), `Amount: ${balance}`];
+  const pdfLine = i.invoicePdfAttached === true ? "Invoice PDF attached" : null;
   const after = "Once it's paid, we'll send your completion pack: certificate, warranties and all your signed forms. You'll also get a short text asking you to sign your rebate form, if you haven't already.";
   const closing = installerLine(i.installer, ", or reply to this email.");
   const body = [
     K.h1(subject, 8), K.p(intro),
     K.invoiceTable({ header: `Tax invoice ${i.invoiceNumber} · ${i.invoiceDate}`, meta, rows, totalLabel: "Balance due today", total: balance }),
-    K.button(i.payUrl, `Pay ${balance} now`), K.small("Secure card payment by Stripe · Invoice PDF attached", "10px 0 0", { center: true }),
+    K.mistBox("Pay by bank transfer", bankLines.map((l) => `<div style="font-size:14px;line-height:1.6;color:${K.KIT.NAVY};">${K.esc(l)}</div>`).join("\n"), { marginTop: 16 }),
+    pdfLine ? K.small(pdfLine, "10px 0 0", { center: true }) : "",
     K.note(after, "18px 0 0"), K.small(closing),
   ].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", `TAX INVOICE ${i.invoiceNumber} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}: ${r.amount}`), `Balance due today: ${balance}`, "", `Pay ${balance} now: ${i.payUrl}`, "Secure card payment by Stripe · Invoice PDF attached", "", after, "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, "", `TAX INVOICE ${i.invoiceNumber} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}: ${r.amount}`), `Balance due today: ${balance}`, "", "PAY BY BANK TRANSFER", ...bankLines, ...(pdfLine ? [pdfLine] : []), "", after, "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

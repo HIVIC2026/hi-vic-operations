@@ -75,8 +75,14 @@ export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware
     if (!jobId) return null;
     const [{ ownerPiesaWindowState }, { ownerInstallDayState }] = await Promise.all([import("./allocation.server"), import("./install-days.server")]);
     const { ownerThirtyDayAckState } = await import("./thirty-day-ack.server");
-    const [piesa, install, ack] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId)]);
-    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording } }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
+    const { ownerPiesaTimesState } = await import("./piesa-times.server");
+    const [piesa, install, ack, times] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId), ownerPiesaTimesState(jobId)]);
+    // Decision 333: `piesaTimes` = the electrician's offered times (new way); `piesa.canPick` = the old window picker, old jobs only.
+    return JSON.parse(JSON.stringify({
+      piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording } },
+      piesaTimes: { applies: times.applies, turn: times.turn, open: times.open, days: times.days, bookedAt: times.bookedAt, thirtyDayAck: times.thirtyDayAck },
+      install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt },
+    }));
   });
 
 /** Decision 307 (Jo 25 Oct 2026): the owner must tick the 30-day-rule box (`understandsThirtyDays: true`) before the
@@ -87,6 +93,23 @@ export const ownerChoosePiesaFn = createServerFn({ method: "POST" }).middleware(
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
     await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId: s.jobId, userId: s.userId, understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
     return (await import("./allocation.server")).submitOwnerPiesaWindows(s.jobId, s.userId, data.picks);
+  });
+
+/** Decision 333: the owner takes one of the electrician's safety check times (= booked). Decision 307: refused until the
+ *  30-day box is ticked for this PIESA cycle (`understandsThirtyDays: true`), recorded once per cycle. */
+export const ownerTakePiesaTimeLinkFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, proposalId: z.string().uuid(), understandsThirtyDays: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./piesa-times.server")).ownerTakePiesaTime(s.jobId, data.proposalId, s.userId, { understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
+  });
+
+/** Decision 333: none of the electrician's times suit → the owner suggests 1–5 days (same 30-day tick rule). */
+export const ownerSuggestPiesaDaysLinkFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5), understandsThirtyDays: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./piesa-times.server")).ownerSuggestPiesaDays(s.jobId, s.userId, data.days, { understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
   });
 
 export const ownerTakeInstallDayFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
@@ -241,6 +264,33 @@ export const ownerCardCheckoutFn = createServerFn({ method: "POST" }).middleware
     if (!jobId) return { blocker: "Link not recognised." };
     const { CUSTOMER_BASE } = await import("./engagement.core");
     return (await import("./stripe.server")).createStepCheckout(jobId, `${CUSTOMER_BASE}/my-job/${data.token}`, null);
+  });
+
+// ---------- Decision 335: the review screen (?screen=review&stars=N). Link token only — it signs nothing. ----------
+export const ownerReviewStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    return (await import("./owner-review.server")).ownerReviewState(jobId);
+  });
+
+export const ownerReviewStarsFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, stars: z.number().int().min(1).max(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    return (await import("./owner-review.server")).recordOwnerReviewStars(jobId, data.stars, { ip: context.ip, userAgent: context.userAgent });
+  });
+
+export const ownerReviewFeedbackFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, stars: z.number().int().min(1).max(5), feedback: z.string().max(2000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    return (await import("./owner-review.server")).submitOwnerReviewFeedback(jobId, data.stars, data.feedback, { ip: context.ip, userAgent: context.userAgent });
   });
 
 async function ownerJobId(t: string): Promise<string | null> {

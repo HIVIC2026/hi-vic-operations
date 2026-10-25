@@ -21,7 +21,7 @@ Visible name everywhere: **Home Insulation Victoria**. Retired visible names: HI
 13. Owner approves current confirmed quote version.
 14. Owner completes approved payment option.
 15. Only then can PIESA be requested.
-16. Owner and electrician arrange PIESA by approved direct contact.
+16. The electrician offers the owner 3 PIESA times; the owner takes one or suggests days, back and forth until agreed (decision 333).
 17. Installer notified when PIESA is booked (planning visibility only).
 18. Electrician completes PIESA.
 19. Mitti syncs PIESA result.
@@ -102,6 +102,7 @@ Xero invoice and all customer/trade/financial-facing references use "Home Insula
 - Owner accepts the quote and pays the $349 safety check in one step (Stripe). Switched on straight away (Jo's call; lawyer still to confirm cooling-off and deposit limits). Decision 302 (25 Oct): "$349" here means the quote's PIESA line — our electrician $349, an approved REC its onboarded rate.
 - Booking the install day: 10% of what is left on the invoice after the $349, paid when the day is booked. When the owner taps one of the installer's days they pay on the same screen; when the installer accepts a day the owner suggested, the day is held 48 hours for the 10%, then released and the installer told.
 - Remainder on install day; the owner can always pay the full balance now.
+- Decision 334 (25 Oct): the final invoice email (O45) goes when the install is recorded complete with a balance due, once per invoice; it shows "Pay by bank transfer" with the bank details (HIV_BANK_* env, else Jo's NAB account) and the invoice number as the reference — no card wording; card stays only for the safety check and fixes. "Invoice PDF attached" only when the Xero PDF really is attached (it is not fetched today).
 - Electrical fixes: the office checks the fixes quote; the owner approves it, pays in full and picks one of the electrician's times in one step; if none suit, owner and electrician go back and forth (no office).
 
 ## VEEC assignment form (Jo, decisions 119/120, 24 Oct 2026)
@@ -112,6 +113,9 @@ There is no ESC API. The portal prepares the VEU Registry install notification f
 
 ## Our-lead Ready Check (Jo, 24 Oct 2026, decisions 49–54)
 Our leads only (`jobs.channel = 'hivic_sourced'`). The office picks ONE installer on the job ("Choose installer": nearby approved installers with area and rates); there is no automatic batch offer. The installer is told by text ("New job offer near [suburb] – tap to see times", wording held until the template review) and in the app. The offer is open 24 hours: "Not for me" or no answer sends it back to the office as one item to pick another installer. The installer accepts by offering the owner 3 Ready Check times (day + exact time, business days 24h+ ahead, within 21 days). The owner taps one (booked through the normal booking path, then the Mitti form) or suggests 1–5 days; the installer takes one at a time they choose or offers 3 new times — back and forth, no office step. Owners no longer pick Ready Check times when they save their spot or request the Ready Check. Installers' own customers: arranged directly, nothing entered in the portal. Rules: `ready-check-times.core.ts`; server: `ready-check-times.server.ts`.
+
+## Safety check (PIESA) times (decision 333, Jo 25 Oct 2026)
+"I want the electrician to offer the times and the owner chooses, just like installer." Once the electrician accepts the PIESA offer, the ELECTRICIAN offers the owner 3 times on 3 different days within 24 hours (the electrician offer text "Offer the owner 3 times within 24 hours"): business days, each at least 24 hours ahead, arriving 8am–3pm, within the next 3 weeks. The owner taps one on My job (booked) or suggests 1–5 days of their own; the electrician takes one of those at an arrival time they choose (booked) or offers 3 new times; back and forth until agreed — no office step. Agreement books the visit through `confirmBooking` kind assessment (same stage, payment-gate and assignment guards). The decision-307 30-day tick sits on the owner's pick: no time can be taken (or days suggested) until it is ticked for this PIESA cycle. O26 "safety check times" goes when the electrician offers; the booked email/text are unchanged. A new PIESA offer is accepted on the offer page by offering the 3 times. Jobs that started the old way (owner picked 3–5 windows) still finish the old way: electricians take an owner window, and the old picker reopens only for those jobs. Rules: `piesa-times.core.ts` (`piesaTimeTurn`, `electricianPiesaTimesBlockers`, `ownerPiesaMoveBlocker`); server: `piesa-times.server.ts`; storage: `appointment_proposals` kind assessment, note `piesa_time` (no new table).
 
 ## Install days (Jo, 24 Oct 2026)
 Once electrical clearance is in (PIESA pass, or fixes done + Section C), the quoted installer offers 3 days inside the 30-day window (or every day left if fewer). The owner taps one (booked) or suggests 1–5 of their own; the installer takes one (booked) or offers 3 new ones; back and forth until agreed. The office is never involved, except one alert when 10 days are left with nothing booked. Both screens show the last day and days left. Rules: `install-days.core.ts` (`installDayTurn`, `dayOfferBlockers`); server: `install-days.server.ts`.

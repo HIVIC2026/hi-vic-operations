@@ -60,14 +60,17 @@ describe("O51 review request (decision 105)", () => {
   test("stops once sent, cancelled/on hold, deleted/archived or opted out", () => {
     for (const p of [{ done: true }, { stage: "cancelled" }, { stage: "on_hold" }, { deletedAt: "x" }, { qaArchivedAt: "x" }, { optedOut: true }, { installationCompletedAt: null }]) expect(reviewRequestDue(f(p), day(8))).toBe(false);
   });
-  test("held until the My job review screen exists and a Google review link is set", () => {
-    expect(OWNER_REVIEW_SCREEN_READY).toBe(false);
+  test("decision 335: the My job review screen exists; still held until a Google review link is set", () => {
+    expect(OWNER_REVIEW_SCREEN_READY).toBe(true);
     expect(reviewRequestBlocker({ googleReviewUrl: "https://g.page/r/abc/review", reviewScreenReady: false })).toMatch(/review screen/);
     expect(reviewRequestBlocker({ googleReviewUrl: null, reviewScreenReady: true })).toMatch(/HIV_GOOGLE_REVIEW_URL/);
     expect(reviewRequestBlocker({ googleReviewUrl: "http://insecure", reviewScreenReady: true })).toMatch(/HIV_GOOGLE_REVIEW_URL/);
     expect(reviewRequestBlocker({ googleReviewUrl: "https://g.page/r/abc/review", reviewScreenReady: true })).toBeNull();
-    // The screen really is missing today: My job only accepts these screens.
-    expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).toContain('const SCREENS = ["home", "spot", "quote", "book", "done"]');
+    // The screen exists: My job accepts "review" and reads ?stars= (decision 335).
+    const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");
+    expect(page).toContain('const SCREENS = ["home", "spot", "quote", "book", "done", "review"]');
+    expect(page).toContain('screen === "review" ? <ReviewScreen');
+    expect(page).toContain('parseStars(s["stars"])');
   });
 });
 
@@ -118,6 +121,7 @@ describe("O22 receipt date and labels", () => {
     expect(ownerEmailKey.safetyCheckTimes("j", ["b", "a"])).toBe("safety-check-times:v1:j:a,b");
     expect(ownerEmailKey.installDays("j", ["b", "a"])).toBe("install-days:v1:j:a,b");
     expect(ownerEmailKey.reviewRequest("j")).toBe("review-request:v1:j");
+    expect(ownerEmailKey.finalInvoice("inv1")).toBe("final-invoice:v1:inv1");
   });
 });
 
@@ -136,6 +140,7 @@ describe("source pins: each trigger calls its sender exactly once with its key",
       ["onSafetyCheckPaid", "emailOwnerYoureIn(", "ownerEmailKey.youreIn("],
       ["sweepQuoteReminders", "emailOwnerQuoteReminder(", "ownerEmailKey.quoteReminder(q.id, kind)"],
       ["sweepReviewRequests", "emailOwnerReviewRequest(", "ownerEmailKey.reviewRequest(j.id)"],
+      ["onFinalInvoiceDue", "emailOwnerFinalInvoice(", "ownerEmailKey.finalInvoice(invoiceId)"],
     ];
     for (const [fn, sender, key] of pairs) {
       expect(count(t, `export async function ${fn}(`)).toBe(1);
@@ -148,7 +153,7 @@ describe("source pins: each trigger calls its sender exactly once with its key",
   });
   test("the guarded sender reserves the same keys", () => {
     const a = src("src/lib/approved-owner-emails.server.ts");
-    for (const k of ["quoteReminder(quoteId, kind)", "youreIn(quoteId)", "safetyCheckTimes(jobId, startsAt)", "safetyCheckBooked(jobId, startIso)", "fixesQuote(quoteId)", "installDays(jobId, startsAt)", "installDayChanged(jobId, startIso)", "reviewRequest(jobId)"])
+    for (const k of ["quoteReminder(quoteId, kind)", "youreIn(quoteId)", "safetyCheckTimes(jobId, startsAt)", "safetyCheckBooked(jobId, startIso)", "fixesQuote(quoteId)", "installDays(jobId, startsAt)", "installDayChanged(jobId, startIso)", "reviewRequest(jobId)", "finalInvoice(invoiceId)"])
       expect(a).toContain(`key: ownerEmailKey.${k}`);
     expect(src("src/lib/owner-template-send.server.ts")).toContain("sendGuardedOwnerEmail");
   });
@@ -161,6 +166,8 @@ describe("source pins: each trigger calls its sender exactly once with its key",
       ["src/lib/install-days.server.ts", "onInstallDaysOffered(jobId, starts, c.deadline)"],
       ["src/lib/install-days.server.ts", "onInstallDayMoved(jobId, startsAt, movedFrom)"],
       ["src/lib/payments.server.ts", "onSafetyCheckPaid(jobId, invoiceId)"],
+      ["src/lib/piesa-times.server.ts", "onSafetyCheckTimesOffered(jobId, starts)"],
+      ["src/lib/install-complete.server.ts", "onFinalInvoiceDue(jobId)"],
     ];
     for (const [file, call] of sites) {
       const s = src(file);
@@ -171,10 +178,16 @@ describe("source pins: each trigger calls its sender exactly once with its key",
     const tick = src("src/routes/api/public/hooks/allocation-tick.ts");
     expect(count(tick, "sweepQuoteReminders()")).toBe(1);
     expect(count(tick, "sweepReviewRequests()")).toBe(1);
+    expect(count(tick, "sweepFinalInvoices()")).toBe(1);
   });
-  test("O45 final invoice stays unwired: its approved wording offers card payment for the balance (decisions 140/141 say bank transfer only)", () => {
-    expect(src("src/lib/completion-emails.core.ts")).toContain("Secure card payment by Stripe");
-    const wired = ["src/lib/owner-email-triggers.server.ts", "src/lib/install-complete.server.ts", "src/lib/payments.server.ts", "src/lib/booking.server.ts"].map(src).join("\n");
-    expect(wired).not.toContain("emailOwnerFinalInvoice(");
+  test("decision 334: O45 is wired (install complete + 15-minute retry), bank transfer only, no card wording, no invented PDF", () => {
+    const core = src("src/lib/completion-emails.core.ts");
+    for (const gone of ["Secure card payment by Stripe", "Tap the button to pay by card", "payUrl"]) expect(core).not.toContain(gone);
+    expect(core).toContain("Pay by bank transfer");
+    const t = src("src/lib/owner-email-triggers.server.ts");
+    expect(t).toContain("bank: bankDetails()");
+    expect(t).toContain("invoicePdfAttached: false");
+    expect(count(src("src/lib/install-complete.server.ts"), "emailOwnerFinalInvoice(")).toBe(0);
+    expect(src("src/lib/approved-owner-emails.server.ts")).toContain("key: ownerEmailKey.finalInvoice(invoiceId)");
   });
 });

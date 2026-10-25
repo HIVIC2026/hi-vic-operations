@@ -52,6 +52,7 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
+import { ElectricianPiesaTimesCard } from "@/components/portal/piesa-times-electrician";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
@@ -129,6 +130,8 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       {role === "electrician" && <JobStatusCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
+        {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
+        {role === "electrician" && <ElectricianPiesaTimesCard jobId={jobId} />}
         {role === "electrician" && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
