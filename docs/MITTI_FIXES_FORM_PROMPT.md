@@ -23,7 +23,7 @@ Build it as a NEW template. The existing "A4 – Electrical safety check (PIESA)
 **Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for Q14.
 **Pages:** one page per ## group below.
 **Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
-editable items so the electrician can correct them. Q8 is a read-only list the portal fills in; it is not Required.
+editable items so the electrician can correct them. Q8 is the list the portal fills in (Mitti can't lock a text field, so it stays editable); it is not Required.
 **Colours:** Q9 `Yes` = GREEN, `No` = RED. Nothing else is coloured.
 
 Answer-type key: Text = single line text (Q8 and Q10 may be multi-line text); Date = date; Yes/No = two choices `Yes`
@@ -41,18 +41,17 @@ Q5: `REC name` — Text — Required — portal fills this in
 Q6: `REC registration number` — Text — Required — portal fills this in
 Q7: `Phone` — Text — Required — portal fills this in
 
-## Group 3: The repair work
+## Group 3: The repair work and Certificate of Electrical Safety
 Q8: `The repair work listed on the safety assessment:` — Text — portal fills this in — help text: `Filled in by the portal from the safety assessment. Don't retype it.`
 Q9: `Have you completed all of the repair work listed, and is the ceiling now safe for insulation?` — Yes/No — Required
 Q10: `Anything not done or changed?` — Text — Required — only show when Q9 = `No` — help text: `Say what is still outstanding or what changed, so the office can follow it up.`
 
-## Group 4: Certificate of Electrical Safety
 Q11: `Certificate of Electrical Safety number` — Text — Required — only show when Q9 = `Yes`
 Q12: `Date of certification` — Date — Required — only show when Q9 = `Yes`
 Q13: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — Required — only show when Q9 = `Yes` — help text: `A photo or the PDF of the certificate.`
 Q14: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — Required — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.`
 
-## Group 5: Sign
+## Group 4: Sign
 Q15: `Electrician signature` — Signature — Required
 
 Publish, then send me the **template ID**. It's in the Mitti web address when the template is open, or under the
