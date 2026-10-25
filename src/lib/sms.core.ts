@@ -79,7 +79,7 @@ export const SMS_MESSAGE_TYPES = {
   owner_changed_visit: { audience: "partner", label: "Owner changed the booked visit on My job – trade told (decision 337)", wordingApproved: true, quietHours: true },
   // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
   // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
-  swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377)", wordingApproved: false, quietHours: true },
+  swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377; wording approved by Jo 25 Oct)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

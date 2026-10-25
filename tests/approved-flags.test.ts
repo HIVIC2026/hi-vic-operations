@@ -97,7 +97,7 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
   }
   test("every SMS type is approved except the decision-377 crew safety plan link draft (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
-    expect(off).toEqual(["swms_sign_link"]); // decision 377: draft wording, Jo to approve
+    expect(off).toEqual([]); // decision 377 wording approved by Jo 25 Oct
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

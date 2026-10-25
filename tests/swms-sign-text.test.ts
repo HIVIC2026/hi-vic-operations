@@ -62,11 +62,11 @@ describe("wording and SMS type", () => {
     const body = brandSmsBody(swmsSignLinkText({ address: "1 Test Street, Testville", startIso: START, link: "https://x/sp/a.b" }));
     expect(body).toBe("Home Insulation Victoria: please read and sign the safety plan for the install at 1 Test Street, Testville on Tuesday 3 November: https://x/sp/a.b");
   });
-  test("new type swms_sign_link: partner, wording NOT approved, quiet hours, window freshness; real sends are held", () => {
+  test("new type swms_sign_link: partner, wording approved (Jo 25 Oct), quiet hours, window freshness", () => {
     expect(SWMS_SIGN_LINK_SMS_TYPE).toBe("swms_sign_link");
-    expect(SMS_MESSAGE_TYPES.swms_sign_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(SMS_MESSAGE_TYPES.swms_sign_link).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.swms_sign_link).toEqual({ kind: "window" });
-    expect(smsBlocker({ type: "swms_sign_link", to: "+61412345678", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-11-02T01:00:00Z" })).toBe("Wording not approved yet");
+    expect(smsBlocker({ type: "swms_sign_link", to: "+61412345678", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-11-02T01:00:00Z" })).toBeNull();
   });
 });
 
