@@ -1,15 +1,20 @@
 // Owner payments against the ONE Xero invoice (decisions 139/140/141). Rules live in payments.core.ts.
-// Ledger: append-only `owner_payment_recorded` workflow events (one per Xero PaymentID / office record) — the project's
-// existing immutable event log, so no new table and no live schema change. Xero stays the system of record for
-// invoices.total_paid; an office-recorded bank transfer counts for the gates until the next Xero sync reconciles it.
+// Ledger: append-only `owner_payment_recorded` workflow events (one per Xero PaymentID / Stripe PaymentIntent; old office
+// records stay as history) plus `owner_payment_reversed` rows for Xero payments later deleted/voided — the project's
+// existing immutable event log, so no new table and no live schema change. Xero is the system of record; the amount
+// received is `reconciledPaidCents` (Xero's live payments + card records not yet matched in Xero, audit F01), and
+// invoices.total_paid follows it down as well as up.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
-  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey,
-  cumulativePaidCents, isStepCleared, isStepPaid, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, toCents,
+  HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
+  cumulativePaidCents, effectiveLedger, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
 } from "./payments.core";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";
+/** Audit F01: a recorded Xero payment that Xero later shows DELETED/VOIDED (or no longer lists). One per PaymentID. */
+export const PAYMENT_REVERSED_EVENT = "owner_payment_reversed";
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
 
@@ -22,26 +27,52 @@ export function bankDetails(): BankDetails {
   return { accountName, bsb, accountNumber, payId, configured: !!((bsb && accountNumber) || payId) };
 }
 
-type LedgerRow = { id: string; created_at: string; actor_id: string | null; details: Record<string, unknown> };
-export async function paymentLedger(jobId: string, invoiceId?: string): Promise<(PaymentRecord & { id: string; createdAt: string })[]> {
-  const { data } = await admin.from("workflow_events").select("id, created_at, actor_id, details").eq("job_id", jobId).eq("event_type", PAYMENT_EVENT).order("created_at");
+type LedgerRow = { id: string; event_type: string; created_at: string; actor_id: string | null; details: Record<string, unknown> };
+/** Every payment + reversal row for the invoice, as recorded (append-only). Use `paymentLedger` for money received. */
+export async function rawPaymentLedger(jobId: string, invoiceId?: string): Promise<(PaymentRecord & { id: string; createdAt: string })[]> {
+  const { data } = await admin.from("workflow_events").select("id, event_type, created_at, actor_id, details").eq("job_id", jobId).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at");
   return ((data ?? []) as unknown as LedgerRow[])
     .filter((r) => !invoiceId || r.details["invoice_id"] === invoiceId)
-    .map((r) => ({
-      id: r.id, createdAt: r.created_at, amountCents: Number(r.details["amount_cents"] ?? 0), source: (r.details["source"] as PaymentSource) ?? "manual",
-      paidAt: String(r.details["paid_at"] ?? r.created_at), xeroPaymentId: (r.details["xero_payment_id"] as string | null) ?? null, recordedBy: r.actor_id, note: (r.details["note"] as string | null) ?? null,
-    }));
+    .map((r) => ({ id: r.id, createdAt: r.created_at, ...ledgerRecordFromEvent(r.event_type, r.created_at, r.actor_id, r.details) }));
+}
+/** Money actually received (audit F01): live Xero payments + card/office records not yet matched in Xero — no reversed
+ *  or duplicated rows, so cumulativePaidCents(paymentLedger(...)) is the reconciled amount. */
+export async function paymentLedger(jobId: string, invoiceId?: string) {
+  return effectiveLedger(await rawPaymentLedger(jobId, invoiceId));
 }
 
-/** Xero → ledger. One record per PaymentID; re-running with the same Xero payments records nothing. */
-export async function recordXeroPayments(invoiceId: string, jobId: string, xeroPayments: { PaymentID?: string; Amount?: number; Date?: string; Status?: string }[], actorId: string | null) {
-  const known = (await paymentLedger(jobId, invoiceId)).map((r) => r.xeroPaymentId).filter((x): x is string => !!x);
+/** Xero → ledger, from the invoice's FULL Payments list. One record per PaymentID (with its Reference); a recorded
+ *  payment that Xero now shows DELETED/VOIDED or no longer lists gets ONE `owner_payment_reversed` row. Re-running with
+ *  the same Xero payments records nothing. Returns how many rows were written; the caller re-applies the paid amount. */
+export async function recordXeroPayments(invoiceId: string, jobId: string, xeroPayments: XeroPaymentInput[], actorId: string | null, opts: { fullList?: boolean } = {}) {
+  const raw = await rawPaymentLedger(jobId, invoiceId);
+  const known = raw.filter((r) => r.kind !== "reversal").map((r) => r.xeroPaymentId).filter((x): x is string => !!x);
   const fresh = newXeroPayments(known, xeroPayments);
   for (const p of fresh) {
-    await logEvent(jobId, actorId, PAYMENT_EVENT, `Payment of $${(p.amountCents / 100).toFixed(2)} received in Xero`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId }, { internal: true });
+    await logEvent(jobId, actorId, PAYMENT_EVENT, `Payment of $${(p.amountCents / 100).toFixed(2)} received in Xero`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, xero_reference: p.reference }, { internal: true });
   }
-  if (fresh.length) await afterPaymentsChanged(jobId, invoiceId, actorId);
-  return fresh.length;
+  const gone = opts.fullList === false ? [] : xeroReversals(raw, xeroPayments);
+  for (const p of gone) {
+    await logEvent(jobId, actorId, PAYMENT_REVERSED_EVENT, `Xero payment of $${(p.amountCents / 100).toFixed(2)} was deleted or voided in Xero – no longer counted`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId }, { internal: true });
+  }
+  return fresh.length + gone.length;
+}
+
+/** The reconciled amount for an invoice in cents (audit F01; replaces max(total_paid, ledger)). With `xeroPayments` (the
+ *  invoice's Payments list from Xero) the card/office rows are matched against that; without, against the ledger's own
+ *  Xero rows. When the ledger holds no Xero rows at all (an invoice paid before the ledger existed), Xero's mirrored
+ *  total_paid still counts — once, never added on top. */
+export async function reconciledInvoicePaidCents(jobId: string, invoiceId: string, opts: { xeroPayments?: XeroPaymentInput[] | null; xeroAmountPaid?: number | null; totalPaid?: number | string | null } = {}) {
+  const raw = await rawPaymentLedger(jobId, invoiceId);
+  if (opts.xeroPayments) {
+    const facts = xeroPaymentFacts(opts.xeroPayments);
+    // Xero reports money paid but listed no payments: count Xero's own total once.
+    if (reconciledPaidCents([], facts) === 0 && toCents(opts.xeroAmountPaid ?? 0) > 0)
+      facts.push({ paymentId: null, amountCents: toCents(opts.xeroAmountPaid ?? 0), paidAt: new Date().toISOString(), reference: null, status: null });
+    return reconciledPaidCents(raw, facts);
+  }
+  const fromLedger = reconciledPaidCents(raw, ledgerXeroPayments(raw));
+  return raw.some((r) => r.source === "xero") ? fromLedger : Math.max(fromLedger, toCents(opts.totalPaid ?? 0));
 }
 
 /** Office "Record payment": a bank transfer / card payment the office has confirmed (statement or Xero) before the sync shows it. */
@@ -51,10 +82,10 @@ export async function recordManualPayment(i: { invoiceId: string; amountCents: n
   if (!inv) throw new Error("Invoice not found");
   await logEvent(inv.job_id, i.actorId, PAYMENT_EVENT, `Office recorded a ${i.source} payment of $${(i.amountCents / 100).toFixed(2)}${i.note ? ` – ${i.note}` : ""}`, { invoice_id: inv.id, amount_cents: i.amountCents, source: i.source, paid_at: i.paidAt, note: i.note }, { internal: true });
   // Gates read invoices.total_paid: lift it to the ledger total so the recorded transfer counts now; Xero reconciles on the next sync.
-  const ledger = cumulativePaidCents(await paymentLedger(inv.job_id, inv.id));
-  if (ledger > toCents(inv.total_paid)) {
+  const paid = await reconciledInvoicePaidCents(inv.job_id, inv.id, { totalPaid: inv.total_paid });
+  if (paid !== toCents(inv.total_paid)) {
     const { applyPaidAmount } = await import("./xero.server");
-    await applyPaidAmount(inv.id, ledger / 100, i.actorId);
+    await applyPaidAmount(inv.id, paid / 100, i.actorId);
   }
   await afterPaymentsChanged(inv.job_id, inv.id, i.actorId);
 }
@@ -80,8 +111,10 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
   const safety = safetyCheckCentsFor({ lines: piesaLines ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null });
   const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents: rect ? toCents(rect.customer_total_inc_gst) : 0 });
-  const ledger = await paymentLedger(jobId, inv.id);
-  const paidCents = Math.max(toCents(inv.total_paid), cumulativePaidCents(ledger));
+  // Audit F01: reconciled (Xero live payments + card records not yet in Xero), never max(total_paid, ledger sum).
+  const raw = await rawPaymentLedger(jobId, inv.id);
+  const ledger = effectiveLedger(raw);
+  const paidCents = raw.some((r) => r.source === "xero") ? cumulativePaidCents(ledger) : Math.max(cumulativePaidCents(ledger), toCents(inv.total_paid));
   const bookedAt = installBooking?.created_at ?? null;
   const facts: Partial<Record<PaymentStepKey, PaymentStepFacts>> = {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },

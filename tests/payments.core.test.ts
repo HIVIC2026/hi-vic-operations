@@ -4,7 +4,9 @@ import {
   BANK_DETAILS_TO_CONFIRM, FINAL_INVOICE_PAY_LINE, PAY_LINE_SAFETY_CHECK, PROVISIONAL_HOLD_HOURS, SAFETY_CHECK_CENTS,
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
   paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
+  effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
 } from "../src/lib/payments.core";
+import { paymentPatch } from "../src/lib/invoice.lifecycle";
 
 const T0 = "2026-10-24T03:00:00.000Z";
 const plus = (iso: string, h: number) => new Date(Date.parse(iso) + h * 3_600_000).toISOString();
@@ -141,6 +143,57 @@ describe("Xero payment ledger", () => {
   test("Xero /Date()/ and ISO dates both parse", () => {
     expect(xeroDateIso("/Date(1761300000000+0000)/")).toBe(new Date(1761300000000).toISOString());
     expect(xeroDateIso("2026-10-26T00:00:00Z")).toBe("2026-10-26T00:00:00.000Z");
+  });
+});
+
+describe("audit F01: the same money is counted once; deleted Xero payments are reversed", () => {
+  const card = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "card", paid_at: T0, note: "stripe:pi_3Abc123456", stripe_payment_intent: "pi_3Abc123456" });
+  test("Stripe $349, then the same $349 reconciled into Xero (Reference holds the PaymentIntent) → $349", () => {
+    const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "Stripe pi_3Abc123456" }]);
+    expect(reconciledPaidCents([card], xero)).toBe(34_900);
+  });
+  test("no Stripe id in the Reference: same amount within 10 days matches; outside 10 days does not", () => {
+    expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 9) }]))).toBe(34_900);
+    expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }]))).toBe(69_800);
+    expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 300, Date: plus(T0, 24) }]))).toBe(64_900);
+  });
+  test("each Xero payment claims at most one card record", () => {
+    const card2 = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "card", paid_at: plus(T0, 1), note: "stripe:pi_other99999" });
+    expect(reconciledPaidCents([card, card2], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24) }]))).toBe(69_800);
+  });
+  test("a deleted/voided Xero payment does not count and is reversed once", () => {
+    const rec = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: T0, xero_payment_id: "x1" });
+    expect(xeroReversals([rec], [{ PaymentID: "x1", Amount: 349, Status: "DELETED" }]).map((r) => r.xeroPaymentId)).toEqual(["x1"]);
+    expect(xeroReversals([rec], [])).toHaveLength(1); // gone from the invoice
+    const rev = ledgerRecordFromEvent("owner_payment_reversed", plus(T0, 5), null, { amount_cents: 34_900, source: "xero", paid_at: T0, xero_payment_id: "x1" });
+    expect(rev.kind).toBe("reversal");
+    expect(cumulativePaidCents([rec, rev])).toBe(0);
+    expect(xeroReversals([rec, rev], [])).toEqual([]); // idempotent
+    expect(effectiveLedger([rec, rev])).toEqual([]);
+    expect(reconciledPaidCents([rec, rev], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Status: "VOIDED" }]))).toBe(0);
+  });
+  test("idempotent re-sync: same Xero list → nothing new, nothing reversed, same amount", () => {
+    const list = [{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24), Reference: "pi_3Abc123456" }];
+    const rec = ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 24), xero_payment_id: "x1", xero_reference: "pi_3Abc123456" });
+    expect(newXeroPayments(["x1"], list)).toEqual([]);
+    expect(xeroReversals([card, rec], list)).toEqual([]);
+    expect(reconciledPaidCents([card, rec], xeroPaymentFacts(list))).toBe(34_900);
+    // the ledger's own view agrees (what jobPaymentView / stepPaidAt read)
+    expect(cumulativePaidCents(effectiveLedger([card, rec]))).toBe(34_900);
+    expect(effectiveLedger([card, rec])).toEqual([rec]);
+  });
+  test("applyPaidAmount's patch lets total_paid go DOWN and un-marks a no-longer-fully-paid invoice", () => {
+    const row = { id: "i", job_id: "j", quote_id: "q", kind: "installation", status: "fully_paid", total_inc_gst: 1000, deposit_pct: 0.1, deposit_amount: 349, balance_amount: 651, deposit_due_date: null, balance_due_date: null, total_paid: 1349, deposit_paid_at: T0, balance_paid_at: T0, xero_invoice_id: "x", xero_update_pending: false, deposit_request_raised_at: null, deposit_request_raised_by: null, deposit_request_amount: null, deposit_request_pct: null };
+    const { patch, events } = paymentPatch(row, 349, null, T0);
+    expect(patch.total_paid).toBe(349);
+    expect(patch.balance_paid_at).toBeNull();
+    expect(patch.status).toBe("deposit_paid");
+    expect(events).toContain("paid_reduced");
+    expect(paymentPatch({ ...row, total_paid: 349, balance_paid_at: null, status: "deposit_paid" }, 349, null, T0).events).toEqual([]);
+  });
+  test("a card payment not yet in Xero still counts", () => {
+    expect(reconciledPaidCents([card], [])).toBe(34_900);
+    expect(effectiveLedger([card])).toEqual([card]);
   });
 });
 

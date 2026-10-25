@@ -151,14 +151,108 @@ export function provisionalBookingDecision(f: { bookedAt: string | null; now: st
 }
 
 // ---------- Ledger (append-only payment records → cumulative) ----------
+// Audit F01: the ledger holds Xero payments (one per PaymentID), card payments (one per Stripe PaymentIntent) and old
+// office records. A card payment that later lands in Xero arrives as a NEW Xero PaymentID for the SAME money, and a Xero
+// payment can be deleted/voided after it was recorded. So the amount received is never the plain ledger sum (and never
+// max(Xero, ledger)): it is `reconciledPaidCents` — Xero's live payments + card/office records not yet matched in Xero.
 export type PaymentSource = "xero" | "bank" | "card" | "manual";
-export type PaymentRecord = { amountCents: number; source: PaymentSource; paidAt: string; xeroPaymentId?: string | null; recordedBy?: string | null; note?: string | null };
-export const cumulativePaidCents = (records: { amountCents: number }[]) => records.reduce((s, r) => s + Math.max(0, Math.round(r.amountCents)), 0);
+export type PaymentRecord = {
+  amountCents: number; source: PaymentSource; paidAt: string; xeroPaymentId?: string | null; recordedBy?: string | null; note?: string | null;
+  /** "reversal" = an `owner_payment_reversed` row: the Xero payment with this id was deleted/voided/removed in Xero. */
+  kind?: "payment" | "reversal";
+  /** Xero payment Reference (as Xero returned it) — used to match card payments by their Stripe id. */
+  reference?: string | null;
+  /** Stripe ids for a card payment (PaymentIntent, charge, session) — a Xero payment whose Reference holds one is the same money. */
+  stripeIds?: string[] | null;
+};
+/** One `owner_payment_recorded` / `owner_payment_reversed` workflow event → ledger record (pure; shared by every reader). */
+export function ledgerRecordFromEvent(eventType: string, createdAt: string, actorId: string | null, d: Record<string, unknown> | null | undefined): PaymentRecord {
+  const det = d ?? {};
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const note = str(det["note"]);
+  const stripeIds = [str(det["stripe_payment_intent"]), str(det["stripe_charge"]), str(det["stripe_session"]), note?.startsWith("stripe:") ? note.slice(7) : null].filter((x): x is string => !!x);
+  return {
+    amountCents: Number(det["amount_cents"] ?? 0), source: (str(det["source"]) as PaymentSource | null) ?? "manual", paidAt: String(det["paid_at"] ?? createdAt),
+    xeroPaymentId: str(det["xero_payment_id"]), recordedBy: actorId, note, kind: eventType === "owner_payment_reversed" ? "reversal" : "payment",
+    reference: str(det["xero_reference"]), stripeIds: stripeIds.length ? [...new Set(stripeIds)] : null,
+  };
+}
+/** Payments minus reversals (never below 0). Reversal rows carry the reversed payment's positive amount. */
+export const cumulativePaidCents = (records: { amountCents: number; kind?: "payment" | "reversal" }[]) =>
+  Math.max(0, records.reduce((s, r) => s + (r.kind === "reversal" ? -1 : 1) * Math.max(0, Math.round(r.amountCents)), 0));
+
+export type XeroPaymentFact = { paymentId: string | null; amountCents: number; paidAt: string; reference?: string | null; status?: string | null };
+export type XeroPaymentInput = { PaymentID?: string; Amount?: number; Date?: string; Status?: string; Reference?: string };
+const XERO_DEAD = new Set(["DELETED", "VOIDED"]);
+const isLiveXero = (p: { Status?: string; Amount?: number }) => !XERO_DEAD.has(String(p.Status ?? "").toUpperCase()) && Number(p.Amount ?? 0) > 0;
+export const xeroPaymentFacts = (xero: XeroPaymentInput[]): XeroPaymentFact[] =>
+  xero.map((p) => ({ paymentId: p.PaymentID ?? null, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date), reference: p.Reference ?? null, status: p.Status ?? null }));
+const liveXero = (xero: XeroPaymentFact[]) => xero.filter((p) => !XERO_DEAD.has(String(p.status ?? "").toUpperCase()) && p.amountCents > 0);
+
+/** Same amount within this many days counts as the same money when no Stripe id is in the Xero Reference. */
+export const RECONCILE_WINDOW_DAYS = 10;
+const RECONCILE_WINDOW_MS = RECONCILE_WINDOW_DAYS * 86_400_000;
+
+/** Pure: which card/office records are already in Xero. Exact first (the Xero payment Reference contains one of the
+ *  record's Stripe ids), then same amount within 10 days (closest date first). Each Xero payment claims at most one record. */
+export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPayments: XeroPaymentFact[]) {
+  const live = liveXero(xeroPayments);
+  const xeroCents = live.reduce((s, p) => s + p.amountCents, 0);
+  const others = ledger.filter((r) => r.source !== "xero" && r.kind !== "reversal" && r.amountCents > 0);
+  const claimed = new Set<number>();
+  const matched = new Map<T, XeroPaymentFact>();
+  for (const r of others) {
+    const ids = (r.stripeIds ?? []).filter((x) => !!x && x.length >= 6);
+    if (!ids.length) continue;
+    const i = live.findIndex((p, k) => !claimed.has(k) && !!p.reference && ids.some((id) => p.reference!.includes(id)));
+    if (i >= 0) { claimed.add(i); matched.set(r, live[i]!); }
+  }
+  for (const r of others) {
+    if (matched.has(r)) continue;
+    let best = -1, bestGap = Infinity;
+    live.forEach((p, k) => {
+      if (claimed.has(k) || p.amountCents !== Math.round(r.amountCents)) return;
+      const gap = Math.abs(Date.parse(p.paidAt) - Date.parse(r.paidAt));
+      if (gap <= RECONCILE_WINDOW_MS && gap < bestGap) { best = k; bestGap = gap; }
+    });
+    if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); }
+  }
+  const unmatched = others.filter((r) => !matched.has(r));
+  const paidCents = xeroCents + unmatched.reduce((s, r) => s + Math.round(r.amountCents), 0);
+  return { paidCents, xeroCents, unmatched, matched };
+}
+/** The amount truly received on the invoice: Xero's live payments + card/office records not yet matched in Xero. */
+export const reconciledPaidCents = (ledger: PaymentRecord[], xeroPayments: XeroPaymentFact[]) => reconcilePayments(ledger, xeroPayments).paidCents;
+
+/** Xero payments already in the ledger, minus those reversed — the ledger's own view of Xero (no network call). */
+export function ledgerXeroPayments(ledger: PaymentRecord[]): XeroPaymentFact[] {
+  const reversed = new Set(ledger.filter((r) => r.kind === "reversal" && r.xeroPaymentId).map((r) => r.xeroPaymentId as string));
+  return ledger.filter((r) => r.source === "xero" && r.kind !== "reversal" && !(r.xeroPaymentId && reversed.has(r.xeroPaymentId)))
+    .map((r) => ({ paymentId: r.xeroPaymentId ?? null, amountCents: Math.round(r.amountCents), paidAt: r.paidAt, reference: r.reference ?? null, status: null }));
+}
+/** The ledger as money actually received: live Xero rows + card/office rows not matched in Xero. No reversal rows, no
+ *  duplicates — so `cumulativePaidCents`/`stepPaidAt` over it equal `reconciledPaidCents` against the ledger's Xero view. */
+export function effectiveLedger<T extends PaymentRecord>(ledger: T[]): T[] {
+  const xero = ledgerXeroPayments(ledger);
+  const liveIds = new Set(xero.map((p) => p.paymentId));
+  const { unmatched } = reconcilePayments(ledger, xero);
+  const keep = new Set<T>(unmatched);
+  return ledger.filter((r) => r.kind !== "reversal" && (r.source === "xero" ? liveIds.has(r.xeroPaymentId ?? null) : keep.has(r)));
+}
+
 /** Xero payments not yet in the ledger (by PaymentID). Idempotent: re-running with the same input returns nothing new. */
-export function newXeroPayments(knownIds: Iterable<string>, xero: { PaymentID?: string; Amount?: number; Date?: string; Status?: string }[]) {
+export function newXeroPayments(knownIds: Iterable<string>, xero: XeroPaymentInput[]) {
   const known = new Set(knownIds);
-  return xero.filter((p) => p.PaymentID && !known.has(p.PaymentID) && p.Status !== "DELETED" && Number(p.Amount ?? 0) > 0)
-    .map((p) => ({ xeroPaymentId: p.PaymentID as string, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date) }));
+  return xero.filter((p) => p.PaymentID && !known.has(p.PaymentID) && isLiveXero(p))
+    .map((p) => ({ xeroPaymentId: p.PaymentID as string, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date), reference: p.Reference ?? null }));
+}
+/** Recorded Xero payments that Xero no longer shows as live (DELETED/VOIDED or gone from the invoice) and that have no
+ *  reversal yet. Only call with the invoice's FULL Payments list. Idempotent: once reversed, never again. */
+export function xeroReversals(ledger: PaymentRecord[], xero: XeroPaymentInput[]): { xeroPaymentId: string; amountCents: number; paidAt: string }[] {
+  const live = new Set(xero.filter((p) => p.PaymentID && isLiveXero(p)).map((p) => p.PaymentID as string));
+  const reversed = new Set(ledger.filter((r) => r.kind === "reversal" && r.xeroPaymentId).map((r) => r.xeroPaymentId as string));
+  return ledger.filter((r) => r.source === "xero" && r.kind !== "reversal" && r.xeroPaymentId && !live.has(r.xeroPaymentId) && !reversed.has(r.xeroPaymentId))
+    .map((r) => ({ xeroPaymentId: r.xeroPaymentId as string, amountCents: Math.round(r.amountCents), paidAt: r.paidAt }));
 }
 export function xeroDateIso(d?: string): string {
   if (!d) return new Date(0).toISOString();

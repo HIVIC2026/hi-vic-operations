@@ -9,6 +9,7 @@ import {
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 import { XERO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import type { XeroPaymentInput } from "./payments.core";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 
@@ -223,14 +224,27 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       await logEvent(inv.job_id, actorId, "xero_invoice_voided", msg, { invoice_id: invoiceId }, { internal: true });
       return;
     }
-    await applyPaidAmount(invoiceId, ev.paid, actorId, ev.depositPaidAt);
-    await admin.from("invoices").update({ xero_invoice_status: x.Status ?? null, xero_online_url: x.OnlineInvoiceUrl ?? inv.xero_online_url, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
-    await syncLog(invoiceId, true, { amount_paid: ev.paid }, undefined, "inbound");
-    // Decision 139: append-only payment ledger (one record per Xero PaymentID) + payment-step effects. Never fails the sync.
+    // Decision 139 + audit F01: ledger first (one record per Xero PaymentID; a recorded payment Xero now shows deleted/voided
+    // gets one reversal), then the reconciled amount = Xero's live payments + card payments not yet matched in Xero. It
+    // may go DOWN (a deleted Xero payment). Ledger trouble never fails the sync: Xero's own AmountPaid is used instead.
+    const xeroPayments = (x.Payments ?? []) as XeroPaymentInput[];
+    let ledgerChanged = 0;
+    let paidCents = Math.round(Number(ev.paid) * 100);
     try {
-      const { recordXeroPayments } = await import("./payments.server");
-      await recordXeroPayments(invoiceId, inv.job_id, (x.Payments ?? []) as { PaymentID?: string; Amount?: number; Date?: string; Status?: string }[], actorId);
+      const { recordXeroPayments, reconciledInvoicePaidCents } = await import("./payments.server");
+      const { reconciledPaidCents, xeroPaymentFacts } = await import("./payments.core");
+      // Only a list that accounts for all of Xero's AmountPaid may reverse recorded payments (never on a partial shape).
+      const fullList = Array.isArray(x.Payments) && reconciledPaidCents([], xeroPaymentFacts(xeroPayments)) >= paidCents;
+      ledgerChanged = await recordXeroPayments(invoiceId, inv.job_id, xeroPayments, actorId, { fullList });
+      paidCents = await reconciledInvoicePaidCents(inv.job_id, invoiceId, { xeroPayments, xeroAmountPaid: ev.paid });
     } catch (e) { console.error("xero payment ledger skipped", (e as Error).message); }
+    await applyPaidAmount(invoiceId, paidCents / 100, actorId, ev.depositPaidAt);
+    await admin.from("invoices").update({ xero_invoice_status: x.Status ?? null, xero_online_url: x.OnlineInvoiceUrl ?? inv.xero_online_url, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
+    await syncLog(invoiceId, true, { amount_paid: ev.paid, reconciled_paid: paidCents / 100 }, undefined, "inbound");
+    if (ledgerChanged) {
+      const { afterPaymentsChanged } = await import("./payments.server");
+      await afterPaymentsChanged(inv.job_id, invoiceId, actorId).catch((e) => console.error("payment effects skipped", (e as Error).message));
+    }
     if (!x.OnlineInvoiceUrl && !inv.xero_online_url) await storeOnlineInvoiceUrl(invoiceId, inv.xero_invoice_id, call).catch((e) => console.error("xero online invoice url skipped", (e as Error).message));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -280,23 +294,19 @@ export async function pollXeroPayments(limit = 40) {
   return { enabled: true, checked, failed };
 }
 
-/** Single place that turns Xero's cumulative AmountPaid into deposit/balance state + audit events. */
+/** Single place that turns the amount received on the invoice into deposit/balance state + audit events. Callers pass the
+ *  RECONCILED amount (`reconciledInvoicePaidCents`, audit F01: Xero's live payments + card payments not yet in Xero);
+ *  it is written as-is, so total_paid goes down when a Xero payment is deleted — no max() with the ledger. */
 export async function applyPaidAmount(invoiceId: string, paid: number, actorId: string | null, depositReachedAt?: string | null) {
   await requireHivicInvoice(invoiceId);
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) return;
-  // Decision 144: card (Stripe) and office-recorded bank payments are real money that Xero may not show until the payout is
-  // reconciled, so the mirrored total never drops below the append-only ledger (which also holds every Xero payment).
-  let effective = paid;
-  try {
-    const { paymentLedger } = await import("./payments.server");
-    const { cumulativePaidCents } = await import("./payments.core");
-    effective = Math.max(paid, cumulativePaidCents(await paymentLedger(inv.job_id, invoiceId)) / 100);
-  } catch (e) { console.error("payment ledger read skipped", (e as Error).message); }
+  const effective = Math.max(0, paid);
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, effective, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
   if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Minimum deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
+  if (events.includes("paid_reduced")) await logEvent(inv.job_id, actorId, "payment_total_reduced", `Amount received went down from ${Number(inv.total_paid).toFixed(2)} to ${effective.toFixed(2)} (a Xero payment was deleted or voided, or the same money had been counted twice)`, { invoice_id: invoiceId, was: Number(inv.total_paid), now: effective }, { internal: true });
 }
 
 /** Admin-controlled, idempotent supplier contact setup for an approved partner business. */

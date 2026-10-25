@@ -84,6 +84,15 @@ export function paymentPatch(row: InvoiceRow, paid: number, depositReachedAt: st
     patch.status = "fully_paid";
     events.push("balance_paid");
   }
+  // Audit F01: the amount can go DOWN (a Xero payment deleted/voided, or money once counted twice). A fully-paid invoice
+  // that no longer is goes back to unpaid-balance; the deposit fact stays as history (the steps read the amount itself).
+  if (cents(paid) < cents(row.total_paid ?? 0)) {
+    events.push("paid_reduced");
+    if (row.balance_paid_at && cents(paid) < cents(row.total_inc_gst)) {
+      patch.balance_paid_at = null;
+      patch.status = row.deposit_paid_at || patch.deposit_paid_at ? "deposit_paid" : "deposit_due";
+    }
+  }
   return { patch, events };
 }
 
