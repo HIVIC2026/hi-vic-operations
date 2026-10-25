@@ -287,6 +287,19 @@ export type ReadinessInput = {
 };
 export type Readiness = { ready: boolean; blockers: string[]; dueBy: string | null };
 
+/** Signed PIESA copies must have reached the owner AND the installer at least 24h before the start (the copies go
+ *  automatically; a missing or late delivery means that send failed). ONE rule for readyToInstall (Installation complete)
+ *  and the day-before pre-start check (decision 395), so both places say the same thing. */
+export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: { owner: string | null; installer: string | null }): string[] {
+  const dueT = new Date(escDueBy(scheduledStart)).getTime();
+  const at = (s: string | null) => (s ? new Date(s).getTime() : Infinity);
+  const fmt = new Date(dueT).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  const b: string[] = [];
+  if (at(deliveries.owner) > dueT) b.push(`Signed PIESA copy delivery to owner must be recorded by ${fmt}`);
+  if (at(deliveries.installer) > dueT) b.push(`Signed PIESA copy delivery to installer must be recorded by ${fmt}`);
+  return b;
+}
+
 /** READY TO INSTALL: every 24h pre-condition met relative to the planned start, and PIESA still in its 30-day window. */
 export function readyToInstall(i: ReadinessInput): Readiness {
   const b: string[] = [];
@@ -305,8 +318,7 @@ export function readyToInstall(i: ReadinessInput): Readiness {
     const done = i.consent ? consentCompletedAt(i.consent) : null;
     if (!done || at(n.sent_at) < at(done)) b.push("ESC notification was sent before valid owner consent was obtained – re-notify");
   }
-  if (at(i.deliveries.owner) > dueT) b.push(`Signed PIESA copy delivery to owner must be recorded by ${fmt}`);
-  if (at(i.deliveries.installer) > dueT) b.push(`Signed PIESA copy delivery to installer must be recorded by ${fmt}`);
+  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries));
   if (!i.piesa?.date || i.piesa.outcome !== "pass") b.push("A current passing PIESA is required");
   else if (i.piesa.deadline && i.scheduledStart.slice(0, 10) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
   return { ready: b.length === 0, blockers: b, dueBy: due };

@@ -71,6 +71,10 @@ export async function prestartFacts(jobId: string, start: string) {
     bookingCreatedAt: await installationBookingCreatedAt(jobId, start),
     // Decision 367: the install cannot start while its 10% deposit is unpaid (payment-rule jobs with an invoice).
     installDepositBlocker: await installDepositBlockerFor(jobId, start),
+    // Decision 395: the PIESA copies (owner + installer, 24h before) and the owner's Gate C receipt — the same readers and
+    // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
+    piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
+    piesaCopyReceiptBlocker: await (await import("./owner-gates.server")).piesaCopyReceiptBlockerFor(jobId),
   };
 }
 

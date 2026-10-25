@@ -13,6 +13,8 @@ import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } f
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
+import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
+import { prestartFailedFor } from "./prestart.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -72,7 +74,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -110,6 +112,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     listMode ? (async () => (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => []))() : Promise.resolve([]),
     // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
     listMode ? all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(t0 - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b)) : Promise.resolve([] as Row[]),
+    // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it from 12pm the day before).
+    all("pre-start checks", (a, b) => scoped(admin.from("pre_start_checks").select("job_id, scheduled_start, passed, failures, checked_at")).gt("scheduled_start", new Date(t0).toISOString()).order("checked_at", { ascending: false }).range(a, b)),
+    all("upcoming installs", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
+    // Decision 398: the A3 PIESA form was not created automatically at the PIESA booking.
+    all("PIESA form failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_AUTOFORM_FAILED_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -221,6 +228,21 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (!x || j?.stage !== "installation_booked") continue;
     const open = piisaFormFailedOpen([...piisaAlerts, ...made].filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { message?: string | null } | null })));
     if (open) x.piisaFormFailed = open;
+  }
+  // Decision 395: a failed day-before pre-start check for the CURRENT install booking → one row with what is missing.
+  for (const [id, r] of prestartFailedFor(upcomingInstalls.map((b) => ({ job_id: String(b["job_id"]), scheduled_start: String(b["scheduled_start"]) })),
+    prestartChecks.map((c) => ({ job_id: String(c["job_id"]), scheduled_start: String(c["scheduled_start"]), passed: c["passed"] === true, failures: (c["failures"] as string[] | null) ?? [], checked_at: String(c["checked_at"]) })))) {
+    const x = f(id); if (x) x.prestartFailed = r;
+  }
+  // Decision 398: the automatic A3 PIESA form failed → one row until the job has its PIESA form (office button = backup).
+  {
+    const failIds = [...new Set(piesaFormFails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    const withForm = new Set((failIds.length ? await byIds("PIESA forms", failIds, (chunk, a, b) => admin.from("assessments").select("job_id").in("job_id", chunk).not("external_mitti_id", "is", null).range(a, b)) : []).map((r) => String(r["job_id"])));
+    for (const id of failIds) {
+      const x = f(id); if (!x) continue;
+      const open = piesaFormFailedOpen({ events: piesaFormFails.filter((e) => e["job_id"] === id).map((e) => ({ created_at: String(e["created_at"]), details: (e["details"] ?? null) as { reason?: string | null } | null })), hasPiesaForm: withForm.has(id), stage: jobById.get(id)?.stage ?? null });
+      if (open) x.piesaFormFailed = open;
+    }
   }
   for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft = { at: String(t["install_10day_flagged_at"]), deadline: jobById.get(String(t["id"]))?.facts.installDeadline ?? null }; }
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
