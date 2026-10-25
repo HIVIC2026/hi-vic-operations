@@ -32,6 +32,8 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
 
 const j = await journeyDb();
 await loadPendingFunctions(j);
+// The live database seeds every new job's evidence checklist, compliance checks and VEEC row (migration 0000 trigger).
+await j.db.exec("create trigger jobs_seed_requirements after insert on public.jobs for each row execute function public.seed_job_requirements();");
 const { admin: baseAdmin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;

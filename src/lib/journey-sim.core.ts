@@ -184,5 +184,8 @@ export function simulatedCompletedA5(o: { q: Record<string, string>; ruler: { ex
     ticked(q["allFilledIn"]!),
     signature(q["signature"]!, m("signature-end")),
   ];
-  return { items, videoIds: new Set(videos) };
+  // Start of work = everything up to the signature under the declaration (captured before any work, decision 262);
+  // the rest is filled in after the work, then the form is marked Complete.
+  const startEnd = items.findIndex((i) => i.type === "signature") + 1;
+  return { items, startItems: items.slice(0, startEnd), finishItems: items.slice(startEnd), videoIds: new Set(videos) };
 }

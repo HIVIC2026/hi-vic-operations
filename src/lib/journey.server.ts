@@ -254,7 +254,7 @@ const s4: StepFn = async (ctx, r) => {
   check(r, "Ready Check recorded", !me, me?.message);
   // The insulation product answer on the form, recorded the way the Mitti sync records it (declared, not verified).
   await (await import("./insulation-product.server")).mittiProductForJob(ctx.jobId!, ctx.installer.id, [{ label: "What insulation product will you be using on this job?", value: "Bradford Gold R5" }], `sim-${ctx.runId}`);
-  for (const c of ["before_ceiling_space", "access_manhole", "existing_insulation_r_value", "identity_front_of_property"]) await uploadEvidence(ctx, c, ctx.installer.id);
+  for (const c of ["measurement", "before_ceiling_space", "access_manhole", "existing_insulation_r_value", "identity_front_of_property"]) await uploadEvidence(ctx, c, ctx.installer.id);
   const { recordPriorActivityCheck } = await import("./verified-eligibility.server");
   await recordPriorActivityCheck(ctx.jobId!, ctx.actorId, "none_known" as never, null);
   const { recordVerification } = await import("./verified-eligibility.server");
@@ -506,12 +506,23 @@ const s7: StepFn = async (ctx, r) => {
   const syncA5 = async () => { await assertOwnTestJob(ctx); return (await import("./piisa-declaration.server")).syncPiisaDeclaration(ctx.jobId!, ctx.installer.id, mitti.call, { fetchMedia: async (_audit, mediaId) => ({ bytes: TINY_JPEG, contentType: a5.videoIds.has(mediaId) ? "video/mp4" : "image/jpeg" }) }); };
   const early = await syncA5();
   check(r, "nothing is recorded before the install day form is complete", early.status !== "saved" && (await stageOf(ctx)) === "installation_booked", `${early.status}: ${early.message}`);
-  mitti.fill(created.auditId, a5.items);
+  mitti.fill(created.auditId, a5.startItems, { complete: false });
+  const started = await act(r, "lead installer signs the start-of-work part of the install day form (read before work starts)", () => syncA5());
+  check(r, "start-of-work check captured before the form is complete", started.status === "pending", `${started.status}: ${started.message}`);
+  mitti.fill(created.auditId, a5.finishItems);
   await act(r, "lead installer completes the install day form (every answer, photo, video and ruler photo)", () => syncA5());
   // Product labels are a human office review (piisa-products.core): the office confirms the installed product.
   await act(r, "office reviews the product label evidence", () => reviewProductEvidence(ctx));
   const done = await act(r, "install day form read again → installation recorded", () => syncA5());
   check(r, "installation recorded from the install day form", (await stageOf(ctx)) === "evidence_outstanding", `${done.status}: ${done.message} (stage ${await stageOf(ctx)})`);
+  // The office checks the installer's signed declaration (saved from the install day form) against the evidence checklist.
+  await act(r, "office verifies the signed installer declaration on the checklist", async () => {
+    await assertOwnTestJob(ctx);
+    const { count: signed } = await admin.from("installer_declarations").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("status", "signed");
+    if (!signed) throw new Error("No signed installer declaration on this job.");
+    const { data: req } = await admin.from("evidence_requirements").select("id, status").eq("job_id", ctx.jobId!).eq("category", "installer_declaration" as never).eq("required", true).maybeSingle();
+    if (req && !["uploaded", "verified"].includes(req.status)) await (await import("./evidence-review.server")).reviewEvidence(ctx.actorId, { requirementId: req.id, status: "verified", notes: "Declaration signed by the lead installer in the install day form (TEST journey)" });
+  });
   {
     const rec = await import("./job-records.server");
     for (const key of ["installer_safety_assessment", "completion_consumer_docs"] as const) await act(r, `office records ${key.replace(/_/g, " ")}`, () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key, occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
