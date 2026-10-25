@@ -2,6 +2,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
+import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { clearanceFacts } from "./electrical-clearance.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -77,7 +78,9 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
       // G: a non-empty licence/rec number is NOT proof of a verified, current licence.
       // Only verified, unexpired electrical_licence / rec_registration credentials count.
-      has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc),
+      // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
+      has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
+        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,

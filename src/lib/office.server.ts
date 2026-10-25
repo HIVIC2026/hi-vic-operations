@@ -65,7 +65,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     all("emails", (a, b) => scope(admin.from("customer_email_sends").select("job_id, status, error")).in("status", ["failed", "bounced"]).range(a, b)),
     all("snoozes", (a, b) => admin.from("office_snoozes").select("job_id, rule_key, snoozed_until, snooze_count").range(a, b)),
     opts.onlyIds ? Promise.resolve([]) : all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)),
-    opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, label, kind, expires_at, businesses(name)").not("expires_at", "is", null).lte("expires_at", melbourneToday(new Date(now + lim["credential_warning_days"]! * 86_400_000))).range(a, b)),
+    // Decision 371: every stored expiry (a renewal supersedes the old date), so ONE row per document is decided below.
+    opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, business_id, profile_id, label, kind, expires_at").not("expires_at", "is", null).range(a, b)),
     // D-10: homeowner requests for a different installer/electrician belong in Needs me (same "open" rule as the old To-action list).
     all("reassignment requests", (a, b) => scope(admin.from("reassignment_requests").select("job_id, role, reason, created_at").is("resolved_at", null)).range(a, b)),
   ]);
@@ -229,9 +230,30 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     ...textFails.map((t) => ({ key: `text:${t["id"]}`, title: `Daily text to ${(t["businesses"] as { name?: string } | null)?.name ?? "a trade"} failed`, why: String(t["detail"] ?? "Twilio did not deliver it").slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...changeReqs.map((c) => ({ key: `chg:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"} asks to change ${c["kind"] === "rates" ? "their rates" : c["kind"] === "details" ? "their details" : c["kind"]}`, why: String(c["message"]).slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...apps.filter((a) => !String(a["source"] ?? "").endsWith("_test")).map((a) => ({ key: `app:${a["id"]}`, title: `New application: ${String(a["name"] ?? "").trim() || "name not given"}`, why: "Application ready to review", dueAt: null, href: "/admin/partners" })),
-    ...creds.map((c) => ({ key: `cred:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"}: ${c["label"] ?? c["kind"]} expiring`, why: `Expires ${c["expires_at"]}`, dueAt: String(c["expires_at"]), href: "/admin/businesses" })),
+    ...(opts.onlyIds ? [] : await tradeExpiryItems(admin, creds, melbourneToday(new Date(now)), lim["credential_warning_days"] ?? 30)),
   ];
   const snz: Snooze[] = snoozes.map((x) => ({ jobId: String(x["job_id"]), ruleKey: String(x["rule_key"]), until: String(x["snoozed_until"]), count: Number(x["snooze_count"]) }));
   const needs = buildNeedsMe({ now, jobs: out.map((o) => o.needs), partners, snoozes: snz, lim });
   return { now, lim, jobs: out, needs };
+}
+
+/** Decision 371(a): ONE Needs me partner row per trade document (business insurance / certificate / REC registration /
+ *  licence, each person's licence and CII) from 30 days before its latest stored expiry. Pure rules: trade-expiry.core. */
+async function tradeExpiryItems(admin: Admin, creds: Row[], today: string, warnDays: number): Promise<PartnerItem[]> {
+  const { tradeExpiryRows, latestCiiExpiryByWorker } = await import("./trade-expiry.core");
+  const [bizs, workers, certs, levels] = await Promise.all([
+    all("trade businesses", (a, b) => admin.from("businesses").select("id, name, is_active").range(a, b)),
+    all("trade people", (a, b) => admin.from("partner_workers").select("id, business_id, email, full_legal_name, trade_role, licence_expires_on, removed_at").is("removed_at", null).range(a, b)),
+    all("CII checks", (a, b) => admin.from("partner_worker_certifications").select("id, worker_id, worker_email, recorded_at").range(a, b)),
+    all("CII levels", (a, b) => admin.from("worker_certification_levels").select("certification_id, expires_on, recorded_at").range(a, b)),
+  ]);
+  const installers = workers.filter((w) => w["trade_role"] === "installer").map((w) => ({ id: String(w["id"]), email: String(w["email"] ?? "") }));
+  const cii = latestCiiExpiryByWorker(installers, certs.map((c) => ({ id: String(c["id"]), worker_id: s(c["worker_id"]), worker_email: String(c["worker_email"] ?? ""), recorded_at: String(c["recorded_at"]) })), levels.map((l) => ({ certification_id: String(l["certification_id"]), expires_on: String(l["expires_on"]), recorded_at: String(l["recorded_at"]) })));
+  const rows = tradeExpiryRows({
+    today, warnDays,
+    businesses: bizs.map((b) => ({ id: String(b["id"]), name: String(b["name"] ?? "Partner"), active: b["is_active"] !== false })),
+    credentials: creds.map((c) => ({ businessId: String(c["business_id"]), profileId: s(c["profile_id"]), kind: String(c["kind"]), label: String(c["label"] ?? c["kind"]), expiresAt: s(c["expires_at"]) })),
+    people: workers.map((w) => ({ id: String(w["id"]), name: String(w["full_legal_name"] ?? "Worker"), businessId: String(w["business_id"]), licenceExpiresOn: w["trade_role"] === "electrician" ? s(w["licence_expires_on"]) : null, ciiExpiresOn: cii.get(String(w["id"])) ?? null })),
+  });
+  return rows.map((r) => ({ key: r.key, title: `${r.who}: ${r.document} ${r.expired ? "expired" : "expiring"}`, why: r.line, dueAt: r.expiresOn, href: r.subject === "person" ? "/admin/partners" : "/admin/businesses" }));
 }

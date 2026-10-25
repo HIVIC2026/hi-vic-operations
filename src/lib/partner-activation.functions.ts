@@ -302,5 +302,7 @@ export const getApprovalChecklist = createServerFn({ method: "POST" }).middlewar
     const ob = offerActivationBlocker(offerState(offerRows ?? []));
     if (ob) items.push({ key: "rates", kind: "rates", label: ob });
     const d = application as { business_email?: string };
-    return { activated: !!act, activatedAt: act?.activated_at ?? null, items, needsOverride: items.some((i) => i.kind === "override"), hardBlocked: items.some((i) => i.kind !== "override"), loginEmail: d.business_email ?? "" };
+    // Decision 371(c): ESV register lookups for a REC application, recorded for the reviewer (switch off / no adapter = "not checked").
+    const registerLookups = type === "rec" ? await (await import("./esv-register.server")).registerLookupsForApplication(app.id, application as never).catch(() => []) : [];
+    return { activated: !!act, activatedAt: act?.activated_at ?? null, items, needsOverride: items.some((i) => i.kind === "override"), hardBlocked: items.some((i) => i.kind !== "override"), loginEmail: d.business_email ?? "", registerLookups };
   });

@@ -11,6 +11,7 @@ import { melbourneYmd, piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } fro
 import { READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate, installerEligibilityBlocker } from "./readycheck-booking.core";
 import { publicLiabilityBlocker } from "./worker-compliance.core";
 import { latestExpiry } from "./trade-view.core";
+import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 type Pick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
@@ -136,8 +137,10 @@ export async function installerCandidatesFor(jobId: string) {
       coverage_verified: !!b.coverage_verified_at, covers_postcode: verifiedServiceAreaMatch(b, postcode),
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
       // H3 (24 Oct 2026): a lapsed public liability certificate blocks new offers like an expired CII, whatever its `critical` flag.
+      // Decision 371: so does a lapsed business installer certificate (latest stored date per document).
       credentialsOk: !partnerWorkBlocker(b as unknown as BusinessLike, (creds ?? []).filter((x) => x.business_id === b.id))
-        && !publicLiabilityBlocker(latestExpiry((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), "public_liability_insurance"), today),
+        && !publicLiabilityBlocker(latestExpiry((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), "public_liability_insurance"), today)
+        && !expiredBusinessDocsBlocker((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), today, ["public_liability_insurance", "installer_certification"]),
       fullCertifiedInstallers: wk.filter((x) => x.business_id === b.id && fullWorker(x)).length,
       freeMeasureUps: b.free_measureups_for_hivic_quote_leads ?? null,
       weekly_capacity: null, open_jobs: 0, recent_offers_30d: mine.length,
