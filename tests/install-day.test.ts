@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  INSTALL_DAY_AFTER_SIGN_TEXT, INSTALL_DAY_DECLARATION_START, INSTALL_DAY_Q as Q, INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME,
+  INSTALL_DAY_AFTER_INSTALL_TEXT, INSTALL_DAY_AFTER_SIGN_TEXT, INSTALL_DAY_DECLARATION_START, INSTALL_DAY_READ_FIRST_TEXT, INSTALL_DAY_Q as Q, INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME,
   electricianPresentAnswer, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, installDayPrefillItems, isInstallDayDoc, piesaPart5Answers, readInstallDay,
   type InstallDayQuestion,
 } from "../src/lib/install-day.core";
@@ -36,6 +36,21 @@ describe("Install day prompt equals install-day.core (drift)", () => {
     expect(prompt).toContain(`\`${INSTALL_DAY_AFTER_SIGN_TEXT}\``);
     expect(prompt).toContain(`\`${INSTALL_DAY_DECLARATION_START}\``);
   });
+  test("decision 328: READ FIRST tops Group 1, the Q37 stop text, AFTER THE INSTALL tops Group 8, the final tick just before the last signature", () => {
+    const after = (h: string) => prompt.slice(prompt.indexOf(h)).split("\n")[1]!;
+    expect(after("## Group 1: Job\n")).toContain(`\`${INSTALL_DAY_READ_FIRST_TEXT}\``);
+    expect(prompt).toContain(`Q37: Text item (not a question) (decision 328): \`${INSTALL_DAY_AFTER_SIGN_TEXT}\``);
+    const g8 = prompt.slice(prompt.indexOf("## Group 8:"), prompt.indexOf("Q38:"));
+    expect(g8).toContain(`first item on this page, before Q38 (decision 328): \`${INSTALL_DAY_AFTER_INSTALL_TEXT}\``);
+    expect(prompt).toContain(`Q47: \`${Q.allFilledIn}\` — Checkbox — Required\nQ48: \`${Q.signature}\` — Signature — Required`);
+    expect(INSTALL_DAY_AFTER_SIGN_TEXT).toBe("STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.");
+    expect(INSTALL_DAY_READ_FIRST_TEXT).toBe('READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.');
+    expect(INSTALL_DAY_AFTER_INSTALL_TEXT).toBe("AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.");
+    expect(Q.allFilledIn).toBe('Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".');
+    const tick = INSTALL_DAY_QUESTIONS.find((q) => q.label === Q.allFilledIn)!;
+    expect(tick).toMatchObject({ n: 47, type: "checkbox", required: true, group: 9 });
+    expect(prompt).not.toContain("That's the before-work part done");
+  });
   test("every prompt question matches the code one for one: number, label, type, files, required, options, help, stop line, logic, prefill", () => {
     expect(promptQs.map((p) => p.n)).toEqual(INSTALL_DAY_QUESTIONS.map((q) => q.n));
     for (const p of promptQs) {
@@ -50,7 +65,7 @@ describe("Install day prompt equals install-day.core (drift)", () => {
       expect(!!c.prefill, `Q${p.n} prefill`).toBe(p.prefill);
       if (p.options?.length) expect([...(c.options ?? [])], `Q${p.n} options`).toEqual(p.options);
     }
-    expect(INSTALL_DAY_QUESTIONS.at(-1)!.n).toBe(47);
+    expect(INSTALL_DAY_QUESTIONS.at(-1)!.n).toBe(48);
   });
 });
 
@@ -65,7 +80,7 @@ const tick = (label: string) => item(label, { type: "checkbox", responses: { val
 const photo = (label: string, ...ids: string[]) => item(label, { type: "media", media: ids.map((id) => ({ media_id: id, captured_at: "2026-11-03T19:50:00Z", location: { lat: -37.8, lng: 145 } })) });
 const sign = (at: string) => item(Q.signature, { type: "signature", responses: { image: { media_id: "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b", name: "Bhavdeep Singh", timestamp: at } } });
 
-export function installDayAudit(o: { crew?: 1 | 2 | 3; needed?: "Yes" | "No"; here?: "Yes" | "No"; entered?: "Yes" | "No"; done?: boolean } = {}) {
+export function installDayAudit(o: { crew?: 1 | 2 | 3; needed?: "Yes" | "No"; here?: "Yes" | "No"; entered?: "Yes" | "No"; done?: boolean; noFinalTick?: boolean } = {}) {
   i = 0;
   const crew = o.crew ?? 1;
   const items = [
@@ -78,7 +93,7 @@ export function installDayAudit(o: { crew?: 1 | 2 | 3; needed?: "Yes" | "No"; he
     yn(Q.solar, "No"), yn(Q.piesaRead, "Yes"), yn(Q.electricianNeeded, o.needed ?? "No"), ...(o.here ? [yn(Q.electricianHere, o.here)] : []), ...(o.here === "Yes" ? [photo(Q.electricianPhoto, "elec")] : []),
     yn(Q.ceilingEntered, o.entered ?? "No"),
     photo(Q.productPhotos, "prod"), tick(Q.declaration), sign("2026-11-03T19:45:00Z"),
-    ...(o.done ? [photo(Q.afterVideos, "av1", "av2"), photo(Q.depthPhotos, "dp1", "dp2"), yn(Q.multiDay, "No"), yn(Q.lockoutOff, "Yes"), pickOne(Q.lockoutBy, "Lead installer"), photo(Q.switchboardOn, "sw"), pick(Q.solarBack, "There isn't one"), tick(Q.supervised), sign("2026-11-04T04:06:00Z")]
+    ...(o.done ? [photo(Q.afterVideos, "av1", "av2"), photo(Q.depthPhotos, "dp1", "dp2"), yn(Q.multiDay, "No"), yn(Q.lockoutOff, "Yes"), pickOne(Q.lockoutBy, "Lead installer"), photo(Q.switchboardOn, "sw"), pick(Q.solarBack, "There isn't one"), tick(Q.supervised), ...(o.noFinalTick ? [] : [tick(Q.allFilledIn)]), sign("2026-11-04T04:06:00Z")]
       : [item(Q.afterVideos, { type: "media" }), item(Q.signature, { type: "signature", responses: {} })]),
   ];
   return { audit_id: "a1", items };
@@ -91,7 +106,7 @@ describe("reading an Install day audit", () => {
     const built = { items: INSTALL_DAY_QUESTIONS.map((q) => item(q.label)) };
     expect(installDayMissingQuestions(built)).toEqual([]);
     const oneSig = { items: built.items.filter((x, idx, all) => !(x.label === Q.signature && all.findIndex((y) => y.label === Q.signature) !== idx)) };
-    expect(installDayMissingQuestions(oneSig)).toEqual([`${Q.signature} (Q47)`]);
+    expect(installDayMissingQuestions(oneSig)).toEqual([`${Q.signature} (Q48)`]);
   });
   test("maps every asked answer to the official PIISA item; Part 5 lights/cables and Part 6 are never read from the form", () => {
     const { answers, crew } = installDayOfficialAnswers(installDayAudit({ crew: 3 }));

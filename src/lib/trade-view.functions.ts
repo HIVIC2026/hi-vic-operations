@@ -225,3 +225,9 @@ export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middlew
 export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSafetyCheckPdf(data.jobId, context.userId));
+
+/** Decision 328: "Check my form now" — runs the single-job A3 Install day sync for this installer's job and returns the
+ *  result (the same words as the text). Installers only; business-scoped through requireTradeJob. */
+export const checkTradeInstallForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeCheckInstallForm(data.jobId, context.userId)));

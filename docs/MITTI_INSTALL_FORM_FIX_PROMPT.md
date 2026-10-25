@@ -5,6 +5,12 @@ the Ready Check build. The old "A3 - PIISA + AP Evidence" template is left alone
 renamed "(old)" and unpublished. The portal reads every answer by its question text, so the wording below is fixed in
 `src/lib/install-day.core.ts` and a test fails if this file and the code drift apart.
 
+Decision 328 (Jo, 25 Oct 2026): four changes so the after-work part can't be missed — the READ FIRST text item at the top
+of Group 1, the new Q37 stop text, the AFTER THE INSTALL text item at the top of Group 8, and the required Q47 final tick
+just before the last signature (now Q48). The portal reads the Q47 tick: unticked = the form is not complete. When the form
+is marked Complete the portal checks it and texts the lead installer "All filled in" or what's missing
+(`src/lib/install-day-confirm.core.ts`).
+
 ---
 
 You are helping me build a form template in **Mitti** (mitti.com.au field inspection app, web template builder). I will
@@ -32,7 +38,7 @@ location on; Video = video attachment with location on ("several files allowed" 
 signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
+Text item (not a question), first item on this page, before Q1 (decision 328; replaces the decision-318 line on this form): `READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.`
 Q1: `Portal Job Number` — Text — Required — portal fills this in
 Q2: `Site address` — Text — Required — portal fills this in
 Q3: `Install date` — Date — Required — portal fills this in
@@ -83,10 +89,11 @@ Q33: `Photo of the packaging showing brand, model and R-value` — Photo — Req
 Q34: Text item (not a question), exactly the current official text starting `INSTALLER DECLARATION – Sign BEFORE insulation work starts.` — copy it from the old "A3 - PIISA + AP Evidence" template, including the item starting `d. I will ensure that:` and the `Privacy Collection Statement` item.
 Q35: `Everything on this form is true and complete` — Checkbox — Required
 Q36: `Lead installer's signature` — Signature — Required
-Q37: Text item (not a question): `That's the before-work part done. Come back to the next page when the insulation is in.`
+Q37: Text item (not a question) (decision 328): `STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.`
 
 ## Group 8: Videos and photos (after the install)
 The before video of each area was taken at the Ready Check, so it is not asked again.
+Text item (not a question), first item on this page, before Q38 (decision 328): `AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.`
 Q38: `After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left` — Video, several files allowed — Required
 Q39: `Depth photos: the new insulation in each area with a ruler standing in it` — Photo, several files allowed — Required — help text: `Don't squash it.`
 Q40: `Did the install take more than one day?` — Yes/No — Required
@@ -98,6 +105,7 @@ Q43: `Who turned it back on?` — Pick one: `Lead installer` / `Second installer
 Q44: `Photo of the switchboard with the main switch on` — Photo — Required — only show when Q42 = `Yes`
 Q45: `Is the solar, battery or generator back on?` — Pick one: `Yes` / `No` / `There isn't one` — Required
 Q46: `I was here the whole time and supervised everyone` — Checkbox — Required
-Q47: `Lead installer's signature` — Signature — Required
+Q47: `Every answer, photo and video on this form is filled in, and I won't leave site until the portal texts me "All filled in".` — Checkbox — Required
+Q48: `Lead installer's signature` — Signature — Required
 
 Publish.

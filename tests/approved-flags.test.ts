@@ -75,6 +75,8 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   fixes_times_link: "315 (electrician fixes times link; wording in fixes-times.core.ts)",
   electrician_install_attendance: "327 (electrician at the start of the install; wording in install-attendance.core.ts)",
   electrician_cant_attend_installer: "327 (installer told the electrician can't make the day; wording in install-attendance.core.ts)",
+  install_day_form_result: "328 (install day form result to the lead installer; wording in install-day-confirm.core.ts)",
+  install_day_form_reminder: "328 (5pm install day form reminder; wording in install-day-confirm.core.ts)",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {

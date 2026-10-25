@@ -50,6 +50,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
@@ -387,6 +388,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
           {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}
+          {/* Decision 328: check the A3 Install day form now — the same result the lead installer is texted. */}
+          {["install_booked", "sign_rebate"].includes(next.panel) && <CheckMyFormButton jobId={jobId} className="mt-3" />}
           {next.panel === "sign_rebate" && (
             <div className="mt-3 space-y-3" data-sign-rebate>
               {!page.install.recordedAt

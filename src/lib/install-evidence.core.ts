@@ -18,6 +18,7 @@ import type { MittiMediaFile } from "./piesa-evidence.core";
 import { INSTALL_DAY_Q as ID, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, isInstallDayDoc, labelKey as key, labelledItems, NO_SIGNATURE, type Labelled, type ReadSignature } from "./install-day.core";
 import { activity48ProductProblems, modelsForMittiOption } from "./esc-approved-products.core";
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
+import { FINAL_TICK_MISSING } from "./install-day-confirm.core";
 
 /** Melbourne date from which the new items are required (install start date on or after). Earlier installs = old rule. */
 export const INSTALL_EVIDENCE_EFFECTIVE_DATE = "2026-11-01";
@@ -207,7 +208,7 @@ export function installEvidenceMissingQuestions(template: unknown): string[] {
 }
 
 export type InstallEvidenceZoneRead = { zone: number; name: string | null; underInsulated: boolean | null; existingPhoto: MittiMediaFile[]; beforeVideo: MittiMediaFile[]; afterVideo: MittiMediaFile[]; depthPhoto: MittiMediaFile[]; product: string | null; areaM2: number | null };
-export type AfterInstallRead = { onForm: boolean; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
+export type AfterInstallRead = { onForm: boolean; /** Decision 328: the final "Every answer, photo and video … filled in" tick. null = not on this form (old A3). */ allFilledIn?: boolean | null; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
 export type InstallEvidenceRead = { /** The "A3 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
   /** Install day form (decisions 263/264): the two multi-file items. Empty on the old A3. */ files: { afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
@@ -230,7 +231,8 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   });
   // The install-day form has no finish time: the completion signature's own time stands as the finish time.
   const completionSignature = sig(A.completionSignature);
-  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
+  const finalTick = findExact(items, ID.allFilledIn);
+  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), allFilledIn: isInstallDayDoc(audit) ? !!finalTick?.value : null, lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
   const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
   return { installDay: isInstallDayDoc(audit), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
@@ -325,6 +327,8 @@ export function afterInstallBlockers(a: AfterInstallRead, ctx: Pick<InstallEvide
   else if (solarNoneAnswer(a.solarRestarted) && ctx.solarPresent === true) b.push("Solar/battery restart answered \"None here\" but the safety form says the home has solar, a battery or another supply — office review");
   if (a.finishedAt && Number.isNaN(Date.parse(a.finishedAt))) b.push(`${LEGACY_FINISHED_AT_LABEL}: not a readable date and time`);
   if (!a.leadPresent) b.push("Lead installer has not confirmed being on site for the whole installation");
+  // Decision 328: the install day form's final tick is required — unticked = the form is not complete.
+  if (a.allFilledIn === false) b.push(FINAL_TICK_MISSING);
   if (!a.completionSignature.present) b.push(`${A.completionSignature}: missing`);
   else {
     if (!a.completionSignature.signedAt) b.push(`${A.completionSignature}: no time recorded`);
@@ -495,6 +499,8 @@ export type InstallCompletionInput = {
   summary: InstallEvidenceSummary | null;
   /** `installation_completed_at` already set (office button or an earlier sync). */
   alreadyCompleted: boolean;
+  /** Decision 328: the install day form's final tick (null/undefined = not on this form). false = not complete, whatever the date. */
+  allFilledInTicked?: boolean | null;
 };
 export type InstallCompletionDecision = { record: boolean; reason: string; /** The installer's Next line when not recording; null when recording or already done. */ nextLine: string | null; outstanding: string[] };
 
@@ -502,6 +508,7 @@ export type InstallCompletionDecision = { record: boolean; reason: string; /** T
 export function installCompletionDecision(i: InstallCompletionInput): InstallCompletionDecision {
   if (i.alreadyCompleted) return { record: false, reason: "Installation already recorded", nextLine: null, outstanding: [] };
   if (!i.formCompleted) return { record: false, reason: "Install day form not marked Complete in Mitti", nextLine: "Finish the Install day form in Mitti and mark it Complete", outstanding: [] };
+  if (i.allFilledInTicked === false) return { record: false, reason: "Final tick not ticked on the Install day form", nextLine: `Install day form: ${FINAL_TICK_MISSING}`, outstanding: [FINAL_TICK_MISSING] };
   if (!i.declarationSaved) return { record: false, reason: "Signed installer declaration not saved yet", nextLine: "Sign the safety form (PIISA) in Mitti — the portal has not got a signed copy yet", outstanding: [] };
   if (!i.summary) return { record: false, reason: "Install-day evidence not read yet", nextLine: "Sync the Install day form — the evidence has not been read yet", outstanding: [] };
   if (!i.summary.applies) return { record: true, reason: "Install before the evidence effective date — original checks only", nextLine: null, outstanding: [] };

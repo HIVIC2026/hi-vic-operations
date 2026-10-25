@@ -8,8 +8,10 @@ import { logEvent } from "./workflow.server";
 import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
+/** Decision 328: what the A3 sync read, for the install day confirmation (install-day-confirm.server). */
+export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
 
-export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch } = {}): Promise<PiisaDeclSync> {
+export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch; onA3?: (info: A3SyncInfo) => void } = {}): Promise<PiisaDeclSync> {
   const { data: existing } = await admin.from("installer_declarations").select("id,snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
   const { data: job } = await admin.from("jobs").select("job_number, source").eq("id", jobId).single();
   if (!job) return { status: "error", message: "Job not found." };
@@ -42,11 +44,19 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit);
     } catch (e) { try { await logEvent(jobId, actorId, "install_evidence_sync_failed", "Install-day evidence (Table 4 / sign-off) could not be read — sync again", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   }
+  // Decision 328: the final tick of the install day form (unticked = not complete) and what this sync read, for the
+  // install day confirmation text / "Check my form now".
+  const finalTickTicked = installDay ? (await import("./install-day.core")).readInstallDay(audit).ticked((await import("./install-day.core")).INSTALL_DAY_Q.allFilledIn) : true;
+  if (isA3 && opts.onA3) {
+    const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } } | null;
+    const mod = raw?.modified_at ?? raw?.audit_data?.date_modified;
+    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, summary: installEvidence });
+  }
   // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
   // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
   const finishInstall = async (declarationSaved: boolean) => {
     if (!isA3 || !p.completed) return;
-    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence }); }
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null }); }
     catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));

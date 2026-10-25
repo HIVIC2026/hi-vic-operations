@@ -1,6 +1,6 @@
 // Pure rules for the ONE real SMS sender (Jo, 7 Oct). No network, no database.
 import { normaliseAuMobile } from "./test-send.core";
-import { smsQuietReason } from "./quote-hold.core";
+import { melbourneHour, smsQuietReason } from "./quote-hold.core";
 
 /**
  * Every message type that may use the real sender. `wordingApproved=false` means it can never send yet.
@@ -52,6 +52,12 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 327: the electrician can't make the booked install day → the installer is told once with the days the electrician
   // can do. Wording: installerCantAttendText (install-attendance.core.ts), given by Jo.
   electrician_cant_attend_installer: { audience: "partner", label: "Electrician can't make the install day – installer offers new days the electrician can do (decision 327)", wordingApproved: true, quietHours: true },
+  // Decision 328 (Jo 25 Oct 2026, route approved): the A3 Install day form marked Complete → the lead installer gets the
+  // result ("All filled in ✓ You can leave site." / "Not finished — …"), once per form revision. Same-day result: exempt
+  // from the 8pm quiet hours, never before 7am. Wording: install-day-confirm.core.ts.
+  install_day_form_result: { audience: "partner", label: "Install day form checked – all filled in / not finished, to the lead installer (decision 328)", wordingApproved: true, quietHours: false, notBefore7am: true },
+  // Decision 328: 5pm on the install day, the A3 still not Complete → ONE reminder to the lead installer.
+  install_day_form_reminder: { audience: "partner", label: "Install day form not complete at 5pm – reminder to the lead installer (decision 328)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -102,6 +108,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A4 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
   electrician_install_attendance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the request / reminder recorded for this install booking (install-attendance.server); re-offered by the tick only while unanswered
   electrician_cant_attend_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the electrician's "Can't make it" (recorded once per released booking before any send)
+  install_day_form_result: { kind: "window" }, // key = job + audit + revision; recorded once before any send, only on an install day (install-day-confirm.server)
+  install_day_form_reminder: { kind: "window" }, // key = job + install day; due only from 5pm Melbourne that day, recorded once before any send
 };
 
 export type SmsEventInput = {
@@ -164,6 +172,13 @@ export type SmsGateInput = {
   nowIso?: string;
 };
 
+/** Decision 328: a same-day text exempt from the 8pm quiet hours still never goes before 7am Melbourne. */
+export const SMS_BEFORE_7AM_REASON = "Not before 7am (Melbourne)";
+export function smsBefore7amReason(nowIso: string): string | null {
+  if (!Number.isFinite(Date.parse(nowIso))) return SMS_BEFORE_7AM_REASON; // an unreadable clock fails closed
+  return melbourneHour(nowIso) < 7 ? SMS_BEFORE_7AM_REASON : null;
+}
+
 /** First reason a real text must NOT go, or null. Fails closed on anything unknown. */
 export function smsBlocker(x: SmsGateInput): string | null {
   const t = SMS_MESSAGE_TYPES[x.type as SmsMessageType];
@@ -171,6 +186,7 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (x.isTestRecord) return "TEST record – use the test sender";
   if (!t.wordingApproved) return "Wording not approved yet";
   if (t.quietHours) { const q = smsQuietReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
+  else if ("notBefore7am" in t && t.notBefore7am) { const q = smsBefore7amReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   if (!x.commsEnabled) return "Customer communications are switched off";
   if (!x.typeSwitchOn && !(ONE_OFF_BLAST_TYPES.includes(x.type as SmsMessageType) && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";

@@ -328,6 +328,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['readyCheckForms'] = "failed";
         }
         try {
+          // Decision 328: today's installs only — an A3 Install day form newly marked Complete is checked and the lead
+          // installer texted the result once per form revision; at 5pm a still-incomplete form gets ONE reminder.
+          // Runs before the long Mitti sync so today's sites are never starved. Events recorded before any send.
+          const { sweepInstallDayForms } = await import("@/lib/install-day-confirm.server");
+          (out as Record<string, unknown>)['installDayForms'] = await sweepInstallDayForms();
+        } catch (e) {
+          console.error("allocation tick: install day form check failed", (e as Error).message);
+          (out as Record<string, unknown>)['installDayForms'] = "failed";
+        }
+        try {
           // Data only: same sync as the manual button. Never completes gates, moves stages or sends quotes.
           const { syncPendingMitti } = await import("@/lib/mitti.server");
           const r = await syncPendingMitti(null);
