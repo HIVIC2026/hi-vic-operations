@@ -58,14 +58,13 @@ Q19: `Do you have their written consent or medical plan?` — Yes/No — Require
 Q20: `Upload the consent or medical plan` — Photo — Required — only show when Q19 = `Yes` — help text: `Every page readable.`
 Q21: `Is the safety plan for this job signed?` — Yes/No — Required — help text: `It's on your job page.` — stop line when No: `Stop. Sign it on your job page first.`
 Q22: `Are all the common hazards covered in it?` — Yes/No — Required — stop line when No: `Stop.`
-Q23: `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
-Q24: `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `Solar and battery isolators off too, if the home has them.`
 
-## Group 4: Solar, battery or generator
-Q25: `Is there solar, a battery or a generator?` — Yes/No — Required — portal fills this in
-Q26: `Do you have the shutdown and restart instructions?` — Yes/No — Required — only show when Q25 = `Yes` — stop line when No: `Stop. An electrician must isolate it.`
-Q27: `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when Q25 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
-
+## Group 4: Solar, battery and power off
+Q23: `Is there solar, a battery or a generator?` — Yes/No — Required — portal fills this in
+Q24: `Do you have the shutdown and restart instructions?` — Yes/No — Required — only show when Q23 = `Yes` — stop line when No: `Stop. An electrician must isolate it.`
+Q25: `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when Q23 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
+Q26: `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
+Q27: `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `If there's solar, a battery or a generator, it must be off too.`
 ## Group 5: The electrician's check (PIESA)
 The portal has the PIESA already: it fills in the light, cable and downlight answers on the official form itself, so none of
 them are asked here.

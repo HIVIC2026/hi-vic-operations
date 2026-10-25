@@ -112,11 +112,12 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(3, Q.lifeSupportUpload, "photo", true, { showWhen: { n: lsc, is: ["Yes"] }, help: "Every page readable." });
   q(3, Q.swmsSigned, "yes_no", true, { help: "It's on your job page.", stop: { when: "No", text: "Stop. Sign it on your job page first." } });
   q(3, Q.hazardsCovered, "yes_no", true, { stop: { when: "No", text: "Stop." } });
-  q(3, Q.isolated, "yes_no", true, { stop: { when: "No", text: "Stop. Isolate, lock out and tag first." } });
-  q(3, Q.isolationPhoto, "photo", true, { help: "Solar and battery isolators off too, if the home has them." });
   const solar = q(4, Q.solar, "yes_no", true, { prefill: "solarPresent" });
   q(4, Q.solarInstructions, "yes_no", true, { showWhen: { n: solar, is: ["Yes"] }, stop: { when: "No", text: "Stop. An electrician must isolate it." } });
   q(4, Q.solarIsolator, "yes_no", true, { showWhen: { n: solar, is: ["Yes"] }, stop: { when: "No", text: "Stop. Get an electrician to check it." } });
+  // Jo 25 Oct 2026: isolation comes AFTER the solar question so the solar/battery step reads in order.
+  q(4, Q.isolated, "yes_no", true, { stop: { when: "No", text: "Stop. Isolate, lock out and tag first." } });
+  q(4, Q.isolationPhoto, "photo", true, { help: "If there's solar, a battery or a generator, it must be off too." });
   q(5, Q.piesaRead, "yes_no", true, { stop: { when: "No", text: "Stop." } });
   const needed = q(5, Q.electricianNeeded, "yes_no", true, { prefill: "electricianAtStart" });
   const here = q(5, Q.electricianHere, "yes_no", true, { showWhen: { n: needed, is: ["Yes"] }, stop: { when: "No", text: "Stop. Wait for the electrician." } });
