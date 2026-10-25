@@ -254,6 +254,11 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
   setNth(shortLabel("rectificationComplete"), 0, "Yes");
   setNth(shortLabel("coesNumber"), 0, done.coesNumber);
   setNth(shortLabel("certDate"), 0, done.certDate);
+  // Decision 329: the A5 signature's signer + Melbourne date, for the official Section C typed signature.
+  const signer = done.signerName ?? r.electricianName;
+  if (signer) setNth(shortLabel("fixesSignedBy"), 0, signer);
+  const signedOn = done.signedAt && Number.isFinite(Date.parse(done.signedAt)) ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(done.signedAt)) : done.certDate;
+  setNth(shortLabel("fixesSignedOn"), 0, signedOn);
   // Electrician details: Part B3 (Section C is copied from it by expandPiesa). Only blanks are filled — the PIESA's own
   // pre-filled answers win over the fixes form.
   const b3: [string, string | null][] = [["b3.licence", r.licence], ["b3.name", r.electricianName], ["b3.recName", r.recName], ["b3.recNo", r.recNo], ["b3.phone", r.phone]];

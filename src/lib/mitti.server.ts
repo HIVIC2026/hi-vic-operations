@@ -422,8 +422,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.
         // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from this form.
-        const [prefillCtx, ownerConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null)]);
-        const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation });
+        const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
+        const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
         // Decision 314: a completed A4 with "Be on site at the start of the install day" ticked raises ONE office item.
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);

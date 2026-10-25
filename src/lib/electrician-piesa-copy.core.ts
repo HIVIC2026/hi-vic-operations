@@ -90,7 +90,14 @@ export function officialPiesaPdfText(snap: SignedSnapshot): string {
   for (const d of doc) {
     if (d.kind === "heading") lines.push("", d.label);
     else if (d.kind === "statement") lines.push(d.label);
-    else lines.push(`${d.letter ? `${d.letter} ` : ""}${d.label}: ${show(d.value)}`);
+    else {
+      // Decision 329: a table cell (id#row) prints only when answered, with its row number; a label that already ends in ":"
+      // (or "?") gets no second colon.
+      const row = /#(\d+)$/.exec(d.id ?? "");
+      if (row && (d.value == null || d.value === "")) continue;
+      const label = `${d.letter ? `${d.letter} ` : ""}${d.label}${row ? ` (row ${Number(row[1]) + 1})` : ""}`;
+      lines.push(`${label}${/[:?]$/.test(label.trim()) ? "" : ":"} ${show(d.value)}`);
+    }
   }
   const t = OFFICIAL_TEMPLATES.piesa;
   lines.push("", `Signed by ${snap?.signer?.name || "-"} (${snap?.signer?.role ?? "-"}) on ${snap?.enteredDate ?? "-"}.`,

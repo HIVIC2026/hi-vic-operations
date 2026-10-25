@@ -33,6 +33,7 @@ export const PURPOSE_LABEL: Record<string, string> = {
   job_cancelled: "Job cancelled email", job_cancelled_installer: "Job cancelled email (installer)",
   veec_sign_day_1: "Rebate form reminder (day 1)", veec_sign_day_3: "Rebate form reminder (day 3)", veec_sign_day_7: "Rebate form reminder (day 7)",
   piesa_owner_confirm_request: "Confirm your safety check email", piesa_owner_confirm_reminder_1: "Confirm your safety check reminder (day 1)", piesa_owner_confirm_reminder_3: "Confirm your safety check reminder (day 3)", piesa_owner_confirm: "Confirm your safety check text",
+  piesa_owner_fixes_confirm_request: "Confirm your electrical fixes email", piesa_owner_fixes_confirm_reminder_1: "Confirm your electrical fixes reminder (day 1)", piesa_owner_fixes_confirm_reminder_3: "Confirm your electrical fixes reminder (day 3)", piesa_owner_fixes_confirm: "Confirm your electrical fixes text",
   save_spot_reminder: "Save my spot reminder text", spot_saved: "Spot saved text", quote_ready: "Quote ready text", owner_code: "Sign-in code text",
   veec_sign_request: "Rebate form request text", veec_sign_reminder: "Rebate form reminder text", three_questions_reminder_sms: "3 questions reminder text",
   job_offer: "Job offer text", install_clearance: "Install clearance text", install_window_reminder: "30-day reminder text", install_window_reminder_installer: "30-day reminder text (installer)",

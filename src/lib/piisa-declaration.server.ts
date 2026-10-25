@@ -187,6 +187,10 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     if (!asg?.user_id) return { status: "error", message: "No assigned installer to attribute the signed PIISA to." };
     // Stored as the job's current signed official PIISA; the canonical PIISA gate (piisaPanel / stageEntryBlockers)
     // then evaluates Parts 1–8, the 30-day PIESA window, install-day signing and electrician attendance. Never bypassed.
+    // Decision 329: the Word form's Part 8 "Signature" box carries the lead installer's typed electronic signature (the Mitti
+    // signature image stays the linked attachment record below).
+    const signerName = (directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? "")).trim();
+    if (signerName) answers["p8.signature"] = (await import("./official-forms.core")).electronicSignature(signerName, sigDate);
     const { storeSignedCopy, currentCopy, materialFacts } = await import("./official-forms.server");
     const piesa = (await currentCopy(jobId, "piesa")).copy;
     const { facts } = await materialFacts(jobId, piesa);
@@ -197,7 +201,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
     if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
-    // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
+    // The Word form shows the typed electronic signature (decision 329); the signature image is an explicit linked attachment record next to it.
     const { createHash } = await import("node:crypto");
     const docSha = createHash("sha256").update(r.bytes).digest("hex");
     const base = signatureAttachment(auditId, { ...sig, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name, signedAt }, { path, sha256: docSha });

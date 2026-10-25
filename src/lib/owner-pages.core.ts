@@ -165,6 +165,23 @@ export const P6 = {
   confirmedOn: (date: string, name: string) => `Confirmed on ${date} by ${name}. Your installer can now offer you install days.`,
 } as const;
 
+/* ---------- P6F: the owner confirms the electrical fixes (decision 330; same page pattern as P6, no code) ---------- */
+export const P6F = {
+  kicker: "YOUR ELECTRICAL FIXES",
+  title: "Your electrical fixes — please confirm",
+  /** Decision 330 approved sentence: "{Electrician} finished the electrical fixes at your home on {date}. Please confirm on your job page. It takes a minute." */
+  sub: (electrician: string, date: string) => `${electrician} finished the electrical fixes at your home on ${date}. Please confirm here. It takes a minute.`,
+  formEyebrow: "PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT · OWNER'S DECLARATION",
+  declare: "By confirming you declare that:",
+  signLabel: "Owner signature: type your full name",
+  dateLine: (today: string) => `Date: ${today} · Typing your name is your signature. We record the time, your confirmation and the electrical fixes it refers to.`,
+  button: "Confirm my electrical fixes",
+  signing: "Confirming…",
+  lockHint: "Tick the confirmation and type your name",
+  confirmedTitle: "Electrical fixes: Confirmed ✓",
+  confirmedOn: (date: string, name: string) => `Confirmed on ${date} by ${name}.`,
+} as const;
+
 /* ---------- P5: installer privacy notice (decision 130) ---------- */
 export const P5 = {
   back: "‹ My business",

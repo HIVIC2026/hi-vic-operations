@@ -97,6 +97,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaOwnerConfirm'] = "failed";
         }
         try {
+          // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A5 fixes form; days 1/3, office day 5.
+          const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
+          (out as Record<string, unknown>)['piesaFixesConfirm'] = await sweepOwnerFixesConfirmations();
+        } catch (e) {
+          console.error("allocation tick: electrical fixes owner confirmation sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['piesaFixesConfirm'] = "failed";
+        }
+        try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
           const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
           (out as Record<string, unknown>)['veecReminders'] = await sweepVeecReminders();

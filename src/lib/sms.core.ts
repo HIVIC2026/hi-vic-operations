@@ -42,6 +42,9 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA on their secure link — request text after the electrician
   // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
   piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: true, quietHours: true },
+  // Decision 330 (Jo 25 Oct 2026, wording approved): the owner confirms the ELECTRICAL FIXES on their secure link — request
+  // when the A5 fixes form is complete, reminders days 1/3 (piesa-fixes-confirm.core.ts).
+  piesa_owner_fixes_confirm: { audience: "owner", label: "Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: true, quietHours: true },
   // Decision 315 (Jo 25 Oct 2026, route approved): the A4 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
   fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
@@ -92,6 +95,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
   piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
+  piesa_owner_fixes_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per post_rectification record before any send (piesa-fixes-confirm-send.server)
   fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A4 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
 };
 

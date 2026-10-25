@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { unzipSync, zipSync } from "fflate";
 import piesaDocx from "../src/lib/official-docx-piesa.data";
-import { fillOfficialDocxXml } from "../src/lib/official-docx.core";
+import { fillOfficialDocxXml, readOfficialDocx, xmlProblems } from "../src/lib/official-docx.core";
 import {
   B1_OPTIONS,
   B2_OPTIONS,
@@ -44,6 +44,11 @@ import {
   ownerConfirmationForForm,
   type PiesaOwnerConfirmFacts,
 } from "../src/lib/piesa-owner-confirm.core";
+import {
+  buildPiesaFixesConfirmation,
+  fixesConfirmationFromEvents,
+  ownerFixesConfirmationForForm,
+} from "../src/lib/piesa-fixes-confirm.core";
 import {
   officialPiesaPdfHeader,
   officialPiesaPdfText,
@@ -82,7 +87,7 @@ type Case = {
   owner: string;
   ownerSignedAt: string;
   a4: Entry[];
-  fixes?: { read: FixesDayRead; completedOn: string };
+  fixes?: { read: FixesDayRead; completedOn: string; ownerConfirmedAt: string };
 };
 
 const CASES: Case[] = [
@@ -158,6 +163,8 @@ const CASES: Case[] = [
     ],
     fixes: {
       completedOn: "2026-11-03",
+      // Decision 330: the owner confirms the fixes on the secure link the next evening.
+      ownerConfirmedAt: "2026-11-04T18:30:00+11:00",
       read: {
         jobNumber: "HV-SAMPLE-2",
         electricianName: "Sam Spark",
@@ -234,7 +241,7 @@ export const SOURCE: Record<string, string> = {
   lifeSupportConsent: `A4 "Have you received written consent or a medical plan?…" ("No – not received" = stop, left blank + flagged)`,
   lifeSupportAttachment: `A4 ${q("lifeSupportAttachment")} (photo)`,
   "p2.mains": `A4 ${q("mainsSafe")} Yes → Yes; No → No only if "${MAINS_PROBLEMS[0]}" ticked`,
-  "p2.switch": `Derived: No if any of the three main-switch sub-items is No`,
+  "p2.switch": `Derived: No if any of the three main-switch sub-items is No (the Word form has NO box for this line — kept in the signed record and the PDF, not written on the Word form)`,
   "p2.switchAccessible": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[1]}"`,
   "p2.switchIsolates": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[2]}"`,
   "p2.switchSecured": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[3]}"`,
@@ -260,7 +267,7 @@ export const SOURCE: Record<string, string> = {
   "p6.count": `A4 ${q("downlightCount")}`,
   "p6.prohibited": `A4 ${q("downlightsNonIc")}`,
   "p7.appliances": `A4 ${q("appliancesPresent")} (one question for both)`,
-  "p7.flues": `A4 ${q("appliancesPresent")} (SAME answer as appliances)`,
+  "p7.flues": `A4 ${q("appliancesPresent")} (SAME answer as appliances — see "Still can't be filled from A4")`,
   "p7.appliance": `A4 "${APPLIANCE_Q.what}" (one row per "Add an appliance or flue")`,
   "p7.location": `A4 "${APPLIANCE_Q.what}" (SAME text as the Appliance column)`,
   "p7.hazard": `Fixed wording from "${APPLIANCE_Q.safe}"`,
@@ -282,20 +289,22 @@ export const SOURCE: Record<string, string> = {
   "c.recName": `Copied from B3 once repairs are recorded`,
   "c.recNo": `Copied from B3 once repairs are recorded`,
   "c.phone": `Copied from B3 once repairs are recorded`,
-  "c.signature": `NEVER written to the form (lives in the signed record)`,
+  "c.signature": `Typed electronic signature: A5 signer's name + the A5 signature's date ("Name (signed electronically on DD/MM/YYYY)")`,
   "c.completionDate": `"today" of the regeneration = A5 "Date of certification"`,
   "c.coes": `A5 "Certificate of Electrical Safety number"`,
   "c.certDate": `A5 "Date of certification"`,
-  "o.signature": `NEVER written to the form (typed name on the secure link)`,
-  "o.name": `Owner's secure-link confirmation: typed full name`,
-  "o.date": `Owner's secure-link confirmation: Melbourne date they confirmed`,
+  "o.signature": `Typed electronic signature: the owner's typed name on the latest secure-link confirmation + that date`,
+  "o.name": `Latest owner secure-link confirmation (safety check, or the electrical fixes — decision 330): typed full name`,
+  "o.date": `Latest owner secure-link confirmation: Melbourne date they confirmed`,
 };
 for (let i = 1; i <= 7; i++)
   SOURCE[`c.tick${i}`] =
     `A5 "Have you completed all of the repair work listed…" = Yes (all seven ticked together)`;
-for (let i = 1; i <= 4; i++)
+for (const i of [1, 2, 4])
   SOURCE[`o.tick${i}`] =
-    `Owner's secure-link confirmation (ONE tick "The assessment was completed on <date>" → all four official ticks)`;
+    `Owner's secure-link confirmation of the safety check (ONE tick "The assessment was completed on <date>")`;
+SOURCE["o.tick3"] =
+  `Ticked only when no repair work was needed before installation, when the owner confirmed on/after the fixes were certified, or from the owner's post-fix confirmation (decision 330); otherwise blank + flagged "Owner hasn't confirmed the electrical fixes"`;
 
 // ---------- pipeline (pure; mirrors mitti.server PIESA sync and fixes-day.server regenerateOfficialPiesa) ----------
 function ownerConfirmation(c: Case) {
@@ -322,6 +331,19 @@ function ownerConfirmation(c: Case) {
   return ownerConfirmationForForm(confirmationFromEvents([{ details }], facts.piesaRecordId));
 }
 
+function ownerFixesConfirmation(c: Case) {
+  if (!c.fixes) return null;
+  const facts = {
+    recordId: `sample-post-rectification-${c.n}`,
+    fixesDate: c.fixes.completedOn,
+    completedAt: `${c.fixes.completedOn}T12:00:00+11:00`,
+    electrician: { name: "Sam Spark", recName: "Spark Electrical Pty Ltd" },
+    confirmation: null,
+  };
+  const details = buildPiesaFixesConfirmation({ facts, name: c.owner, authority: "owner", signedAt: c.fixes.ownerConfirmedAt, ipHash: null, uaHash: null });
+  return ownerFixesConfirmationForForm(fixesConfirmationFromEvents([{ details }], facts.recordId));
+}
+
 function run(c: Case) {
   let snapshot: SnapshotEntry[] = c.a4.map((x) => ({ ...x }));
   let today = c.inspectionDate;
@@ -341,14 +363,18 @@ function run(c: Case) {
     today = plan.certDate; // regenerateOfficialPiesa passes today = certification date
   }
   const short = shortAnswersFromEntries("piesa", snapshot);
+  // The regenerated PIESA right after the A5 form (the owner has not confirmed the fixes yet) …
+  const beforeOwnerFixes = c.fixes ? expandPiesa(short, { lifeSupportDeclared: null, today, ownerConfirmation: owner }) : null;
+  // … and once the owner has confirmed them on the secure link (decision 330).
   const expanded = expandPiesa(short, {
     lifeSupportDeclared: null,
     today,
     ownerConfirmation: owner,
+    ownerFixesConfirmation: ownerFixesConfirmation(c),
   });
   const ev = evaluatePiesa(expanded.answers);
   const initialEv = c.fixes ? evaluatePiesa(initial.answers) : null;
-  return { short, expanded, ev, initial: c.fixes ? initial : null, initialEv, today };
+  return { short, expanded, ev, initial: c.fixes ? initial : null, initialEv, beforeOwnerFixes, today };
 }
 
 const DATA_PREFIX =
@@ -378,6 +404,7 @@ function fillDocx(answers: OfficialAnswers) {
     filled,
     missed,
     xml,
+    original: new TextDecoder().decode(doc),
   };
 }
 
@@ -387,60 +414,38 @@ const nrm = (x: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9/]+/g, " ")
     .trim();
-function wordAudit(xml: string, a: OfficialAnswers): string[] {
-  const boxes: { on: boolean; label: string }[] = [];
-  const re = /<w:checkBox>([\s\S]*?)<\/w:checkBox>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) {
-    const checked = /<w:checked w:val="(\d)"\/>/.exec(m[1]!) ?? /<w:checked\/>/.exec(m[1]!);
-    const def = /<w:default w:val="(\d)"\/>/.exec(m[1]!);
-    const on = checked ? (checked[1] ?? "1") === "1" : def?.[1] === "1";
-    const rest = xml
-      .slice(m.index + m[0].length, m.index + m[0].length + 4000)
-      .split("<w:checkBox>")[0]!
-      .split("</w:p>")[0]!;
-    boxes.push({
-      on,
-      label: [...rest.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)]
-        .map((t) => t[1])
-        .join("")
-        .replace(/þ/g, "")
-        .trim(),
-    });
-  }
+const same = (want: unknown, got: unknown) => {
+  const w = want === true ? true : Array.isArray(want) ? want.map(String).sort().join("|") : want == null || want === "" ? null : String(want);
+  const g = got === false ? null : got === true ? true : Array.isArray(got) ? got.map(String).sort().join("|") : got == null || got === "" ? null : String(got);
+  if (typeof w === "string" && typeof g === "string") return nrm(w) === nrm(g) || /^\d{4}-\d{2}-\d{2}$/.test(w) && g === `${w.slice(8)}/${w.slice(5, 7)}/${w.slice(0, 4)}`;
+  return w === g;
+};
+function wordAudit(xml: string, a: OfficialAnswers, original: string): { lines: string[]; mismatches: string[] } {
+  const shown = readOfficialDocx(xml, "piesa", original);
   const items = answerItems("piesa");
-  const yn = items.filter((i) => i.kind === "yesno" || i.kind === "yesno_na");
-  const want = (v: string) => yn.filter((i) => show(a[i.id]) === v).length;
-  const shown = (l: string) => boxes.filter((b) => b.on && nrm(b.label) === nrm(l)).length;
-  const out = [
-    `Yes/No questions answered Yes: ${want("Yes")} — "Yes" boxes ticked on the Word form: ${shown("Yes")}.`,
-    `Yes/No questions answered No: ${want("No")} — "No" boxes ticked on the Word form: ${shown("No")}.`,
+  const count = (pred: (k: string, v: unknown) => boolean) => Object.entries(shown).filter(([k, v]) => pred(k, v)).length;
+  const kindOf = (id: string) => items.find((i) => i.id === id.split("#")[0])?.kind;
+  const mismatches: string[] = [];
+  for (const id of Object.keys(shown)) if (!same(a[id], shown[id])) mismatches.push(`\`${id}\`: answer ${JSON.stringify(a[id] ?? null)}, Word form shows ${JSON.stringify(shown[id] ?? null)}`);
+  for (const id of Object.keys(a)) if (!(id in shown) && a[id] != null && a[id] !== "" && id !== "p2.switch" && id !== "lifeSupportAttachment") mismatches.push(`\`${id}\`: answered but has no place on the Word form`);
+  const yn = (v: string) => `${items.filter((i) => (i.kind === "yesno" || i.kind === "yesno_na") && i.id !== "p2.switch" && a[i.id] === v).length} answered ${v} — Word form shows ${count((k, x) => (kindOf(k) === "yesno" || kindOf(k) === "yesno_na") && x === v)} ticked "${v}" boxes`;
+  const lines = [
+    `Yes/No: ${yn("Yes")}; ${yn("No")}.`,
+    `B1 outcome: ${show(a["b1"]) ? "answered" : "not answered"} — Word form shows ${shown["b1"] ? `"${String(shown["b1"]).slice(0, 60)}…"` : "no B1 box ticked"}.`,
+    `B2 repair items: ${Array.isArray(a["b2"]) ? a["b2"].length : 0} answered — Word form shows ${Array.isArray(shown["b2"]) ? shown["b2"].length : 0} B2 boxes ticked.`,
+    `Declaration ticks: ${items.filter((i) => i.kind === "tick" && a[i.id] === true).length} answered — Word form shows ${count((k, x) => kindOf(k) === "tick" && x === true)} ticked.`,
+    `Signatures: Section C ${shown["c.signature"] ? `"${shown["c.signature"]}"` : "blank"}; owner ${shown["o.signature"] ? `"${shown["o.signature"]}"` : "blank"}.`,
+    `Part 7 rows on the Word form: ${Array.from({ length: 10 }, (_, r) => r).filter((r) => shown[`p7.appliance#${r}`]).map((r) => `Appliance "${shown[`p7.appliance#${r}`]}" / Location "${shown[`p7.location#${r}`] ?? ""}" / Hazard "${shown[`p7.hazard#${r}`] ?? ""}"`).join("; ") || "none"}.`,
   ];
-  const b1Shown = boxes.filter(
-    (b) => b.on && B1_OPTIONS.some((o) => nrm(b.label).startsWith(nrm(o).slice(0, 40))),
-  ).length;
-  out.push(
-    `B1 outcome answered: ${show(a["b1"]) ? "one option" : "none"} — B1 boxes ticked on the Word form: ${b1Shown}.`,
-  );
-  const b2Shown = boxes.filter(
-    (b) => b.on && B2_OPTIONS.some((o) => nrm(b.label) === nrm(o)),
-  ).length;
-  out.push(
-    `B2 repair items answered: ${Array.isArray(a["b2"]) ? a["b2"].length : 0} — B2 boxes ticked on the Word form: ${b2Shown}.`,
-  );
-  const ticks = items.filter((i) => i.kind === "tick" && a[i.id] === true).length;
-  const tickShown = boxes.filter(
-    (b) => b.on && items.some((i) => i.kind === "tick" && nrm(i.label) === nrm(b.label)),
-  ).length;
-  out.push(
-    `Declaration ticks answered: ${ticks} — declaration boxes ticked on the Word form: ${tickShown}.`,
-  );
-  const nested = (xml.match(/<w:r><w:r>/g) ?? []).length;
-  if (nested)
-    out.push(
-      `${nested} tick marks were written as a run inside another run (\`<w:r><w:r>\`) — not valid Word XML; LibreOffice opens it, Word may report unreadable content.`,
-    );
-  return out;
+  const problems = xmlProblems(xml);
+  lines.push(problems.length ? `Word XML problems: ${problems.join("; ")}` : "Word XML: well-formed (tags balanced, no run nested in a run" + (has("xmllint") ? ", `xmllint` clean" : "") + ").");
+  return { lines, mismatches };
+}
+function xmllintOk(xml: string): boolean {
+  if (!has("xmllint")) return true;
+  const f = `${OUT}.check.xml`;
+  writeFileSync(f, xml);
+  try { execFileSync("xmllint", ["--noout", f], { stdio: "ignore" }); return true; } catch { return false; } finally { rmSync(f, { force: true }); }
 }
 
 const has = (cmd: string) => {
@@ -471,6 +476,7 @@ async function main() {
   for (const c of CASES) {
     const r = run(c);
     const docx = fillDocx(r.expanded.answers);
+    if (xmlProblems(docx.xml).length || !xmllintOk(docx.xml)) throw new Error(`Case ${c.n}: the filled Word XML is not well-formed.`);
     writeFileSync(`${OUT}${c.slug}.docx`, docx.bytes);
     const snap = buildSignedSnapshot({
       key: "piesa",
@@ -511,7 +517,7 @@ async function main() {
   out.push(
     `# Official PIESA mapping samples (${T.mappingVersion}) — for Jo's approval`,
     "",
-    `SAMPLES ONLY. The mapping is **not approved** (\`OFFICIAL_TEMPLATES.piesa.approved = false\`), so the portal produces no official PIESA yet. These files were made by \`bun scripts/render-piesa-mapping-samples.ts\` with the portal's own pure steps (A4 answers → \`shortAnswersFromEntries\` → A5 merge → \`expandPiesa\` with the owner's secure-link confirmation → \`evaluatePiesa\` → Word form fill / PDF), skipping only the approval check. Nothing was stored or sent. Names, numbers and addresses are made up.`,
+    `SAMPLES ONLY. The mapping is **not approved** (\`OFFICIAL_TEMPLATES.piesa.approved = false\`), so the portal produces no official PIESA yet. These files were made by \`bun scripts/render-piesa-mapping-samples.ts\` with the portal's own pure steps (A4 answers → \`shortAnswersFromEntries\` → A5 merge → \`expandPiesa\` with the owner's secure-link confirmations (safety check, decision 296; electrical fixes, decision 330) → \`evaluatePiesa\` → Word form fill / PDF), skipping only the approval check. Nothing was stored or sent. Names, numbers and addresses are made up.`,
     "",
     `Form: ${T.title} (${T.publication}), original \`${T.originalFile}\`, SHA-256 \`${T.sha256}\`.`,
     "",
@@ -522,31 +528,22 @@ async function main() {
     "",
   );
   out.push(
-    "## Problems these samples show (checked against branch installer-mitti-workflow @ e41d5081, 25 Oct 2026)",
+    "## What decision 329 fixed (wrong on f001aeba, 25 Oct 2026; re-checked against the Word file on every run)",
     "",
-    "Do not approve the mapping until these are fixed or accepted. The per-case read-back below re-checks the Word form on every run.",
+    "Each case below reads the filled Word file back (`readOfficialDocx`) and compares EVERY box and text field with the answers; the run stops if the Word XML is not well-formed. Before → after:",
     "",
-    "**Wrong answers (mapping):**",
+    '1. **Multi-select ticks.** Before: Mitti joins ticks with ", " but `expandPiesa` split on " | ", so two ticks were lost (case 2: both RCD questions said **Yes**) and B2 became one combined entry no box matched. After: ticks are matched against the known option wording, longest first (`splitSelections`, official-forms.core) — never comma-split, because the option labels contain commas; an unknown piece is flagged, never guessed. Case 2: RCDs present **No**, RCDs tested **No**, two B2 boxes ticked. Same for the solar, ceiling and B2 lists.',
+    '2. **Owner declarations.** Before: the ONE secure-link tick filled all four owner declarations, including "any electrical rectification works were completed on the above date" before the fixes were done. After: the P6 tick fills declarations 1, 2 and 4; declaration 3 is ticked only when no repair work was needed before installation, when the owner confirmed on/after the fixes were certified, or from the owner\'s post-fix confirmation (decision 330: one tick "The electrical fixes were completed on <date>" + typed name on the same secure link, asked when the A5 form is complete). Without it, declaration 3 stays blank and the expansion flags "Owner hasn\'t confirmed the electrical fixes" (nothing else is held). `o.name` / `o.date` = the latest owner confirmation used.',
+    '3. **Signatures.** Before: `c.signature` / `o.signature` were never written, so `evaluatePiesa` reported `REQ:o.signature` (and `REQ:c.signature`) on every PIESA. After: the typed electronic signature "Name (signed electronically on DD/MM/YYYY)" — the A5 signer + the A5 signature date for Section C, the owner\'s typed name + confirmation date for the owner block. Neither REQ appears any more.',
+    '4. **"No" boxes.** Before: a space run sits between the No box and the word "No"; the filler read only the first run, so no "No" was ever ticked. After: each box\'s own following text is read across space/tab runs.',
+    "5. **B1 / B2 / declaration boxes.** Before: a tab run between the box and its wording — never ticked. After: ticked (see each case).",
+    '6. **Main switch.** Before: "Is the main switch for the premises:" has no box on the Word form, so it and its three sub-items all landed on the first sub-row. After: each item claims its own Yes/No pair; the overall main-switch line is derived and stays in the signed record / PDF only (the Word form has nothing to tick).',
+    "7. **Part 7 table.** Before: Appliance, Location and Hazard all wrote into the first cell. After: rows × columns in order — each in its own cell (case 1).",
+    '8. **Section C declaration.** Before: the original box carries `w:checked="0"`, the filler only changed `w:default`, so `c.tick7` never showed. After: every box is set through both `w:default` and `w:checked`.',
+    "9. **Invalid Word XML.** Before: each tick was a run inside another run (`<w:r><w:r>`). After: no glyph run is inserted at all (the box state carries the tick); the filled XML is checked for balanced tags / no nested runs (and `xmllint` where installed).",
+    '10. **Plain-text PDF.** Before: every non-ASCII character became "-" ("don-t"), colons doubled ("Licence no::"), and every empty table row printed. After: characters the PDF font can draw are kept (’ “ ” – — • ²), others map to the closest plain text (✓ → [x]); no second colon; empty table rows are skipped and answered rows carry their row number.',
     "",
-    '1. Two or more ticks in one A4 tick-list are lost. Mitti joins a multi-select with ", " (`mitti.core`), but `expandPiesa` splits only on " | ". Case 2 ticked two mains problems (RCDs missing + RCDs not tested): the official form says **Yes** to both RCD questions. The same applies to the solar and ceiling problem lists. B2 repair ticks become one combined entry (case 2), so no B2 box can match. A single tick works.',
-    '2. The owner\'s ONE secure-link tick ("The assessment was completed on <date>") fills all four official owner declarations, including "any electrical rectification works were completed on the above date". That is ticked in case 1 (no works) and in case 2, where the owner confirmed on 28 Oct, before the fixes on 3 Nov. The regenerated form keeps that earlier confirmation. `o.date` is the date the owner confirmed, not the assessment date.',
-    '3. `p7.appliances` and `p7.flues` both come from one A4 question, so they always get the same answer. `p7.location` repeats the "What is it and where is it?" text. `p7.hazard` and `p7.actions` are fixed wording. `p7.otherHazard`/`p7.otherAction` (other hazards, e.g. rotten joist) are never asked on A4, so they are always blank. `p4.tps` can never be N/A.',
-    '4. Case 3 ("Be on site at the start of the install day" only): B1 = "not possible … under parts 2 and 3". The B2 tick and the electrician\'s "Other" description (what he will do on the day) are not on the official form. A4 still requires a B2 tick even when the only job is being on site.',
-    '5. Signatures: `c.signature` and `o.signature` are never written (by design, they live in the signed record). `evaluatePiesa` therefore reports `REQ:o.signature` (and `REQ:c.signature` after fixes) on EVERY PIESA. The Mitti sync shows this as an "Official form: Required: \\"Signature\\"." review issue on every job. The Word form\'s signature boxes print blank.',
-    "",
-    "**Word form filler (`official-docx.core.ts`), whatever the answers:**",
-    "",
-    '6. A "No" answer never ticks a box. In the form, the No box is followed by a space run before the word "No", and the filler only looks at the first run. Every No on the official Word form prints as unanswered (see each case\'s read-back).',
-    "7. B1 (the assessment outcome) and B2 boxes are never ticked: a tab run sits between the box and the option text. The Word form never shows the outcome.",
-    '8. Main switch: the form has no box for "Is the main switch for the premises:". That answer and the three sub-items all land on the first sub-row, so "able to isolate…" and "able to be secured…" print blank.',
-    "9. Part 7 table: Appliance, Location and Hazard all write into the first cell. The Appliance column shows the hazard wording, and Location/Hazard stay blank (case 1).",
-    '10. The Section C declaration box carries `w:checked="0"` in the original form. The filler only changes `w:default`, so `c.tick7` never shows as ticked (case 2).',
-    "11. Each tick mark is written as a run inside another run (`<w:r><w:r>…`). That is not valid Word XML: LibreOffice opens it, but Word may say the file has unreadable content. These samples were not opened in Word here.",
-    "",
-    "**Smaller:**",
-    "",
-    '12. The plain-text PDF swaps every non-ASCII character for "-" ("don-t", "owner-s", "If -Yes-"). It also doubles colons ("Licence no::") and prints every empty table row (10 appliance rows × 3, 14 other-hazard rows × 2) as "-" lines.',
-    '13. The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) does not have the decision 305/308/312 questions yet, and it still asks the retired "Can the repair work be done before installation?". On the live form today, case 3\'s "Be on site at the start of the install day" tick cannot be answered.',
+    "The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/samples/piisa-filler/` for one realistic install filled through the fixed filler.",
     "",
   );
   out.push(
@@ -591,7 +588,10 @@ async function main() {
       `Word form: the filler reports ${docx.filled.length} items placed; not placed: ${docx.missed.length ? docx.missed.map((m) => `\`${m}\``).join(", ") : "none"}. Read back from the filled Word file:`,
       "",
     );
-    for (const l of wordAudit(docx.xml, r.expanded.answers)) out.push(`- ${l}`);
+    const audit = wordAudit(docx.xml, r.expanded.answers, docx.original);
+    for (const l of audit.lines) out.push(`- ${l}`);
+    out.push("", audit.mismatches.length ? "Word form vs answers — DIFFERENCES:" : "Word form vs answers: every box and text field matches the answers.");
+    for (const m of audit.mismatches) out.push(`- ${m}`);
     out.push(
       "",
       `Flagged by the expansion (\`expanded.flagged\`): ${r.expanded.flagged.length ? "" : "none"}`,
@@ -606,6 +606,11 @@ async function main() {
       out.push("", "Next actions:");
       for (const b of r.ev.nextActions) out.push(`- \`${b.rule}\` ${b.message}`);
     }
+    if (r.beforeOwnerFixes) {
+      out.push("", `Right after the A5 form, before the owner confirms the fixes (decision 330) — flags:`);
+      for (const f of r.beforeOwnerFixes.flagged) out.push(`- ${f}`);
+      out.push(`- (owner declaration 3 then: ${r.beforeOwnerFixes.answers["o.tick3"] === true ? "ticked" : "blank"}; o.date ${show(r.beforeOwnerFixes.answers["o.date"]) || "blank"})`);
+    }
     if (r.initial && r.initialEv) {
       out.push("", "Before the A5 fixes form (the PIESA as first synced) — flags:");
       for (const f of r.initial.flagged) out.push(`- ${f}`);
@@ -614,6 +619,22 @@ async function main() {
     }
     out.push("");
   }
+  out.push(
+    "## Still can't be filled from A4",
+    "",
+    "These official items have no matching A4 question, so the portal cannot fill them truthfully. Proposal for each (Jo to decide; nothing changed):",
+    "",
+    '- `p7.appliances` vs `p7.flues` — one A4 question ("appliances, exhaust fans or flues") answers both, so they are always the same. Proposal: per "Add an appliance or flue" item, add a pick-one "Appliance / Exhaust fan or flue" and derive each official question from the items.',
+    '- `p7.location` — copies the "What is it and where is it?" text (the Appliance column shows the same). Proposal: split into "What is it?" and "Where is it?" in the repeating block.',
+    '- `p7.hazard` / `p7.actions` — fixed portal wording from "Can insulation be safely installed around it as it is?". Proposal: when No, ask "What is the hazard?" and "What must be done before insulation?" (short text) in the block.',
+    "- `p7.otherHazard` / `p7.otherAction` (other hazards, e.g. rotten joist) — never asked, always blank. Proposal: one optional repeating block \"Any other hazard in the ceiling?\" with hazard + action.",
+    '- `p4.tps` N/A — A4 can only say Yes/No. Proposal: add "There are no TPS cables in the ceiling" as a choice so N/A can be ticked.',
+    '- B1 third outcome (case 3) — "Be on site at the start of the install day" gives B1 "not possible … under parts 2 and 3", but the B2 tick and the electrician\'s description are not printed (B2 is only for rectification required), and A4 still requires a B2 tick. Proposal: when only "Be on site" is ticked, skip the B2 question on A4 and print the description in Part 7 "other hazards / action".',
+    '- `p2.switch` — the Word form prints no box; the derived answer lives only in the signed record and the PDF. Proposal: accept (the form\'s own note says the overall answer follows the sub-items).',
+    '- `lifeSupportAttachment` — the consent / medical plan photo is kept as a job file, not printed on the Word form. Proposal: accept; attach the photo with the PIESA copy.',
+    '- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312 questions and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.',
+    "",
+  );
   writeFileSync(`${OUT}README.md`, `${out.join("\n")}\n`);
   for (const { c, r, docx } of results)
     console.log(
