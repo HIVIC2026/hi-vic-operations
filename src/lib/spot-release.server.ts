@@ -140,7 +140,6 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
   const b = readyCheckOfferStartBlockers({ channel: job.channel, stage: job.stage, deleted: !!job.deleted_at, hasInstaller: job.hasInstaller, openOffers: open ?? 0, picks: 1 });
   if (b.length) throw new WorkflowError(`The spot can't be released: ${b.join(" ")}`);
-  await (await import("./ready-check-booking-access.server")).assertOwnerReadyCheckBooking(jobId);
   const { candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const c = candidates.find((x) => x.business_id === businessId);
   if (!c) throw new WorkflowError("That installer isn't an approved installer for this job.");
@@ -149,6 +148,11 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
   if (!link) throw new WorkflowError("The owner has no working My job link, so they can't be asked to confirm — nothing was sent.");
   if (job.source !== "qa_test") await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "It's your turn message");
+  // Every other check passed: Jo's Release opens this job's Ready Check booking (the office per-job opening the installer
+  // offer and the owner's time pick require; the global switch still applies), then the same access check as before.
+  const access = await import("./ready-check-booking-access.server");
+  try { await access.openOwnerReadyCheckBooking(jobId, actorId); } catch (e) { throw new WorkflowError(`The spot can't be released: ${(e as Error).message}`); }
+  await access.assertOwnerReadyCheckBooking(jobId);
 
   const seq = nextReleaseSeq(events);
   const key = spotReleaseKey(jobId, seq, "released");

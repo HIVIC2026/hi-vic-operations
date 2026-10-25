@@ -65,14 +65,16 @@ export async function intakeSendBlockers(jobId: string): Promise<string[]> {
   const { data: measurement, error: mittiError } = await admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (mittiError) throw new WorkflowError("Ready Check could not be checked.");
   if (measurement?.external_source === "mitti" && measurement.external_id) {
-    const [{ data: consent, error: ce }, { data: electrical, error: ee }, hold] = await Promise.all([
+    const [{ data: consent, error: ce }, { data: electrical, error: ee }, hold, { data: job, error: je }] = await Promise.all([
       admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       siteConditionsHoldFor(jobId),
+      admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
     ]);
-    if (ce || ee) throw new WorkflowError("Ready Check consent or electrician details could not be checked.");
+    if (ce || ee || je || !job) throw new WorkflowError("Ready Check consent or electrician details could not be checked.");
     const resolution = electrical?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
-    const blockers = (await import("./mitti-quote-release.core")).mittiQuoteReleaseBlockers(consent?.consent_status ?? null, resolution);
+    // Our leads (A2): Home Insulation Victoria's electrician always; the electrician choice is an installer's-own-job fact.
+    const blockers = (await import("./mitti-quote-release.core")).mittiQuoteReleaseBlockers(consent?.consent_status ?? null, resolution, { ourLead: job.channel !== "installer_sourced" });
     if (hold.open) blockers.push(`Site conditions differ — office review required${hold.note ? `: ${hold.note}` : ""}`);
     return blockers;
   }

@@ -1,8 +1,13 @@
-import { expect, test } from "bun:test";
+import { expect, test, setSystemTime } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { BLAST_KEY, blastClaimId, currentBlastPrice, offeredLink, selectBlast, type BlastRow } from "../src/lib/save-spot-reminder-blast.core";
 import { smsBlocker } from "../src/lib/sms.core";
+
+// Environment: these texts honour the 8pm–7am Melbourne quiet hours (Jo 22 Oct 2026). Pin the clock to 1pm Melbourne on
+// today's date so the result never depends on when the suite runs.
+{ const midday = new Date(); midday.setUTCHours(2, 0, 0, 0); setSystemTime(midday); }
+
 
 const url = "https://estimate.homeinsulationvictoria.com.au/estimate/owner-token/campaign";
 const row = (patch: Partial<BlastRow> = {}): BlastRow => ({ id: "one", job_number: "HV-1", created_at: "2026-10-21T04:08:00Z", source: "base44", owner_name: "Jane Doe", owner_phone: "0491234567", spot_offered: true, spot_saved: false, deleted_at: null, removed: false, stage: "new_enquiry", total: 3728.49, rebate: 1470, link: url, consent: true, ...patch });

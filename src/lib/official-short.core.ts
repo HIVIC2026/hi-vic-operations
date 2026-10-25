@@ -74,6 +74,8 @@ const LIFE_SUPPORT_CONFIRM = "Is the life support record shown above still corre
 const LIFE_SUPPORT_WHEN = "Life support confirmed Yes";
 /** Decision 294 (Jo 25 Oct 2026): the PIESA asks the fact directly; consent only when life support is present. */
 export const LIFE_SUPPORT_PRESENT = "Is there life support equipment at the property?";
+/** The live A3 repair question (Yes/No, Jo 25 Oct 2026): the electrician's own PIESA result on the visit. */
+export const A3_REPAIR_NEEDED_LABEL = "Is any electrical repair work needed before insulation can be installed?";
 export const LIFE_SUPPORT_NOT_RECEIVED = "No – not received";
 const LIFE_SUPPORT_PRESENT_WHEN = "Life support = Yes";
 const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
@@ -288,7 +290,7 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "applianceAction", label: APPLIANCE_Q.action, type: "text", required: true, when: "applianceSafe = No", source: "short onsite form (decision 336) – official Part 7 action" },
   // Jo 25 Oct 2026: Yes/No so Mitti can branch on it (a pick-one could not). The official outcome (`rectificationOutcome`,
   // RECTIFICATION_OUTCOMES) is DERIVED in shortAnswersFromEntries; an old form that answered the pick-one is still read.
-  yn("rectificationNeeded", "Is any electrical repair work needed before insulation can be installed?"),
+  yn("rectificationNeeded", A3_REPAIR_NEEDED_LABEL),
   // Decision 309 (Jo 25 Oct 2026: "Remove it"): repairs ALWAYS happen before installation (same visit or the A4 fixes visit),
   // so "Can the repair work be done before installation?" is no longer asked. LEGACY (portalOnly): an old form's "No" is still
   // read, mapped to the before-installation outcome and flagged for the office (deriveRectificationOutcome).
@@ -370,6 +372,18 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
 ];
 
 export const SHORT_FIELDS: Record<"piesa" | "piisa", FormField[]> = { piesa: SHORT_PIESA_FIELDS, piisa: SHORT_PIISA_FIELDS };
+
+/** A stored PIESA snapshot from the live A3 (decisions 294–338): the electrician answered the Yes/No repair question.
+ *  Older PIESA forms (B1 outcome, switchboard / RCD questions) return false. Pure. */
+export function isLiveA3Snapshot(snapshot: unknown): boolean {
+  if (!Array.isArray(snapshot)) return false;
+  const k = A3_REPAIR_NEEDED_LABEL.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return snapshot.some((e) => {
+    const x = e as { label?: unknown; value?: unknown } | null;
+    // First line only: Mitti appends a question's help text after a line break.
+    return !!x && typeof x.label === "string" && x.label.split("\n")[0]!.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === k && /^\s*(yes|no)\b/i.test(String(x.value ?? ""));
+  });
+}
 
 /** Maps Mitti entries (by label) onto short-form ids. Duplicate labels are assigned in form order. */
 export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label: string; value: string | null }[]): Record<string, string> {

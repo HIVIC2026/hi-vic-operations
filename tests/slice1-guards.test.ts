@@ -45,6 +45,14 @@ const REVIEWED: Record<string, string> = {
   getMyIntakeJob: "requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
   getMyIntakeProgress: "intakeProgressGate(): can_access_job BEFORE the job is read (STEP 73); intake jobs then requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
   myTeamCompliance: "scoped to caller's own business memberships (read through RLS) or their own worker row",
+  // Reviewed 25 Oct 2026 (test-run night pass): each checks the caller before any elevated read/write, by a route the
+  // name regex above cannot see.
+  getMittiFormLink: "caller's RLS client rpc can_access_job(job of that audit) before any Mitti call; 'Not your job.' otherwise",
+  workerInviteCertSlot: "token-hash scoped invite (active, unused, unrevoked) before the signed upload slot is made",
+  sendPartnerLoginLink: "makePartnerLogin() runs requireAdmin(context.supabase) first",
+  ownerVeecAssignmentFn: "secure owner link token, usable link only, own job (read-only)",
+  ownerApproveFixesFn: "verified owner code session; the fixes quote must belong to the session job",
+  ownerReviewFeedbackFn: "secure owner link token, usable link only, own job",
 };
 describe("server-side role guards", () => {
   test("every server function using the elevated client checks the caller's role (or is a reviewed exception)", () => {
