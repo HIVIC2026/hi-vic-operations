@@ -8,21 +8,23 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installerInstallWindowEmail, installerInstallWindowText,
+  INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installWindowKey, installerInstallWindowEmail, installerInstallWindowText,
   ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaCharge, repeatPiesaNextAction, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent, type InstallWindowStep,
 } from "./thirty-day-rule.core";
 import { installDaysLeft } from "./install-days.core";
 
 const PAYER_EVENT_TYPES = ["install_days_offered_by_installer", "install_days_offered", "install_day_taken", "install_day_changed", "install_day_booking_blocked"];
 
-async function doneSteps(jobId: string): Promise<InstallWindowStep[]> {
+/** Steps already recorded for THIS window (deadline): a later clearance with a new deadline gets its own 20/10-day reminders. */
+export async function doneSteps(jobId: string, deadline: string): Promise<InstallWindowStep[]> {
   const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALL_WINDOW_REMINDER_EVENT);
-  return (data ?? []).map((e) => (e.details as { step?: InstallWindowStep } | null)?.step).filter((s): s is InstallWindowStep => !!s);
+  return (data ?? []).map((e) => e.details as { step?: InstallWindowStep; deadline?: string } | null)
+    .filter((d) => d?.deadline === deadline).map((d) => d?.step).filter((s): s is InstallWindowStep => !!s);
 }
 
-/** One reminder step (owner text + email, installer text + email). Records the step first; never sends twice. */
+/** One reminder step (owner text + email, installer text + email). Records the step first; never sends twice per deadline. */
 export async function sendInstallWindowReminder(jobId: string, step: InstallWindowStep, deadline: string, now = new Date()): Promise<string> {
-  if ((await doneSteps(jobId)).includes(step)) return "already handled";
+  if ((await doneSteps(jobId, deadline)).includes(step)) return "already handled";
   const daysLeft = installDaysLeft(deadline, now);
   await logEvent(jobId, null, INSTALL_WINDOW_REMINDER_EVENT, `30-day window: ${step === "reminder_20" ? "20" : "10"}-day reminder prepared for the owner and the installer (${daysLeft} days left, last day ${deadline})`, { step, deadline, days_left: daysLeft }, { internal: true });
   const [{ data: job }, { data: asg }, link] = await Promise.all([
@@ -43,7 +45,7 @@ export async function sendInstallWindowReminder(jobId: string, step: InstallWind
   const installerName = biz?.trading_name || biz?.name || null;
   const ownerFacts = { step, deadline, daysLeft, link: link ?? "", jobNumber: job.job_number, firstName: firstName(owner?.full_name), installerName, test };
   const instFacts = { step, deadline, daysLeft, link: `${SET_PASSWORD_BASE}/field/${jobId}`, jobNumber: job.job_number, firstName: firstName(prof?.full_name), ownerSuburb: suburb, test: partnerTest };
-  const key = (who: string, ch: string) => `install-window:v1:${jobId}:${step}:${who}:${ch}`;
+  const key = (who: "owner" | "installer", ch: "email" | "sms") => installWindowKey(jobId, deadline, step, who, ch);
   const out: string[] = [];
 
   // Owner
@@ -115,13 +117,15 @@ export async function recordInstallWindowExpiry(jobId: string, deadline: string,
 export async function sweepInstallWindowRule(now = new Date()): Promise<{ checked: number; reminders: number; expired: number }> {
   const { installDayContext } = await import("./install-days.server");
   const { data: jobs } = await admin.from("jobs").select("id").eq("stage", "installation_scheduling").is("deleted_at", null);
+  // F10: a step is recorded before its texts go out, so during SMS quiet hours nothing is due — it fires at the 07:00 tick.
+  const quiet = !!(await import("./quote-hold.core")).smsQuietReason(now.toISOString());
   let reminders = 0, expired = 0;
   for (const j of jobs ?? []) {
     try {
       const c = await installDayContext(j.id);
       if (!c.deadline || c.booked) continue;
       if (c.expired) { if ((await recordInstallWindowExpiry(j.id, c.deadline, c.clearance.timingDate)) !== "already recorded") expired++; continue; }
-      const step = dueInstallWindowReminder({ deadline: c.deadline, booked: c.booked, expired: c.expired, done: await doneSteps(j.id), now });
+      const step = dueInstallWindowReminder({ deadline: c.deadline, booked: c.booked, expired: c.expired, done: await doneSteps(j.id, c.deadline), now, quiet });
       if (!step) continue;
       await sendInstallWindowReminder(j.id, step, c.deadline, now);
       reminders++;
