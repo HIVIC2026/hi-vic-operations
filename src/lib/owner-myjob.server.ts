@@ -61,7 +61,8 @@ export async function resolveOwnerJob(token: unknown) {
   const progress = OWNER_STEPS.map((label, i) => {
     const at = i === 0 ? doneAt("ready_check") : i === 1 ? quote?.accepted_at ?? null : i === 2 ? piesaDone : i === 3 ? doneAt("installation") : null;
     const state = i < hero.step || (i === 4 && stage === "complete") ? "done" : i === hero.step ? "now" : "later";
-    return { label, state, at, mustBy: i === 3 && piesaDone ? new Date(new Date(piesaDone).getTime() + n(ws?.piesa_install_window_days ?? 30) * 86400_000).toISOString() : null };
+    // Decision 388: before the spot is saved the first step is never called a Ready Check.
+    return { label: i === 0 && action.button?.screen === "spot" ? "Save your spot" : label, state, at, mustBy: i === 3 && piesaDone ? new Date(new Date(piesaDone).getTime() + n(ws?.piesa_install_window_days ?? 30) * 86400_000).toISOString() : null };
   });
   // Installer already quoted and the owner agreed (Jo, 7 Oct 9:25pm): same acceptance path, different title.
   let agreed: { agreed: boolean; installerName: string | null } = { agreed: false, installerName: null };

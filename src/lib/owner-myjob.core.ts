@@ -46,8 +46,9 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   // Decision 333: the electrician (PIESA) and installer (install) offer the times; the owner picks one of them.
   if (f.bookingOpen) return todo(stageWording("piesa_and_install_window_pending").owner!, `Pick one of the times offered for the ${PIESA_FULL} and the install.`, "Pick times", "book");
   if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"].includes(s) && !f.readyCheckRequested)
-    return todo("Save your spot", "Pick at least 3 times for your free Ready Check.", "Save my spot", "spot");
-  if (["ready_check_ready_to_schedule", "ready_check_awaiting_payment"].includes(s) || f.readyCheckRequested && houseLevelForStage(s) === 0) return none(stageWording("ready_check_ready_to_schedule").owner!, "We'll text you once a time is locked in.");
+    // Decision 388: before release, spot-only wording (no Ready Check, times or speed).
+    return todo("Save your spot", "It's free, with no obligation. Spots are released in the order they were saved.", "Save my spot", "spot");
+  if (["ready_check_ready_to_schedule", "ready_check_awaiting_payment"].includes(s) || f.readyCheckRequested && houseLevelForStage(s) === 0) return none(stageWording("ready_check_ready_to_schedule").owner!, "We'll be in touch with your next step.");
   if (houseLevelForStage(s) === 2) return none(stageWording("ready_check_complete").owner!, "It usually takes a day or two.");
   if (["evidence_outstanding", "ap_review", "ready_for_veec"].includes(s)) return none(stageWording("evidence_outstanding").owner!, "You don't need to do anything.");
   return none("We're on it", "We'll let you know when there's something for you.");
@@ -75,7 +76,8 @@ export const MIN_SPOT_PICKS = 3;
 export const SPOT_SAVED_STAGES = ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"] as const;
 export const SPOT_SAVED_PROGRESS = [
   { label: "Spot saved", sub: "You're on the list" },
-  { label: "Free Ready Check", sub: "We measure your roof space" },
+  // Decision 388: the step after "Spot saved" is the release, never a Ready Check promise.
+  { label: "Spot released", sub: "Spots are released in the order they were saved. We'll be in touch when your spot is released." },
   { label: "Your quote", sub: "Rebate taken off" },
   { label: "PIESA", sub: "Pre Insulation Electrical Safety Assessment by a licensed electrician" },
   { label: "Install", sub: "About 4 hours" },

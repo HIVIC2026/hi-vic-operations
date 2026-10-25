@@ -15,7 +15,7 @@ export function renderCoverageUnavailableEmail(input: { firstName?: string | nul
   const intro = `Thanks for your enquiry. Your home looks like it could qualify for the VEU ceiling insulation rebate, but we don't have ${missing} with verified coverage for ${area} yet. We only send people we've checked, so we won't rush it.`;
   const next = [
     "<strong>We keep your details on file.</strong> You don't need to do anything.",
-    "<strong>We're adding installers across Victoria.</strong> As soon as one covers your area, we'll email you.",
+    "<strong>We're adding installers across Victoria.</strong> When one covers your area, we'll email you.",
     "<strong>No payment, no obligation.</strong>",
   ];
   const body = [

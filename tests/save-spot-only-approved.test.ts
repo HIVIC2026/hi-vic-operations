@@ -35,7 +35,7 @@ describe("Save my spot uses only Jo's approved templates (15 Oct 2026)", () => {
   test("likely eligible, no insulation, size unknown → Jo T1 stating the 150 m² estimate", () => {
     const m = renderJoOutcomeEmail({ ...base, ceilingSizeKnown: false, figures: { ...base.figures!, areaEstimated: true } })!;
     expect(m.templateId).toBe("eligible_no_insulation_size_unknown");
-    expect(m.plainText).toContain("Based on a typical 150 m² ceiling (estimated, not measured)");
+    expect(m.plainText).toContain("Based on a typical 150 m² ceiling (an estimate, not your actual size)");
   });
   test("no live sender, preview or Office page calls a superseded renderer", () => {
     const offenders: string[] = [];

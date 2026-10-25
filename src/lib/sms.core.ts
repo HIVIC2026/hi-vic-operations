@@ -8,10 +8,12 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  * so an owner can always get in to their job.
  */
 export const SMS_MESSAGE_TYPES = {
-  save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true, quietHours: true },
+  // Decision 388 (Jo 25 Oct 2026, "we are saving spots, not offering Ready Checks"): save_spot_reminder and spot_saved were
+  // reworded spot-only and are HELD (wordingApproved=false) until Jo approves docs/decision-388-spot-only-wording.md.
+  save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: false, quietHours: true },
   // Decision 172 (Jo, 24 Oct 2026): one-off "3 questions" reminder text, sent once per pre-23-Oct enquiry from the office page.
   three_questions_reminder: { audience: "owner", label: "One-off 3 questions reminder", wordingApproved: true, quietHours: true },
-  spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true, quietHours: true },
+  spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: false, quietHours: true },
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: true /* decision 87 (Jo 24 Oct 2026), text B: ownerQuoteSms in owner-quote-email.core.ts */, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },

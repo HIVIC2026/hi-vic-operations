@@ -91,8 +91,8 @@ describe("Step 4 — a VEU postcode is not installer availability", () => {
     for (const claim of ["we service", "service your area", "an installer is available", "we can install", "installer availability", "available in your area", "we cover your area"]) {
       expect(customerFacing).not.toContain(claim);
     }
-    // The Ready Check confirmation wording is present instead.
-    expect(OFFER_COPY).toContain("free Ready Check");
+    // Decision 388: spot-only wording instead — never a Ready Check before the spot is released.
+    expect(OFFER_COPY).not.toContain("Ready Check"); expect(OFFER_COPY).toContain("spots are released in the order they were saved");
   });
 
   test("no installer-coverage claim is derived from the postcode filter alone", () => {

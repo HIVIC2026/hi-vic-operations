@@ -83,7 +83,7 @@ describe("approved wording and keys", () => {
     const gate = { type: "three_questions_reminder", to: "0491234567", commsEnabled: true, typeSwitchOn: false, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, adminSpotReminderBlast: true, nowIso: "2026-10-24T02:00:00Z" };
     expect(smsBlocker(gate)).toBeNull();
     expect(smsBlocker({ ...gate, adminSpotReminderBlast: false })).toContain("switched off");
-    expect(smsBlocker({ ...gate, type: "spot_saved" })).toContain("switched off");
+    expect(smsBlocker({ ...gate, type: "quote_ready" })).toContain("switched off"); // a non-blast type still needs its own switch (spot_saved is held by decision 388)
     expect(smsBlocker({ ...gate, commsEnabled: false })).toContain("switched off");
     expect(smsBlocker({ ...gate, optedOut: true })).toContain("STOP");
     expect(smsBlocker({ ...gate, consent: false })).toContain("consent");

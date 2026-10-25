@@ -14,5 +14,5 @@ test("missing or inconsistent removal facts show the $15/m² budget note, never 
     expect(removalNote(removalFromScenario(s))).toBe(REMOVAL_BUDGET_EMAIL_NOTE);
   }
 });
-const EXACT = "Existing insulation may need to be removed. Please budget $15 per m² including GST for the areas that need removal only. We’ll assess this at your free Ready Check and confirm the area and cost before you approve any removal.";
+const EXACT = "Existing insulation may need to be removed. Please budget $15 per m² including GST for the areas that need removal only. We’ll confirm the area and cost before you approve any removal.";
 test("Jo's exact removal sentence (23:18 UTC)", () => { expect(REMOVAL_BUDGET_EMAIL_NOTE).toBe(EXACT); });

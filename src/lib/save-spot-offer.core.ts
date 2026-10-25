@@ -42,4 +42,4 @@ export function calculatorInsulation(originalInsulation: string | null): "none" 
   return originalInsulation === "none" || originalInsulation === "present" ? originalInsulation : "unknown";
 }
 export const SPOT_SAVED_HEADING = "Your spot has been saved";
-export const SPOT_SAVED_BODY = "You’re now in our queue for a free Ready Check. We’ll contact you when installer availability is confirmed in your area. There’s nothing to pay now, and you’re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead.";
+export const SPOT_SAVED_BODY = "You’ve saved your place in line. Thousands of Victorians have registered, and spots are released in the order they were saved. We’ll be in touch when your spot is released. There’s nothing to pay now, and you’re under no obligation to proceed. Your eligibility and final price will be confirmed before you decide to go ahead.";

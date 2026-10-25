@@ -28,10 +28,10 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
     expect(none.html).not.toContain("Your existing insulation");
     // Without the informational figure the approved $15/m² rate still applies (never part of the total).
     expect(plain.html).toContain("Up to $1,800 for your 120 m² ceiling.");
-    expect(REMOVAL_UPTO_NOTE).toBe("We charge $15 per m² (inc GST) for any area that needs removing. It may not need to come out at all — your free Ready Check confirms this, and you'll see the final price before you agree to anything.");
+    expect(REMOVAL_UPTO_NOTE).toBe("We charge $15 per m² (inc GST) for any area that needs removing. It may not need to come out at all, and you'll see the final price before you agree to anything.");
   });
   test("reminder SMS adds '(plus removal if needed)' only for existing insulation", () => {
-    expect(blastMessage("Jo", 3948, 1050, "L", true)).toContain("just $3,948 (plus removal if needed), with $1,050 off thanks to the rebate.");
-    expect(blastMessage("Jo", 3948, 1050, "L")).toBe("Home Insulation Victoria: Hi Jo, a warmer winter and cooler summer are close. Your ceiling insulation is just $3,948, with $1,050 off thanks to the rebate. Spots are filling fast — save yours now: L. Reply STOP to opt out.");
+    expect(blastMessage("Jo", 3948, 1050, "L", true)).toContain("estimate is $3,948 (plus removal if needed), with $1,050 off thanks to the rebate.");
+    expect(blastMessage("Jo", 3948, 1050, "L")).toBe("Home Insulation Victoria: Hi Jo, your ceiling insulation estimate is $3,948, with $1,050 off thanks to the rebate. Thousands of Victorians have registered and spots are released in the order they were saved. Save yours, free and no obligation: L. Reply STOP to opt out.");
   });
 });

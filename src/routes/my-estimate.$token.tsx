@@ -54,20 +54,20 @@ function PersonalEstimatePage() {
             <p className="mt-1">Your estimated cost after rebate: {money(d.customerTotal)} including GST</p>
             <p>Before rebate: {money(d.totalBeforeRebate)} including GST</p>
             {d.ceilingAreaM2 !== null && d.ceilingAreaM2 !== undefined && (
-              <p className="mt-1 text-sm">Ceiling size used in your quote: {d.ceilingAreaM2} m²{d.areaEstimated ? " — estimated, not measured" : ""}</p>
+              <p className="mt-1 text-sm">Ceiling size used in your quote: {d.ceilingAreaM2} m²{d.areaEstimated ? " — an estimate, not your actual size" : ""}</p>
             )}
             {d.piesaFee !== undefined && d.apFee !== undefined && d.installation !== undefined && (
               <table className="mt-4 w-full text-sm">
                 <thead><tr><th className="text-left">Item</th><th className="text-right">Including GST</th></tr></thead>
                 <tbody>
-                  <tr><td>Ready Check</td><td className="text-right">Free</td></tr>
+                  {d.bookingAllowed && <tr><td>Ready Check</td><td className="text-right">Free</td></tr>}
                   <tr><td>R5.0 ceiling insulation — supply and installation</td><td className="text-right">{money(d.installation)}</td></tr>
                   <tr><td>Pre Insulation Electrical Safety Assessment (PIESA)</td><td className="text-right">{money(d.piesaFee)}</td></tr>
                   <tr><td>Accredited Person management</td><td className="text-right">{money(d.apFee)}</td></tr>
                 </tbody>
               </table>
             )}
-            <p className="mt-4 text-sm">These are the figures you saved. We have retained this pricing; your Ready Check will confirm the measurements and work required.</p>
+            <p className="mt-4 text-sm">These are the figures you saved. We have retained this pricing; your exact price is confirmed before you agree to anything.</p>
             {d.bookingAllowed ? <><a href={d.readyCheckBookingUrl} className="mt-4 inline-block rounded-xl bg-estimate-green px-5 py-3 font-extrabold text-estimate-white no-underline">
               Book my Ready Check
             </a>

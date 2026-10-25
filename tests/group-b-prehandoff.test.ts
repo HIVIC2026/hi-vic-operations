@@ -58,6 +58,10 @@ mock.module("../src/lib/comms.server", () => ({ hasCurrentOwnerContactConsent: a
 mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: async () => "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=" + "U".repeat(43) }));
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => {} }));
+// Decision 388 holds the O2 wording (INSULATION_DETAILS_REAL_SEND_APPROVED = false; proved in tests/decision-388-spot-only.test.ts).
+// These pre-handoff tests exercise the sender as it runs once Jo approves the spot-only wording.
+const realHot = await import("../src/lib/hot-leads.core");
+mock.module("../src/lib/hot-leads.core", () => ({ ...realHot, SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: true }));
 const originalFetch = globalThis.fetch;
 const originalEnv = Object.fromEntries(["RESEND_API_KEY", "LOVABLE_API_KEY", "HIVIC_COM04_ENV"].map((key) => [key, process.env[key]]));
 globalThis.fetch = (async (u: unknown) => {

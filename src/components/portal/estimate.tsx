@@ -13,11 +13,12 @@ import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_QUOT
 import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 import { removalFromScenario, removalNote } from "@/lib/estimate-removal.core";
+import { SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
 const ELIGIBILITY_COPY = {
-  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Ready Check confirms the measured area and site details for your project estimate." },
-  onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check." },
+  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your ceiling area and site details are confirmed before you agree to anything." },
+  onsite: { badge: "LIKELY ELIGIBLE — A FEW DETAILS TO CONFIRM", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm a few remaining details before you agree to anything." },
 } as const;
 function plainOnsiteDriver(driver: string) {
   if (/insulation/i.test(driver)) return "the type and condition of existing insulation";
@@ -159,7 +160,7 @@ function PriceResult({ est, area, fees, settings, insulation, onReadyCheck, read
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">Based on an estimated {area} m² ceiling area{est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.</p>
     <div className="mt-4"><QuoteBreakdown rows={[...customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap }), ...(removal.kind === "included" ? [{ key: "removal", label: "Removal of existing insulation (inc GST)", amount: removal.amount }] : [])]} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
     {(insulation === "present" || est.scenarios.some((s) => s.key === "full_removal")) && <p className="mt-4 text-sm font-bold leading-relaxed">{removalNote(removal)}</p>}
-    {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>}
+    {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed before you agree to anything.</p>}
     {standard.copayment_capped && <p className="mt-3 text-sm">Discount reduced so the minimum $200 customer contribution applies.</p>}
     <QuoteCardReadyCheckClose href="#confirm" action={readyCheckClose} {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
   </section>;
@@ -196,9 +197,9 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
   return <section aria-labelledby={id} className="border-y border-estimate-blue-soft py-7">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Price protection</p>
     <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent Home Insulation Victoria pricing — no installer mark-up surprises.</h3>
-    <p className="mt-3 text-sm leading-relaxed">Home Insulation Victoria sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
+    <p className="mt-3 text-sm leading-relaxed">Home Insulation Victoria sets the customer pricing. Once your home’s details are confirmed, your final price is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
     <ul className="mt-5 grid gap-x-7 gap-y-3 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
-    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical fixes.</p>
+    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on your actual ceiling area, whether removal is needed, access and any electrical fixes.</p>
   </section>;
 }
 
@@ -207,7 +208,7 @@ function ManagedProcess() {
   const cards = [
     { icon: ShieldCheck, title: "Licensed Pre Insulation Electrical Safety Assessment (PIESA)", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC). They check the ceiling space for unsafe wiring, prohibited lighting such as halogen downlights, solar/battery cabling and other electrical hazards before insulation work proceeds.", note: "" },
     { icon: BadgeCheck, title: "Installer", copy: "Your insulation upgrade is carried out by an Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity.", note: "CII certification covers the competency pathway for safe retrofit insulation work, including WHS, measurements and calculations, working safely at heights and bulk insulation installation." },
-    { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, Ready Check, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one Home Insulation Victoria process.", note: "" },
+    { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one Home Insulation Victoria process.", note: "" },
   ];
   return <section aria-labelledby={id}>
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Why Home Insulation Victoria</p>
@@ -226,7 +227,7 @@ function ManagedProcess() {
 function RemovalNote({ est }: { est: Est }) {
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   if (!removal) return null;
-  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid="total-full_removal">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your Ready Check confirms whether removal is actually needed.</p>;
+  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid="total-full_removal">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Whether removal is actually needed is confirmed before you agree to anything.</p>;
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
@@ -256,7 +257,8 @@ export function CustomerEstimate({ data, publicPage = false, onReadyCheck, ready
 export function OwnerEstimateCard({ jobId }: { jobId: string }) {
   const fn = useServerFn(getOwnerEstimate);
   const { data } = useQuery({ queryKey: ["owner_estimate", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<CustomerData> });
-  return data ? <CustomerEstimate data={data} /> : null;
+  // Decision 388: shown only at enquiry stages (before release), so the close is spot-only, never a Ready Check button.
+  return data ? <CustomerEstimate data={data} readyCheckClose={<p role="status" className="mt-6 border-t border-estimate-blue-soft pt-6 font-bold">{SPOT_RELEASE_LINE}</p>} /> : null;
 }
 
 const r = (n: number, d = 4) => Number(n).toFixed(d);

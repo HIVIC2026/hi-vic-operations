@@ -140,7 +140,7 @@ ${TABLE} style="margin-top:4px;">
 ${row(TICK, "If it can stay", "New batts go straight over the top", "$0", KIT.GREEN, false)}
 ${row(PLUS, "If some needs removing", `Only the areas that need it.<br>Up to ${esc(whole(i.upTo))} for your ${esc(m2(i.areaM2))} ceiling.`, `$${i.ratePerM2}/m²`, KIT.BLUE, true)}
 </table>
-<div style="font-size:13px;color:${KIT.SUB};line-height:1.5;padding:10px 0 10px;border-top:1px solid ${KIT.LINE};">Prices incl. GST. The installer checks this at your free Ready Check, and you'll know the exact cost before you agree to anything.</div>
+<div style="font-size:13px;color:${KIT.SUB};line-height:1.5;padding:10px 0 10px;border-top:1px solid ${KIT.LINE};">Prices incl. GST. You'll know the exact cost before you agree to anything.</div>
 </td></tr></table>`;
 }
 
@@ -272,10 +272,10 @@ export function starRow(hrefFor: (stars: number) => string): string {
 // ---------------------------------------------------------------------------
 // Approved standing content (decision 66; Jo confirmed for every job)
 // ---------------------------------------------------------------------------
-/** "What's included in $X" rows shared by Save my spot, Spot saved, Ready Check times and booked. */
+/** "What's included in $X" rows (Save my spot O1/O2 and Spot saved O10, all sent before the spot is released).
+ *  Decision 388: no "Free Ready Check / An installer visits to measure your ceiling" row before release. */
 export function includedItems(rebate: number): TickItem[] {
   return [
-    { title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." },
     { title: "Licensed electrician safety check", detail: "Required before any insulation goes in. They check wiring, downlights and cables so your ceiling is safe." },
     { title: "Premium R5.0 ceiling batts", detail: "Approved for the VEU program and made to Australian Standard AS/NZS 4859.1." },
     { title: "Fitted by an EEC-certified installer", detail: "Certified Insulation Installer (CII) through the Energy Efficiency Council, installing to Australian Standard AS 3999." },
@@ -291,16 +291,18 @@ export function notIncludedItems(someInsulation = false): string[] {
     "<strong>A bigger ceiling</strong> than you told us",
   ];
 }
-/** Both cards + the check-at-Ready-Check line. `seeEstimate` adds the "See your full estimate" link. */
+/** Decision 388: the line under the two cards (no Ready Check, no measuring, no quote timing). */
+export const INCLUDED_CLOSING = "You'll know the exact price before you agree to anything.";
+/** Both cards + the closing line. `seeEstimate` adds the "See your full estimate" link. */
 export function includedAndNotIncluded(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string; seeEstimate?: string | null }): string {
-  const closing = i.closing ?? "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
+  const closing = i.closing ?? INCLUDED_CLOSING;
   return `${includedCard(`What's included in ${whole(i.price)}`, includedItems(i.rebate))}${notIncludedCard("Not included, only if needed", notIncludedItems(i.someInsulation))}<p style="font-size:13px;line-height:1.5;margin:10px 0 0;color:${KIT.SUB};">${esc(closing)}${i.seeEstimate ? ` ${link(i.seeEstimate, "See your full estimate")}` : ""}</p>`;
 }
 /** Plain-text twin of the two cards. */
 export function includedAndNotIncludedText(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string }): string[] {
   const inc = includedItems(i.rebate).map((t) => typeof t === "string" ? `✓ ${t}` : `✓ ${t.title}: ${t.detail ?? ""}`.trim());
   const not = notIncludedItems(i.someInsulation).map((h) => `+ ${stripTags(h)}`);
-  return [`WHAT'S INCLUDED IN ${whole(i.price)}`, ...inc, "", "NOT INCLUDED, ONLY IF NEEDED", ...not, "", i.closing ?? "We check these at your free Ready Check and tell you the exact price before you agree to anything."];
+  return [`WHAT'S INCLUDED IN ${whole(i.price)}`, ...inc, "", "NOT INCLUDED, ONLY IF NEEDED", ...not, "", i.closing ?? INCLUDED_CLOSING];
 }
 
 // ---------------------------------------------------------------------------

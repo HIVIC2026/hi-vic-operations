@@ -78,8 +78,8 @@ describe("A2. known / unknown ceiling-area variants", () => {
     const unknown = renderJoOutcomeEmail(base({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: false }))!;
     // Decision 66 wording: "Based on what you told us: 150 m² ceiling…" vs the labelled typical-size assumption.
     expect(known.plainText).toContain("Based on what you told us: 150 m² ceiling");
-    expect(known.plainText).not.toContain("estimated, not measured");
-    expect(unknown.plainText).toContain("Based on a typical 150 m² ceiling (estimated, not measured)");
+    expect(known.plainText).not.toContain("an estimate, not your actual size");
+    expect(unknown.plainText).toContain("Based on a typical 150 m² ceiling (an estimate, not your actual size)");
   });
   test("a missing size, the typical default and a declared size each choose their own variant", () => {
     const declared = selectJoOutcomeTemplate({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true });

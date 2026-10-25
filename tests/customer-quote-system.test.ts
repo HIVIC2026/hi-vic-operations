@@ -20,7 +20,7 @@ describe("customer quote system", () => {
     expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your Ready Check is free.");
     expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
-    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("your actual ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes");
     expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.");
   });
 

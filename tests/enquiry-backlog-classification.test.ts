@@ -62,7 +62,7 @@ describe("A. eligible / no existing insulation", () => {
     expect(mail).not.toBeNull();
     expect(mail!.html.toLowerCase()).toContain("150");
     // Jo's rule: the 150 m² figure is labelled as an assumption, never as a measured area.
-    expect(mail!.html.toLowerCase()).toContain("estimated, not measured");
+    expect(mail!.html.toLowerCase()).toContain("an estimate, not your actual size");
   });
 
   test("missing figures → refuses to render (never a half-built price)", () => {

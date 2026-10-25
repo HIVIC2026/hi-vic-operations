@@ -11,7 +11,7 @@ const W = {
   new_enquiry: { tag: "New enquiry", next: "Check eligibility", owner: "We've received your enquiry" },
   eligibility_review: { tag: "Checking eligibility", next: "Confirm eligibility", owner: "We're checking your eligibility" },
   preliminary_estimate_ready: { tag: "Estimate sent", next: "Wait for owner to save their spot", owner: "Your estimate is ready – Save my spot" },
-  spot_saved: { tag: "Spot saved", next: "Choose installer", owner: "Spot saved – we'll be in touch to book your free Ready Check", trade: "Ready Check to be booked" },
+  spot_saved: { tag: "Spot saved", next: "Choose installer", owner: "Spot saved – we'll be in touch when your spot is released", trade: "Ready Check to be booked" },
   ready_check_awaiting_acceptance: { tag: "Ready Check offered", next: "Wait for owner to accept Ready Check", owner: "Accept your free Ready Check" },
   ready_check_scheduled: { tag: "Ready Check booked", next: "Installer to do Ready Check", owner: "Your Ready Check is booked", trade: "Ready Check booked" },
   ready_check_complete: { tag: "Ready Check done", next: "Confirm eligibility and send quote", owner: "Ready Check done – your quote is being prepared", trade: "Ready Check done – being checked by Home Insulation Victoria" },

@@ -159,6 +159,9 @@ export async function joRecipientFacts(jobId: string, fallbackReference: string 
 
 /** Initial Step 3 estimate email. Idempotent per secure link + current estimate version. */
 export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
+  // Decision 388: O1/O2 reworded spot-only and held until Jo approves; the scheduled worker retries once approved.
+  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  if (!SAVE_SPOT_REAL_SEND_APPROVED) return { sent: false as const, reason: "wording_not_approved" };
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "eligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_ineligible" };
   if (official.mode === "onsite") {

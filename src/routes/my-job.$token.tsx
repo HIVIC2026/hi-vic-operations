@@ -10,6 +10,7 @@ import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useEffect, useRef, useState } from "react";
@@ -543,8 +544,9 @@ function SpotScreen({ v, token }: { v: View; token: string }) {
     <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("spot_saved", v.numbers.rebate)} />
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h2 className="font-display text-xl font-extrabold">Save my spot</h2>
-      <p className="mt-1 text-sm">Pick at least 3 times that suit you for your free Ready Check. Each time is a 2-hour window: {TWO_HOUR_WINDOWS.join(", ")}.</p>
-      <a href={`/estimate/${token}`} className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Pick my times</a>
+      {/* Decision 388: saving a spot never offers times or a Ready Check. */}
+      <p className="mt-1 text-sm">{SPOT_FREE} {SPOT_WAIT_LINE}</p>
+      <a href={`/estimate/${token}`} className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">See my estimate and save my spot</a>
     </section>
   </>;
 }
@@ -904,19 +906,19 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       </div>
     </section>
     <OwnerReadyCheckTimes token={token} />
-    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>The waiting list is huge.</strong> We book in order and we're teaming up with more installers and electricians across Victoria to speed it up. We'll text you when it's your turn.</p>
+    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>
-      <p className="mt-1 text-sm">A few quick questions and your OK to share your details with the trades. Do it now and you can book the moment it's your turn.</p>
+      <p className="mt-1 text-sm">A few quick questions and your OK to share your details with the trades. Do it now and it's out of the way when your spot is released.</p>
       {!open ? <button type="button" onClick={() => setOpen(true)} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Do it now</button> : <div className="mt-4"><OwnerPaperwork token={token} /></div>}
     </section>}
     {card === "done" && <section data-testid="gate-a-done" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until we text you.</p></div>
+      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until your spot is released.</p></div>
     </section>}
     {sp.videoInvite && <section className="rounded-[22px] bg-estimate-mint p-5">
-      <h2 className="font-display text-lg font-extrabold">Jump the queue: send a quick video</h2>
+      <h2 className="font-display text-lg font-extrabold">Help us check your insulation: send a quick video</h2>
       <Link to="/estimate/$token/video" params={{ token }} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Send a quick video</Link>
     </section>}
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
@@ -931,7 +933,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <p className="font-display text-lg font-extrabold">Your numbers</p>
       <div className="mt-3 flex justify-between text-sm"><span>Your rebate</span><span className="font-bold text-estimate-logo-green">{aud(sp.rebate)}</span></div>
       <div className="mt-2 flex justify-between text-sm"><span>You pay about</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
-      <p className="mt-3 text-xs text-estimate-navy/70">Estimate only. Your exact price comes after the free Ready Check.</p>
+      <p className="mt-3 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
     </section>
     <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>
     {v.canCancel && <CancelMyJob token={token} />}

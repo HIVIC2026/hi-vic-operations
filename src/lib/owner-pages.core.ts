@@ -29,7 +29,7 @@ export const P1 = {
   /** Page titles for the three questions (the stored question keys and options are unchanged). */
   labels: { insulation_type: "What type is your insulation?", insulation_thickness: "About how thick is it?", house_built_period: "When was your home built?" } as Record<string, string>,
   photosTitle: "Got photos or a video? (optional)",
-  photosSub: "It helps the installer prepare. Only if it's safe: hold your phone up through the ceiling hatch. Please don't climb into the roof space.",
+  photosSub: "It helps us check your insulation. Only if it's safe: hold your phone up through the ceiling hatch. Please don't climb into the roof space.",
   addPhotos: "Add photos",
   addVideo: "Add a video",
   save: "Save my free spot",

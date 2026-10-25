@@ -51,7 +51,8 @@ describe("decision 165: outcome classes, non-claiming held keys and freshness (p
   test("unknown type fails closed", () => expect(smsStaleReason("nope", { at: now }, now)).toContain("Unknown"));
 });
 
-const ok = { type: "spot_saved", to: "0477 511 901", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-22T00:00:00Z" };
+const ok = { type: "quote_ready", // decision 388: spot_saved wording is held, so the generic gate uses another approved owner text
+  to: "0477 511 901", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-22T00:00:00Z" };
 
 describe("real SMS gate", () => {
   test("all checks pass → may send", () => expect(smsBlocker(ok)).toBeNull());
@@ -78,6 +79,10 @@ describe("real SMS gate", () => {
     expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z", commsEnabled: false })).toContain("switched off");
   });
   test("unknown type fails closed", () => expect(smsBlocker({ ...ok, type: "nope" })).toContain("Unknown"));
+  test("decision 388: the spot saved and save-spot reminder texts are held until Jo approves the spot-only wording", () => {
+    expect(smsBlocker({ ...ok, type: "spot_saved" })).toBe("Wording not approved yet");
+    expect(smsBlocker({ ...ok, type: "save_spot_reminder" })).toBe("Wording not approved yet");
+  });
   test("AU formatting", () => {
     expect(toAuE164("0477 511 901")).toBe("+61477511901");
     expect(toAuE164("+61 477 511 901")).toBe("+61477511901");
