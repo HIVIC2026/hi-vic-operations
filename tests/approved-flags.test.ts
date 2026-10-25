@@ -94,9 +94,9 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
 };
 
 describe("decision 388 (Jo 25 Oct 2026): pre-release Save my spot wording reworded spot-only and HELD until Jo approves", () => {
-  test("O1/O2 send flags and the two texts are off", () => {
+  test("O1/O2 send flag and the two texts approved by Jo 25 Oct; the questions invitations stay held", () => {
     expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: false, INSULATION_QUESTIONS_SEND_APPROVED: false });
-    expect([SMS_MESSAGE_TYPES.spot_saved.wordingApproved, SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved]).toEqual([false, false]);
+    expect([SMS_MESSAGE_TYPES.spot_saved.wordingApproved, SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved]).toEqual([true, true]);
   });
 });
 
@@ -109,11 +109,11 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
       expect(SMS_MESSAGE_TYPES[type as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(true);
     });
   }
-  test("every SMS type is approved except the two held by decision 388: the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
+  test("every SMS type is approved (decision 388 texts approved 25 Oct): the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
-    // Decision 388 (25 Oct 2026): the spot saved and save-spot reminder texts were reworded spot-only and are held for Jo.
+    // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw docs/designs/O77.jpg).
-    expect(off.sort()).toEqual(["save_spot_reminder", "spot_saved"]);
+    expect(off.sort()).toEqual([]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

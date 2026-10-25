@@ -139,8 +139,8 @@ describe("approval flags: reworded live messages with a flag are held; nothing e
     expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(false);
     expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(false);
     expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES.spot_saved.wordingApproved).toBe(false);
-    expect(SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved).toBe(false);
+    expect(SMS_MESSAGE_TYPES.spot_saved.wordingApproved).toBe(true); // Jo approved the spot-only texts 25 Oct 2026
+    expect(SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved).toBe(true);
   });
   test("unchanged: the 3 questions text (wording unchanged) and the launch page gate (owners must still be able to save spots)", () => {
     expect(SMS_MESSAGE_TYPES.three_questions_reminder.wordingApproved).toBe(true);

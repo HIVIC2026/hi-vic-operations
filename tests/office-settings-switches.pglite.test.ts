@@ -72,8 +72,8 @@ describe("per-type text switches and code switches", () => {
     const m = (await db.query<{ sms_message_switches: Record<string, boolean> }>("select sms_message_switches from public.workflow_settings where id = 1")).rows[0]!.sms_message_switches;
     expect(m).toEqual({ job_offer: true, veec_sign_reminder: true });
     await expect(setOfficeSwitch("veec_sign_reminder", false, false, "stale", ACTOR)).rejects.toThrow(/changed this switch/);
-    // Decision 388: a held text (spot_saved) cannot be switched on until Jo approves its spot-only wording.
-    await expect(setOfficeSwitch("spot_saved", true, false, "x", ACTOR)).rejects.toThrow(/Wording not approved/);
+    // Decision 388: Jo approved the spot-only spot saved text (25 Oct 2026), so its switch can be turned on.
+    expect(await setOfficeSwitch("spot_saved", true, false, "approved by Jo", ACTOR)).toMatchObject({ ok: true });
   });
 
   test("code switches (auto quote send, ESC consent copy) can't be flipped", async () => {
