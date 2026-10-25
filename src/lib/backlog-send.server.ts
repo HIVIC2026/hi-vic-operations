@@ -13,17 +13,18 @@ const MAX_BODY_BYTES = 32_768;
 type Facts = { facts: BacklogJobFacts; ownerEmail: string | null };
 
 async function readFacts(jobId: string): Promise<Facts | { missing: true } | { error: string }> {
-  const [job, response, optouts, media] = await Promise.all([
+  const OFFER_KEYS = "idempotency_key.like.%:save_my_spot:%,idempotency_key.like.%existing_insulation_save_spot%,idempotency_key.like.%likely_size%,idempotency_key.like.%office_outlook_save_spot%";
+  const [job, response, optouts, media, offers, questions] = await Promise.all([
     admin.from("jobs").select("job_number, source, stage, deleted_at, qa_archived_at, eligibility_outcome, owners(email)").eq("id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at").eq("job_id", jobId).maybeSingle(),
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).not("opted_out_at", "is", null).limit(1),
     admin.from("documents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "intake_media"),
+    admin.from("customer_email_sends").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("status", ["sent", "sending"]).or(OFFER_KEYS),
+    admin.from("customer_email_sends").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("status", ["sent", "sending"]).like("idempotency_key", "%insulation_details%"),
   ]);
   // Fail closed: an unreadable record is never treated as "none".
-  if (job.error || response.error || optouts.error || media.error || media.count == null) return { error: "Could not read the job's records. Nothing sent." };
+  if (job.error || response.error || optouts.error || media.error || media.count == null || offers.error || offers.count == null || questions.error || questions.count == null) return { error: "Could not read the job's records. Nothing sent." };
   if (!job.data) return { missing: true };
-  const { initialResponseHistoryBlocker } = await import("./initial-response-history.server");
-  const priorEmailBlocker = await initialResponseHistoryBlocker(jobId);
   const j = job.data as { job_number: string | null; source: string | null; stage: string | null; deleted_at: string | null; qa_archived_at: string | null; eligibility_outcome: string | null; owners: { email: string | null } | null };
   const r = response.data as { spot_saved_at: string | null; opted_out_at: string | null; media_received_at: string | null } | null;
   return {
@@ -32,7 +33,7 @@ async function readFacts(jobId: string): Promise<Facts | { missing: true } | { e
       jobNumber: j.job_number, source: j.source, stage: j.stage, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at,
       eligibilityOutcome: j.eligibility_outcome, spotSavedAt: r?.spot_saved_at ?? null, campaignOptedOutAt: r?.opted_out_at ?? null,
       emailOptedOutAt: (optouts.data as { opted_out_at: string | null }[] | null)?.[0]?.opted_out_at ?? null,
-      intakeMediaCount: media.count, mediaReceivedAt: r?.media_received_at ?? null, priorEmailBlocker,
+      intakeMediaCount: media.count, mediaReceivedAt: r?.media_received_at ?? null, priorOfferCount: offers.count, priorQuestionsCount: questions.count,
     },
   };
 }

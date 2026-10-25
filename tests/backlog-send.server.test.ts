@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type JobFixture = {
   job: Record<string, unknown> | null; response?: Record<string, unknown> | null; optedOut?: boolean; media?: number;
-  insulation?: string | null; prior?: string | null; readError?: boolean;
+  insulation?: string | null; prior?: string | null; priorQuestions?: boolean; readError?: boolean;
 };
 let db: Record<string, JobFixture>;
 let events: { job_id: string; event_type: string; details: Record<string, unknown>; summary: string }[];
@@ -31,13 +31,15 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
         case "lead_campaign_responses": return { data: j?.response ?? null, error: null };
         case "customer_email_optouts": return { data: j?.optedOut ? [{ opted_out_at: "2026-10-01T00:00:00Z" }] : [], error: null };
         case "documents": return { data: null, count: j?.media ?? 0, error: null };
+        // Decision 393: f.__or = the Save my spot offer count; f.__like = the 3-questions invitation count.
+        case "customer_email_sends": return { data: null, count: f["__or"] ? (j?.prior ? 1 : 0) : (j?.priorQuestions ? 1 : 0), error: null };
         case "indicative_estimates": return { data: j ? { insulation_declared: j.insulation ?? null } : null, error: null };
         case "workflow_events": return { data: events.filter((e) => e.job_id === id && e.event_type === f["event_type"]), error: null };
         default: return { data: null, error: null };
       }
     };
     const q = {
-      select() { return q; }, eq(c: string, v: unknown) { f[c] = v; return q; }, not() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+      select() { return q; }, eq(c: string, v: unknown) { f[c] = v; return q; }, not() { return q; }, in() { return q; }, or() { f["__or"] = true; return q; }, like() { f["__like"] = true; return q; }, order() { return q; }, limit() { return q; },
       insert(row: Record<string, unknown>) { inserted = row; return q; },
       maybeSingle: async () => answer(), then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) { return Promise.resolve(answer()).then(resolve, reject); },
     };
@@ -132,7 +134,7 @@ describe("refusals: skipped with a reason, no sync, no sender", () => {
     ["campaign opt-out", { response: { spot_saved_at: null, opted_out_at: T, media_received_at: null } }, "opted out", "save_spot_none"],
     ["email opt-out", { optedOut: true }, "opted out", "save_spot_none"],
     ["ineligible", { job: job(10, { eligibility_outcome: "does_not_appear_eligible" }) }, "Does not appear eligible", "save_spot_none"],
-    ["already emailed", { prior: "An earlier reply exists" }, "Already emailed", "save_spot_none"],
+    ["already offered a spot", { prior: "offered" }, "Already offered a spot", "save_spot_none"],
     ["Jo's legacy exclusion", { job: job(10, { job_number: "HV-1059" }) }, "Excluded by Jo", "save_spot_none"],
     ["questions: intake media", { media: 1 }, "photos/video", "questions"],
     ["questions: media received", { response: { spot_saved_at: null, opted_out_at: null, media_received_at: T } }, "photos/video", "questions"],
