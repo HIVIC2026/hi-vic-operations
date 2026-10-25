@@ -315,6 +315,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const cb = await commercialBlocker(jobId);
     if (cb) blockers.push(cb);
   }
+  // Decision 296 (Jo 25 Oct 2026): the install day cannot be booked until the owner has confirmed the current PIESA on their secure link.
+  if (to === "installation_booked") {
+    const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
+    if (ob) blockers.push(ob);
+  }
   const piesa = await piesaStatus(jobId);
 
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {

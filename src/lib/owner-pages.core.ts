@@ -139,6 +139,32 @@ export function declarationBullets(section4: string): string[] {
   return out;
 }
 
+/* ---------- P6: owner confirms the PIESA by secure link (decision 296, mock-up P6-piesa-confirm-page.html) ---------- */
+export const P6 = {
+  kicker: "YOUR ELECTRICAL SAFETY CHECK",
+  title: "Your electrical safety check — please confirm",
+  /** "Your electrician checked the wiring in your ceiling on 24 October 2026. Please confirm it was done …" */
+  sub: (date: string) => `Your electrician checked the wiring in your ceiling on ${date}. Please confirm it was done — your install day can't be booked until you do. About a minute.`,
+  whyLead: "Why we need this:",
+  why: " the government's safety-check form has an owner's declaration. Normally you'd sign it on the electrician's tablet, but you don't have to be home for the check — so you confirm it here instead.",
+  formEyebrow: "PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT · OWNER'S DECLARATION",
+  factsTitle: "What was done",
+  rows: { date: "Assessment date", electrician: "Electrician", result: "Result" },
+  warningLead: "Please don't let anyone into the ceiling before the install. ",
+  declareTitle: "Your confirmation",
+  declare: "By confirming you declare that:",
+  signLabel: "Owner signature: type your full name",
+  typeHere: "Type here",
+  dateLine: (today: string) => `Date: ${today} · Typing your name is your signature. We record the time, your confirmation and the safety check it refers to.`,
+  button: "Confirm my safety check",
+  signing: "Confirming…",
+  lockHint: "Tick the confirmation and type your name",
+  afterNote: "Once you've confirmed, your installer can offer you install days inside the 30-day window.",
+  /** After signing: "Confirmed on 24 October 2026" */
+  confirmedTitle: "Electrical safety check: Confirmed ✓",
+  confirmedOn: (date: string, name: string) => `Confirmed on ${date} by ${name}. Your installer can now offer you install days.`,
+} as const;
+
 /* ---------- P5: installer privacy notice (decision 130) ---------- */
 export const P5 = {
   back: "‹ My business",

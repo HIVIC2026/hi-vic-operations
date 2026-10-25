@@ -39,6 +39,9 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 288 (Jo 25 Oct 2026): an A1 Ready Check marked Complete with no price yet → the business owner gets ONE text
   // with the link to the "Your price" card (whoever did the Ready Check). Wording: bossPriceLinkText in boss-price-link.core.ts.
   boss_price_link: { audience: "partner", label: "Ready Check done – business owner's link to enter the price (decision 288)", wordingApproved: true, quietHours: true },
+  // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA on their secure link — request text after the electrician
+  // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
+  piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; wording DRAFT, awaiting Jo)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -85,6 +88,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
   team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
+  piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
 };
 
 export type SmsEventInput = {

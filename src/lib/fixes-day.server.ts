@@ -218,7 +218,9 @@ async function regenerateOfficialPiesa(jobId: string, actorId: string | null, sn
   const { officialPrefillContext } = await import("./official-forms.server");
   const { todayMelbourne } = await import("./eligibility.server");
   const ctx = await officialPrefillContext(jobId, todayMelbourne(), null);
-  const expanded = expandPiesa(shortAnswersFromEntries("piesa", snapshot), { lifeSupportDeclared: ctx.lifeSupportDeclared, today: certDate });
+  // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from a Mitti form.
+  const ownerConfirmation = await (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null);
+  const expanded = expandPiesa(shortAnswersFromEntries("piesa", snapshot), { lifeSupportDeclared: ctx.lifeSupportDeclared, today: certDate, ownerConfirmation });
   const { facts } = await materialFacts(jobId, prev.copy);
   const id = await storeSignedCopy({ jobId, key: "piesa", answers: expanded.answers, signer: { userId: signer.userId, name: signer.name ?? "", role: "electrician" }, enteredDate: certDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti-fixes:${jobId}` });
   const { storeOfficialDocx } = await import("./official-docx.server");

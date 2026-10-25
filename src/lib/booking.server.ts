@@ -51,6 +51,9 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
     if (lead) throw new WorkflowError(lead);
+    // Decision 296: no install day (first booking or a move) until the owner has confirmed the current PIESA on their secure link.
+    const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
+    if (ob) throw new WorkflowError(ob);
   }
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
