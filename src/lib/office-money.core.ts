@@ -3,6 +3,7 @@
 // running total reaches its threshold). Decision 240: there is NO office "Record payment" anywhere — payments arrive
 // from Stripe or Xero reconciliation; an overdue row offers only "Chase ›" (log a call or note).
 import type { PaymentStep, PaymentStepKey } from "./payments.core";
+import { safetyCheckShort } from "./safety-check-amount.core";
 
 export type InvoiceRowState = { label: string; tone: "green" | "rose" | "plain" | "amber"; chase: boolean };
 
@@ -17,13 +18,13 @@ function ageText(fromIso: string, nowIso: string): string {
   return `${Math.floor(h / 24)} days`;
 }
 
-/** "$349 ✓ · deposit $351 — · balance —" — one line per invoice, in step order. */
+/** "$349 ✓ · deposit $351 — · balance —" — one line per invoice, in step order (decision 302: the safety check prints the quote's PIESA figure). */
 export function stepsLine(steps: Pick<PaymentStep, "key" | "state" | "amountCents">[]): string {
   if (steps.length && steps.every((s) => s.state === "paid" || s.state === "waived")) return "All steps ✓";
   return steps.map((s) => {
     const name = s.key === "safety_check" ? SHORT[s.key] : `${SHORT[s.key]} ${money(s.amountCents)}`;
     const mark = s.state === "paid" ? "✓" : s.state === "waived" ? "waived" : s.state === "overdue" ? "overdue" : s.state === "requested" ? "due" : "—";
-    return `${s.key === "safety_check" ? "$349" : name} ${mark}`;
+    return `${s.key === "safety_check" ? safetyCheckShort(s.amountCents) : name} ${mark}`;
   }).join(" · ");
 }
 

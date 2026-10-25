@@ -129,7 +129,9 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
   await requireHivicJob(q.job_id);
-  const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()));
+  // Decision 302: the Xero deposit = the accepted quote's PIESA line ($349 for our electrician, the REC's onboarded rate otherwise).
+  const safety = await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id);
+  const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst);
   if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Minimum deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;

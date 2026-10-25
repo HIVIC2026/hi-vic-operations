@@ -9,7 +9,7 @@ const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 export const PARTNER_EMAILS_PAUSED = "Emails are paused while the templates are reviewed (master switch off). Nothing was sent.";
 export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
 
-export async function sendOfficeEmail(p: { actorId: string; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string }): Promise<SendResult> {
+export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string }): Promise<SendResult> {
   // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
   const { customerCommsEnabled } = await import("./comms.server");
   const paused = (await customerCommsEnabled()) ? null : PARTNER_EMAILS_PAUSED;

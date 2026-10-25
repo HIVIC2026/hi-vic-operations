@@ -160,6 +160,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
         }
         try {
+          // Decision 303: ONE REC onboarding invite per electrician an installer named who is not an approved REC
+          // (facts recorded by the quote pipeline; sends only through the existing manual invite path, TEST → test inbox).
+          const { sweepRecOnboardingInvites } = await import("@/lib/rec-onboarding-invite.server");
+          (out as Record<string, unknown>)['recOnboardingInvites'] = await sweepRecOnboardingInvites();
+        } catch (e) {
+          console.error("allocation tick: REC onboarding invite sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['recOnboardingInvites'] = "failed";
+        }
+        try {
           const { sweepTradeNoShows } = await import("@/lib/visit-events.server");
           (out as Record<string, unknown>)['tradeNoShows'] = await sweepTradeNoShows();
         } catch (e) {

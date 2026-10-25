@@ -31,7 +31,9 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
       if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
       const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
       const usual = profile?.electrician;
-      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence || usual.priceIncGst !== saved.priceIncGst) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+      // Decision 303: an approved-REC snapshot carries the REC's onboarded rate, not the declared price — identity must still match.
+      const priceChanged = saved.source === "approved_rec" ? false : usual?.priceIncGst !== saved.priceIncGst;
+      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence || priceChanged) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
     }
     const { data: lines, error: ie } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
     if (ie) return "Quote electrical lines could not be checked";
@@ -116,8 +118,18 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     // the same hold for the same form is not written again.
     const { data: lastHeld } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_held").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const prev = lastHeld?.details as { audit_id?: string; blockers?: string[] } | null;
+    // Decision 303: the "Electrician not onboarded: <name>" hold names the electrician on the Needs me row and keeps the
+    // declared identity on the event so the tick's invite sweep and the installer job page can read it.
+    const notOnboarded = mittiElectrician?.notOnboarded ?? null;
     if (!(prev?.audit_id === auditId && JSON.stringify(prev.blockers ?? []) === JSON.stringify(draft.blockers)))
-      await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
+      await logEvent(jobId, actorId, "installer_quote_held", notOnboarded ? `Quote held · ${mittiElectrician!.reasons[0]}` : "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers, ...(notOnboarded ? { electrician_not_onboarded: notOnboarded } : {}) });
+    // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
+    // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
+    if (notOnboarded) {
+      const holdNow = [...draft.blockers, "Waiting for office review before sending"].join(" · ");
+      for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE))
+        await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
+    }
     return draft;
   }
   const installerPrice = draft.lines.find((line) => line.code === "INSTALLER_PRICE")?.line_total_inc_gst ?? null;

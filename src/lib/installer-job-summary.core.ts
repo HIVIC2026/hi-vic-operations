@@ -10,7 +10,7 @@ export type InstallerSummaryFacts = {
   basics: { missing: string[]; stops: string[]; completed: boolean } | null;
   heldReasons: string[] | null;
   /** Jo 24 Oct 2026: no installer approval step. held = a check held the quote for the office. */
-  quote: null | { total: number | null; sent: boolean; accepted: boolean; declined?: boolean; held: boolean };
+  quote: null | { total: number | null; sent: boolean; accepted: boolean; declined?: boolean; held: boolean; /** Decision 302: the quote's PIESA line inc GST (null = $349). */ safetyCheckIncGst?: number | null };
   /** Extra office warnings (duplicate, ineligible…) from the New from installers rules. */ warnings: string[];
 };
 
@@ -43,7 +43,7 @@ export function installerJobSummary(f: InstallerSummaryFacts): InstallerSummary 
     upTo = "Owner declined the quote — reopen it on Quotes to check if they change their mind"; waitingOn = "office";
   } else if (f.quote?.accepted) {
     quote = { status: `Accepted by the owner${money(f.quote.total)}`, total: f.quote.total };
-    upTo = "Owner accepted the quote — next is the $349 safety check payment, then the electrician"; waitingOn = "owner";
+    upTo = `Owner accepted the quote — next is the ${f.quote.safetyCheckIncGst != null ? `$${f.quote.safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })}` : "$349"} safety check payment, then the electrician`; waitingOn = "owner";
   } else if (f.quote?.sent) {
     quote = { status: `Sent to the owner${money(f.quote.total)}`, total: f.quote.total };
     upTo = "Waiting for the owner to accept the quote"; waitingOn = "owner";

@@ -10,7 +10,7 @@ import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
-import { PAYMENT_OPTION_SUMMARY } from "@/lib/payment-gate.core";
+import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -451,7 +451,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         <ul className="mt-2 space-y-1 text-sm" data-testid="how-you-pay">
           {howYouPayLines(paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null })).map((l) => <li key={l}>{l}</li>)}
         </ul>
-        <p className="mt-2 text-xs text-estimate-sub">{PAYMENT_OPTION_SUMMARY}</p>
+        <p className="mt-2 text-xs text-estimate-sub">{q.split ? paymentOptionSummary(q.split.deposit) : PAYMENT_OPTION_SUMMARY}</p>
       </details>
       {q.status === "issued"
         ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} /><DeclineQuote token={token} quoteId={q.id} /></div>

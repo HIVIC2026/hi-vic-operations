@@ -2,7 +2,9 @@ import { num, norm } from "./mitti.core";
 
 export const MITTI_ELECTRICIAN_OPTIONS = ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"] as const;
 export type MittiElectricianOption = "hivic" | "usual" | "different";
-export type UsualElectrician = { name: string; licence: string; priceIncGst: number };
+/** Declared by the installer under My business (decisions 157/173); email/phone (decision 303) let the portal invite that
+ *  electrician to onboard when they are not an approved REC yet. Declared, not verified. */
+export type UsualElectrician = { name: string; licence: string; priceIncGst: number; email?: string | null; phone?: string | null };
 export const USUAL_ELECTRICIAN_EVENT = "installer_usual_electrician_saved";
 export const MISSING_USUAL_ELECTRICIAN = "Installer has no usual electrician saved";
 export const MITTI_INSTALLER_FEE_INC_GST = 349;
@@ -21,21 +23,35 @@ export function usualElectrician(value: unknown): UsualElectrician | null {
   const licence = typeof v['licence'] === "string" ? v['licence'].trim() : "";
   const priceIncGst = typeof v['priceIncGst'] === "number" ? v['priceIncGst'] : num(typeof v['priceIncGst'] === "string" ? v['priceIncGst'] : null);
   if (!name || !licence || priceIncGst == null || !Number.isFinite(priceIncGst) || priceIncGst < 0 || priceIncGst > 1_000_000) return null;
-  return { name, licence, priceIncGst: Math.round(priceIncGst * 100) / 100 };
+  const email = typeof v['email'] === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v['email'].trim()) ? v['email'].trim().toLowerCase() : null;
+  const phone = typeof v['phone'] === "string" && v['phone'].replace(/\D/g, "").length >= 8 ? v['phone'].trim() : null;
+  return { name, licence, priceIncGst: Math.round(priceIncGst * 100) / 100, ...(email ? { email } : {}), ...(phone ? { phone } : {}) };
 }
 
+export type MittiElectricianSource = "hivic" | "installer_profile" | "mitti_form" | "approved_rec";
+/** The one electrician record the quote pipeline snapshots per quote (`mitti_quote_electrician_snapshot`). Decision 303 adds
+ *  `approved_rec` (price = that REC's onboarded PIESA rate, `recBusinessId`/`rateId` set) and `notOnboarded` (held). */
+export type MittiElectricianResolution = {
+  ready: boolean; choice: MittiElectricianOption | null; priceIncGst: number | null; name: string | null; licence: string | null;
+  source: MittiElectricianSource; reasons: string[]; needsProfile: boolean;
+  recBusinessId?: string | null; rateId?: string | null;
+  notOnboarded?: { name: string; licence: string | null; email: string | null } | null;
+};
+
+/** Legacy declared-price resolution (kept so records saved before 25 Oct 2026 still read); the live pipeline wraps it with
+ *  `onboardedElectricianResolution` (rec-onboarded.core, decision 303). `standardPiesaIncGst` = HIV's standard owner line. */
 export function resolveMittiElectrician(input: {
   choice: MittiElectricianOption | null; usual: UsualElectrician | null;
   different: { name: string | null; licence: string | null; priceIncGst: string | null };
-}) {
-  if (input.choice === "hivic") return { ready: true, choice: input.choice, priceIncGst: MITTI_HIV_ELECTRICIAN_INC_GST, name: null, licence: null, source: "hivic" as const, reasons: [] as string[], needsProfile: false };
+  standardPiesaIncGst?: number | null;
+}): MittiElectricianResolution {
+  const standard = input.standardPiesaIncGst != null && Number.isFinite(input.standardPiesaIncGst) && input.standardPiesaIncGst > 0 ? Math.round(input.standardPiesaIncGst * 100) / 100 : MITTI_HIV_ELECTRICIAN_INC_GST;
+  if (input.choice === "hivic") return { ready: true, choice: input.choice, priceIncGst: standard, name: null, licence: null, source: "hivic", reasons: [], needsProfile: false };
   const saved = input.choice === "usual" ? usualElectrician(input.usual) : input.choice === "different" ? usualElectrician(input.different) : null;
   const reason = input.choice === "usual" ? MISSING_USUAL_ELECTRICIAN : input.choice === "different" ? "Different electrician name, licence number and price are required" : "Electrician arrangement is not decided";
   return { ready: !!saved, choice: input.choice, priceIncGst: saved?.priceIncGst ?? null, name: saved?.name ?? null, licence: saved?.licence ?? null,
-    source: input.choice === "usual" ? "installer_profile" as const : "mitti_form" as const, reasons: saved ? [] : [reason], needsProfile: input.choice === "usual" && !saved };
+    source: input.choice === "usual" ? "installer_profile" : "mitti_form", reasons: saved ? [] : [reason], needsProfile: input.choice === "usual" && !saved };
 }
-
-export type MittiElectricianResolution = ReturnType<typeof resolveMittiElectrician>;
 /** Approved by Jo 24 Oct 2026 (decision 83; kept unchanged by decision 113). The brand prefix is added by brandSmsBody. */
 export const usualElectricianReminderBody = (jobNumber: string, url: string) =>
   `To send the quote for ${jobNumber}, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: ${url}`;
