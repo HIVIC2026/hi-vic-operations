@@ -65,6 +65,7 @@ Q24: `Do you have the shutdown and restart instructions?` — Yes/No — Require
 Q25: `Does the ground-level isolator work and switch off safely?` — Yes/No — Required — only show when Q23 = `Yes` — stop line when No: `Stop. Get an electrician to check it.`
 Q26: `Is the power isolated, locked out and tagged, and the ceiling safe to enter?` — Yes/No — Required — stop line when No: `Stop. Isolate, lock out and tag first.`
 Q27: `Photo of the switchboard with the lock-out tag on` — Photo — Required — help text: `If there's solar, a battery or a generator, it must be off too.`
+
 ## Group 5: The electrician's check (PIESA)
 The portal has the PIESA already: it fills in the light, cable and downlight answers on the official form itself, so none of
 them are asked here.
