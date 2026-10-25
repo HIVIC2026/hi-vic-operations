@@ -271,6 +271,7 @@ function BookPickers({ token }: { token: string }) {
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
   const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
+  const [understands, setUnderstands] = useState(false);
   const [days, setDays] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
@@ -285,8 +286,12 @@ function BookPickers({ token }: { token: string }) {
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
       <p className="mt-1 text-sm">Pick 3 to 5 times across at least 3 days.</p>
+      {data.piesa.thirtyDayAck?.needed && <label className="mt-3 flex items-start gap-3 rounded-2xl border border-estimate-line p-3 text-sm">
+        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={understands} onChange={(e) => setUnderstands(e.target.checked)} />
+        <span>{data.piesa.thirtyDayAck.wording}</span>
+      </label>}
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
-      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3} onClick={() => go(() => choosePiesa({ data: { token, session, picks } }))}>Send my {picks.length} times</button>
+      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(() => choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }))}>Send my {picks.length} times</button>
     </section>}
     {any && session && installMove && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Choose your install day</h3>
