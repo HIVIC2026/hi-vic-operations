@@ -56,6 +56,7 @@ import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Sc
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
+import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -124,6 +125,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       {role === "electrician" && <JobStatusCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
+        {role === "electrician" && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
@@ -195,7 +197,9 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const locked = a?.status === "complete";
   const [plan, setPlan] = useState<RectPlan>({ hours: "", picks: [] });
   const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 30_000 });
-  const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true;
+  // Decision 315: times already given on the "Fixes times" card are never asked again at Complete PIESA.
+  const { data: fixesTimes } = useTradeFixesTimes(jobId);
+  const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true && !(fixesTimes?.show && fixesTimes.given);
   const finish = () => complete(needsPlan ? { jobId, rectHours: Number(plan.hours), rectWindows: plan.picks } : { jobId }, "PIESA complete");
   const planBlock = !locked && needsPlan ? <Section title="Electrical fixes time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
   const put = async (k: string, v: string | number | boolean | null) => {

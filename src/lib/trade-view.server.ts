@@ -961,3 +961,38 @@ export async function tradeSwmsSign(jobId: string, userId: string, key: string, 
   await requireOpenSwms(jobId, userId);
   return (await import("./swms.server")).signSwms(jobId, userId, key, typedName);
 }
+
+// ---- Decision 315: the electrician's "Fixes times" card (/field/{jobId}#fixes-times). Electricians only, business-scoped
+// through requireTradeJob + an active ELECTRICIAN assignment for this business. Rules in pure fixes-times.core. ----
+async function requireJobElectrician(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "electrician") return null;
+  const { count } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("business_id", c.biz.id).eq("active", true);
+  return count ? c : null;
+}
+
+export async function tradeFixesTimes(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const { FIXES_TIMES_LINK_EVENT, fixesTimesCardState } = await import("./fixes-times.core");
+  const r = await import("./rectification.server");
+  const [facts, { data: ws }, { count: links }] = await Promise.all([
+    r.fixesTimesFacts(jobId),
+    admin.from("appointment_proposals").select("starts_at, ends_at, status").eq("job_id", jobId).eq("kind", "rectification").eq("electrician_window", true).order("starts_at"),
+    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_TIMES_LINK_EVENT),
+  ]);
+  const windows = (ws ?? []).map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at, status: w.status }));
+  const state = fixesTimesCardState({ electrician: true, timesNeeded: facts.timesNeeded, piesaCompleted: facts.piesaCompleted, linkSent: (links ?? 0) > 0, windowsExist: windows.length > 0 });
+  return state.show ? { show: true as const, given: state.given, windows } : { show: false as const };
+}
+
+export async function tradeSaveFixesTimes(jobId: string, userId: string, hours: number, windows: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can give the electrical fixes times.");
+  const view = await tradeFixesTimes(jobId, userId);
+  if (!view.show) throw new WorkflowError("No electrical fixes times are needed on this job.");
+  if (view.given) throw new WorkflowError("The electrical fixes times have already been given.");
+  // The same shared write as the old portal PIESA submit (same validation, rows and `rectification_windows_given` event).
+  await (await import("./rectification.server")).recordRectificationWindows(jobId, userId, hours, windows);
+  return { ok: true };
+}

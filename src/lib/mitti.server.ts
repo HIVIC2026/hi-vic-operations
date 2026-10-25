@@ -449,6 +449,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const changed = syncStatus !== a.mitti_sync_status || completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
         if (changed) await logEvent(jobId, actorId, "mitti_synced", completed ? "Mitti assessment synced (completed in Mitti)" : plan.completed ? `Mitti PIESA marked complete but evidence is missing: ${evidenceBlockers.join("; ")}` : "Mitti partial data synced (audit not yet completed)",
           { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null, evidence_blockers: evidenceBlockers });
+        // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
+        // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
+        if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
       }
     }
   }

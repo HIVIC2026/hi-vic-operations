@@ -258,8 +258,14 @@ export type ClearanceFacts = {
   rectificationQuoteAccepted: boolean;
   rectificationCompletedAt: string | null;
   sectionCSignedAt: string | null;
+  /** Decision 314 follow-up (decision 315 commit): the A4's ONLY repair tick is "Be on site at the start of the install
+   *  day" (fixes-times.core `onsiteStartOnly`) — no fixes visit and no Section C ever happen. Absent = false. */
+  onsiteStartOnly?: boolean;
+  /** The approved payment rule has cleared for the accepted fixes quote (workflow.server `paymentGate`). Absent = false. */
+  fixesPaymentCleared?: boolean;
 };
-export type Clearance = { cleared: boolean; timingDate: string | null; basis: "initial_piesa" | "section_c" | null; blocker: string | null; pendingConfirmation: string };
+export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";
+export type Clearance = { cleared: boolean; timingDate: string | null; basis: ClearanceBasis | null; blocker: string | null; pendingConfirmation: string };
 export const TIMING_RULE_WARNING = "The 30-day timing rule is an operational rule pending written confirmation.";
 
 /** Electrical clearance + the date the 30-day installation-commencement window runs from. */
@@ -271,6 +277,13 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
   if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  // Decision 314 follow-up: "Be on site at the start of the install day" alone — the electrician attends the install day
+  // instead of a fixes visit, so there is no Section C. Cleared once the owner has accepted the fixes quote AND the payment
+  // rule has cleared; the 30 days still run from the official PIESA date (decision 316).
+  if (f.onsiteStartOnly) {
+    if (!f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
+    return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
+  }
   if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
   if (!f.sectionCSignedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Section C not completed and signed yet." };
   // Decision 316 (Jo 25 Oct 2026): fixes clear the job, but the 30 days still run from the official PIESA date.
@@ -282,12 +295,15 @@ export function installationCoordinationBlocker(c: Clearance): string | null {
   return c.cleared ? null : `Installation cannot be arranged yet: ${c.blocker}`;
 }
 
-export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at: string | null; has_unpriced_items: boolean };
+export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at: string | null; has_unpriced_items: boolean;
+  /** Decision 315 hold (fixes-times.core `fixesTimesHoldReason`): "Waiting for the electrician's fixes times". */
+  fixes_times_hold?: string | null };
 /** Rectification quotes are always office-reviewed before they reach the owner. */
 export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boolean): string | null {
   if (q.kind !== "rectification") return null;
   if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send electrical fixes quote.";
   if (q.has_unpriced_items) return "Some electrical fixes items still need office pricing.";
+  if (q.fixes_times_hold) return q.fixes_times_hold;
   if (!q.office_reviewed_at) return "Electrical fixes quote must be reviewed by the office before it is sent.";
   if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";
   return null;

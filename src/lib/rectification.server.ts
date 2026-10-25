@@ -1,7 +1,9 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { sha256Hex } from "./assignment.core";
-import { heldWindowAction, rectQuoteTimerAction } from "./rectification.core";
+import { heldWindowAction, rectPlanBlockers, rectQuoteTimerAction } from "./rectification.core";
+import { FIXES_TIMES_GIVEN_EVENT, fixesTimesHoldReason, fixesTimesNeeded, onsiteStartOnly } from "./fixes-times.core";
+import type { PiesaSlot } from "./piesa-windows.core";
 
 /** Share rectification contacts with the active electrician (visit-scoped). Idempotent. */
 export async function releaseRectContacts(jobId: string, actorId: string | null, why: string) {
@@ -76,4 +78,49 @@ export async function sweepHeldRectWindows(now: Date = new Date()) {
     }
   }
   return { booked, lapsed };
+}
+
+/** The ONE write of the electrician's electrical fixes times (estimated hours + 3–5 windows), shared by the old portal
+ *  PIESA submit (portal.functions completeAssessment) and the decision-315 "Fixes times" card on the electrician's job page
+ *  (trade-view.server tradeSaveFixesTimes). Same validation (`rectPlanBlockers`), same rows (appointment_proposals kind
+ *  rectification, electrician_window) and the same `rectification_windows_given` event. Callers check the role first.
+ *  No senders here (this module stays off every sender path). */
+export async function recordRectificationWindows(jobId: string, actorId: string, hours: number | null | undefined, windows: { date: string; slot: PiesaSlot }[]) {
+  const { WorkflowError } = await import("./workflow.server");
+  const rb = rectPlanBlockers(hours, windows);
+  if (rb.length) throw new WorkflowError(`Electrical fixes times: ${rb.join(" ")}`);
+  const { windowBounds } = await import("./piesa-windows.core");
+  const { data: rq } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "rectification").eq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (rq) await admin.from("quotes").update({ rect_estimated_hours: hours ?? null }).eq("id", rq.id);
+  const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+  const { error: we } = await admin.from("appointment_proposals").insert(windows.map((w) => ({
+    job_id: jobId, kind: "rectification" as const, assignment_id: asg?.id ?? null, proposed_by: actorId, proposer_role: "electrician",
+    ...windowBounds(w.date, w.slot), electrician_window: true, note: `Electrician's electrical fixes window (est. ${hours} h)`,
+  })));
+  if (we) throw new WorkflowError(we.message);
+  await logEvent(jobId, actorId, FIXES_TIMES_GIVEN_EVENT, `Electrician gave ${windows.length} electrical fixes windows and an estimate of ${hours} hours`, { hours });
+}
+
+/** Any electrician fixes window on the job (any status: an owner's "none of these work" still means the times were given). */
+export async function rectificationWindowsExist(jobId: string): Promise<boolean> {
+  const { count, error } = await admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "rectification").eq("electrician_window", true);
+  if (error) throw new Error(`Could not read the electrical fixes times: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
+/** Decision 315 facts from the stored A4 PIESA snapshot: are fixes times needed, and did the A4 sync see it completed. */
+export async function fixesTimesFacts(jobId: string): Promise<{ timesNeeded: boolean; onsiteStartOnly: boolean; piesaCompleted: boolean; auditId: string | null; hasSnapshot: boolean }> {
+  const { data: a } = await admin.from("assessments").select("external_mitti_id, mitti_completed, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
+  const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
+  if (!entries.length) return { timesNeeded: false, onsiteStartOnly: false, piesaCompleted: false, auditId: a?.external_mitti_id ?? null, hasSnapshot: false };
+  const { shortAnswersFromEntries } = await import("./official-short.core");
+  const short = shortAnswersFromEntries("piesa", entries);
+  return { timesNeeded: fixesTimesNeeded(short), onsiteStartOnly: onsiteStartOnly(short), piesaCompleted: a?.mitti_completed === true, auditId: a?.external_mitti_id ?? null, hasSnapshot: true };
+}
+
+/** Decision 315 quote hold for the electrical fixes quote (office card + Send). A job without an A4 snapshot (manual
+ *  PIESA) gave its times at the portal submit, so the hold reads the windows alone there. */
+export async function fixesTimesHoldFor(jobId: string): Promise<string | null> {
+  const [f, windowsExist] = await Promise.all([fixesTimesFacts(jobId), rectificationWindowsExist(jobId)]);
+  return fixesTimesHoldReason({ timesNeeded: f.hasSnapshot ? f.timesNeeded : true, windowsExist });
 }

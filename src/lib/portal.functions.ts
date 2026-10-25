@@ -560,8 +560,10 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
     if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
-    // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here).
-    if (rectCount) {
+    // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were
+    // already given on the job page's "Fixes times" card (decision 315), which writes the same rows and event.
+    const timesAlreadyGiven = rectCount ? await (await import("./rectification.server")).rectificationWindowsExist(data.jobId) : false;
+    if (rectCount && !timesAlreadyGiven) {
       const { rectPlanBlockers } = await import("./rectification.core");
       const rb = rectPlanBlockers(data.rectHours, data.rectWindows ?? []);
       if (rb.length) throw new WorkflowError(`Electrical fixes times: ${rb.join(" ")}`);
@@ -584,17 +586,9 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
       res = { advanced: true, scope: s.scope };
     } else res = await advanceSiteRequirements(data.jobId, context.userId);
-    if (rectCount && data.rectWindows?.length) {
-      const { windowBounds } = await import("./piesa-windows.core");
-      const { data: rq } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (rq) await admin.from("quotes").update({ rect_estimated_hours: data.rectHours ?? null }).eq("id", rq.id);
-      const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
-      const { error: we } = await admin.from("appointment_proposals").insert(data.rectWindows.map((w) => ({
-        job_id: data.jobId, kind: "rectification" as const, assignment_id: asg?.id ?? null, proposed_by: context.userId, proposer_role: "electrician",
-        ...windowBounds(w.date, w.slot), electrician_window: true, note: `Electrician's electrical fixes window (est. ${data.rectHours} h)`,
-      })));
-      if (we) throw new WorkflowError(we.message);
-      await logEvent(data.jobId, context.userId, "rectification_windows_given", `Electrician gave ${data.rectWindows.length} electrical fixes windows and an estimate of ${data.rectHours} hours`, { hours: data.rectHours });
+    if (rectCount && !timesAlreadyGiven && data.rectWindows?.length) {
+      // The same shared write as the decision-315 job-page card (rectification.server recordRectificationWindows).
+      await (await import("./rectification.server")).recordRectificationWindows(data.jobId, context.userId, data.rectHours, data.rectWindows);
     }
     await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
     // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).

@@ -174,6 +174,19 @@ export const getTradeMoneyJob = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeMoneyJob(data.jobId, context.userId)));
 
 
+/** Decision 315: the electrician's "Fixes times" card on their job page (electricians only; business-scoped read). */
+export const getTradeFixesTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeFixesTimes(data.jobId, context.userId)));
+
+/** Decision 315: save 3–5 fixes times + estimated hours (the same shared write as the old portal PIESA submit). */
+export const saveTradeFixesTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    jobId: uuid, hours: z.number(),
+    windows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5),
+  }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows));
+
 /** Decision 261: the safety plan (SWMS) on the installer's job page. */
 export const getTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))

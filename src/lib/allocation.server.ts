@@ -477,6 +477,10 @@ export async function clearanceFacts(jobId: string) {
     admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const { count: items } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId);
+  // Decision 314 follow-up: an A4 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
+  // accepted fixes quote + the payment rule (no fixes visit, no Section C). Read only once the fixes quote is accepted.
+  const onsiteOnly = rq?.status === "accepted" ? await (await import("./rectification.server")).fixesTimesFacts(jobId).then((x) => x.onsiteStartOnly).catch(() => false) : false;
+  const fixesPaymentCleared = onsiteOnly ? await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false) : false;
   return {
     piesaOutcome: (initial?.outcome as "pass" | "fail" | null) ?? null,
     piesaCompletedAt: initial?.completed_date && initial.signed_off_by ? initial.completed_date : null,
@@ -484,6 +488,8 @@ export async function clearanceFacts(jobId: string) {
     rectificationQuoteAccepted: rq?.status === "accepted",
     rectificationCompletedAt: rect?.rectification_completed_at ?? null,
     sectionCSignedAt: rect?.section_c_signed_at ?? null,
+    onsiteStartOnly: onsiteOnly,
+    fixesPaymentCleared,
   };
 }
 

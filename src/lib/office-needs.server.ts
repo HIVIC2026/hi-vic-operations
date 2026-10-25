@@ -9,6 +9,7 @@ import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -49,7 +50,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const since7 = new Date(now - 7 * DAY).toISOString();
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
 
-  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms] = await Promise.all([
+  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven] = await Promise.all([
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
     all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
@@ -65,6 +66,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // Decision 296: day-5 alerts for an unconfirmed PIESA, cleared by a confirmation of the same PIESA record.
     all("PIESA owner day-5 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT).range(a, b)),
     all("PIESA owner confirmations", (a, b) => scoped(admin.from("workflow_events").select("job_id, details")).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT).range(a, b)),
+    // Decision 315: fixes-times links to electricians, cleared by the times being given (same event both paths write).
+    all("fixes times links", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", FIXES_TIMES_LINK_EVENT).range(a, b)),
+    all("fixes times given", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", FIXES_TIMES_GIVEN_EVENT).range(a, b)),
   ]);
 
   for (const j of jobs) {
@@ -132,6 +136,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (!x || !j || !["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(j.stage)) continue;
     if (confirmedRecords.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
     if (!x.piesaOwnerUnsigned || String(e["created_at"]) > x.piesaOwnerUnsigned.at) x.piesaOwnerUnsigned = { at: String(e["created_at"]), completedDate: s(rec?.completed_date) };
+  }
+  // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
+  for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
+    const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
   }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
