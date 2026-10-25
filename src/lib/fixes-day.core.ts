@@ -129,6 +129,14 @@ function labelledItems(doc: unknown): Labelled[] {
 }
 const allWithLabel = (items: Labelled[], label: string) => items.filter((i) => labelKey(i.label) === labelKey(label));
 
+/** Decision 336: the signature captured on a Mitti form under `label` (first occurrence; exact wording) — media id + its own
+ *  timestamp + signer name, only what Mitti recorded. Used for the A4 "Electrician signature" (and the A5 one via readFixesDay). */
+export function mittiSignatureByLabel(audit: unknown, label: string): ReadSignature & { itemId: string | null } {
+  const hit = allWithLabel(labelledItems(audit), label)[0];
+  return hit ? { ...hit.signature, itemId: hit.id } : { ...NO_SIGNATURE, itemId: null };
+}
+export type MittiSignatureRead = ReadSignature;
+
 /** Is this template / audit the "A5 – Electrical fixes" form? (Two labels no other form carries together.) */
 export function isFixesDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);

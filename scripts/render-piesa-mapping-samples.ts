@@ -4,6 +4,9 @@
 // owner's secure-link confirmation → evaluatePiesa → buildSignedSnapshot → fillOfficialDocxXml (the Word form) and
 // officialPiesaPdfText + textToPdf (the PDF the electrician gets). The approval check (officialFormUseBlocker) is NOT called
 // and OFFICIAL_TEMPLATES.piesa.approved is never changed: nothing here is stored, signed or sent. No database, no network.
+// Decision 336: the electrician's signature is a sample signature PICTURE (scripts/sample-signature-png.ts) embedded the way the
+// portal embeds the real Mitti image (fillOfficialDocxParts / textToPdf), and the A4 hazard rows use the decision-336 block.
+// Decision 338: case 3 answers the new "Does an electrician need to be on site at the start of the install?" question.
 // Output: docs/templates/samples/piesa-mapping/ (case-N.docx, case-N.pdf, case-N-docx.pdf, PNG pages, README.md).
 // PNGs need LibreOffice (Word → PDF) and pdftoppm; without them the .docx/.pdf are still written and the README says so.
 // Run: bun scripts/render-piesa-mapping-samples.ts
@@ -12,7 +15,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { unzipSync, zipSync } from "fflate";
 import piesaDocx from "../src/lib/official-docx-piesa.data";
-import { fillOfficialDocxXml, readOfficialDocx, xmlProblems } from "../src/lib/official-docx.core";
+import { fillOfficialDocxParts, readOfficialDocx, xmlProblems, type SignatureInput, type SignatureSlot } from "../src/lib/official-docx.core";
+import { sampleSignaturePng } from "./sample-signature-png";
 import {
   B1_OPTIONS,
   B2_OPTIONS,
@@ -24,7 +28,9 @@ import {
 } from "../src/lib/official-forms.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
 import {
+  APPLIANCE_PRESENT_LABEL,
   APPLIANCE_Q,
+  ONSITE_START_LABEL,
   FIXES_DOWNLIGHT_OPTION,
   FIXES_ONSITE_OPTION,
   FIXES_RCD_OPTION,
@@ -52,6 +58,7 @@ import {
 import {
   officialPiesaPdfHeader,
   officialPiesaPdfText,
+  type PdfSignatureMarks,
 } from "../src/lib/electrician-piesa-copy.core";
 import { textToPdf } from "../src/lib/signed-pdf.server";
 
@@ -74,6 +81,18 @@ const ELECTRICIAN = [
   e("b3.phone", "0400 111 222"),
   e("b3.declaration", "Yes"),
   e("electricianSignature", "signature captured in Mitti"),
+];
+/** Decision 336: the sample signature pictures (made up — never a real signature). */
+const A4_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A4");
+const A5_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A5 fixes");
+const hazardRow = (type: string, what: string, where: string, safe: "Yes" | "No", problem?: string, action?: string): Entry[] => [
+  { label: APPLIANCE_Q.type, value: type },
+  { label: APPLIANCE_Q.what, value: what },
+  { label: APPLIANCE_Q.where, value: where },
+  { label: APPLIANCE_Q.photo, value: "1 photo" },
+  { label: APPLIANCE_Q.safe, value: safe },
+  ...(problem ? [{ label: APPLIANCE_Q.problem, value: problem }] : []),
+  ...(action ? [{ label: APPLIANCE_Q.action, value: action }] : []),
 ];
 
 type Case = {
@@ -114,9 +133,7 @@ const CASES: Case[] = [
       e("downlightCount", "8"),
       e("downlightsNonIc", "No"),
       e("appliancesPresent", "Yes"),
-      { label: APPLIANCE_Q.what, value: "Bathroom exhaust fan, ceiling above the main bathroom" },
-      { label: APPLIANCE_Q.photo, value: "1 photo" },
-      { label: APPLIANCE_Q.safe, value: "Yes" },
+      ...hazardRow("Exhaust fan", "Bathroom exhaust fan", "Ceiling above the main bathroom", "Yes"),
       e("rectificationNeeded", "No"),
       ...ELECTRICIAN,
     ],
@@ -125,7 +142,7 @@ const CASES: Case[] = [
     n: 2,
     slug: "case-2-life-support-fixes",
     title:
-      "Life support (medical plan) + solar + 4 non-IC downlights; repairs needed, then done on the A5 fixes form with a CoES",
+      "Life support (medical plan) + solar + 4 non-IC downlights + a flue and a rotten joist; repairs needed, then done on the A5 fixes form with a CoES",
     jobNumber: "HV-SAMPLE-2",
     address: "7 Banksia Court, Frankston VIC 3199",
     inspectionDate: "2026-10-28",
@@ -151,13 +168,17 @@ const CASES: Case[] = [
       e("downlightCount", "4"),
       e("downlightsNonIc", "Yes"),
       e("downlightsNonIcCount", "4"),
-      e("appliancesPresent", "No"),
+      // Decision 336: one Flue and one Other hazard row.
+      e("appliancesPresent", "Yes"),
+      ...hazardRow("Flue", "Gas heater flue", "Ceiling above the lounge", "No", "The flue has no guard — insulation would touch the hot flue", "Fit a flue guard keeping insulation 50 mm clear before insulation goes in"),
+      ...hazardRow("Other hazard", "Rotten ceiling joist", "Hallway, next to the manhole", "No", "The joist is soft and cracked and won't take a person's weight", "Builder to replace the joist before insulation goes in"),
       e("rectificationNeeded", "Yes"),
       e("rectificationWork", `${B2_OPTIONS[0]}, ${B2_OPTIONS[2]}`),
       e("fixesPriceIncGst", "1180"),
       e("fixesWork", `${FIXES_DOWNLIGHT_OPTION}, ${FIXES_RCD_OPTION}`),
       e("fixesDownlightCount", "4"),
       e("fixesRcdCount", "1"),
+      e("onsiteStartNeeded", "No"),
       ...ELECTRICIAN,
     ],
     fixes: {
@@ -197,7 +218,7 @@ const CASES: Case[] = [
     n: 3,
     slug: "case-3-electrician-at-start",
     title:
-      'Repair needed where the only tick is "Be on site at the start of the install day" (electrician present at installation)',
+      'Repair needed where the only work is "Does an electrician need to be on site at the start of the install?" = Yes (decision 338; electrician present at installation)',
     jobNumber: "HV-SAMPLE-3",
     address: "22 Ironbark Road, Bendigo VIC 3550",
     inspectionDate: "2026-10-29",
@@ -224,7 +245,8 @@ const CASES: Case[] = [
         "Old main switch cannot be locked off. Electrician to attend at the start of the install day to isolate the mains, lock out and tag.",
       ),
       e("fixesPriceIncGst", "220"),
-      e("fixesWork", FIXES_ONSITE_OPTION),
+      // Decision 338: the on-site attendance is its own question now (the tick list stays empty).
+      e("onsiteStartNeeded", "Yes"),
       ...ELECTRICIAN,
     ],
   },
@@ -265,16 +287,16 @@ export const SOURCE: Record<string, string> = {
   "p6.recessed": `A4 ${q("downlightsPresent")}`,
   "p6.count": `A4 ${q("downlightCount")}`,
   "p6.prohibited": `A4 ${q("downlightsNonIc")}`,
-  "p7.appliances": `A4 ${q("appliancesPresent")} (one question for both)`,
-  "p7.flues": `A4 ${q("appliancesPresent")} (SAME answer as appliances — see "Still can't be filled from A4")`,
-  "p7.appliance": `A4 "${APPLIANCE_Q.what}" (one row per "Add an appliance or flue")`,
-  "p7.location": `A4 "${APPLIANCE_Q.what}" (SAME text as the Appliance column)`,
-  "p7.hazard": `Fixed wording from "${APPLIANCE_Q.safe}"`,
-  "p7.actions": `Fixed wording (none / see Part B2)`,
+  "p7.appliances": `A4 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Appliance (decision 336)`,
+  "p7.flues": `A4 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Flue or Exhaust fan (the official question names "exhaust fans or heating flues")`,
+  "p7.appliance": `A4 "${APPLIANCE_Q.what}" (one row per Appliance / Exhaust fan / Flue item)`,
+  "p7.location": `A4 "${APPLIANCE_Q.where}"`,
+  "p7.hazard": `A4 "${APPLIANCE_Q.problem}" (only when "${APPLIANCE_Q.safe}" = No), else "None — safe to insulate around"`,
+  "p7.actions": `A4 "${APPLIANCE_Q.action}" for each unsafe item ("None required" when all are safe)`,
   "p7.effective": `Derived: Yes when every item is safe as it is, or once repairs are recorded complete`,
-  "p7.otherHazard": `NOT ASKED on A4 — always blank`,
-  "p7.otherAction": `NOT ASKED on A4 — always blank`,
-  b1: `A4 ${q("rectificationNeeded")} + "${FIXES_ONSITE_OPTION}" tick (decision 314)`,
+  "p7.otherHazard": `A4 Other hazard rows: "${APPLIANCE_Q.what}" (${APPLIANCE_Q.where}): "${APPLIANCE_Q.problem}"`,
+  "p7.otherAction": `A4 Other hazard rows: "${APPLIANCE_Q.action}" ("None required" when safe as it is)`,
+  b1: `A4 ${q("rectificationNeeded")} + "${ONSITE_START_LABEL}" (decision 338; old forms: the "${FIXES_ONSITE_OPTION}" tick, decision 314)`,
   b2: `A4 ${q("rectificationWork")} (only when B1 = rectification required)`,
   "b2.other": `A4 ${q("rectificationOther")}`,
   "b3.licence": `A4 ${q("b3.licence")}`,
@@ -288,7 +310,7 @@ export const SOURCE: Record<string, string> = {
   "c.recName": `Copied from B3 once repairs are recorded`,
   "c.recNo": `Copied from B3 once repairs are recorded`,
   "c.phone": `Copied from B3 once repairs are recorded`,
-  "c.signature": `Typed electronic signature: A5 signer's name + the A5 signature's date ("Name (signed electronically on DD/MM/YYYY)")`,
+  "c.signature": `Decision 336: the A5 "Electrician signature" IMAGE in the box with "Signed in Mitti on DD/MM/YYYY" under it (no image on file → the typed "Name (signed electronically on DD/MM/YYYY)" + flag "Electrician signature image not available")`,
   "c.completionDate": `"today" of the regeneration = A5 "Date of certification"`,
   "c.coes": `A5 "Certificate of Electrical Safety number"`,
   "c.certDate": `A5 "Date of certification"`,
@@ -378,7 +400,7 @@ function run(c: Case) {
 
 const DATA_PREFIX =
   "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,";
-function fillDocx(answers: OfficialAnswers) {
+function fillDocx(answers: OfficialAnswers, signatures: Partial<Record<SignatureSlot, SignatureInput>>) {
   const bytes = new Uint8Array(
     Buffer.from(
       piesaDocx.startsWith(DATA_PREFIX)
@@ -393,17 +415,19 @@ function fillDocx(answers: OfficialAnswers) {
   const parts = unzipSync(bytes);
   const doc = parts["word/document.xml"];
   if (!doc) throw new Error("Official Word form has no document body.");
-  const { xml, filled, missed } = fillOfficialDocxXml(
-    new TextDecoder().decode(doc),
-    "piesa",
-    answers,
-  );
+  // Decision 336: the same package filler the portal uses (signature pictures + relationships + content types).
+  const r = fillOfficialDocxParts(parts, "piesa", answers, signatures);
   return {
-    bytes: zipSync({ ...parts, "word/document.xml": new TextEncoder().encode(xml) }, { level: 0 }),
-    filled,
-    missed,
-    xml,
+    bytes: zipSync(r.parts, { level: 0 }),
+    filled: r.filled,
+    missed: r.missed,
+    xml: r.xml,
     original: new TextDecoder().decode(doc),
+    parts: r.parts,
+    embedded: r.embedded,
+    notEmbedded: r.notEmbedded,
+    rels: r.rels,
+    types: r.types,
   };
 }
 
@@ -425,7 +449,7 @@ function wordAudit(xml: string, a: OfficialAnswers, original: string): { lines: 
   const count = (pred: (k: string, v: unknown) => boolean) => Object.entries(shown).filter(([k, v]) => pred(k, v)).length;
   const kindOf = (id: string) => items.find((i) => i.id === id.split("#")[0])?.kind;
   const mismatches: string[] = [];
-  for (const id of Object.keys(shown)) if (!same(a[id], shown[id])) mismatches.push(`\`${id}\`: answer ${JSON.stringify(a[id] ?? null)}, Word form shows ${JSON.stringify(shown[id] ?? null)}`);
+  for (const id of Object.keys(shown)) if (!same(a[id], shown[id]) && !(id === "c.signature" && /^Signed in Mitti on \d{2}\/\d{2}\/\d{4}$/.test(String(shown[id] ?? "")))) mismatches.push(`\`${id}\`: answer ${JSON.stringify(a[id] ?? null)}, Word form shows ${JSON.stringify(shown[id] ?? null)}`);
   for (const id of Object.keys(a)) if (!(id in shown) && a[id] != null && a[id] !== "" && id !== "p2.switch" && id !== "lifeSupportAttachment") mismatches.push(`\`${id}\`: answered but has no place on the Word form`);
   const yn = (v: string) => `${items.filter((i) => (i.kind === "yesno" || i.kind === "yesno_na") && i.id !== "p2.switch" && a[i.id] === v).length} answered ${v} — Word form shows ${count((k, x) => (kindOf(k) === "yesno" || kindOf(k) === "yesno_na") && x === v)} ticked "${v}" boxes`;
   const lines = [
@@ -433,7 +457,8 @@ function wordAudit(xml: string, a: OfficialAnswers, original: string): { lines: 
     `B1 outcome: ${show(a["b1"]) ? "answered" : "not answered"} — Word form shows ${shown["b1"] ? `"${String(shown["b1"]).slice(0, 60)}…"` : "no B1 box ticked"}.`,
     `B2 repair items: ${Array.isArray(a["b2"]) ? a["b2"].length : 0} answered — Word form shows ${Array.isArray(shown["b2"]) ? shown["b2"].length : 0} B2 boxes ticked.`,
     `Declaration ticks: ${items.filter((i) => i.kind === "tick" && a[i.id] === true).length} answered — Word form shows ${count((k, x) => kindOf(k) === "tick" && x === true)} ticked.`,
-    `Signatures: Section C ${shown["c.signature"] ? `"${shown["c.signature"]}"` : "blank"}; owner ${shown["o.signature"] ? `"${shown["o.signature"]}"` : "blank"}.`,
+    `Signatures: Part B3 ${/r:embed="rIdHivSignature1"/.test(xml) ? "electrician's signature PICTURE (from A4) + \"Signed in Mitti on …\"" : "no picture"}; Section C ${shown["c.signature"] ? `"${shown["c.signature"]}"` : "blank"}${(xml.match(/r:embed="rIdHivSignature\d+"/g) ?? []).length > 1 ? " under the A5 signature PICTURE" : ""}; owner ${shown["o.signature"] ? `"${shown["o.signature"]}"` : "blank"} (typed — owners sign on the secure link).`,
+    `Part 7 other hazards on the Word form: ${Array.from({ length: 14 }, (_, r) => r).filter((r) => shown[`p7.otherHazard#${r}`]).map((r) => `"${shown[`p7.otherHazard#${r}`]}" → "${shown[`p7.otherAction#${r}`] ?? ""}"`).join("; ") || "none"}; actions line: ${shown["p7.actions"] ? `"${shown["p7.actions"]}"` : "blank"}.`,
     `Part 7 rows on the Word form: ${Array.from({ length: 10 }, (_, r) => r).filter((r) => shown[`p7.appliance#${r}`]).map((r) => `Appliance "${shown[`p7.appliance#${r}`]}" / Location "${shown[`p7.location#${r}`] ?? ""}" / Hazard "${shown[`p7.hazard#${r}`] ?? ""}"`).join("; ") || "none"}.`,
   ];
   const problems = xmlProblems(xml);
@@ -474,7 +499,14 @@ async function main() {
   const results = [];
   for (const c of CASES) {
     const r = run(c);
-    const docx = fillDocx(r.expanded.answers);
+    // Decision 336: the A4 signature picture in Part B3; the A5 one in Section C once the fixes form is signed.
+    const signatures: Partial<Record<SignatureSlot, SignatureInput>> = {
+      "b3.signature": { images: [{ bytes: A4_SIGNATURE_PNG, contentType: "image/png", signedOn: c.inspectionDate }], fallbackText: null },
+      ...(c.fixes && r.expanded.answers["c.signature"] ? { "c.signature": { images: [{ bytes: A5_SIGNATURE_PNG, contentType: "image/png", signedOn: c.fixes.completedOn }] } } : {}),
+    };
+    const docx = fillDocx(r.expanded.answers, signatures);
+    if (docx.embedded.length !== Object.keys(signatures).length) throw new Error(`Case ${c.n}: not every signature picture was embedded.`);
+    for (const e of docx.embedded) if (!docx.xml.includes(`r:embed="${e.rId}"`) || !docx.rels.includes(`Id="${e.rId}"`) || !(e.part in docx.parts)) throw new Error(`Case ${c.n}: signature picture ${e.rId} is not wired up.`);
     if (xmlProblems(docx.xml).length || !xmllintOk(docx.xml)) throw new Error(`Case ${c.n}: the filled Word XML is not well-formed.`);
     writeFileSync(`${OUT}${c.slug}.docx`, docx.bytes);
     const snap = buildSignedSnapshot({
@@ -487,11 +519,13 @@ async function main() {
       acknowledgementIds: [],
       signature: `sample:${c.jobNumber}`,
     });
+    const marks: PdfSignatureMarks = { "b3.signature": { signedOn: c.inspectionDate }, ...(signatures["c.signature"] ? { "c.signature": { signedOn: c.fixes!.completedOn } } : {}) };
     writeFileSync(
       `${OUT}${c.slug}.pdf`,
       await textToPdf(
         `${officialPiesaPdfHeader(c.jobNumber)} (SAMPLE - mapping not approved)`,
-        officialPiesaPdfText(snap),
+        officialPiesaPdfText(snap, marks),
+        { "b3.signature": { bytes: A4_SIGNATURE_PNG, contentType: "image/png" }, "c.signature": { bytes: A5_SIGNATURE_PNG, contentType: "image/png" } },
       ),
     );
     const pdfPngs = pngs(`${OUT}${c.slug}.pdf`, `${c.slug}-pdf`);
@@ -546,6 +580,12 @@ async function main() {
     "",
   );
   out.push(
+    "## Decisions 336 and 338 (Jo 25 Oct 2026)",
+    "",
+    '1. **"WHERE IS THE ELECTRICIAN\'S SIGNATURE?"** The Word form now shows the electrician\'s ACTUAL signature picture captured in Mitti: the A4 "Electrician signature" straight after the Part B3 declaration (the official form prints no B3 signature box, so it sits in its own line there), and the A5 "Electrician signature" in the Section C "Signature" box — each with "Signed in Mitti on DD/MM/YYYY" under it. The picture is a real inline image (its own media part, an image relationship and the content type; the XML is checked well-formed). The PDF draws the same pictures. The samples use a made-up signature picture (`scripts/sample-signature-png.ts`). Owner blocks stay typed e-signatures (secure link). No image on file → the typed name and the office flag "Electrician signature image not available".',
+    '2. **Exact hazard rows.** The A4 block asks "What type is it?" (Appliance / Exhaust fan / Flue / Other hazard), "What is it?", "Where is it?", the photo, "Can insulation be safely installed around it as it is?", and when No "What is the problem?" + "What needs to be done to make it safe?". Part 7 is filled row by row from those answers (case 1: an exhaust fan; case 2: a flue and a rotten joist as an "other hazard"). Older forms keep the old standard wording.',
+    '3. **On site at the start (decision 338).** "Be on site at the start of the install day" left the tick list and is its own Yes/No question, "Does an electrician need to be on site at the start of the install?" (case 3 = Yes, nothing ticked). Old forms with the tick read the same way.',
+    "",
     "## Every official question: where it comes from, and what each case got",
     "",
     `| Official item | Comes from | ${results.map(({ c }) => `Case ${c.n}`).join(" | ")} |`,
@@ -623,15 +663,11 @@ async function main() {
     "",
     "These official items have no matching A4 question, so the portal cannot fill them truthfully. Proposal for each (Jo to decide; nothing changed):",
     "",
-    '- `p7.appliances` vs `p7.flues` — one A4 question ("appliances, exhaust fans or flues") answers both, so they are always the same. Proposal: per "Add an appliance or flue" item, add a pick-one "Appliance / Exhaust fan or flue" and derive each official question from the items.',
-    '- `p7.location` — copies the "What is it and where is it?" text (the Appliance column shows the same). Proposal: split into "What is it?" and "Where is it?" in the repeating block.',
-    '- `p7.hazard` / `p7.actions` — fixed portal wording from "Can insulation be safely installed around it as it is?". Proposal: when No, ask "What is the hazard?" and "What must be done before insulation?" (short text) in the block.',
-    "- `p7.otherHazard` / `p7.otherAction` (other hazards, e.g. rotten joist) — never asked, always blank. Proposal: one optional repeating block \"Any other hazard in the ceiling?\" with hazard + action.",
     '- `p4.tps` N/A — A4 can only say Yes/No. Proposal: add "There are no TPS cables in the ceiling" as a choice so N/A can be ticked.',
-    '- B1 third outcome (case 3) — "Be on site at the start of the install day" gives B1 "not possible … under parts 2 and 3", but the B2 tick and the electrician\'s description are not printed (B2 is only for rectification required), and A4 still requires a B2 tick. Proposal: when only "Be on site" is ticked, skip the B2 question on A4 and print the description in Part 7 "other hazards / action".',
+    '- B1 third outcome (case 3) — "Does an electrician need to be on site at the start of the install?" = Yes (decision 338) gives B1 "not possible … under parts 2 and 3"; B2 is only for rectification required, so nothing is printed in B2. Proposal: accept (the attendance is recorded and lined up automatically, decision 327).',
     '- `p2.switch` — the Word form prints no box; the derived answer lives only in the signed record and the PDF. Proposal: accept (the form\'s own note says the overall answer follows the sub-items).',
     '- `lifeSupportAttachment` — the consent / medical plan photo is kept as a job file, not printed on the Word form. Proposal: accept; attach the photo with the PIESA copy.',
-    '- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312 questions and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.',
+    '- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312/323 questions, the decision 336 hazard-row questions and the decision 338 on-site question, and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.',
     "",
   );
   writeFileSync(`${OUT}README.md`, `${out.join("\n")}\n`);

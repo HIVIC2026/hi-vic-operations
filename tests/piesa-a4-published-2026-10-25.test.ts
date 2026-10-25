@@ -8,6 +8,9 @@
 // (decision 323 deleted "Whose customer is this?"). Until Jo republishes A4, the published fixture reports EXACTLY the new
 // questions as missing — nothing else. The retired questions still on the published form (309's "Can the repair work be
 // done before installation?", 324's two official-tick questions) are legacy: never reported, their answers still read.
+// Decision 336 (Jo 25 Oct 2026): the hazard block asks type / what / where / photo / safe / problem / action (the decision-295
+// "What is it and where is it?" is legacy, still read); decision 338: "Does an electrician need to be on site at the start of the
+// install?" is its own question and the tick list is no longer Required — so the published form also lacks those questions.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { flattenDefinition, validateTemplate } from "../src/lib/mitti-forms.core";
@@ -15,10 +18,13 @@ import { validateSavedDefinition } from "../src/lib/mitti-form-schema.core";
 import {
   FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_INCLUDED_HELP, FIXES_INCLUDED_LABEL, FIXES_OTHER_HELP, FIXES_OTHER_LABEL, FIXES_PRICE_LABEL,
   FIXES_RCD_COUNT_LABEL, FIXES_WORK_LABEL, NO_PRICE_TALK_LABEL, REPAIR_OTHER_LEGACY_LABEL, REPAIR_TICKS_LEGACY_LABEL, shortAnswersFromEntries,
+  APPLIANCE_PRESENT_LABEL, APPLIANCE_Q, APPLIANCE_WHAT_WHERE_LEGACY_LABEL, ONSITE_START_LABEL, applianceRows,
 } from "../src/lib/official-short.core";
 
 const def = JSON.parse(readFileSync("tests/fixtures/mitti-piesa/a4-published-2026-10-25.json", "utf8"));
-const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, FIXES_WORK_LABEL, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, FIXES_PRICE_LABEL].map((l) => `Missing: ${l}`);
+const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, APPLIANCE_Q.type, APPLIANCE_Q.what, APPLIANCE_Q.where, APPLIANCE_Q.problem, APPLIANCE_Q.action, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL, FIXES_PRICE_LABEL].map((l) => `Missing: ${l}`);
+const APPLIANCE_BLOCK_LABEL = "Add an appliance or flue";
+const APPLIANCE_PARENT_OLD = "Are there any appliances, exhaust fans or flues in the ceiling space?";
 const RETIRED = ["Can the repair work be done before installation?", "No means an electrician must be present on installation day instead.", REPAIR_TICKS_LEGACY_LABEL, REPAIR_OTHER_LEGACY_LABEL];
 
 /** The published fixture as Jo republishes it (decisions 323/324): retired repair questions deleted, the plain list in the
@@ -35,8 +41,22 @@ function republished() {
     text("d308-dl", FIXES_DOWNLIGHT_COUNT_LABEL, "NUMBER"),
     text("d308-rcd", FIXES_RCD_COUNT_LABEL, "NUMBER"),
     text("d308-other", `${FIXES_OTHER_LABEL}\n${FIXES_OTHER_HELP}`),
+    list("d338-onsite", ONSITE_START_LABEL, false),
     text("d305-price", FIXES_PRICE_LABEL, "NUMBER"),
   );
+  // Decision 336: the parent question renamed; the block asks type / what / where / photo / safe / problem / action.
+  const walk = (x: { label?: string; children?: unknown[] }): { label?: string; children?: unknown[] } | null => {
+    if (x.label === APPLIANCE_BLOCK_LABEL) return x;
+    for (const c of (x.children ?? []) as { label?: string; children?: unknown[] }[]) { const hit = walk(c); if (hit) return hit; }
+    return null;
+  };
+  const parent = JSON.stringify(d).includes(APPLIANCE_PARENT_OLD) ? d.template.items.flatMap((s: { children: unknown[] }) => s.children).find((c: { label: string }) => c.label === APPLIANCE_PARENT_OLD) : null;
+  if (parent) parent.label = APPLIANCE_PRESENT_LABEL;
+  const block = d.template.items.map(walk).find(Boolean)!;
+  const kids = block.children as { label: string }[];
+  const at = kids.findIndex((c) => c.label === APPLIANCE_WHAT_WHERE_LEGACY_LABEL);
+  kids.splice(at, 1, list("d336-type", APPLIANCE_Q.type, false), text("d336-what", APPLIANCE_Q.what), text("d336-where", APPLIANCE_Q.where));
+  kids.push(text("d336-problem", APPLIANCE_Q.problem), text("d336-action", APPLIANCE_Q.action));
   const job = d.template.items.find((s: { label: string }) => s.label === "Job");
   job.children.push({ id: "d323-tick", label: NO_PRICE_TALK_LABEL, children: [], checkbox: { options: { weighting: null, is_mandatory: true } } });
   return d;
@@ -71,9 +91,22 @@ describe("published A4 PIESA", () => {
   });
   test("decision 324: the republished repair page asks the plain list first and the price LAST, without the retired questions", () => {
     const logic = republished().template.items.find((s: { label: string }) => s.label === "Repair work").children[0].children[0];
-    expect(logic.children.map((c: { label: string }) => c.label.split("\n")[0])).toEqual([FIXES_WORK_LABEL, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, FIXES_PRICE_LABEL]);
+    expect(logic.children.map((c: { label: string }) => c.label.split("\n")[0])).toEqual([FIXES_WORK_LABEL, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL, FIXES_PRICE_LABEL]); // decision 338: the on-site question before the price
   });
   test("pages in Jo's order and nothing after the declaration", () => {
     expect(def.template.items.map((s: { label: string }) => s.label)).toEqual(["Job", "Life support", "Mains power", "Solar, battery, generator", "Ceiling wiring", "Lights and appliances", "Repair work", "Electrician declaration"]);
+  });
+});
+
+describe("decision 336: the published (old) hazard block is still read", () => {
+  test("the old parent label and 'What is it and where is it?' still map; the row keeps the old wording", () => {
+    const short = shortAnswersFromEntries("piesa", [
+      { label: APPLIANCE_PARENT_OLD, value: "Yes" },
+      { label: APPLIANCE_WHAT_WHERE_LEGACY_LABEL, value: "Exhaust fan above the bathroom" },
+      { label: APPLIANCE_Q.photo, value: "1 photo" },
+      { label: APPLIANCE_Q.safe, value: "Yes" },
+    ]);
+    expect(short["appliancesPresent"]).toBe("Yes");
+    expect(applianceRows(short)).toEqual([{ type: null, what: "Exhaust fan above the bathroom", where: "", safe: "Yes", photo: true, problem: "", action: "", legacy: true }]);
   });
 });

@@ -3,7 +3,7 @@
 // - A "yes, all safe" answer sets every matching official Yes/No. A "no" sets only the ticked problems.
 // - Anything the portal can't fill for sure stays null and is listed in `flagged` for the office — never a guessed "No".
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
-import { applianceRows, derivedRepairTicks } from "./official-short.core";
+import { applianceRows, derivedRepairTicks, fixesWorkWithOnsite, NO_REPAIR_WORK_FLAG } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, electronicSignature, splitSelections, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, REPAIR_LEGACY_NOT_BEFORE_FLAG, SOLAR_PROBLEMS } from "./official-short.core";
 import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
@@ -26,6 +26,8 @@ export type ExpandContext = {
   ownerFixesConfirmation?: { name: string; date: string } | null;
 };
 export type ExpandResult = { answers: OfficialAnswers; flagged: string[] };
+/** Decision 336: the Part 7 Hazard cell for an item that is safe to insulate around as it is (new forms). */
+export const SAFE_AS_IT_IS = "None — safe to insulate around";
 
 const txt = (v: Value) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v)).trim();
 const isYes = (v: Value) => /^yes$/i.test(txt(v));
@@ -147,24 +149,65 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     }
   } else flagged.push("Downlights: not answered.");
 
-  // Part 7 appliances/flues (decision 295): one row per item from the repeating block; "safe as it is" = No means the work
-  // sits under Part B2 repair work, so the official "effective" tick is Yes only when every item is safe, or once the
-  // repair work is recorded complete. Old forms (one description + self-graded "effective") are still read.
+  // Part 7 appliances/flues/other hazards. Decision 336 (Jo 25 Oct 2026): each row of the repeating block says what TYPE
+  // it is, what and where it is, and — when it is not safe as it is — the problem and what must be done. Flue and Exhaust fan
+  // rows answer the official flues question ("exhaust fans or heating flues"), Appliance rows the appliances question; all
+  // three go in the official Appliance / Location / Hazard table (Hazard = "What is the problem?", else the standard
+  // "None — safe to insulate around"), the actions line lists "What needs to be done to make it safe?". Other hazard rows go
+  // in the official other-hazards table. Decision 295 rows (no type / Where — older forms) keep the old standard wording.
+  // The official "effective" tick is Yes when every item is safe, or once the repair work is recorded complete (A5).
   if (isYes(short["appliancesPresent"]) || isNo(short["appliancesPresent"])) {
-    out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
-    out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+    const rows = isYes(short["appliancesPresent"]) ? applianceRows(short) : [];
+    const typed = rows.filter((r) => !r.legacy);
+    const legacyRows = rows.filter((r) => r.legacy);
+    if (typed.length) {
+      out["p7.appliances"] = typed.some((r) => r.type === "Appliance") ? "Yes" : "No";
+      out["p7.flues"] = typed.some((r) => r.type === "Flue" || r.type === "Exhaust fan") ? "Yes" : "No";
+    } else {
+      out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+      out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+    }
     if (isYes(short["appliancesPresent"])) {
-      const rows = applianceRows(short);
       if (rows.length) {
-        rows.slice(0, 10).forEach((r, i) => {
-          out[`p7.appliance#${i}`] = r.what || "(not described)";
-          out[`p7.location#${i}`] = r.what || "(not described)";
-          out[`p7.hazard#${i}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
-          if (!r.what) flagged.push(`Appliance ${i + 1}: not described.`);
-          if (r.safe == null) flagged.push(`Appliance ${i + 1}: "safe as it is" not answered.`);
+        const actions: string[] = [];
+        let t = 0, o = 0;
+        rows.forEach((r, i) => {
+          const n = i + 1;
+          if (!r.what) flagged.push(`Appliance ${n}: not described.`);
+          if (r.safe == null) flagged.push(`Appliance ${n}: "safe as it is" not answered.`);
+          if (r.legacy) {
+            if (t >= 10) { flagged.push(`Appliance ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
+            out[`p7.appliance#${t}`] = r.what || "(not described)";
+            out[`p7.location#${t}`] = r.what || "(not described)";
+            out[`p7.hazard#${t}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
+            t++;
+            return;
+          }
+          if (!r.type) flagged.push(`Hazard row ${n}: "What type is it?" not answered.`);
+          if (!r.where) flagged.push(`Hazard row ${n}: "Where is it?" not answered.`);
+          if (r.safe === "No" && !r.problem) flagged.push(`Hazard row ${n}: "What is the problem?" not answered.`);
+          if (r.safe === "No" && !r.action) flagged.push(`Hazard row ${n}: "What needs to be done to make it safe?" not answered.`);
+          const hazard = r.safe === "No" ? r.problem : r.safe === "Yes" ? SAFE_AS_IT_IS : "";
+          if (r.type === "Other hazard") {
+            if (o >= 14) { flagged.push(`Hazard row ${n}: the official other-hazards table has only 14 rows — the office must attach the rest.`); return; }
+            const where = r.where ? ` (${r.where})` : "";
+            out[`p7.otherHazard#${o}`] = `${r.what || "(not described)"}${where}${hazard ? `: ${hazard}` : ""}`;
+            const act = r.safe === "No" ? r.action : r.safe === "Yes" ? "None required" : "";
+            if (act) out[`p7.otherAction#${o}`] = act;
+            o++;
+            return;
+          }
+          if (t >= 10) { flagged.push(`Hazard row ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
+          out[`p7.appliance#${t}`] = r.what || "(not described)";
+          if (r.where) out[`p7.location#${t}`] = r.where;
+          if (hazard) out[`p7.hazard#${t}`] = hazard;
+          if (r.safe === "No" && r.action) actions.push(`${r.what || `Row ${t + 1}`}: ${r.action}`);
+          t++;
         });
         const unsafe = rows.filter((r) => r.safe === "No");
-        out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        const unsafeTable = rows.filter((r) => r.safe === "No" && r.type !== "Other hazard");
+        if (legacyRows.length && !typed.length) out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        else if (t > 0) out["p7.actions"] = actions.length ? actions.join("; ") : unsafeTable.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
         if (rows.every((r) => r.safe === "Yes")) out["p7.effective"] = "Yes";
         else if (unsafe.length && isYes(short["rectificationComplete"])) out["p7.effective"] = "Yes";
         else if (unsafe.length) flagged.push("Appliances: work required before insulation — the official \"effective\" tick waits for the repair work to be recorded complete.");
@@ -201,6 +244,9 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     }
   } else if (outcome === RECTIFICATION_OUTCOMES[2]) out["b1"] = B1_OPTIONS[2];
   else flagged.push("Electrical fixes outcome: not answered.");
+  // Decision 338: "What will you do?" is no longer Required (it may be empty when the only work is being on site at the start),
+  // so repair work needed with neither a tick nor on-site attendance is one office flag (old forms' official ticks count).
+  if (/^yes\b/i.test(txt(short["rectificationNeeded"])) && !fixesWorkWithOnsite(short).length && !txt(short["rectificationWork"]) && !txt(short["fixesIncluded"])) flagged.push(`Electrical fixes: ${NO_REPAIR_WORK_FLAG}.`);
 
   // B3 declaration.
   if (ticked(short["b3.declaration"])) out["b3.declaration"] = true;
@@ -353,7 +399,9 @@ export const expandShortAnswers = (key: OfficialKey, short: ShortAnswers, ctx: E
 
 /** Ids the expansion intentionally never fills (signed on paper / office-completed table detail). */
 export const EXPANSION_EXCLUDED: Record<OfficialKey, string[]> = {
-  piesa: ["p7.location", "p7.hazard", "p7.actions", "p7.otherHazard", "p7.otherAction"],
+  // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A4 hazard rows now;
+  // nothing is excluded.
+  piesa: [],
   piisa: [],
 };
 

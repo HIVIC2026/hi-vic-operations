@@ -83,8 +83,15 @@ const show = (v: Value): string => {
   return String(v);
 };
 
+/** Decision 336: a line `[[image:<slot>]]` in the PDF text is where textToPdf draws that signature picture. */
+export const pdfImageMarker = (slot: string) => `[[image:${slot}]]`;
+/** Decision 336: what the PDF prints for a signature captured in Mitti (`signedOn` YYYY-MM-DD) — the picture (marker line)
+ *  and "Signed in Mitti on DD/MM/YYYY" under it. Absent = no Mitti signature image on file (the typed answer stays). */
+export type PdfSignatureMarks = Partial<Record<"b3.signature" | "c.signature", { signedOn: string }>>;
+const ddmmyyyy = (d: string) => d.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$3/$2/$1");
+
 /** The signed official document in the form's own order: headings and statements verbatim, each item with its answer. */
-export function officialPiesaPdfText(snap: SignedSnapshot): string {
+export function officialPiesaPdfText(snap: SignedSnapshot, signatures: PdfSignatureMarks = {}): string {
   const doc = Array.isArray(snap?.document) ? snap.document : [];
   const lines: string[] = [];
   for (const d of doc) {
@@ -97,6 +104,12 @@ export function officialPiesaPdfText(snap: SignedSnapshot): string {
       if (row && (d.value == null || d.value === "")) continue;
       const label = `${d.letter ? `${d.letter} ` : ""}${d.label}${row ? ` (row ${Number(row[1]) + 1})` : ""}`;
       lines.push(`${label}${/[:?]$/.test(label.trim()) ? "" : ":"} ${show(d.value)}`);
+      // Decision 336: the electrician's Mitti signature picture after the B3 declaration and in the Section C signature.
+      const slot = d.id === "b3.declaration" ? "b3.signature" : d.id === "c.signature" ? "c.signature" : null;
+      const mark = slot ? signatures[slot] : undefined;
+      if (slot && mark && (slot === "b3.signature" || (d.value != null && d.value !== ""))) {
+        lines.push(slot === "b3.signature" ? "Electrician signature:" : "Signature (Mitti):", pdfImageMarker(slot), `Signed in Mitti on ${ddmmyyyy(mark.signedOn)}`);
+      }
     }
   }
   const t = OFFICIAL_TEMPLATES.piesa;
