@@ -213,9 +213,8 @@ const CES_LABEL = PIESA_EVIDENCE_BY_ID.ces_file.label;
 /**
  * Writes the fixes-day facts into the stored PIESA short answers exactly where the same-visit answers (q30–q37, q45)
  * would sit, so `shortAnswersFromEntries("piesa", …)` → `expandPiesa` fills Part C (c.tick1–7, c.coes, c.certDate,
- * c.licence/name/recName/recNo/phone) and the evidence rule sees the CES file. Labels that repeat on the PIESA
- * ("Licence no:" in B3 and Section C) are assigned in form order, so the SECOND occurrence is the Section C one;
- * a missing occurrence is appended. Other entries are untouched. Pure.
+ * c.* derived from Part B3 by expandPiesa — the same person) and the evidence rule sees the CES file. The electrician
+ * details from the fixes form fill any blank Part B3 field; a missing label is appended. Other entries are untouched. Pure.
  */
 export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesDayRead, done: Extract<FixesCompletionPlan, { kind: "done" }>): SnapshotEntry[] {
   const out = snapshot.map((e) => ({ ...e }));
@@ -230,9 +229,10 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
   setNth(shortLabel("rectificationComplete"), 0, "Yes");
   setNth(shortLabel("coesNumber"), 0, done.coesNumber);
   setNth(shortLabel("certDate"), 0, done.certDate);
-  // Section C electrician details: second occurrence of each repeated label (B3 is the first).
-  const c: [string, string | null][] = [["c.licence", r.licence], ["c.name", r.electricianName], ["c.recName", r.recName], ["c.recNo", r.recNo], ["c.phone", r.phone]];
-  for (const [id, v] of c) if (v) setNth(shortLabel(id), 1, v);
+  // Electrician details: Part B3 (Section C is copied from it by expandPiesa). Only blanks are filled — the PIESA's own
+  // pre-filled answers win over the fixes form.
+  const b3: [string, string | null][] = [["b3.licence", r.licence], ["b3.name", r.electricianName], ["b3.recName", r.recName], ["b3.recNo", r.recNo], ["b3.phone", r.phone]];
+  for (const [id, v] of b3) { if (!v) continue; const hit = out.find((e) => key(e.label) === key(shortLabel(id))); if (!hit) out.push({ label: shortLabel(id), value: v, section: "fixes day (A5)" }); else if (!hit.value) hit.value = v; }
   // q45: the CES file, read by piesa-evidence.core from the same label.
   setNth(CES_LABEL, 0, `${done.coesFiles.length} file${done.coesFiles.length === 1 ? "" : "s"}`, done.coesFiles);
   return out;

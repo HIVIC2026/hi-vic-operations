@@ -61,6 +61,11 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   const out: OfficialAnswers = {};
   const flagged: string[] = [];
   copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone", "o.name", "o.date"]);
+  // Section C electrician details = the same person as Part B3 (Jo 25 Oct 2026: the Mitti form no longer repeats them);
+  // filled only once repair work is recorded (Section C is otherwise left blank on the official form).
+  if (isYes(short["rectificationComplete"]) || txt(short["coesNumber"])) {
+    for (const k of ["licence", "name", "recName", "recNo", "phone"]) if (!txt(short[`c.${k}`]) && txt(short[`b3.${k}`])) out[`c.${k}`] = txt(short[`b3.${k}`]);
+  }
 
   // Life support (decision 294): the electrician answers the fact directly ("Is there life support equipment at the
   // property?"); consent/medical plan only when Yes, and "No – not received" is a stop. Older forms carried

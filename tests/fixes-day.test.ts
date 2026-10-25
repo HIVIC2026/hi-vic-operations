@@ -96,14 +96,13 @@ describe("reading the audit and planning the Complete press", () => {
 
 describe("Part C lands in the stored PIESA answers where the same-visit answers would sit", () => {
   const L = (id: string) => SHORT_PIESA_FIELDS.find((f) => f.id === id)!.label;
-  test("merge sets rectificationComplete/CoES/date, the SECOND occurrence of each repeated electrician label, and the q45 file", () => {
+  test("merge sets rectificationComplete/CoES/date, fills blank Part B3 electrician details, and the q45 file", () => {
     const snapshot = [
       { label: L("rectificationOutcome"), value: REPAIR_NEEDED },
-      { label: L("c.licence"), value: "A1" }, // B3 occurrence (first)
+      { label: L("b3.licence"), value: "B3-A1" }, // pre-filled on the PIESA: wins over the fixes form
       { label: L("rectificationComplete"), value: null },
       { label: L("coesNumber"), value: null },
       { label: L("certDate"), value: null },
-      { label: L("c.licence"), value: null }, // Section C occurrence (second)
       { label: PIESA_EVIDENCE_BY_ID.ces_file.label, value: null },
     ];
     const r = readFixesDay(fullAudit());
@@ -114,11 +113,11 @@ describe("Part C lands in the stored PIESA answers where the same-visit answers 
     expect(short["rectificationComplete"]).toBe("Yes");
     expect(short["coesNumber"]).toBe("C123");
     expect(short["certDate"]).toBe("2026-10-20");
-    const lic = merged.filter((e) => e.label === L("c.licence"));
-    expect(lic.map((e) => e.value)).toEqual(["A1", "A1"]); // first untouched, second filled
+    expect(merged.filter((e) => e.label === L("b3.licence")).map((e) => e.value)).toEqual(["B3-A1"]); // the PIESA's own answer wins
     const ces = merged.find((e) => e.label === PIESA_EVIDENCE_BY_ID.ces_file.label)!;
     expect(ces.media).toHaveLength(1);
-    expect(merged.filter((e) => e.label === L("c.recName")).map((e) => e.section)).toEqual(["fixes day (A5)"]); // appended when absent
+    expect(merged.filter((e) => e.label === L("b3.recName")).map((e) => [e.value, e.section])).toEqual([["Sparks P/L", "fixes day (A5)"]]); // appended when absent
+    expect(short["c.licence"]).toBeUndefined(); // Section C is derived by expandPiesa from Part B3, not stored twice
   });
 });
 

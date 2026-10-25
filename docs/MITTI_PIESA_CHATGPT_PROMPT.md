@@ -52,11 +52,11 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 22. `Please describe the other repair work.` — Text — Required — only show when question 21 has `Other (indicate below):` ticked
 
 ## Group 8: Electrician declaration
-23. `Licence no:` — Text — Required — portal fills this in
-24. `Full Name:` — Text — Required — portal fills this in
-25. `Name:` — Text — Required — portal fills this in (this is the electrical contractor / REC business name)
-26. `REC registration no:` — Text — Required — portal fills this in
-27. `Telephone no:` — Text — Required — portal fills this in
+23. `Electrician licence number` — Text — Required — portal fills this in
+24. `Electrician full name` — Text — Required — portal fills this in
+25. `Electrical contractor (REC) business name` — Text — Required — portal fills this in
+26. `REC registration number` — Text — Required — portal fills this in
+27. `Electrician phone` — Text — Required — portal fills this in
 28. `I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission` — Checkbox (must tick) — Required
 29. `Electrician signature` — Signature — Required
 
@@ -64,13 +64,8 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 30. `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` — Yes/No — Required — only show when question 20 = `Yes, repair work is needed`
 31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 20 = `Yes, repair work is needed`
 32. `Date of Certification:` — Date — Required — only show when question 20 = `Yes, repair work is needed`
-33. `Licence no:` — Text — Required — portal fills this in — only show when question 20 = `Yes, repair work is needed`
-34. `Full Name:` — Text — Required — portal fills this in — only show when question 20 = `Yes, repair work is needed`
-35. `Name:` — Text — Required — portal fills this in — only show when question 20 = `Yes, repair work is needed`
-36. `REC registration no:` — Text — Required — portal fills this in — only show when question 20 = `Yes, repair work is needed`
-37. `Telephone no:` — Text — Required — portal fills this in — only show when question 20 = `Yes, repair work is needed`
 
-Note: questions 23–27 and 33–37 deliberately repeat the same labels. They are separate questions on the official form (declaration at assessment, then confirmation after repairs). Keep both sets.
+Note: the official form repeats the electrician details in Section C; the portal copies them from questions 23–27, so the form does not ask twice.
 
 ## Group 10: Owner
 38. `Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment.` — Yes/No — Required

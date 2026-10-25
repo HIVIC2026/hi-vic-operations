@@ -49,21 +49,16 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 20 | Is any electrical repair work needed before insulation can be installed? | Multiple choice (pick one): No repair work is needed / Yes, repair work is needed / Repair work is not possible, so an electrician must be present on installation day | Required |
 | 21 | Please tick the repair work that is required. | Multiple choice (tick all): Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights. / Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated) / Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000 / Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000 / Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000. / Other (indicate below): | Required · only show when: rectificationOutcome = Yes, repair work is needed |
 | 22 | Please describe the other repair work. | Text answer | Required · only show when: Other is ticked |
-| 23 | Licence no: | Text answer | Required · **portal fills this in** |
-| 24 | Full Name: | Text answer | Required · **portal fills this in** |
-| 25 | Name: | Text answer | Required · **portal fills this in** |
-| 26 | REC registration no: | Text answer | Required · **portal fills this in** |
-| 27 | Telephone no: | Text answer | Required · **portal fills this in** |
+| 23 | Electrician licence number | Text answer | Required · **portal fills this in** |
+| 24 | Electrician full name | Text answer | Required · **portal fills this in** |
+| 25 | Electrical contractor (REC) business name | Text answer | Required · **portal fills this in** |
+| 26 | REC registration number | Text answer | Required · **portal fills this in** |
+| 27 | Electrician phone | Text answer | Required · **portal fills this in** |
 | 28 | I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission | Checkbox (must tick) | Required |
 | 29 | Electrician signature | Signature | Required |
 | 30 | Have you completed all of the repair work listed above, and is the ceiling now safe for insulation? | Yes / No: Yes / No | Required · only show when: rectificationOutcome = Yes, repair work is needed |
 | 31 | Certificate of Electrical Safety number (required for any electrical works completed): | Text answer | Required · only show when: rectificationOutcome = Yes, repair work is needed |
 | 32 | Date of Certification: | Date | Required · only show when: rectificationOutcome = Yes, repair work is needed |
-| 33 | Licence no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 34 | Full Name: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 35 | Name: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 36 | REC registration no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 37 | Telephone no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
 | 38 | Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment. | Yes / No: Yes / No | Required |
 | 39 | Name: | Text answer | Required · **portal fills this in** |
 | 40 | Date: | Date | Required |
