@@ -28,6 +28,43 @@ function partOf(t: string): Part {
   return { kind: "embed", alias, key, inner, parts: parseSelect(body) };
 }
 
+/** Split on commas outside parentheses. */
+function splitTop(s: string): string[] {
+  const out: string[] = []; let depth = 0, cur = "";
+  for (const ch of s) { if (ch === "(") depth++; if (ch === ")") depth--; if (ch === "," && depth === 0) { out.push(cur); cur = ""; continue; } cur += ch; }
+  if (cur.trim()) out.push(cur);
+  return out.map((x) => x.trim());
+}
+/** One PostgREST logical filter string → SQL over t0 (eq/neq/gt/gte/lt/lte/is/in/like/ilike/cs, not.*, and()/or()). */
+function orSql(expr: string, ph: (v: unknown) => string, join = "OR"): string {
+  const one = (t: string): string => {
+    const nested = /^(and|or)\((.*)\)$/.exec(t);
+    if (nested) return `(${orSql(nested[2]!, ph, nested[1]!.toUpperCase())})`;
+    const m = /^([a-z_0-9]+)\.(not\.)?([a-z]+)\.(.*)$/.exec(t);
+    if (!m) throw new Error(`embed shim: unsupported or() term ${t}`);
+    const [, col, neg, op, raw] = m as unknown as [string, string, string | undefined, string, string];
+    const ref = `t0."${col}"`;
+    const val = raw.replace(/^"(.*)"$/, "$1");
+    let sql: string;
+    switch (op) {
+      case "eq": sql = `${ref} = ${ph(val)}`; break;
+      case "neq": sql = `${ref} <> ${ph(val)}`; break;
+      case "gt": sql = `${ref} > ${ph(val)}`; break;
+      case "gte": sql = `${ref} >= ${ph(val)}`; break;
+      case "lt": sql = `${ref} < ${ph(val)}`; break;
+      case "lte": sql = `${ref} <= ${ph(val)}`; break;
+      case "like": sql = `${ref}::text LIKE ${ph(val.replace(/\*/g, "%"))}`; break;
+      case "ilike": sql = `${ref}::text ILIKE ${ph(val.replace(/\*/g, "%"))}`; break;
+      case "is": sql = `${ref} IS ${val === "null" ? "NULL" : val === "true" ? "TRUE" : "FALSE"}`; break;
+      case "in": sql = `${ref}::text = ANY(${ph(splitTop(val.replace(/^\(|\)$/g, "")).map((x) => x.replace(/^"(.*)"$/, "$1")))})`; break;
+      case "cs": sql = `${ref} @> ${ph(val.startsWith("{") ? val.replace(/^\{|\}$/g, "").split(",") : JSON.parse(val))}`; break;
+      default: throw new Error(`embed shim: unsupported or() operator ${op}`);
+    }
+    return neg ? `NOT (${sql})` : sql;
+  };
+  return splitTop(expr).map(one).join(` ${join} `);
+}
+
 export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Record<string, string[]> } = {}) {
   const q = (c: string) => `"${c}"`;
   let n = 0;
@@ -63,6 +100,19 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
         is: (c: string, v: null | boolean) => add(c, (r) => `${r} IS ${v === null ? "NULL" : v ? "TRUE" : "FALSE"}`),
         contains: (c: string, v: unknown) => add(c, (r, ph) => `${r} @> ${ph(JSON.stringify(v))}::jsonb`),
         ilike: (c: string, v: string) => add(c, (r, ph) => `${r} ILIKE ${ph(v)}`),
+        like: (c: string, v: string) => add(c, (r, ph) => `${r} LIKE ${ph(v)}`),
+        match(o: Record<string, unknown>) { for (const [c, v] of Object.entries(o)) add(c, (r, ph) => `${r} = ${ph(v)}`); return b; },
+        overlaps: (c: string, v: unknown[]) => add(c, (r, ph) => `${r} && ${ph(v)}`),
+        /** PostgREST `or` filter string ("a.eq.1,b.is.null,and(c.gt.2,d.lt.3)") on base-table columns. */
+        or(expr: string, o?: { referencedTable?: string; foreignTable?: string }) {
+          if (o?.referencedTable || o?.foreignTable) return b; // filters on an embedded table only narrow the embed; not modelled
+          filters.push({ col: "__or__", sql: (_r, ph) => orSql(expr, ph) });
+          return b;
+        },
+        range(from: number, to: number) { lim = ` LIMIT ${Number(to) - Number(from) + 1} OFFSET ${Number(from)}`; return b; },
+        returns() { return b; },
+        abortSignal() { return b; },
+        throwOnError() { return b; },
         in: (c: string, v: unknown[]) => add(c, (r, ph) => `${r} = ANY(${ph(v)})`),
         not(c: string, o: string, v: unknown) {
           if (o === "is" && v === null) return add(c, (r) => `${r} IS NOT NULL`);
@@ -72,7 +122,11 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
         insert(p: Record<string, unknown> | Record<string, unknown>[]) { op = "insert"; patch = p; return b; },
         upsert(p: Record<string, unknown>, o?: { onConflict?: string; ignoreDuplicates?: boolean }) { op = "insert"; patch = p; conflict = o?.onConflict ?? "id"; ignoreDup = !!o?.ignoreDuplicates; return b; },
         delete() { op = "delete"; return b; },
-        order(c: string, o?: { ascending?: boolean }) { orderBy = ` ORDER BY ${q(c)} ${o?.ascending === false ? "DESC" : "ASC"}`; return b; },
+        order(c: string, o?: { ascending?: boolean; nullsFirst?: boolean; referencedTable?: string; foreignTable?: string }) {
+          if (o?.referencedTable || o?.foreignTable || c.includes("(")) return b;
+          orderBy = `${orderBy ? `${orderBy},` : " ORDER BY"} t0.${q(c)} ${o?.ascending === false ? "DESC" : "ASC"}${o?.nullsFirst === true ? " NULLS FIRST" : o?.nullsFirst === false ? " NULLS LAST" : ""}`;
+          return b;
+        },
         limit(x: number) { lim = ` LIMIT ${Number(x)}`; return b; },
         single() { single = "one"; return b; },
         maybeSingle() { single = "maybe"; return b; },
@@ -85,6 +139,7 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
           const where = (phFn: (v: unknown) => string = ph) => {
             const conds: string[] = [];
             for (const f of filters) {
+              if (f.col === "__or__") { conds.push(f.sql("t0", phFn)); continue; }
               const dot = f.col.indexOf(".");
               if (dot < 0) { conds.push(f.sql(`t0.${q(f.col)}`, phFn)); continue; }
               const [alias, col] = [f.col.slice(0, dot), f.col.slice(dot + 1)];
@@ -121,7 +176,10 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
             if (single === "one") return rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: `not exactly one row (${rows.length}) from ${table}` } };
             if (single === "maybe") return { data: rows[0] ?? null, error: null, ...(count != null ? { count } : {}) };
             return { data: op !== "select" && !returning ? null : rows, error: null, ...(count != null ? { count } : {}) };
-          } catch (e) { return { data: null, error: { message: `${(e as Error).message} [${sql}]`, code: (e as { code?: string }).code } }; }
+          } catch (e) {
+            if (process.env["SHIM_DEBUG"]) console.error(`[shim] ${(e as Error).message} :: ${sql.slice(0, 300)}`);
+            return { data: null, error: { message: `${(e as Error).message} [${sql}]`, code: (e as { code?: string }).code } };
+          }
         },
         then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) { return b.run().then(res, rej); },
       };

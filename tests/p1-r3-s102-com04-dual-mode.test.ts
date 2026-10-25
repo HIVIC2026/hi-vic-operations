@@ -18,8 +18,9 @@ function from(table: string) {
   let op: "select" | "insert" | "update" = "select";
   let values: unknown = null;
   let returning = false;
+  let exactCount = false, headOnly = false; // PostgREST count: "exact" / head (fakes predate the senders' exact counts)
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => (kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : true));
+  const match = (r: Row) => f.every(([k, kind, v]) => (kind === "eq" ? r[k] === v : kind === "neq" ? r[k] !== v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : true));
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "select" && table === "workflow_settings" && failWsSelect) return { data: null, error: { message: 'column "save_my_spot_real_send_enabled" does not exist', code: "42703" } };
@@ -36,15 +37,16 @@ function from(table: string) {
       for (const r of hit) Object.assign(r, values as Row);
       return { data: returning ? hit.map((r) => ({ id: r.id })) : null, error: null };
     }
-    return { data: rows().filter(match), error: null };
+    const hit = rows().filter(match);
+    return { data: headOnly ? null : hit, error: null, count: exactCount ? hit.length : null };
   };
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => { if (op !== "select") returning = true; return q; },
+    select: (_c?: string, o?: { count?: string; head?: boolean }) => { if (op !== "select") returning = true; else { exactCount = o?.count === "exact"; headOnly = o?.head === true; } return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; },
     in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
-    neq: () => q, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
+    neq: (k: string, v: unknown) => { f.push([k, "neq", v]); return q; }, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
     insert: (v: unknown) => { op = "insert"; values = v; return q; },
     update: (v: unknown) => { op = "update"; values = v; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },

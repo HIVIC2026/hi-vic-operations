@@ -1,9 +1,14 @@
 // Decision 172: the one-off "3 questions" reminder sends each enquiry ONCE, through the real guarded owner email path
 // and the one real SMS sender, against a real Postgres engine (PGlite). Providers are counting fakes; nothing leaves.
-import { beforeAll, expect, mock, test } from "bun:test";
+import { beforeAll, expect, mock, test, setSystemTime } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
+
+// Environment: these texts honour the 8pm–7am Melbourne quiet hours (Jo 22 Oct 2026). Pin the clock to 1pm Melbourne on
+// today's date so the result never depends on when the suite runs.
+{ const midday = new Date(); midday.setUTCHours(2, 0, 0, 0); setSystemTime(midday); }
+
 
 const db = new PGlite();
 let emails = 0, texts = 0;

@@ -344,15 +344,16 @@ describe("4. 'My usual electrician' with none saved → held; saved later → th
     expect(await events(C, "installer_quote_held")).toHaveLength(1);
     expect(sent.filter((s) => s.label.startsWith("quote_ready"))).toHaveLength(2);
   });
-  test("the installer saves a usual electrician under My business → the next tick prepares the quote with that electrician and releases it", async () => {
+  // Decisions 303 / 353 / 369 (JO_DECISIONS_LOG, Jo 25 Oct 2026) replace the old "usual electrician's saved price" rule:
+  // an installer job's electrician is Home Insulation Victoria's or an APPROVED REC only, priced at its own onboarding
+  // rate; anyone else holds the quote ("Electrician not onboarded: <name>"). Saving "Sam Sparks" (not an onboarded REC)
+  // under My business therefore must NOT release a quote priced from the form/My business.
+  test("decisions 303/369: saving a usual electrician who is not an onboarded REC releases nothing — no quote, no owner message", async () => {
     await tv.tradeSaveUsualElectrician(INST, { name: "Sam Sparks", licence: "REC 12345", priceIncGst: 299 });
     await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: true, call });
-    const [qq] = await q<Record<string, unknown>>("select id, status, release_state, sent_at from quotes where job_id=$1", [C]);
-    expect(qq).toMatchObject({ status: "issued", release_state: "released" });
-    const lines = await q<{ code: string; line_total_inc_gst: string; explanation: string | null }>("select code, line_total_inc_gst, explanation from quote_items where quote_id=$1 order by sort", [qq!["id"]]);
-    expect(lines.map((l) => [l.code, l.line_total_inc_gst])).toEqual([["INSTALLER_PRICE", "2500"], ["PIESA", "299"], ["AP_FEE", "349"]]);
-    expect(lines[1]!.explanation).toContain("Sam Sparks");
-    expect(await q("select id from job_communications where job_id=$1 and source_event like 'jo_tradie:quote_ready:%'", [C])).toHaveLength(2);
+    expect(await q("select id from quotes where job_id=$1 and status in ('issued','accepted')", [C])).toHaveLength(0);
+    expect(await q("select qi.id from quote_items qi join quotes qq on qq.id = qi.quote_id where qq.job_id=$1 and qi.line_total_inc_gst = 299", [C])).toHaveLength(0);
+    expect(await q("select id from job_communications where job_id=$1 and source_event like 'jo_tradie:quote_ready:%'", [C])).toHaveLength(0);
   });
 });
 
@@ -379,7 +380,9 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     expect(await q("select id from declarations where job_id=$1 and kind='owner_consent'", [A])).toHaveLength(1);
     expect(await events(A, "QUOTE_ACCEPTED")).toHaveLength(1);
     expect((await job(A))["stage"]).toBe("measured_quote_accepted");
-    expect(await q<{ payload: string }>("select payload from external_action_queue where job_id=$1", [A])).toEqual([{ payload: `quote_accepted:${qq!.id}` }]);
+    // Decision 376 (F13): the dead "quote accepted" outbox enqueue is gone — the installer is told by the approved I23
+    // email below instead, and nothing is queued that the dispatcher could never deliver.
+    expect(await q<{ payload: string }>("select payload from external_action_queue where job_id=$1", [A])).toEqual([]);
     // "You're told when they accept": the installer's email through the TEST path, once.
     expect(await q<{ source_event: string; recipients: string[] }>("select source_event, recipients from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toEqual([{ source_event: `jo_tradie:installer_accepted:${qq!.id}`, recipients: ["deep@hivic-test.example"] }]);
     expect((await events(A, "installer_accepted_email"))[0]!.details).toMatchObject({ status: "sent", quote_id: qq!.id });

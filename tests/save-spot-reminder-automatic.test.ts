@@ -1,7 +1,12 @@
-import { test, expect } from "bun:test";
+import { test, expect, setSystemTime } from "bun:test";
 import { reminderTimeBlocker, selectBlast, type BlastRow } from "../src/lib/save-spot-reminder-blast.core";
 import { createOneTapCredential, verifyOneTapCredential } from "../src/lib/save-spot-one-tap.core";
 import { smsBlocker } from "../src/lib/sms.core";
+
+// Environment: these texts honour the 8pm–7am Melbourne quiet hours (Jo 22 Oct 2026). Pin the clock to 1pm Melbourne on
+// today's date so the result never depends on when the suite runs.
+{ const midday = new Date(); midday.setUTCHours(2, 0, 0, 0); setSystemTime(midday); }
+
 const now = Date.parse("2026-10-21T04:28:00Z"), offer = "2026-10-20T04:28:00Z";
 test("24-hour boundary uses actual offer send, not enquiry date", () => {
   expect(reminderTimeBlocker(offer,now-1)).toBe("Spot offer is less than 24 hours old");
