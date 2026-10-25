@@ -140,7 +140,7 @@ describe("the don't-know email is truthful and spot-only", () => {
   });
 });
 
-test("old-enquirer questions path stays unapproved", () => {
+test("questions invitation stays held; the automatic Save my spot after answers was switched on by Jo (decision 388 update)", () => {
   expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(false);
-  expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(false);
+  expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(true);
 });

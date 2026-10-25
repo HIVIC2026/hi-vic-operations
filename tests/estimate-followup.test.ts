@@ -163,7 +163,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
 // ---------------------------------------------------------------------------
 type Row = Record<string, any>;
 const db: Record<string, Row[]> = {};
-const calls = { test: [] as string[], guarded: [] as string[] };
+const calls = { test: [] as string[], guarded: [] as string[], bodies: [] as string[] };
 let commsAllowed = true;
 
 const matches = (row: Row, f: { op: string; col: string; val: any }) => {
@@ -198,7 +198,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: Row, opts: Row = {}) => { (db.workflow_events ??= []).push({ job_id, event_type, summary, details, created_at: NOW, from_stage: opts.from ?? null, to_stage: opts.to ?? null }); } }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (!commsAllowed) throw new Error("Customer communications are switched off"); } }));
 mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async (ctx: { label: string }, to: string, subject: string) => { calls.test.push(`${ctx.label}:${to}:${subject}`); return { status: "sent", detail: "ok" }; } }));
-mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { jobId: string; to: string; purpose: string; key: string; build: (u: string | null) => { subject: string } }) => { calls.guarded.push(`${p.purpose}:${p.key}:${p.to}:${p.build("https://u/x").subject}`); return "sent"; } }));
+mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { jobId: string; to: string; purpose: string; key: string; build: (u: string | null) => { subject: string } }) => { const b = p.build("https://u/x") as { subject: string; text?: string }; calls.guarded.push(`${p.purpose}:${p.key}:${p.to}:${b.subject}`); calls.bodies.push(b.text ?? ""); return "sent"; } }));
 
 let NOW = day(2, 3_600_000);
 const SCEN = [{ by_access: { standard: { estimated_customer_total: 2188, applied_discount: 1610, pre_discount_total: 3798 } } }];
@@ -225,6 +225,15 @@ describe("server sweep (mocked backend)", () => {
     expect(calls.guarded.length).toBe(1);
     expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"], [ESTIMATE_FOLLOWUP_RESULT_EVENT, "day_2"]]);
     expect(db.workflow_events![1]!.details.sent).toBe(true);
+  });
+  test("decision 392: a \"don't know\" owner's reminder never says \"no existing insulation\"", async () => {
+    const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");
+    seed({ jobs: [job("dk")] });
+    db.indicative_estimates = [{ job_id: "dk", id: "est-dk", status: "current", area_m2: 137, area_source: "owner_estimate", insulation_declared: "unknown", scenarios: SCEN, created_at: EMAILED }];
+    calls.bodies.length = 0;
+    expect(await sweepEstimateFollowups(new Date(NOW))).toMatchObject({ sent: 1 });
+    expect(calls.bodies.at(-1)).toContain("existing insulation not known yet");
+    expect(calls.bodies.at(-1)).not.toContain("no existing insulation");
   });
   test("TEST job: day 2 goes through test-send once, recorded first; a second tick does nothing", async () => {
     const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");

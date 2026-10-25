@@ -99,10 +99,12 @@ async function reminderInput(j: JobRow): Promise<{ ok: true; rebate: number; pri
   if (!link) return { ok: false, reason: "No working secure estimate link (missing or expired)" };
   const basis = joAreaBasis({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerAreaM2: j.estimated_area_unknown ? null : Number(j.estimated_area_m2) || null });
   if (!basis.ok) return { ok: false, reason: "Estimate size basis needs office review" };
-  const someInsulation = normaliseInsulation(est?.insulation_declared ?? null) === "present";
+  // Decision 392: "don't know" is never described as "no existing insulation".
+  const declared = normaliseInsulation(est?.insulation_declared ?? null);
+  const someInsulation = declared === "present";
   const figures: JoEstimateFigures = { veuRebate: price.discount, customerTotal: price.total, totalBeforeRebate: price.gross, installation: 0, piesaFee: 0, apFee: 0, ceilingAreaM2: basis.areaM2, areaEstimated: basis.areaEstimated };
   const base = `${CUSTOMER_BASE}/estimate/${link.token}`;
-  return { ok: true, rebate: price.discount, price: price.total, fullPrice: price.gross, basis: basisLine(figures, someInsulation), someInsulation, saveUrl: `${base}/campaign`, calculatorUrl: `${base}/calculator` };
+  return { ok: true, rebate: price.discount, price: price.total, fullPrice: price.gross, basis: basisLine(figures, declared === "unknown" ? "unknown" : someInsulation), someInsulation, saveUrl: `${base}/campaign`, calculatorUrl: `${base}/calculator` };
 }
 
 /** Sends one reminder step for one job. Records the step first; never sends the same step twice. */
