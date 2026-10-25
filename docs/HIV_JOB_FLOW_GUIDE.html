@@ -90,6 +90,15 @@ td:first-child{font-weight:600}
 .pay .amt{font-family:var(--display);font-weight:800;font-size:20px;color:var(--money)}
 .off{display:grid;gap:8px;margin:0;padding-left:20px}
 footer{color:var(--sub);font-size:14px}
+.qa-list{display:grid;gap:8px}
+.qa{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.qa summary{cursor:pointer;padding:14px 16px;font-family:var(--display);font-weight:700;font-size:16px;list-style-position:outside}
+.qa summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:12px}
+.qa[open] summary{border-bottom:1px solid var(--line)}
+.qa-body{padding:12px 16px 16px;display:grid;gap:10px;min-width:0}
+.qa-body ul,.qa-body ol{margin:0;padding-left:20px;display:grid;gap:4px}
+.qa-body .src{font-family:var(--mono);font-size:12px;color:var(--sub)}
+.qa-body table{min-width:560px}
 .rule{background:var(--warn-bg);border-radius:14px;padding:18px;border:2px solid var(--warn)}
 .rule h2{color:var(--warn)}
 .flowfig{margin:0;display:grid;gap:8px}
@@ -129,8 +138,8 @@ footer{color:var(--sub);font-size:14px}
     <li><a href="#s10"><span class="n">Step 10</span><span class="t">After the install</span><span class="dots"><i class="o"></i><i class="i"></i><i class="a"></i></span></a></li>
     <li><a href="#s11"><span class="n">Step 11</span><span class="t">Final check and VEECs</span><span class="dots"><i class="f"></i></span></a></li>
   </ol>
-  <h3>Who does what, in order</h3>
-  <figure class="flowfig"><div class="tbl flowwrap"><svg viewBox="0 0 1450 560" role="img" aria-label="Swimlane diagram of a job from enquiry to VEECs: owner, installer, electrician, office and automatic steps in order, with the optional electrical fixes branch and the 30-day window from the safety check to the install." style="width:100%;min-width:1150px;height:auto;display:block;color:var(--ink);font-family:var(--body)"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="ahA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs><rect x="0" y="15" width="1450" height="90" style="fill:var(--owner-bg)" opacity="0.55"/><line x1="0" y1="105" x2="1450" y2="105" stroke="currentColor" stroke-opacity="0.15"/><text x="14" y="64" font-size="13" font-weight="700" style="fill:var(--owner)">Owner</text><rect x="0" y="105" width="1450" height="90" style="fill:var(--inst-bg)" opacity="0.55"/><line x1="0" y1="195" x2="1450" y2="195" stroke="currentColor" stroke-opacity="0.15"/><text x="14" y="154" font-size="13" font-weight="700" style="fill:var(--inst)">Installer</text><rect x="0" y="195" width="1450" height="90" style="fill:var(--elec-bg)" opacity="0.55"/><line x1="0" y1="285" x2="1450" y2="285" stroke="currentColor" stroke-opacity="0.15"/><text x="14" y="244" font-size="13" font-weight="700" style="fill:var(--elec)">Electrician</text><rect x="0" y="285" width="1450" height="90" style="fill:var(--office-bg)" opacity="0.55"/><line x1="0" y1="375" x2="1450" y2="375" stroke="currentColor" stroke-opacity="0.15"/><text x="14" y="334" font-size="13" font-weight="700" style="fill:var(--office)">Office</text><rect x="0" y="375" width="1450" height="90" style="fill:var(--auto-bg)" opacity="0.55"/><line x1="0" y1="465" x2="1450" y2="465" stroke="currentColor" stroke-opacity="0.15"/><text x="14" y="424" font-size="13" font-weight="700" style="fill:var(--auto)">Automatic</text><text x="190" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 1</text><text x="290" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 2</text><text x="390" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 3</text><text x="490" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 4</text><text x="590" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 5</text><text x="690" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 6</text><text x="790" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 6b</text><text x="890" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 7</text><text x="990" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 8</text><text x="1090" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 9</text><text x="1190" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 10</text><text x="1290" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 10</text><text x="1390" y="11" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.6">Step 11</text><rect x="146.0" y="37.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--owner)" stroke-width="1.6"/><text x="190" y="57" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Enquiry</text><text x="190" y="72" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">website</text><rect x="146.0" y="397.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--auto)" stroke-width="1.6"/><text x="190" y="417" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Estimate</text><text x="190" y="432" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">email</text><rect x="246.0" y="307.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--office)" stroke-width="1.6"/><text x="290" y="327" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Pick installer</text><text x="290" y="342" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">our leads</text><rect x="246.0" y="127.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--inst)" stroke-width="1.6"/><text x="290" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Add a job</text><text x="290" y="162" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">own customers</text><rect x="346.0" y="127.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--inst)" stroke-width="1.6"/><text x="390" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Ready Check</text><text x="390" y="162" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">Mitti A1/A2</text><rect x="446.0" y="397.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--auto)" stroke-width="1.6"/><text x="490" y="417" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Quote</text><text x="490" y="432" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">prepared</text><rect x="446.0" y="307.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--office)" stroke-width="1.6"/><text x="490" y="327" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Check + Send</text><text x="490" y="342" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">launch</text><rect x="546.0" y="37.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--owner)" stroke-width="1.6"/><text x="590" y="57" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Accept + pay</text><text x="590" y="72" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">safety check</text><rect x="646.0" y="217.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--elec)" stroke-width="1.6"/><text x="690" y="237" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">PIESA</text><text x="690" y="252" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">Mitti A4</text><rect x="746.0" y="217.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--elec)" stroke-width="1.6" stroke-dasharray="5 4"/><text x="790" y="237" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Fixes</text><text x="790" y="252" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">Mitti A5</text><rect x="746.0" y="37.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--owner)" stroke-width="1.6"/><text x="790" y="57" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Confirm</text><text x="790" y="72" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">safety check</text><rect x="846.0" y="127.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--inst)" stroke-width="1.6"/><text x="890" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Offer 3 days</text><text x="890" y="162" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">in 30 days</text><rect x="846.0" y="37.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--owner)" stroke-width="1.6"/><text x="890" y="57" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Consent +</text><text x="890" y="72" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">deposit</text><rect x="946.0" y="397.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--auto)" stroke-width="1.6"/><text x="990" y="417" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">ESC notice</text><text x="990" y="432" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">robot</text><rect x="1046.0" y="127.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--inst)" stroke-width="1.6"/><text x="1090" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Install</text><text x="1090" y="162" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">Mitti A3</text><rect x="1146.0" y="127.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--inst)" stroke-width="1.6"/><text x="1190" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Sign VEEC</text><text x="1190" y="162" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">form</text><rect x="1146.0" y="397.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--auto)" stroke-width="1.6"/><text x="1190" y="417" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">AP signs</text><text x="1190" y="432" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">auto</text><rect x="1246.0" y="37.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--owner)" stroke-width="1.6"/><text x="1290" y="57" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Owner signs</text><text x="1290" y="72" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">+ balance</text><rect x="1346.0" y="307.0" width="88" height="46" rx="7" style="fill:var(--surface);stroke:var(--office)" stroke-width="1.6"/><text x="1390" y="327" font-size="11.5" font-weight="700" text-anchor="middle" fill="currentColor">Final check</text><text x="1390" y="342" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.75">+ VEECs</text><polyline points="190,83 190,397" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="190" y="234" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">auto</text><polyline points="234,420 240,420 240,330 246,330" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="240" y="369" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">saves spot</text><polyline points="334,330 340,330 340,150 346,150" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="340" y="234" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">offer, 24h</text><polyline points="334,150 346,150" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="434,150 440,150 440,420 446,420" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="440" y="279" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">Complete</text><polyline points="490,397 490,353" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="534,330 540,330 540,60 546,60" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="540" y="189" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">quote sent</text><polyline points="634,60 640,60 640,240 646,240" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="640" y="144" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">auto offer</text><polyline points="734,240 746,240" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" stroke-dasharray="5 4" marker-end="url(#ah)"/><text x="740" y="212" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">repairs needed</text><polyline points="734,240 740,240 740,60 746,60" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="740" y="98" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">no repairs</text><polyline points="790,217 790,83" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" stroke-dasharray="5 4" marker-end="url(#ah)"/><polyline points="834,60 840,60 840,150 846,150" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="890,127 890,83" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="890" y="99" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">owner picks</text><polyline points="934,60 940,60 940,420 946,420" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="940" y="234" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">24h–5 days before</text><polyline points="1034,420 1040,420 1040,150 1046,150" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="1134,150 1146,150" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="1190,173 1190,397" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><polyline points="1234,420 1240,420 1240,60 1246,60" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="1240" y="234" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">then owner</text><polyline points="1334,60 1340,60 1340,330 1346,330" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.85" marker-end="url(#ah)"/><text x="1340" y="189" font-size="10.5" text-anchor="middle" fill="currentColor" opacity="0.8">all signed</text><line x1="690" y1="538" x2="1090" y2="538" style="stroke:var(--accent)" stroke-width="2" marker-start="url(#ahA)" marker-end="url(#ahA)"/><line x1="690" y1="263.0" x2="690" y2="544" style="stroke:var(--accent)" stroke-dasharray="3 4" stroke-width="1.2"/><line x1="1090" y1="173.0" x2="1090" y2="544" style="stroke:var(--accent)" stroke-dasharray="3 4" stroke-width="1.2"/><text x="890.0" y="526" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--accent)">Install within 30 days of the official PIESA date (fixes don't restart it)</text></svg></div><figcaption>Each row is who acts. Follow the arrows left to right. The dashed path is only for jobs where the safety check finds repairs. The green bracket is the VEU 30-day window: it starts on the official PIESA date and the install must happen inside it.</figcaption></figure>
+  <h3>Who does what, and which VEU form is signed when</h3>
+  <figure class="flowfig"><div class="tbl flowwrap"><svg viewBox="0 0 1304 1000" role="img" aria-label="Who does what at each step, top to bottom, with the VEU form signed at each step and by whom. The 30-day window runs from the safety check row to the install day row." style="width:100%;min-width:900px;height:auto;display:block;color:var(--ink);font-family:var(--body)"><text x="206.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--owner)">Owner</text><text x="390.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--inst)">Installer</text><text x="574.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--elec)">Electrician</text><text x="758.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--office)">Office</text><text x="942.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--auto)">Portal (automatic)</text><text x="1126.0" y="24" font-size="14" font-weight="700" text-anchor="middle" style="fill:var(--accent)">VEU form signed</text><rect x="0" y="44" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="79.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 1</text><text x="12" y="96.0" font-size="13.5" font-weight="700" fill="currentColor">Enquiry</text><rect x="118" y="52" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="80.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Fills in website</text><text x="206.0" y="97.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">calculator</text><rect x="854" y="52" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="80.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Sends estimate</text><text x="942.0" y="97.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">email</text><line x1="0" y1="122" x2="1304" y2="122" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="157.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 2</text><text x="12" y="174.0" font-size="13.5" font-weight="700" fill="currentColor">Job starts</text><rect x="302" y="130" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="158.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Add a job</text><text x="390.0" y="175.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">(own customers)</text><rect x="670" y="130" width="176" height="62" rx="8" style="fill:var(--office-bg);stroke:var(--office)" stroke-width="1.6"/><text x="758.0" y="158.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Picks installer</text><text x="758.0" y="175.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">(our leads)</text><rect x="854" y="130" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="158.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Offer text +</text><text x="942.0" y="175.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">Mitti form made</text><line x1="0" y1="200" x2="1304" y2="200" stroke="currentColor" stroke-opacity="0.12"/><rect x="0" y="200" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="235.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 3</text><text x="12" y="252.0" font-size="13.5" font-weight="700" fill="currentColor">Ready Check</text><rect x="118" y="208" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="236.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Picks visit time</text><text x="206.0" y="253.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">(our leads)</text><rect x="302" y="208" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="236.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Measures, films,</text><text x="390.0" y="253.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">photos · Mitti A1/A2</text><line x1="0" y1="278" x2="1304" y2="278" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="313.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 4</text><text x="12" y="330.0" font-size="13.5" font-weight="700" fill="currentColor">Quote</text><rect x="302" y="286" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="314.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Presses Complete;</text><text x="390.0" y="331.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">boss enters price</text><rect x="670" y="286" width="176" height="62" rx="8" style="fill:var(--office-bg);stroke:var(--office)" stroke-width="1.6"/><text x="758.0" y="314.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Checks quote,</text><text x="758.0" y="331.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">presses Send</text><rect x="854" y="286" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="314.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Prepares the</text><text x="942.0" y="331.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">quote</text><line x1="0" y1="356" x2="1304" y2="356" stroke="currentColor" stroke-opacity="0.12"/><rect x="0" y="356" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="391.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 5</text><text x="12" y="408.0" font-size="13.5" font-weight="700" fill="currentColor">Accept</text><rect x="118" y="364" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="392.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Accepts, signs,</text><text x="206.0" y="409.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">pays safety check</text><rect x="854" y="364" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="392.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Xero invoice; offer</text><text x="942.0" y="409.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">to electrician</text><rect x="1038" y="364" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="392.0" font-size="12.5" font-weight="700" fill="currentColor">Customer Agreement</text><text x="1048" y="409.0" font-size="11.5" fill="currentColor" opacity="0.85">Owner signs</text><line x1="0" y1="434" x2="1304" y2="434" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="469.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 6</text><text x="12" y="486.0" font-size="13.5" font-weight="700" fill="currentColor">Safety check</text><rect x="118" y="442" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="470.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Confirms the check</text><text x="206.0" y="487.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">on secure link</text><rect x="486" y="442" width="176" height="62" rx="8" style="fill:var(--elec-bg);stroke:var(--elec)" stroke-width="1.6"/><text x="574.0" y="470.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Checks, prices fixes,</text><text x="574.0" y="487.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">signs · Mitti A4</text><rect x="854" y="442" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="470.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Fills official</text><text x="942.0" y="487.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">PIESA</text><rect x="1038" y="442" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="470.0" font-size="12.5" font-weight="700" fill="currentColor">PIESA</text><text x="1048" y="487.0" font-size="11.5" fill="currentColor" opacity="0.85">Electrician signs · Owner confirms</text><line x1="0" y1="512" x2="1304" y2="512" stroke="currentColor" stroke-opacity="0.12"/><rect x="0" y="512" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="547.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 6b</text><text x="12" y="564.0" font-size="13.5" font-weight="700" fill="currentColor">Fixes (if any)</text><rect x="118" y="520" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="548.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Approves + pays</text><text x="206.0" y="565.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">fixes, picks time</text><rect x="486" y="520" width="176" height="62" rx="8" style="fill:var(--elec-bg);stroke:var(--elec)" stroke-width="1.6"/><text x="574.0" y="548.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Fixes, issues CoES</text><text x="574.0" y="565.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">· Mitti A5</text><rect x="670" y="520" width="176" height="62" rx="8" style="fill:var(--office-bg);stroke:var(--office)" stroke-width="1.6"/><text x="758.0" y="548.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Checks + sends</text><text x="758.0" y="565.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">fixes quote</text><rect x="1038" y="520" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="548.0" font-size="12.5" font-weight="700" fill="currentColor">PIESA Section C + CoES</text><text x="1048" y="565.0" font-size="11.5" fill="currentColor" opacity="0.85">Electrician</text><line x1="0" y1="590" x2="1304" y2="590" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="625.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 7</text><text x="12" y="642.0" font-size="13.5" font-weight="700" fill="currentColor">Book install</text><rect x="118" y="598" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="626.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Picks day, signs</text><text x="206.0" y="643.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">consent, pays 10%</text><rect x="302" y="598" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="626.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Offers 3 days</text><text x="390.0" y="643.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">inside 30 days</text><rect x="1038" y="598" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="626.0" font-size="12.5" font-weight="700" fill="currentColor">ESC Owner&#x27;s Consent</text><text x="1048" y="643.0" font-size="11.5" fill="currentColor" opacity="0.85">Owner, then AP · 24h+ before</text><line x1="0" y1="668" x2="1304" y2="668" stroke="currentColor" stroke-opacity="0.12"/><rect x="0" y="668" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="703.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 8</text><text x="12" y="720.0" font-size="13.5" font-weight="700" fill="currentColor">Before install</text><rect x="302" y="676" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="704.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Every crew member</text><text x="390.0" y="721.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">signs safety plan</text><rect x="670" y="676" width="176" height="62" rx="8" style="fill:var(--office-bg);stroke:var(--office)" stroke-width="1.6"/><text x="758.0" y="704.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">ESC install notice</text><text x="758.0" y="721.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">(robot, 24h–5 days)</text><rect x="854" y="676" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="704.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">PIESA copies 24h+;</text><text x="942.0" y="721.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">pre-start check</text><rect x="1038" y="676" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="704.0" font-size="12.5" font-weight="700" fill="currentColor">SWMS + ESC install notice</text><text x="1048" y="721.0" font-size="11.5" fill="currentColor" opacity="0.85">Every crew member · AP lodges</text><line x1="0" y1="746" x2="1304" y2="746" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="781.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 9</text><text x="12" y="798.0" font-size="13.5" font-weight="700" fill="currentColor">Install day</text><rect x="302" y="754" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="782.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Installs, lead</text><text x="390.0" y="799.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">signs · Mitti A3</text><rect x="854" y="754" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="782.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Fills official</text><text x="942.0" y="799.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">PIISA</text><rect x="1038" y="754" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="782.0" font-size="12.5" font-weight="700" fill="currentColor">PIISA</text><text x="1048" y="799.0" font-size="11.5" fill="currentColor" opacity="0.85">Lead installer signs</text><line x1="0" y1="824" x2="1304" y2="824" stroke="currentColor" stroke-opacity="0.12"/><rect x="0" y="824" width="1304" height="78" style="fill:var(--bg)" opacity="0.9"/><text x="12" y="859.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 10</text><text x="12" y="876.0" font-size="13.5" font-weight="700" fill="currentColor">After install</text><rect x="118" y="832" width="176" height="62" rx="8" style="fill:var(--owner-bg);stroke:var(--owner)" stroke-width="1.6"/><text x="206.0" y="860.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Signs VEEC form,</text><text x="206.0" y="877.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">pays balance</text><rect x="302" y="832" width="176" height="62" rx="8" style="fill:var(--inst-bg);stroke:var(--inst)" stroke-width="1.6"/><text x="390.0" y="860.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">Lead signs</text><text x="390.0" y="877.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">VEEC form first</text><rect x="854" y="832" width="176" height="62" rx="8" style="fill:var(--auto-bg);stroke:var(--auto)" stroke-width="1.6"/><text x="942.0" y="860.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">AP signs VEEC</text><text x="942.0" y="877.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">form automatically</text><rect x="1038" y="832" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="860.0" font-size="12.5" font-weight="700" fill="currentColor">VEEC Assignment Form</text><text x="1048" y="877.0" font-size="11.5" fill="currentColor" opacity="0.85">Installer → AP → Owner</text><line x1="0" y1="902" x2="1304" y2="902" stroke="currentColor" stroke-opacity="0.12"/><text x="12" y="937.0" font-size="12" font-weight="700" fill="currentColor" opacity="0.6">Step 11</text><text x="12" y="954.0" font-size="13.5" font-weight="700" fill="currentColor">VEECs</text><rect x="670" y="910" width="176" height="62" rx="8" style="fill:var(--office-bg);stroke:var(--office)" stroke-width="1.6"/><text x="758.0" y="938.0" font-size="12.5" font-weight="700" text-anchor="middle" fill="currentColor">AP final check,</text><text x="758.0" y="955.0" font-size="12" text-anchor="middle" fill="currentColor" opacity="0.85">creates VEECs</text><rect x="1038" y="910" width="206" height="62" rx="8" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.6"/><text x="1048" y="938.0" font-size="12.5" font-weight="700" fill="currentColor">VEEC creation</text><text x="1048" y="955.0" font-size="11.5" fill="currentColor" opacity="0.85">AP in the Registry</text><line x1="0" y1="980" x2="1304" y2="980" stroke="currentColor" stroke-opacity="0.12"/><line x1="1258" y1="446" x2="1258" y2="812" style="stroke:var(--accent)" stroke-width="3"/><line x1="1250" y1="446" x2="1258" y2="446" style="stroke:var(--accent)" stroke-width="3"/><line x1="1250" y1="812" x2="1258" y2="812" style="stroke:var(--accent)" stroke-width="3"/><text transform="translate(1274,629.0) rotate(-90)" font-size="12.5" font-weight="700" text-anchor="middle" style="fill:var(--accent)">30 days from the PIESA date</text></svg></div><figcaption>Read top to bottom: each row is a step, each coloured box is who acts. The right-hand column is the VEU form signed at that step and who signs it. The green bracket is the 30-day window: it starts on the official PIESA date and the install must happen inside it. Step 6b only happens when the safety check finds repairs.</figcaption></figure>
 </section>
 
 <section aria-labelledby="h-paid" class="rule">
@@ -388,6 +397,320 @@ footer{color:var(--sub);font-size:14px}
       <tr><td>Records kept 6 years</td><td>Everything filed on the job, signed copies kept 7 years</td><td>11</td></tr>
     </tbody>
   </table></div>
+</section>
+
+<section aria-labelledby="h-qa">
+  <h2 id="h-qa">Questions staff get asked</h2>
+  <p class="lede">Tap a question to open the answer. Each answer says where it comes from. Anything marked <b>Not settled yet</b> is still Jo's to decide: don't guess, ask Jo.</p>
+  <div class="qa-list">
+<details class="qa"><summary>Which insulation products can we install?</summary><div class="qa-body"><p>There are eight products, the eight tap options in the Mitti forms:</p>
+<ul>
+<li><b>Bradford Gold</b>: R5, R6, R7</li>
+<li><b>Fletchers Pink Batts</b>: R5, R6, R7</li>
+<li><b>Earthwool</b>: R5</li>
+<li><b>ECOWOOL</b>: R5</li>
+</ul>
+<p>Four rules apply to every job:</p>
+<ul>
+<li>The product must be on the ESC product register.</li>
+<li>It must still be in date on the install day.</li>
+<li>The insulation installed must add up to at least R5.0.</li>
+<li>We use R5.0 batts to AS/NZS 4859.1 on every job.</li>
+</ul>
+<p>The register copy we hold (19 Oct 2026) has 33 models. Some are lower R-values, and those only count if the total still reaches R5.0. The <b>Earthwool R5</b> register entry expires on <b>23 Feb 2027</b>. All the others run to 2029.</p>
+<p><b>Warranty PDFs on file</b> (they go in the owner's completion pack):</p>
+<div class="tbl"><table><thead><tr><th>Product</th><th>Warranty</th><th>PDF on file?</th></tr></thead><tbody><tr><td>Pink Batts</td><td>Lifetime (Fletcher, Rev 2, 29 Apr 2024)</td><td>Yes</td></tr><tr><td>Earthwool</td><td>50 years (Knauf, unfaced products)</td><td>Yes</td></tr><tr><td>Bradford Gold</td><td>70 years (CSR Bradford)</td><td>Yes, but it's the NZ-issued certificate. Swap it for the Australian document when we have it.</td></tr><tr><td>ECOWOOL</td><td>Unknown</td><td><b>No.</b> Jo has asked PGF (sales@pgfinsulation.com.au). Until it arrives, ECOWOOL jobs stop at our AP signature on the rebate form.</td></tr></tbody></table></div>
+<p><b>Not settled yet:</b> Jo has to add Earthwool R5 and ECOWOOL R5 to the live Mitti forms by hand (decision 150). The repo can't confirm she has done it.</p>
+<p class="src">Source: decisions 66, 148, 149, 150, 276/276a; src/lib/insulation-product.core.ts, esc-approved-products.core.ts, product-warranty.core.ts; docs/product-warranties/README.md.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>Who can install?</summary><div class="qa-body"><p><b>The installer business</b> applies online and the office approves it. The application covers:</p>
+<ul>
+<li>business details and ABN</li>
+<li>public liability insurance (see Q4)</li>
+<li>the list of its installers</li>
+<li>its electrical partner</li>
+<li>the area it works in and when it works</li>
+<li>its rates (R5 install rate, batts removal rate and loose-fill removal rate are required; R6, R7 and top-up are optional)</li>
+<li>bank details</li>
+<li>the signed installer agreement</li>
+</ul>
+<p>To get our leads, the business must agree to do free Ready Checks.</p>
+<p><b>Each installer person needs:</b></p>
+<ul>
+<li><b>An EEC Certified Insulation Installer (CII) certificate, checked by the office.</b> The office records the level (Full or Provisional) and the expiry date. Once that's done, the person is cleared for crews automatically. If the certificate expires or is rejected, they're blocked again (decision 153).</li>
+<li><b>Full CII for the lead installer.</b> The pre-start check refuses a lead with only a Provisional certificate. This is our own rule, stricter than the ESC's.</li>
+<li><b>The ESC privacy collection notice, read and ticked by them personally.</b> Each person gets their own secure link and types their name. Nobody can tick for someone else. Reminders go at 3 and 7 days. Until they tick it, they can't be lead or crew on any install (decision 130).</li>
+<li><b>A signature on the job's safety plan (SWMS)</b> before work starts. The plan is on the portal job page (decision 261).</li>
+<li><b>A White Card.</b> The installer agreement says every installer needs a current one, recorded by us. <b>Not settled yet:</b> there's no White Card question or check in the onboarding form or the portal.</li>
+</ul>
+<p><b>Who does which visit:</b></p>
+<ul>
+<li>Any staff member listed under the business can do Ready Checks.</li>
+<li>Install-day forms go only to CII-cleared installers (decision 161).</li>
+</ul>
+<p><b>PIISA training certificate:</b> Jo said it's not required (decision 145). The portal still tracks it for now (compliance checklist item J3).</p>
+<p class="src">Source: decisions 130, 145, 153, 161, 261; installer-onboarding.core.ts, worker-compliance.core.ts, prestart.core.ts, esc-collection-notice.core.ts, installer-agreement.text.ts; docs/VEU_COMPLIANCE_CHECKLIST_2026-10-24.md (J3, J6).</p>
+<p>---</p></div></details>
+<details class="qa"><summary>Who can do the electrical safety check (PIESA) and the fixes?</summary><div class="qa-body"><p>The safety check must be done by a licensed electrician working for a Registered Electrical Contractor (REC). We can only use an electrician who is fully onboarded with us (decision 303). Fully onboarded means:</p>
+<ul>
+<li>the REC business is approved and active</li>
+<li>it has at least one approved electrician</li>
+<li>it has an active safety-check (PIESA) rate on file</li>
+</ul>
+<p><b>REC onboarding asks for:</b></p>
+<ul>
+<li>confirmation they're a licensed electrician, with licence number and expiry</li>
+<li>REC number and ABN</li>
+<li>public liability insurance of at least $5,000,000</li>
+<li>confirmation they can do all three services: the safety check, the fixes, and being on site on install day</li>
+<li>rates: the safety-check visit, install-day attendance, and a fixes rate card (IC-4 downlight, switchboard, RCD, TPS cable per metre, exhaust guard), plus how they charge for the Certificate of Electrical Safety</li>
+<li>bank details</li>
+<li>the signed REC agreement</li>
+</ul>
+<p>Staff who work under another REC join by invitation from that REC.</p>
+<p><b>Who gets the job:</b></p>
+<ul>
+<li><b>Installer's own customer (A1):</b> the installer picks once, at Add a job: their usual electrician (only if that electrician is an approved REC) or ours. Anyone else holds the quote with "Electrician not onboarded", and that electrician gets one onboarding invite.</li>
+<li><b>Our lead (A2):</b> the installer's usual electrician, if they're an approved REC. Otherwise an approved REC in the area.</li>
+</ul>
+<p>Electrician offers now go out automatically, with no office step (decision 269). The electrician has 24 hours to offer the owner 3 times.</p>
+<p><b>Rates:</b> the electrician only ever sees their own agreed rate. What the owner pays for the safety check is covered in Q10.</p>
+<p><b>Fixes:</b> the electrician gives one total price on the A4 safety-check form and ticks what it covers. On our leads we add $100 including GST, spread across the lines (decision 142). On the installer's own customers we add nothing (decision 313).</p>
+<p class="src">Source: decisions 142, 157, 173, 269, 302, 303, 305, 308, 313; rec-onboarding.core.ts, rec-onboarded.core.ts, rec-agreement.text.ts; source of truth "Electrician rate vs customer PIESA price".</p>
+<p>---</p></div></details>
+<details class="qa"><summary>What insurance and certificates do installers and electricians need?</summary><div class="qa-body"><p><b>Installer business</b></p>
+<ul>
+<li>Public liability of at least <b>$5,000,000</b>.</li>
+<li>At sign-up they upload the Certificate of Currency and enter the insurer, policy number and expiry date. The expiry must be today or later.</li>
+<li>If the cover lapses later, the business gets no new offers and no install can start until a renewed certificate is uploaded. My business shows a warning from 30 days before expiry.</li>
+</ul>
+<p><b>Electrician (REC)</b></p>
+<ul>
+<li>Public liability of at least <b>$5,000,000</b>, with the same upload and expiry checks. Staff under a host REC are covered by that REC.</li>
+<li>Licence number and expiry. Warnings go out at 60 and 30 days before expiry. Once it expires, they get no new jobs.</li>
+</ul>
+<p><b>Workers compensation</b></p>
+<ul>
+<li>Both agreements say the trade must carry it "where required by law". There's no set dollar amount.</li>
+<li>The portal can store a workers comp document, but it doesn't require one.</li>
+<li>The REC agreement also mentions other insurance "required by law or reasonably appropriate". It sets no fixed product-liability minimum.</li>
+</ul>
+<p><b>Certificates for each installer person</b></p>
+<ul>
+<li>CII certificate, office-verified, with level and expiry. Expired means blocked.</li>
+<li>ESC privacy notice ticked.</li>
+<li>White Card (agreement only; not checked in the portal).</li>
+</ul>
+<p><b>Not settled yet:</b></p>
+<ul>
+<li>The yearly re-check reminder for public liability was asked for (decision 193), and the repo doesn't confirm it's built.</li>
+<li>There's no required amount or expiry check for workers comp.</li>
+</ul>
+<p class="src">Source: installer-onboarding.core.ts and rec-onboarding.core.ts (MIN_PL_COVER = 5_000_000), worker-compliance.core.ts (publicLiabilityBlocker, licenceState, crewClearance), prestart.core.ts, installer-agreement.text.ts, rec-agreement.text.ts; checklist H3/H4; decisions 153, 193.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>What forms do we give out or sign as the AP, and when?</summary><div class="qa-body"><p>In job order:</p>
+<ol>
+<li><b>Quote acceptance and Customer Agreement</b> (owner, secure link, after the quote). This is our direct contract with the owner. The owner ticks the quote and Customer Agreement, ticks that they've read their consumer rights and the payment terms, ticks "18+ and owner or authorised", and types their name. The signed acceptance and receipt are attached to the "You're in" email (O22). (Decisions 126, 127, 171.)</li>
+<li><b>30-day tick</b> (owner, before choosing safety-check times). See Q7. (Decision 307.)</li>
+<li><b>Official PIESA (DEECA form)</b></li>
+<ul>
+<li>The portal fills it in from the electrician's Mitti A4 answers.</li>
+<li>The owner then confirms it on their secure link: one tick and their typed name, no code (decisions 296, 306).</li>
+<li>If fixes are done on a later visit, the A5 form adds the fixes section and the Certificate of Electrical Safety (CoES) number, and the PIESA is filled in again (decision 293).</li>
+<li>A copy goes automatically to the <b>owner and the installer at least 24 hours before the install</b> (O28, decisions 111, 131).</li>
+</ul>
+<li><b>ESC Owner's Consent Form</b> (ESC template v1, word for word)</li>
+<ul>
+<li>The owner signs it when they tap an install day, before paying the deposit.</li>
+<li>It must be done at least 24 hours before the start and signed again if the day changes.</li>
+<li>Our AP representative confirms Section 3 from the office screen. This isn't automatic.</li>
+<li>The owner gets a copy (O63). (Decisions 97, 123, 128, 170.)</li>
+</ul>
+<li><b>ESC privacy collection notice</b>: every installer person, before their first install (Q2). They get a copy email (I62).</li>
+<li><b>ESC install notification</b>: submitted in the VEU Registry <b>between 5 days and 24 hours before the install</b>, after the consent is signed. The Registry robot does it, or the office by hand. (Decisions 195, 272.)</li>
+<li><b>Safety plan (SWMS)</b>: signed on the portal by the lead installer and each crew member before work.</li>
+<li><b>Official PIISA</b>: done on the day by the lead installer in Mitti A3. The portal fills in the official form.</li>
+<li><b>VEEC assignment form v1.1</b>: signed only <b>after</b> the install. See Q9.</li>
+<li><b>Tax invoice</b></li>
+<ul>
+<ul>
+<li>One Xero invoice in our name, created when the owner accepts.</li>
+<li>The final invoice (O45) goes when the install is complete.</li>
+<li>It shows the address, product brand/model/R-value, m², the price before the incentive, the "VEEC incentive", and what's been paid. (Decisions 133, 209.)</li>
+</ul>
+</ul>
+<li><b>Completion pack</b> (O47), sent once the install is complete <b>and paid in full</b>. It contains:</li>
+<ul>
+<ul>
+<li>the manufacturer's product warranty PDF (Q1), which counts as the "warranty copy given"</li>
+<li>our Certificate of Completion (our own extra, not a VEU requirement)</li>
+<li>the signed forms</li>
+<li>(Decisions 103, 104, 276.)</li>
+</ul>
+</ul>
+<li><b>Installer agreement and REC agreement</b>: signed by each business at onboarding. These are our AP contracts with the trades.</li>
+</ol>
+<p><b>Not settled yet:</b></p>
+<ul>
+<li><b>VEET Scheme Consumer Factsheet:</b> the ESC Activity Guide lists it as something the owner gets before the install. Nothing generates or sends it today; there's only an office tick.</li>
+<li><b>CoES copy:</b> only the CoES number reaches the owner, not the certificate file.</li>
+<li>Both are open on compliance checklist item H6.</li>
+</ul>
+<p class="src">Source: decisions above; source of truth "VEEC assignment form"; consent.core.ts, consent.server.ts, piesa-delivery.core.ts, esc-collection-notice.core.ts, veec-assignment-form.core.ts, completion-pack.server.ts; checklist H6.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>Why is the deposit and balance by bank transfer only, and card only for the safety check and fixes?</summary><div class="qa-body"><ul>
+<li><b>Card surcharges are banned in Australia from 1 July 2026</b> (RBA). So we never show or charge a card fee. Where card is allowed, we absorb the fee: about $6 on $349. (Decision 140.)</li>
+<li><b>Safety check by card</b> lets the owner accept and pay in one step, and it pays for the electrician straight away. (Decisions 12, 140.)</li>
+<li><b>Fixes by card</b> mean a bank transfer never holds up the fixes. The fixes visit can be booked as soon as the card payment succeeds. (Decision 141.) On our leads, the extra $100 on fixes covers that absorbed card fee and our coordination (decision 142). Jo brought Stripe back once that margin was in place (decision 144).</li>
+<li><b>Deposit and balance by bank transfer or PayID only.</b> These are the large amounts, a transfer is free, and it goes against the one Xero invoice reference. (Decisions 139, 140, 144.)</li>
+<li><b>Bank details:</b> Home Insulation Victoria, NAB, BSB 082-902, account 777966349. No PayID yet. (Decision 152.)</li>
+<li><b>Card isn't switched on yet.</b> Live card payments need Jo's Stripe keys and the card switch. TEST jobs can only use Stripe test mode.</li>
+</ul>
+<p class="src">Source: decisions 12, 139, 140, 141, 142, 144, 152; payments.core.ts, stripe.core.ts.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>When does the 30-day window start, and where is it explained?</summary><div class="qa-body"><p><b>When it starts:</b> on the date of the <b>official safety check (PIESA)</b>. The install must happen within 30 days of it.</p>
+<ul>
+<li>Electrical fixes never restart the clock. They must be done inside the same 30 days.</li>
+<li>If the window runs out, a new official PIESA starts a new 30 days.</li>
+<li>The installer is only offered days inside the window. The pre-start check refuses an install after the last day.</li>
+<li>(Decision 316. An older line in the source-of-truth file still says "from Section C"; decision 316 replaces it.)</li>
+</ul>
+<p><b>Where everyone is told:</b></p>
+<ul>
+<li><b>Owner tick (decision 307)</b>, before choosing safety-check times. The wording: "I understand the Victorian Energy Upgrades program requires my insulation to be installed within 30 days of the electrical safety check. If it isn't, a new safety check is needed and may be charged." It's asked again after a lapse.</li>
+<li><b>Owner emails and pages:</b></li>
+<ul>
+<li>"You're in" email (O22)</li>
+<li>safety-check times email (O26) and safety-check booked email, both with the red "⏰ The 30-day clock" box</li>
+<li>fixes quote email (O29), with the actual expiry date</li>
+<li>"Pick your install day" email (O33), with the install-by date</li>
+<li>owner confirm email O71 and confirm page P6 (decision 306)</li>
+<li>install-day no-access email (O65), with the end date</li>
+<li>the owner's job page (30-day clock box)</li>
+</ul>
+<li><b>Quote email (O18) and acceptance page (P2):</b> no 30-day line was found in either.</li>
+<li><b>Installer:</b></li>
+<ul>
+<li>"Owner accepted" email (I23)</li>
+<li>install-clearance text and email (I65): "{HV} is cleared for install… Offer the owner 3 install days by {date}", with the 30-day box (decision 186)</li>
+<li>job page line: "Install within 30 days of the safety check (by …) or a new check is needed, and whoever's move it was pays for it."</li>
+<li>the installer guide</li>
+<li>the installer agreement</li>
+</ul>
+<li><b>Electrician:</b> the REC agreement says the install must start within the 30 days of the PIESA.</li>
+<ul>
+<li>The A4 safety-check form now tells the electrician to tell the owner (Jo added it 25 Oct). The electrician's offer text doesn't mention it yet.</li>
+</ul>
+<li><b>Reminders at 20 and 10 days left</b>, by text and email to both owner and installer, with the last date. At 10 days left they also say a repeat check is charged to whoever caused the delay. (Decisions 24, 99, 158, 167, 168.)</li>
+<li><b>Office:</b> one Needs me row, "10 days left on the 30-day clock", and a "30-day window lapsed · no install" watch row. (Decision 2.)</li>
+</ul>
+<p class="src">Source: decisions 2, 24, 137, 158, 167, 186, 306, 307, 316; thirty-day-ack.core.ts, email-kit.core.ts (THIRTY_DAY_CLOCK_TEXT), thirty-day-rule.core.ts, install-clearance.core.ts, installer-screens.core.ts, office-needs.core.ts, allocation.core.ts (electricalClearance).</p>
+<p>---</p></div></details>
+<details class="qa"><summary>What happens if the safety check (PIESA) expires, and who pays?</summary><div class="qa-body"><ul>
+<li>A new official PIESA is needed before the install. The installer's screen says "A new safety check is needed. Home Insulation Victoria arranges the new check." The owner ticks the 30-day rule again for the new check.</li>
+<li><b>Whoever's move it was pays for the new check. No exceptions.</b> Storm, illness and so on still count as that person's move.</li>
+<ul>
+<li>If it's the installer, their share comes out of their payout.</li>
+<li>If it's the owner, they pay $349 again.</li>
+<li>(Decisions 23, 158.)</li>
+</ul>
+<li><b>How the portal decides whose move it was</b> (it records the answer once, with a one-line reason, in the office job history):</li>
+<ul>
+<li>The installer didn't offer days within 5 days of clearance → the <b>installer</b>.</li>
+<li>The owner didn't answer an offer → the <b>owner</b>.</li>
+<li>The installer didn't answer the owner's suggested days → the <b>installer</b>.</li>
+<li>All the owner's suggested days were outside the window → the <b>owner</b>.</li>
+<li>Someone changed a booked day → <b>that person</b>, unless the other side then sat on it for more than 5 days. Then it's undetermined and the office decides.</li>
+<li>(Decision 167 approved the 5-day response time.)</li>
+</ul>
+<li>The office sees a "30-day window lapsed" watch row.</li>
+</ul>
+<p><b>Not settled yet:</b></p>
+<ul>
+<li>The lawyer still has to word this for the owner terms (unfair contract terms); it's an open item.</li>
+<li>The portal only <b>records</b> who should pay. Nothing charges the owner or takes it off the installer's pay automatically.</li>
+<li>If the owner's original check was at an approved REC's rate instead of $349, it isn't settled what the owner pays for the repeat.</li>
+</ul>
+<p class="src">Source: decisions 23, 24, 158, 167; Open list in docs/JO_DECISIONS_LOG.md; thirty-day-rule.core.ts (repeatPiesaPayer); docs/LAWYER_30_DAY_RULE_WORDING.md.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>How do the VEECs get signed over, when, and by whom?</summary><div class="qa-body"><p>The official ESC <b>VEEC Assignment Form v1.1</b> is signed <b>only after the install</b> is recorded complete, in this order:</p>
+<ol>
+<li><b>The lead installer</b> signs Part B from their job page. The "Sign the rebate form" step appears once the A3 install form is Complete.</li>
+<li><b>We sign Part A automatically</b>, as the AP representative Chris Lowe (decisions 143, 271). This happens once five things are recorded:</li>
+<ul>
+<li>the PIESA copy went to the owner and installer at least 24 hours before the install</li>
+<li>the ESC notification was sent at least 24 hours before</li>
+<li>the product warranty copy was given to the owner</li>
+<li>every installer has the ESC privacy notice</li>
+<li>the owner's consent is valid</li>
+</ul>
+</ol>
+<p>   The office is only told if the signature has been held for more than 24 hours. The office Sign button is a fallback.</p>
+<ol>
+<li><b>The owner</b> signs Section 4 on their secure link.</li>
+</ol>
+<p><b>Asking the owner:</b></p>
+<ul>
+<li>Day 0: the "All done" email (O44) plus a text.</li>
+<li>Reminders by email (O61) and text on days 1, 3 and 7.</li>
+<li>Office alert on day 10.</li>
+<li>(Decisions 120, 132, 166, 168, 169.)</li>
+</ul>
+<p><b>Their copy:</b> emailed with the signed PDF (O62) within <b>10 business days</b>.</p>
+<p><b>Watch out:</b> the warranty copy goes in the completion pack, and that only sends once the owner has <b>paid in full</b>. So our AP signature, and then the owner's, wait for full payment. (A missing ECOWOOL warranty holds it too.)</p>
+<p><b>After that:</b> the job can't reach "Ready for VEEC" without the owner's signature. The office does the final AP review. Then the VEECs are created in the VEU Registry using the install notification number, either by the Registry robot (being set up) or by the office by hand. (Decision 272.)</p>
+<p><b>Not settled yet:</b> Jo asked to send our customised v1.1 form to the ESC for review (decision 191). The repo doesn't show that it has been sent.</p>
+<p class="src">Source: decisions 119, 120, 143, 169, 191, 271, 272, 276; source of truth "VEEC assignment form"; veec-ap-auto.core.ts, owner-link.functions.ts; docs/HIV_JOB_FLOW_GUIDE.html.</p>
+<p>---</p></div></details>
+<details class="qa"><summary>What are the payment terms?</summary><div class="qa-body"><p>There's <b>one Xero invoice</b> per job, created when the owner accepts. Each step is "paid" once the running total paid on that invoice reaches it. Payments are read from Stripe and Xero; the office never types one in (decision 240).</p>
+<div class="tbl"><table><thead><tr><th>When</th><th>Amount</th><th>How</th><th>Why</th></tr></thead><tbody><tr><td>At acceptance</td><td><b>The quote's safety-check (PIESA) line</b>: $349 with our electrician, or an approved REC's onboarded rate (example: $220)</td><td>Card or bank</td><td>The owner pays what the electrician charges, and it pays for the check before it's booked (decisions 12, 302). This also covers the ESC's $200 minimum owner co-payment.</td></tr><tr><td>Only if fixes are needed</td><td><b>The fixes quote in full</b>, at approval</td><td>Card or bank</td><td>So the fixes are never delayed (decisions 14, 141).</td></tr><tr><td>Booking the install day</td><td><b>10% of (quote total − safety check)</b></td><td>Bank or PayID only</td><td>Jo's decision 13. The day is held for <b>48 hours</b> until it's paid, then released and the installer is told (decisions 14a, 151, 170).</td></tr><tr><td>Install day</td><td><b>The balance</b></td><td>Bank or PayID only</td><td>Decision 13</td></tr><tr><td>Any time</td><td><b>Pay in full</b></td><td>Bank or PayID</td><td>Always offered (decision 13)</td></tr></tbody></table></div>
+<p><b>Separate from the safety check:</b> the quote also has our <b>$349 Accredited Person fee</b> (decision 141: "AP fee stays $349 for now").</p>
+<p><b>Not settled yet:</b></p>
+<ul>
+<li>No reason for the 10% figure is recorded beyond Jo's choice.</li>
+<li>The lawyer is still checking cooling-off for unsolicited sales, and the domestic-building deposit limits (10% under $20k, 5% at $20k or more). $349 plus 10% can come to more than 10% of the price.</li>
+<li>Refunds (for example, if the safety check never happens) aren't settled under the 24 Oct rules. The old 7 Oct refund rule was replaced.</li>
+</ul>
+<p class="src">Source: decisions 12, 13, 14, 14a, 139–141, 144, 151, 240, 302; Open list; payments.core.ts, safety-check-amount.core.ts; checklist H5.</p>
+<p>---</p></div></details>
+<h3>Other questions staff will be asked</h3>
+<details class="qa"><summary>What does the owner pay in total, and what's the rebate?</summary><div class="qa-body"><p>The quote shows the full price, takes off the VEU rebate, and shows what the owner pays.</p>
+<p><b>The full price is made up of:</b></p>
+<ul>
+<li>the insulation: the installer's own price on their own customers (we don't mark it up), or our price list on our leads (R5/R6/R7 per m², set under Money › Prices)</li>
+<li>removal, if needed: $15/m² on our leads</li>
+<li>the electrical safety check (PIESA)</li>
+<li>our $349 AP fee</li>
+</ul>
+<p>Electrical fixes are extra, and only if the safety check finds something. The rebate comes off the price straight away; the owner doesn't claim it.</p>
+<p class="src">Source: decisions 26, 66, 67, 86, 126, 302; source of truth "Commercial wording".</p></div></details>
+<details class="qa"><summary>What if the crew can't get in?</summary><div class="qa-body"><ul>
+<li><b>Ready Check:</b> the installer taps "Couldn't get in?" and picks a reason (no one home, couldn't reach the manhole, not safe, something else). We rebook with the owner and offer it back to the same installer first.</li>
+<li><b>Install day:</b> the owner is texted and emailed straight away (O65) with the installer's three new days. Nobody is charged for the trip. The 30-day clock keeps running, and the owner is told when it ends. The office is only alerted on a second no-access on the same job.</li>
+</ul>
+<p class="src">Source: decisions 214, 215, 217; trade-view.core.ts.</p></div></details>
+<details class="qa"><summary>How is a job cancelled?</summary><div class="qa-body"><ul>
+<li>Open the job, then More › Cancel, or use Actions on the Jobs or Enquiries lists. Give a reason.</li>
+<li>This closes the job, stops every reminder, releases any held install day and the installer, and keeps the history.</li>
+<li>If you tick the boxes, the owner gets email O69 and the installer gets email I70. Email only, and never twice.</li>
+<li>A cancelled job can be reopened from Closed with a reason.</li>
+</ul>
+<p><b>Not settled yet:</b> refunds and cooling-off (lawyer).</p>
+<p class="src">Source: decisions 227, 291; cancel-notice.core.ts.</p></div></details>
+<details class="qa"><summary>When do installers get paid?</summary><div class="qa-body"><ul>
+<li><b>Their own customers:</b> when the owner pays the final balance. The agreement says within 7 days of the later of our approval and the owner paying in full.</li>
+<li><b>Our leads:</b> 7 days after AP approval. The owner's payment isn't a condition.</li>
+<li>Either way, pay is held until the Mitti form for that visit is 100% complete with every photo and video. The Money page shows "Held" with the reason.</li>
+</ul>
+<p class="src">Source: decisions 30, 109; installer-agreement.text.ts; docs/HIV_JOB_FLOW_GUIDE.html.</p></div></details>
+<details class="qa"><summary>Who does the owner call if something's wrong after the install?</summary><div class="qa-body"><p>The <b>installer first</b>, then us, then the ESC.</p>
+<p><b>Warranties:</b></p>
+<ul>
+<li><b>Workmanship:</b> 1 year, from the installer. The agreement says they fix workmanship defects for 12 months.</li>
+<li><b>Product:</b> the manufacturer's warranty. Bradford Gold 70 years, Pink Batts lifetime, Earthwool 50 years.</li>
+</ul>
+<p class="src">Source: decisions 102, 103; installer-agreement.text.ts.</p></div></details>
+  </div>
 </section>
 
 <section aria-labelledby="h-off">
