@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { originalEnquiryMedia, groupBInvitationBlocker } from "../src/lib/group-b-media.core";
-test("Group B real delivery approved by Jo 9 Oct, HELD by decision 388 (spot-only rewording awaiting Jo)", () => expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(false));
+test("Group B real delivery approved by Jo 9 Oct, held by decision 388, approved again by decision 393 (25 Oct 2026)", () => expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(true));
 test("omitted upload list stays held", () => expect(groupBInvitationBlocker(originalEnquiryMedia({ answers: {} }, []))).toBe("Original media sync is not confirmed — invitation held"));
 test("authoritative empty upload list is not held", () => expect(groupBInvitationBlocker(originalEnquiryMedia({ answers: {}, media: [], original_media_verification: { complete: true } }, []))).toBeNull());
 test("pending original upload excluded", () => expect(originalEnquiryMedia({ media: [{ source_id: "a", name: "x.jpg", mime_type: "image/jpeg" }] }, []).excluded).toBe(true));
