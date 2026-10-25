@@ -27,6 +27,8 @@ import { renderDepositReleasedEmail, PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED }
 import { collectionNoticeEmail, COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_PARAGRAPHS } from "../src/lib/esc-collection-notice.core";
 import { bankDetailLines, HIV_BANK_DETAILS } from "../src/lib/payments.core";
 import { renderOwnerCancelledEmail, renderInstallerCancelledEmail, CANCEL_NOTICE_EMAILS_APPROVED } from "../src/lib/cancel-notice.core";
+import { renderNewSenderReplyEmail } from "../src/lib/new-sender-reply-email.core";
+import { NEW_SENDER_REPLY_APPROVED } from "../src/lib/new-sender-reply.core";
 
 const JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const EST = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
@@ -306,6 +308,16 @@ describe("approved installer email designs", () => {
     expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain("HIV: HV-3117 at the property has been cancelled.");
     expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain(">Questions: reply to this email.</p>");
     expect(CANCEL_NOTICE_EMAILS_APPROVED).toBe(true);
+  });
+  // Decision 292 (Jo 25 Oct 2026): the sample in docs/templates/approved is written by scripts/render-decision-292-sample.ts.
+  test("O70 New sender → calculator (decision 292): Jo's wording verbatim, the one calculator link, Re: subject, no unsubscribe; matches the approved file", () => {
+    const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
+    shell(m.html, m.text, false);
+    expect(m.subject).toBe("Re: Ceiling insulation quote");
+    has(m.html, [">Hi Sam,</p>", "Thanks for getting in touch with Home Insulation Victoria. The quickest way to see your price and the Victorian Energy Upgrades discount is our 1-minute calculator: ", 'href="https://estimate.homeinsulationvictoria.com.au/"', "If you have a question the calculator doesn't answer, just reply to this email.", ">— Home Insulation Victoria</p>"]);
+    expect(m.html).not.toMatch(/\$\d/);
+    expect(m.html).toBe(readFileSync("docs/templates/approved/O70-new-sender-calculator.html", "utf8"));
+    expect(NEW_SENDER_REPLY_APPROVED).toBe(true);
   });
 });
 

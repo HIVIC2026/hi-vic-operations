@@ -290,6 +290,25 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(replay.duplicate, 1); assert.equal(replay.unmatched, 0); assert.equal(await total(h, "workflow_events"), 1);
     assert.equal(h.requests.length, 0);
   })],
+  ["decision 292: a NEW sender's enquiry gets no enquiry, owner or link — the email_unmatched row stays; TEST mode holds the website reply for a real sender and sends nothing", practice(async h => {
+    await h.db.exec(readFileSync(new URL("../../docs/pending-migrations/email-unmatched-events.sql", import.meta.url), "utf8"));
+    await h.db.exec(readFileSync(new URL("../../docs/pending-migrations/new-sender-reply-events.sql", import.meta.url), "utf8"));
+    const newbie = graphMessage("newbie-1", "Hi, I'd like a quote for ceiling insulation for my house in Ringwood. How much is the rebate?", { subject: "Ceiling insulation quote", receivedDateTime: RECENT, from: { emailAddress: { address: "newbie@example.org", name: "New Person" } } });
+    const partner = graphMessage("partner-1", "Hi, how much is the rebate on ceiling insulation these days? Asking for our crew.", { subject: "Rebate", receivedDateTime: RECENT, from: { emailAddress: { address: "crew@installer.example", name: "Crew" } } });
+    const robot = graphMessage("robot-1", "How much is the rebate? Insulation deals inside. Click here to unsubscribe from our list.", { subject: "Rebate deals", receivedDateTime: RECENT, from: { emailAddress: { address: "deals@shop.example", name: "Deals" } } });
+    await h.db.query(`INSERT INTO partner_workers(email) VALUES ('crew@installer.example')`);
+    const result = h.counts(); await h.server.processMessages([newbie, partner, robot], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.junk, 1); assert.equal(result.unmatched, 2);
+    assert.equal(result.newSenderHeld, 1); assert.equal(result.newSenderReplies ?? 0, 0);
+    // Nothing created: no job, owner, communication or Outlook/email request; the only events are the 247 rows.
+    assert.equal(await total(h, "jobs"), 1); assert.equal(await total(h, "owners"), 1); assert.equal(await total(h, "job_communications"), 0); assert.equal(h.requests.length, 0);
+    const ev = (await h.db.query<{ job_id: string | null; event_type: string; details: any }>(`SELECT job_id, event_type, details FROM workflow_events ORDER BY event_type, details->>'message_id'`)).rows;
+    assert.deepEqual(ev.map((e) => [e.event_type, e.job_id, e.details.message_id]), [["email_unmatched", null, "newbie-1"], ["email_unmatched", null, "partner-1"]]);
+    // Replay: idempotent per message — no second row, no reply.
+    const replay = h.counts(); await h.server.processMessages([newbie], TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.duplicate, 1); assert.equal(replay.newSenderHeld ?? 0, 0); assert.equal(await total(h, "workflow_events"), 2);
+    assert.equal(h.requests.length, 0);
+  })],
   ["a family reply in the same batch as its first matched thread message is retained", practice(async h => {
     const first = graphMessage("first-thread-msg", "Hi, about our insulation", { conversationId: "new-thread", subject: "Insulation" });
     const reply = graphMessage("same-batch-reply", "Grandma again — sounds good", { conversationId: "new-thread", subject: "Re: Insulation", from: { emailAddress: { address: "family@example.test" } } });

@@ -1,4 +1,5 @@
 // Decision 244: the reply drafter writes ONE Outlook draft per inbound email and never sends.
+// Decision 292 (replaces 255): an unmatched NEW sender gets no draft and NO enquiry created from their email.
 // The database is an in-memory fake; Outlook is a recorded fake fetch. Nothing touches a live service.
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -50,27 +51,9 @@ function fakeAdmin() {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin() }));
 mock.module("../src/lib/payments.server", () => ({ jobPaymentView: async () => null }));
-let linkReady = true;
-mock.module("../src/lib/estimatelink.server", () => ({ adminLinkPath: async () => (linkReady ? "/estimate/TESTTOKEN" : null), ensureOwnerLink: async () => linkReady }));
-// Decision 255: the existing guarded intake is faked at its boundary; everything else in email-enquiry.server is real.
-type UpsertCall = { input: Row; source: string; origin: Row; opts: Row };
-let upserts: UpsertCall[] = [];
-const gate1: string[] = [];
-mock.module("../src/lib/enquiry.server", () => ({
-  upsertEnquiry: async (input: Row, source: string, _actor: null, origin: Row, opts: Row) => {
-    upserts.push({ input, source, origin, opts });
-    const id = `00000000-0000-0000-0000-00000000c${String(upserts.length).padStart(3, "0")}`, job_number = `HV-39${String(upserts.length).padStart(2, "0")}`;
-    (tables["owners"] ??= []).push({ id: `owner-${id}`, email: input["email"], full_name: input["full_name"] });
-    tables["jobs"]!.push({ id, job_number, owner_id: `owner-${id}`, stage: "new_enquiry", source, deleted_at: null, created_at: new Date().toISOString(),
-      owners: { full_name: input["full_name"] }, properties: { suburb: input["suburb"] ?? null } });
-    return { job_id: id, job_number, created: true, post_intake: "none" };
-  },
-}));
-mock.module("../src/lib/workflow.server", () => ({
-  logEvent: async (job_id: string, actor_id: null, event_type: string, summary: string, details: Row, o: Row = {}) => { (tables["workflow_events"] ??= []).push({ id: crypto.randomUUID(), job_id, actor_id, event_type, summary, details, internal: o["internal"] ?? false }); },
-}));
-mock.module("../src/lib/eligibility.server", () => ({ autoDecideEligibility: async (id: string) => { gate1.push(`test:${id}`); return null; } }));
-mock.module("../src/lib/postintake.server", () => ({ processPostIntakeWork: async (o: { jobId: string }) => { gate1.push(`live:${o.jobId}`); return {}; } }));
+mock.module("../src/lib/estimatelink.server", () => ({ adminLinkPath: async () => "/estimate/TESTTOKEN", ensureOwnerLink: async () => true }));
+// Decision 292: the intake must never be reached from the drafter. If it is, the test fails loudly.
+mock.module("../src/lib/enquiry.server", () => ({ upsertEnquiry: async () => { throw new Error("upsertEnquiry must not be called by the reply drafter (decision 292)"); } }));
 mock.module("../src/lib/trade-view.server", () => ({ partnerPayStates: async () => [] }));
 process.env["LOVABLE_API_KEY"] = "test-lovable";
 process.env["MICROSOFT_OUTLOOK_API_KEY"] = "test-outlook";
@@ -112,10 +95,17 @@ function seed() {
   tables["quotes"] = []; tables["indicative_estimates"] = []; tables["lead_campaign_responses"] = []; tables["businesses"] = [];
   tables["workflow_events"] = []; tables["partner_offers"] = []; tables["job_assignments"] = [];
   tables["owners"] = [];
-  calls = []; reads = 0; failEventInsert = false; createReplyStatus = 201; linkReady = true; upserts = []; gate1.length = 0;
+  calls = []; reads = 0; failEventInsert = false; createReplyStatus = 201;
 }
 const sendLike = (c: Call) => /\/(send|sendMail|reply|replyAll|forward)(\?|$)/i.test(c.url);
 afterEach(() => expect(calls.some(sendLike)).toBe(false));
+/** Decision 292: whatever happens, the drafter creates no job, owner or enquiry event. */
+const noEnquiryCreated = () => {
+  expect(tables["jobs"]).toHaveLength(2);
+  expect(tables["owners"] ?? []).toHaveLength(0);
+  expect(tables["workflow_events"]!.filter((e) => e["event_type"] === "email_enquiry_created")).toHaveLength(0);
+  expect(tables["owner_contact_consents"] ?? []).toHaveLength(0);
+};
 
 describe("switches", () => {
   test("default (EMAIL_REPLY_DRAFTS_ENABLED = false): nothing read, drafted or recorded", async () => {
@@ -159,7 +149,7 @@ describe("drafting", () => {
     const ev = tables["workflow_events"]!;
     expect(ev).toHaveLength(1);
     expect(ev[0]).toMatchObject({ job_id: J_QA, event_type: "email_reply_drafted", internal: true });
-    expect(ev[0]!["details"]).toMatchObject({ message_id: m.providerMessageId, draft_id: "DRAFT-1", reply_type: "owner_status", would_auto_send: false, auto_send_built: false, check_before_sending: false });
+    expect(ev[0]!["details"]).toMatchObject({ message_id: m.providerMessageId, draft_id: "DRAFT-1", reply_type: "owner_status", would_auto_send: false, auto_send_built: false, check_before_sending: false, email_enquiry_created: false });
     calls = [];
     const again = await draftReplyForMessage({ message: m, mailbox: MAILBOX, jobIds: [J_QA], origin: "office_matched", now, switches: ON });
     expect(again).toEqual({ status: "skipped", reason: "A reply draft already exists for this email" });
@@ -182,77 +172,37 @@ describe("drafting", () => {
     expect(calls.at(-1)).toMatchObject({ method: "DELETE" });
     expect(calls.at(-1)!.url.endsWith("/messages/DRAFT-1")).toBe(true);
   });
-  test("decision 255: unmatched new enquiry (TEST) → qa_test enquiry created via the guarded intake, homeowner page link, never the calculator", async () => {
+  test("decision 292: an unmatched new enquiry (even from the allow-list, with a full address) creates NO enquiry and gets no draft", async () => {
     seed();
     const m = msg({ fromName: "JO TESTER", subject: "Ceiling insulation quote", body: "Hello, I'd like a quote for ceiling insulation for my house at 14 Example Street, Ringwood 3134. Mobile 0412 345 678.\n\nThanks,\nJo" });
     const r = await draftReplyForMessage({ message: m, mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(r).toMatchObject({ status: "drafted", type: "new_enquiry", checkBeforeSending: true });
-    expect(upserts).toHaveLength(1);
-    expect(upserts[0]).toMatchObject({ source: "qa_test", origin: { channel: "hivic_sourced" }, opts: { emailIntake: true },
-      input: { full_name: "Jo Tester", email: "jolowexo@hotmail.com", phone: "0412 345 678", address_line: "14 Example Street", suburb: "Ringwood", postcode: "3134", estimated_area_m2: null, area_unknown: true } });
-    expect(gate1).toEqual([`test:${upserts.length && tables["jobs"]!.at(-1)!["id"]}`]); // TEST job: never the live post-intake queue
-    const content = String(((calls[1]!.body!["body"]) as Row)["content"]);
-    expect(content).toContain("Here's your own page: you can answer three quick questions and save your free spot:");
-    expect(content).toContain("https://estimate.homeinsulationvictoria.com.au/estimate/TESTTOKEN/campaign");
-    expect(content).not.toMatch(/homeinsulationvictoria\.com\.au\/(<|"|\s)/);
-    expect(content).not.toContain("street address and suburb");
-    expect(calls[1]!.body!["categories"]).toContain("Check before sending");
-    const created = tables["workflow_events"]!.find((e) => e["event_type"] === "email_enquiry_created")!;
-    expect(created["details"]).toMatchObject({ message_id: m.providerMessageId, source: "qa_test", address_found: true, consent_scope: "reply_to_this_email_only" });
-    expect(String(created["summary"])).toContain("consent to reply to that email only");
-    const drafted = tables["workflow_events"]!.find((e) => e["event_type"] === "email_reply_drafted")!;
-    expect(drafted).toMatchObject({ job_id: created["job_id"] });
-    expect(drafted["details"]).toMatchObject({ email_enquiry_created: true, link: "https://estimate.homeinsulationvictoria.com.au/estimate/TESTTOKEN/campaign" });
-    expect(tables["owner_contact_consents"] ?? []).toHaveLength(0); // an email is consent to reply only
+    expect(r).toEqual({ status: "skipped", reason: "Unmatched email — drafted after the office matches it" });
+    expect(calls).toHaveLength(0);
+    noEnquiryCreated();
+    expect(tables["workflow_events"]).toHaveLength(0);
   });
-  test("decision 255: no address in the email → reply asks for street address and suburb; enquiry has no address (decision 281: no Fix details pile)", async () => {
+  test("decision 292: an unmatched price / rebate question creates NO enquiry and gets no draft", async () => {
     seed();
     const r = await draftReplyForMessage({ message: msg({ subject: "Rebate", body: "Is the insulation rebate still available and how much would it cost?" }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(r).toMatchObject({ status: "drafted", type: "price_rebate_eligibility", checkBeforeSending: true });
-    expect(upserts[0]!.input).toMatchObject({ address_line: "", suburb: null, postcode: null, phone: null });
-    const content = String(((calls[1]!.body!["body"]) as Row)["content"]);
-    expect(content).toContain("Could you reply with your home&#39;s street address and suburb".replace("&#39;", "'"));
-    expect(content).toContain("/estimate/TESTTOKEN/campaign");
+    expect(r).toMatchObject({ status: "skipped", reason: "Unmatched email — drafted after the office matches it" });
+    expect(calls).toHaveLength(0);
+    noEnquiryCreated();
   });
-  test("decision 255: the email is already an owner's → linked to their job, no new enquiry", async () => {
+  test("decision 292: an unmatched email from an address that IS already an owner's is not linked by the drafter either (the office matches it)", async () => {
     seed();
     tables["owners"]!.push({ id: "owner-qa", email: "jolowexo@hotmail.com" });
     tables["jobs"]![0]!["owner_id"] = "owner-qa";
     const r = await draftReplyForMessage({ message: msg({ subject: "Quote", body: "Hi, I'd like a quote for ceiling insulation please." }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(upserts).toHaveLength(0);
-    expect(r).toMatchObject({ status: "drafted" });
-    expect(tables["workflow_events"]!.find((e) => e["event_type"] === "email_reply_drafted")).toMatchObject({ job_id: J_QA });
-  });
-  test("decision 255: linked to a REAL owner's job in TEST mode → no draft", async () => {
-    seed();
-    tables["owners"]!.push({ id: "owner-real", email: "jolowexo@hotmail.com" });
-    tables["jobs"]![1]!["owner_id"] = "owner-real";
-    const r = await draftReplyForMessage({ message: msg({ subject: "Quote", body: "Hi, I'd like a quote for ceiling insulation please." }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(r).toMatchObject({ status: "skipped", reason: "TEST mode: only qa_test jobs get reply drafts" });
+    expect(r).toMatchObject({ status: "skipped", reason: "Unmatched email — drafted after the office matches it" });
     expect(calls).toHaveLength(0);
+    expect(tables["workflow_events"]).toHaveLength(0);
+    expect(tables["jobs"]).toHaveLength(2);
   });
-  test("decision 255: same email seen again reuses the enquiry it created (no second job)", async () => {
-    seed(); createReplyStatus = 500; // first draft fails after the enquiry is made
-    const m = msg({ subject: "Quote", body: "Hi, I'd like a quote for ceiling insulation please." });
-    expect((await draftReplyForMessage({ message: m, mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON })).status).toBe("skipped");
-    createReplyStatus = 201; calls = [];
-    const r = await draftReplyForMessage({ message: m, mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(r).toMatchObject({ status: "drafted", type: "new_enquiry" });
-    expect(upserts).toHaveLength(1);
-  });
-  test("decision 255: homeowner page not ready → draft has no link (never the calculator) and is flagged", async () => {
-    seed(); linkReady = false;
-    const r = await draftReplyForMessage({ message: msg({ subject: "Quote", body: "Hi, I'd like a quote for ceiling insulation please." }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
-    expect(r).toMatchObject({ status: "drafted", checkBeforeSending: true });
-    const content = String(((calls[1]!.body!["body"]) as Row)["content"]);
-    expect(content).not.toContain("https://");
-    expect(content).toContain("We&#39;ll send you your own page".replace("&#39;", "'"));
-  });
-  test("decision 255: a sender off the TEST allow-list never gets an enquiry created", async () => {
+  test("decision 292: a sender off the TEST allow-list never gets an enquiry created", async () => {
     seed();
     const r = await draftReplyForMessage({ message: msg({ from: "stranger@example.org", subject: "Quote", body: "I'd like a quote for ceiling insulation" }), mailbox: MAILBOX, jobIds: [], origin: "unmatched", now, switches: ON });
     expect(r.status).toBe("skipped");
-    expect(upserts).toHaveLength(0);
+    noEnquiryCreated();
   });
   test("unmatched mail that isn't an enquiry waits for the office's Match", async () => {
     seed();
@@ -268,9 +218,10 @@ describe("drafting", () => {
   });
 });
 
-test("source guards: no sender is reachable from the drafter, and the copier wires it behind the switch", () => {
+test("source guards: no sender or intake is reachable from the drafter, and the copier wires it behind the switch", () => {
   const src = readFileSync("src/lib/email-reply.server.ts", "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/ .*$/gm, "");
   expect(src).not.toMatch(/sendMail|\/send["'`]|sendRealSms|sendGuardedOwnerEmail|sendOfficeEmail|test-send\.server|owner-email-send/);
+  expect(src).not.toMatch(/email-enquiry|upsertEnquiry|enquiryFromEmail|ensureOwnerLink/); // decision 292
   expect(src).toContain("assertDraftOnlyRequest(method, path)");
   const sync = readFileSync("src/lib/outlook-sync.server.ts", "utf8");
   expect(sync).toContain("if (!EMAIL_REPLY_DRAFTS_ENABLED || m.direction !== \"inbound\") return null;");

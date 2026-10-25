@@ -34,7 +34,7 @@ export function lastHeardChip(at: string | null | undefined, now: number): LastH
   if (melDay(t) === melDay(now)) return "today";
   return now - t <= 7 * DAY ? "week" : "older";
 }
-/** Website = signed Base44 intake; Email = created from the owner's email (decision 255); Phone = entered by the office (New enquiry); Installer = installer-sourced job. */
+/** Website = signed Base44 intake; Email = a job once created from the owner's email (decision 255, retired by 292 — history only); Phone = entered by the office (New enquiry); Installer = installer-sourced job. */
 export function sourceChip(j: { source: string | null; channel: string | null }): SourceChip {
   if (j.channel === "installer_sourced") return "installer";
   return j.source === "base44" ? "website" : j.source === "email" ? "email" : "phone";
