@@ -290,6 +290,27 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
   return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "section_c", blocker: null };
 }
 
+/** Decision 314 follow-up: the job is cleared on the "electrician on site at the start of the install day" basis — the
+ *  open fixes items are done ON the install day (never marked completed here), so no fixes visit or booking is needed. */
+export const onsiteStartAtInstall = (c: Pick<Clearance, "cleared" | "basis"> | null | undefined): boolean => !!c?.cleared && c.basis === "electrician_at_start";
+
+export const FIXES_NOT_COMPLETED_BLOCKER = "Electrical fixes not yet completed.";
+export const PASSING_PIESA_BLOCKER = "A passing PIESA / electrical sign-off is required before installation.";
+/** The electrical part of entry to installation_scheduling / installation_booked (workflow.server `stageEntryBlockers`).
+ *  Every job: no open fixes items and a current passing PIESA. Decision 314 on-site-only job cleared on
+ *  `electrician_at_start`: the open items are done on the install day and the PIESA (which says the electrician must be
+ *  present at the start) is accepted as recorded — it still needs a current PIESA date. */
+export function installEntryElectricalBlockers(f: { openRectItems: number; piesaDate: string | null | undefined; piesaOutcome: string | null | undefined; onsiteStartCleared?: boolean }): string[] {
+  const out: string[] = [];
+  if (f.onsiteStartCleared) {
+    if (!f.piesaDate) out.push(PASSING_PIESA_BLOCKER);
+    return out;
+  }
+  if (f.openRectItems > 0) out.push(FIXES_NOT_COMPLETED_BLOCKER);
+  if (!f.piesaDate || f.piesaOutcome !== "pass") out.push(PASSING_PIESA_BLOCKER);
+  return out;
+}
+
 /** Installation contact release / booking is hard blocked until electrical clearance is valid. */
 export function installationCoordinationBlocker(c: Clearance): string | null {
   return c.cleared ? null : `Installation cannot be arranged yet: ${c.blocker}`;
