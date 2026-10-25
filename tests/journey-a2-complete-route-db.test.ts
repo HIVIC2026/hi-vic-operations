@@ -335,9 +335,15 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     const { token, session } = await ownerSession();
     const [p] = await q<{ id: string }>("select id from appointment_proposals where job_id=$1 and kind='assessment' and status='proposed' order by starts_at limit 1", [JOB]);
     await expect(ol.ownerTakePiesaTimeLinkFn({ data: { token, session, proposalId: p!.id }, context: META })).rejects.toThrow();
+    // Decision 398: booking the PIESA creates the electrician's A3 form in Mitti automatically (the A3 template is set up in Mitti).
+    const forms = await import("./helpers/journey-forms");
+    const def = forms.completedA3Pass({ inspectionDate: melb(new Date()), capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
+    providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
     await ol.ownerTakePiesaTimeLinkFn({ data: { token, session, proposalId: p!.id, understandsThirtyDays: true }, context: META });
     await settle();
     expect(await stageOf(JOB)).toBe("piesa_scheduled");
+    expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='piesa_autoform_failed'", [JOB])).toHaveLength(0);
   });
   test("the A3 says no repair work: the PIESA result is a pass, but Complete PIESA still needs the electrician's own 'No electrical fixes required' tick", async () => {
     const forms = await import("./helpers/journey-forms");
@@ -345,7 +351,10 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     const def = forms.completedA3Pass({ inspectionDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
     providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
     const pf = await import("../src/lib/portal.functions");
-    const c = await pf.createMittiAssessment({ data: { jobId: JOB }, context: officeCtx }) as { auditId: string };
+    // The office button (backup) reuses the form made at booking — never a second one.
+    const c = await pf.createMittiAssessment({ data: { jobId: JOB }, context: officeCtx }) as { auditId: string; reused: boolean };
+    expect(c.reused).toBe(true);
+    expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
     for (const id of def.mediaIds) providers.mitti.media.set(id, { bytes: forms.PNG_1X1, type: "image/png" });
     fillAudit(providers.mitti.audits.get(c.auditId)!, def.items);
     await (await import("../src/lib/mitti.server")).syncPendingMitti(null);

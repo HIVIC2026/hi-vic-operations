@@ -326,8 +326,15 @@ describe("A1 step 5 — the electrician's safety check (PIESA): automatic offer,
     const [p] = await q<{ id: string; starts_at: Date }>("select id, starts_at from appointment_proposals where job_id=$1 and kind='assessment' and status='proposed' order by starts_at limit 1", [JOB]);
     await expect(ol.ownerTakePiesaTimeLinkFn({ data: { token, session, proposalId: p!.id }, context: META })).rejects.toThrow();
     expect(await q("select id from bookings where job_id=$1 and kind='assessment'", [JOB])).toHaveLength(0);
+    // Decision 398: booking the PIESA creates the electrician's A3 form in Mitti automatically (the A3 template is set up in Mitti).
+    const forms = await import("./helpers/journey-forms");
+    const def = forms.completedA3({ inspectionDate: "2026-10-28", capturedAt: new Date().toISOString(), priceIncGst: 600, mediaPrefix: "a3" });
+    providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
     await ol.ownerTakePiesaTimeLinkFn({ data: { token, session, proposalId: p!.id, understandsThirtyDays: true }, context: META });
     await settle();
+    expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
+    expect(await q("select mitti_template_id from assessments where job_id=$1 and external_mitti_id is not null", [JOB])).toEqual([{ mitti_template_id: TPL_A3 }]);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='piesa_autoform_failed'", [JOB])).toHaveLength(0);
     const bk = await q<{ status: string; scheduled_start: Date }>("select status, scheduled_start from bookings where job_id=$1 and kind='assessment'", [JOB]);
     expect(bk).toHaveLength(1);
     expect(bk[0]!.status).toBe("confirmed");
@@ -339,14 +346,12 @@ describe("A1 step 5 — the electrician's safety check (PIESA): automatic offer,
 });
 
 describe("A1 step 6 — the electrician's A3 PIESA form in Mitti: repair work needed, priced on the form (decisions 178/305/315/324/354)", () => {
-  test("the office creates the A3 form for the booked electrician (Create Mitti form); the form is prefilled and assigned", async () => {
-    const forms = await import("./helpers/journey-forms");
-    const def = forms.completedA3({ inspectionDate: "2026-10-28", capturedAt: new Date().toISOString(), priceIncGst: 600, mediaPrefix: "a3" });
-    providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
+  test("the A3 form made at booking is prefilled and assigned; the office Create Mitti form button (backup) reuses it — never a second form", async () => {
     const pf = await import("../src/lib/portal.functions");
-    const r = await pf.createMittiAssessment({ data: { jobId: JOB }, context: { userId: OFFICE, supabase: admin, claims: {} } }) as { auditId: string };
+    const r = await pf.createMittiAssessment({ data: { jobId: JOB }, context: { userId: OFFICE, supabase: admin, claims: {} } }) as { auditId: string; reused: boolean };
     await settle();
     if (process.env["JOURNEY_DEBUG"]) console.log("A3-CREATE", r);
+    expect(r.reused).toBe(true);
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
     expect(await q("select external_mitti_id, mitti_template_id from assessments where job_id=$1", [JOB])).toEqual([{ external_mitti_id: r.auditId, mitti_template_id: TPL_A3 }]);
   });
