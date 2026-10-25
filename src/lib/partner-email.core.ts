@@ -4,6 +4,7 @@
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import * as K from "./email-kit.core";
+import { NO_FORM_NO_PAY } from "./trade-view.core";
 
 /** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx). */
 export const INSTALLER_GUIDE_URL = `${SET_PASSWORD_BASE}/field/guide`;
@@ -46,11 +47,13 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     : ["<strong>PIESAs sent to you</strong> near where you work", "<strong>Your agreed rate, paid 7 days after approval</strong>", "<strong>Bookings, compliance and rebate paperwork</strong> handled by us"];
   const guide = { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL, label: "Read the guide", marginTop: 18 };
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
-  const body = [K.h1(headline, 8), K.p(intro, "0 0 14px"), K.checkList(benefits, 15, "9px"), K.button(i.link, "Set your password", "14px 0 4px"), K.small(signIn, "10px 0 0", { center: true }), K.linkCard(guide), K.small("Questions? Just reply to this email.")].join("\n");
+  const body = [K.h1(headline, 8), K.p(intro, "0 0 14px"), K.checkList(benefits, 15, "9px"), K.button(i.link, "Set your password", "14px 0 4px"), K.small(signIn, "10px 0 0", { center: true }), K.linkCard(guide),
+    // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, appended after the approved I54 content.
+    K.mistBox(NO_FORM_NO_PAY.headline, K.p(NO_FORM_NO_PAY.body, "0"), { marginTop: 14 }), K.small("Questions? Just reply to this email.")].join("\n");
   const html = K.emailShell({ body, previewText: `${i.businessName} is now an approved Home Insulation Victoria partner.`, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([
     `Hi ${first ?? "there"},`, "", headline, "", intro, ...benefits.map((b) => `✓ ${K.stripTags(b)}`), "",
-    `Set your password: ${i.link}`, signIn, "", `${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, "", "Questions? Just reply to this email.", "", "Welcome aboard,", "Jo", "Home Insulation Victoria",
+    `Set your password: ${i.link}`, signIn, "", `${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, "", `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.", "", "Welcome aboard,", "Jo", "Home Insulation Victoria",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

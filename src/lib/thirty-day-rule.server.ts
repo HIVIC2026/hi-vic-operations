@@ -9,7 +9,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
   INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installerInstallWindowEmail, installerInstallWindowText,
-  ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent, type InstallWindowStep,
+  ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaCharge, repeatPiesaNextAction, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent, type InstallWindowStep,
 } from "./thirty-day-rule.core";
 import { installDaysLeft } from "./install-days.core";
 
@@ -101,8 +101,13 @@ export async function recordInstallWindowExpiry(jobId: string, deadline: string,
   const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId).in("event_type", PAYER_EVENT_TYPES).order("created_at");
   const events: InstallWindowEvent[] = (rows ?? []).map((r) => ({ type: r.event_type, at: r.created_at, summary: r.summary, details: (r.details ?? null) as NonNullable<InstallWindowEvent["details"]> | null }));
   const decision = repeatPiesaPayer({ clearanceDate, deadline, expired: true, booked: false, events });
-  await logEvent(jobId, null, INSTALL_WINDOW_EXPIRED_EVENT, `${repeatPiesaPayerLine(decision)} (decision 158 — new PIESA needed)`, { deadline, clearance_date: clearanceDate, payer: decision.payer, basis: decision.basis, reason: decision.reason }, { internal: true });
-  await admin.from("jobs").update({ next_action: decision.payer === "undetermined" ? "New PIESA needed: 30-day window lapsed — office to decide who pays the repeat PIESA" : `New PIESA needed: 30-day window lapsed — repeat PIESA payable by the ${decision.payer}` }).eq("id", jobId);
+  // Decision 342: the owner's repeat charge = their first safety check (the accepted quote's PIESA line, decision 302).
+  // Nothing charges it automatically: the figure is recorded on this event for the office / invoice to use.
+  const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const first = acc?.id ? await (await import("./safety-check-amount.server")).quoteSafetyCheck(acc.id).catch(() => null) : null;
+  const charge = repeatPiesaCharge(decision, first);
+  await logEvent(jobId, null, INSTALL_WINDOW_EXPIRED_EVENT, `${repeatPiesaPayerLine(decision)} (decision 158 — new PIESA needed)`, { deadline, clearance_date: clearanceDate, payer: decision.payer, basis: decision.basis, reason: decision.reason, quote_id: acc?.id ?? null, owner_charge_inc_gst: charge.ownerChargeIncGst, first_safety_check_inc_gst: charge.firstSafetyCheckIncGst, first_safety_check_source: charge.firstSafetyCheckSource }, { internal: true });
+  await admin.from("jobs").update({ next_action: repeatPiesaNextAction(charge) }).eq("id", jobId);
   return decision.payer;
 }
 

@@ -27,6 +27,13 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     booking("assessment"), booking("rectification"), booking("installation"),
     count(admin.from("veec_lodgements").select("id", head).eq("job_id", jobId).in("status", ["submitted", "approved"])),
   ]);
+  // Decision 314 follow-up: only a job with open fixes items reads the on-site-only answer and its clearance basis.
+  let onsiteStartOnly = false, onsiteStartCleared = false;
+  if (rect > 0) {
+    const ec = await import("./electrical-clearance.server");
+    onsiteStartOnly = await ec.onsiteStartOnlyFor(jobId).catch(() => false);
+    if (onsiteStartOnly) onsiteStartCleared = await ec.onsiteStartClearedFor(jobId).catch(() => false);
+  }
   return {
     eligibilityConfirmed: !!job && eligibilityConfirmedFor(job, todayMelbourne()),
     measureUpAccepted: measAccepted > 0,
@@ -34,6 +41,8 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     electricianAssigned: elec > 0,
     assessmentBookingConfirmed: ab > 0,
     openRectItems: rect,
+    onsiteStartOnly,
+    onsiteStartCleared,
     rectQuoteIssued: rqi > 0,
     rectQuoteAccepted: rqa > 0,
     installQuotesIssued: iqi > 0,

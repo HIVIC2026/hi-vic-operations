@@ -33,7 +33,7 @@ async function alreadyPrepared(jobId: string, key: string): Promise<boolean> {
 const jobLink = async (jobId: string) => `${(await import("./set-password-link.core")).SET_PASSWORD_BASE}/field/${jobId}`;
 
 /** One text through the TEST sender (TEST job or TEST partner) or the one real sender. Never throws on send problems. */
-async function deliver(p: { type: "ready_check_days_suggested" | "ready_check_booked_installer" | "install_tomorrow"; key: string; job: JobRow; businessId: string; biz: BizRow | null; to: string | null; body: string; event?: { at: string; current: boolean }; label: string }): Promise<string> {
+async function deliver(p: { type: "ready_check_days_suggested" | "ready_check_booked_installer" | "install_tomorrow" | "owner_changed_visit"; key: string; job: JobRow; businessId: string; biz: BizRow | null; to: string | null; body: string; event?: { at: string; current: boolean }; label: string }): Promise<string> {
   const { isTestPartner } = await import("./test-send.core");
   const test = p.job.source === "qa_test" || isTestPartner(p.biz ?? {});
   try {
@@ -61,6 +61,29 @@ export async function textInstallerOwnerSuggestedDays(jobId: string, triggerEven
   await logEvent(jobId, null, INSTALLER_TEXT_EVENT, "Installer texted: the owner suggested other Ready Check days (decision 79) — text prepared", { text: "ready_check_days_suggested", key, trigger_event_id: triggerEventId, suggested_at: suggestedAt, business_id: ctx.businessId }, { internal: true });
   const body = readyCheckDaysSuggestedText({ suburb: ctx.job.properties?.suburb ?? null, jobNumber: ctx.job.job_number, link: await jobLink(jobId) });
   return deliver({ type: "ready_check_days_suggested", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: ctx.biz?.signer_mobile ?? ctx.biz?.phone ?? null, body, event: { at: suggestedAt, current: true }, label: `ready_check_days_suggested:${triggerEventId}` });
+}
+
+/** Decision 337: the owner changed a booked visit on My job → tell the booked trade ONCE per change (the trigger event).
+ *  Ready Check / install day → the active installer business (offer new times/days, job-page link); safety check → the
+ *  electrician business that held the cancelled booking (read BEFORE it was released; no link, the job is no longer theirs).
+ *  Recorded as `installer_text_prepared` before any send; TEST job / TEST partner → test-send; real → the one real sender. */
+export async function textTradeOwnerChangedVisit(p: { jobId: string; kind: import("./installer-texts.core").OwnerChangedVisitKind; triggerEventId: string; changedAt: string; wasIso: string | null; electricianBusinessId?: string | null }): Promise<string> {
+  const { OWNER_CHANGED_VISIT_SMS_TYPE, ownerChangedVisitKey, ownerChangedVisitText } = await import("./installer-texts.core");
+  let ctx: { job: JobRow; businessId: string; biz: BizRow | null } | null;
+  if (p.kind === "assessment") {
+    if (!p.electricianBusinessId) return "skipped";
+    const [{ data: job }, { data: biz }] = await Promise.all([
+      admin.from("jobs").select("id, job_number, source, channel, deleted_at, properties(address_line, suburb)").eq("id", p.jobId).maybeSingle(),
+      admin.from("businesses").select("id, name, signer_mobile, phone, onboarding_notes").eq("id", p.electricianBusinessId).maybeSingle(),
+    ]);
+    ctx = job && !job.deleted_at ? { job: job as unknown as JobRow, businessId: p.electricianBusinessId, biz: (biz ?? null) as BizRow | null } : null;
+  } else ctx = await jobAndInstaller(p.jobId);
+  if (!ctx) return "skipped";
+  const key = ownerChangedVisitKey(p.jobId, p.triggerEventId);
+  if (await alreadyPrepared(p.jobId, key)) return "already handled";
+  await logEvent(p.jobId, null, INSTALLER_TEXT_EVENT, `${p.kind === "assessment" ? "Electrician" : "Installer"} texted: the owner changed the booked ${p.kind === "assessment" ? "safety check" : p.kind === "ready_check" ? "Ready Check" : "install day"} (decision 337) — text prepared`, { text: OWNER_CHANGED_VISIT_SMS_TYPE, key, kind: p.kind, trigger_event_id: p.triggerEventId, was: p.wasIso, business_id: ctx.businessId }, { internal: true });
+  const body = ownerChangedVisitText({ kind: p.kind, suburb: ctx.job.properties?.suburb ?? null, jobNumber: ctx.job.job_number, wasIso: p.wasIso, link: p.kind === "assessment" ? null : await jobLink(p.jobId) });
+  return deliver({ type: OWNER_CHANGED_VISIT_SMS_TYPE, key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: ctx.biz?.signer_mobile ?? ctx.biz?.phone ?? null, body, event: { at: p.changedAt, current: true }, label: `owner_changed_visit:${p.triggerEventId}` });
 }
 
 /** Decision 82 (installer text A): an our-lead Ready Check is booked → text the installer once per booked start time. */

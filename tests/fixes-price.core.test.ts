@@ -6,13 +6,14 @@ import { A4_FIXES_LINE_DESCRIPTION, buildA4FixesQuote, describeFixesWork, fixesM
 import { RECTIFICATION_MARGIN_INC_GST } from "../src/lib/rectification-pricing.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
 import {
-  SHORT_PIESA_FIELDS, FIXES_PRICE_LABEL, FIXES_INCLUDED_LABEL, FIXES_WORK_LABEL, FIXES_WORK_OPTIONS, FIXES_DOWNLIGHT_COUNT_LABEL,
+  SHORT_PIESA_FIELDS, FIXES_PRICE_LABEL, FIXES_INCLUDED_LABEL, FIXES_WORK_LABEL, FIXES_WORK_OPTIONS, FIXES_WORK_READ_OPTIONS, FIXES_DOWNLIGHT_COUNT_LABEL, ONSITE_START_LABEL,
   FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, FIXES_OTHER_HELP, shortAnswersFromEntries,
 } from "../src/lib/official-short.core";
 import { mittiAiPrompt } from "../src/lib/mitti-forms.core";
 import { readFileSync } from "node:fs";
 
-const [DL, RCD, BREAKERS, , , , MAINS, , , ONSITE, OTHER] = FIXES_WORK_OPTIONS;
+// Decision 338: the read list keeps the retired on-site tick (old forms); the asked list has the other ten.
+const [DL, RCD, BREAKERS, , , , MAINS, , , ONSITE, OTHER] = FIXES_WORK_READ_OPTIONS;
 
 describe("parseFixesPrice", () => {
   test.each([
@@ -24,12 +25,18 @@ describe("parseFixesPrice", () => {
 });
 
 describe("decision 308 ticks", () => {
-  test("the eleven options (decision 314 adds 'Be on site…' before Other), exactly as given to Jo", () => {
+  test("the ten options (decision 338 moved 'Be on site…' to its own question), exactly as given to Jo", () => {
     expect([...FIXES_WORK_OPTIONS]).toEqual([
       "Replace downlights with IC-4 rated LED downlights", "Install RCD safety switches", "Upgrade circuit protection (breakers) for insulation",
       "Replace old cables with TPS cable", "Secure and support loose cables in the ceiling", "Repair or replace damaged connections or junction boxes",
-      "Identify and mark the mains cable in the ceiling", "Remove or make safe old unused cables", "Label and protect solar or battery cables in the ceiling", "Be on site at the start of the install day", "Other",
+      "Identify and mark the mains cable in the ceiling", "Remove or make safe old unused cables", "Label and protect solar or battery cables in the ceiling", "Other",
     ]);
+    expect(FIXES_WORK_READ_OPTIONS[9]).toBe("Be on site at the start of the install day");
+  });
+  test("decision 338: the on-site question (Yes) is described exactly like the old tick", () => {
+    expect(fixesPriceSource({ fixesPriceIncGst: "650", onsiteStartNeeded: "Yes" })).toEqual({ path: "a4_price", electricianPriceIncGst: 650, included: "Be on site at the start of the install day" });
+    expect(fixesPriceSource({ fixesPriceIncGst: "650", fixesWork: `${RCD}, Other`, fixesRcdCount: "1", fixesOtherDetail: "Move cable", onsiteStartNeeded: "Yes" })).toEqual({ path: "a4_price", electricianPriceIncGst: 650, included: "Install 1 RCD safety switch; Be on site at the start of the install day; Other: Move cable" });
+    expect(fixesPriceSource({ fixesPriceIncGst: "650", fixesWork: RCD, fixesRcdCount: "2", onsiteStartNeeded: "No" })).toEqual({ path: "a4_price", electricianPriceIncGst: 650, included: "Install 2 RCD safety switches" });
   });
   test("ticks read from Mitti's ', ' join, ' | ', arrays; in form order; Other only as its own answer", () => {
     expect(fixesWorkTicks(`${RCD}, ${DL}`)).toEqual([DL, RCD]);
@@ -126,15 +133,19 @@ describe("buildA4FixesQuote", () => {
 });
 
 describe("A4 form fields (decisions 305/308)", () => {
-  test("total price first, then the ticks, the two counts and Other — right after 'describe the other repair work'", () => {
-    const i = SHORT_PIESA_FIELDS.findIndex((f) => f.id === "rectificationOther");
-    expect(SHORT_PIESA_FIELDS[i + 1]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes" });
-    expect(SHORT_PIESA_FIELDS[i + 2]).toMatchObject({ id: "fixesWork", label: "What will you do? Tick everything included in your price.", type: "multichoice", required: true, choices: [...FIXES_WORK_OPTIONS], when: "rectificationNeeded = Yes" });
-    expect(SHORT_PIESA_FIELDS[i + 3]).toMatchObject({ id: "fixesDownlightCount", label: "How many downlights are you replacing?", type: "number", required: true });
-    expect(SHORT_PIESA_FIELDS[i + 3]!.when).toContain(DL);
-    expect(SHORT_PIESA_FIELDS[i + 4]).toMatchObject({ id: "fixesRcdCount", label: "How many RCD safety switches are you installing?", type: "number", required: true });
-    expect(SHORT_PIESA_FIELDS[i + 4]!.when).toContain(RCD);
-    expect(SHORT_PIESA_FIELDS[i + 5]).toMatchObject({ id: "fixesOtherDetail", label: "Describe the other work", type: "text", required: true });
+  test("decision 324: right after 'repair needed?' (and the 309 legacy) — the ticks, the two counts, Other, then the total price LAST", () => {
+    const i = SHORT_PIESA_FIELDS.findIndex((f) => f.id === "rectificationPossible");
+    // Decision 338: the tick list is no longer Required (it may be empty when the only work is being on site at the start).
+    expect(SHORT_PIESA_FIELDS[i + 1]).toMatchObject({ id: "fixesWork", label: "What will you do? Tick everything included in your price.", type: "multichoice", required: false, choices: [...FIXES_WORK_OPTIONS], when: "rectificationNeeded = Yes" });
+    expect(SHORT_PIESA_FIELDS[i + 2]).toMatchObject({ id: "fixesDownlightCount", label: "How many downlights are you replacing?", type: "number", required: true });
+    expect(SHORT_PIESA_FIELDS[i + 2]!.when).toContain(DL);
+    expect(SHORT_PIESA_FIELDS[i + 3]).toMatchObject({ id: "fixesRcdCount", label: "How many RCD safety switches are you installing?", type: "number", required: true });
+    expect(SHORT_PIESA_FIELDS[i + 3]!.when).toContain(RCD);
+    expect(SHORT_PIESA_FIELDS[i + 4]).toMatchObject({ id: "fixesOtherDetail", label: "Describe the other work", type: "text", required: true });
+    // Decision 338: "Does an electrician need to be on site at the start of the install?" right after Other, before the price.
+    expect(SHORT_PIESA_FIELDS[i + 5]).toMatchObject({ id: "onsiteStartNeeded", label: ONSITE_START_LABEL, type: "yesno", required: true, choices: ["Yes", "No"], when: "rectificationNeeded = Yes" });
+    expect(ONSITE_START_LABEL).toBe("Does an electrician need to be on site at the start of the install?");
+    expect(SHORT_PIESA_FIELDS[i + 6]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes" });
     expect(FIXES_OTHER_HELP).toBe("Say exactly what you'll do, where, and how many.");
   });
   test("the decision-305 free text is legacy: read, never asked", () => {

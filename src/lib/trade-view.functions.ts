@@ -174,6 +174,35 @@ export const getTradeMoneyJob = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeMoneyJob(data.jobId, context.userId)));
 
 
+/** Decision 315: the electrician's "Fixes times" card on their job page (electricians only; business-scoped read). */
+export const getTradeFixesTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeFixesTimes(data.jobId, context.userId)));
+
+/** Decision 315: save 3–5 fixes times + estimated hours (the same shared write as the old portal PIESA submit). */
+export const saveTradeFixesTimes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    jobId: uuid, hours: z.number(),
+    windows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5),
+  }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows));
+
+/** Decision 327: the electrician's "Start of the install day" card (electricians only; business-scoped read). */
+export const getTradeInstallAttendance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeInstallAttendance(data.jobId, context.userId)));
+
+/** Decision 327: "I'll be there" / "Can't make it" (reason + 1–5 days they can do, or none) for the current install booking. */
+export const answerTradeInstallAttendance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.discriminatedUnion("answer", [
+    z.object({ jobId: uuid, bookingId: uuid, answer: z.literal("yes") }),
+    z.object({
+      jobId: uuid, bookingId: uuid, answer: z.literal("no"), reason: z.enum(["sick", "another_job", "short_notice", "other"]),
+      otherText: z.string().trim().max(200).nullable(), days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(5), noDays: z.boolean(),
+    }),
+  ]).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAnswerInstallAttendance(data.jobId, context.userId, data));
+
 /** Decision 261: the safety plan (SWMS) on the installer's job page. */
 export const getTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
@@ -186,3 +215,19 @@ export const saveTradeSwmsNote = createServerFn({ method: "POST" }).middleware([
 export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));
+
+/** Decision 317: the electrician's "Safety check (PIESA)" document row (electricians only; business-scoped read). */
+export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSafetyCheckDoc(data.jobId, context.userId)));
+
+/** Decision 317: download the current official PIESA PDF (bytes, private — no public URL). */
+export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSafetyCheckPdf(data.jobId, context.userId));
+
+/** Decision 328: "Check my form now" — runs the single-job A3 Install day sync for this installer's job and returns the
+ *  result (the same words as the text). Installers only; business-scoped through requireTradeJob. */
+export const checkTradeInstallForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeCheckInstallForm(data.jobId, context.userId)));

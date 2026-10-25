@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { GUIDE_STEPS, GUIDE_WORDS } from "@/lib/trade-view.core";
-import { outlineLinkClass, Screen } from "@/components/trade/installer-kit";
+import { NoFormNoPay, outlineLinkClass, Screen } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/guide")({
   head: () => ({ meta: [{ title: "Installer guide – Home Insulation Victoria" }, { name: "description", content: "What every job needs so the rebate can be claimed and you get paid." }, { property: "og:title", content: "Installer guide – Home Insulation Victoria" }, { property: "og:description", content: "What every job needs so the rebate can be claimed and you get paid." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -34,6 +34,8 @@ function Guide() {
         </section>
         <p className="text-sm leading-[1.5] text-sub">{GUIDE_WORDS.photos}</p>
         <p className="text-sm leading-[1.5]">{GUIDE_WORDS.pay}</p>
+        {/* Decision 318: appended after the approved M7-guide wording. */}
+        <NoFormNoPay />
         <Link to="/field" className={outlineLinkClass}>{GUIDE_WORDS.back}</Link>
       </Screen>
     </TradeShell>

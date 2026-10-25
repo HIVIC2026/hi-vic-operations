@@ -1,5 +1,6 @@
-// Mitti auto-invite persistence against an in-memory fake database and a fake Mitti search (no network, no real writes):
-// switch off = nothing read; on = one Mitti search per person, ever, one append-only record; office "done" closes it.
+// Mitti access persistence (decisions 188/331) against an in-memory fake database and a fake Mitti client (no network, no
+// real writes, nothing sent): switch off = nothing read; on = one search per person, link / create + group + one message /
+// "invite needed", one append-only record each; removal deactivates; failures = one office item; office "done" closes it.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type Row = Record<string, unknown>;
@@ -27,63 +28,157 @@ function from(t: string) {
   return q;
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
-// Fake Mitti: only the user search (POST /users/search) is ever called; anything else fails the test.
+// The real messenger is checked against fake senders: nothing can reach Twilio or the email service.
+const sent: { via: string; input: Record<string, unknown> }[] = [];
+mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (input: Record<string, unknown>) => { sent.push({ via: "sms", input }); return { status: "blocked", detail: "fake" }; } }));
+mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (input: Record<string, unknown>) => { sent.push({ via: "email", input }); return { status: "blocked", detail: "fake" }; } }));
+// Fake Mitti: user search, create, group add and status update; anything else fails the test.
+const calls: string[] = [];
 const searches: string[] = [];
 let found: string | null = null;
+let failCreate = false;
 const call = async (method: string, path: string, body?: unknown) => {
-  if (method !== "POST" || path !== "/users/search") throw new Error(`Unexpected Mitti call ${method} ${path}`);
-  const email = (body as { email: string[] }).email[0]!;
-  searches.push(email);
-  return { users: found ? [{ id: found, email }] : [] };
+  calls.push(`${method} ${path}`);
+  if (method === "POST" && path === "/users/search") {
+    const email = (body as { email: string[] }).email[0]!;
+    searches.push(email);
+    return { users: found ? [{ id: found, email }] : [] };
+  }
+  if (method === "POST" && path === "/users") {
+    if (failCreate) throw new Error("Mitti rejected the request (400)");
+    expect(body).toMatchObject({ firstname: "Real", lastname: "Sparky", email: "real@sparks.com.au", seat_type: "lite" });
+    return { user_id: "user_new" };
+  }
+  if (method === "POST" && path === "/groups/group_trades/users") return { ok: true };
+  if (method === "PUT" && path.startsWith("/users/")) return { ok: true };
+  throw new Error(`Unexpected Mitti call ${method} ${path}`);
 };
+const messages: string[] = [];
+const message = async (p: { workerId: string }) => { messages.push(p.workerId); return "text sent"; };
 
-const { onPartnerPersonApproved, listOpenMittiInvites, confirmMittiInviteDone } = await import("../src/lib/mitti-invite.server");
-const ON = { enabled: true, probeDone: false }; // TEST probe phase
+const { onPartnerPersonApproved, onPartnerPersonRemoved, listOpenMittiInvites, confirmMittiInviteDone, realInviteMessenger } = await import("../src/lib/mitti-invite.server");
+const ON = { enabled: true, apiVerified: false, groupId: null }; // calls not verified: link or office item only
+const LIVE = { enabled: true, apiVerified: true, groupId: "group_trades" };
+const events = () => (tables["admin_config_events"] ?? []).map((e) => e["event_type"]);
 
 beforeEach(() => {
-  reads.length = 0; searches.length = 0; found = null;
+  reads.length = 0; searches.length = 0; calls.length = 0; messages.length = 0; found = null; failCreate = false;
   tables = {
     partner_workers: [
-      { id: "w-test", email: "sparky+qa@hivic-test.example", full_legal_name: "Test Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
-      { id: "w-real", email: "real@sparks.com.au", full_legal_name: "Real Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b2" },
+      { id: "w-test", email: "sparky@hivic.test", mobile: "0400000000", full_legal_name: "Test Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
+      { id: "w-real", email: "real@sparks.com.au", mobile: "0412345678", full_legal_name: "Real Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p2", business_id: "b2" },
     ],
-    businesses: [{ id: "b1", name: "TEST Sparks", onboarding_notes: null }, { id: "b2", name: "Real Sparks", onboarding_notes: null }],
-    profiles: [{ id: "p1", email: "sparky+qa@hivic-test.example", mitti_user_id: null, mitti_checked_email: null, mitti_checked_at: null }],
+    businesses: [{ id: "b1", name: "TEST Sparks", onboarding_notes: "[TEST PARTNER]" }, { id: "b2", name: "Real Sparks", onboarding_notes: null }],
+    profiles: [
+      { id: "p1", email: "sparky@hivic.test", mitti_user_id: null, mitti_checked_email: null, mitti_checked_at: null },
+      { id: "p2", email: "real@sparks.com.au", mitti_user_id: null, mitti_checked_email: null, mitti_checked_at: null },
+    ],
     admin_config_events: [],
   };
 });
 
 describe("onPartnerPersonApproved", () => {
   test("switch off (the default) reads and writes nothing", async () => {
-    const r = await onPartnerPersonApproved("w-test", "office");
+    const r = await onPartnerPersonApproved("w-real", "office", { call, message });
     expect(r.action).toBe("skip");
     expect(reads).toEqual([]);
-    expect(searches).toEqual([]);
+    expect(calls).toEqual([]);
   });
-  test("TEST probe: a real person is not processed; the TEST person gets one search and one 'invite needed' record", async () => {
-    expect((await onPartnerPersonApproved("w-real", "office", { switches: ON, call })).action).toBe("skip");
-    expect(searches).toEqual([]);
-    const r = await onPartnerPersonApproved("w-test", "office", { switches: ON, call });
-    expect(r).toMatchObject({ action: "record_needed", group: "Electricians", seat: "lite" });
-    expect(searches).toEqual(["sparky+qa@hivic-test.example"]);
-    const ev = tables["admin_config_events"]!;
-    expect(ev.map((e) => e["event_type"])).toEqual(["mitti_invite_needed"]);
-    expect((ev[0]!["details"] as Row)["missing_endpoints"]).toHaveLength(3);
-    // Idempotent: approving again never searches or records again (seats are billed).
-    expect((await onPartnerPersonApproved("w-test", "office", { switches: ON, call })).action).toBe("skip");
+  test("TEST people are skipped: no Mitti call, no record, no message", async () => {
+    expect((await onPartnerPersonApproved("w-test", "office", { switches: LIVE, call, message })).action).toBe("skip");
+    expect(calls).toEqual([]);
+    expect(events()).toEqual([]);
+  });
+  test("API not verified: not found → one 'invite needed' office item; never creates; idempotent", async () => {
+    expect(await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message })).toMatchObject({ action: "record_needed", group: "HIV trades", seat: "lite" });
+    expect(calls).toEqual(["POST /users/search"]);
+    expect(events()).toEqual(["mitti_invite_needed"]);
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message })).action).toBe("skip");
     expect(searches).toHaveLength(1);
-    expect(tables["admin_config_events"]).toHaveLength(1);
+    expect(messages).toEqual([]);
+    expect((await listOpenMittiInvites()).invites.map((i) => i.workerId)).toEqual(["w-real"]);
   });
-  test("an existing Mitti user is linked on the profile, then the office closes it from the People list", async () => {
+  test("verified: not found → create (lite) + HIV trades group + profile link + ONE message, recorded before the message; never twice", async () => {
+    const r = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
+    expect(r).toMatchObject({ action: "create", mittiUserId: "user_new", groupAdded: true, message: "text sent" });
+    expect(calls).toEqual(["POST /users/search", "POST /users", "POST /groups/group_trades/users"]);
+    expect(events()).toEqual(["mitti_user_invited"]);
+    const d = tables["admin_config_events"]![0]!["details"] as Row;
+    expect(d).toMatchObject({ mitti_user_id: "user_new", group_added: true, worker_id: "w-real" });
+    expect(JSON.stringify(tables["admin_config_events"])).not.toContain("throwaway"); // the password is never stored
+    expect(tables["profiles"]![1]).toMatchObject({ mitti_user_id: "user_new" });
+    expect(messages).toEqual(["w-real"]);
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("skip");
+    expect(calls).toHaveLength(3);
+    expect(messages).toHaveLength(1);
+    expect((await listOpenMittiInvites()).invites).toEqual([]); // nothing left for the office
+  });
+  test("verified: an existing Mitti user is linked and added to the group, no message", async () => {
     found = "user_77";
-    expect((await onPartnerPersonApproved("w-test", "office", { switches: ON, call })).action).toBe("record_linked");
-    expect(tables["profiles"]![0]).toMatchObject({ mitti_user_id: "user_77", mitti_checked_email: "sparky+qa@hivic-test.example" });
+    expect(await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).toMatchObject({ action: "record_linked", mittiUserId: "user_77" });
+    expect(events()).toEqual(["mitti_user_linked"]);
+    expect(tables["profiles"]![1]).toMatchObject({ mitti_user_id: "user_77", mitti_checked_email: "real@sparks.com.au" });
+    expect(messages).toEqual([]);
+  });
+  test("create fails → ONE office item with the plain reason; a later approval retries via search", async () => {
+    failCreate = true;
+    const r = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message });
+    expect(r).toMatchObject({ action: "fail", reason: expect.stringMatching(/invite them in Mitti by hand.*400/) });
+    expect(events()).toEqual(["mitti_access_failed"]);
+    expect(messages).toEqual([]);
+    const open = (await listOpenMittiInvites()).invites;
+    expect(open).toHaveLength(1);
+    expect(open[0]!.todo[0]).toMatch(/could not create a user for real@sparks.com.au/);
+    found = "user_made_by_office";
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("record_linked");
+  });
+  test("office closes a linked-by-hand item from the People list", async () => {
+    found = "user_77";
+    await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message });
     const open = await listOpenMittiInvites();
-    expect(open.invites.map((i) => i.workerId)).toEqual(["w-test"]);
-    expect(open.invites[0]!.todo[0]).toMatch(/Electricians group/);
-    expect((await confirmMittiInviteDone("w-test", "office", call)).access).toBe("member");
-    expect(searches).toHaveLength(2); // the office "done" re-checks membership with the same search
+    expect(open.invites[0]!.todo[0]).toMatch(/HIV trades group/);
+    expect((await confirmMittiInviteDone("w-real", "office", call)).ok).toBe(true);
     expect((await listOpenMittiInvites()).invites).toEqual([]);
-    await expect(confirmMittiInviteDone("w-test", "office", call)).rejects.toThrow(/no open Mitti invite/);
+    await expect(confirmMittiInviteDone("w-real", "office", call)).rejects.toThrow(/no open Mitti invite/);
+  });
+});
+
+describe("onPartnerPersonRemoved", () => {
+  test("removed → the Mitti user the portal created is deactivated once; approved again → reactivated (same seat)", async () => {
+    await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message });
+    tables["partner_workers"]![1]!["removed_at"] = "2026-10-25T00:00:00Z";
+    expect(await onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).toEqual({ action: "deactivate", mittiUserId: "user_new" });
+    expect(calls.at(-1)).toBe("PUT /users/user_new");
+    expect(events()).toEqual(["mitti_user_invited", "mitti_user_deactivated"]);
+    expect((await onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).action).toBe("skip");
+    tables["partner_workers"]![1]!["removed_at"] = null;
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("reactivate");
+    expect(events().at(-1)).toBe("mitti_user_reactivated");
+    expect(messages).toHaveLength(1);
+  });
+  test("calls not verified → one office item to deactivate by hand; no Mitti user known → nothing", async () => {
+    tables["partner_workers"]![1]!["removed_at"] = "2026-10-25T00:00:00Z";
+    expect((await onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(events()).toEqual([]);
+    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", created_at: "2026-10-24T00:00:00Z", details: { worker_id: "w-real", email: "real@sparks.com.au", mitti_user_id: "user_9", group_added: true } });
+    expect(await onPartnerPersonRemoved("w-real", "office", { switches: ON, call })).toMatchObject({ action: "fail" });
+    expect(calls).toEqual([]);
+    expect((await listOpenMittiInvites()).invites[0]!.todo[0]).toMatch(/Deactivate real@sparks.com.au in Mitti by hand/);
+  });
+  test("switch off → nothing read", async () => {
+    expect((await onPartnerPersonRemoved("w-real", "office", { call })).action).toBe("skip");
+    expect(reads).toEqual([]);
+  });
+});
+
+describe("realInviteMessenger (existing partner senders, faked)", () => {
+  test("a mobile → ONE text, type mitti_invite, keyed per person; no mobile → ONE email through sendOfficeEmail", async () => {
+    sent.length = 0;
+    await realInviteMessenger({ workerId: "w-real", businessId: "b2", to: { mobile: "0412 345 678", email: "real@sparks.com.au" }, name: "Real Sparky", at: "2026-10-25T00:00:00Z", actorId: "office" });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ via: "sms", input: { type: "mitti_invite", idempotencyKey: "mitti-invite-message:v1:w-real", to: "+61412345678", businessId: "b2" } });
+    expect(String(sent[0]!.input["body"])).toMatch(/^You've been invited to Mitti/);
+    await realInviteMessenger({ workerId: "w-real", businessId: "b2", to: { mobile: null, email: "real@sparks.com.au" }, name: "Real Sparky", at: "2026-10-25T00:00:00Z", actorId: "office" });
+    expect(sent[1]).toMatchObject({ via: "email", input: { recipient: "partner", to: "real@sparks.com.au", subject: "You've been invited to Mitti" } });
   });
 });

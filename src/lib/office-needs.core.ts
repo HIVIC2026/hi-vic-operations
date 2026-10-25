@@ -3,6 +3,8 @@
 // system items as one fold line, no numbers strip, no "Later". One row per job: its most urgent office action.
 // PURE: the server gathers facts; this decides the row, its group and its one button. Never moves a job.
 
+import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
+
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
   { key: "today", label: "Today" },
@@ -12,7 +14,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 
 export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed"
-  | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned"
+  | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
@@ -47,6 +49,10 @@ export type NeedsFacts = {
   veecApHeld?: { at: string; reasons: string[] } | null;
   /** Decision 296: 5 days after the electrician's PIESA and the owner has not confirmed it on their secure link (install can't be booked). */
   piesaOwnerUnsigned?: { at: string; completedDate: string | null } | null;
+  /** Decision 330: 5 days after the electrical fixes and the owner has not confirmed them (official declaration unticked). */
+  fixesOwnerUnsigned?: { at: string; fixesDate: string | null } | null;
+  /** Decision 315: the electrician was texted the fixes-times link 24h+ ago and has not given the times (fixes-times.core). */
+  fixesTimesMissing?: { at: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
@@ -92,7 +98,9 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (f.spotSaved) add({ rank: 100, group: "week", kind: "choose_installer", line: "Spot saved · waiting for an installer", since: f.spotSaved.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
   if (f.electricianToChoose) add({ rank: 105, group: "week", kind: "choose_electrician", line: `Quote accepted · $349 paid · PIESA next${f.electricianToChoose.usual ? ` · usual electrician ${f.electricianToChoose.usual}` : ""}`, since: f.electricianToChoose.at, button: { label: "Send offer", to: "job", section: "piesa" } });
+  if (f.fixesTimesMissing) add({ rank: 117, group: "week", kind: "fixes_times_missing", line: FIXES_TIMES_MISSING_LINE, since: f.fixesTimesMissing.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaOwnerUnsigned) add({ rank: 118, group: "week", kind: "piesa_owner_unsigned", line: `Owner hasn't confirmed the safety check${f.piesaOwnerUnsigned.completedDate ? ` of ${fmtDay(`${f.piesaOwnerUnsigned.completedDate}T12:00:00+10:00`)}` : ""} · 5 days · install can't be booked`, since: f.piesaOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.fixesOwnerUnsigned) add({ rank: 119, group: "week", kind: "piesa_fixes_owner_unsigned", line: `Owner hasn't confirmed the electrical fixes${f.fixesOwnerUnsigned.fixesDate ? ` of ${fmtDay(`${f.fixesOwnerUnsigned.fixesDate}T12:00:00+10:00`)}` : ""} · 5 days · official PIESA owner declaration not ticked`, since: f.fixesOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });

@@ -15,10 +15,11 @@ You are helping me build a form template in **Mitti** (mitti.com.au field inspec
 Answer-type key: Text = single line text; Date = date picker; Yes/No = two choices "Yes" and "No"; Pick one = single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice with the exact options listed; Number = numeric; Photo = photo/attachment; Checkbox = single checkbox that must be ticked; Signature = signature capture.
 
 ## Group 1: Job
+Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
 1. `Job Reference ID` — Text — Required — portal fills this in
 2. `Address including postcode` — Text — Required — portal fills this in
-2a. `Whose customer is this?` — Pick one: `Home Insulation Victoria` / `The installer's customer` — Required — portal fills this in — help text: `Filled in by the portal. Don't change it.` — Mitti colours: both grey (decision 312, not part of the official form)
-2b. `I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.` — Checkbox (must tick) — Required — only show when question 2a = `Home Insulation Victoria` (decision 312, not part of the official form)
+2a. `I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.` — Checkbox (must tick) — Required — on EVERY job, no condition (decisions 312/323, not part of the official form)
+   - Decision 323: do NOT ask `Whose customer is this?` — delete that question from the form if it is there (old answers are still read harmlessly).
 3. `Date of inspection` — Date — Required
 3a. `Photo showing you on site at the property, holding your licence / photo ID (geotagged)` — Photo, location on — Required
 
@@ -51,21 +52,29 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 17. `Are any of them not IC or IC-4 rated?` — Yes/No — Required — only show when question 15 = Yes
 17a. `How many are not IC or IC-4 rated?` — Number — Required — only show when question 17 = Yes
 17b. `Photo of the problem` — Photo, location on, several files allowed — Required — only show when question 17 = Yes
-18. `Are there any appliances, exhaust fans or flues in the ceiling space?` — Yes/No — Required
-19. Repeating block `Add an appliance or flue` — only show when question 18 = Yes — containing `What is it and where is it?` (Text, Required), `Photo of it` (Photo, location on, Required), `Can insulation be safely installed around it as it is?` (Yes/No, Required)
+18. `Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?` — Yes/No — Required (decision 336: renamed from `Are there any appliances, exhaust fans or flues in the ceiling space?`; the old wording is still read)
+19. Repeating block `Add an appliance or flue` (the electrician taps + for each one) — only show when question 18 = Yes — help text: `One per appliance, exhaust fan, flue or other hazard. Answer No if it needs work or clearance before insulation goes in.` — containing, in this order:
+   1. `What type is it?` — Single choice: `Appliance` / `Exhaust fan` / `Flue` / `Other hazard` — Required
+   2. `What is it?` — Text — Required
+   3. `Where is it?` — Text — Required
+   4. `Photo of it` — Photo, location on — Required
+   5. `Can insulation be safely installed around it as it is?` — Yes/No — Required — No red, Yes grey
+   6. `What is the problem?` — Text — Required — only show when 5 = No
+   7. `What needs to be done to make it safe?` — Text — Required — only show when 5 = No
+   - Decision 336 (Jo 25 Oct 2026): this replaces `What is it and where is it?` (delete it; old answers are still read as both What and Where). The portal fills the official Part 7 row by row: Flue and Exhaust fan rows answer the official flues question, Appliance rows the appliances question, and all three go in the Appliance / Location / Hazard table (Appliance = `What is it?`, Location = `Where is it?`, Hazard = `What is the problem?`, else "None — safe to insulate around"; the actions line = `What needs to be done to make it safe?`); Other hazard rows go in the official "other hazards" table.
 
 ## Group 7: Repair work
 20. `Is any electrical repair work needed before insulation can be installed?` — Yes/No — Required — Yes red
    - Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation (same visit or the A5 fixes visit). Do NOT ask `Can the repair work be done before installation?` and do NOT add the instruction `No means an electrician must be present on installation day instead.` — delete both if they are on the form.
-21. `Please tick the repair work that is required.` — Tick all: `Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights.` / `Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated)` / `Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000` / `Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000` / `Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000.` / `Other (indicate below):` — Required — only show when question 20 = Yes
-22. `Please describe the other repair work.` — Text — Required — only show when question 21 has `Other (indicate below):` ticked
-22a. `Your total price for all the repair work, including GST` — Number — Required — only show when question 20 = Yes — for the owner's fixes quote only, not part of the official form (decision 305)
-22b. `What will you do? Tick everything included in your price.` — Tick all: `Replace downlights with IC-4 rated LED downlights` / `Install RCD safety switches` / `Upgrade circuit protection (breakers) for insulation` / `Replace old cables with TPS cable` / `Secure and support loose cables in the ceiling` / `Repair or replace damaged connections or junction boxes` / `Identify and mark the mains cable in the ceiling` / `Remove or make safe old unused cables` / `Label and protect solar or battery cables in the ceiling` / `Be on site at the start of the install day` / `Other` — Required — only show when question 20 = Yes — Mitti colours: all these grey — for the owner's fixes quote only, not part of the official form (decision 308: no free text)
-22c. `How many downlights are you replacing?` — Number — Required — only show when question 22b has `Replace downlights with IC-4 rated LED downlights` ticked (decision 308)
-22d. `How many RCD safety switches are you installing?` — Number — Required — only show when question 22b has `Install RCD safety switches` ticked (decision 308)
-22e. `Describe the other work` — Text — Required — only show when question 22b has `Other` ticked — help text: `Say exactly what you'll do, where, and how many.` (decision 308)
+21. `What will you do? Tick everything included in your price.` — Tick all: `Replace downlights with IC-4 rated LED downlights` / `Install RCD safety switches` / `Upgrade circuit protection (breakers) for insulation` / `Replace old cables with TPS cable` / `Secure and support loose cables in the ceiling` / `Repair or replace damaged connections or junction boxes` / `Identify and mark the mains cable in the ceiling` / `Remove or make safe old unused cables` / `Label and protect solar or battery cables in the ceiling` / `Other` — NOT Required (decision 338: it may be empty when the only work is being on site at the start; the portal flags `No repair work ticked and no on-site attendance` if both are empty) — only show when question 20 = Yes — Mitti colours: all these grey (decisions 308/324: the portal fills the official form's repair ticks from this list)
+21a. `How many downlights are you replacing?` — Number — Required — only show when question 21 has `Replace downlights with IC-4 rated LED downlights` ticked (decision 308)
+21b. `How many RCD safety switches are you installing?` — Number — Required — only show when question 21 has `Install RCD safety switches` ticked (decision 308)
+21c. `Describe the other work` — Text — Required — only show when question 21 has `Other` ticked — help text: `Say exactly what you'll do, where, and how many.` (decision 308)
+21d. `Does an electrician need to be on site at the start of the install?` — Yes/No — Required — only show when question 20 = Yes — Mitti colours: Yes red, No green (decision 338: replaces the old `Be on site at the start of the install day` tick; Yes = the official "electrician present at the start of installation" outcome, priced inside the one total)
+22. `Your total price for all the repair work, including GST` — Number — Required — only show when question 20 = Yes — LAST question on this page — for the owner's fixes quote only, not part of the official form (decisions 305/324)
+   - Decision 324 (Jo 25 Oct 2026, ONE list): do NOT ask `Please tick the repair work that is required.` or `Please describe the other repair work.` — delete both from the form (old answers are still read). The repair questions are the tick list, the two counts, `Describe the other work`, `Does an electrician need to be on site at the start of the install?` (decision 338), then the price LAST.
    - If Mitti can't show a question based on one tick-all option, make it not Required with help text `Only if you ticked …` (naming the option).
-   - Decision 314: `Be on site at the start of the install day` is priced inside the same total. When it is ticked the portal records the official "electrician present at the start of installation" outcome, and if it is the ONLY tick no fixes visit (A5 form) is needed.
+   - Decision 338 (replaces the decision-314 tick): `Does an electrician need to be on site at the start of the install?` = Yes is priced inside the same total. The portal records the official "electrician present at the start of installation" outcome, lines the electrician up for the install day (decision 327), and if nothing else is ticked no fixes visit (A5 form) is needed. Remove `Be on site at the start of the install day` from the tick list (old forms that ticked it are still read the same way).
    - Decision 308 replaces the old `What's included in that price?` text question — delete it from the form (old answers are still read).
 
 ## Group 8: Electrician declaration

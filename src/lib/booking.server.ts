@@ -65,6 +65,10 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
   }
+  // Decision 325: a direct reschedule of a booked install day (O42) needs the start it replaces.
+  const priorInstallStart = kind === "installation" && stage === target
+    ? (await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.scheduled_start ?? null
+    : null;
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
   const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
   if (insertError || !inserted) throw new Error(`Booking could not be saved: ${insertError?.message ?? "no row returned"}`);
@@ -97,6 +101,12 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     }
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
+    // Decision 325: O26 booked version ("safety check booked") to the owner; `changed` when an existing PIESA booking moved. Best-effort.
+    await (await import("./owner-email-triggers.server")).onSafetyCheckBooked(jobId, start, stage === target).catch((e) => console.error("safety check booked email skipped", (e as Error).message));
+  }
+  // Decision 325: O42 "Your install day has changed" when a confirmed install day is moved directly (stage already booked). Best-effort.
+  if (kind === "installation" && priorInstallStart) {
+    await (await import("./owner-email-triggers.server")).onInstallBookingRescheduled(jobId, start, priorInstallStart).catch((e) => console.error("install day changed email skipped", (e as Error).message));
   }
   if (kind === "assessment" || kind === "rectification") {
     const holds = await import("./install-holds.server");
@@ -110,6 +120,11 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   }
   // Stage 5 (Jo 23 Oct): a rescheduled (or re-confirmed) Ready Check updates the booked date on the job's
   // existing Mitti form. A no-op when no form exists yet — the form is created with the booked date.
+  // Decision 327: the A4 needs the electrician at the start of the install day → ask them for THIS booking (a moved day is a
+  // new booking, so it is asked again), or auto-confirm a day they already said they can do. Never a booking failure.
+  if (kind === "installation") {
+    await (await import("./install-attendance.server")).onInstallBooked(jobId, actorId).catch((e) => console.error("electrician attendance skipped", (e as Error).message));
+  }
   if (kind === "ready_check") {
     await (await import("./mitti-pickup.server")).updateMittiFormDate(jobId, start, actorId).catch((e) => console.error("mitti form date update skipped", (e as Error).message));
   }

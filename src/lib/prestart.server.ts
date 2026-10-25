@@ -6,25 +6,27 @@ import { escTask, prestartFailures, prestartLocked, prestartRunAt, type EscNotic
 import { escSentLine, isWithdrawn, registryBlock, registryChange, REGISTRY_FIELDS_SOURCE, type EscField, type RegistryChange } from "./esc.core";
 
 async function upcomingBooking(jobId: string) {
-  const { data } = await admin.from("bookings").select("id, scheduled_start, assignment_id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data } = await admin.from("bookings").select("id, scheduled_start, assignment_id, created_at").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
 
 /** The job's lead installer = the active assigned installer person, matched to their worker record. */
 export async function leadInstallerCert(jobId: string): Promise<LeadCert & { email: string | null; certificateNumber: string | null; mobile?: string | null }> {
-  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null, mobile: null };
+  const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null, mobile: null, whiteCard: null };
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!a) return none;
-  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
+  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
   if (!w) return none;
   const email = w.email.trim().toLowerCase();
   // Decision 130: the lead must have acknowledged the ESC collection notice (own secure link / My business).
   const noticeAcknowledged = (await (await import("./esc-collection-notice.server")).noticeAckMap([w as never])).get(w.id) ?? null;
+  // Decision 319: the lead's White Card (office-verified once); whether it blocks depends on when the install was booked.
+  const whiteCard = (await import("./worker-compliance.core")).whiteCardState(w as { trade_role: string; certification: unknown });
   const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
   const c = certs?.[0];
-  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged };
+  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard };
   const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, mobile: w.mobile ?? null, noticeAcknowledged };
+  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard };
 }
 
 /** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
@@ -65,15 +67,23 @@ export async function prestartFacts(jobId: string, start: string) {
     publicLiabilityBlocker: await installerPublicLiabilityBlocker(jobId),
     // Decision 261: the portal's safety plan (SWMS) must be signed by the lead and every listed installer.
     swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
+    // Decision 319: the White Card rule applies only to installations booked on/after WHITE_CARD_ENFORCED_FROM.
+    bookingCreatedAt: await installationBookingCreatedAt(jobId, start),
   };
+}
+
+/** When the installation booking for this start was made (decision 319 cutoff). Null = no matching booking found. */
+export async function installationBookingCreatedAt(jobId: string, start?: string | null): Promise<string | null> {
+  const b = await upcomingBooking(jobId);
+  if (!b) return null;
+  if (start && Date.parse(b.scheduled_start) !== Date.parse(start)) return null;
+  return (b as { created_at?: string | null }).created_at ?? null;
 }
 
 async function latestCheck(jobId: string) {
   const { data } = await admin.from("pre_start_checks").select("scheduled_start, passed, failures, checked_at").eq("job_id", jobId).order("checked_at", { ascending: false }).limit(1).maybeSingle();
   return data ? { scheduled_start: data.scheduled_start, passed: data.passed, failures: (data.failures as string[]) ?? [] } : null;
 }
-
-async function sha(s: string) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
 
 /** Run the check (from 12pm Melbourne the day before until the start). Records only when the result changes. */
 export async function runPrestart(jobId: string, trigger: string, now = new Date()) {
@@ -87,16 +97,8 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
-  if (!passed) {
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "prestart_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ev) {
-      const facts = await sha(`${jobId}-${b.scheduled_start}-${failures.join("|")}`);
-      for (const [action, target, key] of [["customer_email", `job:${jobId}`, "owner"], ["partner_notifications", `job_assignment:${b.assignment_id}`, "installer"]] as const) {
-        const { error: e2 } = await admin.rpc("enqueue_external_action", { _job: jobId, _event: ev.id, _action: action, _target: target, _basis: "transactional_job_coordination", _version: "prestart-failed-v1", _payload: `prestart_failed:${key}`, _facts: facts, _key: `prestart-${key}-${facts.slice(0, 32)}` });
-        if (e2) console.error("pre-start outbox enqueue skipped", e2.message); // e.g. TEST job suppression
-      }
-    }
-  }
+  // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
+  // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
   return { passed, failures, changed: true };
 }
 
@@ -131,10 +133,13 @@ export async function sweepPrestart(now = new Date()) {
 
 /** Needs-attention inputs: ESC tasks, failed checks, and installers needing re-recorded certification (upcoming installs only). */
 export async function prestartNeeds(now = new Date()) {
-  const { data: bk } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString());
+  const { data: bk } = await admin.from("bookings").select("job_id, scheduled_start, created_at").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString());
   const esc: { job_id: string; code: string; detail: string }[] = [];
   const failed: { job_id: string; since: string; detail: string }[] = [];
   const certs: { job_id: string; detail: string }[] = [];
+  // Decision 319: an office item for every upcoming install whose lead has no verified White Card (blocked or not).
+  const whiteCards: { job_id: string; detail: string }[] = [];
+  const { whiteCardEnforced } = await import("./worker-compliance.core");
   for (const b of bk ?? []) {
     const n = await latestNotices(b.job_id);
     const t = escTask({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, now });
@@ -143,8 +148,12 @@ export async function prestartNeeds(now = new Date()) {
     if (c && !c.passed && Date.parse(c.scheduled_start) === Date.parse(b.scheduled_start)) failed.push({ job_id: b.job_id, since: now.toISOString(), detail: c.failures.join(" ") });
     const l = await leadInstallerCert(b.job_id);
     if (l.found && l.status === "verified" && (!l.level || !l.expiresOn)) certs.push({ job_id: b.job_id, detail: `${l.name ?? "Lead installer"}: re-record certification as Full with expiry date.` });
+    if (l.found && l.whiteCard && l.whiteCard !== "verified" && l.whiteCard !== "not_applicable") {
+      const enforced = whiteCardEnforced((b as { created_at?: string | null }).created_at ?? null);
+      whiteCards.push({ job_id: b.job_id, detail: `${l.name ?? "Lead installer"}: White Card ${l.whiteCard === "awaiting_check" ? "uploaded, to verify" : l.whiteCard === "rejected" ? "not accepted" : "missing"}${enforced ? " — this install is blocked until it is verified." : " — booked before 26 Oct 2026, so not blocked."}` });
+    }
   }
-  return { esc, failed, certs };
+  return { esc, failed, certs, whiteCards };
 }
 
 /** Office: copy-ready Registry block, AP task, recorded submission and the day-before pre-start result for the job page. */

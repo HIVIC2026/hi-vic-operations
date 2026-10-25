@@ -6,7 +6,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentSource, type PaymentStepFacts, type PaymentStepKey,
-  cumulativePaidCents, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, toCents,
+  cumulativePaidCents, isStepCleared, isStepPaid, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, toCents,
 } from "./payments.core";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";
@@ -121,6 +121,8 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
     const { data: book } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
     if (book?.scheduled_start) await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, book.scheduled_start, { depositReceived: true }).catch((e) => console.error("deposit-received email skipped", (e as Error).message));
   }
+  // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
+  if (isStepPaid(v.steps, "safety_check")) await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
   if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
   if (v.paidCents >= v.plan.grandTotalCents && v.plan.grandTotalCents > 0) await once("completion_pack_due", "Invoice fully paid – completion pack can be sent once the install is complete", { paid_cents: v.paidCents });
   const { autoAdvanceJob } = await import("./autoadvance.server");

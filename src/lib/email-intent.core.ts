@@ -137,6 +137,13 @@ export function proposedChanges(m: IntentInput): ProposedChange[] {
   return out;
 }
 
+/** Decision 244/292: does the email read like a NEW enquiry ("interested in", "a quote for", "do you install …")?
+ *  Shared by the reply drafter (matched owners at enquiry stages) and the new-sender website reply (decision 292). */
+const ENQUIRY_CUE = /\b(interested in|enquir(e|y|ing)|get a quote|a quote for|quote (me|us)|insulation for (my|our)|looking (to|for|at) (get|have|insulat)|would like (to get|a quote|insulation|some insulation)|can you (insulate|quote|help)|do you (do|install|service|cover)|need (ceiling )?insulation|ceiling insulation|insulate (my|our))\b/i;
+export function looksLikeNewEnquiry(subject: string | null, body: string): boolean {
+  return ENQUIRY_CUE.test(`${subject ?? ""}\n${body}`);
+}
+
 /** Whether a message is recent enough to raise an office row (history catch-ups and stale replays never do). */
 export function recentEnoughForAction(at: string, now: Date = new Date()): boolean {
   const t = Date.parse(at);
@@ -157,4 +164,13 @@ export function changeRequestLabel(c: Pick<ProposedChange, "intent"> & Partial<{
 export function openChangeRequests<T extends { id: string }>(requests: T[], resolutions: { request_event_id: string | null | undefined }[]): T[] {
   const done = new Set(resolutions.map((r) => r.request_event_id).filter(Boolean));
   return requests.filter((r) => !done.has(r.id));
+}
+
+/** Decision 337 (Jo 25 Oct 2026, replaces 245 for these): is the Apply/Ignore office row still raised for this change?
+ *  A date/time change or cancel that got the automatic My job reply raises no row — except a cancel the owner can't do
+ *  themselves (`keepOfficeRow`). No reply sent (held, not the owner, no visit to change …) = the row as before. */
+export function officeRowNeeded(intent: string, outcome: { sent: boolean; keepOfficeRow: boolean } | null): boolean {
+  if (intent !== "reschedule" && intent !== "cancel") return true;
+  if (!outcome || !outcome.sent) return true;
+  return outcome.keepOfficeRow;
 }

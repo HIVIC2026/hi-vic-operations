@@ -13,7 +13,7 @@ import {
 import { isVictorianAddress, resumeFailureMode } from "@/lib/rec-onboarding.core";
 import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
 import {
-  confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl, installerPiisaUploadUrl, confirmInstallerPiisaUpload,
+  confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl, installerPiisaUploadUrl, confirmInstallerPiisaUpload, installerWhiteCardUploadUrl, confirmInstallerWhiteCardUpload,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
 } from "@/lib/installer-onboarding.functions";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
@@ -681,6 +681,9 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
             <PiisaUpload email={x.email ?? ""} uploaded={!!x.piisa_uploaded} onDone={() => set(i, { piisa_uploaded: true })} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} error={errFor(`installer-${i}-piisa-upload`)} />
           </>}
           {x.piisa_done === "no" && <p style={warn}>You can still submit. They can't get jobs until the certificate is uploaded and our office has checked it.</p>}
+          <Field label="White Card (construction induction card)" hint="Optional now. They can't be lead or crew on an install until our office has checked it.">
+            <WhiteCardUpload email={x.email ?? ""} uploaded={!!x.white_card_uploaded} onDone={() => set(i, { white_card_uploaded: true })} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} />
+          </Field>
           <Field label="Other relevant training"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
           {self
             ? <div id={`installer-${i}-esc-notice`} tabIndex={-1}><Check required checked={x.esc_notice_ticked === true} onChange={(v) => set(i, { esc_notice_ticked: v })} error={errFor(`installer-${i}-esc-notice`)}>{COLLECTION_NOTICE_ACK_TEXT}</Check></div>
@@ -810,4 +813,29 @@ function PiisaUpload({ email, uploaded, onDone, token, setError, preview, revisi
       : <label style={{ ...btn(false, busy), display: "inline-flex", alignItems: "center" }}>{busy ? "Uploading…" : "Upload PIISA certificate"}<input type="file" hidden disabled={busy} accept={accept} onChange={(e) => onFile(e.target.files?.[0])} /></label>}
     {error && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{error}</div>}
   </div>;
+}
+
+/** Decision 319: each installer's White Card (optional at onboarding; the office verifies it once after approval). */
+function WhiteCardUpload({ email, uploaded, onDone, token, setError, preview, revision, onUploadBusy }: { email: string; uploaded: boolean; onDone: () => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
+  const [busy, setBusy] = useState(false);
+  async function onFile(picked: File | undefined) {
+    if (!picked) return;
+    if (preview) { setError("Sample preview only — upload is disabled."); return; }
+    if (!email.trim()) { setError("Add this installer's email first."); return; }
+    setError(null);
+    let f: File, mime: "application/pdf" | "image/jpeg" | "image/png";
+    try { ({ file: f, mime } = await prepareCertificate(picked)); } catch (e) { setError(e instanceof Error ? e.message : "Upload a PDF, JPG or PNG."); return; }
+    setBusy(true); onUploadBusy(true);
+    try {
+      const u = await installerWhiteCardUploadUrl({ data: { token, content_type: mime, size: f.size, filename: f.name } });
+      const { error: upErr } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: mime });
+      if (upErr) throw new Error("Upload failed. Please try again.");
+      await uploadWithRevision(revision, (base) => confirmInstallerWhiteCardUpload({ data: { token, path: u.path, content_type: mime, email: email.trim().toLowerCase(), base_updated_at: base } }));
+      onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setBusy(false); onUploadBusy(false); }
+  }
+  const accept = "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
+  return uploaded
+    ? <p style={okLine}>✓ White Card uploaded. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept={accept} onChange={(e) => onFile(e.target.files?.[0])} /></label>}</p>
+    : <label style={{ ...btn(false, busy), display: "inline-flex", alignItems: "center" }}>{busy ? "Uploading…" : "Upload White Card"}<input type="file" hidden disabled={busy} accept={accept} onChange={(e) => onFile(e.target.files?.[0])} /></label>;
 }

@@ -15,6 +15,12 @@ export type AdvanceFacts = {
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
   openRectItems: number;
+  /** Decision 314 follow-up: the A4's ONLY repair tick is "Be on site at the start of the install day" (fixes-times.core
+   *  `onsiteStartOnly`) — no fixes visit ever. Absent = false (read only when fixes items are open). */
+  onsiteStartOnly?: boolean;
+  /** …and electrical clearance holds on the `electrician_at_start` basis (fixes quote accepted + payment rule cleared,
+   *  allocation.core `onsiteStartAtInstall`). The open items are done on the install day. Absent = false. */
+  onsiteStartCleared?: boolean;
   rectQuoteIssued: boolean;
   rectQuoteAccepted: boolean;
   installQuotesIssued: boolean;
@@ -39,9 +45,15 @@ export const TERMINAL: Stage[] = ["complete", "on_hold", "cancelled"];
 export const INSTALLER_OWN_CUSTOMER_SUMMARY = "Installer's own customer – the installer does the Ready Check (Mitti form); no spot to save";
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
+export const ONSITE_START_INSTALL_SUMMARY = "Electrician on site at the start of the install day (fixes quote accepted and paid) – no fixes visit, installation scheduling unlocked";
+export const ONSITE_START_WAITING = "Waiting for the owner to accept and pay the fixes quote (electrician on site at the start of the install day)";
+
 export function planStep(stage: Stage, f: AdvanceFacts): Step {
   const t = (to: Stage, summary: string): Step => ({ kind: "transition", to, summary });
   const stop = (reason: string): Step => ({ kind: "stop", reason });
+  // Decision 314 follow-up: open fixes items that are done on the install day never route to a fixes visit.
+  const onsiteCleared = f.openRectItems > 0 && !!f.onsiteStartCleared;
+  const onsiteWaiting = f.openRectItems > 0 && !!f.onsiteStartOnly && !f.onsiteStartCleared;
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
@@ -67,6 +79,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       // No rectification: the same unlock as after payment (installation_scheduling entry still needs a passing current
       // PIESA, the accepted quote, a verified payment option and a valid 30-day window). Rectification found at the PIESA
       // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
+      if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       return f.openRectItems > 0 ? stop("Electrical fixes listed at the PIESA – Home Insulation Victoria must route the electrical fixes") : t("installation_scheduling", "PIESA complete, no electrical fixes – installation scheduling unlocked");
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical fixes item(s) required`) : t("ready_for_installer_quotes", "No electrical fixes required – ready for installer quotes");
@@ -83,8 +96,12 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       return t("awaiting_deposit_payment", "Owner accepted final installation quote – approved payment option due");
     case "awaiting_deposit_payment":
       if (!f.depositCleared) return stop("Waiting on approved payment option (minimum deposit, paid in full or active 3-instalment plan)");
+      if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
+      if (onsiteWaiting) return stop(ONSITE_START_WAITING);
       return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – electrical fixes scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
     case "rectification_scheduling":
+      if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
+      if (onsiteWaiting && !f.rectBookingConfirmed) return stop(ONSITE_START_WAITING);
       return f.rectBookingConfirmed ? t("rectification_booked", "Electrical fixes booking confirmed") : stop("Electrical fixes booking not confirmed");
     case "rectification_booked":
       return f.openRectItems === 0 ? t("installation_scheduling", "Electrical fixes complete, PIESA passed – installation scheduling unlocked") : stop("Electrical fixes not yet completed");

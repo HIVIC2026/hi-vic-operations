@@ -12,7 +12,7 @@ import { jobScope } from "./requirements.server";
 import { provisionalGivesWayToMitti } from "./measurement.core";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
-import { customerOfOption, noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
+import { noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_HISTORY_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
 import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
@@ -146,7 +146,6 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
         lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
-        customerOf: measureOnly ? null : customerOfOption(job.channel),
         builtLast5Years: measureOnly ? builtLast5YearsOption((prop?.enrichment as Any)?.base44?.declared?.over_five_years ?? null) : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
       },
@@ -362,7 +361,8 @@ async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, aud
 async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite: boolean) {
   const { data } = await admin.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", [ONSITE_START_EVENT, ONSITE_START_CLEARED_EVENT]).order("created_at", { ascending: false }).limit(1);
   const open = data?.[0]?.event_type === ONSITE_START_EVENT;
-  if (onsite && !open) await logEvent(jobId, actorId, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, { needs_office: true, rule: "decision 314" }, { internal: true });
+  // Decision 327: a record only (no Needs me line) — the electrician is asked automatically once the install day is booked.
+  if (onsite && !open) await logEvent(jobId, actorId, ONSITE_START_EVENT, ONSITE_START_HISTORY_TEXT, { rule: "decision 314 / 327" }, { internal: true });
   else if (!onsite && open) await logEvent(jobId, actorId, ONSITE_START_CLEARED_EVENT, "The safety check no longer says the electrician must be on site at the start of the install day", { rule: "decision 314" }, { internal: true });
 }
 
@@ -410,8 +410,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const snapshot = attachPiesaMedia(audit, (plan.snapshot ?? []) as PiesaSnapshotEntry[]);
         const shortAnswers = shortAnswersFromEntries("piesa", snapshot);
         const evidenceBlockers = piesaEvidenceBlockers(shortAnswers, piesaMediaFromSnapshot(snapshot));
-        // Decision 312: our leads' completed A4 must carry the "won't discuss prices" tick — an office item, never a blocker.
-        const priceTalk = noPriceTalkIssue({ channel: job.channel, completed: plan.completed, entries: snapshot });
+        // Decisions 312/323: every completed A4 that has the "won't discuss prices" tick must have it ticked — an office item, never a blocker.
+        const priceTalk = noPriceTalkIssue({ completed: plan.completed, entries: snapshot });
         // A PIESA marked complete in Mitti without its evidence is NOT complete here (stays pending, re-synced next tick).
         completed = plan.completed && evidenceBlockers.length === 0;
         await admin.from("assessments").update({
@@ -422,10 +422,10 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.
         // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from this form.
-        const [prefillCtx, ownerConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null)]);
-        const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation });
+        const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
+        const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
-        // Decision 314: a completed A4 with "Be on site at the start of the install day" ticked raises ONE office item.
+        // Decision 314 / 327: a completed A4 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
@@ -442,6 +442,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
           await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
+          // Decision 336: the electrician's ACTUAL A4 signature image (media id + its own timestamp) is kept with the job for
+          // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
+          const { mittiSignatureByLabel } = await import("./fixes-day.core");
+          const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
+          await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
         }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
         // same status) adds no new event row.
@@ -449,6 +454,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const changed = syncStatus !== a.mitti_sync_status || completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
         if (changed) await logEvent(jobId, actorId, "mitti_synced", completed ? "Mitti assessment synced (completed in Mitti)" : plan.completed ? `Mitti PIESA marked complete but evidence is missing: ${evidenceBlockers.join("; ")}` : "Mitti partial data synced (audit not yet completed)",
           { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null, evidence_blockers: evidenceBlockers });
+        // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
+        // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
+        if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
       }
     }
   }

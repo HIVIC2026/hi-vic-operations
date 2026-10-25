@@ -104,6 +104,10 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
       if (electricalBillingSource({ channel: j?.channel ?? null, choice: j?.electrician_choice ?? null, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct")
         throw new Error("This electrician invoices the owner directly — Home Insulation Victoria doesn't pay this work.");
     }
+    // Decision 318: no payment until the matching Mitti form is Complete and its evidence checks pass (fails closed).
+    const { payoutBlockersFor } = await import("./trade-payout-gate.server");
+    const held = await payoutBlockersFor(data.jobId, data.kind ?? "installation");
+    if (held.length) throw new Error(`Payout held — not payable yet: ${held.join("; ")}`);
     const { logEvent } = await import("./workflow.server");
     await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}) }, { internal: true });
     return { ok: true };

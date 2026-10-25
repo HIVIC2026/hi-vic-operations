@@ -7,7 +7,7 @@ import { installCompletionDecision, type InstallEvidenceSummary } from "./instal
 
 export const INSTALL_COMPLETE_HELD_EVENT = "install_complete_auto_held";
 
-export async function maybeRecordInstallationFromMitti(jobId: string, actorId: string | null, auditId: string, input: { formCompleted: boolean; declarationSaved: boolean; summary: InstallEvidenceSummary | null }): Promise<{ recorded: boolean; reason: string; nextLine: string | null }> {
+export async function maybeRecordInstallationFromMitti(jobId: string, actorId: string | null, auditId: string, input: { formCompleted: boolean; declarationSaved: boolean; summary: InstallEvidenceSummary | null; allFilledInTicked?: boolean | null }): Promise<{ recorded: boolean; reason: string; nextLine: string | null }> {
   const { installationAlreadyComplete, recordInstallationComplete } = await import("./install-complete.server");
   const decision = installCompletionDecision({ ...input, alreadyCompleted: await installationAlreadyComplete(jobId) });
   const hold = async (reason: string, nextLine: string | null, outstanding: string[]) => {

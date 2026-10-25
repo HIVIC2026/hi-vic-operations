@@ -25,8 +25,8 @@ Status: PLAN. Installer bulk upload was switched off on 23 Oct (`bulk-upload-swi
    - form complete (area, product, price, owner name/mobile/email, permission);
    - eligibility answers on the form pass;
    - electrician choice made and priced;
-   - installer price (EXCLUDING access fee) within **ceiling area × $15–$30 + removal area × $5–$15** per m² inc GST;
-   - difficult access fee **≤ $500** inc GST;
+   - [RETIRED by decision 343, 25 Oct — no price ranges] installer price (EXCLUDING access fee) within **ceiling area × $15–$30 + removal area × $5–$15** per m² inc GST;
+   - [RETIRED by decision 343/341] difficult access fee **≤ $500** inc GST;
    - job not flagged as a possible duplicate.
    If the form changes after a quote was sent, the new quote is **held for the office**, never auto-sent.
    Ships behind its own switch, OFF, until proven on the TEST Reinsulate account.

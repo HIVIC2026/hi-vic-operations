@@ -10,7 +10,7 @@ import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
-import { crewClearance, melbourneToday } from "./worker-compliance.core";
+import { WHITE_CARD_BLOCK_MESSAGE, crewClearance, melbourneToday, whiteCardBlocker, whiteCardState, type WhiteCardState } from "./worker-compliance.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
 import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
 
@@ -440,6 +440,10 @@ export type StaffOption = {
   level?: string | null; expiresOn?: string | null;
   /** ESC collection notice (decision 130): false = not acknowledged, so this person can't be lead or crew. Undefined = not loaded. */
   noticeAcknowledged?: boolean;
+  /** Decision 319: this person's White Card state (office-verified once). */
+  whiteCard?: WhiteCardState;
+  /** Decision 319: true = White Card not verified and this installation was booked on/after the cutoff → can't be lead or crew. Undefined = rule not applied (older callers). */
+  whiteCardBlocked?: boolean;
 };
 
 /** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
@@ -452,7 +456,8 @@ export const certificationRef = (c: unknown): string | null => { const v = (c as
 
 /** Roster from RECORDED facts: EEC verified only through a linked verified certification row (declared text never counts). */
 export type LevelRow = { certification_id: string; level: string | null; expires_on: string | null; recorded_at: string };
-export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = [], noticeAck?: Map<string, boolean>, today: string = melbourneToday()): StaffOption[] {
+/** `whiteCardFor`: decision 319 — when given, `whiteCardBlocked` is set from the White Card state and the installation booking's created time (null = no booking yet = enforced). */
+export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = [], noticeAck?: Map<string, boolean>, today: string = melbourneToday(), whiteCardFor?: { bookingCreatedAt: string | null }): StaffOption[] {
   const byId = new Map(certs.map((c) => [c.id, c]));
   const lv = new Map<string, LevelRow>();
   for (const l of [...levels].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) lv.set(l.certification_id, l); // latest recorded wins
@@ -463,7 +468,9 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     const level = ok ? lv.get(c!.id)?.level ?? null : null, expiresOn = ok ? lv.get(c!.id)?.expires_on ?? null : null;
     // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
     const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}) };
+    const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
+    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
+      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
@@ -497,6 +504,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
+  else if (lead.whiteCardBlocked) p.push(`${lead.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
   if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
   for (const a of sel.additional) {
@@ -508,6 +516,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       if (notCleared(s)) p.push(clearMsg(s));
       else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
       else if (s.noticeAcknowledged === false) p.push(`${s.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
+      else if (s.whiteCardBlocked) p.push(`${s.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
     } else {
       const name = a.other.name.trim(), eec = a.other.eec.trim();
       if (!name || !eec) { p.push("Other installer needs a full name and EEC certification number"); continue; }

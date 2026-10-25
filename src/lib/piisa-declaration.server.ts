@@ -8,8 +8,10 @@ import { logEvent } from "./workflow.server";
 import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
+/** Decision 328: what the A3 sync read, for the install day confirmation (install-day-confirm.server). */
+export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
 
-export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch } = {}): Promise<PiisaDeclSync> {
+export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch; onA3?: (info: A3SyncInfo) => void } = {}): Promise<PiisaDeclSync> {
   const { data: existing } = await admin.from("installer_declarations").select("id,snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
   const { data: job } = await admin.from("jobs").select("job_number, source").eq("id", jobId).single();
   if (!job) return { status: "error", message: "Job not found." };
@@ -42,11 +44,19 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       installEvidence = await ie.syncInstallEvidence(jobId, actorId, auditId, audit);
     } catch (e) { try { await logEvent(jobId, actorId, "install_evidence_sync_failed", "Install-day evidence (Table 4 / sign-off) could not be read — sync again", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   }
+  // Decision 328: the final tick of the install day form (unticked = not complete) and what this sync read, for the
+  // install day confirmation text / "Check my form now".
+  const finalTickTicked = installDay ? (await import("./install-day.core")).readInstallDay(audit).ticked((await import("./install-day.core")).INSTALL_DAY_Q.allFilledIn) : true;
+  if (isA3 && opts.onA3) {
+    const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } } | null;
+    const mod = raw?.modified_at ?? raw?.audit_data?.date_modified;
+    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, summary: installEvidence });
+  }
   // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
   // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
   const finishInstall = async (declarationSaved: boolean) => {
     if (!isA3 || !p.completed) return;
-    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence }); }
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null }); }
     catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));
@@ -187,17 +197,24 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     if (!asg?.user_id) return { status: "error", message: "No assigned installer to attribute the signed PIISA to." };
     // Stored as the job's current signed official PIISA; the canonical PIISA gate (piisaPanel / stageEntryBlockers)
     // then evaluates Parts 1–8, the 30-day PIESA window, install-day signing and electrician attendance. Never bypassed.
+    // Decision 329: the Word form's Part 8 "Signature" box carries the lead installer's typed electronic signature (the Mitti
+    // signature image stays the linked attachment record below).
+    const signerName = (directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? "")).trim();
+    if (signerName) answers["p8.signature"] = (await import("./official-forms.core")).electronicSignature(signerName, sigDate);
     const { storeSignedCopy, currentCopy, materialFacts } = await import("./official-forms.server");
     const piesa = (await currentCopy(jobId, "piesa")).copy;
     const { facts } = await materialFacts(jobId, piesa);
     const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
-    const r = renderOfficialDocx("piisa", answers as never);
+    // Decision 336: the A3 lead installer's ACTUAL signature image (stored at the start-of-work capture) in the Part 8 box.
+    const sigImgs = await (await import("./official-signature.server")).officialSignatureImages(jobId, "piisa", answers, prestart?.signature_image ?? null).catch(() => null);
+    const r = renderOfficialDocx("piisa", answers as never, sigImgs?.signatures ?? {});
+    if (sigImgs?.flags.length) await logEvent(jobId, actorId, "piisa_signature_image_missing", sigImgs.flags.join(" "), { audit_id: auditId, flags: sigImgs.flags }, { internal: true });
     if (directLike && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
     if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
-    // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
+    // The Word form shows the typed electronic signature (decision 329); the signature image is an explicit linked attachment record next to it.
     const { createHash } = await import("node:crypto");
     const docSha = createHash("sha256").update(r.bytes).digest("hex");
     const base = signatureAttachment(auditId, { ...sig, name: directLike ? String(answers["p2.lead"] ?? "") : sig.name, signedAt }, { path, sha256: docSha });

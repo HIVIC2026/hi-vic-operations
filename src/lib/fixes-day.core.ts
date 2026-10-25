@@ -26,6 +26,10 @@ export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
 export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
+/** Job-file title of the CoES file(s) kept from the A5 form (documents kind piesa_evidence, source mitti). Decision 322:
+ *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
+export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
+export const FIXES_COES_DOC_KIND = "piesa_evidence";
 
 /** Every label, by key. Q8 is a read-only list the portal fills in; Q15 the electrician's signature. */
 export const FIXES_DAY_Q = {
@@ -125,6 +129,14 @@ function labelledItems(doc: unknown): Labelled[] {
 }
 const allWithLabel = (items: Labelled[], label: string) => items.filter((i) => labelKey(i.label) === labelKey(label));
 
+/** Decision 336: the signature captured on a Mitti form under `label` (first occurrence; exact wording) — media id + its own
+ *  timestamp + signer name, only what Mitti recorded. Used for the A4 "Electrician signature" (and the A5 one via readFixesDay). */
+export function mittiSignatureByLabel(audit: unknown, label: string): ReadSignature & { itemId: string | null } {
+  const hit = allWithLabel(labelledItems(audit), label)[0];
+  return hit ? { ...hit.signature, itemId: hit.id } : { ...NO_SIGNATURE, itemId: null };
+}
+export type MittiSignatureRead = ReadSignature;
+
 /** Is this template / audit the "A5 – Electrical fixes" form? (Two labels no other form carries together.) */
 export function isFixesDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
@@ -182,6 +194,27 @@ export function repairWorkList(short: Record<string, string | null | undefined>)
   return out;
 }
 
+export type FixesFormEvent = { event_type: string; created_at: string; summary?: string | null; details: unknown };
+export type FixesFormOutcome = { auditId: string | null; createdAt: string | null; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null };
+/** The job's latest fixes form and what happened to it, from its append-only events (NEWEST FIRST). Pure; shared by
+ *  `fixesFormState` (trade/office card) and the decision-318 payout gate. */
+export function fixesFormOutcome(evs: FixesFormEvent[]): FixesFormOutcome {
+  const det = (e: FixesFormEvent | undefined) => (e?.details ?? null) as { audit_id?: string; reason?: string; text?: string } | null;
+  const created = evs.find((e) => e.event_type === FIXES_FORM_CREATED_EVENT);
+  const auditId = det(created)?.audit_id ?? null;
+  if (!auditId) {
+    const held = evs.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
+    return { auditId: null, createdAt: null, outcome: held ? "held" : null, detail: held ? det(held)?.reason ?? held.summary ?? null : null };
+  }
+  const later = evs.filter((e) => det(e)?.audit_id === auditId && e.event_type !== FIXES_FORM_CREATED_EVENT);
+  const done = later.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT);
+  const notDone = later.find((e) => e.event_type === FIXES_FORM_NOT_DONE_EVENT);
+  const held = later.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
+  const outcome = done ? "done" : notDone && (!held || notDone.created_at > held.created_at) ? "not_done" : held ? "held" : "open";
+  const detail = done ? null : notDone && outcome === "not_done" ? det(notDone)?.text ?? null : held && outcome === "held" ? det(held)?.reason ?? null : null;
+  return { auditId, createdAt: created!.created_at, outcome, detail };
+}
+
 export type FixesCompletionPlan =
   | { kind: "waiting"; reason: string }
   | { kind: "not_done"; text: string }
@@ -233,6 +266,11 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
   setNth(shortLabel("rectificationComplete"), 0, "Yes");
   setNth(shortLabel("coesNumber"), 0, done.coesNumber);
   setNth(shortLabel("certDate"), 0, done.certDate);
+  // Decision 329: the A5 signature's signer + Melbourne date, for the official Section C typed signature.
+  const signer = done.signerName ?? r.electricianName;
+  if (signer) setNth(shortLabel("fixesSignedBy"), 0, signer);
+  const signedOn = done.signedAt && Number.isFinite(Date.parse(done.signedAt)) ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(done.signedAt)) : done.certDate;
+  setNth(shortLabel("fixesSignedOn"), 0, signedOn);
   // Electrician details: Part B3 (Section C is copied from it by expandPiesa). Only blanks are filled — the PIESA's own
   // pre-filled answers win over the fixes form.
   const b3: [string, string | null][] = [["b3.licence", r.licence], ["b3.name", r.electricianName], ["b3.recName", r.recName], ["b3.recNo", r.recNo], ["b3.phone", r.phone]];

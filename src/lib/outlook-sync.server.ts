@@ -4,8 +4,14 @@
 // `email_unmatched` event (snippet + best-guess jobs) for Needs me "Match this email"; nothing is stored on a job
 // until the office matches it (email-office.server). Decision 245: a matched inbound email that asks for a change
 // (cancel, can't make it, new contact details, a photo/document) raises `email_change_request` on the job; the
-// office applies or ignores it. Neither ever sends, closes or moves anything. Decision 244: new inbound mail may get ONE
-// Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent).
+// office applies or ignores it. Decision 337: a date/time change or cancel from the matched owner instead gets ONE sent
+// reply with their own My job link (email-change-reply.server, guarded owner email path, TEST → test-send); the row then
+// stays only for a cancel the owner can't do on My job. None of this ever closes or moves anything. Decision 244: new inbound mail may get ONE
+// Outlook reply DRAFT (email-reply.server, behind EMAIL_REPLY_DRAFTS_ENABLED, never sent). Decision 292 (replaces 255):
+// an unmatched NEW human sender asking an enquiry / price / rebate / eligibility question is SENT one website reply
+// (new-sender-reply.server: TEST mode → allow-list only via test-send; live only behind the approved flag +
+// customer_comms_enabled; never via Outlook); no enquiry, owner or link is ever created from an email, and the
+// `email_unmatched` row stays.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
@@ -16,7 +22,7 @@ import {
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
 } from "./outlook-correspondence.core";
 import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
-import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, proposedChanges, recentEnoughForAction } from "./email-intent.core";
+import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, officeRowNeeded, proposedChanges, recentEnoughForAction } from "./email-intent.core";
 import { EMAIL_REPLY_DRAFTS_ENABLED } from "./outlook-reply-drafts.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
@@ -41,8 +47,8 @@ const BUCKET = "job-files";
  *  could not be recorded (pending migration email-unmatched-events.sql not applied, or too old to raise a row);
  *  `notHomeowner` = other unmatched mail left in Outlook (outbound to non-customers). */
 export type SyncCounts = { fetched: number; stored: number; duplicate: number; portalDuplicate: number; notHomeowner: number; unmatched: number; closed: number; flagged: number; files: number; filesSkipped: number; errors: number;
-  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number };
-const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts", n = 1) => { c[k] = (c[k] ?? 0) + n; };
+  matched?: number; junk?: number; unmatchedNotRecorded?: number; changeRequests?: number; replyDrafts?: number; newSenderReplies?: number; newSenderHeld?: number };
+const bump = (c: SyncCounts, k: "matched" | "junk" | "unmatchedNotRecorded" | "changeRequests" | "unmatched" | "replyDrafts" | "newSenderReplies" | "newSenderHeld", n = 1) => { c[k] = (c[k] ?? 0) + n; };
 
 /** Job ids on a route. Rows reserved by the previous release carry a legacy single jobId. */
 export function routeJobIds(route: Route): string[] {
@@ -400,9 +406,23 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   if (m.direction !== "inbound" || !jobIds.length || !recentEnoughForAction(m.at)) return 0;
   let raised = 0;
   try {
+    const partner = await fromPartner(m.from);
     const changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
-      attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: await fromPartner(m.from) });
+      attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: partner });
+    // Decision 337: a date/time change or cancel from the matched owner gets ONE automatic reply with their My job link;
+    // the Apply/Ignore row is then raised only for a cancel the owner can't do themselves (or when the reply didn't go).
+    const replied = new Map<string, { sent: boolean; keepOfficeRow: boolean }>();
+    for (const c of changes) {
+      if (c.intent !== "reschedule" && c.intent !== "cancel") continue;
+      try {
+        const r = await (await import("./email-change-reply.server")).replyToChangeRequest({ jobIds, message: m, intent: c.intent, fromPartner: partner });
+        replied.set(c.intent, { sent: r.sent, keepOfficeRow: r.keepOfficeRow });
+      } catch (e) {
+        console.error("email change reply skipped", e instanceof Error ? e.message : e); // the office row is raised as before
+      }
+    }
     for (const jobId of jobIds) for (const c of changes) {
+      if (!officeRowNeeded(c.intent, replied.get(c.intent) ?? null)) continue;
       const { data: dup, error: de } = await syncAdmin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", EMAIL_CHANGE_REQUEST_EVENT).contains("details", { message_id: m.providerMessageId, intent: c.intent }).limit(1);
       if (de) throw new Error(de.message);
       if ((dup ?? []).length) continue;
@@ -428,6 +448,20 @@ async function draftReply(m: MailMessage, mailbox: string | null, jobIds: string
   } catch (e) {
     console.error("email reply draft skipped", e instanceof Error ? e.message : e);
     return null;
+  }
+}
+
+/** Decision 292: ONE website reply to a new human sender whose unmatched mail is an enquiry / price / rebate question
+ *  (never an enquiry; held in TEST mode unless allow-listed). Runs right after the `email_unmatched` row so the office can still Match.
+ *  Never throws. */
+async function newSenderReply(m: MailMessage, mailbox: string, counts: SyncCounts): Promise<void> {
+  if (m.direction !== "inbound") return;
+  try {
+    const r = await (await import("./new-sender-reply.server")).replyToNewSender(m, { mailbox });
+    if (r.status === "sent") bump(counts, "newSenderReplies");
+    else if (r.status === "held") bump(counts, "newSenderHeld");
+  } catch (e) {
+    console.error("new sender reply skipped", e instanceof Error ? e.message : e);
   }
 }
 
@@ -557,7 +591,11 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       // History catch-ups and old mail stay record-only in Outlook, as before.
       if (route.kind === "unmatched" && m.direction === "inbound") {
         const r = !window.history && recentEnoughForAction(m.at) ? await recordUnmatched(m, mailbox, route.candidateJobIds, route.reason) : "not_recorded";
-        if (r === "recorded") { bump(counts, "unmatched"); if (await draftReply(m, mailbox, [], "unmatched")) bump(counts, "replyDrafts"); }
+        if (r === "recorded") {
+          bump(counts, "unmatched");
+          if (await draftReply(m, mailbox, [], "unmatched")) bump(counts, "replyDrafts");
+          await newSenderReply(m, mailbox, counts); // decision 292: website reply, never an enquiry
+        }
         else if (r === "duplicate") counts.duplicate++;
         else { counts.notHomeowner++; bump(counts, "unmatchedNotRecorded"); }
       } else counts.notHomeowner++;

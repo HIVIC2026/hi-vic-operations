@@ -63,8 +63,12 @@ describe("expansion to official answers", () => {
       const cov = expansionCoverage(k);
       const all = OFFICIAL_ITEMS[k].filter((i) => i.kind !== "statement" && i.kind !== "heading").map((i) => i.id);
       for (const id of all) expect([...cov.covered, ...cov.excluded]).toContain(id);
-      expect(cov.excluded.length).toBeGreaterThan(0); // signatures / office table detail are never fabricated
     }
+    // Decision 329: signatures are now the signer's typed electronic signature (never fabricated); only the PIESA Part 7
+    // table detail the A4 form does not ask stays excluded.
+    // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A4 hazard rows.
+    expect(expansionCoverage("piesa").excluded).toEqual([]);
+    expect(expansionCoverage("piisa").excluded).toEqual([]);
   });
   test("an all-safe mains answer sets every official Part 2 item to Yes", () => {
     const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { mainsSafe: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03" });

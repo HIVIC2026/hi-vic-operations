@@ -4,7 +4,7 @@
 // (crewClearance, noticeAckMap, mittiAccessOf) — nothing here re-decides who may work.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
-import { crewClearance, eecState } from "./worker-compliance.core";
+import { crewClearance, eecState, whiteCardOf, whiteCardState } from "./worker-compliance.core";
 import { mittiAccessOf } from "./mitti-membership.core";
 import { maskBank, personRow, postcodeSummary, rateCardLine } from "./office-partners.core";
 import { credentialState, isElectricianBiz } from "./pilot.core";
@@ -50,6 +50,7 @@ export async function peopleFor(businessIds: string[]) {
     const b = ((biz ?? []) as { id: string; name: string; trading_name: string | null }[]).find((x) => x.id === w.business_id);
     return {
       id: w.id, name: w.full_legal_name, email: w.email, businessId: w.business_id, business: b ? bizName(b) : "—", role: w.trade_role, profileId: w.profile_id,
+      whiteCard: whiteCardState(w as never) as string, whiteCardNumber: whiteCardOf(w.certification)?.number ?? null,
       certNumber: ((w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number) ?? null, hasCertFile: !!(w.certification as { eec_upload?: { path?: string } } | null)?.eec_upload?.path,
       clearedReason: cl?.reason ?? null, ...row,
     };

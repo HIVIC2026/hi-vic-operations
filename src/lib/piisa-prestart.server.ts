@@ -29,11 +29,16 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
   const { data: lsDoc } = await admin.from("documents").select("id").eq("job_id", jobId).ilike("kind", "%life_support%").limit(1);
   // Signed PIESA B1 "rectification not possible" means an electrician must attend the start (official B1 wording).
   const { currentCopy } = await import("./official-forms.server");
-  const { answersFromDocument, B1_OPTIONS } = await import("./official-forms.core");
+  const { answersFromDocument } = await import("./official-forms.core");
   const pe = await currentCopy(jobId, "piesa");
   const b1 = pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] : null;
+  // Decision 338: the A4 "on site at the start of the install" question decides first; old forms fall back to the tick / B1.
+  const { data: asmt } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
+  const a4Entries = Array.isArray(asmt?.mitti_raw_snapshot) ? (asmt!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
+  const a4Short = a4Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a4Entries) : null;
+  const { electricianAtStartPrefill } = await import("./install-day.core");
   const generatedFinalPlan = await (await import("./area-diagram.server")).hasGeneratedFinalPlan(jobId);
-  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), generatedFinalPlan, installDayForm: isInstallDayDoc(audit), lifeSupportConsentOnFile: !!ls?.value || lsUpload || (lsDoc ?? []).length > 0 };
+  return { crewCount: 1, electricianRequiredAtStart: electricianAtStartPrefill({ a4Short, b1: typeof b1 === "string" ? b1 : null }), existingPlanMatchesInstall: ok("final_zone_plan"), generatedFinalPlan, installDayForm: isInstallDayDoc(audit), lifeSupportConsentOnFile: !!ls?.value || lsUpload || (lsDoc ?? []).length > 0 };
 }
 
 /**

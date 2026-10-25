@@ -258,8 +258,14 @@ export type ClearanceFacts = {
   rectificationQuoteAccepted: boolean;
   rectificationCompletedAt: string | null;
   sectionCSignedAt: string | null;
+  /** Decision 314 follow-up (decision 315 commit): the A4's ONLY repair tick is "Be on site at the start of the install
+   *  day" (fixes-times.core `onsiteStartOnly`) — no fixes visit and no Section C ever happen. Absent = false. */
+  onsiteStartOnly?: boolean;
+  /** The approved payment rule has cleared for the accepted fixes quote (workflow.server `paymentGate`). Absent = false. */
+  fixesPaymentCleared?: boolean;
 };
-export type Clearance = { cleared: boolean; timingDate: string | null; basis: "initial_piesa" | "section_c" | null; blocker: string | null; pendingConfirmation: string };
+export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";
+export type Clearance = { cleared: boolean; timingDate: string | null; basis: ClearanceBasis | null; blocker: string | null; pendingConfirmation: string };
 export const TIMING_RULE_WARNING = "The 30-day timing rule is an operational rule pending written confirmation.";
 
 /** Electrical clearance + the date the 30-day installation-commencement window runs from. */
@@ -271,10 +277,38 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
   if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  // Decision 314 follow-up: "Be on site at the start of the install day" alone — the electrician attends the install day
+  // instead of a fixes visit, so there is no Section C. Cleared once the owner has accepted the fixes quote AND the payment
+  // rule has cleared; the 30 days still run from the official PIESA date (decision 316).
+  if (f.onsiteStartOnly) {
+    if (!f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
+    return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
+  }
   if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
   if (!f.sectionCSignedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Section C not completed and signed yet." };
   // Decision 316 (Jo 25 Oct 2026): fixes clear the job, but the 30 days still run from the official PIESA date.
   return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "section_c", blocker: null };
+}
+
+/** Decision 314 follow-up: the job is cleared on the "electrician on site at the start of the install day" basis — the
+ *  open fixes items are done ON the install day (never marked completed here), so no fixes visit or booking is needed. */
+export const onsiteStartAtInstall = (c: Pick<Clearance, "cleared" | "basis"> | null | undefined): boolean => !!c?.cleared && c.basis === "electrician_at_start";
+
+export const FIXES_NOT_COMPLETED_BLOCKER = "Electrical fixes not yet completed.";
+export const PASSING_PIESA_BLOCKER = "A passing PIESA / electrical sign-off is required before installation.";
+/** The electrical part of entry to installation_scheduling / installation_booked (workflow.server `stageEntryBlockers`).
+ *  Every job: no open fixes items and a current passing PIESA. Decision 314 on-site-only job cleared on
+ *  `electrician_at_start`: the open items are done on the install day and the PIESA (which says the electrician must be
+ *  present at the start) is accepted as recorded — it still needs a current PIESA date. */
+export function installEntryElectricalBlockers(f: { openRectItems: number; piesaDate: string | null | undefined; piesaOutcome: string | null | undefined; onsiteStartCleared?: boolean }): string[] {
+  const out: string[] = [];
+  if (f.onsiteStartCleared) {
+    if (!f.piesaDate) out.push(PASSING_PIESA_BLOCKER);
+    return out;
+  }
+  if (f.openRectItems > 0) out.push(FIXES_NOT_COMPLETED_BLOCKER);
+  if (!f.piesaDate || f.piesaOutcome !== "pass") out.push(PASSING_PIESA_BLOCKER);
+  return out;
 }
 
 /** Installation contact release / booking is hard blocked until electrical clearance is valid. */
@@ -282,12 +316,15 @@ export function installationCoordinationBlocker(c: Clearance): string | null {
   return c.cleared ? null : `Installation cannot be arranged yet: ${c.blocker}`;
 }
 
-export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at: string | null; has_unpriced_items: boolean };
+export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at: string | null; has_unpriced_items: boolean;
+  /** Decision 315 hold (fixes-times.core `fixesTimesHoldReason`): "Waiting for the electrician's fixes times". */
+  fixes_times_hold?: string | null };
 /** Rectification quotes are always office-reviewed before they reach the owner. */
 export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boolean): string | null {
   if (q.kind !== "rectification") return null;
   if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send electrical fixes quote.";
   if (q.has_unpriced_items) return "Some electrical fixes items still need office pricing.";
+  if (q.fixes_times_hold) return q.fixes_times_hold;
   if (!q.office_reviewed_at) return "Electrical fixes quote must be reviewed by the office before it is sent.";
   if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";
   return null;
@@ -315,10 +352,10 @@ export type NeedsCode =
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
-  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
+  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "white_card_not_verified" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
-  | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_onsite_install_start";
+  | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -330,8 +367,9 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   quote_auto_send_held: { why: "Quote not sent automatically: the Ready Check is Complete but a check failed (or the form changed after the quote was sent).", next: "Office needs to: read the reason on the Quotes tab, sort it out, then press Send quote (or ask the installer to fix the form).", tab: "quotes", urgency: "today" },
   quote_not_delivered: { why: "Quote not delivered: the owner was not emailed.", next: "Office needs to: contact the owner about their quote (it is on their job page).", tab: "communications", urgency: "today" },
   mitti_setup_installer: { why: "Set up installer in Mitti: the installer isn't in our Mitti account.", next: "Office needs to: invite the installer to Mitti with their portal email, then retry the form.", tab: "overview", urgency: "today" },
-  // Decision 314 (Jo 25 Oct 2026): exact line agreed with Jo; recorded only, nothing is sent.
-  electrician_onsite_install_start: { why: "Electrician must be on site at the start of the install day — tell the installer and electrician the day once booked", next: "Office needs to: once the install day is booked, tell the installer and the electrician the day and that the electrician starts the day on site.", tab: "overview", urgency: "soon" },
+  // Decision 327 (Jo 25 Oct 2026) replaces the decision-314 "tell the installer and electrician" line: the electrician is asked
+  // automatically; this row appears only after 48h with no answer (one reminder sent at 24h) or when they can do no day left.
+  electrician_install_attendance: { why: "Electrician can't attend / hasn't confirmed install-day attendance", next: "Office needs to: call the electrician. If they can't do any day left in the 30-day window, arrange another electrician or a new PIESA with the owner.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
@@ -354,6 +392,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   esc_update_registry: { why: "Install date moved after the ESC notification was submitted. Update notification in Registry.", next: "Update the notification in the Registry, then record the update with the date and reference.", tab: "compliance", urgency: "urgent" },
   esc_withdraw_resubmit: { why: "Install date moved beyond the notification's 5-day window. Withdraw and resubmit.", next: "Withdraw the old notification in the Registry, submit a new one, then record it.", tab: "compliance", urgency: "urgent" },
   prestart_failed: { why: "Pre-start check failed. Installation form and evidence are locked.", next: "Fix each reason listed; the check re-runs automatically within 15 minutes.", tab: "compliance", urgency: "urgent" },
+  white_card_not_verified: { why: "The lead installer's White Card is not verified (decision 319). Installs booked from 26 Oct 2026 are blocked until it is; earlier bookings go ahead.", next: "Open Partners › People, ask the installer to upload their White Card under My business › Team, then verify it.", tab: "overview", urgency: "today" },
   cert_rerecord_needed: { why: "Lead installer certification has no Full/Provisional level or expiry. Re-record certification as Full with expiry date.", next: "Open Partners, find the installer's certification check and record the level and expiry.", tab: "overview", urgency: "today" },
   install_ten_days_left: { why: "10 days or fewer left in the 30-day installation window and no installation is booked.", next: "Call the owner and the quoted installer and book a day on the Installation section before the window closes.", tab: "compliance", urgency: "urgent" },
   install_days_declined: { why: "The quoted installer could not do any of the owner's install days. The installer is never replaced automatically.", next: "Call the owner and installer to agree a day, or agree a replacement installer with the owner.", tab: "compliance", urgency: "today" },
@@ -412,7 +451,7 @@ export type NeedsInput = {
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
-  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] } | undefined;
+  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[]; whiteCards?: { job_id: string; detail: string }[] } | undefined;
   readyCheckNoTaker?: { job_id: string; created_at: string }[];
   readyCheckReturned?: { job_id: string; created_at: string; detail?: string | undefined }[];
   offerNoTaker?: { job_id: string; kind: string; since: string }[];
@@ -451,6 +490,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.prestart?.esc ?? []) add(e.code as NeedsCode, e.job_id, null, e.detail);
   for (const f of i.prestart?.failed ?? []) add("prestart_failed", f.job_id, f.since, f.detail);
   for (const c of i.prestart?.certs ?? []) add("cert_rerecord_needed", c.job_id, null, c.detail);
+  for (const c of i.prestart?.whiteCards ?? []) add("white_card_not_verified", c.job_id, null, c.detail);
   for (const e of i.escTiming) if (!escTask.has(e.job_id)) add("esc_or_distribution_timing", e.job_id, e.created_at);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) {

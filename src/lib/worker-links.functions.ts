@@ -67,6 +67,8 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
     await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", w.id).is("revoked_at", null);
     // Review D: removing a worker also switches off their business sign-in (never the boss's own row).
     if (w.profile_id) await admin.from("business_members").update({ active: false } as never).eq("business_id", w.business_id).eq("user_id", w.profile_id).neq("member_role", "business_admin");
+    // Decision 331: removed person → deactivate the Mitti user the portal invited/linked (switch off = no-op). Never fails the removal.
+    await import("./mitti-invite.server").then((m) => m.onPartnerPersonRemoved(w.id, context.userId)).catch((e) => console.error("Mitti deactivate skipped", (e as Error).message));
     return { ok: true };
   });
 
@@ -93,8 +95,10 @@ export const decideWorker = createServerFn({ method: "POST" }).middleware([requi
     if (error) throw new Error(error.message);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.approve ? "worker_approved" : "worker_rejected", summary: data.approve ? "Worker approved" : `Worker rejected: ${data.reason}`, details: { worker_id: data.id, reason: data.reason ?? null } });
     if (!data.approve) await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", data.id).is("revoked_at", null);
-    // Decision 188: approved partner person → Mitti auto-invite (switch MITTI_AUTO_INVITE_ENABLED, off = no-op). Never fails the approval.
+    // Decisions 188/331: approved partner person → Mitti access (env switch MITTI_AUTO_INVITE_ENABLED, off = no-op). Never fails the approval.
     if (data.approve) await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(data.id, context.userId)).catch((e) => console.error("Mitti auto-invite skipped", (e as Error).message));
+    // Decision 331: a rejected person's Mitti user (if the portal invited/linked one) is deactivated. Never fails the decision.
+    else await import("./mitti-invite.server").then((m) => m.onPartnerPersonRemoved(data.id, context.userId)).catch((e) => console.error("Mitti deactivate skipped", (e as Error).message));
     return { ok: true };
   });
 

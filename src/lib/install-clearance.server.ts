@@ -36,7 +36,7 @@ export async function notifyInstallerClearance(jobId: string, opts: { clearedAt?
   ]);
   if (!job || !asg) return "skipped";
   const clearedAt = opts.clearedAt ?? new Date().toISOString();
-  await logEvent(jobId, null, INSTALL_CLEARANCE_EVENT, `Installer told the job is cleared for install (${c.clearance.basis === "section_c" ? "fixes signed off" : "PIESA passed"}): offer 3 install days by ${c.deadline} — text + email prepared`, { timing_date: timingDate, basis: c.clearance.basis, deadline: c.deadline, cleared_at: clearedAt, assignment_id: c.asg.id }, { internal: true });
+  await logEvent(jobId, null, INSTALL_CLEARANCE_EVENT, `Installer told the job is cleared for install (${c.clearance.basis === "section_c" ? "fixes signed off" : c.clearance.basis === "electrician_at_start" ? "fixes quote paid, electrician on site at the start" : "PIESA passed"}): offer 3 install days by ${c.deadline} — text + email prepared`, { timing_date: timingDate, basis: c.clearance.basis, deadline: c.deadline, cleared_at: clearedAt, assignment_id: c.asg.id }, { internal: true });
 
   const prof = (asg.profiles ?? null) as { full_name: string | null; email: string | null; phone: string | null } | null;
   const biz = (asg.businesses ?? null) as { name: string | null; trading_name: string | null; email: string | null; phone: string | null; onboarding_notes?: string | null } | null;
@@ -81,7 +81,7 @@ export async function notifyInstallerClearance(jobId: string, opts: { clearedAt?
 }
 
 /** When the current clearance record was written (the real clearance moment), for jobs cleared before this notice existed. */
-async function clearanceRecordedAt(jobId: string, basis: "initial_piesa" | "section_c" | null): Promise<string | null> {
+async function clearanceRecordedAt(jobId: string, basis: import("./allocation.core").ClearanceBasis | null): Promise<string | null> {
   let q = admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("is_current", true);
   q = basis === "section_c" ? q.neq("kind", "initial") : q.eq("kind", "initial");
   const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();

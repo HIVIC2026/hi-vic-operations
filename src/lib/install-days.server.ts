@@ -7,6 +7,13 @@ import {
   INSTALL_DAY_LEAD_HOURS, allowedInstallDays, dayOfferBlockers, installDayBounds, installStartAt, isInstallTime, installDayOutsideWindow, installDayTurn, installDaysLeft, installWindowDeadline, shouldFlagTenDaysLeft,
 } from "./install-days.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { ATTENDANCE_CONFIRMED_EVENT, ATTENDANCE_DECLINED_EVENT, ELECTRICIAN_DAYS_ONLY, canDoRestriction, dayAllowedByElectrician, restrictInstallDays, type AttendanceEv } from "./install-attendance.core";
+
+/** Decision 327: the days the electrician said they can do after "Can't make it" limit this job's install days (read-only). */
+async function electricianLimit(jobId: string) {
+  const { data } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").eq("job_id", jobId).in("event_type", [ATTENDANCE_DECLINED_EVENT, ATTENDANCE_CONFIRMED_EVENT]).order("created_at");
+  return canDoRestriction((data ?? []) as unknown as AttendanceEv[]);
+}
 
 async function context(jobId: string) {
   const { clearanceFacts } = await import("./allocation.server");
@@ -23,7 +30,8 @@ async function context(jobId: string) {
   const expired = !!deadline && melbourneYmd(new Date()) > deadline;
   const ready = job?.stage === "installation_scheduling" && clearance.cleared && !!asg;
   const { turn, open } = installDayTurn({ ready, booked: !!booked, expired, rows: rows ?? [] });
-  return { job, clearance, deadline, asg, booked: !!booked, bookedAt: booked?.scheduled_start ?? null, expired, turn, open };
+  const limit = booked ? null : await electricianLimit(jobId).catch(() => null);
+  return { job, clearance, deadline, asg, booked: !!booked, bookedAt: booked?.scheduled_start ?? null, expired, turn, open, limit };
 }
 
 type Ctx = Awaited<ReturnType<typeof context>>;
@@ -32,12 +40,16 @@ export const installDayContext = (jobId: string) => context(jobId);
 const view = (c: Ctx) => ({
   turn: c.turn, deadline: c.deadline, daysLeft: c.deadline ? installDaysLeft(c.deadline) : null, booked: c.booked, bookedAt: c.bookedAt, expired: c.expired,
   open: c.open.map((p) => ({ id: p.id, starts_at: p.starts_at, by: p.proposer_role === "installer" ? "installer" as const : "owner" as const })),
+  /** Decision 327: the electrician's days (null = no limit); only these may be offered, suggested or taken. */
+  electricianDays: c.limit?.days ?? null,
 });
+/** Window days limited to the electrician's days when they gave some (decision 327). */
+const windowDays = (c: Ctx) => restrictInstallDays(allowedInstallDays({ deadline: c.deadline }), c.limit);
 
 /** Owner view (secure link or owner portal). `days` = days the owner may suggest when it's their move. */
 export async function ownerInstallDayState(jobId: string) {
   const c = await context(jobId);
-  return { ...view(c), days: c.turn === "owner_to_answer" ? allowedInstallDays({ deadline: c.deadline }) : [] };
+  return { ...view(c), days: c.turn === "owner_to_answer" ? windowDays(c) : [] };
 }
 
 async function requireInstaller(jobId: string, userId: string) {
@@ -55,7 +67,7 @@ export async function installerInstallDayState(jobId: string, userId: string) {
   // Speed (decision 280): the access check and the read-only context run together; a refused check still throws first.
   const [, c] = await Promise.all([requireInstaller(jobId, userId), context(jobId)]);
   const canOffer = c.turn === "installer_to_offer" || c.turn === "installer_to_answer";
-  return { ...view(c), days: canOffer ? allowedInstallDays({ deadline: c.deadline }) : [] };
+  return { ...view(c), days: canOffer ? windowDays(c) : [] };
 }
 
 async function propose(jobId: string, userId: string, role: "installer" | "owner", picks: { day: string; time?: string }[], allowed: string[]) {
@@ -75,9 +87,12 @@ export async function installerOfferDays(jobId: string, userId: string, picks: {
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "installer_to_offer" && c.turn !== "installer_to_answer") throw new WorkflowError("Install days can't be offered right now.");
-  await propose(jobId, userId, "installer", picks, allowedInstallDays({ deadline: c.deadline }));
+  await propose(jobId, userId, "installer", picks, windowDays(c));
   await logEvent(jobId, userId, "install_days_offered_by_installer", `Installer offered ${picks.length} install day${picks.length === 1 ? "" : "s"} to the owner`, { days: picks, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's install days" }).eq("id", jobId);
+  // Decision 325: O33 "Pick your install day" to the owner (guarded; best-effort, the offer stands either way).
+  const starts = picks.map((p) => installDayBounds(p.day, p.time).starts_at);
+  await (await import("./owner-email-triggers.server")).onInstallDaysOffered(jobId, starts, c.deadline).catch((e) => console.error("install days email skipped", (e as Error).message));
   return { ok: true };
 }
 
@@ -86,7 +101,7 @@ export async function ownerSuggestDays(jobId: string, userId: string, picks: str
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "owner_to_answer") throw new WorkflowError("Install days can't be suggested right now.");
-  await propose(jobId, userId, "owner", picks.map((day) => ({ day })), allowedInstallDays({ deadline: c.deadline }));
+  await propose(jobId, userId, "owner", picks.map((day) => ({ day })), windowDays(c));
   await logEvent(jobId, userId, "install_days_offered", `Owner suggested ${picks.length} other install day${picks.length === 1 ? "" : "s"} for the installer`, { days: picks }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new ones" }).eq("id", jobId);
   return { ok: true };
@@ -106,8 +121,12 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     await releaseInstallationContacts(jobId, userId);
     // Decision 139: the day is provisional for 48h until the 10% install deposit is received (bank transfer / PayID).
     await (await import("./payments.server")).noteProvisionalBooking(jobId, userId).catch((e) => console.error("provisional booking note skipped", (e as Error).message));
-    // Owner "Your install is booked" email (best-effort; held until Jo approves the wording and messages are on).
-    await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
+    // Decision 325: a new day after the installer moved a booked one → O42 "Your install day has changed" (it points back
+    // to the booking email's checklist); otherwise the owner "Your install is booked" email. Both best-effort.
+    const triggers = await import("./owner-email-triggers.server");
+    const movedFrom = await triggers.installDayMoveFor(jobId, startsAt);
+    if (movedFrom) await triggers.onInstallDayMoved(jobId, startsAt, movedFrom).catch((e) => console.error("install day changed email skipped", (e as Error).message));
+    else await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
     return { ok: true, booked: true };
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
@@ -125,6 +144,7 @@ export async function installerTakeDay(jobId: string, proposalId: string, userId
   const p = c.turn === "installer_to_answer" ? c.open.find((x) => x.id === proposalId) : undefined;
   if (!p) throw new WorkflowError(TAKE_OUTCOME["not_found"]!);
   if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(TAKE_OUTCOME["outside_window"]!);
+  if (!dayAllowedByElectrician(p.starts_at, c.limit)) throw new WorkflowError(ELECTRICIAN_DAYS_ONLY);
   const { data, error } = await admin.rpc("accept_install_day", { _proposal: proposalId, _assignment: a.id, _user: userId, _deadline: c.deadline as string });
   if (error) throw new Error(error.message);
   if (data !== "accepted") throw new WorkflowError(TAKE_OUTCOME[data as string] ?? "That day could not be booked.");
@@ -140,6 +160,7 @@ export async function ownerTakeDay(jobId: string, proposalId: string, userId: st
   const p = c.turn === "owner_to_answer" ? c.open.find((x) => x.id === proposalId) : undefined;
   if (!p) throw new WorkflowError(TAKE_OUTCOME["not_found"]!);
   if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(TAKE_OUTCOME["outside_window"]!);
+  if (!dayAllowedByElectrician(p.starts_at, c.limit)) throw new WorkflowError(ELECTRICIAN_DAYS_ONLY);
   const { data: took, error } = await admin.from("appointment_proposals").update({ status: "accepted", assignment_id: c.asg!.id, responded_by: userId, responded_at: new Date().toISOString(), response_note: "Owner took this installer install day" })
     .eq("id", proposalId).eq("status", "proposed").gt("starts_at", new Date().toISOString()).select("id");
   if (error) throw new Error(error.message);
@@ -151,7 +172,10 @@ export async function ownerTakeDay(jobId: string, proposalId: string, userId: st
 
 /** Jo 24 Oct: either side can change a booked day. The booking is cancelled, the job goes back to scheduling and the
  *  installer offers 3 new days inside the same 30-day window (back and forth as before). No office step. */
-export async function changeInstallDay(jobId: string, userId: string, who: "installer" | "owner", opts: { couldntGetIn?: string } = {}) {
+export async function changeInstallDay(jobId: string, userId: string, who: "installer" | "owner" | "electrician", opts: { couldntGetIn?: string; electricianCantAttend?: string } = {}) {
+  // Decision 327: "electrician" = the electrician's "Can't make it" (install-attendance.server declineAttendance, which has
+  // already checked the electrician and the booking); the installer then offers new days limited to the electrician's.
+  if (who === "electrician" && !opts.electricianCantAttend) throw new WorkflowError("A reason is needed.");
   if (who === "installer") await requireInstaller(jobId, userId);
   const c = await context(jobId);
   if (c.turn !== "booked" || c.job?.stage !== "installation_booked") throw new WorkflowError("There is no booked install day to change.");
@@ -162,7 +186,7 @@ export async function changeInstallDay(jobId: string, userId: string, who: "inst
   if (!rows?.length) throw new WorkflowError("There is no booked install day to change.");
   const { transition } = await import("./workflow.server");
   try {
-    await transition(jobId, "installation_scheduling", userId, opts.couldntGetIn ? `Installer couldn't get in on the install day (${opts.couldntGetIn}) – the installer offers new days` : `Install day changed by the ${who} – the installer offers new days`, { booking_ids: rows.map((r) => r.id), ...(opts.couldntGetIn ? { reason: opts.couldntGetIn } : {}) });
+    await transition(jobId, "installation_scheduling", userId, opts.couldntGetIn ? `Installer couldn't get in on the install day (${opts.couldntGetIn}) – the installer offers new days` : who === "electrician" ? `Electrician can't make the install day (${opts.electricianCantAttend}) – the installer offers new days the electrician can do` : `Install day changed by the ${who} – the installer offers new days`, { booking_ids: rows.map((r) => r.id), ...(opts.couldntGetIn ? { reason: opts.couldntGetIn } : who === "electrician" ? { reason: opts.electricianCantAttend } : {}) });
   } catch (e) {
     await admin.from("bookings").update({ status: "confirmed" }).in("id", rows.map((r) => r.id));
     throw e;
@@ -171,8 +195,16 @@ export async function changeInstallDay(jobId: string, userId: string, who: "inst
   await clearInstallDueDate(jobId, userId);
   const { regenerateEscNotification } = await import("./esc.server");
   await regenerateEscNotification(jobId, userId);
-  await logEvent(jobId, userId, "install_day_changed", opts.couldntGetIn ? `Installer couldn't get in on the booked install day (${opts.couldntGetIn}) – offers new days` : `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day"})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt, who, ...(opts.couldntGetIn ? { couldnt_get_in: opts.couldntGetIn } : {}) }, { internal: true });
-  await admin.from("jobs").update({ next_action: opts.couldntGetIn ? `Needs me: installer couldn't get in on the install day (${opts.couldntGetIn}). Installer offers 3 new days.` : "Waiting for the installer to offer new install days" }).eq("id", jobId);
+  const dayLabel = c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day";
+  await logEvent(jobId, userId, "install_day_changed", opts.couldntGetIn ? `Installer couldn't get in on the booked install day (${opts.couldntGetIn}) – offers new days` : who === "electrician" ? `Electrician can't make the booked install day (${dayLabel}; ${opts.electricianCantAttend}) – installer offers new days` : `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${dayLabel})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt, who, ...(opts.couldntGetIn ? { couldnt_get_in: opts.couldntGetIn } : {}), ...(who === "electrician" ? { electrician_cant_attend: opts.electricianCantAttend } : {}) }, { internal: true });
+  await admin.from("jobs").update({ next_action: opts.couldntGetIn ? `Needs me: installer couldn't get in on the install day (${opts.couldntGetIn}). Installer offers 3 new days.` : who === "electrician" ? "Waiting for the installer to offer new install days the electrician can do" : "Waiting for the installer to offer new install days" }).eq("id", jobId);
+  // Decision 337: an owner change tells the installer straight away (once per change; best-effort, never undoes the change).
+  if (who === "owner") {
+    try {
+      const { data: ev } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "install_day_changed").contains("details", { who: "owner" }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (ev) await (await import("./installer-texts.server")).textTradeOwnerChangedVisit({ jobId, kind: "installation", triggerEventId: ev.id, changedAt: ev.created_at, wasIso: c.bookedAt ?? null });
+    } catch (e) { console.error("owner changed install day installer text skipped", (e as Error).message); }
+  }
   return { ok: true };
 }
 

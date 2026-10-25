@@ -4,7 +4,7 @@ import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done";
+export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review";
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 
@@ -42,7 +42,8 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   if (s === "on_hold") return none(stageWording("on_hold").owner!, "We'll let you know as soon as it's moving again.");
   if (f.visit) return none(f.visit.kind === "installation" ? stageWording("installation_booked").owner! : f.visit.kind === "ready_check" ? stageWording("ready_check_scheduled").owner! : f.visit.kind === "rectification" ? stageWording("rectification_booked").owner! : stageWording("piesa_scheduled").owner!, "We'll text you the day before.", visitPill(f.visit.startsAt));
   if (f.quoteOpen) return todo(stageWording("measured_estimate_ready").owner!, "Have a look at your quote and say yes when you're ready.", "See my quote", "quote", f.quoteOpen.expiresAt ? `Please approve by ${fmtDay(f.quoteOpen.expiresAt)}` : null);
-  if (f.bookingOpen) return todo(stageWording("piesa_and_install_window_pending").owner!, `Choose the times that suit you for the ${PIESA_FULL} and the install.`, "Pick times", "book");
+  // Decision 333: the electrician (PIESA) and installer (install) offer the times; the owner picks one of them.
+  if (f.bookingOpen) return todo(stageWording("piesa_and_install_window_pending").owner!, `Pick one of the times offered for the ${PIESA_FULL} and the install.`, "Pick times", "book");
   if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"].includes(s) && !f.readyCheckRequested)
     return todo("Save your spot", "Pick at least 3 times for your free Ready Check.", "Save my spot", "spot");
   if (["ready_check_ready_to_schedule", "ready_check_awaiting_payment"].includes(s) || f.readyCheckRequested && houseLevelForStage(s) === 0) return none(stageWording("ready_check_ready_to_schedule").owner!, "We'll text you once a time is locked in.");

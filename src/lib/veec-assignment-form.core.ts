@@ -259,7 +259,7 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
   if (!before24h(x.piesaCopyToOwnerAt, x.installStart)) b.push("PIESA copy to the owner is not recorded at least 24 hours before the installation started.");
   if (!before24h(x.escNotificationSentAt, x.installStart)) b.push("ESC installation notification is not recorded as sent at least 24 hours before the installation started.");
   if (!x.warrantyCopyProvidedAt) {
-    // G1: the completion pack records the copy itself when the manufacturer's PDF is on file; name the product that stops it.
+    // G1 + decision 321: the All done email (install complete) records the copy itself when the manufacturer's PDF is on file; name the product that stops it.
     const gaps = (x.warrantyProductsNotOnFile ?? []).filter(Boolean);
     if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p));
     else b.push("Product warranty copy (minimum 5 years) given to the consumer is not recorded.");

@@ -3,10 +3,11 @@
 // - A "yes, all safe" answer sets every matching official Yes/No. A "no" sets only the ticked problems.
 // - Anything the portal can't fill for sure stays null and is listed in `flagged` for the office — never a guessed "No".
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
-import { applianceRows } from "./official-short.core";
-import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
+import { applianceRows, derivedRepairTicks, fixesWorkWithOnsite, NO_REPAIR_WORK_FLAG } from "./official-short.core";
+import { B1_OPTIONS, B2_OPTIONS, answerItems, electronicSignature, splitSelections, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, REPAIR_LEGACY_NOT_BEFORE_FLAG, SOLAR_PROBLEMS } from "./official-short.core";
 import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
+import { OWNER_FIXES_NOT_CONFIRMED_FLAG } from "./piesa-fixes-confirm.core";
 
 export type ShortAnswers = Record<string, Value>;
 export type ExpandContext = {
@@ -19,14 +20,26 @@ export type ExpandContext = {
   /** Decision 296: the owner's secure-link confirmation of THIS PIESA (piesa-owner-confirm.core `ownerConfirmationForForm`):
    *  typed name + the Melbourne date they signed. Absent = the owner block stays blank and is flagged; the Mitti form is never read for it. */
   ownerConfirmation?: { name: string; date: string } | null;
+  /** Decision 330: the owner's secure-link confirmation that the electrical fixes (A5, post_rectification record) were done:
+   *  typed name + the Melbourne date they confirmed. Fills the "any electrical rectification works were completed" owner
+   *  declaration (and o.name / o.date / o.signature, as the latest owner confirmation). */
+  ownerFixesConfirmation?: { name: string; date: string } | null;
 };
 export type ExpandResult = { answers: OfficialAnswers; flagged: string[] };
+/** Decision 336: the Part 7 Hazard cell for an item that is safe to insulate around as it is (new forms). */
+export const SAFE_AS_IT_IS = "None — safe to insulate around";
 
 const txt = (v: Value) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v)).trim();
 const isYes = (v: Value) => /^yes$/i.test(txt(v));
 const isNo = (v: Value) => /^no$/i.test(txt(v));
 const ticked = (v: Value) => v === true || /^(yes|true|ticked|checked)$/i.test(txt(v));
-const list = (v: Value) => (Array.isArray(v) ? v.map(String) : txt(v) ? txt(v).split(/\s*\|\s*/) : []);
+/** Decision 329: the ticked options of a Mitti multi-select (labels joined with ", " and containing commas themselves) —
+ *  matched against the known option list, never comma-split; an unrecognised piece is flagged, never guessed. */
+const ticksOf = (v: Value, options: readonly string[], what: string, flagged: string[]): string[] => {
+  const { selected, unknown } = splitSelections(v, options);
+  for (const u of unknown) flagged.push(`${what}: ticked item not recognised ("${u}") — the office must check it against the form.`);
+  return selected;
+};
 
 /** Problem sentence → official item set to "No" (Part 2/3/4) or "Yes" (Part 5 hazard questions). */
 const MAINS_MAP: Record<string, [string, "No"][]> = {
@@ -103,7 +116,7 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   const p2ids = ["p2.mains", "p2.switchAccessible", "p2.switchIsolates", "p2.switchSecured", "p2.tested", "p2.rcdPresent", "p2.rcdTested"];
   if (isYes(short["mainsSafe"]) || isNo(short["mainsSafe"])) {
     for (const id of p2ids) out[id] = "Yes";
-    if (isNo(short["mainsSafe"])) for (const p of list(short["mainsProblems"])) for (const [id, v] of MAINS_MAP[p] ?? []) out[id] = v;
+    if (isNo(short["mainsSafe"])) for (const p of ticksOf(short["mainsProblems"], MAINS_PROBLEMS, "Mains power", flagged)) for (const [id, v] of MAINS_MAP[p] ?? []) out[id] = v;
     out["p2.switch"] = ["p2.switchAccessible", "p2.switchIsolates", "p2.switchSecured"].some((k) => out[k] === "No") ? "No" : "Yes";
   } else flagged.push("Mains power: not answered.");
 
@@ -113,7 +126,7 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     if (isYes(short["solarPresent"])) {
       if (isYes(short["solarSafe"]) || isNo(short["solarSafe"])) {
         for (const id of ["p3.instructions", "p3.isolator", "p3.conduit", "p3.protected"]) out[id] = "Yes";
-        if (isNo(short["solarSafe"])) for (const p of list(short["solarProblems"])) for (const [id, v] of SOLAR_MAP[p] ?? []) out[id] = v;
+        if (isNo(short["solarSafe"])) for (const p of ticksOf(short["solarProblems"], SOLAR_PROBLEMS, "Solar/battery", flagged)) for (const [id, v] of SOLAR_MAP[p] ?? []) out[id] = v;
       } else flagged.push("Solar/battery: shutdown safety not answered.");
     }
   } else flagged.push("Solar/battery: presence not answered.");
@@ -122,7 +135,7 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   if (isYes(short["ceilingSafe"]) || isNo(short["ceilingSafe"])) {
     for (const id of ["p4.conduit", "p4.supported", "p4.treatment", "p4.tps", "p4.terminations", "p4.plugBases", "p4.foil"]) out[id] = "Yes";
     for (const id of ["p5.nonTps", "p5.splitConduit", "p5.damaged"]) out[id] = "No";
-    if (isNo(short["ceilingSafe"])) for (const p of list(short["ceilingProblems"])) for (const [id, v] of CEILING_MAP[p] ?? []) out[id] = v;
+    if (isNo(short["ceilingSafe"])) for (const p of ticksOf(short["ceilingProblems"], CEILING_PROBLEMS, "Ceiling cables and fittings", flagged)) for (const [id, v] of CEILING_MAP[p] ?? []) out[id] = v;
   } else flagged.push("Ceiling cables and fittings: not answered.");
 
   // Part 6 downlights.
@@ -136,24 +149,65 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     }
   } else flagged.push("Downlights: not answered.");
 
-  // Part 7 appliances/flues (decision 295): one row per item from the repeating block; "safe as it is" = No means the work
-  // sits under Part B2 repair work, so the official "effective" tick is Yes only when every item is safe, or once the
-  // repair work is recorded complete. Old forms (one description + self-graded "effective") are still read.
+  // Part 7 appliances/flues/other hazards. Decision 336 (Jo 25 Oct 2026): each row of the repeating block says what TYPE
+  // it is, what and where it is, and — when it is not safe as it is — the problem and what must be done. Flue and Exhaust fan
+  // rows answer the official flues question ("exhaust fans or heating flues"), Appliance rows the appliances question; all
+  // three go in the official Appliance / Location / Hazard table (Hazard = "What is the problem?", else the standard
+  // "None — safe to insulate around"), the actions line lists "What needs to be done to make it safe?". Other hazard rows go
+  // in the official other-hazards table. Decision 295 rows (no type / Where — older forms) keep the old standard wording.
+  // The official "effective" tick is Yes when every item is safe, or once the repair work is recorded complete (A5).
   if (isYes(short["appliancesPresent"]) || isNo(short["appliancesPresent"])) {
-    out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
-    out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+    const rows = isYes(short["appliancesPresent"]) ? applianceRows(short) : [];
+    const typed = rows.filter((r) => !r.legacy);
+    const legacyRows = rows.filter((r) => r.legacy);
+    if (typed.length) {
+      out["p7.appliances"] = typed.some((r) => r.type === "Appliance") ? "Yes" : "No";
+      out["p7.flues"] = typed.some((r) => r.type === "Flue" || r.type === "Exhaust fan") ? "Yes" : "No";
+    } else {
+      out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+      out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
+    }
     if (isYes(short["appliancesPresent"])) {
-      const rows = applianceRows(short);
       if (rows.length) {
-        rows.slice(0, 10).forEach((r, i) => {
-          out[`p7.appliance#${i}`] = r.what || "(not described)";
-          out[`p7.location#${i}`] = r.what || "(not described)";
-          out[`p7.hazard#${i}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
-          if (!r.what) flagged.push(`Appliance ${i + 1}: not described.`);
-          if (r.safe == null) flagged.push(`Appliance ${i + 1}: "safe as it is" not answered.`);
+        const actions: string[] = [];
+        let t = 0, o = 0;
+        rows.forEach((r, i) => {
+          const n = i + 1;
+          if (!r.what) flagged.push(`Appliance ${n}: not described.`);
+          if (r.safe == null) flagged.push(`Appliance ${n}: "safe as it is" not answered.`);
+          if (r.legacy) {
+            if (t >= 10) { flagged.push(`Appliance ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
+            out[`p7.appliance#${t}`] = r.what || "(not described)";
+            out[`p7.location#${t}`] = r.what || "(not described)";
+            out[`p7.hazard#${t}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
+            t++;
+            return;
+          }
+          if (!r.type) flagged.push(`Hazard row ${n}: "What type is it?" not answered.`);
+          if (!r.where) flagged.push(`Hazard row ${n}: "Where is it?" not answered.`);
+          if (r.safe === "No" && !r.problem) flagged.push(`Hazard row ${n}: "What is the problem?" not answered.`);
+          if (r.safe === "No" && !r.action) flagged.push(`Hazard row ${n}: "What needs to be done to make it safe?" not answered.`);
+          const hazard = r.safe === "No" ? r.problem : r.safe === "Yes" ? SAFE_AS_IT_IS : "";
+          if (r.type === "Other hazard") {
+            if (o >= 14) { flagged.push(`Hazard row ${n}: the official other-hazards table has only 14 rows — the office must attach the rest.`); return; }
+            const where = r.where ? ` (${r.where})` : "";
+            out[`p7.otherHazard#${o}`] = `${r.what || "(not described)"}${where}${hazard ? `: ${hazard}` : ""}`;
+            const act = r.safe === "No" ? r.action : r.safe === "Yes" ? "None required" : "";
+            if (act) out[`p7.otherAction#${o}`] = act;
+            o++;
+            return;
+          }
+          if (t >= 10) { flagged.push(`Hazard row ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
+          out[`p7.appliance#${t}`] = r.what || "(not described)";
+          if (r.where) out[`p7.location#${t}`] = r.where;
+          if (hazard) out[`p7.hazard#${t}`] = hazard;
+          if (r.safe === "No" && r.action) actions.push(`${r.what || `Row ${t + 1}`}: ${r.action}`);
+          t++;
         });
         const unsafe = rows.filter((r) => r.safe === "No");
-        out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        const unsafeTable = rows.filter((r) => r.safe === "No" && r.type !== "Other hazard");
+        if (legacyRows.length && !typed.length) out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        else if (t > 0) out["p7.actions"] = actions.length ? actions.join("; ") : unsafeTable.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
         if (rows.every((r) => r.safe === "Yes")) out["p7.effective"] = "Yes";
         else if (unsafe.length && isYes(short["rectificationComplete"])) out["p7.effective"] = "Yes";
         else if (unsafe.length) flagged.push("Appliances: work required before insulation — the official \"effective\" tick waits for the repair work to be recorded complete.");
@@ -176,15 +230,23 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   else if (outcome === RECTIFICATION_OUTCOMES[1]) {
     out["b1"] = B1_OPTIONS[1];
     if (legacyNotBefore) flagged.push(REPAIR_LEGACY_NOT_BEFORE_FLAG);
-    const work = list(short["rectificationWork"]);
+    // Decision 324: the official B2 ticks come from an old form's own ticks (decision 329: matched against the option wording),
+    // else derived from the plain repair list.
+    const legacyWork = ticksOf(short["rectificationWork"], B2_OPTIONS, "Electrical fixes", flagged);
+    const derived = legacyWork.length ? null : derivedRepairTicks(short);
+    const work = derived ? derived.work : legacyWork;
+    const otherText = txt(short["rectificationOther"]) || (derived?.other ?? "");
     if (work.length) out["b2"] = work;
     else flagged.push("Electrical fixes: the required work isn't ticked.");
     if (work.includes(B2_OPTIONS[5])) {
-      if (txt(short["rectificationOther"])) out["b2.other"] = txt(short["rectificationOther"]);
+      if (otherText) out["b2.other"] = otherText;
       else flagged.push("Electrical fixes: 'Other' is ticked but not described.");
     }
   } else if (outcome === RECTIFICATION_OUTCOMES[2]) out["b1"] = B1_OPTIONS[2];
   else flagged.push("Electrical fixes outcome: not answered.");
+  // Decision 338: "What will you do?" is no longer Required (it may be empty when the only work is being on site at the start),
+  // so repair work needed with neither a tick nor on-site attendance is one office flag (old forms' official ticks count).
+  if (/^yes\b/i.test(txt(short["rectificationNeeded"])) && !fixesWorkWithOnsite(short).length && !txt(short["rectificationWork"]) && !txt(short["fixesIncluded"])) flagged.push(`Electrical fixes: ${NO_REPAIR_WORK_FLAG}.`);
 
   // B3 declaration.
   if (ticked(short["b3.declaration"])) out["b3.declaration"] = true;
@@ -195,6 +257,12 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     if (isYes(short["rectificationComplete"])) {
       for (let i = 1; i <= 7; i++) out[`c.tick${i}`] = true;
       out["c.completionDate"] = ctx.today;
+      // Decision 329: the electrician's typed electronic signature — the A5 fixes form's signature (name + its own date), else the
+      // same-visit A4 signature (B3 name, certification date). Never written without a signature on the form.
+      const signer = txt(short["fixesSignedBy"]) || (txt(short["electricianSignature"]) ? txt(out["c.name"]) || txt(short["b3.name"]) : "");
+      const signedOn = txt(short["fixesSignedOn"]) || txt(short["certDate"]) || ctx.today;
+      if (signer) out["c.signature"] = electronicSignature(signer, signedOn);
+      else flagged.push("Section C: electrician signature missing.");
     } else flagged.push("Section C: electrical fixes completion not confirmed — Section C stays incomplete.");
     if (txt(short["coesNumber"])) out["c.coes"] = txt(short["coesNumber"]);
     else flagged.push("Section C: Certificate of Electrical Safety number missing.");
@@ -202,14 +270,28 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     else flagged.push("Section C: certification date missing.");
   }
 
-  // Owner declaration (decision 296, Jo 25 Oct 2026): filled ONLY from the owner's secure-link confirmation record — the
+  // Owner declaration (decision 296, Jo 25 Oct 2026): filled ONLY from the owner's secure-link confirmation records — the
   // owner block left the Mitti form ("the owner might not be there"), so nothing here reads ownerConfirm / o.name / o.date /
   // ownerSignature from the short answers any more. No record = blank + flagged, never guessed.
-  if (ctx.ownerConfirmation) {
-    for (let i = 1; i <= 4; i++) out[`o.tick${i}`] = true;
-    out["o.name"] = ctx.ownerConfirmation.name;
-    out["o.date"] = ctx.ownerConfirmation.date;
-  } else flagged.push(`${OWNER_CONFIRMATION_NOT_SIGNED_FLAG} (secure link).`);
+  // Decisions 329/330: the ONE P6 tick fills only the declarations that are true when the owner confirms. "Any electrical
+  // rectification works were completed on the above date" (o.tick3) is ticked only when no repair work was needed before
+  // installation, when the owner confirmed on or after the date the fixes were certified (same-visit fixes), or from the
+  // owner's post-fix confirmation (decision 330). o.name / o.date / o.signature = the latest owner confirmation used.
+  const initial = ctx.ownerConfirmation ?? null;
+  const fixesConf = ctx.ownerFixesConfirmation ?? null;
+  if (initial) { out["o.tick1"] = true; out["o.tick2"] = true; out["o.tick4"] = true; }
+  else flagged.push(`${OWNER_CONFIRMATION_NOT_SIGNED_FLAG} (secure link).`);
+  const repairsBeforeInstall = outcome === RECTIFICATION_OUTCOMES[1];
+  const fixesDate = isYes(short["rectificationComplete"]) ? txt(short["certDate"]) || txt(short["fixesSignedOn"]) || ctx.today : "";
+  if (!repairsBeforeInstall) { if (initial) out["o.tick3"] = true; }
+  else if (fixesConf || (initial && fixesDate && initial.date >= fixesDate)) out["o.tick3"] = true;
+  else flagged.push(`${OWNER_FIXES_NOT_CONFIRMED_FLAG}.`);
+  const latest = fixesConf && (!initial || fixesConf.date >= initial.date) ? fixesConf : initial;
+  if (latest) {
+    out["o.name"] = latest.name;
+    out["o.date"] = latest.date;
+    out["o.signature"] = electronicSignature(latest.name, latest.date);
+  }
 
   // The electrician's signature lives in the signed snapshot, not as form text.
   if (!txt(short["electricianSignature"])) flagged.push("Electrician signature missing.");
@@ -308,6 +390,7 @@ export function expandPiisa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   if (ticked(short["p8.declaration"])) out["p8.declaration"] = true;
   else flagged.push("Installer declaration: not ticked.");
   if (!txt(short["installerSignature"])) flagged.push("Installer signature missing.");
+  else if (txt(out["p8.name"])) out["p8.signature"] = electronicSignature(txt(out["p8.name"]), txt(out["p8.date"]) || ctx.today); // decision 329
   return { answers: out, flagged };
 }
 
@@ -316,8 +399,10 @@ export const expandShortAnswers = (key: OfficialKey, short: ShortAnswers, ctx: E
 
 /** Ids the expansion intentionally never fills (signed on paper / office-completed table detail). */
 export const EXPANSION_EXCLUDED: Record<OfficialKey, string[]> = {
-  piesa: ["c.signature", "o.signature", "p7.location", "p7.hazard", "p7.actions", "p7.otherHazard", "p7.otherAction"],
-  piisa: ["p8.signature"],
+  // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A4 hazard rows now;
+  // nothing is excluded.
+  piesa: [],
+  piisa: [],
 };
 
 /** Every official answer id is either filled by the expansion or explicitly excluded — nothing is silently dropped. */

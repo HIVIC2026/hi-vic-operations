@@ -20,9 +20,9 @@ import { MittiError, mittiApi, parseAudit, type MittiCall } from "./mitti.core";
 import { mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { shortAnswersFromEntries } from "./official-short.core";
 import {
-  FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
+  FIXES_COES_DOC_TITLE, FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
   FIXES_TEMPLATE_COLUMN, FIXES_TEMPLATE_MISSING, FIXES_TEMPLATE_PENDING_DB,
-  fixesCompletionPlan, fixesDayMissingQuestions, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
+  fixesCompletionPlan, fixesDayMissingQuestions, fixesFormOutcome, type FixesFormEvent, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
 } from "./fixes-day.core";
 
 export const FIXES_SWEEP_MAX = 20;
@@ -162,19 +162,8 @@ export async function fixesFormState(jobId: string): Promise<{ auditId: string |
   const { data: evs } = await admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId)
     .in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false }).limit(50);
   const tpl = await readFixesTemplate();
-  const created = (evs ?? []).find((e) => e.event_type === FIXES_FORM_CREATED_EVENT);
-  const auditId = (created?.details as { audit_id?: string } | null)?.audit_id ?? null;
-  if (!auditId) {
-    const held = (evs ?? []).find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
-    return { auditId: null, createdAt: null, outcome: held ? "held" : null, detail: held ? (held.details as { reason?: string } | null)?.reason ?? held.summary : null, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
-  }
-  const later = (evs ?? []).filter((e) => (e.details as { audit_id?: string } | null)?.audit_id === auditId && e.event_type !== FIXES_FORM_CREATED_EVENT);
-  const done = later.find((e) => e.event_type === FIXES_FORM_COMPLETED_EVENT);
-  const notDone = later.find((e) => e.event_type === FIXES_FORM_NOT_DONE_EVENT);
-  const held = later.find((e) => e.event_type === FIXES_FORM_HELD_EVENT);
-  const outcome = done ? "done" : notDone && (!held || notDone.created_at > held.created_at) ? "not_done" : held ? "held" : "open";
-  const detail = done ? null : notDone && outcome === "not_done" ? (notDone.details as { text?: string } | null)?.text ?? null : held && outcome === "held" ? (held.details as { reason?: string } | null)?.reason ?? null : null;
-  return { auditId, createdAt: created!.created_at, outcome, detail, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
+  const r = fixesFormOutcome((evs ?? []) as FixesFormEvent[]);
+  return { ...r, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
 }
 
 export type FixesCompleteResult = { status: "waiting" | "already" | "not_done" | "missing" | "done" | "held"; detail: string | null };
@@ -220,12 +209,14 @@ async function regenerateOfficialPiesa(jobId: string, actorId: string | null, sn
   const ctx = await officialPrefillContext(jobId, todayMelbourne(), null);
   // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from a Mitti form.
   const ownerConfirmation = await (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null);
-  const expanded = expandPiesa(shortAnswersFromEntries("piesa", snapshot), { lifeSupportDeclared: ctx.lifeSupportDeclared, today: certDate, ownerConfirmation });
+  // Decision 330: the owner's post-fix confirmation (normally not given yet at this point — the request goes out below).
+  const ownerFixesConfirmation = await (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null);
+  const expanded = expandPiesa(shortAnswersFromEntries("piesa", snapshot), { lifeSupportDeclared: ctx.lifeSupportDeclared, today: certDate, ownerConfirmation, ownerFixesConfirmation });
   const { facts } = await materialFacts(jobId, prev.copy);
   const id = await storeSignedCopy({ jobId, key: "piesa", answers: expanded.answers, signer: { userId: signer.userId, name: signer.name ?? "", role: "electrician" }, enteredDate: certDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti-fixes:${jobId}` });
   const { storeOfficialDocx } = await import("./official-docx.server");
   const r = await storeOfficialDocx(jobId, "piesa");
-  await logEvent(jobId, actorId, "official_piesa_regenerated", `Official PIESA regenerated with Section C from the electrical fixes form (${r.filled} items filled${r.missed.length ? `, ${r.missed.length} not placed` : ""})`, { signed_copy_id: id, path: r.path, missed: r.missed }, { internal: true });
+  await logEvent(jobId, actorId, "official_piesa_regenerated", `Official PIESA regenerated with Section C from the electrical fixes form (${r.filled} items filled${r.missed.length ? `, ${r.missed.length} not placed` : ""})`, { signed_copy_id: id, path: r.path, missed: r.missed, signatures_embedded: r.signaturesEmbedded, signature_flags: r.signatureFlags }, { internal: true });
   return `official PIESA regenerated (signed copy ${id})`;
 }
 
@@ -283,9 +274,11 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   }
   // 2. Files with the job: CoES + finished-work photo(s) + Mitti's own report.
   const saved = await saveFixesFiles(jobId, auditId, [
-    { label: "Certificate of Electrical Safety", title: "PIESA evidence – Certificate of Electrical Safety (photo or PDF)", media: plan.coesFiles },
+    { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
     { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
   ], fetchMedia);
+  // Decision 336: the A5 signature IMAGE goes in the official Section C box (kept privately with the job first).
+  await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);
   const { saveMittiReport } = await import("./mitti.server");
   await saveMittiReport(jobId, actorId, auditId, parsed.modifiedAt ? String(parsed.modifiedAt) : null, "Electrical fixes", mitti);
   // The portal page's evidence requirements are satisfied by the form's files (same categories, no second upload asked).
@@ -300,8 +293,14 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   let copies: string;
   try { const d = await (await import("./piesa-delivery.server")).deliverPiesaCopies(jobId); copies = d.hold ? `PIESA copies held: ${d.hold}` : `PIESA copies sent to ${d.sent.join(", ") || "nobody"}${Object.keys(d.held).length ? `; held: ${Object.entries(d.held).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`; }
   catch (e) { copies = `PIESA copies not sent: ${e instanceof Error ? e.message : "error"}`; }
+  // Decision 317: the electrician gets the regenerated official PIESA once (keyed to the post-fixes PIESA record; never throws).
+  const elecCopy = await (await import("./electrician-piesa-copy.server")).sendElectricianPiesaCopy(jobId);
+  // Decision 330: the owner is asked ONCE (email O72 + text) to confirm the fixes on the secure link; reminders from the tick.
+  let ownerAsk: string;
+  try { ownerAsk = await (await import("./piesa-fixes-confirm-send.server")).sendFixesConfirmStep(jobId, "request"); }
+  catch (e) { ownerAsk = `owner fixes confirmation not sent: ${e instanceof Error ? e.message : "error"}`; }
   await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: CoES ${plan.coesNumber} certified ${plan.certDate}; Section C recorded, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
-    { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
+    { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, electrician_copy: elecCopy, owner_fixes_confirm: ownerAsk, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
   return { status: "done", detail: `${official}; ${copies}` };
 }
 

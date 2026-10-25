@@ -49,5 +49,7 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
   // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
   // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.
   try { await (await import("./veec-reminders.server")).sendVeecSignStep(jobId, "request"); } catch (e) { console.error("VEEC sign request failed", (e as Error).message); }
+  // Decision 334: O45 final invoice (balance due, bank transfer only), once per invoice through the guarded owner path.
+  await (await import("./owner-email-triggers.server")).onFinalInvoiceDue(jobId).catch((e) => console.error("final invoice email skipped", (e as Error).message));
   return { ok: true, already: false };
 }

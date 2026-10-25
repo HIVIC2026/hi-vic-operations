@@ -168,3 +168,33 @@ export function repeatPiesaPayerLine(d: RepeatPiesaDecision): string {
   const head = d.payer === "undetermined" ? "30-day window lapsed — repeat PIESA payer undetermined" : `30-day window lapsed — repeat PIESA payable by the ${d.payer}`;
   return `${head}: ${d.reason}`;
 }
+
+// ---------- What the owner pays for the repeat PIESA (decision 342, Jo 25 Oct 2026) ----------
+/**
+ * An owner-caused lapse: the owner pays the SAME safety-check amount as their first check — the job's quote PIESA line
+ * (decision 302: $349 with our electrician, or the approved REC's onboarded rate e.g. $220), never a new price. Nothing
+ * charges the repeat check automatically yet, so the amount is recorded on the `install_window_expired` decision event
+ * for the office / invoice to use. Installer-caused: nothing is charged to the owner (partner agreement). Undetermined:
+ * no charge until the office decides; the first-check amount is kept on the event for reference.
+ */
+export type RepeatPiesaCharge = {
+  payer: RepeatPiesaPayer;
+  /** What the owner is charged for the repeat check, inc GST; null unless the owner caused the lapse. */
+  ownerChargeIncGst: number | null;
+  /** The owner's first safety-check amount (the quote's PIESA line), inc GST; null when unknown. */
+  firstSafetyCheckIncGst: number | null;
+  firstSafetyCheckSource: "quote_line" | "setting" | "default" | null;
+};
+export function repeatPiesaCharge(d: RepeatPiesaDecision, firstCheck: { cents: number; source: "quote_line" | "setting" | "default" } | null): RepeatPiesaCharge {
+  const first = firstCheck && Number.isFinite(firstCheck.cents) && firstCheck.cents > 0 ? Math.round(firstCheck.cents) / 100 : null;
+  return { payer: d.payer, ownerChargeIncGst: d.payer === "owner" ? first : null, firstSafetyCheckIncGst: first, firstSafetyCheckSource: first == null ? null : firstCheck!.source };
+}
+const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
+/** Office next-action line once the window has lapsed. */
+export function repeatPiesaNextAction(c: RepeatPiesaCharge): string {
+  if (c.payer === "undetermined") return "New PIESA needed: 30-day window lapsed — office to decide who pays the repeat PIESA";
+  if (c.payer === "installer") return "New PIESA needed: 30-day window lapsed — repeat PIESA payable by the installer";
+  return c.ownerChargeIncGst != null
+    ? `New PIESA needed: 30-day window lapsed — repeat PIESA payable by the owner (${money(c.ownerChargeIncGst)} inc GST, same as their first safety check)`
+    : "New PIESA needed: 30-day window lapsed — repeat PIESA payable by the owner (same amount as their first safety check — office to confirm the figure)";
+}

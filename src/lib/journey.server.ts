@@ -329,10 +329,6 @@ const s5: StepFn = async (ctx, r) => {
 const s6: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
   const al = await import("./allocation.server");
-  const picks: { date: string; slot: "10-12" }[] = [];
-  const { piesaWindowBlockers } = await import("./piesa-windows.core");
-  for (let d = 2; d < 25 && picks.length < 3; d++) { const p = { date: melbourneDate(d), slot: "10-12" as const }; if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never).some((b) => /business day/i.test(b))) picks.push(p); }
-  await act(r, "owner picks 3 Pre Insulation Electrical Safety Assessment (PIESA) times", () => al.submitOwnerPiesaWindows(ctx.jobId!, ctx.actorId, picks as never));
   const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending").eq("business_id", ctx.electrician.business_id);
   if (!open) await act(r, "office offers the Pre Insulation Electrical Safety Assessment (PIESA) to TEST Delta", () => al.startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }));
   const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "piesa");
@@ -340,8 +336,14 @@ const s6: StepFn = async (ctx, r) => {
   check(r, "Pre Insulation Electrical Safety Assessment (PIESA) offers went only to TEST partners", (names ?? []).length > 0 && (names ?? []).every((b) => (b.onboarding_notes ?? "").includes("[TEST PARTNER]")), (names ?? []).map((b) => b.name).join(", "));
   const mine = (offers ?? []).find((o) => o.business_id === ctx.electrician.business_id && o.status === "pending");
   check(r, "TEST Delta has an open Pre Insulation Electrical Safety Assessment (PIESA) offer", !!mine);
-  const { data: prop } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("status", "proposed").order("starts_at").limit(1).maybeSingle();
-  await act(r, "electrician accepts a time", () => al.respondToRecOffer(mine!.id, ctx.electrician.id, true, null, prop?.id ?? null));
+  // Decision 333: the electrician accepts by offering the owner 3 times; the owner taps one (30-day box ticked) = booked.
+  const pt = await import("./piesa-times.server");
+  const { allowedPiesaTimeDays } = await import("./piesa-times.core");
+  const tdays = allowedPiesaTimeDays().slice(1, 4);
+  await act(r, "electrician accepts and offers the owner 3 safety check times", () => pt.acceptPiesaOfferWithTimes(mine!.id, ctx.electrician.id, tdays.map((day) => ({ day, time: "10:00" }))));
+  const ost = await pt.ownerPiesaTimesState(ctx.jobId!);
+  check(r, "owner sees the electrician's 3 times", ost.turn === "owner_to_answer" && ost.open.length === 3, ost.turn);
+  await act(r, "owner ticks the 30-day box and takes the first time", () => pt.ownerTakePiesaTime(ctx.jobId!, ost.open[0]!.id, ctx.actorId, { understandsThirtyDays: true, ip: null, userAgent: null }));
   ctx.notes["piesa_offer_id"] = mine!.id;
   // Mitti PIESA form + certificate: SIMULATED (no Mitti in TEST). Writes the same assessment the Mitti sync writes.
   r.simulated = ["Mitti PIESA form and certificate (pass written as the Mitti sync would)"];

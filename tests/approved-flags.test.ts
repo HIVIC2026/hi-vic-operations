@@ -13,6 +13,7 @@ import { INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } 
 import { READY_CHECK_BOOKED_EMAIL_APPROVED, READY_CHECK_BOOKED_TEXT_APPROVED } from "../src/lib/ready-check-booked-email.core";
 import { READY_CHECK_TIMES_EMAIL_APPROVED } from "../src/lib/ready-check-times-email.core";
 import { READY_CHECK_OFFER_EMAIL_APPROVED } from "../src/lib/ready-check-offer-email.core";
+import { ELECTRICIAN_OFFER_EMAIL_APPROVED } from "../src/lib/electrician-offer-email.core";
 import { OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED, ownerQuoteSms } from "../src/lib/owner-quote-email.core";
 import { FIXES_QUOTE_EMAIL_APPROVED } from "../src/lib/rectification-quote-email.core";
 import { SAFETY_CHECK_EMAILS_APPROVED } from "../src/lib/safety-check-emails.core";
@@ -22,6 +23,7 @@ import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "../src/lib/v
 import { THIRTY_DAY_REMINDER_APPROVED } from "../src/lib/thirty-day-rule.core";
 import { INSTALL_CLEARANCE_EMAIL_APPROVED } from "../src/lib/install-clearance.core";
 import { CANCEL_NOTICE_EMAILS_APPROVED } from "../src/lib/cancel-notice.core";
+import { NEW_SENDER_REPLY_APPROVED } from "../src/lib/new-sender-reply.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
@@ -35,6 +37,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   INSULATION_DETAILS_REAL_SEND_APPROVED: { value: INSULATION_DETAILS_REAL_SEND_APPROVED, decisions: "67/69" },
   INSULATION_QUESTIONS_SEND_APPROVED: { value: INSULATION_QUESTIONS_SEND_APPROVED, decisions: "180 (automatic Save my spot after the 3 questions / photo upload)" },
   READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
+  ELECTRICIAN_OFFER_EMAIL_APPROVED: { value: ELECTRICIAN_OFFER_EMAIL_APPROVED, decisions: "93/326 (E1 electrician offer email)" },
   READY_CHECK_TIMES_EMAIL_APPROVED: { value: READY_CHECK_TIMES_EMAIL_APPROVED, decisions: "77 (O11)" },
   READY_CHECK_BOOKED_EMAIL_APPROVED: { value: READY_CHECK_BOOKED_EMAIL_APPROVED, decisions: "81 (O12)" },
   READY_CHECK_BOOKED_TEXT_APPROVED: { value: READY_CHECK_BOOKED_TEXT_APPROVED, decisions: "82 (owner booked text B)" },
@@ -60,6 +63,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   THIRTY_DAY_REMINDER_APPROVED: { value: THIRTY_DAY_REMINDER_APPROVED, decisions: "167/168" },
   INSTALL_CLEARANCE_EMAIL_APPROVED: { value: INSTALL_CLEARANCE_EMAIL_APPROVED, decisions: "186 (I65)" },
   CANCEL_NOTICE_EMAILS_APPROVED: { value: CANCEL_NOTICE_EMAILS_APPROVED, decisions: "291 (O69, I70 — Jo 25 Oct 2026)" },
+  NEW_SENDER_REPLY_APPROVED: { value: NEW_SENDER_REPLY_APPROVED, decisions: "292 (O70 new-sender calculator reply — Jo 25 Oct 2026)" },
 };
 
 /** SMS type → decision. */
@@ -72,6 +76,14 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   ready_check_days_suggested: "79 (A)", ready_check_booked_installer: "82 (installer booked, A)", install_tomorrow: "99 (installer day before)",
   team_member_invite: "251 (draft) / 252 (approved as written)",
   boss_price_link: "288 (boss price link; wording in boss-price-link.core.ts)",
+  fixes_times_link: "315 (electrician fixes times link; wording in fixes-times.core.ts)",
+  electrician_install_attendance: "327 (electrician at the start of the install; wording in install-attendance.core.ts)",
+  electrician_cant_attend_installer: "327 (installer told the electrician can't make the day; wording in install-attendance.core.ts)",
+  install_day_form_result: "328 (install day form result to the lead installer; wording in install-day-confirm.core.ts)",
+  install_day_form_reminder: "328 (5pm install day form reminder; wording in install-day-confirm.core.ts)",
+  ready_check_times_owner: "78 (A), wired by 326", ready_check_booked_owner: "82 (owner booked, B), wired by 326",
+  visit_tomorrow_owner: "82/93/99 (owner day before), wired by 326", safety_check_booked_owner: "93 (owner booked, A), wired by 326",
+  quote_reminder: "88/89, wired by 326", install_moved: "135, wired by 326", piesa_offer: "93 (electrician, B), wired by 326",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {

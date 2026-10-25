@@ -1,8 +1,8 @@
-// Decisions 244 + 255: the SAMPLE reply drafts shown to Jo (docs/templates/drafts/email-reply-samples.md).
+// Decision 244: the SAMPLE reply drafts shown to Jo (docs/templates/drafts/email-reply-samples.md).
 // Anonymised but realistic: names, addresses, job numbers and emails are invented; figures follow the approved
 // O18 quote-ready example. Shared by tests/email-reply.core.test.ts and scripts/render-email-reply-samples.ts.
-// Decision 255: new senders get the enquiry created from their email and that enquiry's own homeowner page link
-// (sample token below), never the calculator.
+// Decision 292 (replaces 255): a NEW sender with no job is never drafted for — they get the one website reply (O70,
+// new-sender-reply.core) — so every owner sample here is a MATCHED owner whose reply links their own homeowner page.
 import type { OwnerFacts, PartnerFacts, ReplyInput } from "../../src/lib/email-reply.core";
 
 /** Saturday 24 October 2026, 10am Melbourne. */
@@ -19,9 +19,9 @@ export const basePartner = (p: Partial<PartnerFacts> = {}): PartnerFacts => ({
   businessName: "Sample Insulation Co", kind: "installer", known: true, isTest: false, offers: [], pay: [], ownJobNumbers: [], ...p,
 });
 
-/** Decision 255: the enquiry just created from a new sender's email (no ceiling size, no estimate yet). */
-export const newSenderEnquiry = (o: Partial<OwnerFacts> = {}): OwnerFacts => baseOwner({
-  jobSource: "email", stage: "new_enquiry", spotSaved: false, estimate: null, insulationDeclared: null, ...o,
+/** A website lead still at an enquiry stage: estimate sent, spot not yet saved. */
+export const enquiryStageOwner = (o: Partial<OwnerFacts> = {}): OwnerFacts => baseOwner({
+  jobSource: "website", stage: "preliminary_estimate_ready", spotSaved: false, ...o,
 });
 
 export type Sample = { key: string; title: string; category: string; email: { from: string; fromName: string; subject: string; body: string }; input: ReplyInput };
@@ -38,15 +38,14 @@ export const SAMPLES: Sample[] = [
     },
   },
   {
-    key: "new_enquiry", title: "Website-style enquiry sent by email (new sender)", category: "New enquiry (new_enquiry)",
+    key: "new_enquiry", title: "Website lead (estimate sent, spot not saved) emails asking for a quote", category: "New enquiry (new_enquiry)",
     email: { from: "priya.k.example@gmail.com", fromName: "Priya Example", subject: "Ceiling insulation quote",
       body: "Hello,\n\nI'd like a quote for ceiling insulation for my house at 14 Example Street, Ringwood 3134. It's an older weatherboard and I don't think there's any insulation up there.\n\nThanks,\nPriya" },
     input: {
       subject: "Ceiling insulation quote", from: "priya.k.example@gmail.com", fromName: "Priya Example", fromPartner: false, now: SAMPLE_NOW,
       body: "Hello,\n\nI'd like a quote for ceiling insulation for my house at 14 Example Street, Ringwood 3134. It's an older weatherboard and I don't think there's any insulation up there.\n\nThanks,\nPriya",
-      // The enquiry the portal created from this email (address found in it), with its own homeowner page link.
-      owner: newSenderEnquiry({ jobNumber: "HV-3190", ownerFullName: "Priya Example", suburb: "Ringwood", ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2" }),
-      emailEnquiry: { created: true, addressFound: true },
+      // Matched by her email to the website enquiry she made earlier (estimate sent, spot not saved): her own page link.
+      owner: enquiryStageOwner({ jobNumber: "HV-3190", ownerFullName: "Priya Example", suburb: "Ringwood", ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2" }),
     },
   },
   {
@@ -61,15 +60,14 @@ export const SAMPLES: Sample[] = [
     },
   },
   {
-    key: "price_rebate_eligibility", title: "New sender asks about the rebate and price (no address in the email)", category: "Price, rebate and eligibility (price_rebate_eligibility)",
-    email: { from: "sam.person@example.org", fromName: "SAM PERSON", subject: "Insulation rebate",
+    key: "price_rebate_eligibility", title: "Owner with an estimate (no quote yet) asks about the rebate and price", category: "Price, rebate and eligibility (price_rebate_eligibility)",
+    email: { from: "sam.person@example.org", fromName: "Sam Person", subject: "Re: Your ceiling insulation estimate HV-3191",
       body: "Hi,\n\nIs the insulation rebate still available, and how much would it cost for our place?\n\nThanks,\nSam" },
     input: {
-      subject: "Insulation rebate", from: "sam.person@example.org", fromName: "SAM PERSON", fromPartner: false, now: SAMPLE_NOW,
+      subject: "Re: Your ceiling insulation estimate HV-3191", from: "sam.person@example.org", fromName: "Sam Person", fromPartner: false, now: SAMPLE_NOW,
       body: "Hi,\n\nIs the insulation rebate still available, and how much would it cost for our place?\n\nThanks,\nSam",
-      // The enquiry the portal created from this email: name tidied from the From line, no address yet (the reply asks for it).
-      owner: newSenderEnquiry({ jobNumber: "HV-3191", ownerFullName: "Sam Person", suburb: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3" }),
-      emailEnquiry: { created: true, addressFound: false },
+      // Matched to his website enquiry: estimate figures only (no quote), his own page link, some insulation declared.
+      owner: enquiryStageOwner({ jobNumber: "HV-3191", ownerFullName: "Sam Person", suburb: "Box Hill", insulationDeclared: "unknown", ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3" }),
     },
   },
   {

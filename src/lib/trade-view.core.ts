@@ -47,6 +47,25 @@ export function roughValueNote(source: AreaSource): string {
 export type InsulationNow = "none" | "some" | "unknown";
 export const INSULATION_LABEL: Record<InsulationNow, string> = { none: "None", some: "Some", unknown: "Not sure" };
 
+/**
+ * Decision 318 (Jo 25 Oct 2026, wording approved by Jo): one rule, the SAME words on every trade surface — the trade job
+ * page next to the onsite form button, the Money page above the payouts, job offers (one short line), the installer
+ * guide / welcome email and the electrician guide — and as a first-page instruction line on the A3/A4/A5 Mitti forms.
+ * The rule itself is enforced by `trade-payout-gate.core.ts` `tradePayoutBlockers`.
+ */
+export const NO_FORM_NO_PAY = {
+  headline: "No complete form, no payment",
+  body: "We pay for the safety check, electrical fixes and installs only when the Mitti form is 100% finished and you've pressed Complete. Every photo and video must be taken in Mitti on site so it is geotagged. If anything is missing, we can't claim the rebate, so we can't pay you until it's fixed.",
+  offerLine: "Paid only when the Mitti form is complete with every geotagged photo.",
+  mittiInstruction: "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.",
+} as const;
+
+/** Decision 318: a payout held by the form rule shows "Held" and its first reason, whatever its pay state would be. */
+export function heldPayPill(reasons: readonly string[] | null | undefined): { label: string; tone: "blush"; why: string } | null {
+  if (!reasons?.length) return null;
+  return { label: "Held", tone: "blush", why: reasons.length === 1 ? reasons[0]! : `${reasons[0]} (and ${reasons.length - 1} more)` };
+}
+
 /** Money tab pill. */
 export type PayState = { kind: "coming"; on: string } | { kind: "checking" } | { kind: "paid"; on: string };
 export function payPill(p: PayState): { label: string; tone: "blue" | "blush" | "mint" } {
@@ -192,7 +211,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
 import { isPriceNextAction } from "./ready-check-basics.core";
-import { crewClearance, CREW_CLEARANCE_REASON } from "./worker-compliance.core";
+import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
 
 const MEL = "Australia/Melbourne";
 const asDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00+10:00` : iso);
@@ -218,6 +237,8 @@ export type TeamMemberView = {
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */
   cii: { certStatus: string | null; level: string | null; expiresOn: string | null } | null;
+  /** Decision 319: White Card state for installers with a staff row (optional so older callers compile). null/undefined = not applicable. */
+  whiteCard?: WhiteCardState | null;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
@@ -236,6 +257,12 @@ export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: 
   if (c.cleared) return { text: `CII cleared${cii.expiresOn ? ` · expires ${shortDate(cii.expiresOn)}` : ""}`, tone: "green" };
   const why = c.reason === CREW_CLEARANCE_REASON.expired ? "CII expired" : c.reason === CREW_CLEARANCE_REASON.withdrawn ? "CII not accepted" : "CII being checked";
   return { text: `${why} · not on installs yet`, tone: "rose" };
+}
+
+/** Decision 319: White Card line for an installer row. Green when verified, rose otherwise; null when not applicable. */
+export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { text: string; tone: "green" | "rose"; canUpload: boolean } | null {
+  if (!state || state === "not_applicable") return null;
+  return { text: WHITE_CARD_TEAM_LABEL[state], tone: state === "verified" ? "green" : "rose", canUpload: state === "missing" || state === "rejected" };
 }
 
 /** Decision 161 in one line under the team list. */
@@ -400,3 +427,21 @@ export const GUIDE_WORDS = {
   pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
   back: "Back to My work",
 } as const;
+
+// Decision 317: the electrician's "Safety check (PIESA)" document row on their job page.
+export const SAFETY_CHECK_DOC_TITLE = "Safety check (PIESA)";
+/** One line under the row: the signed date and, after the fixes, that this version includes them. */
+export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes: boolean }): string {
+  const d = shortDate(x.signatureDate);
+  return [d ? `Signed ${d}` : "Official copy", x.afterFixes ? "includes your fixes and CoES" : null, "Download PDF"].filter(Boolean).join(" · ");
+}
+
+// ---- Decision 327: electrician on site at the start of the install day (installer job page line) ----
+export const ELECTRICIAN_ATTENDANCE_CONFIRMED = "Electrician confirmed for the start of the install";
+export const ELECTRICIAN_ATTENDANCE_WAITING = "Waiting for the electrician to confirm";
+/** The installer's one line for the current install booking: null = the electrician isn't needed at the start (never asked).
+ *  A "Can't make it" stays "Waiting…" for the installer — the office sorts it out from Needs me. */
+export function installerAttendanceLine(state: "confirmed" | "declined" | "waiting" | null | undefined): string | null {
+  if (!state) return null;
+  return state === "confirmed" ? ELECTRICIAN_ATTENDANCE_CONFIRMED : ELECTRICIAN_ATTENDANCE_WAITING;
+}

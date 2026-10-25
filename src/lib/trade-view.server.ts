@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { COULDNT_GET_IN, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -179,6 +179,8 @@ export async function tradeOffer(offerId: string, userId: string) {
   const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
   const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
   const rcDays = o.kind === "ready_check" && o.status === "pending" ? (await import("./ready-check-times.core")).allowedReadyCheckDays() : [];
+  // Decision 333: a PIESA offer with no owner windows (every new job) is accepted by offering the owner 3 times.
+  const piesaDays = o.kind === "piesa" && o.status === "pending" && windows.length === 0 ? (await import("./piesa-times.core")).allowedPiesaTimeDays() : [];
   let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
   if (o.status === "accepted" && liveAsg) {
     const bk = o.kind === "ready_check" ? "ready_check" : o.kind === "piesa" ? "assessment" : o.kind;
@@ -193,7 +195,7 @@ export async function tradeOffer(offerId: string, userId: string) {
   // Accepted (owner picking): the installer's own open times, so the accepted state can list them (approved state M5-accepted).
   const times = o.kind === "ready_check" && o.status === "accepted" && liveAsg ? (await (await import("./ready-check-times.server")).installerReadyCheckState(o.job_id, userId).catch(() => null)) : null;
   return {
-    id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked, rcDays, accepted: o.status === "accepted" && !!liveAsg,
+    id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked, rcDays, piesaDays, accepted: o.status === "accepted" && !!liveAsg,
     canSuggest: o.kind !== "ready_check" && o.status === "pending" && timing.canSuggest, suggestUnlockLabel: timing.unlockLabel, takenByOther: o.status === "withdrawn" || o.status === "superseded",
     suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null, jobNumber: jn?.job_number ?? null,
     area: says.areaM2 ?? s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (says.insulation ?? s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
@@ -422,6 +424,10 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     return kind === "assessment" ? items.some((i) => i.code === "PIESA") : items.some((i) => i.qk === "rectification" || (i.description ?? "").startsWith("Electrical rectification:"));
   };
   const { electricalBillingSource } = await import("./installer-led.core");
+  // Decision 318: no complete Mitti form (with every geotagged photo/video), no payment — unpaid rows are held with reasons.
+  const { payoutGateFacts } = await import("./trade-payout-gate.server");
+  const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
+  const gate = await payoutGateFacts(ids);
   const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
@@ -429,7 +435,11 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
-    const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
+    const timed = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
+    const gf = gate.get(b.job_id);
+    const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
+    // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
+    const state: PayState = held.length ? { kind: "checking" } : timed;
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
     const jj = b.jobs as { channel?: string | null; electrician_choice?: string | null };
     // A kind-less payout event is the job/installer payout; only an explicit electrical-kind event proves an HIV electrical payment.
@@ -437,7 +447,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const billing = b.kind === "assessment" || b.kind === "rectification"
       ? electricalBillingSource({ channel: jj.channel ?? null, choice: jj.electrician_choice ?? null, committedLineOnAcceptedQuote: committed(b.job_id, b.kind), hivPaidAt: explicitPaid })
       : "hivic" as const;
-    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
   });
 }
 
@@ -498,7 +508,10 @@ export async function tradeBusiness(userId: string) {
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
   // CII clearance facts (decision 153) and privacy notice acknowledgements (decision 130) for installer staff rows.
-  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string; mobile: string | null }[];
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string; mobile: string | null; certification: unknown }[];
+  // Decision 319: each installer person's White Card (office-verified once).
+  const { whiteCardState } = await import("./worker-compliance.core");
+  const whiteCardOfRow = (w: { trade_role: string; certification: unknown }) => w.trade_role === "installer" ? whiteCardState(w) : null;
   const [cii, notice] = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer")
     ? await Promise.all([
       (await import("./piisa-a3.server")).crewStaff(c.biz.id).catch(() => [] as { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null }[]),
@@ -518,11 +531,11 @@ export async function tradeBusiness(userId: string) {
     ...ownerIds.map((uid) => {
       const p = profile(uid), w = ownerRow(uid);
       return { id: w?.id ?? null, name: (p?.full_name ?? w?.full_legal_name ?? "Business owner").trim(), role: "owner" as const, mobile: w?.mobile ?? p?.phone ?? null, email: p?.email ?? w?.email ?? null, hasLogin: true,
-        mittiLogin: mittiLogin(uid), noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null };
+        mittiLogin: mittiLogin(uid), noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null };
     }),
     ...staffRows.filter((w) => !ownerIds.includes(w.profile_id ?? "") && !ownerEmails.has(w.email.trim().toLowerCase())).map((w) => ({
       id: w.id as string | null, name: w.full_legal_name.trim(), role: (w.trade_role === "installer" ? "installer" : "electrician") as TeamMemberView["role"], mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
-      mittiLogin: mittiLogin(w.profile_id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role),
+      mittiLogin: mittiLogin(w.profile_id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w),
     })),
   ];
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
@@ -824,6 +837,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
     // Decision 296: whether the owner has confirmed the current PIESA on their secure link (null = no PIESA record yet). Read only once cleared.
     ownerPiesaConfirmed: clearance.cleared ? await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null,
+    // Decision 327: electrician at the start of the install day — one line (confirmed / waiting) or the "can't make it" alert.
+    electricianAttendance: clearance.cleared ? await installerAttendanceView(jobId).catch(() => null) : null,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,
@@ -960,4 +975,150 @@ export async function tradeSwmsNote(jobId: string, userId: string, note: string)
 export async function tradeSwmsSign(jobId: string, userId: string, key: string, typedName: string) {
   await requireOpenSwms(jobId, userId);
   return (await import("./swms.server")).signSwms(jobId, userId, key, typedName);
+}
+
+// ---- Decision 315: the electrician's "Fixes times" card (/field/{jobId}#fixes-times). Electricians only, business-scoped
+// through requireTradeJob + an active ELECTRICIAN assignment for this business. Rules in pure fixes-times.core. ----
+async function requireJobElectrician(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "electrician") return null;
+  const { count } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("business_id", c.biz.id).eq("active", true);
+  return count ? c : null;
+}
+
+export async function tradeFixesTimes(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const { FIXES_TIMES_LINK_EVENT, fixesTimesCardState } = await import("./fixes-times.core");
+  const r = await import("./rectification.server");
+  const [facts, { data: ws }, { count: links }] = await Promise.all([
+    r.fixesTimesFacts(jobId),
+    admin.from("appointment_proposals").select("starts_at, ends_at, status").eq("job_id", jobId).eq("kind", "rectification").eq("electrician_window", true).order("starts_at"),
+    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_TIMES_LINK_EVENT),
+  ]);
+  const windows = (ws ?? []).map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at, status: w.status }));
+  const state = fixesTimesCardState({ electrician: true, timesNeeded: facts.timesNeeded, piesaCompleted: facts.piesaCompleted, linkSent: (links ?? 0) > 0, windowsExist: windows.length > 0 });
+  return state.show ? { show: true as const, given: state.given, windows } : { show: false as const };
+}
+
+export async function tradeSaveFixesTimes(jobId: string, userId: string, hours: number, windows: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can give the electrical fixes times.");
+  const view = await tradeFixesTimes(jobId, userId);
+  if (!view.show) throw new WorkflowError("No electrical fixes times are needed on this job.");
+  if (view.given) throw new WorkflowError("The electrical fixes times have already been given.");
+  // The same shared write as the old portal PIESA submit (same validation, rows and `rectification_windows_given` event).
+  await (await import("./rectification.server")).recordRectificationWindows(jobId, userId, hours, windows);
+  return { ok: true };
+}
+
+// ---- Decision 327: electrician on site at the start of the install day. The electrician's card (/field/{jobId}#install-
+// attendance) is electricians only, business-scoped through requireJobElectrician; the installer reads one line via
+// tradeJobPage. Rules + wording in pure install-attendance.core / trade-view.core; writes in install-attendance.server. ----
+async function attendanceFacts(jobId: string) {
+  const ia = await import("./install-attendance.server");
+  const [booking, events, { data: j }] = await Promise.all([
+    ia.currentInstallBooking(jobId), ia.attendanceEvents(jobId),
+    admin.from("jobs").select("properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+  ]);
+  const p = (j as unknown as { properties: { address_line: string | null; suburb: string | null } | null } | null)?.properties ?? null;
+  const { installerTextAddress } = await import("./installer-texts.core");
+  return { booking, events, address: installerTextAddress(p?.address_line, p?.suburb) };
+}
+
+async function installerAttendanceView(jobId: string): Promise<{ line: string | null; alert: string | null } | null> {
+  const core = await import("./install-attendance.core");
+  const { installerAttendanceLine } = await import("./trade-view.core");
+  const f = await attendanceFacts(jobId);
+  if (f.booking) {
+    const line = installerAttendanceLine(core.attendanceState(f.events, f.booking.id)?.state ?? null);
+    return line ? { line, alert: null } : null;
+  }
+  // Released by the electrician: the same words the installer was texted, until a day is booked.
+  const limit = core.canDoRestriction(f.events);
+  const decl = limit ? [...f.events].reverse().find((e) => e.event_type === core.ATTENDANCE_DECLINED_EVENT) : null;
+  if (!limit || !decl) return null;
+  const d = decl.details ?? {};
+  const reason = core.isAttendanceReason(d["reason"]) ? core.attendanceReasonLabel(d["reason"], (d["reason_text"] as string | null) ?? null) : "unavailable";
+  return { line: null, alert: core.installerCantAttendText({ wasStartIso: String(d["was"] ?? decl.created_at), reason, days: limit.days }) };
+}
+
+export async function tradeInstallAttendance(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const core = await import("./install-attendance.core");
+  const f = await attendanceFacts(jobId);
+  const s = f.booking ? core.attendanceState(f.events, f.booking.id) : null;
+  if (f.booking && s) {
+    // The days they could do instead ("Can't make it"): inside the 30-day window, never the booked day.
+    const [{ installDayContext }, { allowedInstallDays }, { melbourneYmd }] = await Promise.all([import("./install-days.server"), import("./install-days.core"), import("./piesa-windows.core")]);
+    const ctx = await installDayContext(jobId);
+    const booked = melbourneYmd(new Date(f.booking.scheduled_start));
+    const days = allowedInstallDays({ deadline: ctx.deadline }).filter((d) => d !== booked);
+    return { show: true as const, bookingId: f.booking.id, line: core.attendancePageLine({ address: f.address, startIso: f.booking.scheduled_start }), state: s.state, auto: s.auto, days, deadline: ctx.deadline, released: null as string | null };
+  }
+  const decl = [...f.events].reverse().find((e) => e.event_type === core.ATTENDANCE_DECLINED_EVENT);
+  if (!f.booking && decl) {
+    const d = decl.details ?? {};
+    const days = Array.isArray(d["can_do_days"]) ? (d["can_do_days"] as unknown[]).map(String) : [];
+    const released = d["no_days"] === true ? "Thanks — you can't make the install day. Home Insulation Victoria will be in touch." : `Thanks — the install day is released. The installer is offering the owner the days you can do: ${core.canDoDaysLabel(days)}. You'll get a text when one is booked.`;
+    return { show: true as const, bookingId: null, line: null, state: "declined" as const, auto: false, days: [] as string[], deadline: null as string | null, released };
+  }
+  return { show: false as const };
+}
+
+export async function tradeAnswerInstallAttendance(jobId: string, userId: string, a: { bookingId: string; answer: "yes" } | { bookingId: string; answer: "no"; reason: import("./install-attendance.core").AttendanceReason; otherText: string | null; days: string[]; noDays: boolean }) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can answer.");
+  const ia = await import("./install-attendance.server");
+  if (a.answer === "yes") return ia.confirmAttendance(jobId, userId, a.bookingId);
+  return ia.declineAttendance(jobId, userId, { bookingId: a.bookingId, reason: a.reason, otherText: a.otherText, days: a.days, noDays: a.noDays });
+}
+
+// ---- Decision 317: the electrician's "Safety check (PIESA)" document row (/field/{jobId}). Electricians only,
+// business-scoped through requireJobElectrician (active ELECTRICIAN assignment for this business). The PDF is the same
+// document the electrician is emailed (official-piesa-pdf.server), returned as bytes — no public URL. Never a sender. ----
+export async function tradeSafetyCheckDoc(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) return { show: false as const };
+  const { currentCopy } = await import("./official-forms.server");
+  const [pe, { data: rec }] = await Promise.all([
+    currentCopy(jobId, "piesa").catch(() => ({ copy: null, unavailable: true })),
+    admin.from("piesa_records").select("kind, created_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+  ]);
+  if (pe.unavailable || !pe.copy) return { show: false as const };
+  const signedAt = pe.copy.snapshot?.serverTimestamp ? Date.parse(pe.copy.snapshot.serverTimestamp) : NaN;
+  const afterFixes = rec?.kind === "post_rectification" && Number.isFinite(signedAt) && signedAt >= Date.parse(rec.created_at);
+  const { SAFETY_CHECK_DOC_TITLE, safetyCheckDocLine } = await import("./trade-view.core");
+  return { show: true as const, title: SAFETY_CHECK_DOC_TITLE, line: safetyCheckDocLine({ signatureDate: pe.copy.signatureDate, afterFixes }) };
+}
+
+export async function tradeSafetyCheckPdf(jobId: string, userId: string) {
+  const c = await requireJobElectrician(jobId, userId);
+  if (!c) throw new WorkflowError("Only the electrician on this job can download the safety check.");
+  const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+  if (!job) throw new WorkflowError("Job not found.");
+  const pdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
+  if (!pdf) throw new WorkflowError("The official safety check isn't ready yet.");
+  return { fileName: pdf.fileName, base64: toB64(pdf.bytes) };
+}
+
+/** Decision 328: "Check my form now" on /field/day/{jobId} and /field/{jobId}. Installers only, business-scoped through
+ *  requireTradeJob; runs the single-job A3 sync (install-day-confirm.server) and returns only the result lines — no
+ *  prices, no other partners. A Complete form on the install day also gets the result text once per revision. */
+export async function tradeCheckInstallForm(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "installer") throw new WorkflowError("Only the installing business checks the install day form.");
+  const r = await (await import("./install-day-confirm.server")).checkInstallDayForm(jobId, { actorId: userId });
+  return { state: r.state, title: r.title, body: r.body, good: r.good, missing: r.missing.slice(0, 10), texted: !!r.texted };
+}
+
+// ---- Decision 333: PIESA times (electrician offers the owner 3). Business-scoped; rules in piesa-times.core. ----
+
+/** Accept a PIESA offer (no owner windows) by offering the owner 3 times. */
+export async function tradeOfferPiesaTimes(offerId: string, userId: string, picks: { day: string; time: string }[]) {
+  const c = await ctxOrThrow(userId);
+  const { data: o } = await admin.from("partner_offers").select("id, business_id, kind").eq("id", offerId).maybeSingle();
+  if (!o || o.business_id !== c.biz.id || o.kind !== "piesa") throw new WorkflowError("This offer isn't for your business.");
+  return (await import("./piesa-times.server")).acceptPiesaOfferWithTimes(offerId, userId, picks);
 }

@@ -9,6 +9,8 @@ import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
+import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -49,7 +51,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const since7 = new Date(now - 7 * DAY).toISOString();
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
 
-  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms] = await Promise.all([
+  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms] = await Promise.all([
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
     all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
@@ -65,6 +67,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // Decision 296: day-5 alerts for an unconfirmed PIESA, cleared by a confirmation of the same PIESA record.
     all("PIESA owner day-5 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT).range(a, b)),
     all("PIESA owner confirmations", (a, b) => scoped(admin.from("workflow_events").select("job_id, details")).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT).range(a, b)),
+    // Decision 315: fixes-times links to electricians, cleared by the times being given (same event both paths write).
+    all("fixes times links", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", FIXES_TIMES_LINK_EVENT).range(a, b)),
+    all("fixes times given", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", FIXES_TIMES_GIVEN_EVENT).range(a, b)),
+    // Decision 330: day-5 alerts for unconfirmed electrical fixes, cleared by a confirmation of the same fixes record.
+    all("fixes owner day-5 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT).range(a, b)),
+    all("fixes owner confirmations", (a, b) => scoped(admin.from("workflow_events").select("job_id, details")).eq("event_type", PIESA_FIXES_CONFIRMED_EVENT).range(a, b)),
   ]);
 
   for (const j of jobs) {
@@ -133,6 +141,19 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (confirmedRecords.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
     if (!x.piesaOwnerUnsigned || String(e["created_at"]) > x.piesaOwnerUnsigned.at) x.piesaOwnerUnsigned = { at: String(e["created_at"]), completedDate: s(rec?.completed_date) };
   }
+  // Decision 330: the alert names its fixes record; a confirmation of that record clears the row (closed jobs never show).
+  const fixesConfirmed = new Set(fixesConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
+  for (const e of fixesAlerts) {
+    const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; fixes_date?: string } | null) ?? null;
+    const x = f(id); const j = jobs.find((k) => k.id === id);
+    if (!x || !j || ["complete", "cancelled"].includes(j.stage)) continue;
+    if (fixesConfirmed.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
+    if (!x.fixesOwnerUnsigned || String(e["created_at"]) > x.fixesOwnerUnsigned.at) x.fixesOwnerUnsigned = { at: String(e["created_at"]), fixesDate: s(rec?.fixes_date) };
+  }
+  // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
+  for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
+    const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
+  }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
@@ -185,6 +206,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
     for (const r of await (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => [])) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
+    // Decision 335: 1–3 star private feedback from the My job review screen → ONE row per job for 14 days (the job is
+    // often already closed, so this reads the events directly rather than the live-job list).
+    const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
+    const fb = await all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(now - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b));
+    if (fb.length) {
+      const fbIds = [...new Set(fb.map((e) => String(e["job_id"])))];
+      const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
+      for (const r of await byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)))
+        fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
+      system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
+    }
   }
   return { now, jobs, facts, emails, system };
 }

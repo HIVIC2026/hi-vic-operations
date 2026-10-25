@@ -211,7 +211,6 @@ export type PrefillCtx = {
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
   /** Ready Check "built or replaced in the last 5 years?" — from the owner's DECLARED enquiry answer: over 5 years "yes" → "No", "no" → "Yes"; unknown stays blank. */ builtLast5Years?: string | null;
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
-  /** Decision 312: A4 "Whose customer is this?" (official-short.core customerOfOption: A1 → "The installer's customer", else "Home Insulation Victoria"). */ customerOf?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
@@ -235,8 +234,6 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
   { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
-  // Decision 312: same wording as official-short.core CUSTOMER_OF_LABEL (tests/no-price-talk.test.ts keeps them equal).
-  { key: "customerOf", aliases: ["Whose customer is this?"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;

@@ -44,7 +44,9 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   ready_for_installer_quotes: ["awaiting_quote_acceptance"],
   awaiting_quote_acceptance: ["awaiting_deposit_payment", "ready_for_installer_quotes"],
   awaiting_deposit_payment: ["rectification_scheduling", "installation_scheduling"],
-  rectification_scheduling: ["rectification_booked"],
+  // installation_scheduling from rectification_scheduling: ONLY the decision-314 on-site-only job (entry blockers refuse
+  // every other job while fixes items are open).
+  rectification_scheduling: ["rectification_booked", "installation_scheduling"],
   rectification_booked: ["installation_scheduling", "rectification_scheduling"],
   installation_scheduling: ["installation_booked"],
   installation_booked: ["evidence_outstanding", "installation_scheduling"],
@@ -426,8 +428,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!g.cleared) blockers.push(g.blocker);
   }
   if (to === "installation_scheduling" || to === "installation_booked") {
-    if (rect > 0) blockers.push("Electrical fixes not yet completed.");
-    if (!piesa?.piesa_date || piesa.piesa_outcome !== "pass") blockers.push("A passing PIESA / electrical sign-off is required before installation.");
+    // Decision 314 follow-up: open fixes items on an on-site-only job cleared on `electrician_at_start` are done on the
+    // install day (read only when fixes items are open, so every other job reads exactly as before).
+    const { installEntryElectricalBlockers } = await import("./allocation.core");
+    const onsiteStartCleared = rect > 0 ? await (await import("./electrical-clearance.server")).onsiteStartClearedFor(jobId) : false;
+    blockers.push(...installEntryElectricalBlockers({ openRectItems: rect, piesaDate: piesa?.piesa_date, piesaOutcome: piesa?.piesa_outcome, onsiteStartCleared }));
   }
   if (to === "installation_booked" || to === "evidence_outstanding") {
     const { data: inst } = await admin

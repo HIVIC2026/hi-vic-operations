@@ -86,3 +86,4 @@ reuse the `0149`/`0202` numbers for unrelated changes; refer to this record.
 - Decision 269 (auto_electrician_offers = true) was applied to live workflow_settings on 25 Oct 2026 by Claude at Jo's instruction; auto_installer_offers stays false (decision 270).
 
 - 25 Oct 2026 (after PR #7, Claude at Jo's instruction): applied owners-email-not-unique.sql (owners_email_uq dropped, owners_email_idx added) and 0227_trade_speed_indexes.sql (four business-led indexes) to the live database.
+- 2026-10-25 (Jo: "Connect both now"): `mitti-fixes-template.sql` applied live (column `workflow_settings.mitti_fixes_template_id`, PGlite proof tests/mitti-fixes-template-practice-db.test.ts). Set `mitti_fixes_template_id = f600e485-5a3a-4a18-a7a5-ccaa82c3916f` (A5 – Electrical fixes, published 03:50 UTC) and `mitti_piesa_template_id = eb3bf3b6-17d3-4c59-9244-5892a0ec16f5` (A4 – Electrical safety check (PIESA), published 03:52 UTC); definitions saved as mitti_template_dumps rows 41/42.

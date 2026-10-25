@@ -1,6 +1,6 @@
 // After-install owner emails (Jo 24 Oct 2026, decisions 101–105, 119–120, 132–133).
 //   O44 "All done!"            docs/templates/approved/O44-install-complete.html  (summary card, sign your rebate form, what you'll get)
-//   O45 Final invoice          docs/templates/approved/O45-final-invoice.html     (tax invoice lines, balance due today, Pay button)
+//   O45 Final invoice          docs/templates/approved/O45-final-invoice.html     (tax invoice lines, balance due today; decision 334: pay by bank transfer)
 //   O47 Completion pack        docs/templates/approved/O47-completion-pack.html   (downloads, who to contact, care tips)
 //   O51 Review request         docs/templates/approved/O51-review.html           (tap a star, Google review, refer a friend)
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
@@ -9,6 +9,7 @@
 import * as K from "./email-kit.core";
 import { AP_DETAILS } from "./veec-assignment-form.core";
 import { insulationLineWithCodes } from "./invoice-itemisation.core";
+import { bankDetailLines, type BankDetails } from "./payments.core";
 
 /** Decision 209: the installed product line as it appears on the Xero invoice, with the exact ESC model code(s) when known. */
 export type InstalledLine = { description: string; escModelCodes: string[] };
@@ -29,7 +30,15 @@ const installerLine = (ins: Installer | null | undefined, action: string) => {
 export type InstallCompleteInput = {
   firstName: string | null; installer: Installer | null; product: string | null; areaM2: number | null; rebate: number | null;
   balancePaid: boolean; signRebateFormUrl: string | null; test?: boolean;
+  /** Decision 321: product names whose manufacturer warranty PDF is attached to this email; [] / omitted = none attached. */
+  attachedWarranties?: string[];
 };
+
+/** Decision 321: the one line O44 / O47 print when a manufacturer warranty PDF is attached (null = none attached). */
+export function attachedWarrantyLine(names: readonly string[] | null | undefined): string | null {
+  const n = (names ?? []).map((s) => s.trim()).filter(Boolean);
+  return n.length ? `Attached: your ${n.join(" and ")} manufacturer's warranty (PDF). Keep it with your home's paperwork.` : null;
+}
 
 /** Decision 101/119: "All done, {First}. Enjoy a warmer home!" with the rebate-form signing request. */
 export function renderInstallCompleteEmail(i: InstallCompleteInput) {
@@ -48,13 +57,14 @@ export function renderInstallCompleteEmail(i: InstallCompleteInput) {
     { title: "A copy of your signed rebate form", detail: "Emailed to you as soon as you sign." },
   ];
   const closing = installerLine(i.installer, ". Not sorted? Reply to this email and we'll help.");
+  const warrantyLine = attachedWarrantyLine(i.attachedWarranties);
   const body = [
-    K.h1(subject, 8), K.p(intro), K.resultCard({ rows }),
+    K.h1(subject, 8), K.p(intro), K.resultCard({ rows }), warrantyLine ? K.small(warrantyLine, "10px 0 0") : "",
     i.signRebateFormUrl ? K.amberBox("One last thing: sign your rebate form", `<div style="font-size:14px;color:${K.KIT.NAVY};line-height:1.5;margin:4px 0 12px;">${K.esc(signBody)}</div>\n${K.button(i.signRebateFormUrl, "Sign your rebate form", "0")}`, 16) : "",
     K.sectionTitle("What you'll get from us", "24px 0 12px"), K.numberedSteps(steps), K.small(closing, "6px 0 0"),
   ].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", ...rows.map((r) => `${r.k}: ${r.v}`), "", ...(i.signRebateFormUrl ? ["ONE LAST THING: SIGN YOUR REBATE FORM", signBody, `Sign your rebate form: ${i.signRebateFormUrl}`, ""] : []), "WHAT YOU'LL GET FROM US", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, "", ...rows.map((r) => `${r.k}: ${r.v}`), ...(warrantyLine ? [warrantyLine] : []), "", ...(i.signRebateFormUrl ? ["ONE LAST THING: SIGN YOUR REBATE FORM", signBody, `Sign your rebate form: ${i.signRebateFormUrl}`, ""] : []), "WHAT YOU'LL GET FROM US", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
@@ -64,19 +74,24 @@ export type FinalInvoiceInput = {
   lines: { description: string; amount: number }[];
   totalIncGst: number; gst: number | null; rebate: number;
   payments: { label: string; amount: number }[];
-  balanceDue: number; payUrl: string; test?: boolean;
+  /** Decision 334 (Jo 25 Oct 2026): the balance is paid by bank transfer only (card stays for the safety check and fixes,
+   *  decisions 140/144). Bank details from HIV_BANK_* (payments.server bankDetails); the invoice number is the reference. */
+  balanceDue: number; bank: BankDetails; test?: boolean;
+  /** Decision 334: "Invoice PDF attached" prints only when the Xero invoice PDF really is attached. */
+  invoicePdfAttached?: boolean;
   /** Decision 209: installed product itemisation (brand, model, R-value, m², ESC model codes); omitted when unknown. */
   installed?: InstalledLine | null;
 };
 
-/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today, Pay button.
- *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line. */
+/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today.
+ *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line.
+ *  Decision 334: no card wording or Pay button — "Pay by bank transfer" with the bank details and the invoice number as the reference. */
 export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
-  if (!/^https:\/\//.test(i.payUrl)) throw new Error("Payment link is unavailable.");
+  if (!i.invoiceNumber?.trim()) throw new Error("Invoice number is unavailable.");
   const first = K.cleanName(i.firstName) ?? "there";
   const installer = i.installer?.name?.trim() || "Your installer";
   const subject = `${first}, your install is done. Here's your final invoice`;
-  const intro = `${installer} finished today. Your balance is due today, as agreed when you booked. Tap the button to pay by card, and you'll get your receipt straight away.`;
+  const intro = `${installer} finished today. Your balance is due today, as agreed when you booked. Please pay by bank transfer using the details below, with your invoice number as the reference.`;
   const balance = K.cents(i.balanceDue);
   const rows = [
     ...i.lines.map((l) => ({ label: l.description, amount: K.cents(l.amount) })),
@@ -91,16 +106,19 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
     ...(i.address?.trim() ? [`Installation address: ${i.address.trim()}`] : []),
     ...(i.installed ? [`Installed: ${insulationLineWithCodes(i.installed)}`] : []),
   ];
+  const bankLines = [...bankDetailLines(i.bank, i.invoiceNumber.trim()), `Amount: ${balance}`];
+  const pdfLine = i.invoicePdfAttached === true ? "Invoice PDF attached" : null;
   const after = "Once it's paid, we'll send your completion pack: certificate, warranties and all your signed forms. You'll also get a short text asking you to sign your rebate form, if you haven't already.";
   const closing = installerLine(i.installer, ", or reply to this email.");
   const body = [
     K.h1(subject, 8), K.p(intro),
     K.invoiceTable({ header: `Tax invoice ${i.invoiceNumber} · ${i.invoiceDate}`, meta, rows, totalLabel: "Balance due today", total: balance }),
-    K.button(i.payUrl, `Pay ${balance} now`), K.small("Secure card payment by Stripe · Invoice PDF attached", "10px 0 0", { center: true }),
+    K.mistBox("Pay by bank transfer", bankLines.map((l) => `<div style="font-size:14px;line-height:1.6;color:${K.KIT.NAVY};">${K.esc(l)}</div>`).join("\n"), { marginTop: 16 }),
+    pdfLine ? K.small(pdfLine, "10px 0 0", { center: true }) : "",
     K.note(after, "18px 0 0"), K.small(closing),
   ].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", `TAX INVOICE ${i.invoiceNumber} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}: ${r.amount}`), `Balance due today: ${balance}`, "", `Pay ${balance} now: ${i.payUrl}`, "Secure card payment by Stripe · Invoice PDF attached", "", after, "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, "", `TAX INVOICE ${i.invoiceNumber} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}: ${r.amount}`), `Balance due today: ${balance}`, "", "PAY BY BANK TRANSFER", ...bankLines, ...(pdfLine ? [pdfLine] : []), "", after, "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
@@ -112,6 +130,8 @@ export type CompletionPackInput = {
   installed?: InstalledLine | null;
   /** VEU checklist G1: product names whose manufacturer warranty PDF is attached to this email (completion-pack.server.ts); [] = none attached. */
   attachedWarranties?: string[];
+  /** Decision 322: the electrician's Certificate of Electrical Safety (A5 fixes form) is attached to this email. */
+  attachedCoes?: boolean;
 };
 
 /** Decision 103: downloads, "Something not right?" (installer → us → ESC), care tips. */
@@ -126,6 +146,7 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     { title: "Tax invoice", detail: "Paid in full", href: i.downloads.invoiceUrl },
     { title: "Your warranties", detail: warrantyDetail, href: i.downloads.warrantiesUrl },
     { title: "Signed forms", detail: "Acceptance, install consent, rebate form, safety check", href: i.downloads.signedFormsUrl },
+    ...(i.attachedCoes ? [{ title: "Certificate of Electrical Safety", detail: "From your electrician's fixes visit, attached to this email", href: null as string | null }] : []),
   ];
   const ins = i.installer?.name?.trim() || "your installer";
   const steps: K.Step[] = [

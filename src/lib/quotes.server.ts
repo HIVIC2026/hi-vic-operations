@@ -67,7 +67,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
-  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle();
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, minimum_customer_copayment_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
   // Region decides which program maximum applies; an unlisted postcode uses the lower metro cap (fails safe).
   const { data: prop } = await admin.from("properties").select("postcode").eq("id", jobRow.property_id).maybeSingle();
@@ -83,22 +83,25 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
-  // Decision 290 (Jo 25 Oct 2026): the A2 form no longer carries an access fee — the access rating is the flag and the
-  // office decides any access charge through the normal quote adjustment. Nothing is read from the form here.
-  const accessFee: { amountIncGst: number | null; reason: string | null } = { amountIncGst: null, reason: null };
+  // Decision 341 (Jo 25 Oct 2026): no percentage access loading — the owner pays the normal list price whatever the
+  // access. Only a Ready Check rating of "Difficult" (decision 290 `accessFlagFromEntries`) WITH the installer's agreed
+  // DIFFICULT_ACCESS rate adds ONE pass-through line (rate × 1.1, paid to the installer, no margin). Pure rule in hiv-quote.core.
+  const rawSnap = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
+  const formEntries = (Array.isArray(rawSnap) ? rawSnap : []).filter((e: { label?: unknown }) => e && typeof e.label === "string") as { label: string; value: unknown }[];
+  const { accessFlagFromEntries } = await import("./ready-check-answers.core");
+  const { readyCheckAccessRating } = await import("./hiv-quote.core");
+  const accessRating = readyCheckAccessRating(accessFlagFromEntries(formEntries).rating, qi.access);
   let calc: ReturnType<typeof priceHivQuote>;
   try {
     calc = priceHivQuote({
       areaM2: qi.areaM2, removalM2: qi.removalM2,
-      // Owner access loading comes from the office-set owner prices (same as the estimate).
-      accessMultiplier: Number(qi.access === "difficult" ? rs.access_difficult_multiplier : qi.access === "moderate" ? rs.access_moderate_multiplier : rs.access_standard_multiplier),
       ownerR5IncPerM2: Number(rs.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.removal_inc_gst_per_m2),
       piesaIncGst: Number(rs.piesa_assessment_inc_gst),
       apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst),
       gstRate: Number(settings.gst_rate),
       installerR5ExPerM2: rate("R5_BATTS"), installerRemovalExPerM2: rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL"), installerTravelEx: rate("TRAVEL"),
       rValue, installerRExPerM2: rate(R_VALUE_CODE[rValue]), product: chosen.product,
-      difficultAccessFeeIncGst: accessFee.amountIncGst,
+      accessRating, installerDifficultAccessExGst: rate("DIFFICULT_ACCESS"),
     });
   } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Could not price this quote."); }
 
@@ -127,7 +130,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
   // Jo 22 Oct 23:45: no confirmed approved product from the form → held, office confirms the product.
   const { PRODUCT_NEEDS_OFFICE } = await import("./insulation-product.core");
-  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE]), ...(accessFee.reason ? [accessFee.reason] : [])];
+  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
   const release: typeof baseRelease = holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
@@ -148,7 +151,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   ]);
   const { error: internalsError } = itemsError ? { error: null } : await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
-    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, access_rating: accessRating, difficult_access_pass_through: calc.difficultAccess, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   if (itemsError || internalsError) {
     await admin.from("quotes").update({ status: "superseded" }).eq("id", q.id); // withdraw the incomplete new quote; the previous one stays current
