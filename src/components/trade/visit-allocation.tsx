@@ -12,7 +12,7 @@ export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, s
   const load = useServerFn(getVisitAllocation);
   const allocate = useServerFn(allocateVisitFn);
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["visit-allocation", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
+  const { data } = useQuery({ queryKey: ["visit-allocation", jobId], queryFn: () => load({ data: { jobId } }), retry: false, staleTime: 20_000 });
   const [open, setOpen] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

@@ -5,6 +5,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { currentUser } from "@/lib/route-guards";
 import { useAccess } from "@/hooks/use-me";
 
 export function TradeShell({ children, installer, boss: bossProp, test = false, redesign = false }: { children: React.ReactNode; installer: boolean; boss?: boolean | undefined; test?: boolean; redesign?: boolean }) {
@@ -50,7 +51,7 @@ function TradeTopNav({ installer, boss }: { installer: boolean; boss: boolean })
 
 /** Initials circle (mock-up: 36px mist circle, thin line, navy initials), top right. Presentation only. */
 function TradeAvatar() {
-  const { data } = useQuery({ queryKey: ["trade-avatar"], queryFn: async () => (await supabase.auth.getUser()).data.user, staleTime: 300_000 });
+  const { data } = useQuery({ queryKey: ["trade-avatar"], queryFn: async () => (await currentUser()).data.user, staleTime: 300_000 });
   const name = String((data?.user_metadata as { full_name?: string } | undefined)?.full_name ?? data?.email ?? "");
   const ini = name.replace(/[^A-Za-z\s@.]/g, "").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
   const [open, setOpen] = React.useState(false);

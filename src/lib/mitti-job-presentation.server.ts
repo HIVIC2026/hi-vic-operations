@@ -3,8 +3,8 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { needsFinishingTask, jobCardLine } from "./trade-view.core";
 
 /** Presentation only; reads the linked form, the quote status and existing next-action rules. */
-export async function mittiJobPresentation(jobId: string, userId: string) {
-  const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId);
+export async function mittiJobPresentation(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
+  const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId, pre);
   const [{ data: m, error: me }, { data: j, error: je }, { data: e, error: ee }, { data: basics, error: be }] = await Promise.all([
     admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("jobs").select("next_action, channel").eq("id", jobId).single(),

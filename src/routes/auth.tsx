@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SignInCard } from "@/components/portal/SignInCard";
+import { publicPageHeaders } from "@/lib/public-cache.core";
 
+// The sign-in card's HTML is the same for everyone (the session lives in the browser, read after hydration).
 export const Route = createFileRoute("/auth")({
+  headers: publicPageHeaders,
   head: () => ({
     meta: [
       { title: "Sign in – Home Insulation Victoria" },

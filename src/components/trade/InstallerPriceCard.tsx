@@ -16,7 +16,7 @@ import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
-  const q = useQuery({ queryKey: ["installer-price", jobId], queryFn: () => load({ data: { jobId } }) });
+  const q = useQuery({ queryKey: ["installer-price", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
   const view = q.data;
   const [editing, setEditing] = useState(false);

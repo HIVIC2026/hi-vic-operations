@@ -6,7 +6,7 @@ import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +25,8 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { seedPlan } from "@/lib/trade-job-bundle.core";
 import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 
@@ -61,8 +62,39 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
   component: FieldJob,
 });
 
+/** Speed (decision 280): ONE server call on first paint. The bundle answers every section the cards below read and is
+ *  written into their own Query cache entries before the page draws, so each card finds its answer already there and
+ *  fetches on its own only when one of its actions invalidates it (or the bundle left that section out). A section the
+ *  server could not answer is simply not seeded: that card fetches and handles its error exactly as before. */
+function useTradeJobBundle(jobId: string) {
+  const qc = useQueryClient();
+  const load = useServerFn(getTradeJobBundle);
+  return useQuery({
+    queryKey: ["trade-job-bundle", jobId],
+    queryFn: async ({ queryKey }) => {
+      // `useAction` invalidates every query after an action; the cards refetch themselves then, so the bundle is not
+      // asked again (its first answer is kept) — one call on first paint, none after.
+      const prev = qc.getQueryData<Awaited<ReturnType<typeof load>>>(queryKey);
+      if (prev) return prev;
+      const bundle = await load({ data: { jobId } });
+      for (const s of seedPlan(bundle, jobId)) qc.setQueryData([...s.key], s.data);
+      return bundle;
+    },
+    // First paint only: afterwards the cards' own queries, polls and invalidations carry on exactly as before.
+    staleTime: Infinity, retry: false, refetchOnMount: false, refetchOnWindowFocus: false, refetchOnReconnect: false,
+  });
+}
+
 function FieldJob() {
   const { jobId } = Route.useParams();
+  const bundle = useTradeJobBundle(jobId);
+  // While the one call is in flight nothing below mounts, so no card starts its own fetch. A failed bundle still renders
+  // the page: every card then loads itself (the pre-bundle behaviour) and the existing refusal wording applies.
+  if (!bundle.isFetched) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
+  return <FieldJobBody jobId={jobId} />;
+}
+
+function FieldJobBody({ jobId }: { jobId: string }) {
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
