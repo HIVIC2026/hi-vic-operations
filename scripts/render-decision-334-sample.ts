@@ -1,12 +1,12 @@
 // Renders the decision 334 sample "O45 – Final invoice" (bank transfer only: bank details + invoice number as the
-// reference; no card wording, no "Invoice PDF attached" unless the PDF is attached) into docs/templates/approved with the
+// reference; no card wording, no "Invoice PDF attached" unless the PDF is attached) into docs/templates/invoices with the
 // fixed sample data used by tests/approved-email-designs.test.ts, and prints the subject + text. Pure renderer only;
 // nothing is sent. Run: bun scripts/render-decision-334-sample.ts
 import { writeFileSync } from "node:fs";
 import { renderFinalInvoiceEmail } from "../src/lib/completion-emails.core";
 import { HIV_BANK_DETAILS } from "../src/lib/payments.core";
 
-const DIR = new URL("../docs/templates/approved/", import.meta.url).pathname;
+const DIR = new URL("../docs/templates/invoices/", import.meta.url).pathname;
 const m = renderFinalInvoiceEmail({
   firstName: "Helen", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley VIC 3150", installer: { name: "Reinsulate", phone: "0400 000 000" },
   invoiceNumber: "INV-3117", invoiceDate: "11 November 2026",

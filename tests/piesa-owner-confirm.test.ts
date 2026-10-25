@@ -173,14 +173,14 @@ describe("wording (DRAFT until Jo approves)", () => {
     expect(r.html).toContain("We can't book your install day until you've confirmed it."); expect(r.html).toContain("TEST — only sent to Jo");
     expect(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, firstName: null, reminder: false }).subject).toBe("there, please confirm your electrical safety check");
   });
-  test("the draft files under docs/templates/drafts are the renderer's output (run scripts/render-decision-296-drafts.ts after a wording change)", () => {
+  test("the O71 files under docs/templates/owner are the renderer's output (run scripts/render-decision-296-drafts.ts after a wording change)", () => {
     for (const reminder of [false, true]) {
-      const file = readFileSync(`docs/templates/drafts/${reminder ? O71_FILES.reminder : O71_FILES.request}`, "utf8");
+      const file = readFileSync(`docs/templates/owner/${reminder ? O71_FILES.reminder : O71_FILES.request}`, "utf8");
       expect(file).toBe(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder }).html);
     }
   });
   test("P6 mock-up carries the page wording byte for byte", () => {
-    const html = readFileSync("docs/templates/approved/P6-piesa-confirm-page.html", "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓");
+    const html = readFileSync("docs/templates/owner/P6-piesa-confirm-page.html", "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓");
     for (const t of [P6.kicker, P6.title, P6.sub("24 October 2026"), P6.whyLead + "</b>" + P6.why, P6.formEyebrow, P6.factsTitle, P6.rows.date, P6.rows.electrician, P6.rows.result, P6.warningLead + "</b>" + CEILING_ENTRY_WARNING, P6.declareTitle, P6.declare, confirmTickText("24 October 2026"), P6.signLabel, P6.typeHere, P6.dateLine("25 October 2026"), P6.button, P6.lockHint, P6.afterNote, P6.confirmedTitle, P6.confirmedOn("25 October 2026", "Helen Yang"), OUTCOME_LABEL.all_clear, OWNER_PAGE_FOOTER]) expect(html).toContain(t);
   });
 });

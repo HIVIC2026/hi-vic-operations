@@ -24,7 +24,7 @@ Each case below reads the filled Word file back (`readOfficialDocx`) and compare
 9. **Invalid Word XML.** Before: each tick was a run inside another run (`<w:r><w:r>`). After: no glyph run is inserted at all (the box state carries the tick); the filled XML is checked for balanced tags / no nested runs (and `xmllint` where installed).
 10. **Plain-text PDF.** Before: every non-ASCII character became "-" ("don-t"), colons doubled ("Licence no::"), and every empty table row printed. After: characters the PDF font can draw are kept (’ “ ” – — • ²), others map to the closest plain text (✓ → [x]); no second colon; empty table rows are skipped and answered rows carry their row number.
 
-The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/samples/piisa-filler/` for one realistic install filled through the fixed filler.
+The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/compliance/piisa-filler/` for one realistic install filled through the fixed filler.
 
 ## Decisions 336 and 338 (Jo 25 Oct 2026)
 

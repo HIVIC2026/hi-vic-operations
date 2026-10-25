@@ -85,7 +85,7 @@ test("decisions 281/285/286 on the screen and the mock-ups: one list, one search
   expect(fn).not.toMatch(/fix_details|saveEnquiryFixDetails/);
   const core = readFileSync("src/lib/office-jobs.core.ts", "utf8");
   expect(core).not.toMatch(/needsFixDetails|"fix_details"/);
-  for (const f of ["docs/templates/approved/office-redesign/O4-enquiries.html"]) {
+  for (const f of ["docs/templates/office/portal/O4-enquiries.html"]) {
     const html = readFileSync(f, "utf8");
     expect(html, f).not.toMatch(/data-pile="Fix details"|showFix|fixform|Pick as many|1 = hottest|class="pchip"|>#</);
     expect(html, f).toMatch(/Search owner name, address or job number/);

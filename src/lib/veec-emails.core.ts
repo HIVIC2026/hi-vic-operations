@@ -1,8 +1,8 @@
 // VEEC assignment (rebate form) owner emails. Decision 169 (Jo, 24 Oct 2026):
 //   Day 0 request  = the approved All done email (O44, `renderInstallCompleteEmail` in completion-emails.core.ts) — its
 //                    "One last thing: sign your rebate form" box IS the request, so no separate day-0 email exists.
-//   O61 reminder   docs/templates/approved/O61-veec-reminder.html   (days 1, 3 and 7)
-//   O62 signed copy docs/templates/approved/O62-veec-copy.html      (the executed PDF attached, also on the job page)
+//   O61 reminder   docs/templates/owner/O61-veec-reminder.html   (days 1, 3 and 7)
+//   O62 signed copy docs/templates/owner/O62-veec-copy.html      (the executed PDF attached, also on the job page)
 // Both flags are on: real owners receive them through the guarded owner-email path, which still needs
 // `customer_comms_enabled` (assertCustomerDeliveryAllowed) and the owner's contact consent; TEST jobs use test-send. Pure.
 import * as K from "./email-kit.core";

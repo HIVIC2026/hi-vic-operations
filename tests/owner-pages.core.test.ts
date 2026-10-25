@@ -7,7 +7,7 @@ import { OWNER_DECLARATIONS } from "../src/lib/consent.core";
 import { COLLECTION_NOTICE_ACK_TEXT } from "../src/lib/esc-collection-notice.core";
 import { P1, P2, P3, P4, P5, P6, THIRTY_DAY_CLOCK, OWNER_PAGE_FOOTER, centsAud, clock, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "../src/lib/owner-pages.core";
 
-const approved = (f: string) => readFileSync(`docs/templates/approved/${f}`, "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓").replace(/&#9200;/g, "⏰").replace(/&amp;/g, "&");
+const approved = (f: string) => readFileSync(`docs/templates/${f.startsWith("P5") ? "installer" : f.startsWith("O45") ? "invoices" : "owner"}/${f}`, "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓").replace(/&#9200;/g, "⏰").replace(/&amp;/g, "&");
 const inApproved = (f: string, texts: string[]) => { const html = approved(f); for (const t of texts) expect(html).toContain(t); };
 
 describe("approved page wording", () => {

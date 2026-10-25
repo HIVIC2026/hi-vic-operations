@@ -5,7 +5,7 @@
 // Never invents a fact: a missing fact becomes "the office will check … and confirm it with you" and the draft is
 // flagged "check before sending". Never mentions internal margins, partner pay to owners, or other customers.
 // Nothing here reads, writes, drafts or sends; `email-reply.server.ts` writes the Outlook DRAFT (never sends).
-// Wording sources: O1/O2 Save my spot, O6 not eligible, O18 quote ready (docs/templates/approved/), installer guide
+// Wording sources: O1/O2 Save my spot, O6 not eligible, O18 quote ready (docs/templates/owner/), installer guide
 // GUIDE_WORDS (trade-view.core), job-wording owner lines, decisions 139–144 (payments), 205/244/245.
 // Matched owners' replies point to their own HOMEOWNER PAGE (secure estimate / My job link), never the calculator.
 // Decision 292 (Jo 25 Oct, replaces 255): an unmatched NEW sender is NOT drafted for here and never gets an enquiry

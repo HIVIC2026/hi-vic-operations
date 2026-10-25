@@ -1,5 +1,5 @@
 // One look for every partner email (welcome, send back, decline, application received): the approved email kit
-// (Jo 24 Oct 2026, decisions 107 and 136; designs docs/templates/approved/I54-welcome.html and I53-application-received.html).
+// (Jo 24 Oct 2026, decisions 107 and 136; designs docs/templates/installer/I54-welcome.html and I53-application-received.html).
 // Pure. The logo is the bundled PNG data URI the kit embeds (same as every owner email).
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";

@@ -3,10 +3,10 @@
  *
  * PURE module: no database, no network, no email sending, no pricing calculation. Every outcome workflow asks the single
  * canonical selector (`selectJoTemplate`) which template applies, then renders through `renderJoOutcomeEmail`:
- *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/approved/O1-save-my-spot.html
- *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/approved/O2-save-my-spot-some-insulation.html
- *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/approved/O2-save-my-spot-questions.html
- *   T7 (ineligible)                                     → Not eligible          docs/templates/approved/O6-not-eligible.html
+ *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/owner/O1-save-my-spot.html
+ *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/owner/O2-save-my-spot-some-insulation.html
+ *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/owner/O2-save-my-spot-questions.html
+ *   T7 (ineligible)                                     → Not eligible          docs/templates/owner/O6-not-eligible.html
  * Subjects, template ids, CTA sets, link binding and fail-closed rules are unchanged; only the body copy and
  * presentation now follow the approved designs through the shared `email-kit.core.ts`. T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.

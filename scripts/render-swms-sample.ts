@@ -1,5 +1,5 @@
 // Decision 358: renders a TEST safety plan (SWMS) in the WorkSafe Victoria sample-template layout to
-// docs/templates/samples/swms/swms-sample.pdf. TEST names only, no real people; nothing is read from or written to the
+// docs/templates/compliance/swms/swms-sample.pdf. TEST names only, no real people; nothing is read from or written to the
 // database and nothing is sent. Run: bun scripts/render-swms-sample.ts
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -18,7 +18,7 @@ export const SAMPLE_SIGNATURES: SwmsSignature[] = [
 ];
 
 if (import.meta.main) {
-  const dir = new URL("../docs/templates/samples/swms/", import.meta.url).pathname;
+  const dir = new URL("../docs/templates/compliance/swms/", import.meta.url).pathname;
   mkdirSync(dir, { recursive: true });
   const sha = createHash("sha256").update(swmsRecordText(SAMPLE_PLAN, SAMPLE_SIGNATURES)).digest("hex");
   const { bytes, layout } = await buildSwmsPdf(SAMPLE_PLAN, SAMPLE_SIGNATURES, { recordRef: `swms:${sha.slice(0, 32)}` });

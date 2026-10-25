@@ -1,4 +1,4 @@
-// Decision 244: the SAMPLE reply drafts shown to Jo (docs/templates/drafts/email-reply-samples.md).
+// Decision 244: the SAMPLE reply drafts shown to Jo (docs/templates/office/email-reply-samples.md).
 // Anonymised but realistic: names, addresses, job numbers and emails are invented; figures follow the approved
 // O18 quote-ready example. Shared by tests/email-reply.core.test.ts and scripts/render-email-reply-samples.ts.
 // Decision 292 (replaces 255): a NEW sender with no job is never drafted for — they get the one website reply (O70,

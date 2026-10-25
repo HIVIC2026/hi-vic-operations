@@ -35,7 +35,7 @@ describe("decision 363: warranty follow-up rules and the O73 draft", () => {
     expect(m.text).toContain("Attached is the manufacturer's warranty for the Bradford Gold insulation we installed in your ceiling.");
     expect(m.text).toContain("just reply to this email");
     expect(m.text).toContain(FOOTER_TEXT);
-    const draft = readFileSync("docs/templates/drafts/O73-warranty-followup.html", "utf8");
+    const draft = readFileSync("docs/templates/owner/O73-warranty-followup.html", "utf8");
     expect(draft).toBe(m.html);
   });
 });

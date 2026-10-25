@@ -1,5 +1,5 @@
 // Install day owner emails (Jo 24 Oct 2026, decisions 96, 97 and 135).
-// "Pick your install day" design approved: docs/templates/approved/O33-install-days.html — safety check clear,
+// "Pick your install day" design approved: docs/templates/owner/O33-install-days.html — safety check clear,
 // {Installer} offered these days; 3 day+time buttons; Suggest other days; "Lock in your day": sign the install consent,
 // 10% deposit (held 48 hours), rest on install day or pay in full now, install-by date.
 // "Install day changed" design approved: O42-install-day-changed.html — new day card with the old day crossed out,

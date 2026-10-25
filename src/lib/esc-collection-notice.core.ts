@@ -73,7 +73,7 @@ export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
 /** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
  *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. TEST partners use the test senders. */
 export const COLLECTION_NOTICE_SEND_APPROVED = true;
-/** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/approved/I62-notice-copy.html). */
+/** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/installer/I62-notice-copy.html). */
 export const COLLECTION_NOTICE_EMAIL_APPROVED = true;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;
 /** Reminder schedule (decision 130): first send, then 3 and 7 days after the first send while not acknowledged. */
@@ -216,7 +216,7 @@ export function noticeAckSubmissionErrors(i: { ticked: boolean; typedName: strin
 export const noticeLinkSmsBody = (firstName: string | null, url: string) =>
   `Home Insulation Victoria: Hi ${firstName?.trim() || "there"}, one quick step: read and tick the ESC privacy notice so we can register you as a VEU installer: ${url} Reply STOP to opt out.`;
 export function noticeLinkEmail(i: { firstName: string | null; businessName: string; url: string; reminder: boolean }): { subject: string; heading: string; blocks: PartnerBlock[] } {
-  // Approved by Jo 24 Oct 2026 (decision 147; docs/templates/approved/I60-privacy-notice-link.html).
+  // Approved by Jo 24 Oct 2026 (decision 147; docs/templates/installer/I60-privacy-notice-link.html).
   return {
     subject: `${i.reminder ? "Reminder: " : ""}One quick step: the ESC privacy notice`,
     heading: `One quick step, ${i.firstName?.trim() || "there"}`,

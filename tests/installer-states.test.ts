@@ -147,7 +147,7 @@ describe("M2 states", () => {
     expect(kit).toMatch(/uppercase tracking-\[1\.1px\] text-ink/); // Group heading
     const css = readFileSync("src/styles.css", "utf8");
     expect(css).toMatch(/\.installer-redesign \{ --hiv-sub: #4b5a7c;/);
-    const mockups = ["docs/templates/approved/installer-redesign/M2-job-page.html", ...["change-allocation", "complete", "install-booked", "needs-finishing", "own-before-ready-check", "piesa-booked", "quote-declined", "quote-held", "quote-sent", "sign-rebate-form"].map((s) => `docs/templates/approved/installer-redesign/states/M2-${s}.html`)];
+    const mockups = ["docs/templates/installer/portal/M2-job-page.html", ...["change-allocation", "complete", "install-booked", "needs-finishing", "own-before-ready-check", "piesa-booked", "quote-declined", "quote-held", "quote-sent", "sign-rebate-form"].map((s) => `docs/templates/installer/portal/states/M2-${s}.html`)];
     for (const f of mockups) {
       const html = readFileSync(f, "utf8");
       expect(html, f).not.toMatch(/>Messages<|Write a message|sent you 3 days|Running 15 min late|I'm on my way/);
