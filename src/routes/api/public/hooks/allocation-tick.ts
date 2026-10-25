@@ -79,6 +79,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
         }
         try {
+          // Decision 317: the assigned electrician gets the official PIESA (PDF attached) once per PIESA record — first
+          // official PIESA, then the post-fixes version. TEST → test-send; real → partner sender (paused with the master switch).
+          const { sweepElectricianPiesaCopies } = await import("@/lib/electrician-piesa-copy.server");
+          (out as Record<string, unknown>)['electricianPiesa'] = await sweepElectricianPiesaCopies();
+        } catch (e) {
+          console.error("allocation tick: electrician PIESA sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['electricianPiesa'] = "failed";
+        }
+        try {
           // Decision 296: owner asked to confirm the PIESA on their secure link (email O71 + text) after the electrician completes it,
           // reminders days 1/3, office alert day 5. DRAFT wording: real owners get nothing until approved; TEST jobs use test-send.
           const { sweepOwnerPiesaConfirmations } = await import("@/lib/piesa-owner-confirm-send.server");

@@ -300,8 +300,10 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   let copies: string;
   try { const d = await (await import("./piesa-delivery.server")).deliverPiesaCopies(jobId); copies = d.hold ? `PIESA copies held: ${d.hold}` : `PIESA copies sent to ${d.sent.join(", ") || "nobody"}${Object.keys(d.held).length ? `; held: ${Object.entries(d.held).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`; }
   catch (e) { copies = `PIESA copies not sent: ${e instanceof Error ? e.message : "error"}`; }
+  // Decision 317: the electrician gets the regenerated official PIESA once (keyed to the post-fixes PIESA record; never throws).
+  const elecCopy = await (await import("./electrician-piesa-copy.server")).sendElectricianPiesaCopy(jobId);
   await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: CoES ${plan.coesNumber} certified ${plan.certDate}; Section C recorded, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
-    { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
+    { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, electrician_copy: elecCopy, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
   return { status: "done", detail: `${official}; ${copies}` };
 }
 

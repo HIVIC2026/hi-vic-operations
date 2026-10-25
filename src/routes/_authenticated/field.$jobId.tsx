@@ -57,6 +57,7 @@ import { completeView, electricianRow, firstName, installRow, installerStatusLin
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
+import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -127,6 +128,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       <div className="space-y-4">
         {role === "electrician" && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
+        {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}
         {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
         <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History and documents</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} />{role === "electrician" && <MessagesPanel jobId={jobId} isAdmin={false} role="electrician" />}</div></details>
