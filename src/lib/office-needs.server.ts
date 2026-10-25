@@ -55,6 +55,22 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const { openEmailItems } = await import("./email-office.server");
   const { CHANGE_LINE } = await import("./office-needs.core");
 
+  // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
+  // one row each until the fact is recorded. Started alongside wave 1 (rare events, then their closing events by job id).
+  const unknownSendsP = (async () => {
+    const [{ WARRANTY_FOLLOWUP_EVENT_NAMES, WARRANTY_FOLLOWUP_UNKNOWN_LINE }, { COMPLETION_PACK_SEND_EVENTS, COMPLETION_PACK_UNKNOWN_LINE }, { unknownSendOpen }] = await Promise.all([import("./warranty-followup.core"), import("./completion-pack.core"), import("./send-outcome.core")]);
+    const flows = [{ names: WARRANTY_FOLLOWUP_EVENT_NAMES, text: WARRANTY_FOLLOWUP_UNKNOWN_LINE, closedBy: "warranty_copy_provided" }, { names: COMPLETION_PACK_SEND_EVENTS, text: COMPLETION_PACK_UNKNOWN_LINE, closedBy: null }];
+    const unknown = await all("unknown email outcomes", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", flows.map((x) => x.names.unknown)).range(a, b));
+    const ids = [...new Set(unknown.map((e) => String(e["job_id"])))];
+    if (!ids.length) return [] as { jobId: string; at: string; text: string }[];
+    const types = [...new Set(flows.flatMap((x) => [x.names.attempt, x.names.sent, x.names.failed, x.names.unknown, x.closedBy]).filter((t): t is string => !!t))];
+    const ev = await byIds("unknown email outcome history", ids, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", types).range(a, b));
+    return ids.flatMap((id) => {
+      const mine = ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null }));
+      for (const fl of flows) { const o = unknownSendOpen(mine, fl.names, !!fl.closedBy && mine.some((e) => e.event_type === fl.closedBy)); if (o) return [{ jobId: id, at: o.at, text: fl.text }]; }
+      return [];
+    });
+  })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
   const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
@@ -198,6 +214,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const r of sendFailedRows({ now, emails: emailFails.map((e) => ({ job_id: String(e["job_id"]), purpose: String(e["purpose"]), status: String(e["status"]), created_at: String(e["created_at"]), error: s(e["error"]) })), sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) })) {
     const x = f(r.jobId); if (x) x.sendFailed = { at: r.latestAt, text: r.text };
   }
+  for (const r of await unknownSendsP) { const x = f(r.jobId); if (x && !x.sendUnknown) x.sendUnknown = { at: r.at, text: r.text }; }
   for (const r of robotRows) { const x = f(r.jobId); if (x && !x.robotFailed) x.robotFailed = { at: r.at, text: r.text, task: r.task }; }
   for (const id of aIds) {
     const j = jobById.get(id); const x = f(id);

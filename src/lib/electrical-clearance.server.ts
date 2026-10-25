@@ -14,6 +14,27 @@ export async function onsiteStartOnlyFor(jobId: string): Promise<boolean> {
   return onsiteStartOnly(shortAnswersFromEntries("piesa", entries));
 }
 
+/** Review R08 / audit F14: has the owner paid the FULL accepted onsite electrical (fixes) charge, on top of the safety
+ *  check payment, on the ONE installation invoice (pure rule `onsiteChargePaid`, same threshold as the fixes step)?
+ *  Read-only and lean (ledger reader in payment-ledger.server). No invoice / no accepted charge = false. */
+export async function onsiteChargePaidFor(jobId: string): Promise<boolean> {
+  const [{ data: inv, error: ie }, { data: rect, error: re }, { data: ws }] = await Promise.all([
+    admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("customer_total_inc_gst").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
+  ]);
+  if (ie || re) throw new Error(`Could not read the onsite electrical charge: ${(ie ?? re)!.message}`);
+  if (!inv || !rect) return false;
+  const { data: piesaLines } = inv.quote_id ? await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id).eq("code", "PIESA") : { data: [] as { code: string | null; line_total_inc_gst: number | string | null }[] };
+  const [{ onsiteChargePaid, toCents }, { safetyCheckCentsFor }, { invoicePaidCents }] = await Promise.all([import("./payments.core"), import("./safety-check-amount.core"), import("./payment-ledger.server")]);
+  return onsiteChargePaid({
+    quoteTotalCents: toCents(inv.total_inc_gst),
+    safetyCheckCents: safetyCheckCentsFor({ lines: piesaLines ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null }).cents,
+    rectTotalCents: toCents(rect.customer_total_inc_gst),
+    paidCents: await invoicePaidCents(jobId, inv.id, inv.total_paid),
+  });
+}
+
 export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
   // Decision 316 (Jo 25 Oct 2026): the 30 days run from the official PIESA. The anchor is the latest official PIESA
   // (initial, or a reassessment after an expired window) — it stays the anchor after a post_rectification row becomes current.
@@ -26,7 +47,12 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
   // Decision 314 follow-up: an A3 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
   // accepted fixes quote + the payment rule (no fixes visit, no Section C). Read only once the fixes quote is accepted.
   const onsiteOnly = rq?.status === "accepted" ? await onsiteStartOnlyFor(jobId).catch(() => false) : false;
-  const fixesPaymentCleared = onsiteOnly ? await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false) : false;
+  // Review R08 / audit F14: the generic payment gate clears on the safety check payment alone, so it is NOT the fixes
+  // payment. The exception needs BOTH: the approved payment rule still cleared (activation switch, route, accepted quote)
+  // AND the full accepted onsite electrical charge received (`onsiteChargePaidFor`). Any read failure = not cleared.
+  const fixesPaymentCleared = onsiteOnly
+    ? (await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false)) && (await onsiteChargePaidFor(jobId).catch(() => false))
+    : false;
   return {
     piesaOutcome: (initial?.outcome as "pass" | "fail" | null) ?? null,
     piesaCompletedAt: initial?.completed_date && initial.signed_off_by ? initial.completed_date : null,

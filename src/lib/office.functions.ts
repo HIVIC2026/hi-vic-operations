@@ -111,6 +111,11 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
     if (data.kind === "assessment" || data.kind === "rectification") {
       const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
       held.push(...electricianPayTiming(data.kind, undefined, (await ownerElectricalStepsPaidAt([data.jobId])).get(data.jobId)).waiting);
+    } else {
+      // Review R09 / audit F19: installer pay — the SAME rule the Payouts tab shows (AP approval; for installer-supplied
+      // A1 jobs also the owner's payment in full), enforced here so a direct call can't mark a held payout paid.
+      const { installerPayHeldReasonsFor } = await import("./installer-pay-timing.server");
+      held.push(...await installerPayHeldReasonsFor(data.jobId));
     }
     if (held.length) throw new Error(`Payout held — not payable yet: ${held.join("; ")}`);
     const { logEvent } = await import("./workflow.server");

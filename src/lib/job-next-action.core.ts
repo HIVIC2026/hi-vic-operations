@@ -28,7 +28,7 @@ const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   esc_window: () => "Submit the ESC installation notification inside its window.",
   final_check: () => "Install complete — do the final check and approve.",
   veec_a_held: (f) => `VEEC Part A signs itself once these are recorded: ${(f.veecApHeld?.reasons ?? []).join(" ")}`,
-  send_failed: (f) => `A message to the owner failed: ${f.sendFailed?.text ?? ""}`,
+  send_failed: (f) => (f.sendFailed ? `A message to the owner failed: ${f.sendFailed.text}` : f.sendUnknown ? f.sendUnknown.text : "A message to the owner failed: "),
 };
 
 const WHO_FROM_STATUS: Record<string, NextWho> = {

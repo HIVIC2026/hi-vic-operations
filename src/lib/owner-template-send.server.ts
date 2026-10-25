@@ -12,6 +12,8 @@ export async function sendOwnerTemplateEmail(p: {
   render: (f: OwnerEmailFacts) => { subject: string; html: string; text: string };
   /** Files sent with the email (e.g. the manufacturer warranty on the completion pack); the same on TEST and real sends. */
   attachments?: import("./email-kit.core").EmailAttachment[];
+  /** Review R04: real owners only — passed to sendGuardedOwnerEmail (re-claim a DEFINITELY failed reservation, same key). */
+  retryAfterDefiniteFailure?: boolean;
 }): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, source").eq("id", p.jobId).maybeSingle();
   if (!job) return "skipped";
@@ -50,5 +52,5 @@ export async function sendOwnerTemplateEmail(p: {
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   try { await assertCustomerDeliveryAllowed(p.jobId, p.label); } catch (e) { return `not sent — ${(e as Error).message}`; }
-  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: () => ({ ...p.render({ ...facts, test: false }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }) });
+  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: () => ({ ...p.render({ ...facts, test: false }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }), ...(p.retryAfterDefiniteFailure ? { retryAfterDefiniteFailure: true } : {}) });
 }

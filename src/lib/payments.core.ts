@@ -157,6 +157,21 @@ export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps
   return isStepCleared(steps, "fixes") ? null : FIXES_NOT_PAID_BLOCKER;
 }
 
+/**
+ * Review R08 / audit F14 (decision 314 follow-up): the "electrician on site at the start of the install day" exception
+ * clears the job for install coordination only once the FULL accepted onsite electrical (fixes) charge has been
+ * received on top of the safety check payment — the same cumulative threshold as the fixes step (`thresholds.fixes`).
+ * The generic payment gate (which clears on the safety check payment alone) is never enough on its own. Fails closed:
+ * no accepted charge, no invoice or no money = not paid. Amounts are read, never changed.
+ */
+export const ONSITE_CHARGE_NOT_PAID = "Waiting for the owner's payment for the electrician on site at the start of the install day.";
+export function onsiteChargePaid(i: { quoteTotalCents: number | null | undefined; safetyCheckCents: number; rectTotalCents: number | null | undefined; paidCents: number }): boolean {
+  const rect = Math.round(Number(i.rectTotalCents ?? 0));
+  if (!(rect > 0) || !(Number(i.quoteTotalCents ?? 0) > 0)) return false;
+  const plan = paymentPlan({ quoteTotalCents: Number(i.quoteTotalCents), safetyCheckCents: i.safetyCheckCents, fixesCents: rect });
+  return Math.round(i.paidCents) >= plan.thresholds.fixes;
+}
+
 export const isStepPaid = (steps: PaymentStep[], key: PaymentStepKey) => (steps.find((s) => s.key === key)?.state ?? "not_yet") === "paid";
 export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["paid", "waived"].includes(steps.find((s) => s.key === key)?.state ?? "not_yet");
 
