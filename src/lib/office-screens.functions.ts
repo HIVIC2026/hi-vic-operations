@@ -30,11 +30,12 @@ const reason = z.string().trim().min(3).max(500);
 const tell = { tellOwner: z.boolean().default(false), tellInstaller: z.boolean().default(false) };
 
 export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ includeTest: z.boolean().default(false) }).parse(d ?? {}))
+  .inputValidator((d) => z.object({ includeTest: z.boolean().default(false), refresh: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { loadNeedsMePage } = await import("./office-needs.server");
-    return loadNeedsMePage(data.includeTest);
+    // Decision 382: served from the saved copy, refreshed after the response (`refresh` = the office just acted).
+    const { getNeedsMeSnapshot } = await import("./office-needs-snapshot.server");
+    return getNeedsMeSnapshot(data.includeTest, data.refresh);
   });
 
 export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

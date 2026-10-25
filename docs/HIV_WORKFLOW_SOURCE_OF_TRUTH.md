@@ -208,3 +208,6 @@ The business owner adds each team member's mobile once on My business › Team. 
 
 ## Staff address (decision 381, Jo 25 Oct 2026)
 - portal.homeinsulationvictoria.com.au is the staff address: its bare address opens sign-in (`/auth`, which sends signed-in staff on to the portal). Every customer host keeps the public calculator at `/`; all other paths are unchanged. Rule in pure `staff-host.core.ts`, applied in `src/server.ts` (page loads) and the `/` route (in-app navigation). Jo adds the domain in Lovable › Settings › Domains.
+
+## Needs me saved copy (decision 382, 25 Oct 2026)
+- Needs me is served from `office_needs_snapshot` (server-only) and refreshed after the response when older than 60 s or after an office action; the 15-minute tick refreshes the live copy; never older than 20 minutes on screen. Same rows and rules as before — only when they are worked out changes.
