@@ -56,7 +56,9 @@ export type PiesaEvidenceSpec = {
 export const PIESA_EVIDENCE: PiesaEvidenceSpec[] = [
   { id: "switchboard_photo", q: 42, label: "Photo of the cables at the switchboard (geotagged)", aliases: ["Switchboard cable photo"], geotagged: true, short: "Switchboard photo" },
   { id: "onsite_photo", q: 43, label: "Photo showing you on site at the property, holding your licence / photo ID (geotagged)", aliases: ["Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID"], geotagged: true, short: "On-site photo" },
-  { id: "hazard_photos", q: 44, label: "Photo of each hazard listed (one per hazard; geotagged)", aliases: [], geotagged: true, short: "Hazard photo" },
+  // Decision 297 (Jo 25 Oct 2026): one "Photo of the problem" question sits under each hazard section (mains, solar, ceiling
+  // wiring, downlights); every occurrence feeds this one evidence id. The old single end-of-form question is an alias.
+  { id: "hazard_photos", q: 44, label: "Photo of the problem", aliases: ["Photo of each hazard listed (one per hazard; geotagged)"], geotagged: true, short: "Hazard photo" },
   { id: "ces_file", q: 45, label: "Certificate of Electrical Safety (photo or PDF)", aliases: [], geotagged: false, short: "Certificate of Electrical Safety" },
 ];
 export const PIESA_EVIDENCE_BY_ID: Record<PiesaEvidenceId, PiesaEvidenceSpec> = Object.fromEntries(PIESA_EVIDENCE.map((e) => [e.id, e])) as Record<PiesaEvidenceId, PiesaEvidenceSpec>;

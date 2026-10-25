@@ -117,10 +117,8 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationOutcome = Yes, repair work is needed"),
   { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
   { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
-  yn("ownerConfirm", "Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment."),
-  pre("o.name", "Name:"),
-  { id: "o.date", label: "Date:", type: "date", required: true, source: "short onsite form" },
-  { id: "ownerSignature", label: "Owner signature", type: "signature", required: true, source: "short onsite form" },
+  // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA through their own secure link, not on the electrician's phone;
+  // the owner block of the official form is filled from that record (official-expand ctx.ownerConfirmation).
 ];
 
 /** Short PIISA (installer, installation day). PIESA answers are carried over from the signed PIESA, never re-asked. */

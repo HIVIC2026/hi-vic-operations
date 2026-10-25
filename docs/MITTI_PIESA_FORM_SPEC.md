@@ -4,9 +4,9 @@
 >
 > | # | Evidence | When it is required | Checked by the portal |
 > |---|---|---|---|
-> | 42 | Photo of the cables at the switchboard (geotagged) | Always | Present **and** geotagged |
-> | 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Always | Present **and** geotagged |
-> | 44 | Photo of each hazard listed (one per hazard; geotagged) | Only when any hazard was answered Yes (mains/solar/ceiling not safe, non-IC downlights, appliances/flues) | One photo per hazard listed, all geotagged |
+> | 42 | Photo of the cables at the switchboard (geotagged) — on the Mains page | Always | Present **and** geotagged |
+> | 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) — on the Job page | Always | Present **and** geotagged |
+> | 44 | Photo of the problem (one question under each hazard section: mains Q8 = No, solar Q11 = No, ceiling Q13 = No, downlights Q17 = Yes; decision 297) | Only when any hazard was answered Yes (mains/solar/ceiling not safe, non-IC downlights, appliances/flues) | One photo per hazard listed, all geotagged |
 > | 45 | Certificate of Electrical Safety (photo or PDF) | Only once repair work was done (q30 answered Yes) | Present |
 >
 > Sources: ESC 30 Jul 2026 update (switchboard photo by the licensed electrician during the PIESA), DEECA industry pack (electrician identity at the premises). The files are copied into the job file (`documents`, kind `piesa_evidence`) for the 6-year AP record. Rules: `src/lib/piesa-evidence.core.ts`; sync: `src/lib/mitti.server.ts`; gates: `completeAssessment`, `stageEntryBlockers("piesa_complete")`, `piesaAdvanceDecision`.
@@ -60,13 +60,9 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 30 | Have you completed all of the repair work listed above, and is the ceiling now safe for insulation? | Yes / No: Yes / No | Required · only show when: question 20 = Yes |
 | 31 | Certificate of Electrical Safety number (required for any electrical works completed): | Text answer | Required · only show when: question 20 = Yes |
 | 32 | Date of Certification: | Date | Required · only show when: question 20 = Yes |
-| 38 | Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment. | Yes / No: Yes / No | Required |
-| 39 | Name: | Text answer | Required · **portal fills this in** |
-| 40 | Date: | Date | Required |
-| 41 | Owner signature | Signature | Required |
-| 42 | Photo of the cables at the switchboard (geotagged) | Photo / attachment (location on) | Required · **VEU requirement for installs from 21 Aug 2026** · portal blocks completion until present and geotagged |
-| 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Photo / attachment (location on) | Required · **VEU evidence the electrician attended** · portal blocks completion until present and geotagged |
-| 44 | Photo of each hazard listed (one per hazard; geotagged) | Photo / attachment (location on, several files) | Required · only show when: any hazard answered Yes (mainsSafe = No, solarSafe = No, ceilingSafe = No, downlightsNonIc = Yes or appliancesPresent = Yes) · portal expects one photo per hazard listed, all geotagged |
+| 42 | Photo of the cables at the switchboard (geotagged) — on the Mains page | Photo / attachment (location on) | Required · **VEU requirement for installs from 21 Aug 2026** · portal blocks completion until present and geotagged |
+| 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) — on the Job page | Photo / attachment (location on) | Required · **VEU evidence the electrician attended** · portal blocks completion until present and geotagged |
+| 44 | Photo of the problem (one question under each hazard section: mains Q8 = No, solar Q11 = No, ceiling Q13 = No, downlights Q17 = Yes; decision 297) | Photo / attachment (location on, several files) | Required · only show when: any hazard answered Yes (mainsSafe = No, solarSafe = No, ceilingSafe = No, downlightsNonIc = Yes or appliancesPresent = Yes) · portal expects one photo per hazard listed, all geotagged |
 | 45 | Certificate of Electrical Safety (photo or PDF) | Photo / attachment (PDF allowed) | Required · only show when: rectificationComplete = Yes (q30) · portal blocks completion until present |
 
 Questions 42–45 are the evidence items from decision 178 (Jo 24 Oct 2026). Earlier wordings ("Switchboard cable photo", "Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID") are still recognised by the portal, but build the form with the wording above. The portal copies each file into the job file (`documents`, kind `piesa_evidence`, private `job-files` bucket, one copy per Mitti media id) when the Mitti form is marked complete, so the AP record keeps them for 6 years even while another item is still missing.
