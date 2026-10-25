@@ -3,7 +3,7 @@
 // - A "yes, all safe" answer sets every matching official Yes/No. A "no" sets only the ticked problems.
 // - Anything the portal can't fill for sure stays null and is listed in `flagged` for the office — never a guessed "No".
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
-import { applianceRows } from "./official-short.core";
+import { applianceRows, derivedRepairTicks } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, REPAIR_LEGACY_NOT_BEFORE_FLAG, SOLAR_PROBLEMS } from "./official-short.core";
 import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
@@ -176,11 +176,14 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   else if (outcome === RECTIFICATION_OUTCOMES[1]) {
     out["b1"] = B1_OPTIONS[1];
     if (legacyNotBefore) flagged.push(REPAIR_LEGACY_NOT_BEFORE_FLAG);
-    const work = list(short["rectificationWork"]);
+    // Decision 324: the official B2 ticks come from an old form's own ticks, else derived from the plain repair list.
+    const derived = list(short["rectificationWork"]).length ? null : derivedRepairTicks(short);
+    const work = derived ? derived.work : list(short["rectificationWork"]);
+    const otherText = txt(short["rectificationOther"]) || (derived?.other ?? "");
     if (work.length) out["b2"] = work;
     else flagged.push("Electrical fixes: the required work isn't ticked.");
     if (work.includes(B2_OPTIONS[5])) {
-      if (txt(short["rectificationOther"])) out["b2.other"] = txt(short["rectificationOther"]);
+      if (otherText) out["b2.other"] = otherText;
       else flagged.push("Electrical fixes: 'Other' is ticked but not described.");
     }
   } else if (outcome === RECTIFICATION_OUTCOMES[2]) out["b1"] = B1_OPTIONS[2];

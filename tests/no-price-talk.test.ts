@@ -1,12 +1,13 @@
-// Decision 312 (Jo 25 Oct 2026): on our leads (A2) the electrician confirms on the A4 that he won't discuss prices with
-// the owner; not on installer-supplied jobs (A1). Decision 309: repairs always happen before installation.
+// Decision 323 (Jo 25 Oct 2026, replaces the conditional part of decision 312): the electrician confirms on EVERY A4
+// that he won't discuss prices with the owner; "Whose customer is this?" is deleted. Decision 309: repairs always happen
+// before installation.
 import { describe, expect, test } from "bun:test";
 import {
-  CUSTOMER_OF_HELP, CUSTOMER_OF_LABEL, NO_PRICE_TALK_ISSUE, NO_PRICE_TALK_LABEL, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE_FLAG,
-  REPAIR_POSSIBLE_LEGACY_LABEL, SHORT_PIESA_FIELDS, customerOfOption, noPriceTalkIssue, shortAnswersFromEntries,
+  CUSTOMER_OF_LEGACY_LABEL, NO_PRICE_TALK_ISSUE, NO_PRICE_TALK_LABEL, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE_FLAG,
+  REPAIR_POSSIBLE_LEGACY_LABEL, SHORT_PIESA_FIELDS, noPriceTalkIssue, shortAnswersFromEntries,
 } from "../src/lib/official-short.core";
 import { buildPrefill } from "../src/lib/mitti.core";
-import { mittiAiPrompt } from "../src/lib/mitti-forms.core";
+import { mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
 import { readFileSync } from "node:fs";
 import { FIXES_WORK_LABEL, ONSITE_START_OFFICE_TEXT } from "../src/lib/official-short.core";
@@ -17,50 +18,57 @@ import { NEEDS_TEXT } from "../src/lib/allocation.core";
 const NEEDED = "Is any electrical repair work needed before insulation can be installed?";
 const ctx = { lifeSupportDeclared: "no" as const, today: "2026-10-25", ownerConfirmation: null };
 
-describe("decision 312: whose customer + no price talk", () => {
-  test("wording exactly as given to Jo", () => {
-    expect(CUSTOMER_OF_LABEL).toBe("Whose customer is this?");
-    expect(CUSTOMER_OF_HELP).toBe("Filled in by the portal. Don't change it.");
+describe("decision 323: no price talk on every job, whose-customer deleted", () => {
+  test("wording unchanged; a top-level Required tick with no condition; the question is gone", () => {
     expect(NO_PRICE_TALK_LABEL).toBe("I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.");
-    const q = SHORT_PIESA_FIELDS.find((f) => f.id === "customerOf")!;
-    expect(q).toMatchObject({ type: "choice", required: true, prefill: true, choices: ["Home Insulation Victoria", "The installer's customer"] });
     const t = SHORT_PIESA_FIELDS.find((f) => f.id === "noPriceTalk")!;
-    expect(t).toMatchObject({ type: "tick", required: true, when: "Whose customer is this? = Home Insulation Victoria" });
+    expect(t).toMatchObject({ type: "tick", required: true });
+    expect(t.when).toBeUndefined();
+    expect(SHORT_PIESA_FIELDS.find((f) => f.id === "customerOf")).toBeUndefined();
+    expect(SHORT_PIESA_FIELDS.some((f) => f.label === CUSTOMER_OF_LEGACY_LABEL)).toBe(false);
+    expect(mittiAiPrompt("piesa")).not.toContain(CUSTOMER_OF_LEGACY_LABEL);
     // on the Job page: before the date of inspection
-    expect(SHORT_PIESA_FIELDS.findIndex((f) => f.id === "customerOf")).toBeLessThan(SHORT_PIESA_FIELDS.findIndex((f) => f.id === "inspectionDate"));
+    expect(SHORT_PIESA_FIELDS.findIndex((f) => f.id === "noPriceTalk")).toBeLessThan(SHORT_PIESA_FIELDS.findIndex((f) => f.id === "inspectionDate"));
   });
-  test("prefill answer uses the quote code's A1/A2 classifier", () => {
-    expect(customerOfOption("installer_sourced")).toBe("The installer's customer");
-    expect(customerOfOption("hivic_sourced")).toBe("Home Insulation Victoria");
-    expect(customerOfOption(null)).toBe("Home Insulation Victoria");
-  });
-  test("buildPrefill fills the choice by its option (help text after the label is fine)", () => {
+  test("the portal no longer prefills it (an old template with the question is left blank)", () => {
     const template = { template: {
-      items: [{ id: "q1", label: `${CUSTOMER_OF_LABEL}\n${CUSTOMER_OF_HELP}`, type: "question", question: { response_set_id: "rs1" } }],
+      items: [{ id: "q1", label: `${CUSTOMER_OF_LEGACY_LABEL}\nFilled in by the portal. Don't change it.`, type: "question", question: { response_set_id: "rs1" } }],
       response_sets: [{ id: "rs1", responses: [{ id: "o1", label: "Home Insulation Victoria" }, { id: "o2", label: "The installer's customer" }] }],
     } };
-    const p = buildPrefill(template, { jobNumber: "HV-1", address: "1 St", ownerName: "O", assessorName: "E", customerOf: customerOfOption("installer_sourced") });
-    expect(p.items.concat(p.header_items).find((i: { item_id: string }) => i.item_id === "q1")).toMatchObject({ responses: { selected: [{ id: "o2", label: "The installer's customer" }] } });
+    const p = buildPrefill(template, { jobNumber: "HV-1", address: "1 St", ownerName: "O", assessorName: "E" });
+    expect(p.items.concat(p.header_items).find((i: { item_id: string }) => i.item_id === "q1")).toBeUndefined();
   });
-  test("office item only for a completed A4 on our lead that asked the question and lacks the tick", () => {
-    const asked = [{ label: CUSTOMER_OF_LABEL, value: "Home Insulation Victoria" }];
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: true, entries: asked })).toBe(NO_PRICE_TALK_ISSUE);
+  test("an old form that still has the question validates (extra question ignored) and its answer is ignored", () => {
+    const items = [{ label: CUSTOMER_OF_LEGACY_LABEL, type: "question" }];
+    expect(validateTemplate("piesa", items).issues).not.toContain(`Missing: ${CUSTOMER_OF_LEGACY_LABEL}`);
+    expect(shortAnswersFromEntries("piesa", [{ label: CUSTOMER_OF_LEGACY_LABEL, value: "The installer's customer" }])).not.toHaveProperty("customerOf");
+  });
+  test("office item for ANY completed A4 that has the tick item but it isn't ticked", () => {
     expect(NO_PRICE_TALK_ISSUE).toBe("Electrician hasn't confirmed they won't discuss prices with the owner");
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: true, entries: [...asked, { label: NO_PRICE_TALK_LABEL, value: null }] })).toBe(NO_PRICE_TALK_ISSUE);
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: true, entries: [...asked, { label: NO_PRICE_TALK_LABEL, value: "true" }] })).toBeNull();
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: true, entries: [...asked, { label: NO_PRICE_TALK_LABEL, value: "Yes" }] })).toBeNull();
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: false, entries: asked })).toBeNull(); // not completed yet
-    expect(noPriceTalkIssue({ channel: "installer_sourced", completed: true, entries: asked })).toBeNull(); // A1: never
-    expect(noPriceTalkIssue({ channel: "hivic_sourced", completed: true, entries: [{ label: NEEDED, value: "No" }] })).toBeNull(); // old form
+    const unticked = [{ label: NO_PRICE_TALK_LABEL, value: null }];
+    expect(noPriceTalkIssue({ completed: true, entries: unticked })).toBe(NO_PRICE_TALK_ISSUE);
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: NO_PRICE_TALK_LABEL, value: "false" }] })).toBe(NO_PRICE_TALK_ISSUE);
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: NO_PRICE_TALK_LABEL, value: "true" }] })).toBeNull();
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: NO_PRICE_TALK_LABEL, value: "Yes" }] })).toBeNull();
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: NO_PRICE_TALK_LABEL, value: true }] })).toBeNull();
+    expect(noPriceTalkIssue({ completed: false, entries: unticked })).toBeNull(); // not completed yet
+    // installer customers too: an old form answering "The installer's customer" still needs the tick when the item is there
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: CUSTOMER_OF_LEGACY_LABEL, value: "The installer's customer" }, ...unticked] })).toBe(NO_PRICE_TALK_ISSUE);
+    // forms without the item: nothing (even an old form that asked only the deleted question)
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: NEEDED, value: "No" }] })).toBeNull();
+    expect(noPriceTalkIssue({ completed: true, entries: [{ label: CUSTOMER_OF_LEGACY_LABEL, value: "Home Insulation Victoria" }] })).toBeNull();
   });
   test("expandPiesa ignores both (not part of the official form)", () => {
     const base = { rectificationOutcome: RECTIFICATION_OUTCOMES[0], "b3.declaration": "true" };
     expect(expandPiesa({ ...base, customerOf: "Home Insulation Victoria", noPriceTalk: "true" }, ctx)).toEqual(expandPiesa(base, ctx));
   });
-  test("docs carry the wording", () => {
+  test("docs carry the tick and tell Jo to delete the question", () => {
     for (const f of ["docs/MITTI_PIESA_CHATGPT_PROMPT.md", "docs/MITTI_PIESA_BUILD_PROMPT.md", "docs/MITTI_PIESA_FORM_SPEC.md"]) {
       const doc = readFileSync(f, "utf8");
-      for (const s of [CUSTOMER_OF_LABEL, CUSTOMER_OF_HELP, NO_PRICE_TALK_LABEL, "The installer's customer"]) expect(doc, `${f}: ${s}`).toContain(s);
+      expect(doc, f).toContain(NO_PRICE_TALK_LABEL);
+      expect(doc, f).toContain("Decision 323");
+      expect(doc, f).not.toContain("only show when question 2a");
+      expect(doc, f).not.toContain("Filled in by the portal. Don't change it.");
     }
   });
 });

@@ -126,15 +126,15 @@ describe("buildA4FixesQuote", () => {
 });
 
 describe("A4 form fields (decisions 305/308)", () => {
-  test("total price first, then the ticks, the two counts and Other — right after 'describe the other repair work'", () => {
-    const i = SHORT_PIESA_FIELDS.findIndex((f) => f.id === "rectificationOther");
-    expect(SHORT_PIESA_FIELDS[i + 1]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes" });
-    expect(SHORT_PIESA_FIELDS[i + 2]).toMatchObject({ id: "fixesWork", label: "What will you do? Tick everything included in your price.", type: "multichoice", required: true, choices: [...FIXES_WORK_OPTIONS], when: "rectificationNeeded = Yes" });
-    expect(SHORT_PIESA_FIELDS[i + 3]).toMatchObject({ id: "fixesDownlightCount", label: "How many downlights are you replacing?", type: "number", required: true });
-    expect(SHORT_PIESA_FIELDS[i + 3]!.when).toContain(DL);
-    expect(SHORT_PIESA_FIELDS[i + 4]).toMatchObject({ id: "fixesRcdCount", label: "How many RCD safety switches are you installing?", type: "number", required: true });
-    expect(SHORT_PIESA_FIELDS[i + 4]!.when).toContain(RCD);
-    expect(SHORT_PIESA_FIELDS[i + 5]).toMatchObject({ id: "fixesOtherDetail", label: "Describe the other work", type: "text", required: true });
+  test("decision 324: right after 'repair needed?' (and the 309 legacy) — the ticks, the two counts, Other, then the total price LAST", () => {
+    const i = SHORT_PIESA_FIELDS.findIndex((f) => f.id === "rectificationPossible");
+    expect(SHORT_PIESA_FIELDS[i + 1]).toMatchObject({ id: "fixesWork", label: "What will you do? Tick everything included in your price.", type: "multichoice", required: true, choices: [...FIXES_WORK_OPTIONS], when: "rectificationNeeded = Yes" });
+    expect(SHORT_PIESA_FIELDS[i + 2]).toMatchObject({ id: "fixesDownlightCount", label: "How many downlights are you replacing?", type: "number", required: true });
+    expect(SHORT_PIESA_FIELDS[i + 2]!.when).toContain(DL);
+    expect(SHORT_PIESA_FIELDS[i + 3]).toMatchObject({ id: "fixesRcdCount", label: "How many RCD safety switches are you installing?", type: "number", required: true });
+    expect(SHORT_PIESA_FIELDS[i + 3]!.when).toContain(RCD);
+    expect(SHORT_PIESA_FIELDS[i + 4]).toMatchObject({ id: "fixesOtherDetail", label: "Describe the other work", type: "text", required: true });
+    expect(SHORT_PIESA_FIELDS[i + 5]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes" });
     expect(FIXES_OTHER_HELP).toBe("Say exactly what you'll do, where, and how many.");
   });
   test("the decision-305 free text is legacy: read, never asked", () => {
