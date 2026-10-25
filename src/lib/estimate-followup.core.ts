@@ -14,7 +14,7 @@
 // use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
 
-export const ESTIMATE_FOLLOWUP_APPROVED = false as boolean; // Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): paused until O66–O68 are reworded spot-only and re-approved (was approved by decisions 242/357)
+export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Decision 388: paused 25 Oct 2026, reworded spot-only; Jo re-approved O66–O68 the same day ("Approve, use /homeowner" for the day-21 come-back line)
 
 export type EstimateFollowupStep = "day_2" | "day_7" | "day_21";
 export const ESTIMATE_FOLLOWUP_STEPS: readonly EstimateFollowupStep[] = ["day_2", "day_7", "day_21"];
@@ -161,7 +161,7 @@ export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, 
       intro: "We sent your ceiling insulation estimate three weeks ago and haven't heard back, so we'll close it in a week to keep our list accurate.",
       saveTitle: "Want to keep your spot? Save it now",
       save: `Save your spot and you stay on the list with your ${rebate} rebate. No payment, no obligation.`,
-      after: "If now isn't the right time, that's fine. You can come back any time: reply to this email or get a fresh estimate from our calculator and we'll pick up where we left off.",
+      after: "If now isn't the right time, that's fine. You can come back any time: reply to this email or visit homeinsulationvictoria.com.au/homeowner and we'll pick up where we left off.",
       closing: REPLY,
     };
   }

@@ -137,7 +137,7 @@ describe("approval flags: reworded live messages with a flag are held; nothing e
     expect(SAVE_SPOT_REAL_SEND_APPROVED).toBe(true); // Jo approved the spot-only O1/O2 wording 25 Oct 2026
     expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(false);
     expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(false);
-    expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(false);
+    expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(true); // Jo re-approved O66–O68 spot-only 25 Oct 2026
     expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
     expect(SMS_MESSAGE_TYPES.spot_saved.wordingApproved).toBe(true); // Jo approved the spot-only texts 25 Oct 2026
     expect(SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved).toBe(true);
