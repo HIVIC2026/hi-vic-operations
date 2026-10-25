@@ -751,12 +751,11 @@ const ApiPublicHooksCustomerFollowupsRoute =
     path: '/api/public/hooks/customer-followups',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicHooksEscRobotRoute =
-  ApiPublicHooksEscRobotRouteImport.update({
-    id: '/api/public/hooks/esc-robot',
-    path: '/api/public/hooks/esc-robot',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const ApiPublicHooksEscRobotRoute = ApiPublicHooksEscRobotRouteImport.update({
+  id: '/api/public/hooks/esc-robot',
+  path: '/api/public/hooks/esc-robot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksExternalActionsRoute =
   ApiPublicHooksExternalActionsRouteImport.update({
     id: '/api/public/hooks/external-actions',
