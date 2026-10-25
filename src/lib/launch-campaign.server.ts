@@ -16,7 +16,7 @@ import { groupBMediaForJob } from "./group-b-media.server";
 import { whatIfEstimate } from "./estimate.core";
 import { removalFromScenario } from "./estimate-removal.core";
 import { joAreaBasis } from "./jo-area-basis.core";
-import { INSULATION_REVIEW_OPTIONS, declarationCriteriaPassed, qualifyingDeclaration, insulationDeclarationRecord, type InsulationDeclaration } from "./insulation-review.core";
+import { INSULATION_REVIEW_OPTIONS, answeredInsulationDeclaration, declarationCriteriaPassed, qualifyingDeclaration, insulationDeclarationRecord, type InsulationDeclaration } from "./insulation-review.core";
 
 export async function campaignLink(token: unknown) {
   if (!isWellFormedToken(token)) return null;
@@ -56,7 +56,8 @@ export async function campaignLink(token: unknown) {
     if (eventsError) throw new Error("We couldn't check your declaration. Please try again.");
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
     // Owner answered the 3 insulation questions (Jo 23 Oct: photo uploaders save their spot too; photos only move rank).
-    answeredQuestions = criteriaPassed && qualifyingDeclaration((events ?? []).filter((e) => e.event_type === "owner_insulation_present_auto_offer"));
+    // Decision 392: a "don't know" offer record qualifies the owner above but is never counted as answering the questions.
+    answeredQuestions = criteriaPassed && answeredInsulationDeclaration(events ?? []);
   }
   const media = group === "onsite" ? await groupBMediaForJob(job.id) : null;
   return { link, job, group, ownerQualified, answeredQuestions, criteriaPassed, media, mediaReview };

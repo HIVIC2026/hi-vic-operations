@@ -294,7 +294,7 @@ export function automaticLeadEmail(x: {
   redFlag?: string | null;
   /** Code switch ALL_NEW_ENQUIRIES_OFFER_APPROVED (passed by the router; OFF until Jo says go). */
   offerAllApproved?: boolean;
-}): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true } {
+}): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true; insulationUnknown?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
   if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
@@ -310,7 +310,7 @@ export function automaticLeadEmail(x: {
   // present OR don't know gets the removal range line. Office reviews keep the reviewed paths below.
   if (x.offerAllApproved && openOutcome && !x.officeReviewed) {
     if (x.redFlag) return { email: "none", blocker: x.redFlag };
-    return { email: "offer_spot", blocker: null, ...(x.declaredInsulation === "none" ? {} : { existingInsulation: true as const }), ...(x.ownerEnteredArea ? {} : { assumedArea: true as const }) };
+    return { email: "offer_spot", blocker: null, ...(x.declaredInsulation === "none" ? {} : { existingInsulation: true as const }), ...(x.declaredInsulation === "unknown" ? { insulationUnknown: true as const } : {}), ...(x.ownerEnteredArea ? {} : { assumedArea: true as const }) };
   }
   // Jo 23 Oct 2026 4:10pm: owner says insulation is present (any type/thickness/coverage answer, incl. unknown) and
   // no Office review yet -> the existing-insulation Save my spot email with the "if needed: up to" removal line.
@@ -318,7 +318,13 @@ export function automaticLeadEmail(x: {
   if (openOutcome && x.declaredInsulation === "present" && !x.officeReviewed) {
     return { email: "offer_spot", blocker: null, existingInsulation: true, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
-  // Unsure whether there is insulation, or Office-reviewed: the existing request / reviewed follow-up.
+  // Decision 392 (Jo 25 Oct 2026): a website enquirer who ticked "don't know" gets the SAME existing-insulation Save my
+  // spot email (removal card, "don't know" intro) so they save their spot straight away. The 3-questions email is only
+  // for people who enquired before the website asked; it is never this automatic first reply.
+  if (openOutcome && x.declaredInsulation === "unknown" && !x.officeReviewed) {
+    return { email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
+  }
+  // Office-reviewed present/unknown: the existing reviewed follow-up (request_insulation path re-reads the review).
   if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }

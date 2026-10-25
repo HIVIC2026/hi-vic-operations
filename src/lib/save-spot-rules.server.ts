@@ -170,7 +170,7 @@ const blocked = (block: AutomaticGateBlock, reason: string, failedCategories: Fi
  * report those controls (it is read-only reporting), which is why a preview row can show a mandatory
  * exclusion that the gate itself would not raise.
  */
-export async function automaticSaveSpotGate(jobId: string, opts: { route?: string | null; coverageVerified?: boolean; existingInsulationOffer?: boolean; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust } = {}): Promise<AutomaticGateVerdict> {
+export async function automaticSaveSpotGate(jobId: string, opts: { route?: string | null; coverageVerified?: boolean; existingInsulationOffer?: boolean | "unknown"; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust } = {}): Promise<AutomaticGateVerdict> {
   // Manually-approved ENQ_01 backlog item only: ENQ_00/01 is the approval, so the activation date and the
   // enquiry-date window are not applied. Every other step below still runs.
   const { isManualBacklog } = await import("./manual-backlog.core");
@@ -208,7 +208,7 @@ export async function automaticSaveSpotGate(jobId: string, opts: { route?: strin
   const { backlogRules } = await import("./save-spot-rules.core");
   const { existingInsulationRules } = await import("./save-spot-rules.core");
   const baseRules = manualBacklog ? backlogRules(config.rules) : config.rules;
-  const match = matchAutomaticRules(facts, opts.existingInsulationOffer ? existingInsulationRules(baseRules) : baseRules, Date.now());
+  const match = matchAutomaticRules(facts, opts.existingInsulationOffer ? existingInsulationRules(baseRules, opts.existingInsulationOffer === "unknown" ? "unknown" : "present") : baseRules, Date.now());
   if (!match.eligible) {
     const reasons = match.failedCategories.map((c) => (facts && CATEGORY_MISMATCH_REASON[c]) ?? "Outside the configured filters");
     return blocked("rule_mismatch", reasons.join("; "), match.failedCategories);

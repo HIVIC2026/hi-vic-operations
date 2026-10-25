@@ -5,6 +5,7 @@
  * canonical selector (`selectJoTemplate`) which template applies, then renders through `renderJoOutcomeEmail`:
  *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/owner/O1-save-my-spot.html
  *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/owner/O2-save-my-spot-some-insulation.html
+ *   new website enquirer, "don't know" (decision 392)   → Save my spot, some    docs/templates/owner/O2-save-my-spot-dont-know.html
  *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/owner/O2-save-my-spot-questions.html
  *   T7 (ineligible)                                     → Not eligible          docs/templates/owner/O6-not-eligible.html
  * Subjects, template ids, CTA sets, link binding and fail-closed rules are unchanged; only the body copy and
@@ -61,6 +62,9 @@ export type JoOutcomeFacts = {
   declaredThinPatchy?: boolean;
   /** Jo 23 Oct 08:14 UTC: owner described existing insulation that is not thin/loose fill. */
   declaredExisting?: boolean;
+  /** Decision 392 (Jo 25 Oct 2026): with declaredExisting, the owner ticked "don't know" on the website and has not
+   *  described their insulation since; the same O2 Save my spot email uses the "don't know" intro and basis line. */
+  declaredUnknown?: boolean;
 };
 
 export const JO_OUTCOME_TEMPLATE_LABEL: Record<JoTemplateId, string> = {
@@ -228,7 +232,10 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
   const someInsulation = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known" || input.declaredThinPatchy === true || input.declaredExisting === true;
   const variant: SaveSpotVariant = unconfirmed ? (received ? "received" : "questions") : someInsulation ? "some" : "none";
-  return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject));
+  // Decision 392: only an unreviewed owner-declared offer whose answer really is "don't know" gets the don't-know wording.
+  const reviewed = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known";
+  const dontKnow = variant === "some" && !reviewed && input.declaredUnknown === true && input.declaredExisting === true && input.insulation === "unknown";
+  return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject, dontKnow));
 }
 
 function finish(id: JoTemplateId, ctas: JoCta[], input: JoOutcomeEmailInput, mail: EstimateEmail): JoWiredEmail {
@@ -253,9 +260,10 @@ function removalCard(f: JoEstimateFigures): { ratePerM2: number; upTo: number } 
   return { ratePerM2: 15, upTo: 15 * area };
 }
 
-/** "Based on what you told us: 137 m² ceiling, no existing insulation." — a typical-size estimate is never called the owner's size. */
-export function basisLine(f: JoEstimateFigures, someInsulation: boolean): string {
-  const ins = someInsulation ? "with some existing insulation" : "no existing insulation";
+/** "Based on what you told us: 137 m² ceiling, no existing insulation." — a typical-size estimate is never called the owner's size.
+ *  Decision 392: "unknown" (owner ticked don't know) → "existing insulation not known yet". */
+export function basisLine(f: JoEstimateFigures, someInsulation: boolean | "unknown"): string {
+  const ins = someInsulation === "unknown" ? "existing insulation not known yet" : someInsulation ? "with some existing insulation" : "no existing insulation";
   return f.areaEstimated
     ? `Based on a typical ${K.m2(f.ceilingAreaM2)} ceiling (an estimate, not your actual size), ${ins}.`
     : `Based on what you told us: ${K.m2(f.ceilingAreaM2)} ceiling, ${ins}.`;
@@ -263,6 +271,9 @@ export function basisLine(f: JoEstimateFigures, someInsulation: boolean): string
 
 const O1_INTRO = "This is the Victorian Government's Energy Upgrades (VEU) rebate, taken straight off your price. To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.";
 const O2_INTRO = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Government's Energy Upgrades (VEU) rebate. We bring together the certified installer, licensed electrician and accredited provider you need, and organise the whole job.";
+/** Decision 392 (Jo 25 Oct 2026): a new website enquirer who ticked "don't know" gets the O2 Save my spot email with this
+ *  intro — never "You told us there's some insulation". Spot-only (decision 388). */
+export const O2_DONT_KNOW_INTRO = "You weren't sure if there's insulation in your ceiling. If there's none, or it's thin or patchy (below R2.0), you can still get the Victorian Government's Energy Upgrades (VEU) rebate. We bring together the certified installer, licensed electrician and accredited provider you need, and organise the whole job.";
 // Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): spot-only wording, awaiting Jo's
 // approval in docs/decision-388-spot-only-wording.md. No Ready Check, installer visit, times, measuring or quote timing.
 const O1_SAVE = "Thousands of Victorians have registered, and spots are released in the order they were saved. Saving your spot is free, with no obligation. We'll be in touch when your spot is released.";
@@ -279,12 +290,13 @@ export const QUESTIONS = [
   { title: "When was your home built?", detail: "Pick a decade" },
 ];
 
-function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, variant: SaveSpotVariant, subject: string): EstimateEmail {
+function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, variant: SaveSpotVariant, subject: string, dontKnow = false): EstimateEmail {
   const first = input.recipient.firstName;
   const some = variant !== "none";
   const rebate = K.whole(f.veuRebate), price = K.whole(f.customerTotal), full = K.whole(f.totalBeforeRebate);
   const headline = some ? `${first}, you may qualify for ${rebate} off ceiling insulation` : `${first}, you could save ${rebate} on ceiling insulation`;
-  const basis = basisLine(f, some);
+  const basis = basisLine(f, dontKnow ? "unknown" : some);
+  const intro = dontKnow ? O2_DONT_KNOW_INTRO : some ? O2_INTRO : O1_INTRO;
   const calc = input.links.calculatorUrl ? { href: input.links.calculatorUrl, label: "Try a different ceiling size" } : null;
   const removal = removalCard(f);
   const saveUrl = input.links.saveMySpotUrl, answerUrl = input.links.uploadMediaUrl;
@@ -295,7 +307,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
       : `${K.sectionTitle("Save your spot, it's free", "22px 0 6px")}${K.p(some ? O2_SAVE : O1_SAVE, "0 0 4px")}${K.button(saveUrl, "Save my free spot")}`;
   const body = [
     K.h1(headline),
-    K.p(some ? O2_INTRO : O1_INTRO),
+    K.p(intro),
     K.priceBox({ rebateLabel: some ? "Your potential VEU rebate" : "Your estimated VEU rebate", rebate: f.veuRebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price, fullPrice: full, basis, calculator: calc }),
     some ? K.existingInsulationCard({ areaM2: f.ceilingAreaM2, ratePerM2: removal.ratePerM2, upTo: removal.upTo }) : "",
     action,
@@ -305,7 +317,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const html = K.emailShell({ body, previewText: subject, unsubscribe: "slot" });
   const plainText = K.plainText([
     headline, "",
-    some ? O2_INTRO : O1_INTRO, "",
+    intro, "",
     some ? "YOUR POTENTIAL VEU REBATE" : "YOUR ESTIMATED VEU REBATE",
     `You save ${rebate}`,
     `${some ? "Your cost if eligible" : "You pay after the rebate"}: ${price} incl. GST (full price before rebate ${full})`,
