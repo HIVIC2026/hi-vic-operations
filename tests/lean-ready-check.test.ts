@@ -6,13 +6,14 @@ import { buildPrefill, contactAnswersFromEntries, flatten, isRValueBand, parseAu
 import { premisesTypeFromEntries, readyCheckStopReasons, STOP_NO_SAFE_ACCESS, STOP_R2 } from "../src/lib/ready-check-answers.core";
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
 import { areasFromReadyCheckEntries } from "../src/lib/area-diagram.core";
-import { rcAreasFromRecord, readyCheckPart6Answers } from "../src/lib/piisa-a3.core";
+import { rcAreasFromRecord, readyCheckPart6Answers, weightedDepthMm } from "../src/lib/piisa-a3.core";
+import { evaluatePiisa } from "../src/lib/official-forms.core";
 import { readAreas } from "../src/lib/ready-check-areas.core";
 import { ELECTRICIAN_FIELDS, FORMS, PRICING_FIELDS, flattenDefinition, leanQuestionCount, mittiAiPrompt, validateTemplate, type FormField } from "../src/lib/mitti-forms.core";
 import {
   ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_HELP, LEAN_Q,
   LEAN_REMOVE, LEAN_REMOVE_COPIES, MEASURED_HOW_OPTIONS, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_VALUE_OPTIONS, ROOF_OPTIONS,
-  A1_QUOTE_PAGE, A1_QUOTE_QUESTIONS, isR2OrAbove, premisesTypeCode, premisesTypeOption,
+  A1_QUOTE_PAGE, A1_QUOTE_QUESTIONS, EXISTING_DEPTH_Q, isR2OrAbove, premisesTypeCode, premisesTypeOption,
 } from "../src/lib/ready-check-lean.core";
 import { APPROVED_PRODUCTS } from "../src/lib/insulation-product.core";
 
@@ -460,7 +461,7 @@ describe("decision 359: Part 6 facts per ceiling area (parse → zones → ready
       ],
     };
   }
-  test("the four answers ride on the area record and fill Part 6 (depth aside, which the lean form does not ask)", () => {
+  test("the four answers ride on the area record and fill Part 6 (depth aside: this audit has no depth answer)", () => {
     const p = parseAudit(part6Audit(true));
     expect(p.areas[0]).toMatchObject({ suitable: true, conductive: false, keepReason: "Batts are dry and even" });
     expect(p.areas[0]!.conductiveEvidence).toMatch(/^mitti:audit_p6:item:m\d+$/);
@@ -491,5 +492,70 @@ describe("decision 359: Part 6 facts per ceiling area (parse → zones → ready
     expect(block).toContain(`"A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | HIVIC Sourced Customer"`);
     expect(block).toContain(`A1 has ${leanQuestionCount("ready_check_priced")} questions and A2 has ${leanQuestionCount("ready_check")}`);
     for (const f of FORMS.ready_check.fields.filter((x) => x.addedByDecision === 359)) expect(block, f.label).toContain(`"${f.label}"`);
+  });
+});
+
+// ---------- decision 375: the live depth question fills the official PIISA Part 6 height ----------
+describe("decision 375: existing insulation depth (live question) → p6.height, m²-weighted when areas differ", () => {
+  type A = { name: string; action: "Top up" | "Remove"; depth?: string; length?: string };
+  function depthAudit(areas: A[]) {
+    n = 0;
+    const items: unknown[] = [];
+    for (const [i, a] of areas.entries()) {
+      const id = `area${i}`;
+      items.push({ item_id: id, label: "", type: "dynamicfield" },
+        it_(LEAN_Q.areaName, a.name, id), it_(LEAN_Q.lengthM, a.length ?? "10", id), it_(LEAN_Q.widthM, "8", id), it_(LEAN_Q.measuredHow, ["Laser measure"], id),
+        it_(LEAN_Q.existing, ["Yes"], id), it_(LEAN_Q.existingType, ["Batts"], id), it_(LEAN_Q.rValue, ["Below R2.0"], id),
+        ...(a.depth != null ? [it_(EXISTING_DEPTH_Q, a.depth, id)] : []),
+        it_(LEAN_Q.existingAction, [a.action], id),
+        ...(a.action === "Remove" ? [it_(LEAN_Q.removeM2, "80", id)] : [
+          it_(LEAN_Q.existingSuitable, ["Yes"], id), it_(LEAN_Q.existingConductive, ["No"], id), media(LEAN_Q.existingConductivePhoto, id), it_(LEAN_Q.existingKeepReason, "Batts are dry and even", id),
+        ]));
+    }
+    return { audit_id: "audit_d375", template_id: "template_live", header_items: [it_(LEAN_Q.jobNumber, "HV-3375")], items };
+  }
+  const part6 = (areas: A[]) => readyCheckPart6Answers(rcAreasFromRecord({ insulation_present: true, existing_r_value: null, zones: JSON.parse(JSON.stringify(parseAudit(depthAudit(areas)).areas)) }, null));
+  const piisaP6Blockers = (r: ReturnType<typeof readyCheckPart6Answers>) =>
+    evaluatePiisa({ ...r.answers, "supp.conductive": r.conductive ? "Yes" : "No" }, { conductiveExistingInsulation: r.conductive, conductivityEvidence: r.conductiveEvidence }).blockers.filter((b) => /p6\.|P6|CONDUCTIVITY/.test(b.rule));
+
+  test("Jo keeps the live question: no new depth question on the build sheet, counts unchanged", () => {
+    expect(EXISTING_DEPTH_Q).toBe("What is the measured insulation depth (mm)?");
+    expect(FORMS.ready_check.fields.some((f) => /average depth/i.test(f.label))).toBe(false);
+    const doc = readFileSync("docs/MITTI_PASTE_NOW.md", "utf8");
+    const block = doc.slice(doc.indexOf("## 4."));
+    expect(block).toContain(`"${EXISTING_DEPTH_Q}"\nis kept unchanged`);
+    expect(block).not.toMatch(/Delete the question|Average depth/);
+  });
+  test("top-up with a depth → official PIISA Part 6 complete", () => {
+    const r = part6([{ name: "Main house", action: "Top up", depth: "85mm" }]);
+    expect(r.missing).toEqual([]);
+    expect(r.answers).toMatchObject({ "p6.present": "Yes", "p6.height": "85", "p6.treatment": ["Topped Up"], "p6.suitable": "Yes", "p6.reason": "Batts are dry and even" });
+    expect(piisaP6Blockers(r)).toEqual([]);
+  });
+  test("full removal with a depth → Part 6 complete (no hold)", () => {
+    const r = part6([{ name: "Main house", action: "Remove", depth: "60" }]);
+    expect(r).toMatchObject({ fullRemoval: true, missing: [] });
+    expect(r.answers).toEqual({ "p6.present": "Yes", "p6.height": "60", "p6.treatment": ["Removed"], "p6.suitable": "No" });
+    expect(piisaP6Blockers(r)).toEqual([]);
+  });
+  test("differing depths → ONE average weighted by m², nearest mm; no office step", () => {
+    // 80 m² at 50 mm and 40 m² at 120 mm → (4000 + 4800) / 120 = 73.33 → 73.
+    const r = part6([{ name: "Main", action: "Top up", depth: "50", length: "10" }, { name: "Rear", action: "Remove", depth: "120", length: "5" }]);
+    expect(r.answers["p6.height"]).toBe("73");
+    expect(r.missing).toEqual([]);
+    expect(weightedDepthMm([{ depthMm: 60, areaM2: 30 }, { depthMm: 61, areaM2: 30 }])).toBe(61); // 60.5 rounds up
+  });
+  test("an area without a depth, or without m² when weighting is needed, is named missing; old/vague answers stay not recorded", () => {
+    expect(part6([{ name: "Main", action: "Top up" }]).missing).toEqual(["Ready Check: existing insulation depth (mm) not recorded"]);
+    expect(part6([{ name: "Main", action: "Top up", depth: "about 80" }]).missing).toEqual(["Ready Check: existing insulation depth (mm) not recorded"]);
+    expect(part6([{ name: "Main", action: "Top up", depth: "80" }, { name: "Rear", action: "Remove" }]).missing).toEqual(["Ready Check: existing insulation depth (mm) not recorded (Rear)"]);
+    const noM2 = readyCheckPart6Answers([
+      { name: "Main", present: true, depthMm: 50, areaM2: 80, removal: true },
+      { name: "Rear", present: true, depthMm: 120, areaM2: null, removal: true },
+    ]);
+    expect(noM2.answers["p6.height"]).toBeUndefined();
+    expect(noM2.missing).toEqual(["Ready Check: ceiling area (m²) not recorded, so the average existing insulation depth can't be worked out (Rear)"]);
+    // Same depth everywhere: no m² needed.
+    expect(readyCheckPart6Answers([{ present: true, depthMm: 70, removal: true }, { present: true, depthMm: 70, removal: true }]).answers["p6.height"]).toBe("70");
   });
 });

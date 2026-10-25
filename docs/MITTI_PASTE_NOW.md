@@ -101,6 +101,9 @@ Ready Check by their exact wording (`LEAN_Q.existingSuitable`, `existingConducti
 Forms finished before this change stay readable: a top-up on an old form is listed as "not recorded" for the office.
 When every area is Removed the portal fills Part 6 itself (decision 360), so these questions only matter for a top-up,
 but the foil question and photo are asked whenever there is existing insulation.
+The depth stays where it is (decision 375, Jo 25 Oct 2026): the live question "What is the measured insulation depth (mm)?"
+is kept unchanged on both templates (asked whenever there is existing insulation, removals included) and the portal reads it
+for Part 6 "average height", averaging differing areas by m². Nothing in this block touches it.
 
 ```
 Edit the Mitti templates "A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | HIVIC Sourced Customer". Make the SAME change on both, then publish both.

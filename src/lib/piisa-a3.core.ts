@@ -355,6 +355,8 @@ export function signatureAttachment(auditId: string, sig: ReturnType<typeof a3Si
 // ---------- Ready Check -> Part 6 prefill (multi-area aware) ----------
 export type RcArea = {
   name?: string | null; present?: boolean | null; depthMm?: number | null; rValue?: number | null; downlights?: number | null; removal?: boolean | null;
+  /** Decision 375: the area's measured m² (weights the Part 6 average depth when areas differ). */
+  areaM2?: number | null;
   /** Decision 359 (Ready Check, per area with existing insulation): suitable to lay over / foil-metallic-conductive / photo ref / reason kept. */
   suitable?: boolean | null; conductive?: boolean | null; conductiveEvidence?: string | null; keepReason?: string | null;
 };
@@ -363,8 +365,8 @@ export const strictPresent = (v: unknown): boolean | null => typeof v === "boole
 /**
  * Areas from the CANONICAL persisted Ready Check record. Mitti syncs store raw_snapshot as a flat entry list
  * (id/label/section/value) and the canonical parser's per-room results are written to the row columns, so the row
- * columns are the source. Structured per-area zones are used only when present as objects. Depth is not captured
- * canonically -> null. Removal/top-up only when actually recorded; never inferred from absence.
+ * columns are the source. Structured per-area zones are used only when present as objects; only they carry the
+ * existing-insulation depth and m² (decision 375), the row columns never do -> null. Removal/top-up only when actually recorded; never inferred from absence.
  */
 export function rcAreasFromRecord(m: { insulation_present: unknown; existing_r_value: unknown; removal_required?: unknown; zones?: unknown } | null, downlightsQty: number | null): RcArea[] {
   if (!m) return [];
@@ -372,7 +374,7 @@ export function rcAreasFromRecord(m: { insulation_present: unknown; existing_r_v
   const zones = Array.isArray(m.zones) ? (m.zones as Any[]).filter((z) => z && typeof z === "object" && !Array.isArray(z)) : [];
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   // Decision 359: the Part 6 facts ride on the same zone record (absent on older forms → null, i.e. not recorded).
-  if (zones.length) return zones.map((a) => ({ name: typeof a.name === "string" ? a.name : null, present: strictPresent(a.present ?? a.insulation_present), depthMm: n(a.depth_mm ?? a.depthMm), rValue: n(a.r_value ?? a.rValue ?? a.existing_r_value), downlights: n(a.downlights), removal: strictPresent(a.removal_required ?? a.removal), suitable: strictPresent(a.suitable), conductive: strictPresent(a.conductive), conductiveEvidence: str(a.conductiveEvidence), keepReason: str(a.keepReason) }));
+  if (zones.length) return zones.map((a) => ({ name: typeof a.name === "string" ? a.name : null, present: strictPresent(a.present ?? a.insulation_present), depthMm: n(a.depth_mm ?? a.depthMm), areaM2: n(a.areaM2 ?? a.area_m2), rValue: n(a.r_value ?? a.rValue ?? a.existing_r_value), downlights: n(a.downlights), removal: strictPresent(a.removal_required ?? a.removal), suitable: strictPresent(a.suitable), conductive: strictPresent(a.conductive), conductiveEvidence: str(a.conductiveEvidence), keepReason: str(a.keepReason) }));
   return [{ present: strictPresent(m.insulation_present), depthMm: null, rValue: n(m.existing_r_value), downlights: downlightsQty, removal: strictPresent(m.removal_required) }];
 }
 
@@ -409,7 +411,7 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
  * install day form no longer asks it. Decision 359: condition (suitable to lay over), reason kept, foil/metallic/conductive
  * and its photo come from each area's Ready Check answers (`RcArea`); `extra` (when non-null) overrides them. Decision 360:
  * when every area with existing insulation is Removed, Part 6 is filled by the portal (suitable = No, no reason, the foil
- * note satisfied by removal). Every fact the record does not establish is listed in `missing` (a pre-start blocker), never guessed.
+ * note satisfied by removal). Decision 375: p6.height = the areas' recorded depth (m²-weighted average when they differ). Every fact the record does not establish is listed in `missing` (a pre-start blocker), never guessed.
  */
 export type Part6Extra = { suitable: boolean | null; conductive: boolean | null; reason: string | null; conductiveEvidence?: string | null };
 export type Part6Result = {
@@ -422,6 +424,11 @@ export type Part6Result = {
   fullRemoval: boolean;
 };
 const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
+/** Decision 375: average existing insulation depth weighted by each area's m², rounded to the nearest mm. */
+export function weightedDepthMm(areas: { depthMm: number; areaM2: number }[]): number {
+  const m2 = areas.reduce((s, a) => s + a.areaM2, 0);
+  return Math.round(areas.reduce((s, a) => s + a.depthMm * a.areaM2, 0) / m2);
+}
 export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_EXTRA): Part6Result {
   const answers: Record<string, string | string[]> = {}, missing: string[] = [];
   const none = { conductive: null, conductiveEvidence: null, fullRemoval: false };
@@ -432,9 +439,22 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
   answers["p6.present"] = present ? "Yes" : "No";
   if (!present) return { answers, missing, ...none };
   const withIns = areas.filter((a) => a.present === true);
-  const depths = [...new Set(withIns.map((a) => a.depthMm).filter((x): x is number => x != null && Number.isFinite(x)))];
-  if (depths.length === 1 && withIns.every((a) => a.depthMm != null)) answers["p6.height"] = String(depths[0]);
-  else missing.push(depths.length > 1 ? `Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average` : "Ready Check: existing insulation depth (mm) not recorded");
+  // Decision 375 (Jo 25 Oct 2026): the official form asks the average height whenever insulation is present (removal
+  // included); the Ready Check asks the depth per area with existing insulation. One shared depth is used as is; differing
+  // depths become ONE average weighted by each area's m² (nearest mm). A missing depth, or a missing m² when weighting is
+  // needed, names the area — never guessed.
+  const okNum = (x: number | null | undefined): x is number => x != null && Number.isFinite(x);
+  const areaName = (a: RcArea) => a.name?.trim() || `Area ${areas.indexOf(a) + 1}`;
+  const whichAreas = (xs: RcArea[]) => (withIns.length > 1 ? ` (${xs.map(areaName).join(", ")})` : "");
+  const noDepth = withIns.filter((a) => !okNum(a.depthMm));
+  const depths = [...new Set(withIns.map((a) => a.depthMm).filter(okNum))];
+  if (noDepth.length) missing.push(`Ready Check: existing insulation depth (mm) not recorded${whichAreas(noDepth)}`);
+  else if (depths.length === 1) answers["p6.height"] = String(depths[0]);
+  else {
+    const noM2 = withIns.filter((a) => !okNum(a.areaM2) || a.areaM2 <= 0);
+    if (noM2.length) missing.push(`Ready Check: ceiling area (m²) not recorded, so the average existing insulation depth can't be worked out${whichAreas(noM2)}`);
+    else answers["p6.height"] = String(weightedDepthMm(withIns as { depthMm: number; areaM2: number }[]));
+  }
   const rs = [...new Set(withIns.map((a) => a.rValue).filter((x): x is number => x != null && Number.isFinite(x)))];
   if (rs.length === 1) answers["p6.rValue"] = String(rs[0]);
   if (!withIns.every((a) => a.removal != null)) {
