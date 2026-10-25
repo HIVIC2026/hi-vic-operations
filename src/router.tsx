@@ -2,19 +2,13 @@ import "./lib/local-network-guard.install"; // D-7: LOCAL UAT network isolation 
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { isStaleChunkError } from "./lib/page-recovery.core";
+export { isStaleChunkError } from "./lib/page-recovery.core";
 
 // After a new version goes live, an already-open tab can ask for page files that no longer exist.
 // Reload once (guarded per 30s) so the tab picks up the current version instead of going blank.
 const STALE_KEY = "hiv-stale-reload-at";
 const HARD_KEY = "hiv-stale-hard-at";
-
-// Includes the lazy-route symptom when an old page file resolves to nothing after a new version
-// goes live (Safari: "undefined is not an object (evaluating 'e[t??`default`]')";
-// Chrome: "Cannot read properties of undefined (reading 'default')").
-export const isStaleChunkError = (e: unknown) =>
-  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|undefined is not an object \(evaluating '[^']*default|Cannot read properties of undefined \(reading 'default'\)/i.test(
-    String((e as Error)?.message ?? e),
-  );
 
 function lastReload(key: string): number {
   try {
