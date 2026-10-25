@@ -46,9 +46,9 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });
   if (plan.office) { await needsOffice(b.job_id, "rectification_new_times", b.kind, b.id, "Electrical fixes visit cancelled — arrange new times with the electrician and owner"); return; }
   if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(b.job_id)).allowed) return;
-  // F13: record only. There is no approved "pick new times" owner message (the old outbox row was never sendable); the
-  // owner hears from the approved new-times messages when the trade offers times again (decisions 78/333, install days).
-  await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: times reopened (record only — no separate owner message)`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
+  // F13 / decision 376: no outbox row. A TRADE cancellation tells the owner once (O74 + text, visit-new-times.server, DRAFT
+  // until Jo approves); owner-made changes and no-shows are not messaged here.
+  await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: times reopened`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
   await admin.from("jobs").update({ next_action: `Waiting for the owner to pick new ${VISIT_LABEL[b.kind]} times` }).eq("id", b.job_id);
 }
 
@@ -147,6 +147,8 @@ export async function tradeCancelVisit(jobId: string, userId: string, reason: st
   await requireBookingTrade(b, userId);
   await record(b, "trade_cancelled", "trade", userId, reason);
   await reopen(b, userId, `trade cancelled: ${reason}`);
+  // Decision 376: the owner is told once (O74 + text; held until Jo approves). Best-effort, never undoes the cancel.
+  await (await import("./visit-new-times.server")).notifyOwnerVisitNewTimes({ jobId, bookingId: b.id, kind: b.kind, wasIso: b.scheduled_start }).catch((e) => console.error("visit new times notice skipped", (e as Error).message));
   return { ok: true };
 }
 

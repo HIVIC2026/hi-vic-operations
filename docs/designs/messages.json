@@ -1558,5 +1558,57 @@
   "image": null,
   "built": false,
   "note": "Wording not approved; switched off. The office copies the link instead."
+ },
+ {
+  "step": "Any time",
+  "code": "O74",
+  "name": "Your visit needs a new time (choose new times / new times on the way)",
+  "recipient": "Owner",
+  "channel": "Email + Text",
+  "when": "Sent once when the installer or electrician cancels a booked Ready Check, safety check or install day.",
+  "status": "Draft",
+  "design": "docs/templates/drafts/O74-visit-new-times.html",
+  "image": "O74.jpg",
+  "built": true,
+  "note": "Decision 376: held until Jo approves (VISIT_NEW_TIMES_APPROVED, text visit_new_times). Variant O74b when the trade offers the new times."
+ },
+ {
+  "step": "5",
+  "code": "O75",
+  "name": "Your signed paperwork",
+  "recipient": "Owner",
+  "channel": "Email",
+  "when": "Sent once per signing sitting, 10 minutes after the owner's last Gate B signature, with the signed PDFs attached.",
+  "status": "Draft",
+  "design": "docs/templates/drafts/O75-signed-paperwork-copy.html",
+  "image": "O75.jpg",
+  "built": true,
+  "note": "Decision 376: held until Jo approves (OWNER_PAPERWORK_COPY_APPROVED)."
+ },
+ {
+  "step": "6",
+  "code": "E14",
+  "name": "Please offer the owner 3 safety check times",
+  "recipient": "Electrician",
+  "channel": "Email + Text",
+  "when": "Sent once if the electrician accepted a safety check job 24 hours ago and has offered no times.",
+  "status": "Draft",
+  "design": "docs/templates/drafts/E14-piesa-times-reminder.html",
+  "image": "E14.jpg",
+  "built": true,
+  "note": "Decision 376: held until Jo approves (PIESA_TIMES_REMINDER_APPROVED, text piesa_times_reminder)."
+ },
+ {
+  "step": "6",
+  "code": "I71",
+  "name": "Safety check booked (planning only)",
+  "recipient": "Installer",
+  "channel": "Email + Text",
+  "when": "Sent once when the safety check is booked (and again if it moves), so the installer can plan install days.",
+  "status": "Draft",
+  "design": "docs/templates/drafts/I71-installer-planning-notice.html",
+  "image": "I71.jpg",
+  "built": true,
+  "note": "Decision 376: held until Jo approves (INSTALLER_PLANNING_NOTICE_APPROVED, text installer_planning_notice)."
  }
 ]

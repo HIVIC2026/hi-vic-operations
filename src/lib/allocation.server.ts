@@ -473,8 +473,9 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h "no time proposed yet" points for released visits — record only (F13: there is no approved coordination reminder
- *  wording, and the old outbox row was never sendable). */
+/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
+ *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; DRAFT until Jo approves) after the event
+ *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
@@ -488,7 +489,10 @@ export async function sweepCoordination(actorId: string | null = null) {
     ]);
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet (record only — no reminder message is approved)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
+      const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
+      const sends = coordinationReminderSends(r.visit_kind);
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
+      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
       reminders++;
     }
   }
