@@ -266,6 +266,42 @@ export const ownerSignFixesConfirmFn = createServerFn({ method: "POST" }).middle
     return signOwnerFixesConfirmation({ jobId, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
   });
 
+// ---------- Decision 366 (audit F03): electrical fixes on My job (?screen=fixes) ----------
+/** The latest fixes quote (lines + total), the step the owner is on and, once paid, the electrician's offered times. Link token only (read). */
+export const ownerFixesStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    return JSON.parse(JSON.stringify(await (await import("./owner-fixes.server")).ownerFixesState(jobId))) as import("./owner-fixes.server").OwnerFixesState;
+  });
+
+/** Approve the fixes quote: the existing acceptance helper (respondToQuoteImpl) with `pickLater` — the owner pays the fixes in
+ *  full next, then picks the electrician's time. Same 6-digit code session as accepting the installation quote. */
+export const ownerApproveFixesFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, quoteId: z.string().uuid(), expectedVersion: z.number().int().optional(), approve: z.literal(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { WorkflowError } = await import("./workflow.server");
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: q } = await admin.from("quotes").select("job_id, kind").eq("id", data.quoteId).maybeSingle();
+    if (!q || q.job_id !== s.jobId || q.kind !== "rectification") throw new WorkflowError("This electrical fixes quote isn't on your job.");
+    const { respondToQuoteImpl } = await import("./portal.functions");
+    return respondToQuoteImpl({ quoteId: data.quoteId, accept: true, consent: true, pickLater: true, ...(data.expectedVersion != null ? { expectedVersion: data.expectedVersion } : {}) }, {
+      userId: s.userId, ip: context.ip, userAgent: context.userAgent,
+      authorize: async (jobId) => { if (jobId !== s.jobId) throw new WorkflowError("This quote isn't on your job."); },
+      isOwner: async (jobId) => jobId === s.jobId,
+    });
+  });
+
+/** Once the fixes are paid: the owner picks one of the electrician's offered times → booked (confirmBooking guards). */
+export const ownerPickFixesTimeFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, proposalId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./owner-fixes.server")).ownerPickFixesTime(s.jobId, data.proposalId, s.userId);
+  });
+
 /** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).
  *  Link token only: the page merely opens Stripe's own payment page for our exact amount; no money moves without Stripe's flow. */
 export const ownerCardCheckoutFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

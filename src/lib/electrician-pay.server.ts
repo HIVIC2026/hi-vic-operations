@@ -6,7 +6,7 @@
 // Server-only, READ-ONLY: no writes, no senders. Callers: trade Money rows, office Money › Payouts, the trade job status
 // line and office Mark paid — one rule (`electricianPayState`, trade-view.core).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { paymentPlan, stepPaidAt, toCents } from "./payments.core";
+import { effectiveLedger, ledgerRecordFromEvent, paymentPlan, stepPaidAt, toCents } from "./payments.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -35,7 +35,7 @@ export async function ownerElectricalStepsPaidAt(jobIds: string[]): Promise<Map<
   const [invs, rects, ledger, legacy, { data: ws }] = await Promise.all([
     inCol<Inv>("invoices", "id, job_id, quote_id, total_inc_gst, total_paid, paid_at, balance_paid_at, deposit_paid_at, updated_at, created_at", "job_id", ids, (q) => q.eq("kind", "installation").order("created_at", { ascending: false })),
     inCol<{ job_id: string; customer_total_inc_gst: number | string; accepted_at: string | null }>("quotes", "job_id, customer_total_inc_gst, accepted_at", "job_id", ids, (q) => q.eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false })),
-    inCol<{ job_id: string; created_at: string; details: { invoice_id?: string; amount_cents?: number; paid_at?: string } | null }>("workflow_events", "job_id, created_at, details", "job_id", ids, (q) => q.eq("event_type", "owner_payment_recorded")),
+    inCol<{ job_id: string; event_type: string; created_at: string; details: Record<string, unknown> | null }>("workflow_events", "job_id, event_type, created_at, details", "job_id", ids, (q) => q.in("event_type", ["owner_payment_recorded", "owner_payment_reversed"])),
     inCol<{ job_id: string; paid_at: string | null }>("assessment_payments", "job_id, paid_at", "job_id", ids, (q) => q.eq("status", "paid")),
     db.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
@@ -51,7 +51,8 @@ export async function ownerElectricalStepsPaidAt(jobIds: string[]): Promise<Map<
     const rect = rects.find((r) => r.job_id === id) ?? null;
     const safety = safetyCheckCentsFor({ lines: piesaLines.filter((l) => l.quote_id === inv.quote_id), settingIncGst: ws?.safety_check_payment_inc_gst ?? null });
     const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents: rect ? toCents(rect.customer_total_inc_gst) : 0 });
-    const records = ledger.filter((e) => e.job_id === id && e.details?.invoice_id === inv.id).map((e) => ({ amountCents: Number(e.details?.amount_cents ?? 0), paidAt: String(e.details?.paid_at ?? e.created_at) }));
+    // Audit F01: money received once — reversed Xero payments and card rows already matched in Xero drop out.
+    const records = effectiveLedger(ledger.filter((e) => e.job_id === id && e.details?.["invoice_id"] === inv.id).map((e) => ledgerRecordFromEvent(e.event_type, e.created_at, null, e.details)));
     // The Xero mirror without ledger rows: the latest known paid time on the invoice (never earlier than the money).
     const fallback = { paidCents: toCents(inv.total_paid), at: inv.balance_paid_at ?? inv.paid_at ?? inv.deposit_paid_at ?? inv.updated_at ?? null };
     out.set(id, { safetyPaidAt: stepPaidAt(plan, "safety_check", records, fallback) ?? legacySafety, fixesPaidAt: stepPaidAt(plan, "fixes", records, fallback) });

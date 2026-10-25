@@ -432,7 +432,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   // Decision 355: electricians — 7 days after the form is 100% complete AND the owner paid that step (later of the two).
   const ep = kind === "electrician" ? await import("./electrician-pay.server") : null;
   const ownerPaid = ep ? await ep.ownerElectricalStepsPaidAt(ids) : null;
-  const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
+  const { ownerPaidInFullAt } = await import("./trade-view.core");
+  const paidInFull = (jobId: string) => ownerPaidInFullAt((invs ?? []).filter((x) => x.job_id === jobId));
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
@@ -643,7 +644,7 @@ export async function tradeSaveUsualElectrician(userId: string, value: unknown) 
   if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual electrician.");
   const { usualElectrician, USUAL_ELECTRICIAN_EVENT } = await import("./usual-electrician.core");
   const electrician = usualElectrician(value);
-  if (!electrician) throw new WorkflowError("Enter the electrician name, licence number and a valid price inc GST.");
+  if (!electrician) throw new WorkflowError("Enter the electrician name and licence number.");
   const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_ELECTRICIAN_EVENT,
     summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
   if (error) throw new WorkflowError("Could not save your usual electrician.");

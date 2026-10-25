@@ -1,4 +1,6 @@
-// Office payments panel (decisions 139/140/141): read the payment steps + ledger, record a payment, refresh the Pay now link.
+// Office payments panel (decisions 139/140/141): read the payment steps + ledger and refresh the Xero online invoice link.
+// Decision 368 (audit F18): there is NO office payment entry — payments reach the ledger only from Xero (sync / webhook /
+// poll) and Stripe (verified webhook); the QA-only simulateXeroPayment (qa_test jobs) stays in portal.functions.ts.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -20,20 +22,6 @@ export const getJobPayments = createServerFn({ method: "POST" }).middleware([req
     type Out = Omit<typeof v, "ledger"> & { ledger: Row[] };
     const out: Out = { ...v, ledger: v.ledger.map((r) => ({ ...r, recordedByName: profs?.find((p) => p.id === r.recordedBy)?.full_name ?? null })) };
     return JSON.parse(JSON.stringify(out)) as Out;
-  });
-
-/** Office records a payment it has confirmed (bank statement / Xero). Append-only; never deletes or edits a record. */
-export const recordOwnerPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ invoiceId: uuid, amount: z.number().positive().max(1_000_000), source: z.enum(["bank", "card", "manual"]), paidAt: z.string().datetime({ offset: true }).optional(), note: z.string().trim().max(300).optional() }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { requireHivicInvoice } = await import("./xero.server");
-    try { await requireHivicInvoice(data.invoiceId); } catch (e) { throw new WorkflowError((e as Error).message); }
-    const { recordManualPayment } = await import("./payments.server");
-    try {
-      await recordManualPayment({ invoiceId: data.invoiceId, amountCents: Math.round(data.amount * 100), source: data.source, paidAt: data.paidAt ?? new Date().toISOString(), note: data.note?.trim() || null, actorId: context.userId });
-    } catch (e) { throw new WorkflowError((e as Error).message); }
-    return { ok: true };
   });
 
 export const refreshPayNowLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

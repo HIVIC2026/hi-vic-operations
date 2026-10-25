@@ -88,6 +88,15 @@ export function payState(f: { paidAt: string | null; apApprovedAt: string | null
   return { kind: "checking" };
 }
 
+/** When the owner paid in full (the Xero mirror): every invoice on the job fully paid → the latest paid time; else null.
+ *  Shared by the installer's Money screen and the office Payouts tab (audit F19) so both show the same due date. */
+export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+  if (!invs.length || invs.some((x) => x.status !== "fully_paid")) return null;
+  return invs.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at ?? null).filter((x): x is string => !!x).sort().at(-1) ?? null;
+}
+/** The office reason shown while an installer-supplied payout waits for the owner (payState "checking" with AP done). */
+export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer-supplied job: paid 7 days after the later of Final check and the owner's payment in full)";
+
 /** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the fixes (A5) 7 days after BOTH
  *  (1) their Mitti form is 100% complete (Complete pressed, every check passed — the decision-318 gate) and (2) the owner
  *  has paid THAT step (safety check / fixes) — the later of the two. Installer pay is unchanged (`payState`). */
@@ -323,10 +332,10 @@ export function ratesLine(agreedAt: string | null, hasRates: boolean): string {
   return `${agreedAt ? `Agreed ${shortDate(agreedAt)}` : "Agreed"} · Request a change`;
 }
 
-export function usualElectricianLine(e: { name: string; licence: string; priceIncGst: number } | null): string {
+/** Decision 369: name + licence only — no declared price (the electrician's onboarding rate is the only rate, decision 353). */
+export function usualElectricianLine(e: { name: string; licence: string } | null): string {
   if (!e) return "Not set · add them so we can use them on your jobs";
-  const price = `$${e.priceIncGst % 1 === 0 ? e.priceIncGst.toLocaleString("en-AU") : e.priceIncGst.toFixed(2)}`;
-  return `${e.name} · REC ${e.licence} · ${price} inc GST per safety check`;
+  return `${e.name} · REC ${e.licence}`;
 }
 
 export function detailsLine(d: { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }): string {

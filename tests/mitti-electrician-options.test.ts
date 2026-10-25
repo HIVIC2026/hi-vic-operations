@@ -40,7 +40,9 @@ describe("Jo's three Mitti electrician options", () => {
   });
   test("saved zero is explicit, blank/negative/infinite is not a price", () => {
     expect(usualElectrician({ ...usual, priceIncGst: 0 })?.priceIncGst).toBe(0);
-    for (const priceIncGst of ["", -1, Infinity, NaN]) expect(usualElectrician({ ...usual, priceIncGst })).toBeNull();
+    for (const priceIncGst of [-1, Infinity, NaN]) expect(usualElectrician({ ...usual, priceIncGst })).toBeNull();
+    // Decision 369: a blank price is simply no price (My business no longer asks for one).
+    expect(usualElectrician({ ...usual, priceIncGst: "" })?.priceIncGst).toBeUndefined();
   });
   test("all three exact choices parse; unrecognised remains undecided", () => {
     for (const [label, result] of [["Home Insulation Victoria electrician", "hivic"], ["My usual electrician", "usual"], ["A different electrician", "different"], ["maybe", null]]) {

@@ -2,11 +2,13 @@
 // Keys are env only (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); switch STRIPE_PAYMENTS_ENABLED=true for real jobs; TEST
 // jobs only ever use a test key. Webhook payments are recorded once per PaymentIntent in the append-only ledger and
 // then flow through the same payment-step effects as a bank transfer. Xero reconciliation of Stripe payouts is manual
-// (Xero's Stripe feed / bank rules) – this never writes payments into Xero.
+// (Xero's Stripe feed / bank rules) – this never writes payments into Xero. When that reconciled payment reaches the
+// invoice it is matched back to the card row (`reconcilePayments`: Stripe id in the Xero Reference, else same amount
+// within 10 days), so the money counts once (audit F01).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { checkoutSessionParams, encodeForm, parseStripeEvent, stripeBlocker, stripePaymentKey, verifyStripeSignature, type StripePaymentFact } from "./stripe.core";
-import { PAYMENT_EVENT, afterPaymentsChanged, jobPaymentView, paymentLedger } from "./payments.server";
+import { PAYMENT_EVENT, afterPaymentsChanged, jobPaymentView, rawPaymentLedger, reconciledInvoicePaidCents } from "./payments.server";
 import { toCents } from "./payments.core";
 import { timeoutSignal } from "./network-timeout.core";
 
@@ -64,14 +66,15 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
     return "mode_mismatch";
   }
   const key = stripePaymentKey(f);
-  const ledger = await paymentLedger(inv.job_id, inv.id);
+  // The RAW ledger: a card row already matched to its Xero payment drops out of the reconciled view, but is still recorded.
+  const ledger = await rawPaymentLedger(inv.job_id, inv.id);
   if (ledger.some((r) => r.note?.includes(`stripe:${key}`))) return "duplicate";
   await logEvent(inv.job_id, null, PAYMENT_EVENT, `Card payment of $${(f.amountCents / 100).toFixed(2)} received (Stripe, ${f.step.replace("_", " ")})`,
     { invoice_id: inv.id, amount_cents: f.amountCents, source: "card", paid_at: f.paidAt, step: f.step, note: `stripe:${key}`, stripe_event_id: f.eventId, stripe_payment_intent: f.paymentIntentId, stripe_session: f.sessionId }, { internal: true });
-  // Gates read invoices.total_paid; Stripe money is real money, so lift it now (Xero reconciles the payout separately).
-  const { cumulativePaidCents } = await import("./payments.core");
-  const total = cumulativePaidCents(await paymentLedger(inv.job_id, inv.id));
-  if (total > toCents(inv.total_paid)) {
+  // Gates read invoices.total_paid; Stripe money is real money, so it counts now — until Xero shows the same money
+  // (matched by the Stripe id in the Xero payment Reference, else same amount within 10 days; audit F01), never twice.
+  const total = await reconciledInvoicePaidCents(inv.job_id, inv.id, { totalPaid: inv.total_paid });
+  if (total !== toCents(inv.total_paid)) {
     const { applyPaidAmount } = await import("./xero.server");
     await applyPaidAmount(inv.id, total / 100, null).catch((e) => console.error("stripe paid amount apply skipped", (e as Error).message));
   }

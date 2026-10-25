@@ -35,6 +35,11 @@ describe("pre-start check", () => {
     lead: { found: true, status: "verified", level: "full", expiresOn: "2027-01-01", name: "Lee" }, consentBlockers: [], piesaCompletedAt: "2026-10-01",
   };
   test("all good passes", () => expect(prestartFailures(ok)).toEqual([]));
+  test("decision 367: an unpaid install deposit fails the pre-start check (so the existing lock stops the install)", () => {
+    expect(prestartFailures({ ...ok, installDepositBlocker: "Install deposit not paid" })).toEqual(["Install deposit not paid"]);
+    expect(prestartFailures({ ...ok, installDepositBlocker: null })).toEqual([]);
+    expect(prestartLocked({ start: START, latest: { scheduled_start: START, passed: false, failures: ["Install deposit not paid"] }, now: new Date(Date.parse(START) - H) })).toEqual({ locked: true, reasons: ["Install deposit not paid"] });
+  });
   test("each condition fails on its own", () => {
     const f = (p: Partial<PrestartFacts>) => prestartFailures({ ...ok, ...p });
     expect(f({ clearance: { cleared: false, blocker: "x" } }).length).toBe(1);

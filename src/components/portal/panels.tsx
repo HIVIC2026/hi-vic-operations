@@ -3,7 +3,7 @@ import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { paymentPlan } from "@/lib/payments.core";
-import { getJobPayments, recordOwnerPayment, refreshPayNowLink } from "@/lib/payments.functions";
+import { getJobPayments, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
@@ -412,16 +412,13 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
 const STEP_STATE_LABEL: Record<string, string> = { not_yet: "Not yet due", requested: "Requested", paid: "Paid", overdue: "Overdue", waived: "Waived (office override)" };
 const SOURCE_LABEL: Record<string, string> = { xero: "Xero", bank: "Bank transfer", card: "Card", manual: "Office" };
 
-/** Decisions 139/140/141: payment steps against the ONE invoice, the append-only ledger and office "Record payment". */
+/** Decisions 139/140/141: payment steps against the ONE invoice and the append-only ledger (read-only; decision 368:
+ *  the office never types a payment in — Xero and Stripe are the only sources). */
 function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string; invoiceId: string; hasXeroInvoice: boolean }) {
   const load = useServerFn(getJobPayments);
-  const record = useAction(recordOwnerPayment);
   const refresh = useAction(refreshPayNowLink);
   const { data: p } = useQuery({ queryKey: ["job-payments", jobId], queryFn: () => load({ data: { jobId } }) });
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ amount: "", source: "bank" as "bank" | "card" | "manual", paidAt: "", note: "" });
   if (!p || p.invoiceId !== invoiceId) return null;
-  const amt = Number(f.amount);
   return (
     <div className="mt-3 rounded border p-2 text-xs" data-testid="payment-steps">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -436,17 +433,8 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {p.onlineInvoiceUrl ? <a href={p.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">Xero online invoice (office view)</a> : <span className="text-muted-foreground">No Xero online invoice link yet{hasXeroInvoice ? "" : " – create the Xero invoice first"}.</span>}
         {hasXeroInvoice && <Button size="sm" variant="outline" onClick={() => refresh({ invoiceId }, "Xero invoice link refreshed")}>Refresh Xero link</Button>}
-        <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>{open ? "Cancel" : "Record payment"}</Button>
       </div>
-      {open && (
-        <div className="mt-2 grid gap-2 rounded bg-muted p-2 sm:grid-cols-4">
-          <label className="grid gap-1">Amount (inc GST)<Input inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="349.00" /></label>
-          <label className="grid gap-1">Source<select className="h-9 rounded-md border bg-background px-2" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value as typeof f.source })}><option value="bank">Bank transfer / PayID</option><option value="card">Card (outside Xero)</option><option value="manual">Other (office)</option></select></label>
-          <label className="grid gap-1">Received on<Input type="datetime-local" value={f.paidAt} onChange={(e) => setF({ ...f, paidAt: e.target.value })} /></label>
-          <label className="grid gap-1 sm:col-span-4">Note (statement line, who confirmed)<Input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={300} /></label>
-          <div className="sm:col-span-4"><Button size="sm" disabled={!(amt > 0)} onClick={async () => { const paidAt = f.paidAt ? new Date(f.paidAt).toISOString() : undefined; const r = await record({ invoiceId, amount: amt, source: f.source, paidAt, note: f.note || undefined }, "Payment recorded"); if (r) { setOpen(false); setF({ amount: "", source: "bank", paidAt: "", note: "" }); } }}>Record {amt > 0 ? aud(amt) : "payment"}</Button> <span className="text-muted-foreground">Append-only; Xero remains the system of record and reconciles on the next sync.</span></div>
-        </div>
-      )}
+      {/* Decision 368: no manual payment entry — payments arrive only from Xero (sync/webhook) and Stripe (webhook). */}
       {p.ledger.length > 0 && <ul className="mt-2 divide-y">{p.ledger.map((r) => <li key={r.id} className="flex flex-wrap justify-between gap-2 py-1"><span>{aud(r.amountCents / 100)} · {SOURCE_LABEL[r.source] ?? r.source}{r.recordedByName ? ` · ${r.recordedByName}` : ""}{r.note ? ` · ${r.note}` : ""}</span><span className="text-muted-foreground">{fmtDateTime(r.paidAt)}</span></li>)}</ul>}
     </div>
   );
