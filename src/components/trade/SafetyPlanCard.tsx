@@ -1,12 +1,14 @@
 // Decision 261: the safety plan (SWMS) card on the installer's job page. The portal writes the plan from job facts; each
 // person on the crew reads it and signs for themselves (typed full name + tick, the same pattern as the rebate-form
 // signing). Shown from the install booking until the install is recorded. Pure wording lives in swms.core.ts.
+// Decision 364: each person signs on their OWN phone — the Sign button shows only on the viewer's own line; other lines
+// say "Waiting for <name>" (crew without a login sign through their own text link).
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { getTradeSwms, saveTradeSwmsNote, signTradeSwms } from "@/lib/trade-view.functions";
-import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT } from "@/lib/swms.core";
+import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT, swmsLineView } from "@/lib/swms.core";
 import { fmtDateTime } from "@/lib/workflow";
 import { useAction } from "@/hooks/use-me";
 import { Section } from "@/components/trade/trade-ui";
@@ -28,6 +30,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const [ok, setOk] = useState(false);
   if (!data || !data.show) return null;
   const { plan, signatures, status, editable } = data;
+  const myKeys = data.myKeys ?? [];
   const signedBy = new Map(signatures.map((s) => [s.key, s]));
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   return (
@@ -58,14 +61,17 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
           <ul className="divide-y divide-line">
             {plan.signers.map((s) => {
               const g = signedBy.get(s.key);
+              const view = swmsLineView(s, !!g, myKeys, editable);
               return (
                 <li key={s.key} className="py-2">
                   <div className="flex min-h-10 items-center justify-between gap-2">
                     <span>{s.name}{s.role === "lead" ? " (lead installer)" : ""}</span>
                     {g ? <span className="text-success">Signed {fmtDateTime(g.signedAt)}</span>
-                      : editable && signing !== s.key ? <Button size="sm" onClick={() => { setSigning(s.key); setTyped(""); setOk(false); }}>Sign</Button> : <span className="text-sub">Not signed</span>}
+                      : view.kind === "sign" && signing !== s.key ? <Button size="sm" onClick={() => { setSigning(s.key); setTyped(""); setOk(false); }}>Sign</Button>
+                      : view.kind === "waiting" ? <span className="text-sub" data-swms-waiting>{view.text}</span>
+                      : view.kind === "sign" ? null : <span className="text-sub">Not signed</span>}
                   </div>
-                  {!g && editable && signing === s.key && (
+                  {!g && view.kind === "sign" && signing === s.key && (
                     <div className="mt-2 space-y-2">
                       <label className="flex min-h-12 items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={ok} onCheckedChange={(x) => setOk(!!x)} /> I am {s.name}. {SWMS_SIGN_STATEMENT}.</label>
                       <Input className="h-12" placeholder={`Type ${s.name}'s full name to sign`} value={typed} onChange={(e) => setTyped(e.target.value)} />

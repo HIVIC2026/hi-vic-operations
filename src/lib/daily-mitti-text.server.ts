@@ -199,14 +199,18 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
   return out;
 }
 
-/** Decision 266: secure job-page links (safety plan card) for today's installs whose safety plan is not yet signed. */
+/** Decision 266: safety plan links for today's installs whose safety plan is not yet signed. Decision 364: each unsigned
+ *  person's OWN sign link ("<name>: <link>", this text goes to one person per business); the secure job-page link only
+ *  when those can't be made (plan unreadable, no crew chosen, links not configured). */
 async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
-  const { swmsStatusFor } = await import("./swms.server");
+  const { unsignedSwmsSignerLinks } = await import("./swms-link.server");
+  const { safetyPlanSignerLinks } = await import("./sms.core");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
   const out: string[] = [];
   for (const id of [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled").map((j) => j.jobId))]) {
-    const st = await swmsStatusFor(id).catch(() => null);
-    if (!st || !st.complete) out.push(`${SET_PASSWORD_BASE}/field/${id}`);
+    const own = await unsignedSwmsSignerLinks(id);
+    if (own) out.push(...safetyPlanSignerLinks(own));
+    else out.push(`${SET_PASSWORD_BASE}/field/${id}`);
   }
   return out;
 }

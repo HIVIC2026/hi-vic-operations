@@ -959,22 +959,35 @@ export async function tradeSwms(jobId: string, userId: string, pre?: TradeJobAcc
   ]);
   if (!inBook) return { show: false as const };
   const { loadSwms } = await import("./swms.server");
-  const { plan, signatures, status } = await loadSwms(jobId);
-  return { show: true as const, editable: !j?.installation_completed_at, plan, signatures, status };
+  const [{ plan, signatures, status }, myKeys] = await Promise.all([loadSwms(jobId), mySwmsKeys(userId, c.biz.id)]);
+  return { show: true as const, editable: !j?.installation_completed_at, plan, signatures, status, myKeys };
+}
+/** Decision 364: the signed-in person's own sign-off keys — their worker record(s) in the installing business. */
+async function mySwmsKeys(userId: string, businessId: string): Promise<string[]> {
+  const { data } = await admin.from("partner_workers").select("id").eq("business_id", businessId).eq("profile_id", userId).is("removed_at", null);
+  const { swmsSignerKey } = await import("./swms.core");
+  return (data ?? []).map((w) => swmsSignerKey({ name: "", workerId: w.id }));
 }
 async function requireOpenSwms(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   if (c.kind !== "installer") throw new WorkflowError("Only the installing business signs the safety plan.");
   const { data: j } = await admin.from("jobs").select("installation_completed_at").eq("id", jobId).single();
   if (j?.installation_completed_at) throw new WorkflowError("The installation is recorded; the safety plan can't be changed now.");
+  return c;
 }
 export async function tradeSwmsNote(jobId: string, userId: string, note: string) {
   await requireOpenSwms(jobId, userId);
   return (await import("./swms.server")).saveSwmsSiteNote(jobId, userId, note);
 }
+/** Decision 364: a signed-in person signs ONLY their own line (crew without a login use their own text link). */
 export async function tradeSwmsSign(jobId: string, userId: string, key: string, typedName: string) {
-  await requireOpenSwms(jobId, userId);
-  return (await import("./swms.server")).signSwms(jobId, userId, key, typedName);
+  const c = await requireOpenSwms(jobId, userId);
+  const swms = await import("./swms.server");
+  const { swmsOwnLineBlocker } = await import("./swms.core");
+  const [{ plan }, myKeys] = await Promise.all([swms.loadSwms(jobId), mySwmsKeys(userId, c.biz.id)]);
+  const block = swmsOwnLineBlocker(plan, key, myKeys);
+  if (block) throw new WorkflowError(block);
+  return swms.signSwms(jobId, userId, key, typedName, "login");
 }
 
 // ---- Decision 315: the electrician's "Fixes times" card (/field/{jobId}#fixes-times). Electricians only, business-scoped

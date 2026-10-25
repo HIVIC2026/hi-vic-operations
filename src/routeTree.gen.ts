@@ -36,6 +36,7 @@ import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
 import { Route as SaveSpotPreliminaryTokenRouteImport } from './routes/save-spot-preliminary.$token'
+import { Route as SpTokenRouteImport } from './routes/sp.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
@@ -267,6 +268,11 @@ const SaveSpotPreliminaryTokenRoute =
     path: '/save-spot-preliminary/$token',
     getParentRoute: () => rootRouteImport,
   } as any)
+const SpTokenRoute = SpTokenRouteImport.update({
+  id: '/sp/$token',
+  path: '/sp/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WTokenRoute = WTokenRouteImport.update({
   id: '/w/$token',
   path: '/w/$token',
@@ -835,6 +841,7 @@ export interface FileRoutesByFullPath {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -954,6 +961,7 @@ export interface FileRoutesByTo {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -1079,6 +1087,7 @@ export interface FileRoutesById {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/_authenticated/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -1204,6 +1213,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/board'
@@ -1323,6 +1333,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/board'
@@ -1447,6 +1458,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
     | '/_authenticated/admin/board'
@@ -1567,6 +1579,7 @@ export interface RootRouteChildren {
   NoticeTokenRoute: typeof NoticeTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
   SaveSpotPreliminaryTokenRoute: typeof SaveSpotPreliminaryTokenRoute
+  SpTokenRoute: typeof SpTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiFilesSplatRoute: typeof ApiFilesSplatRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
@@ -1782,6 +1795,13 @@ declare module '@tanstack/react-router' {
       path: '/save-spot-preliminary/$token'
       fullPath: '/save-spot-preliminary/$token'
       preLoaderRoute: typeof SaveSpotPreliminaryTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sp/$token': {
+      id: '/sp/$token'
+      path: '/sp/$token'
+      fullPath: '/sp/$token'
+      preLoaderRoute: typeof SpTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/w/$token': {
@@ -2696,6 +2716,7 @@ const rootRouteChildren: RootRouteChildren = {
   NoticeTokenRoute: NoticeTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
   SaveSpotPreliminaryTokenRoute: SaveSpotPreliminaryTokenRoute,
+  SpTokenRoute: SpTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiFilesSplatRoute: ApiFilesSplatRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,

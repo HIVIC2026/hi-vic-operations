@@ -73,14 +73,16 @@ export async function saveSwmsSiteNote(jobId: string, actorId: string, note: str
   return { ok: true };
 }
 
-/** One person signs for themselves (typed full name = their name). Filing happens once everyone listed has signed. */
-export async function signSwms(jobId: string, actorId: string, key: string, typedName: string) {
+/** One person signs for themselves (typed full name = their name). Filing happens once everyone listed has signed.
+ *  Decision 364: `method` records how — logged in as that worker (`login`, own line checked by the caller) or through
+ *  that person's own secure text link (`link`, swms-link.server). */
+export async function signSwms(jobId: string, actorId: string | null, key: string, typedName: string, method: import("./swms.core").SwmsSignMethod) {
   const { plan, signatures } = await loadSwms(jobId);
   const check = checkSwmsSign(plan, signatures, key, typedName);
   if (!check.ok) throw new WorkflowError(check.reason);
   const { createHash } = await import("node:crypto");
   const planSha = createHash("sha256").update(JSON.stringify({ ...plan, signers: undefined })).digest("hex");
-  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name}`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha }, { internal: true });
+  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
   const after = await loadSwms(jobId);
   if (after.status.complete) await fileSwms(jobId, actorId).catch(async (e) => { await logEvent(jobId, actorId, "swms_file_failed", "Safety plan signed but the PDF could not be filed — it will be filed on the next signature or office retry", { reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined); });
   return { complete: after.status.complete, missing: after.status.missing };
