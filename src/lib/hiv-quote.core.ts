@@ -12,10 +12,32 @@ export const R_VALUE_CODE: Record<ProductRValue, string> = { "R5.0": "R5_BATTS",
 export const ownerRateForR = (r: ProductRValue, ownerR5IncPerM2: number) => (r === "R5.0" ? ownerR5IncPerM2 : OWNER_HIGHER_R_INC_PER_M2[r]);
 export const rateAboveOwnerReason = (r: ProductRValue) => `This installer's agreed ${r} rate is above the owner price – office review needed.`;
 
+// Decision 341 (Jo 25 Oct 2026): NO percentage access loading on our-lead quotes — the owner pays the normal list price
+// whatever the access (pricing_settings.access_loadings and the retail access multipliers are no longer read for quotes).
+// Instead ONE pass-through line, only when the Ready Check rates the access "Difficult" AND the assigned installer has an
+// agreed DIFFICULT_ACCESS rate (> 0) on their active rate card: that rate × (1 + GST), paid to the installer, no margin.
+export const DIFFICULT_ACCESS_CODE = "DIFFICULT_ACCESS";
+export const DIFFICULT_ACCESS_DESCRIPTION = "Difficult ceiling access";
+/** The Ready Check access rating answer is "Difficult". "No safe access" is a hard stop (decision 222), never priced. */
+export const isDifficultAccessRating = (rating: string | null | undefined): boolean => /^difficult\b/i.test(String(rating ?? "").trim());
+/** The rating to price from: the Ready Check form answer (decision 290 `accessFlagFromEntries`); a measurement with no
+ *  form answer (office / non-Mitti record) falls back to its recorded access_difficulty. */
+export function readyCheckAccessRating(formRating: string | null | undefined, measuredAccess: string | null | undefined): string | null {
+  const f = String(formRating ?? "").trim();
+  if (f) return f;
+  return measuredAccess === "difficult" ? "Difficult" : measuredAccess ? String(measuredAccess) : null;
+}
+/** The pass-through line amount inc GST, or null (not difficult, or no agreed fee → no line, nothing paid). */
+export function difficultAccessPassThroughIncGst(i: { rating: string | null | undefined; installerDifficultAccessExGst: number | null | undefined; gstRate: number }): number | null {
+  if (!isDifficultAccessRating(i.rating)) return null;
+  const ex = Number(i.installerDifficultAccessExGst);
+  if (i.installerDifficultAccessExGst == null || !Number.isFinite(ex) || ex <= 0) return null;
+  return r2(ex * (1 + i.gstRate));
+}
+
 export type HivQuoteInput = {
   areaM2: number;
   removalM2: number;
-  accessMultiplier: number; // owner access loading, as on the estimate (1 / 1.1 / 1.25)
   ownerR5IncPerM2: number; // $30
   ownerRemovalIncPerM2: number; // $15
   piesaIncGst: number; // $349
@@ -29,8 +51,10 @@ export type HivQuoteInput = {
   /** Agreed installer rate (ex GST) for rValue; required when rValue is R6.0/R7.0. */
   installerRExPerM2?: number | null;
   product?: InsulationProduct | null;
-  /** Jo 23 Oct (A2): installer's difficult access fee from the Ready Check — added as its own owner line, passed through. */
-  difficultAccessFeeIncGst?: number | null;
+  /** Decision 341: the Ready Check access rating ("Easy" / "Standard" / "Difficult"). */
+  accessRating?: string | null;
+  /** Decision 341: the assigned installer's agreed DIFFICULT_ACCESS rate (ex GST, flat) from their active rate card. */
+  installerDifficultAccessExGst?: number | null;
 };
 
 export type HivLine = { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: false; explanation: null; sort: number };
@@ -42,7 +66,7 @@ export function priceHivQuote(i: HivQuoteInput) {
   const instRateEx = rv === "R5.0" ? i.installerR5ExPerM2 : i.installerRExPerM2 ?? null;
   if (instRateEx == null) throw new Error(`This installer has no agreed ${rv} rate – office must add it before quoting.`);
   if (i.removalM2 > 0 && i.installerRemovalExPerM2 == null) throw new Error("This installer has no agreed removal rate – office must add it before quoting.");
-  const ownerR5 = r2(ownerRateForR(rv, i.ownerR5IncPerM2) * i.accessMultiplier);
+  const ownerR5 = r2(ownerRateForR(rv, i.ownerR5IncPerM2)); // decision 341: no access loading
   const instR5Inc = r2(instRateEx * gst);
   const instRemInc = i.removalM2 > 0 ? r2(i.installerRemovalExPerM2! * gst) : 0;
   // Jo 22 Oct 2026: agreed rate above the owner price → quote is still prepared but HELD for office review.
@@ -54,8 +78,9 @@ export function priceHivQuote(i: HivQuoteInput) {
     lines.push({ code, description, quantity, unit, unit_price_inc_gst: r2(unitInc), line_total_inc_gst: r2(unitInc * quantity), is_other: false, explanation: null, sort: lines.length });
   add(R_VALUE_CODE[rv], i.product ? productQuoteDescription(i.product, null) : `${rv} ceiling insulation supply & install`, i.areaM2, "m2", ownerR5);
   if (i.removalM2 > 0) add("REMOVAL", "Removal & disposal of existing insulation", i.removalM2, "m2", i.ownerRemovalIncPerM2);
-  const accessFee = i.difficultAccessFeeIncGst && i.difficultAccessFeeIncGst > 0 ? r2(i.difficultAccessFeeIncGst) : 0;
-  if (accessFee) add("DIFFICULT_ACCESS", "Difficult access fee", 1, "flat", accessFee);
+  const accessFee = difficultAccessPassThroughIncGst({ rating: i.accessRating, installerDifficultAccessExGst: i.installerDifficultAccessExGst, gstRate: i.gstRate }) ?? 0;
+  const accessFeeEx = accessFee ? Number(i.installerDifficultAccessExGst) : 0;
+  if (accessFee) add(DIFFICULT_ACCESS_CODE, DIFFICULT_ACCESS_DESCRIPTION, 1, "flat", accessFee);
   add("PIESA", "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", 1, "flat", i.piesaIncGst);
   add("AP_FEE", "Accredited Provider fee (Home Insulation Victoria)", 1, "flat", i.apFeeIncGst);
 
@@ -63,9 +88,9 @@ export function priceHivQuote(i: HivQuoteInput) {
   const removalMarkupInc = r2((i.ownerRemovalIncPerM2 - instRemInc) * i.removalM2);
   const travelInc = r2((i.installerTravelEx ?? 0) * gst);
   const markupInc = r2(r5MarkupInc + removalMarkupInc - travelInc);
-  const installerCostEx = r2(instRateEx * i.areaM2 + (i.removalM2 > 0 ? i.installerRemovalExPerM2! * i.removalM2 : 0) + (i.installerTravelEx ?? 0) + accessFee / gst);
+  const installerCostEx = r2(instRateEx * i.areaM2 + (i.removalM2 > 0 ? i.installerRemovalExPerM2! * i.removalM2 : 0) + (i.installerTravelEx ?? 0) + accessFeeEx); // access pass-through: paid to the installer as agreed
   return {
-    lines, rValue: rv, holdReasons,
+    lines, rValue: rv, holdReasons, difficultAccess: accessFee ? { incGst: accessFee, exGst: accessFeeEx } : null,
     installerMarkup: { r5MarkupInc, removalMarkupInc, travelInc, markupInc, markupEx: r2(markupInc / gst), ownerR5IncPerM2: ownerR5, installerR5IncPerM2: instR5Inc, installerRemovalIncPerM2: instRemInc },
     installerCostEx,
   };

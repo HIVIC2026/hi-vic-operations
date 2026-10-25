@@ -54,7 +54,7 @@ describe("our-lead PIESA electrician (decision 157)", () => {
   test("owner's safety-check line stays HIV's standard price whoever does the PIESA", () => {
     const sel = ourLeadPiesaElectrician({ channel: "website", usual: rapidUsual, revision: "cfg-1", candidates: recs });
     expect(ownerPiesaLineIncGst(349, sel)).toBe(349);
-    const q = priceHivQuote({ areaM2: 100, removalM2: 0, accessMultiplier: 1, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 15, installerRemovalExPerM2: null, installerTravelEx: null });
+    const q = priceHivQuote({ areaM2: 100, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 15, installerRemovalExPerM2: null, installerTravelEx: null });
     const piesa = q.lines.find((l) => l.code === "PIESA");
     expect(piesa?.line_total_inc_gst).toBe(349);
   });

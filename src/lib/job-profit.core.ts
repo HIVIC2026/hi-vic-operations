@@ -1,6 +1,7 @@
 // Per-job profit breakdown (office only; never shown to owners or trades). Pure; Jo's rules 4 Oct 2026.
 // AP fee; VEEC spread = VEECs × (sale price − $70); PIESA markup = $349 − electrician's agreed rate;
-// installer markup = (owner price − installer's agreed rate) × m², HIV jobs only. Amounts inc GST
+// installer markup = (owner price − installer's agreed rate) × m², HIV jobs only (no access loading — decision 341;
+// a difficult-access line is a pass-through with no margin). Amounts inc GST
 // unless stated; ex GST = inc ÷ 1.1. VEEC spread is shown without GST (certificate sale, not an owner charge).
 import { ghgEquivalentReduction, lookupLocation } from "./activity48.core";
 
@@ -20,7 +21,6 @@ export type ProfitInput = {
   estimateAreaM2: number | null;
   measuredAreaM2: number | null; // set only once the Ready Check/measure-up is accepted
   removalM2: number;
-  accessMultiplier: number;
   ownerR5IncPerM2: number; ownerRemovalIncPerM2: number;
   installerR5IncPerM2: number | null; installerRemovalIncPerM2: number | null;
   apFeeInc: number; piesaCustomerInc: number; electricianPiesaRateInc: number | null;
@@ -58,7 +58,7 @@ function side(i: ProfitInput, actual: boolean): ProfitSide {
       installerMarkupInc = i.acceptedQuoteMarkupInc;
       if (i.acceptedQuoteLegacy) notes.push("Accepted quote used the old pricing (12% markup).");
     } else if (i.installerR5IncPerM2 == null || !areaM2) { installerMarkupInc = null; notes.push("Installer agreed rate or area missing – installer markup not worked out."); }
-    else installerMarkupInc = r2((i.ownerR5IncPerM2 * i.accessMultiplier - i.installerR5IncPerM2) * areaM2 + (i.removalM2 > 0 && i.installerRemovalIncPerM2 != null ? (i.ownerRemovalIncPerM2 - i.installerRemovalIncPerM2) * i.removalM2 : 0));
+    else installerMarkupInc = r2((i.ownerR5IncPerM2 - i.installerR5IncPerM2) * areaM2 + (i.removalM2 > 0 && i.installerRemovalIncPerM2 != null ? (i.ownerRemovalIncPerM2 - i.installerRemovalIncPerM2) * i.removalM2 : 0));
   }
   const parts = [i.apFeeInc, piesaMarkupInc, installerMarkupInc];
   const known = parts.every((p) => p != null) && veecSpread != null;

@@ -7,7 +7,7 @@ import { priceHivQuote } from "../src/lib/hiv-quote.core";
 
 const read = (e: { label: string; value: string | null }[]) => resolveMittiProduct(contactAnswersFromEntries(e).productOption);
 const draft = () => ({ ready: true, blockers: [] as string[], lines: [{ code: "INSTALLER_PRICE", description: "Installer price", explanation: null }] });
-const base = { areaM2: 100, removalM2: 0, accessMultiplier: 1, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 11.5, installerRemovalExPerM2: 4, installerTravelEx: null, installerRExPerM2: 20 };
+const base = { areaM2: 100, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 11.5, installerRemovalExPerM2: 4, installerTravelEx: null, installerRExPerM2: 20 };
 
 const SIX = [
   ["Bradford Gold R5", "R5.0", 30, "R5_BATTS"], ["Bradford Gold R6", "R6.0", 32, "R6_BATTS"], ["Bradford Gold R7", "R7.0", 33, "R7_BATTS"],

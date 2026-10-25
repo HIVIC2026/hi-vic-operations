@@ -24,13 +24,14 @@ describe("margins view", () => {
 });
 
 describe("prices are settings, not code", () => {
-  test("quotes read owner prices and access loadings from the current settings", () => {
+  test("quotes read owner prices from the current settings; no access loading (decision 341)", () => {
     const s = readFileSync("src/lib/quotes.server.ts", "utf8");
-    expect(s).toContain("rs.access_difficult_multiplier");
-    expect(s).not.toContain("settings.access_loadings");
+    expect(s).toContain("rs.r5_install_inc_gst_per_m2");
+    expect(s).not.toMatch(/access_(difficult|moderate|standard)_multiplier|access_loadings|accessMultiplier/);
+    expect(readFileSync("src/lib/profit.functions.ts", "utf8")).not.toMatch(/access_loadings|accessMultiplier/);
   });
   test("profit uses the office VEEC buy price", () => {
-    const base = { hivJob: true, postcode: "3000", estimateAreaM2: 150, measuredAreaM2: null, removalM2: 0, accessMultiplier: 1, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, installerR5IncPerM2: 12.65, installerRemovalIncPerM2: null, apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: 250, currentVeecPrice: 83, acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: 20, saleVeecPrice: 90 };
+    const base = { hivJob: true, postcode: "3000", estimateAreaM2: 150, measuredAreaM2: null, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, installerR5IncPerM2: 12.65, installerRemovalIncPerM2: null, apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: 250, currentVeecPrice: 83, acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: 20, saleVeecPrice: 90 };
     expect(jobProfitBreakdown({ ...base, veecBuyPrice: 75 }).actual.veecSpread).toBe(300);
   });
   test("admin only; AP fee change limited to the owner account", () => {

@@ -27,8 +27,10 @@ export const autoInviteEnabled = (v: string | null | undefined): boolean => (v ?
 export const MITTI_USER_API_VERIFIED = false as boolean;
 
 export type MittiSeat = "full" | "lite" | "free";
-/** Seat requested per trade (configurable). Lite = cheapest paid seat; see docs/MITTI_ACCESS.md for the limits. */
+/** Seat requested per trade. Decision 340 (Jo 25 Oct 2026): Lite seats for installers AND electricians; see docs/MITTI_ACCESS.md for the limits. */
 export const MITTI_SEAT_FOR_ROLE = { installer: "lite", electrician: "lite" } as const satisfies Record<string, MittiSeat>;
+/** Decision 340: Home Insulation Victoria pays for every trade seat — never charged back to the partner business. */
+export const MITTI_SEATS_PAID_BY = "Home Insulation Victoria" as const;
 /** Decision 188 default seat (kept for the office to-do wording). */
 export const MITTI_DEFAULT_SEAT: MittiSeat = "lite";
 export type MittiTradeRole = keyof typeof MITTI_SEAT_FOR_ROLE;

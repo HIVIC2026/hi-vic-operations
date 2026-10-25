@@ -2,11 +2,12 @@
 // with a verified API, deactivate on removal, office items.
 import { describe, expect, test } from "bun:test";
 import {
-  MITTI_AUTO_INVITE_ENABLED, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_SEAT_FOR_ROLE, MITTI_TRADES_GROUP, MITTI_USER_API, MITTI_USER_API_VERIFIED,
+  MITTI_AUTO_INVITE_ENABLED, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_SEAT_FOR_ROLE, MITTI_SEATS_PAID_BY, MITTI_TRADES_GROUP, MITTI_USER_API, MITTI_USER_API_VERIFIED,
   autoInviteEnabled, createUserBody, createdUserId, groupPath, inviteEligibility, inviteKey, mittiInviteStep, mittiRemovalStep, openInvites, priorInviteFor,
   splitName, userPath, userStatusBody, type InvitePerson, type InviteRecord, type RemovalPerson,
 } from "../src/lib/mitti-invite.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+import { readFileSync } from "node:fs";
 
 const ON = { enabled: true, apiVerified: false, groupId: null };
 const LIVE = { enabled: true, apiVerified: true, groupId: "group_trades" };
@@ -40,6 +41,14 @@ describe("who gets Mitti", () => {
     expect(mittiInviteStep(installer, null, ON)).toEqual({ action: "lookup", group: MITTI_TRADES_GROUP, seat: "lite", key: inviteKey("w1") });
     expect(MITTI_SEAT_FOR_ROLE).toEqual({ installer: "lite", electrician: "lite" });
     expect(MITTI_TRADES_GROUP).toBe("HIV trades");
+  });
+  test("decision 340: Lite seats for installers and electricians, Home Insulation Victoria pays, no charge-back", () => {
+    expect(mittiInviteStep(electrician, null, ON)).toMatchObject({ seat: "lite" });
+    expect(MITTI_SEATS_PAID_BY).toBe("Home Insulation Victoria");
+    const doc = readFileSync("docs/MITTI_ACCESS.md", "utf8");
+    expect(doc).toContain("Decision 340");
+    expect(doc).toMatch(/Home Insulation Victoria pays/);
+    expect(doc).toMatch(/not charged\s+back/);
   });
 });
 
