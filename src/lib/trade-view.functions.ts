@@ -78,7 +78,8 @@ export const getTradeBusinessFile = createServerFn({ method: "POST" }).middlewar
 
 
 export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), priceIncGst: z.number().finite().min(0).max(1_000_000), email: z.string().trim().email().max(320).nullish(), phone: z.string().trim().max(40).nullish() }).parse(d))
+  // Decision 369: no price — the electrician's onboarding rate is the only rate (decision 353).
+  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), email: z.string().trim().email().max(320).nullish(), phone: z.string().trim().max(40).nullish() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));
 
 /** ESC collection notice: the business's installers and their acknowledgement state (boss sees all; a worker only their own row). */

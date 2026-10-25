@@ -160,10 +160,10 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(onboardedElectricianResolution({ legacy: missing, usual: null, candidates: [rec()] })).toBe(missing);
   });
 
-  test("the My business nomination may carry email/phone (needed for the invite); declared price still required", () => {
+  test("the My business nomination may carry email/phone (needed for the invite); no declared price needed (decision 369)", () => {
     expect(usualElectrician({ name: "A", licence: "L", priceIncGst: 200, email: " Sparky@Example.com ", phone: "0400 000 000" })).toEqual({ name: "A", licence: "L", priceIncGst: 200, email: "sparky@example.com", phone: "0400 000 000" });
     expect(usualElectrician({ name: "A", licence: "L", priceIncGst: 200, email: "not-an-email" })).toEqual({ name: "A", licence: "L", priceIncGst: 200 });
-    expect(usualElectrician({ name: "A", licence: "L", email: "a@b.co" })).toBeNull();
+    expect(usualElectrician({ name: "A", licence: "L", email: "a@b.co" })).toEqual({ name: "A", licence: "L", email: "a@b.co" });
   });
 
   test("ONE invite per electrician: skips when issued/attempted/onboarded/no email/comms paused; sends otherwise", () => {

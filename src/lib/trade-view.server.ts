@@ -644,7 +644,7 @@ export async function tradeSaveUsualElectrician(userId: string, value: unknown) 
   if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual electrician.");
   const { usualElectrician, USUAL_ELECTRICIAN_EVENT } = await import("./usual-electrician.core");
   const electrician = usualElectrician(value);
-  if (!electrician) throw new WorkflowError("Enter the electrician name, licence number and a valid price inc GST.");
+  if (!electrician) throw new WorkflowError("Enter the electrician name and licence number.");
   const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_ELECTRICIAN_EVENT,
     summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
   if (error) throw new WorkflowError("Could not save your usual electrician.");

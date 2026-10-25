@@ -17,7 +17,7 @@ function Electrician() {
     <BizPage title="My usual electrician" intro="Who does the electrical safety check on your jobs, and what they charge you. We use them when they're an approved REC with us; otherwise we send our own electrician.">
       {(d, refetch) => d.kind !== "installer" ? <p className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card text-sm">Only installer businesses nominate a usual electrician.</p> : (<>
         <p className="rounded-[18px] bg-estimate-panel p-4 text-sm text-estimate-navy"><span className="block text-[11px] font-bold uppercase tracking-[1.3px] text-estimate-blue">On file</span><span className="mt-1 block">{usualElectricianLine(d.usualElectrician)}</span></p>
-        <UsualElectricianSettings key={`${d.businessId}:${d.usualElectrician?.name ?? ""}:${d.usualElectrician?.priceIncGst ?? ""}`} saved={d.usualElectrician} onSaved={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
+        <UsualElectricianSettings key={`${d.businessId}:${d.usualElectrician?.name ?? ""}:${d.usualElectrician?.licence ?? ""}`} saved={d.usualElectrician} onSaved={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
         <p className="text-[13px] leading-relaxed text-estimate-sub">Declared by you, not verified. The price is what you've agreed with them; it never changes what the owner pays.</p>
       </>)}
     </BizPage>

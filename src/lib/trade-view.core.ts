@@ -332,10 +332,10 @@ export function ratesLine(agreedAt: string | null, hasRates: boolean): string {
   return `${agreedAt ? `Agreed ${shortDate(agreedAt)}` : "Agreed"} · Request a change`;
 }
 
-export function usualElectricianLine(e: { name: string; licence: string; priceIncGst: number } | null): string {
+/** Decision 369: name + licence only — no declared price (the electrician's onboarding rate is the only rate, decision 353). */
+export function usualElectricianLine(e: { name: string; licence: string } | null): string {
   if (!e) return "Not set · add them so we can use them on your jobs";
-  const price = `$${e.priceIncGst % 1 === 0 ? e.priceIncGst.toLocaleString("en-AU") : e.priceIncGst.toFixed(2)}`;
-  return `${e.name} · REC ${e.licence} · ${price} inc GST per safety check`;
+  return `${e.name} · REC ${e.licence}`;
 }
 
 export function detailsLine(d: { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }): string {

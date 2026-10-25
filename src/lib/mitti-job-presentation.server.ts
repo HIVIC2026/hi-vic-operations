@@ -20,8 +20,10 @@ export async function mittiJobPresentation(jobId: string, userId: string, pre?: 
   const next = a.applies ? installerQuoteLine(a)
     : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");
   const electrical = e?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
+  // Decision 369: the job page names the electrician only — no declared electrician price (decision 353: their own
+  // onboarding rate is the only rate, and it belongs on the quote, not here).
   const electrician = electrical?.choice === "hivic" ? "Home Insulation Victoria electrician"
-    : electrical?.name ? `${electrical.choice === "usual" ? "My usual electrician" : "A different electrician"} · ${electrical.name}${electrical.licence ? ` · ${electrical.licence}` : ""}${electrical.priceIncGst != null ? ` · $${electrical.priceIncGst.toFixed(2)} inc GST` : ""}` : j?.channel === "hivic_sourced" ? "To be arranged (your usual electrician, or ours)" : "Not answered in Mitti yet";
+    : electrical?.name ? `${electrical.choice === "usual" ? "My usual electrician" : "A different electrician"} · ${electrical.name}${electrical.licence ? ` · ${electrical.licence}` : ""}` : j?.channel === "hivic_sourced" ? "To be arranged (your usual electrician, or ours)" : "Not answered in Mitti yet";
   const detail = basics?.details as { missing?: string[]; stops?: string[]; completed?: boolean; answered?: boolean } | null;
   // Decision 279: `answered` (installer answers beyond the pre-fill) is recorded by the basics check; older events → null.
   return { applies: true as const, auditId: m.external_id, next, electrician, missing: detail?.missing ?? [], stops: detail?.stops ?? [], completed: detail?.completed === true, hasAnswers: typeof detail?.answered === "boolean" ? detail.answered : null };
