@@ -157,6 +157,9 @@ describe("full detailed invoice payload", () => {
     expect(inv.LineAmountTypes).toBe("Inclusive");
     expect(inv.LineItems.length).toBe(4);
     expect(inv.LineItems.at(-1)).toMatchObject({ UnitAmount: -1180, Quantity: 1 });
+    // Decision 391: GST on the full price, so only the incentive line is No GST; price lines keep Xero's default (GST).
+    expect(inv.LineItems.at(-1)).toMatchObject({ TaxType: "BASEXCLUDED", AccountCode: "200" });
+    for (const l of inv.LineItems.slice(0, -1)) expect("TaxType" in l).toBe(false);
     expect(inv.LineItems.at(-1)!.Description).toBe("Home Insulation Victoria HV-1007 – VEEC incentive"); // decision 209: never "discount"
     expect(inv.LineItems.reduce((s, l) => s + l.Quantity * l.UnitAmount, 0)).toBe(3330);
     for (const l of inv.LineItems) expect(l.Tracking).toEqual([{ Name: "Business Unit", Option: "Home Insulation Victoria" }]);
