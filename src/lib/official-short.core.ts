@@ -54,6 +54,11 @@ const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
 /** Short PIESA (electrician). Life support is confirmed against the enquiry record, never re-asked from scratch. */
 /** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
 export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?"; // retired by decision 295; read from old forms only
+/** Decision 305 (Jo 25 Oct 2026): the electrician's ONE total price for the repair work and what it covers (A4 Repair work
+ *  page). Quote-only — never part of the official PIESA; the owner's fixes quote is built from these (fixes-price.core). */
+export const FIXES_PRICE_LABEL = "Your total price for all the repair work, including GST";
+export const FIXES_INCLUDED_LABEL = "What's included in that price?";
+export const FIXES_INCLUDED_HELP = "List each thing you'll do, e.g. replace 6 downlights with IC-4 LEDs, install 1 RCD.";
 /** Decision 295: the repeating "Add an appliance or flue" block on the PIESA (A4). */
 export const APPLIANCE_BLOCK = "Add an appliance or flue";
 export const APPLIANCE_Q = { what: "What is it and where is it?", photo: "Photo of it", safe: "Can insulation be safely installed around it as it is?" } as const;
@@ -105,6 +110,9 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   yn("rectificationPossible", "Can the repair work be done before installation?", "rectificationNeeded = Yes"),
   { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationNeeded = Yes", source: "short onsite form" },
   { id: "rectificationOther", label: "Please describe the other repair work.", type: "text", required: true, when: "Other is ticked", source: "short onsite form" },
+  // Decision 305 (Jo 25 Oct 2026): quote-only answers for the owner's fixes quote; expandPiesa never reads them.
+  { id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decision 305) – not part of the official form" },
+  { id: "fixesIncluded", label: FIXES_INCLUDED_LABEL, type: "text", required: true, when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decision 305) – not part of the official form" },
   // Jo 25 Oct 2026 ("Full name and name???"): plain labels instead of the official form's; the portal pre-fills all five
   // and copies them into Section C itself, so the "after repair work" repeat (old 33–37) is gone from the Mitti form.
   pre("b3.licence", "Electrician licence number"),
@@ -169,10 +177,17 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
   for (const e of entries) {
     const k = nrm(e.label ?? "");
     if (!k) continue;
-    const cands = fields.filter((f) => nrm(f.label) === k);
+    let cands = fields.filter((f) => nrm(f.label) === k);
+    // Mitti may append help text after a line break (decision 305's "What's included in that price?"): when the full label
+    // matches nothing, the first line decides.
+    if (!cands.length) {
+      const first = nrm(String(e.label ?? "").split("\n")[0] ?? "");
+      if (first && first !== k) cands = fields.filter((f) => nrm(f.label) === first);
+    }
     if (!cands.length) continue;
-    const seen = used.get(k) ?? 0;
-    used.set(k, seen + 1);
+    const key = nrm(cands[0]!.label);
+    const seen = used.get(key) ?? 0;
+    used.set(key, seen + 1);
     // A label that repeats more often than the form lists it (a repeating block, decision 295) keeps the LAST slot's id
     // with a #n suffix for each extra occurrence: applianceWhat, applianceWhat#1, applianceWhat#2 …
     const slot = cands[seen] ?? (cands.length ? { ...cands[cands.length - 1]!, id: `${cands[cands.length - 1]!.id}#${seen - cands.length + 1}` } : undefined);
