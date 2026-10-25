@@ -98,7 +98,7 @@ describe("Part C lands in the stored PIESA answers where the same-visit answers 
   const L = (id: string) => SHORT_PIESA_FIELDS.find((f) => f.id === id)!.label;
   test("merge sets rectificationComplete/CoES/date, fills blank Part B3 electrician details, and the q45 file", () => {
     const snapshot = [
-      { label: L("rectificationOutcome"), value: REPAIR_NEEDED },
+      { label: L("rectificationNeeded"), value: "Yes" },
       { label: L("b3.licence"), value: "B3-A1" }, // pre-filled on the PIESA: wins over the fixes form
       { label: L("rectificationComplete"), value: null },
       { label: L("coesNumber"), value: null },

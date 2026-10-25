@@ -47,8 +47,9 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 19. Repeating block `Add an appliance or flue` — only show when question 18 = Yes — containing `What is it and where is it?` (Text, Required), `Photo of it` (Photo, location on, Required), `Can insulation be safely installed around it as it is?` (Yes/No, Required)
 
 ## Group 7: Repair work
-20. `Is any electrical repair work needed before insulation can be installed?` — Pick one: `No repair work is needed` / `Yes, repair work is needed` / `Repair work is not possible, so an electrician must be present on installation day` — Required
-21. `Please tick the repair work that is required.` — Tick all: `Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights.` / `Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated)` / `Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000` / `Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000` / `Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000.` / `Other (indicate below):` — Required — only show when question 20 = `Yes, repair work is needed`
+20. `Is any electrical repair work needed before insulation can be installed?` — Yes/No — Required — Yes red
+20b. `Can the repair work be done before installation?` — Yes/No — Required — only show when question 20 = Yes — No red — help text: `No means an electrician must be present on installation day instead.`
+21. `Please tick the repair work that is required.` — Tick all: `Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights.` / `Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated)` / `Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000` / `Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000` / `Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000.` / `Other (indicate below):` — Required — only show when question 20 = Yes
 22. `Please describe the other repair work.` — Text — Required — only show when question 21 has `Other (indicate below):` ticked
 
 ## Group 8: Electrician declaration
@@ -61,9 +62,9 @@ Answer-type key: Text = single line text; Date = date picker; Yes/No = two choic
 29. `Electrician signature` — Signature — Required
 
 ## Group 9: After repair work (same visit only)
-30. `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` — Yes/No — Required — only show when question 20 = `Yes, repair work is needed`
-31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 20 = `Yes, repair work is needed`
-32. `Date of Certification:` — Date — Required — only show when question 20 = `Yes, repair work is needed`
+30. `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` — Yes/No — Required — only show when question 20 = Yes
+31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 20 = Yes
+32. `Date of Certification:` — Date — Required — only show when question 20 = Yes
 
 Note: the official form repeats the electrician details in Section C; the portal copies them from questions 23–27, so the form does not ask twice.
 

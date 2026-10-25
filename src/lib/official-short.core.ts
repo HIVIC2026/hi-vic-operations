@@ -98,8 +98,12 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "applianceWhat", label: APPLIANCE_Q.what, type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
   { id: "appliancePhoto", label: APPLIANCE_Q.photo, type: "media", required: true, when: "appliancesPresent = Yes", source: "short onsite form" },
   yn("applianceSafe", APPLIANCE_Q.safe, "appliancesPresent = Yes"),
-  { id: "rectificationOutcome", label: "Is any electrical repair work needed before insulation can be installed?", type: "choice", required: true, choices: [...RECTIFICATION_OUTCOMES], source: "short onsite form" },
-  { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationOutcome = Yes, repair work is needed", source: "short onsite form" },
+  // Jo 25 Oct 2026: Yes/No so Mitti can branch on it (a pick-one could not); "possible?" is the second half. The official
+  // three-way outcome (`rectificationOutcome`, RECTIFICATION_OUTCOMES) is DERIVED from these two in shortAnswersFromEntries;
+  // an old form that answered the pick-one is still read.
+  yn("rectificationNeeded", "Is any electrical repair work needed before insulation can be installed?"),
+  yn("rectificationPossible", "Can the repair work be done before installation?", "rectificationNeeded = Yes"),
+  { id: "rectificationWork", label: "Please tick the repair work that is required.", type: "multichoice", required: true, choices: [...B2_OPTIONS], when: "rectificationNeeded = Yes", source: "short onsite form" },
   { id: "rectificationOther", label: "Please describe the other repair work.", type: "text", required: true, when: "Other is ticked", source: "short onsite form" },
   // Jo 25 Oct 2026 ("Full name and name???"): plain labels instead of the official form's; the portal pre-fills all five
   // and copies them into Section C itself, so the "after repair work" repeat (old 33–37) is gone from the Mitti form.
@@ -111,8 +115,8 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "b3.declaration", label: "I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission", type: "tick", required: true, source: "DEECA PIESA form B3" },
   { id: "electricianSignature", label: "Electrician signature", type: "signature", required: true, source: "short onsite form" },
   yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationOutcome = Yes, repair work is needed"),
-  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: "rectificationOutcome = Yes, repair work is needed", source: "DEECA PIESA form C" },
-  { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: "rectificationOutcome = Yes, repair work is needed", source: "DEECA PIESA form C" },
+  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
+  { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: "rectificationNeeded = Yes", source: "DEECA PIESA form C" },
   yn("ownerConfirm", "Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment."),
   pre("o.name", "Name:"),
   { id: "o.date", label: "Date:", type: "date", required: true, source: "short onsite form" },
@@ -174,5 +178,14 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
     const slot = cands[seen] ?? (cands.length ? { ...cands[cands.length - 1]!, id: `${cands[cands.length - 1]!.id}#${seen - cands.length + 1}` } : undefined);
     if (slot && e.value != null && e.value !== "") out[slot.id!] = e.value;
   }
+  if (key === "piesa") deriveRectificationOutcome(out);
   return out;
+}
+
+/** The official three-way outcome from the Yes/No pair (or the old pick-one answer, which arrives under the same label). */
+export function deriveRectificationOutcome(out: Record<string, string>): void {
+  const needed = String(out["rectificationNeeded"] ?? "").trim();
+  if ((RECTIFICATION_OUTCOMES as readonly string[]).includes(needed)) { out["rectificationOutcome"] = needed; out["rectificationNeeded"] = needed === RECTIFICATION_OUTCOMES[0] ? "No" : "Yes"; if (needed === RECTIFICATION_OUTCOMES[2]) out["rectificationPossible"] = "No"; return; }
+  if (/^no\b/i.test(needed)) out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[0];
+  else if (/^yes\b/i.test(needed)) out["rectificationOutcome"] = /^no\b/i.test(String(out["rectificationPossible"] ?? "")) ? RECTIFICATION_OUTCOMES[2] : RECTIFICATION_OUTCOMES[1];
 }
