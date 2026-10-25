@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { MenuPanel } from "@/components/portal/kit";
 import type { SortDir } from "@/lib/office-filters.core";
-import type { EnquiryColumn, Range } from "@/lib/enquiry-columns.core";
+import type { ListColumn, Range } from "@/lib/enquiry-columns.core";
 
 export function ChipGroup<T extends string>({ label, options, labels, value, onChange }: { label: string; options: readonly T[]; labels: Record<T, string>; value: T[]; onChange: (v: T[]) => void }) {
   return (
@@ -50,7 +50,7 @@ export type ColumnFilterValue = string | Range | string[] | undefined;
  * A filtered heading shows a dot; "Clear" drops just this column's filter.
  */
 export function ColumnHead({ col, sort, dir, value, onSort, onFilter, className }: {
-  col: EnquiryColumn; sort: string; dir: SortDir; value: ColumnFilterValue; onSort: (k: string, d: SortDir) => void; onFilter: (k: string, v: ColumnFilterValue) => void; className?: string;
+  col: ListColumn; sort: string; dir: SortDir; value: ColumnFilterValue; onSort: (k: string, d: SortDir) => void; onFilter: (k: string, v: ColumnFilterValue) => void; className?: string;
 }) {
   const on = sort === col.key;
   const active = col.filter === "text" ? !!(value as string | undefined)?.trim() : col.filter === "range" ? (value as Range | undefined)?.min != null || (value as Range | undefined)?.max != null : !!(value as string[] | undefined)?.length;
@@ -65,7 +65,7 @@ export function ColumnHead({ col, sort, dir, value, onSort, onFilter, className 
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 rounded-[12px] border-line bg-paper p-3 text-sm">
         <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wide text-sub">{col.label}</span>{active && <button type="button" className="text-xs font-semibold text-hiv-blue underline" onClick={() => onFilter(col.key, undefined)}>Clear</button>}</div>
-        <div className="mb-3 flex gap-1.5">{sortBtn("asc", col.filter === "range" ? "Low → high" : col.filter === "pick" && col.key === "heard" ? "Oldest first" : "A → Z")}{sortBtn("desc", col.filter === "range" ? "High → low" : col.filter === "pick" && col.key === "heard" ? "Newest first" : "Z → A")}</div>
+        <div className="mb-3 flex gap-1.5">{sortBtn("asc", col.sortLabels?.[0] ?? (col.filter === "range" ? "Low → high" : col.filter === "pick" && col.key === "heard" ? "Oldest first" : "A → Z"))}{sortBtn("desc", col.sortLabels?.[1] ?? (col.filter === "range" ? "High → low" : col.filter === "pick" && col.key === "heard" ? "Newest first" : "Z → A"))}</div>
         {col.filter === "text" && <Input value={(value as string | undefined) ?? ""} onChange={(e) => onFilter(col.key, e.target.value || undefined)} placeholder={`Filter ${col.label.toLowerCase()}…`} className="h-9 bg-paper" aria-label={`Filter ${col.label}`} />}
         {col.filter === "range" && (
           <div className="grid grid-cols-2 gap-2">

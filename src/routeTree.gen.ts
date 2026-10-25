@@ -106,6 +106,7 @@ import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as AuthenticatedAdminJobsActiveRouteImport } from './routes/_authenticated/admin.jobs.active'
+import { Route as AuthenticatedAdminJobsChooseInstallerRouteImport } from './routes/_authenticated/admin.jobs.choose-installer'
 import { Route as AuthenticatedAdminJobsClosedRouteImport } from './routes/_authenticated/admin.jobs.closed'
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
@@ -659,6 +660,12 @@ const AuthenticatedAdminJobsActiveRoute =
     path: '/active',
     getParentRoute: () => AuthenticatedAdminJobsRoute,
   } as any)
+const AuthenticatedAdminJobsChooseInstallerRoute =
+  AuthenticatedAdminJobsChooseInstallerRouteImport.update({
+    id: '/choose-installer',
+    path: '/choose-installer',
+    getParentRoute: () => AuthenticatedAdminJobsRoute,
+  } as any)
 const AuthenticatedAdminJobsClosedRoute =
   AuthenticatedAdminJobsClosedRouteImport.update({
     id: '/closed',
@@ -911,6 +918,7 @@ export interface FileRoutesByFullPath {
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -1031,6 +1039,7 @@ export interface FileRoutesByTo {
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -1157,6 +1166,7 @@ export interface FileRoutesById {
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/_authenticated/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/_authenticated/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/_authenticated/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -1283,6 +1293,7 @@ export interface FileRouteTypes {
     | '/partner/'
     | '/admin/jobs/$jobId'
     | '/admin/jobs/active'
+    | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
@@ -1403,6 +1414,7 @@ export interface FileRouteTypes {
     | '/partner'
     | '/admin/jobs/$jobId'
     | '/admin/jobs/active'
+    | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
@@ -1528,6 +1540,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
     | '/_authenticated/admin/jobs/active'
+    | '/_authenticated/admin/jobs/choose-installer'
     | '/_authenticated/admin/jobs/closed'
     | '/_authenticated/field/business_/agreement'
     | '/_authenticated/field/business_/bank'
@@ -2287,6 +2300,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsActiveRouteImport
       parentRoute: typeof AuthenticatedAdminJobsRoute
     }
+    '/_authenticated/admin/jobs/choose-installer': {
+      id: '/_authenticated/admin/jobs/choose-installer'
+      path: '/choose-installer'
+      fullPath: '/admin/jobs/choose-installer'
+      preLoaderRoute: typeof AuthenticatedAdminJobsChooseInstallerRouteImport
+      parentRoute: typeof AuthenticatedAdminJobsRoute
+    }
     '/_authenticated/admin/jobs/closed': {
       id: '/_authenticated/admin/jobs/closed'
       path: '/closed'
@@ -2475,6 +2495,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminJobsRouteChildren {
   AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
   AuthenticatedAdminJobsActiveRoute: typeof AuthenticatedAdminJobsActiveRoute
+  AuthenticatedAdminJobsChooseInstallerRoute: typeof AuthenticatedAdminJobsChooseInstallerRoute
   AuthenticatedAdminJobsClosedRoute: typeof AuthenticatedAdminJobsClosedRoute
 }
 
@@ -2482,6 +2503,8 @@ const AuthenticatedAdminJobsRouteChildren: AuthenticatedAdminJobsRouteChildren =
   {
     AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
     AuthenticatedAdminJobsActiveRoute: AuthenticatedAdminJobsActiveRoute,
+    AuthenticatedAdminJobsChooseInstallerRoute:
+      AuthenticatedAdminJobsChooseInstallerRoute,
     AuthenticatedAdminJobsClosedRoute: AuthenticatedAdminJobsClosedRoute,
   }
 
