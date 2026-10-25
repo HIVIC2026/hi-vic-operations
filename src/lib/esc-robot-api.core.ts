@@ -31,7 +31,7 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 export const ROBOT_API_INPUTS = {
   robotSettings: z.object({ envOn: z.boolean(), modeEnv: text(20).nullable(), hasCredentials: z.boolean() }).strict(),
-  noticeWork: z.object({ mode, now: iso.optional() }).strict(),
+  noticeWork: z.object({ mode }).strict(),
   veecWork: z.object({ mode }).strict(),
   recordRobotAttempt: z.object({ jobId: uuid, task, notificationId: uuid.nullable(), mode, plan: text(2000) }).strict(),
   recordRobotDryRun: z.object({ jobId: uuid, task, notificationId: uuid.nullable(), screenshotPath: shotPath, filled: keys, blank: keys, unmapped: keys, registryUrl: url }).strict(),

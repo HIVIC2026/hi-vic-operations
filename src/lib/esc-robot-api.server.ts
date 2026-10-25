@@ -13,6 +13,7 @@ import {
 import { ESC_ROBOT_ENV_FLAG, ESC_ROBOT_MODE_ENV, ESC_ROBOT_PASSWORD_ENV, ESC_ROBOT_USERNAME_ENV, robotMode, type RobotMode } from "./esc-registry-robot.core";
 import { SELECTOR_MAP_VERIFIED } from "./esc-registry-selectors";
 import { RobotApiRefused, type RobotApiOps } from "./esc-robot-api.core";
+import { melbourneToday } from "./melbourne-time.core";
 
 const RANK: Record<RobotMode, number> = { off: 0, dry_run: 1, live: 2 };
 
@@ -43,6 +44,18 @@ async function assertLive(jobId: string | null, what: string) {
   if ((await jobSource(jobId)) === "qa_test") throw new WorkflowError(`${what} refused: TEST jobs are always dry-run.`);
 }
 
+/** The robot records a submission straight after pressing Submit, so its time must be "now" by the portal's clock:
+ *  a remote caller can never back-date a notice to pass the 24h rule. */
+export const RECORD_CLOCK_TOLERANCE_MS = 15 * 60_000;
+export function assertRecentTime(iso: string, now = new Date()) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t) || Math.abs(now.getTime() - t) > RECORD_CLOCK_TOLERANCE_MS) throw new WorkflowError("The submission time is not now by the portal's clock; nothing recorded.");
+}
+/** VEEC submitted date = today in Melbourne (or yesterday, for a run that crosses midnight). */
+export function assertTodayMelbourne(ymd: string, now = new Date()) {
+  if (ymd !== melbourneToday(now) && ymd !== melbourneToday(new Date(now.getTime() - RECORD_CLOCK_TOLERANCE_MS))) throw new WorkflowError("The VEEC submitted date is not today in Melbourne; nothing recorded.");
+}
+
 const refusals = <A, R>(fn: (a: A) => Promise<R>) => async (a: A): Promise<R> => {
   try { return await fn(a); } catch (e) { if (e instanceof WorkflowError) throw new RobotApiRefused(e.message); throw e; }
 };
@@ -54,7 +67,8 @@ export const robotApiOps: RobotApiOps = {
     const s = await robotSettings(env);
     return { mode: s.mode, reason: s.reason, switchOn: s.switchOn };
   }),
-  noticeWork: refusals(async (i) => noticeWork(await capped(i.mode), i.now ? new Date(i.now) : new Date())),
+  // Always the portal's own clock for the 24h–5 day window.
+  noticeWork: refusals(async (i) => noticeWork(await capped(i.mode), new Date())),
   veecWork: refusals(async (i) => veecWork(await capped(i.mode))),
   recordRobotAttempt: refusals(async (i) => {
     if (i.mode === "live") await assertLive(i.jobId, "A live Registry attempt");
@@ -63,14 +77,17 @@ export const robotApiOps: RobotApiOps = {
   recordRobotDryRun: refusals(async (i) => recordRobotDryRun(i)),
   recordRobotFailure: refusals(async (i) => recordRobotFailure(i)),
   recordRobotNotificationSubmitted: refusals(async (i) => {
+    assertRecentTime(i.sentAt);
     await assertLive(await noticeJobId(i.notificationId), "Recording a robot-submitted notification");
     return recordRobotNotificationSubmitted(i);
   }),
   recordRobotNotificationUpdated: refusals(async (i) => {
+    assertRecentTime(i.updatedAt);
     await assertLive(await noticeJobId(i.notificationId), "Recording a robot-updated notification");
     return recordRobotNotificationUpdated(i);
   }),
   recordRobotVeecSubmitted: refusals(async (i) => {
+    assertTodayMelbourne(i.submittedDate);
     await assertLive(i.jobId, "Recording robot-created VEECs");
     return recordRobotVeecSubmitted(i);
   }),

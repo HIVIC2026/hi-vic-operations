@@ -49,8 +49,9 @@ const { robotApiOps, serverModeCap } = await import("../src/lib/esc-robot-api.se
 const { RobotApiRefused } = await import("../src/lib/esc-robot-api.core");
 
 beforeEach(() => { state.switchOn = true; state.calls = []; state.throwOn = null; rows.esc_notifications![NOTICE] = { job_id: JOB }; });
-const submitted = { notificationId: NOTICE, reference: "ESC-123", sentAt: "2026-10-25T01:00:00.000Z", screenshotPath: null, registryUrl: null };
-const veec = { jobId: JOB, reference: "VEEC-1", quantity: 3, submittedDate: "2026-10-25", screenshotPath: null, registryUrl: null };
+const { melbourneToday } = await import("../src/lib/melbourne-time.core");
+const submitted = { notificationId: NOTICE, reference: "ESC-123", sentAt: new Date().toISOString(), screenshotPath: null, registryUrl: null };
+const veec = { jobId: JOB, reference: "VEEC-1", quantity: 3, submittedDate: melbourneToday(), screenshotPath: null, registryUrl: null };
 
 describe("robotSettings", () => {
   test("uses the robot's flags, never returns credentials, fails closed while the switch is missing", async () => {
@@ -103,6 +104,17 @@ describe("live records", () => {
     // Dry-run trail is always allowed (TEST jobs included).
     await robotApiOps.recordRobotAttempt({ jobId: TEST_JOB, task: "veec_creation", notificationId: null, mode: "dry_run", plan: "submit" });
     expect(state.calls.map((c) => c.op)).toEqual(["recordRobotAttempt"]);
+  });
+
+  test("times come from the portal's clock: a back-dated notice or VEEC date is refused", async () => {
+    const old = new Date(Date.now() - 3 * 86_400_000);
+    await expect(robotApiOps.recordRobotNotificationSubmitted({ ...submitted, sentAt: old.toISOString() })).rejects.toThrow("not now by the portal's clock");
+    await expect(robotApiOps.recordRobotNotificationUpdated({ ...submitted, previousNotificationId: NOTICE, updatedAt: new Date(Date.now() + 3_600_000).toISOString() })).rejects.toBeInstanceOf(RobotApiRefused);
+    await expect(robotApiOps.recordRobotVeecSubmitted({ ...veec, submittedDate: melbourneToday(old) })).rejects.toThrow("not today in Melbourne");
+    expect(state.calls).toEqual([]);
+    // noticeWork never takes a clock from the robot.
+    await robotApiOps.noticeWork({ mode: "dry_run" });
+    expect(Math.abs((state.calls[0]!.args[1] as Date).getTime() - Date.now())).toBeLessThan(5_000);
   });
 
   test("a guard WorkflowError from the record helper becomes a 409 refusal", async () => {

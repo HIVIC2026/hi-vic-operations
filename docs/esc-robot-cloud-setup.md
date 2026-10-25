@@ -97,7 +97,8 @@ Always use a **TEST job** (`source = qa_test`, which is always dry run) for the 
    before Submit, and a sent notice, lodged VEEC, earlier failure or unfinished live attempt is never submitted again.
 4. **Live.** Set `ESC_REGISTRY_ROBOT_MODE=live` only after step 2 has been done with Jo and `SELECTOR_MAP_VERIFIED` is
    true. The portal still checks for itself: it refuses any "submitted" record unless the switch is on and the selector
-   map is verified, and it refuses them for TEST jobs.
+   map is verified, and it refuses them for TEST jobs. It also plans with its own clock and only accepts a submission time
+   within 15 minutes of its own clock, so a notice can never be back-dated to pass the 24-hour rule.
 
 ## What the robot API allows (and nothing else)
 

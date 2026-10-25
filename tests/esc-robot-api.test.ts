@@ -142,7 +142,7 @@ describe("runner client → route → operations: every operation maps through",
   test("each runner operation reaches the same-named server operation with its input", async () => {
     calls.length = 0;
     const now = new Date("2026-10-25T00:00:00.000Z");
-    expect(await client.noticeWork("dry_run", now)).toEqual([{ jobNumber: "HV-1" }] as never);
+    expect(await client.noticeWork("dry_run")).toEqual([{ jobNumber: "HV-1" }] as never);
     expect(await client.veecWork("live")).toEqual([{ jobNumber: "HV-2" }] as never);
     await client.recordRobotAttempt({ jobId: JOB, task: "install_notification", notificationId: NOTICE, mode: "dry_run", plan: "submit: due" });
     await client.recordRobotDryRun({ jobId: JOB, task: "install_notification", notificationId: NOTICE, screenshotPath: SHOT, filled: ["a"], blank: [], unmapped: ["b"], registryUrl: "https://veu.esc.vic.gov.au/x" });
@@ -152,7 +152,7 @@ describe("runner client → route → operations: every operation maps through",
     await client.recordRobotVeecSubmitted({ jobId: JOB, reference: "VEEC-9", quantity: 12, submittedDate: "2026-10-25", screenshotPath: null, registryUrl: null });
     expect(await client.storeRobotScreenshot({ jobId: JOB, jobNumber: "HV-1", task: "install_notification", ref: NOTICE, outcome: "dry_run", png: PNG, at: now })).toBe(SHOT);
     expect(calls.map((c) => c.op)).toEqual(["noticeWork", "veecWork", "recordRobotAttempt", "recordRobotDryRun", "recordRobotFailure", "recordRobotNotificationSubmitted", "recordRobotNotificationUpdated", "recordRobotVeecSubmitted", "storeRobotScreenshot"]);
-    expect(calls[0]!.input).toEqual({ mode: "dry_run", now: now.toISOString() });
+    expect(calls[0]!.input).toEqual({ mode: "dry_run" });
     expect((calls[4]!.input as { error: string }).error.length).toBe(4000);
     expect(calls[7]!.input).toEqual({ jobId: JOB, reference: "VEEC-9", quantity: 12, submittedDate: "2026-10-25", screenshotPath: null, registryUrl: null });
     const shotIn = calls[8]!.input as { png: Uint8Array; at: Date; jobNumber: string };

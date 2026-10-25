@@ -34,7 +34,8 @@ export function robotApiClient(env: Env = process.env, fetchFn: Fetch = (u, i) =
       const s = await call<{ mode: RobotMode; reason: string; switchOn: boolean | null }>("robotSettings", { envOn: e[ESC_ROBOT_ENV_FLAG] === "true", modeEnv: e[ESC_ROBOT_MODE_ENV] ?? null, hasCredentials: !!credentials });
       return { mode: s.mode, reason: s.reason, switchOn: s.switchOn, credentials: s.mode === "off" ? null : credentials };
     },
-    noticeWork: (mode: RobotMode, now?: Date) => call<NoticeWork[]>("noticeWork", { mode, ...(now ? { now: now.toISOString() } : {}) }),
+    /** The portal always plans with its own clock (the robot cannot move the 24h–5 day window). */
+    noticeWork: (mode: RobotMode) => call<NoticeWork[]>("noticeWork", { mode }),
     veecWork: (mode: RobotMode) => call<VeecWork[]>("veecWork", { mode }),
     recordRobotAttempt: (p: { jobId: string; task: RobotTask; notificationId: string | null; mode: RobotMode; plan: string }) => call<void>("recordRobotAttempt", p),
     recordRobotDryRun: (p: { jobId: string; task: RobotTask; notificationId: string | null; screenshotPath: string | null; filled: string[]; blank: string[]; unmapped: string[]; registryUrl: string | null }) => call<void>("recordRobotDryRun", p),
