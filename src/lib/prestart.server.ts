@@ -73,8 +73,6 @@ async function latestCheck(jobId: string) {
   return data ? { scheduled_start: data.scheduled_start, passed: data.passed, failures: (data.failures as string[]) ?? [] } : null;
 }
 
-async function sha(s: string) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-
 /** Run the check (from 12pm Melbourne the day before until the start). Records only when the result changes. */
 export async function runPrestart(jobId: string, trigger: string, now = new Date()) {
   const b = await upcomingBooking(jobId);
@@ -87,16 +85,8 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
-  if (!passed) {
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "prestart_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ev) {
-      const facts = await sha(`${jobId}-${b.scheduled_start}-${failures.join("|")}`);
-      for (const [action, target, key] of [["customer_email", `job:${jobId}`, "owner"], ["partner_notifications", `job_assignment:${b.assignment_id}`, "installer"]] as const) {
-        const { error: e2 } = await admin.rpc("enqueue_external_action", { _job: jobId, _event: ev.id, _action: action, _target: target, _basis: "transactional_job_coordination", _version: "prestart-failed-v1", _payload: `prestart_failed:${key}`, _facts: facts, _key: `prestart-${key}-${facts.slice(0, 32)}` });
-        if (e2) console.error("pre-start outbox enqueue skipped", e2.message); // e.g. TEST job suppression
-      }
-    }
-  }
+  // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
+  // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
   return { passed, failures, changed: true };
 }
 

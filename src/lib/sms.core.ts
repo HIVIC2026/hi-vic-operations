@@ -45,6 +45,15 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 315 (Jo 25 Oct 2026, route approved): the A4 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
   fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
+  // Decision 326 (25 Oct 2026): approved wordings that had no sender. Wording verbatim in approved-texts.core.ts; each text
+  // records one `approved_text_prepared` event before sending (approved-texts.server.ts). Switches start off (fail closed).
+  ready_check_times_owner: { audience: "owner", label: "Ready Check times are ready – owner picks one (decision 78)", wordingApproved: true, quietHours: true },
+  ready_check_booked_owner: { audience: "owner", label: "Ready Check booked – owner (decision 82, text B)", wordingApproved: true, quietHours: true },
+  visit_tomorrow_owner: { audience: "owner", label: "See you tomorrow – Ready Check / safety check / install, the afternoon before (decisions 82, 93, 99)", wordingApproved: true, quietHours: true },
+  safety_check_booked_owner: { audience: "owner", label: "Electrical safety check booked – owner (decision 93, text A)", wordingApproved: true, quietHours: true },
+  quote_reminder: { audience: "owner", label: "Quote reminder – 3 days after the quote and 2 days before the price expires (decisions 88/89)", wordingApproved: true, quietHours: true },
+  install_moved: { audience: "owner", label: "Your install has moved – the agreed install day changed (decision 135)", wordingApproved: true, quietHours: true },
+  piesa_offer: { audience: "partner", label: "New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -93,6 +102,13 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
   piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
   fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A4 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
+  ready_check_times_owner: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the installer offering times; also needs it still the owner's move (approved-texts.server)
+  ready_check_booked_owner: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start still booked
+  visit_tomorrow_owner: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (approved-texts.core visitTomorrowDue)
+  safety_check_booked_owner: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
+  quote_reminder: { kind: "window" }, // key = quote + step (day3/expiry); the due step is recomputed each tick (approved-texts.core quoteReminderDue)
+  install_moved: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the new install booking after a changed day; also needs it still booked
+  piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
 };
 
 export type SmsEventInput = {

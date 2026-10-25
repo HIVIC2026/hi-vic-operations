@@ -13,6 +13,7 @@ import { INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } 
 import { READY_CHECK_BOOKED_EMAIL_APPROVED, READY_CHECK_BOOKED_TEXT_APPROVED } from "../src/lib/ready-check-booked-email.core";
 import { READY_CHECK_TIMES_EMAIL_APPROVED } from "../src/lib/ready-check-times-email.core";
 import { READY_CHECK_OFFER_EMAIL_APPROVED } from "../src/lib/ready-check-offer-email.core";
+import { ELECTRICIAN_OFFER_EMAIL_APPROVED } from "../src/lib/electrician-offer-email.core";
 import { OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED, ownerQuoteSms } from "../src/lib/owner-quote-email.core";
 import { FIXES_QUOTE_EMAIL_APPROVED } from "../src/lib/rectification-quote-email.core";
 import { SAFETY_CHECK_EMAILS_APPROVED } from "../src/lib/safety-check-emails.core";
@@ -35,6 +36,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   INSULATION_DETAILS_REAL_SEND_APPROVED: { value: INSULATION_DETAILS_REAL_SEND_APPROVED, decisions: "67/69" },
   INSULATION_QUESTIONS_SEND_APPROVED: { value: INSULATION_QUESTIONS_SEND_APPROVED, decisions: "180 (automatic Save my spot after the 3 questions / photo upload)" },
   READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
+  ELECTRICIAN_OFFER_EMAIL_APPROVED: { value: ELECTRICIAN_OFFER_EMAIL_APPROVED, decisions: "93/326 (E1 electrician offer email)" },
   READY_CHECK_TIMES_EMAIL_APPROVED: { value: READY_CHECK_TIMES_EMAIL_APPROVED, decisions: "77 (O11)" },
   READY_CHECK_BOOKED_EMAIL_APPROVED: { value: READY_CHECK_BOOKED_EMAIL_APPROVED, decisions: "81 (O12)" },
   READY_CHECK_BOOKED_TEXT_APPROVED: { value: READY_CHECK_BOOKED_TEXT_APPROVED, decisions: "82 (owner booked text B)" },
@@ -73,6 +75,9 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   team_member_invite: "251 (draft) / 252 (approved as written)",
   boss_price_link: "288 (boss price link; wording in boss-price-link.core.ts)",
   fixes_times_link: "315 (electrician fixes times link; wording in fixes-times.core.ts)",
+  ready_check_times_owner: "78 (A), wired by 326", ready_check_booked_owner: "82 (owner booked, B), wired by 326",
+  visit_tomorrow_owner: "82/93/99 (owner day before), wired by 326", safety_check_booked_owner: "93 (owner booked, A), wired by 326",
+  quote_reminder: "88/89, wired by 326", install_moved: "135, wired by 326", piesa_offer: "93 (electrician, B), wired by 326",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {
