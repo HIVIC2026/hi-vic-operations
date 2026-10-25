@@ -97,6 +97,8 @@ function seed(source: string | null) {
   tables["owners"] = [{ id: "own-1", ...OWNER }];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: source === "qa_test" ? "[TEST PARTNER]" : null }, { id: "biz-2", name: "Other Co", trading_name: null, onboarding_notes: "[TEST PARTNER]" }];
   tables["job_assignments"] = []; tables["partner_offers"] = []; tables["workflow_events"] = [];
+  // Decision 399: both installers have an active installer rate card (the quote builder's card).
+  tables["rate_cards"] = [{ id: "rc-1", business_id: "biz-1", kind: "installer", is_active: true }, { id: "rc-2", business_id: "biz-2", kind: "installer", is_active: true }];
 }
 const events = (type?: string) => (tables["workflow_events"] ?? []).filter((e) => !type || e["event_type"] === type);
 const ON = { email: true, sms: true };
@@ -136,9 +138,36 @@ describe("Release", () => {
     expect(offers).toEqual([{ jobId: "job-1", actor: "jo", ids: ["biz-1"] }]);
   });
   test("an installer not eligible for the job → refused before the owner is told", async () => {
-    bookingOpened.length = 0;
+    bookingOpened.length = 0; tables["rate_cards"]!.push({ id: "rc-x", business_id: "biz-x", kind: "installer", is_active: true });
     await expect(S.releaseSpot("job-1", "jo", "biz-x", { approved: ON })).rejects.toThrow(/isn't an approved installer/);
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(bookingOpened).toEqual([]);
+  });
+});
+
+describe("decision 399: Release needs a rate card", () => {
+  beforeEach(() => { seed(null); bookingOpened.length = 0; });
+  const nothingHappened = () => { expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0); expect(bookingOpened).toEqual([]); };
+  test("no rate card at all → refused with Jo's words; nothing recorded or sent", async () => {
+    tables["rate_cards"] = tables["rate_cards"]!.filter((r) => r["business_id"] !== "biz-1");
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow("This installer has no rate card yet");
+    nothingHappened();
+  });
+  test("only an inactive card, or only an electrical card → refused", async () => {
+    tables["rate_cards"] = [{ id: "rc-x", business_id: "biz-1", kind: "installer", is_active: false }, { id: "rc-e", business_id: "biz-1", kind: "electrical", is_active: true }];
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow("This installer has no rate card yet");
+    nothingHappened();
+  });
+  test("TEST job follows the same rule", async () => {
+    seed("qa_test"); tables["rate_cards"] = [];
+    await expect(S.releaseSpot("job-1", "jo", "biz-1")).rejects.toThrow("This installer has no rate card yet");
+    nothingHappened();
+  });
+  test("confirmed owner going straight to an installer without a card → refused, no offer", async () => {
+    await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON }); await S.confirmSpotRelease("job-1");
+    offers.length = 0; sent.length = 0; const before = events().length;
+    tables["rate_cards"] = tables["rate_cards"]!.filter((r) => r["business_id"] !== "biz-2");
+    await expect(S.releaseSpot("job-1", "jo", "biz-2")).rejects.toThrow("This installer has no rate card yet");
+    expect(offers.length).toBe(0); expect(sent.length).toBe(0); expect(events().length).toBe(before);
   });
 });
 
