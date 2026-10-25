@@ -88,6 +88,15 @@ export function payState(f: { paidAt: string | null; apApprovedAt: string | null
   return { kind: "checking" };
 }
 
+/** When the owner paid in full (the Xero mirror): every invoice on the job fully paid → the latest paid time; else null.
+ *  Shared by the installer's Money screen and the office Payouts tab (audit F19) so both show the same due date. */
+export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+  if (!invs.length || invs.some((x) => x.status !== "fully_paid")) return null;
+  return invs.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at ?? null).filter((x): x is string => !!x).sort().at(-1) ?? null;
+}
+/** The office reason shown while an installer-supplied payout waits for the owner (payState "checking" with AP done). */
+export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer-supplied job: paid 7 days after the later of Final check and the owner's payment in full)";
+
 /** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the fixes (A5) 7 days after BOTH
  *  (1) their Mitti form is 100% complete (Complete pressed, every check passed — the decision-318 gate) and (2) the owner
  *  has paid THAT step (safety check / fixes) — the later of the two. Installer pay is unchanged (`payState`). */
