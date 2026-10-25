@@ -122,8 +122,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   // Page 3 — Roof and access
   { label: LEAN_Q.roofType, type: "choice", required: true, choices: [...ROOF_OPTIONS], aliases: al("roofType"), source: "portal – notes for the install crew (no describe box)" },
   { label: LEAN_Q.access, type: "choice", required: true, choices: [...ACCESS_OPTIONS], aliases: al("access"), source: "portal – access_difficulty; No safe access = difficult + hard stop (decision 222). Mitti: note required on Difficult and No safe access" },
-  { label: LEAN_Q.accessCharge, type: "yesno", required: true, choices: [...YES_NO], when: `${LEAN_Q.access} = Difficult`, source: "portal – difficultAccessFee" },
-  { label: LEAN_Q.accessFee, type: "number", required: true, when: `${LEAN_Q.accessCharge} = Yes`, types: ["text"], source: "portal – A1: inside the installer total (shown on the owner line); A2: the installer's charge to Home Insulation Victoria, becomes the owner's DIFFICULT_ACCESS line" },
+  // Decision 290 (corrected): no "difficult access charge" / "fee" questions on either template — the rating above, the access photo and the issues note are the flag.
   { label: LEAN_Q.accessPhoto, type: "media", required: false, aliases: al("accessPhoto"), source: `${G} Table 4 access evidence – optional on the form (Jo 23 Oct); missing = install-day photo lock` },
   // Page 4 — Ceiling areas: ONE repeating group "Add a ceiling area"
   { label: LEAN_Q.areaName, type: "text", required: true, perArea: true, aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222)` },

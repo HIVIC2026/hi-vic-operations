@@ -2,6 +2,8 @@
 // read-only `installer-price.server.ts` (which sits on the autoAdvance graph) because saving re-runs the guarded Mitti
 // sync to prepare the owner's quote. Business admin only (`requireMember(userId, businessId, true)`); team members are
 // refused and the card returns null for them. Append-only event; never sends anything.
+// Decision 289: price + what is included only; the electrician was chosen at Add a job and is shown read-only.
+// Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { INSTALLER_PRICE_EVENT, priceFromPortal, validateInstallerPrice, type InstallerPriceInput } from "./installer-price.core";
@@ -15,14 +17,36 @@ async function a1JobOrThrow(jobId: string) {
   return j as { id: string; channel: string; originating_installer_business_id: string; stage: string | null };
 }
 
-/** The boss's "Your price" card: the saved price and the usual electrician it can name. Team members: null (nothing shown). */
+/** The current Ready Check snapshot's entries (empty when no Mitti form yet). Read-only. */
+async function currentFormEntries(jobId: string): Promise<{ label: string; value: string | null }[]> {
+  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
+  const list = Array.isArray(raw) ? raw : [];
+  return (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+}
+
+/** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
   const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   const { myBusinesses } = await import("./pilot.server");
   if ((await myBusinesses(userId)).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [stored, usual] = await Promise.all([readInstallerPrice(jobId), (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null }))]);
-  return { canSet: true as const, current: stored, usualElectrician: usual.electrician };
+  const [stored, usual, recorded, entries] = await Promise.all([
+    readInstallerPrice(jobId),
+    (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
+    (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
+    currentFormEntries(jobId).catch(() => [] as { label: string; value: string | null }[]),
+  ]);
+  const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
+  const { contactAnswersFromEntries } = await import("./mitti.core");
+  const { accessFlagFromEntries } = await import("./ready-check-answers.core");
+  const legacy = stored?.record.electrician?.choice ?? contactAnswersFromEntries(entries).electricianChoice;
+  const choice = resolveElectricianChoice({ recorded, legacy, usual: usual.electrician });
+  return {
+    canSet: true as const, current: stored,
+    electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
+    access: accessFlagFromEntries(entries),
+  };
 }
 
 /** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
@@ -30,8 +54,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
-  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id)).electrician;
-  const v = validateInstallerPrice(input, { usualElectrician: usual });
+  const v = validateInstallerPrice(input);
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
   const stored = await readInstallerPrice(jobId);

@@ -14,7 +14,7 @@ import type { ReadyCheckPick } from "./ready-check-times.core";
 export type AddJobBooking = "none" | "confirmed" | "blocked";
 export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null } = {}): Promise<AddJobResult> {
   const { requireMember, requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   await requireMember(userId, businessId, true); // same rule as Add one job: business owner only
   await requireApprovedPartner(businessId);
@@ -22,6 +22,11 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
+  // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
+  const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
+  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
+  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(usual);
+  const ecp = electricianChoiceProblem(electricianChoice, usual); if (ecp) problems.push(ecp);
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
   // checked BEFORE anything is saved, so a bad time never leaves a job behind.
   if (opts.visit) problems.push(...(await import("./ready-check-times.core")).a1ReadyCheckTimeBlockers(opts.visit, now));
@@ -45,6 +50,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
+  // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
+  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
   await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit });
   // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
   const { gateDoc } = await import("./owner-gates.core");

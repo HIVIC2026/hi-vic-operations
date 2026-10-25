@@ -4,7 +4,6 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { readyCheckFactsFromEntries } from "./ready-check-complete.core";
-import { contactAnswersFromEntries } from "./mitti.core";
 import { incompleteDecision, missingSignature, readyCheckIncompleteText } from "./ready-check-chase.core";
 
 export async function recordReadyCheckProgress(p: {
@@ -13,11 +12,12 @@ export async function recordReadyCheckProgress(p: {
 }): Promise<{ status: "clean" | "waiting" | "recorded" | "unchanged"; missing: string[] }> {
   // Decision 278: the A1 price/electrician come from the business owner's portal entry first (old forms as fallback).
   const entries = p.priced ? await (await import("./installer-price.server")).entriesWithInstallerPrice(p.jobId, p.entries) : p.entries;
-  const choice = contactAnswersFromEntries(entries as { label: string; value: string | null }[]).electricianChoice;
+  // Decision 289: the electrician is chosen at Add a job (recorded choice, else the usual electrician, else Home Insulation
+  // Victoria's) — never a missing form answer any more, so it is never chased.
   const price = entries.find((e) => /^total quoted price/i.test(String(e.label ?? "").trim()))?.value;
   const facts = readyCheckFactsFromEntries(entries, {
     formComplete: p.completed,
-    electricianDecided: p.priced ? choice != null : true,
+    electricianDecided: true,
     priceKnown: p.priced ? price != null && String(price).trim() !== "" : true,
   });
   const { data: visit } = await admin.from("bookings").select("scheduled_start").eq("job_id", p.jobId).eq("kind", "ready_check").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle();

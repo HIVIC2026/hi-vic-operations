@@ -205,6 +205,10 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     else if (!resumeJobId) throw new WorkflowError("This job already has an installer assignment."); }
   if (!resumeJobId || !(await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).ilike("event_type", "%electrician%")).count)
     await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "hivic" }) as never, context.userId);
+  // Decision 289: Upload jobs / Add one job never ask — the default rule (usual electrician when saved, else Home
+  // Insulation Victoria's) is recorded once per job; no new column.
+  if (!resumeJobId || !(await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("event_type", "electrician_choice_set")).count)
+    await (await import("./electrician-choice.server")).recordElectricianChoice(res.job_id, imp.business_id, context.userId, null, "bulk_upload").catch((e) => console.error("electrician choice default not recorded", (e as Error).message));
   const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
   const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
   // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.

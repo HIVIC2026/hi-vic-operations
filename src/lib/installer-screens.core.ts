@@ -204,7 +204,8 @@ export function jobNext(f: JobNextFacts): JobNext {
     }
     if (f.needsFinishing) return { panel: "mitti_form", title: f.needsFinishing, sub: "Add it on the Mitti form, then press Complete.", yours: true };
     // Decision 278: the boss enters the price in the portal once the form has answers; staff see nothing about price.
-    if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: "Your price, what it includes and who does the electrical safety check. We add the $349 fee, take off the rebate and prepare the owner's quote.", yours: true };
+    // Decision 289: price + what it includes only — the electrician was chosen at Add a job.
+    if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: "Your price and what it includes. We add the $349 fee and the electrical safety check, take off the rebate and prepare the owner's quote.", yours: true };
     if (status.kind === "waiting_boss") return { panel: "waiting", title: status.title, sub: "Nothing else is needed from you on this job right now.", yours: false };
     if (f.quoteLine) {
       const yours = f.quoteLine.startsWith("You:");

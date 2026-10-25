@@ -1,12 +1,15 @@
-// Decision 278 (Jo 25 Oct 2026): the price stays with the boss, out of Mitti. Pure rules + the wiring facts.
+// Decision 278 (Jo 25 Oct 2026): the price stays with the boss, out of Mitti. Decision 289: the card asks price + what is
+// included only (the electrician is chosen once at Add a job). Decision 290 (corrected): the card shows the Ready Check's
+// access rating as the flag, no fee question. Pure rules + the wiring facts.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
+import { accessFlagFromEntries } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
 import { needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
@@ -14,50 +17,54 @@ import { needsFinishingTask } from "../src/lib/trade-view.core";
 import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
 import { A1_QUOTE_QUESTIONS, LEAN_Q } from "../src/lib/ready-check-lean.core";
 
-const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300 };
-const ok = { priceIncGst: "2,400", included: ["Ceiling insulation - supply & install"], electrician: "hivic" as const };
+const ok = { priceIncGst: "2,400", included: ["Ceiling insulation - supply & install"] };
 
-describe("validateInstallerPrice (pure, fails closed)", () => {
-  test("price inc GST > 0, included from the Mitti options, one of three electrician choices", () => {
-    const r = validateInstallerPrice(ok, { usualElectrician: null });
-    expect(r).toEqual({ ok: true, issues: [], record: { price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: { choice: "hivic", name: null, licence: null, price_inc_gst: null } } });
+describe("validateInstallerPrice (pure, fails closed) — price + what is included only (decision 289)", () => {
+  test("price inc GST > 0, included from the Mitti options; no electrician on the record", () => {
+    const r = validateInstallerPrice(ok);
+    expect(r).toEqual({ ok: true, issues: [], record: { price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: null } });
   });
-  test("every branch has its own plain issue", () => {
-    expect(validateInstallerPrice({ ...ok, priceIncGst: "0" }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.price]);
-    expect(validateInstallerPrice({ ...ok, priceIncGst: "abc" }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.price]);
-    expect(validateInstallerPrice({ ...ok, included: [] }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.included]);
-    expect(validateInstallerPrice({ ...ok, included: ["Removal of existing insulation"] }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.base]);
-    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"] }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.other]);
-    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Not an option"] }, { usualElectrician: null }).ok).toBe(true); // unknown ticks are dropped, never invented
-    expect(validateInstallerPrice({ ...ok, electrician: null }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.electrician]);
-    expect(validateInstallerPrice({ ...ok, electrician: "usual" }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.usual]);
-    expect(validateInstallerPrice({ ...ok, electrician: "different", different: { name: "X", licence: "", priceIncGst: "100" } }, { usualElectrician: null }).issues).toEqual([PRICE_ISSUES.different]);
+  test("every branch has its own plain issue; there is no electrician issue any more", () => {
+    expect(validateInstallerPrice({ ...ok, priceIncGst: "0" }).issues).toEqual([PRICE_ISSUES.price]);
+    expect(validateInstallerPrice({ ...ok, priceIncGst: "abc" }).issues).toEqual([PRICE_ISSUES.price]);
+    expect(validateInstallerPrice({ ...ok, included: [] }).issues).toEqual([PRICE_ISSUES.included]);
+    expect(validateInstallerPrice({ ...ok, included: ["Removal of existing insulation"] }).issues).toEqual([PRICE_ISSUES.base]);
+    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"] }).issues).toEqual([PRICE_ISSUES.other]);
+    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Not an option"] }).ok).toBe(true); // unknown ticks are dropped, never invented
+    expect(Object.keys(PRICE_ISSUES)).toEqual(["price", "included", "base", "other"]);
+    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"], includedOther: "Whirlybird" }).record?.included_other).toBe("Whirlybird");
   });
-  test("my usual electrician comes from My business; a different electrician from the card", () => {
-    expect(validateInstallerPrice({ ...ok, electrician: "usual" }, { usualElectrician: usual }).record?.electrician).toEqual({ choice: "usual", name: "Sam Lee", licence: "A12345", price_inc_gst: 300 });
-    expect(validateInstallerPrice({ ...ok, electrician: "different", different: { name: "Jo Volt", licence: "B99", priceIncGst: "$250.50" } }, { usualElectrician: null }).record?.electrician).toEqual({ choice: "different", name: "Jo Volt", licence: "B99", price_inc_gst: 250.5 });
-    expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"], includedOther: "Whirlybird" }, { usualElectrician: null }).record?.included_other).toBe("Whirlybird");
-  });
-  test("the stored event reads back; malformed events are never a price", () => {
-    const rec = validateInstallerPrice({ ...ok, electrician: "usual" }, { usualElectrician: usual }).record!;
+  test("the stored event reads back; malformed events are never a price; a legacy electrician block is kept, a bad one dropped", () => {
+    const rec = validateInstallerPrice(ok).record!;
     expect(installerPriceFromEvent({ ...rec, business_id: "b", set_by: "u" })).toEqual(rec);
     expect(installerPriceFromEvent(null)).toBeNull();
-    expect(installerPriceFromEvent({ price_inc_gst: "nope", included: [], electrician: { choice: "hivic" } })).toBeNull();
-    expect(installerPriceFromEvent({ price_inc_gst: 100, included: [], electrician: { choice: "someone" } })).toBeNull();
+    expect(installerPriceFromEvent({ price_inc_gst: "nope", included: [] })).toBeNull();
+    // Records saved before decision 289 carry the electrician the boss picked on the card; they still read.
+    const legacy = { price_inc_gst: 3100, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: { choice: "usual", name: "Sam Lee", licence: "A12345", price_inc_gst: 300 } };
+    expect(installerPriceFromEvent(legacy)?.electrician).toEqual({ choice: "usual", name: "Sam Lee", licence: "A12345", price_inc_gst: 300 });
+    expect(installerPriceFromEvent({ ...legacy, electrician: { choice: "someone" } })?.electrician).toBeNull();
     expect(INSTALLER_PRICE_EVENT).toBe("installer_price_set");
   });
 });
 
 describe("portal price FIRST, old-form answers as the fallback", () => {
-  const rec = validateInstallerPrice({ priceIncGst: 3100, included: ["Ceiling insulation - supply & install", "Removal of existing insulation"], electrician: "different", different: { name: "Jo Volt", licence: "B99", priceIncGst: 250 } }, { usualElectrician: null }).record!;
+  const rec = validateInstallerPrice({ priceIncGst: 3100, included: ["Ceiling insulation - supply & install", "Removal of existing insulation"] }).record!;
+  const legacyRec = { ...rec, electrician: { choice: "different" as const, name: "Jo Volt", licence: "B99", price_inc_gst: 250 } };
   const oldForm = [{ label: "Length (m)", value: "10" }, { label: LEAN_Q.totalPrice, value: "999" }, { label: LEAN_Q.included, value: "Ceiling insulation - supply & install" }, { label: LEAN_Q.electrician, value: "Home Insulation Victoria electrician" }];
-  test("the record becomes the Mitti-labelled answers every reader already understands", () => {
+  test("the record becomes the Mitti-labelled answers every reader already understands; the form's electrician answer is left alone", () => {
     const merged = withInstallerPrice(oldForm, rec);
     expect(merged.filter((e) => e.label === LEAN_Q.totalPrice)).toEqual([{ label: LEAN_Q.totalPrice, value: "3100" }]);
     expect(merged.find((e) => e.label === "Length (m)")).toEqual({ label: "Length (m)", value: "10" });
     const q = quotedPriceFromEntries(merged as { label: string; value: string | null }[], true);
     expect(q.ok).toBe(true);
     expect(q.price).toMatchObject({ totalIncGst: 3100, included: ["R5.0 supply and install", "Removal of existing insulation"] });
+    // Decision 289: a new record says nothing about the electrician — an old form's own answer still reads (legacy), the
+    // job's recorded choice decides otherwise (electrician-choice.core).
+    expect(contactAnswersFromEntries(merged as { label: string; value: string | null }[]).electricianChoice).toBe("hivic");
+    expect(contactAnswersFromEntries(withInstallerPrice([{ label: "Length (m)", value: "10" }], rec) as { label: string; value: string | null }[]).electricianChoice).toBeNull();
+  });
+  test("a legacy record (before decision 289) still replaces the form's electrician answers with the card's", () => {
+    const merged = withInstallerPrice(oldForm, legacyRec);
     const a = contactAnswersFromEntries(merged as { label: string; value: string | null }[]);
     expect(a).toMatchObject({ electricianChoice: "different", electricianName: "Jo Volt", electricianLicence: "B99", electricianPriceIncGst: "250" });
     expect(resolveMittiElectrician({ choice: a.electricianChoice as "different", usual: null, different: { name: a.electricianName, licence: a.electricianLicence, priceIncGst: a.electricianPriceIncGst } })).toMatchObject({ ready: true, priceIncGst: 250, name: "Jo Volt" });
@@ -68,7 +75,8 @@ describe("portal price FIRST, old-form answers as the fallback", () => {
   });
   test("the labels the portal replaces are exactly the old A1 quote page's", () => {
     for (const q of A1_QUOTE_QUESTIONS) expect(PRICE_FORM_LABELS).toContain(q);
-    expect(priceEntriesFromRecord(rec).map((e) => e.label)).toEqual([LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice, LEAN_Q.electrician, LEAN_Q.electricianName, LEAN_Q.electricianLicence, LEAN_Q.electricianPrice]);
+    expect(priceEntriesFromRecord(rec).map((e) => e.label)).toEqual([LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice]);
+    expect(priceEntriesFromRecord(legacyRec).map((e) => e.label)).toEqual([LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice, LEAN_Q.electrician, LEAN_Q.electricianName, LEAN_Q.electricianLicence, LEAN_Q.electricianPrice]);
     expect(priceEntriesFromRecord({ ...rec, electrician: { choice: "usual", name: "Sam", licence: "A1", price_inc_gst: 300 } }).map((e) => e.label)).toEqual([LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice, LEAN_Q.electrician]);
     expect(ELECTRICIAN_CHOICE_LABEL).toEqual({ hivic: "Home Insulation Victoria electrician", usual: "My usual electrician", different: "A different electrician" });
   });
@@ -80,8 +88,23 @@ describe("portal price FIRST, old-form answers as the fallback", () => {
     expect(formHasPrice([{ label: LEAN_Q.totalPrice, value: "$0" }])).toBe(false);
     expect(PRICE_NOT_ENTERED).toBe("Price not entered by the business owner");
   });
-  test("card lines never guess", () => {
-    expect(priceCardLines(rec)).toEqual({ price: "$3,100 inc GST", included: "Ceiling insulation - supply & install · Removal of existing insulation", electrician: "A different electrician · Jo Volt · B99 · $250 inc GST" });
+  test("card lines never guess: price + includes only; no electrician line", () => {
+    expect(priceCardLines(rec)).toEqual({ price: "$3,100 inc GST", included: "Ceiling insulation - supply & install · Removal of existing insulation" });
+    expect(Object.keys(priceCardLines(legacyRec))).toEqual(["price", "included"]);
+  });
+});
+
+describe("decision 290 (corrected): the access flag on the price card = the Ready Check rating + issue notes, never a fee", () => {
+  test("new form: rating + per-area issue notes; no rating yet → nothing shown", () => {
+    const entries = [{ label: LEAN_Q.access, value: "Difficult" }, { label: LEAN_Q.issueNote, value: "Tight manhole in the hallway" }, { label: LEAN_Q.issueNote, value: "Exposed wiring over the kitchen" }, { label: LEAN_Q.issueNote, value: "Tight manhole in the hallway" }];
+    expect(accessFlagFromEntries(entries)).toEqual({ rating: "Difficult", issues: ["Tight manhole in the hallway", "Exposed wiring over the kitchen"] });
+    expect(accessFlagLine(accessFlagFromEntries(entries))).toBe("Ceiling access: Difficult · Issues: Tight manhole in the hallway; Exposed wiring over the kitchen");
+    expect(accessFlagLine(accessFlagFromEntries([{ label: LEAN_Q.access, value: "Easy" }]))).toBe("Ceiling access: Easy");
+    expect(accessFlagLine(accessFlagFromEntries([{ label: "Length (m)", value: "10" }]))).toBeNull();
+  });
+  test("old forms: the 22–24 Oct wording still reads; a legacy fee answer is never part of the flag", () => {
+    expect(accessFlagFromEntries([{ label: "How easy is the ceiling access?", value: "Difficult" }, { label: "Please explain", value: "Low pitch" }, { label: "Is there a difficult access charge?", value: "Yes" }, { label: "Difficult access fee ($ inc GST)", value: "250" }]))
+      .toEqual({ rating: "Difficult", issues: ["Low pitch"] });
   });
 });
 
@@ -132,14 +155,19 @@ describe("wiring (source facts)", () => {
     expect(s).toContain('!== "business_admin") return null');
     expect(s).toContain("logEvent(jobId, userId, INSTALLER_PRICE_EVENT");
     expect(s).not.toMatch(/sendRealSms|sendGuardedOwnerEmail|releaseQuoteToOwner|\.update\(\{ *price/);
+    // Decision 289: the card never validates an electrician; the view shows the job's recorded choice read-only.
+    expect(s).toContain("const v = validateInstallerPrice(input);");
+    expect(s).toContain("readElectricianChoice(jobId)");
+    expect(s).toContain("access: accessFlagFromEntries(entries)");
     // The READ module is on the autoAdvance graph: never Mitti, never a sender (tests/comms.test.ts).
     const r = read("src/lib/installer-price.server.ts");
     expect(r).not.toMatch(/mitti\.server|auto-quote-send|installer-quote\.server|pilot\.server|logEvent/);
   });
-  test("functions: literal createServerFn chains, no react-start/server import", () => {
+  test("functions: literal createServerFn chains, no react-start/server import, no electrician fields", () => {
     const s = read("src/lib/installer-price.functions.ts");
     expect(s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)?.length).toBe(2);
     expect(s).not.toContain("@tanstack/react-start/server");
+    expect(s).not.toMatch(/electrician: z\.enum|different: z\.object/);
   });
   test("quote pipeline reads the portal price first: draft, basics, chase, auto-send hold, completion", () => {
     expect(read("src/lib/installer-quote.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
@@ -148,17 +176,29 @@ describe("wiring (source facts)", () => {
     expect(read("src/lib/auto-quote-send.server.ts")).toContain("await held(jobId, `price:${jobId}`, [PRICE_NOT_ENTERED]);");
     expect(read("src/lib/mitti-complete.server.ts")).toContain("enabled: sendEnabled, entries: i.entries");
   });
-  test("job page: the card renders for the boss on their own jobs only; staff see nothing about price", () => {
+  test("job page: the card renders for the boss on their own jobs only; staff see nothing about price; no electrician question on the card", () => {
     const page = read("src/routes/_authenticated/field.$jobId.tsx");
     expect(page).toContain('{page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}');
     expect(page).not.toContain("Your price goes in the Mitti form");
     expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.boss ? pay : null");
     // The owner's quote (with the boss's figures) is status-only for team members on installer jobs.
     expect(read("src/lib/installer-quote-status.functions.ts")).toContain("if (!ctx?.boss) return { applies: true as const, priceHidden: true as const");
-    expect(read("src/components/trade/InstallerPriceCard.tsx")).toContain("if (!view?.canSet) return null;");
+    const card = read("src/components/trade/InstallerPriceCard.tsx");
+    expect(card).toContain("if (!view?.canSet) return null;");
+    expect(card).not.toMatch(/Who is doing the electrical safety check\?|ip-electrician|setElectrician|Electrician licence number/);
+    expect(card).toContain("accessFlagLine(view.access)");
+    expect(card).toContain("id={PRICE_CARD_ANCHOR}"); // the decision-288 text deep-links here
+    // Decision 289: the installer job page's "enter your price" line no longer asks about the electrician.
+    expect(read("src/lib/installer-screens.core.ts")).not.toContain("who does the electrical safety check");
   });
   test("the price prompt file exists and the A1 build sheet title no longer says 'with quoted price'", () => {
     expect(read("docs/MITTI_READY_CHECK_PRICE_PROMPT.md")).toContain("Your quote to the homeowner");
     expect(FORMS.ready_check_priced.title).not.toContain("with quoted price");
+  });
+  test("decision 290: the A2 quote never reads an access fee from the form; A1 keeps reading a legacy fee answer only", () => {
+    const a2 = read("src/lib/quotes.server.ts");
+    expect(a2).not.toContain("difficultAccessFee(");
+    expect(a2).toContain("difficultAccessFeeIncGst: accessFee.amountIncGst"); // the office adjustment input still exists
+    expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
   });
 });

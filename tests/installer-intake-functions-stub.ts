@@ -14,6 +14,7 @@ export const bulkElectricianChoices = named("bulkElectricianChoices");
 export const addBulkElectrician = named("addBulkElectrician");
 export const startOnsiteReadyCheck = named("startOnsiteReadyCheck");
 export const onsiteFormStatus = named("onsiteFormStatus");
+export const addJobOptions = named("addJobOptions");
 
 export const getImportDraft = named("getImportDraft");
 export const getMyIntakeReadyCheck = named("getMyIntakeReadyCheck");

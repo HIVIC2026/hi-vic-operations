@@ -81,10 +81,9 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
-  // Jo 23 Oct: A2 difficult access fee (Difficult + Yes) is added to the owner total; missing amount holds the quote.
-  const rawSnap = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
-  const snapEntries = (Array.isArray(rawSnap) ? rawSnap : Array.isArray((rawSnap as { entries?: unknown })?.entries) ? (rawSnap as { entries: unknown[] }).entries : []) as { label: string; value: string | null }[];
-  const accessFee = (await import("./ready-check-answers.core")).difficultAccessFee(snapEntries);
+  // Decision 290 (Jo 25 Oct 2026): the A2 form no longer carries an access fee — the access rating is the flag and the
+  // office decides any access charge through the normal quote adjustment. Nothing is read from the form here.
+  const accessFee: { amountIncGst: number | null; reason: string | null } = { amountIncGst: null, reason: null };
   let calc: ReturnType<typeof priceHivQuote>;
   try {
     calc = priceHivQuote({
