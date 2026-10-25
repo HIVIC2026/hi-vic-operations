@@ -85,7 +85,7 @@ export async function applyEmailChange(eventId: string, actorId: string) {
   const ev = await eventById(eventId);
   if (!ev || ev.event_type !== EMAIL_CHANGE_REQUEST_EVENT || !ev.job_id) throw new WorkflowError("That change request was not found.");
   if (await resolutionOf([EMAIL_CHANGE_APPLIED_EVENT, EMAIL_CHANGE_IGNORED_EVENT], "request_event_id", ev.id)) throw new WorkflowError("That change request has already been dealt with.");
-  const d = (ev.details ?? {}) as { intent?: ChangeIntent; message_id?: string; phrase?: string; proposed?: { reason?: string; email?: string | null; phone?: string | null; files?: string[] } };
+  const d = (ev.details ?? {}) as { intent?: ChangeIntent | "reply"; message_id?: string; phrase?: string; proposed?: { reason?: string; email?: string | null; phone?: string | null; files?: string[] } };
   const jobId = ev.job_id;
   const why = `owner email ${d.message_id ? `(Outlook ${d.message_id.slice(-12)})` : ""}: “${d.phrase ?? ""}”`.trim();
   let outcome: string;
@@ -116,6 +116,11 @@ export async function applyEmailChange(eventId: string, actorId: string) {
       outcome = "files_added";
       break;
     }
+    case "reply":
+      // Decision 386: an owner email that was not answered automatically. Done = the office replied (from the Outlook
+      // draft or by hand); nothing on the job changes.
+      outcome = "office_replied";
+      break;
     case "reschedule":
       // Never move a booking from an email: the office rearranges it on the job (Needs me row only). Apply = "dealt with".
       outcome = "office_rearranges_booking";

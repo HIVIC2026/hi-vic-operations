@@ -82,6 +82,7 @@ import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.c
 import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
+import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -694,6 +695,11 @@ const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:sms-installer_planning_notice", section: "waiting", step: "safety_check", kind: "text", code: "", name: "Safety check booked (for your planning) (text)", when: "With I71", who: "Installer", approval: "waiting", approvalNote: "SMS type installer_planning_notice not approved (decision 376)", gate: { kind: "text", smsType: "installer_planning_notice" },
     source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "installerPlanningText", sender: "src/lib/installer-planning-notice.server.ts" },
     render: () => text(installerPlanningText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD })) }),
+  // Decision 386: one automatic reply per standard owner question (sent only once Jo approves the wording).
+  ...ANSWER_TYPES.map((answer) => ENTRY({ id: `waiting:${ANSWER_CODES[answer].code}`, section: "waiting", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
+    when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approval: "waiting", approvalNote: "OWNER_EMAIL_AUTO_REPLY_APPROVED = false (decision 386)", gate: { kind: "code_off", flag: "OWNER_EMAIL_AUTO_REPLY_APPROVED" },
+    source: { builder: "src/lib/owner-email-auto-reply.core.ts", fn: "renderOwnerAutoReplyEmail", sender: "src/lib/owner-email-auto-reply.server.ts" }, design: `docs/templates/drafts/${ANSWER_CODES[answer].file}`,
+    render: () => email(renderOwnerAutoReplyEmail({ answer, facts: ANSWER_SAMPLES[answer].facts, theirSubject: ANSWER_SAMPLES[answer].theirSubject })) })),
 ];
 
 /* ---------------------------------------------------------------- daily text sample */
