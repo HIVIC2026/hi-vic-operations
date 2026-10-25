@@ -97,9 +97,9 @@ export function hotCoverage(postcode: string | null, trades: Trade[]) {
 }
 /** Jo (8 Oct 2026): the Save my spot campaign — and ONLY this campaign — may send to real customers,
  *  one press of Send at a time. Every other customer email stays behind the global switch (off). */
-// Decision 388 (Jo 25 Oct 2026): HELD until Jo approves the spot-only O1/O2 wording (docs/decision-388-spot-only-wording.md);
-// now also gates real sends (realSendingOn, sendInitialEstimateEmail). Set back to true on approval.
-export const SAVE_SPOT_REAL_SEND_APPROVED = false as boolean;
+// Decision 388: also gates real sends (realSendingOn, sendInitialEstimateEmail). Jo approved the spot-only O1/O2 wording
+// on 25 Oct 2026 (picture docs/templates/owner/O1-save-my-spot.html).
+export const SAVE_SPOT_REAL_SEND_APPROVED = true as boolean;
 /** Jo (9 Oct 2026, "Ok then fix it"): the preserved Group B invitation is approved for real delivery through
  *  its own guarded path only. Global switches, consent, original-media, idempotency and opt-out guards still apply. */
 // Decision 388: HELD with SAVE_SPOT_REAL_SEND_APPROVED (the O2 questions email was reworded spot-only).

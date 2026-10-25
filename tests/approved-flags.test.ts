@@ -95,7 +95,7 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
 
 describe("decision 388 (Jo 25 Oct 2026): pre-release Save my spot wording reworded spot-only and HELD until Jo approves", () => {
   test("O1/O2 send flags and the two texts are off", () => {
-    expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: false, INSULATION_DETAILS_REAL_SEND_APPROVED: false, INSULATION_QUESTIONS_SEND_APPROVED: false });
+    expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: false, INSULATION_QUESTIONS_SEND_APPROVED: false });
     expect([SMS_MESSAGE_TYPES.spot_saved.wordingApproved, SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved]).toEqual([false, false]);
   });
 });

@@ -112,7 +112,7 @@ describe("source guards", () => {
       expect(s).not.toContain("workflow_settings");
       expect(s).not.toMatch(/SAVE_SPOT_REAL_SEND_APPROVED|customer_comms_enabled|fetch\(/);
     }
-    expect(readFileSync("src/lib/hot-leads.core.ts", "utf8")).toContain("export const SAVE_SPOT_REAL_SEND_APPROVED = false as boolean;") // decision 388: held until Jo approves the spot-only wording;
+    expect(readFileSync("src/lib/hot-leads.core.ts", "utf8")).toContain("export const SAVE_SPOT_REAL_SEND_APPROVED = true as boolean;") // decision 388: Jo approved the spot-only wording 25 Oct 2026;
   });
   test("the Office resolution RPC is admin-only", () => {
     const f = readFileSync("src/lib/save-spot-delivery.functions.ts", "utf8");
