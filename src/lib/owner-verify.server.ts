@@ -92,12 +92,66 @@ async function ensureOwnerUser(jobId: string, channel: "sms" | "email"): Promise
   const res = channel === "email" && owner.email
     ? await admin.auth.admin.createUser({ email: owner.email, email_confirm: true, user_metadata: meta })
     : await admin.auth.admin.createUser({ phone: toE164(owner.phone!), phone_confirm: true, user_metadata: meta });
-  if (res.error || !res.data.user) throw new Error(`Could not record the owner's verified identity: ${res.error?.message ?? "unknown"}`);
-  const uid = res.data.user.id;
+  let uid = res.data.user?.id ?? null;
+  // R05 (review 25 Oct 2026): a second owner row with an already registered mobile. This runs only after the code sent
+  // to that mobile matched (verifyOwnerCode), so the person holds the number: link the EXISTING owner identity with
+  // that verified mobile, the same way a verified email reuses its profile above. Never a staff/trade account.
+  if (!uid && channel === "sms" && phoneAlreadyRegistered(res.error)) uid = await existingOwnerUserByPhone(toE164(owner.phone!));
+  if (!uid) throw new Error(`Could not record the owner's verified identity: ${res.error?.message ?? "unknown"}`);
   await admin.from("owners").update({ user_id: uid }).eq("id", owner.id).is("user_id", null);
   await admin.from("user_roles").upsert({ user_id: uid, role: "owner" }, { onConflict: "user_id,role", ignoreDuplicates: true });
   const { data: o } = await admin.from("owners").select("user_id").eq("id", owner.id).single();
   return o?.user_id ?? uid;
+}
+
+/** Supabase Auth refuses a second user with the same phone (`phone_exists`, older servers: "already registered"). */
+export function phoneAlreadyRegistered(err: { code?: string | undefined; message?: string | undefined } | null | undefined): boolean {
+  if (!err) return false;
+  return err.code === "phone_exists" || /phone[^.]*(already (been )?registered|already exists|exists)/i.test(err.message ?? "");
+}
+
+const digitsOnly = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
+/** Auth stores phones as digits ("61412345678"); owners store what was typed. Same number = same E.164 digits. */
+export function samePhone(a: string | null | undefined, e164: string): boolean {
+  const d = digitsOnly(e164);
+  return !!d && (digitsOnly(a) === d || (!!a && digitsOnly(toE164(a)) === d));
+}
+const OWNER_ONLY_ROLES = new Set(["owner"]);
+
+/**
+ * The existing owner identity registered with this (already code-verified) mobile, or null. Candidates are the user
+ * ids already linked to owner rows with that mobile; the auth record must carry exactly this phone and the account may
+ * hold no role but "owner" (a staff, installer or electrician login is never linked to an owner row from here).
+ * Falls back to a bounded scan of auth users when no owner row links it yet.
+ */
+async function existingOwnerUserByPhone(e164: string): Promise<string | null> {
+  const d = digitsOnly(e164);
+  const tail = d.slice(-9);
+  if (tail.length < 9) return null;
+  const pattern = `%${tail.split("").join("%")}`; // matches "0412 345 678", "+61 412-345-678", …; exact check below
+  const { data: rows, error } = await admin.from("owners").select("user_id, phone").not("user_id", "is", null).ilike("phone", pattern).limit(200);
+  if (error) throw new Error("Could not check the owner's verified identity. Please try again.");
+  const candidates = [...new Set((rows ?? []).filter((r) => r.user_id && samePhone(r.phone, e164)).map((r) => r.user_id as string))];
+  const confirm = async (id: string, phone: string | null | undefined) => {
+    if (digitsOnly(phone) !== d) return null;
+    const { data: roles, error: re } = await admin.from("user_roles").select("role").eq("user_id", id);
+    if (re) throw new Error("Could not check the owner's verified identity. Please try again.");
+    return (roles ?? []).every((r) => OWNER_ONLY_ROLES.has(String(r.role))) ? id : null;
+  };
+  for (const id of candidates) {
+    const { data } = await admin.auth.admin.getUserById(id);
+    const hit = await confirm(id, data?.user?.phone);
+    if (hit) return hit;
+  }
+  for (let page = 1; page <= 20; page++) {
+    const { data, error: le } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (le) throw new Error("Could not check the owner's verified identity. Please try again.");
+    const users = data?.users ?? [];
+    const u = users.find((x) => digitsOnly(x.phone) === d);
+    if (u) return confirm(u.id, u.phone);
+    if (users.length < 1000) break;
+  }
+  return null;
 }
 
 /** Australian numbers to +61 form (auth requires E.164). */

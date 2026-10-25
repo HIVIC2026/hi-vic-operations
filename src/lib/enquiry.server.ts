@@ -128,34 +128,23 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
   const preserveEntered = origin.channel === "installer_sourced";
   const enteredText = (await import("./mitti-quote-release.core")).installerEnteredText;
   const fullName = preserveEntered ? enteredText(input.full_name) : properName(input.full_name);
-  let { data: owner } = email ? await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
-  if (owner) {
-    await admin.from("owners").update({ full_name: fullName, phone: input.phone ?? null }).eq("id", owner.id);
-  } else {
-    const { data, error } = await admin.from("owners").insert({ full_name: fullName, email, phone: input.phone ?? null }).select("id").single();
-    if (error) throw new Error(error.message);
-    owner = data;
-    // link to an existing portal account if one exists
-    const { data: prof } = email ? await admin.from("profiles").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
-    if (prof) {
-      await admin.from("owners").update({ user_id: prof.id }).eq("id", owner.id);
-      await admin.from("user_roles").upsert({ user_id: prof.id, role: "owner" }, { onConflict: "user_id,role" });
-    }
-  }
-
-  const byExternal = input.external_enquiry_id
-    ? (await admin.from("jobs").select("id, property_id, stage, job_number").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
+  const installerIntake = origin.channel === "installer_sourced";
+  // R01 (review 25 Oct 2026): no owner row is read for reuse or written until the request is accepted. The
+  // duplicate-address rule below runs first, so a refused request leaves every customer row untouched.
+  const byExternal: ExistingJob = input.external_enquiry_id
+    ? (await admin.from("jobs").select("id, property_id, stage, job_number, owner_id, channel, originating_installer_business_id").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
     : null;
+  // An installer request may only resume its OWN business's job; anyone else's job is never touched (trade isolation).
+  if (byExternal && installerIntake && !(byExternal.channel === "installer_sourced" && byExternal.originating_installer_business_id === origin.businessId)) throw new Error("This request reference is already in use. Please contact the office.");
   // Jo (6 Oct 2026): the same owner (email or mobile) + same address filling in the public calculator again
-  // attaches to their existing OPEN job — never a second job.
-  let existingJob = byExternal;
+  // attaches to their existing OPEN job — never a second job. Installer requests never attach to a website job.
+  let existingJob: ExistingJob = byExternal;
   let repeatOf: string | null = null;
   let repeatArea: number | null = null;
-  if (!existingJob && (source === "base44" || source === "qa_test")) {
+  if (!existingJob && !installerIntake && (source === "base44" || source === "qa_test")) {
     const repeat = await findOpenRepeatJob(source, email ?? "", input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
     if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
   }
-  if (!owner) throw new Error("Owner could not be saved.");
 
   // Decision 282 (Jo 25 Oct): only the address matters. Any OTHER open job at this address (whoever the owner is,
   // whichever channel) gets the office flag and no second job is made: an installer path is told the job number
@@ -171,6 +160,20 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
       return { job_id: open.id, job_number: open.job_number, created: false, post_intake: "none" as const, duplicate_address: true as const };
     }
   }
+  // Accepted: only now is the owner chosen. An installer intake never changes an existing owner's contact: it gets its
+  // own owner row (decision 282), or when resuming its own job that job's owner, unchanged. Website/office keep the
+  // by-email owner row (hivicOwner).
+  let createdOwnerId: string | null = null;
+  const owner: { id: string } | null = installerIntake
+    ? existingJob?.owner_id ? { id: existingJob.owner_id } : await (async () => {
+      const o = await (await import("./installer-owner.server")).createInstallerOwner(admin, origin.businessId, { full_name: fullName, email, phone: input.phone ?? null });
+      createdOwnerId = o.id;
+      return o;
+    })()
+    : await hivicOwner(email, fullName, input.phone ?? null);
+  if (!owner?.id) throw new Error("Owner could not be saved.");
+  // A failed save never leaves behind an owner row that THIS installer request made (nothing else is touched).
+  const discardNewOwner = async () => { if (createdOwnerId) await discardUnusedOwner(createdOwnerId); };
   // Decision 216: every address is stored as street / suburb / postcode the same way for every source. A website
   // one-line address with no suburb is split by the pure tidy (never inventing a suburb or postcode); installers'
   // own entries are kept exactly as typed.
@@ -203,7 +206,7 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(null, input as EnquiryInput) } : {}) }).select("id").single();
-  if (pe) throw new Error(pe.message);
+  if (pe) { await discardNewOwner(); throw new Error(pe.message); }
   const { data: job, error: je } = await admin
     .from("jobs")
     .insert({
@@ -217,7 +220,11 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
     })
     .select("id, job_number")
     .single();
-  if (je) throw new Error(je.message);
+  if (je) {
+    if (createdOwnerId) await admin.from("properties").delete().eq("id", prop.id).eq("owner_id", createdOwnerId);
+    await discardNewOwner();
+    throw new Error(je.message);
+  }
   await logEvent(job.id, actorId, "enquiry_received", `Enquiry received (${source})`, plan?.details ?? {}, { to: "new_enquiry" });
   if (plan) {
     await logEvent(job.id, actorId, "preliminary_eligibility_recorded",
@@ -237,6 +244,45 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
   const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
   if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback
   return { job_id: job.id, job_number: job.job_number, created: true, post_intake: queued };
+}
+
+type ExistingJob = { id: string; property_id: string; stage: string; job_number: string; owner_id?: string | null; channel?: string | null; originating_installer_business_id?: string | null; area?: number | null } | null;
+
+/**
+ * Website/office owner (signed website webhook or signed-in office staff): the by-email owner row, updated with the
+ * latest name and phone, else a new row linked to an existing portal account with that email. R01: a row that
+ * belongs to an installer's customer (any installer-sourced job) is never reused or changed from here; the enquiry
+ * gets its own row instead (decision 282 allows many owner rows per email).
+ */
+async function hivicOwner(email: string | null, fullName: string, phone: string | null): Promise<{ id: string }> {
+  let { data: owner } = email ? await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
+  if (owner) {
+    const { count, error } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("channel", "installer_sourced");
+    if (error) throw new Error("We couldn't check this owner's existing jobs. Please try again.");
+    if (count) owner = null;
+  }
+  if (owner) {
+    await admin.from("owners").update({ full_name: fullName, phone }).eq("id", owner.id);
+    return owner;
+  }
+  const { data, error } = await admin.from("owners").insert({ full_name: fullName, email, phone }).select("id").single();
+  if (error) throw new Error(error.message);
+  // link to an existing portal account if one exists
+  const { data: prof } = email ? await admin.from("profiles").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
+  if (prof) {
+    await admin.from("owners").update({ user_id: prof.id }).eq("id", data.id);
+    await admin.from("user_roles").upsert({ user_id: prof.id, role: "owner" }, { onConflict: "user_id,role" });
+  }
+  return data;
+}
+
+/** Remove an owner row this request created, only while no property or job points at it. Never fails the caller. */
+async function discardUnusedOwner(ownerId: string) {
+  try {
+    const { count: props } = await admin.from("properties").select("id", { count: "exact", head: true }).eq("owner_id", ownerId);
+    const { count: jobs } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("owner_id", ownerId);
+    if (props === 0 && jobs === 0) await admin.from("owners").delete().eq("id", ownerId);
+  } catch (e) { console.error("unused owner cleanup skipped", e instanceof Error ? e.message : e); }
 }
 
 /**
