@@ -87,6 +87,9 @@ export function withSafetyPlanLinks(body: string, links: readonly (string | null
   const real = [...new Set(links.filter((l): l is string => !!l && l.trim().length > 0))];
   return real.length ? `${body} ${safetyPlanLine(real)}` : body;
 }
+/** Decision 364: these texts go to ONE person per job (the allocated installer, else the business owner), so each unsigned
+ *  person's OWN sign link is listed as "<name>: <link>" for them to pass on; each link signs only that person's line. */
+export const safetyPlanSignerLinks = (entries: readonly { name: string; link: string }[]) => entries.map((e) => `${e.name}: ${e.link}`);
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
 export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 

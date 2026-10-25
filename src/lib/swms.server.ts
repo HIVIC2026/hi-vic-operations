@@ -1,7 +1,8 @@
 // Safety plan (SWMS) persistence — decision 261. Facts come from the job (business, crew chosen for the install, address,
 // house age, Ready Check / PIESA hazard note); the crew sign on the installer's job page; every signature and the optional
 // site note are append-only workflow events; once everyone listed has signed, the plan is filed as a PDF in the WorkSafe
-// Victoria sample-template layout (documents kind "swms", one file per signature set). Pure rules in swms.core.ts.
+// Victoria sample-template layout (documents kind "swms", one file per signature set; layout swms-pdf.server.ts,
+// decision 358). Pure rules in swms.core.ts.
 // Never sends anything and never moves a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -72,14 +73,16 @@ export async function saveSwmsSiteNote(jobId: string, actorId: string, note: str
   return { ok: true };
 }
 
-/** One person signs for themselves (typed full name = their name). Filing happens once everyone listed has signed. */
-export async function signSwms(jobId: string, actorId: string, key: string, typedName: string) {
+/** One person signs for themselves (typed full name = their name). Filing happens once everyone listed has signed.
+ *  Decision 364: `method` records how — logged in as that worker (`login`, own line checked by the caller) or through
+ *  that person's own secure text link (`link`, swms-link.server). */
+export async function signSwms(jobId: string, actorId: string | null, key: string, typedName: string, method: import("./swms.core").SwmsSignMethod) {
   const { plan, signatures } = await loadSwms(jobId);
   const check = checkSwmsSign(plan, signatures, key, typedName);
   if (!check.ok) throw new WorkflowError(check.reason);
   const { createHash } = await import("node:crypto");
   const planSha = createHash("sha256").update(JSON.stringify({ ...plan, signers: undefined })).digest("hex");
-  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name}`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha }, { internal: true });
+  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
   const after = await loadSwms(jobId);
   if (after.status.complete) await fileSwms(jobId, actorId).catch(async (e) => { await logEvent(jobId, actorId, "swms_file_failed", "Safety plan signed but the PDF could not be filed — it will be filed on the next signature or office retry", { reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined); });
   return { complete: after.status.complete, missing: after.status.missing };
@@ -95,8 +98,10 @@ export async function fileSwms(jobId: string, actorId: string | null): Promise<{
   const key = `swms:${sha.slice(0, 32)}`;
   const { data: ex } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("source_system", "portal").eq("external_id", key).maybeSingle();
   if (ex) return { filed: false, path: ex.storage_path };
-  const { textToPdf } = await import("./signed-pdf.server");
-  const pdf = await textToPdf(`Safe Work Method Statement — Job ${plan.jobNumber}`, text);
+  // Decision 358: the PDF is drawn in the WorkSafe sample-template layout; the key stays the hash of the same canonical
+  // text (swmsRecordText), so plans already filed as plain text are not filed again.
+  const { buildSwmsPdf } = await import("./swms-pdf.server");
+  const { bytes: pdf } = await buildSwmsPdf(plan, signatures, { recordRef: key });
   const path = `${jobId}/official/swms-${sha.slice(0, 16)}.pdf`;
   const up = await admin.storage.from("job-files").upload(path, pdf, { contentType: "application/pdf", upsert: false });
   if (up.error && !/exists/i.test(up.error.message)) throw new Error(`Safety plan could not be stored: ${up.error.message}`);
