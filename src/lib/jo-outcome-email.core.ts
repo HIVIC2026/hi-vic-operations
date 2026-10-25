@@ -234,7 +234,8 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const variant: SaveSpotVariant = unconfirmed ? (received ? "received" : "questions") : someInsulation ? "some" : "none";
   // Decision 392: only an unreviewed owner-declared offer whose answer really is "don't know" gets the don't-know wording.
   const reviewed = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known";
-  const dontKnow = variant === "some" && !reviewed && input.declaredUnknown === true && input.declaredExisting === true && input.insulation === "unknown";
+  // The questions / received-media emails to an owner whose answer is "don't know" never say "You told us there's some insulation".
+  const dontKnow = !reviewed && input.insulation === "unknown" && (variant === "questions" || variant === "received" || (variant === "some" && input.declaredUnknown === true && input.declaredExisting === true));
   return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject, dontKnow));
 }
 
