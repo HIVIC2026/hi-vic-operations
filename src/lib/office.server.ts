@@ -144,6 +144,10 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const { readyCheckOfficeItem } = await import("./ready-check-times.core");
     const rows = tOffers.map((o) => ({ id: String(o["id"]), job_id: String(o["job_id"]), kind: String(o["kind"]), status: String(o["status"]), offered_at: String(o["offered_at"]) }));
     const noTaker = new Set(offersWithNoTaker(rows, hours, new Date(now)).map((r) => `${r.job_id}:${r.kind}`));
+    // Decision 389: a spot released and waiting for the owner's Confirm needs nothing from the office.
+    const rcIds = timed.filter((j) => j["stage"] === "ready_check_ready_to_schedule" && j["channel"] === "hivic_sourced").map((j) => String(j["id"]));
+    const { spotReleaseStates } = await import("./spot-release.server");
+    const releases = rcIds.length ? await spotReleaseStates(rcIds) : new Map();
     for (const j of timed) {
       const id = String(j["id"]); const k = j["stage"] === "ready_check_ready_to_schedule" ? "ready_check" as const : "piesa" as const;
       const hasTrade = tAsg.some((a) => String(a["job_id"]) === id && a["role"] === (k === "piesa" ? "electrician" : "installer"));
@@ -151,7 +155,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
         // Jo 24 Oct 2026: our leads — the office picks ONE installer; a returned offer shows once as "Choose installer".
         if (tradeChoice.has(id)) continue;
         const item = readyCheckOfficeItem({ channel: s(j["channel"]), stage: String(j["stage"]), hasInstaller: hasTrade, offers: rows.filter((o) => o.job_id === id && o.kind === k) });
-        if (item) offerChoice.set(id, { kind: k, state: "choose", hours });
+        if (item && releases.get(id)?.state !== "pending") offerChoice.set(id, { kind: k, state: "choose", hours });
         continue;
       }
       if (noTaker.has(`${id}:${k}`)) { offerChoice.set(id, { kind: k, state: "no_taker", hours }); continue; }

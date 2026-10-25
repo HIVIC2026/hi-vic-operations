@@ -114,6 +114,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaOwnerConfirm'] = "failed";
         }
         try {
+          // Decision 389: released spots — day-2 "Just checking — it's your turn" reminder (email + text), the 7am release text
+          // when Jo released during quiet hours, and the day-5 lapse (one Needs me row, nothing sent). Batched reads.
+          const { sweepSpotReleases } = await import("@/lib/spot-release.server");
+          (out as Record<string, unknown>)['spotReleases'] = await timed("sweepSpotReleases", () => sweepSpotReleases());
+        } catch (e) {
+          console.error("allocation tick: spot release sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['spotReleases'] = "failed";
+        }
+        try {
           // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A5 fixes form; days 1/3, office day 5.
           const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
           (out as Record<string, unknown>)['piesaFixesConfirm'] = await timed("sweepOwnerFixesConfirmations", () => sweepOwnerFixesConfirmations());

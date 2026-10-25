@@ -125,6 +125,13 @@ export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind, businessIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    // Decision 389: a Ready Check is never offered to an installer before the owner confirms — the office Releases the
+    // spot (owner "It's your turn"), and the offer runs on the owner's Confirm (or straight away for a confirmed owner).
+    if (data.kind === "ready_check") {
+      if (data.businessIds.length !== 1) throw new WorkflowError("Choose one installer.");
+      const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, data.businessIds[0]!);
+      return { offered: r.mode === "offered" ? 1 : 0, released: r.mode === "released" };
+    }
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { newRecipients } = await import("./offer-dispatch.core");
     const { data: prior } = await admin.from("partner_offers").select("business_id, status").eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["pending", "declined", "accepted"]);
@@ -132,9 +139,7 @@ export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([r
     const fresh = newRecipients(data.businessIds, new Set((prior ?? []).map((o) => o.business_id)));
     if (!fresh.length) throw new WorkflowError("Those trades already have this offer.");
     const adding = (prior ?? []).some((o) => o.status === "pending");
-    const r = data.kind === "ready_check"
-      ? await (await import("./readycheck-booking.server")).startReadyCheckOffers(data.jobId, context.userId, fresh, { adding })
-      : await (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, "piesa", { onlyBusiness: fresh, adding });
-    await logEvent(data.jobId, context.userId, "trades_chosen", `Office chose ${fresh.length} trade(s) for the ${data.kind === "ready_check" ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"}${adding ? " (added to the open offer)" : ""}`, { kind: data.kind, business_ids: fresh, added: adding, chosen_by: context.userId, chosen_at: new Date().toISOString() }, { internal: true });
+    const r = await (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, "piesa", { onlyBusiness: fresh, adding });
+    await logEvent(data.jobId, context.userId, "trades_chosen", `Office chose ${fresh.length} trade(s) for the Pre Insulation Electrical Safety Assessment (PIESA)${adding ? " (added to the open offer)" : ""}`, { kind: data.kind, business_ids: fresh, added: adding, chosen_by: context.userId, chosen_at: new Date().toISOString() }, { internal: true });
     return { offered: r.offered };
   });
