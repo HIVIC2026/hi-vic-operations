@@ -11,7 +11,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_CLOSE_REASON, ESTIMATE_FOLLOWUP_CLOSE_SOURCE, ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT,
+  ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_CLOSE_REASON, ESTIMATE_FOLLOWUP_CLOSE_SOURCE, ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT, ESTIMATE_FOLLOWUP_RESULT_EVENT,
   ESTIMATE_FOLLOWUP_STAGE, TEMPLATE_CODE, decideEstimateFollowup, estimateFollowupKey, estimateFollowupPurpose, renderEstimateFollowupEmail,
   type EstimateFollowupFacts, type EstimateFollowupStep,
 } from "./estimate-followup.core";
@@ -45,7 +45,7 @@ export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<str
       db.from("customer_email_sends").select("job_id,purpose,idempotency_key,status,sent_at,created_at").in("job_id", ids).in("purpose", [LAUNCH_CAMPAIGN, LINK_PURPOSE]).eq("status", "sent"),
       db.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at").in("job_id", ids),
       db.from("customer_email_optouts").select("job_id,opted_out_at").in("job_id", ids),
-      db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", ids).in("event_type", [ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT]),
+      db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", ids).in("event_type", [ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT, ESTIMATE_FOLLOWUP_RESULT_EVENT]),
       db.from("job_communications").select("job_id,created_at,received_at").in("job_id", ids).eq("direction", "inbound"),
     ]);
     for (const q of [sends, resps, eopts, events, inbound]) if (q.error) throw new Error(`Could not read estimate follow-up facts: ${q.error.message}`);
@@ -61,9 +61,12 @@ export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<str
     const emailOpt = new Set<string>();
     for (const r of (eopts.data ?? []) as { job_id: string; opted_out_at: string | null }[]) if (r.opted_out_at) emailOpt.add(r.job_id);
     const done = new Map<string, { step: EstimateFollowupStep; at: string }[]>();
-    for (const e of (events.data ?? []) as { job_id: string; details: { step?: EstimateFollowupStep } | null; created_at: string }[]) {
+    const sentSteps = new Map<string, { step: EstimateFollowupStep; at: string }[]>();
+    for (const e of (events.data ?? []) as { job_id: string; event_type: string; details: { step?: EstimateFollowupStep; sent?: unknown } | null; created_at: string }[]) {
       const step = e.details?.step;
-      if (step) done.set(e.job_id, [...(done.get(e.job_id) ?? []), { step, at: e.created_at }]);
+      if (!step) continue;
+      if (e.event_type === ESTIMATE_FOLLOWUP_RESULT_EVENT) { if (e.details?.sent === true) sentSteps.set(e.job_id, [...(sentSteps.get(e.job_id) ?? []), { step, at: e.created_at }]); continue; }
+      done.set(e.job_id, [...(done.get(e.job_id) ?? []), { step, at: e.created_at }]);
     }
     const replied = new Map<string, string>();
     for (const m of (inbound.data ?? []) as { job_id: string; created_at: string; received_at: string | null }[]) {
@@ -77,7 +80,7 @@ export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<str
         stage: j.stage, source: j.source, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at,
         estimateEmailedAt: emailedAt.get(j.id) ?? null, spotSavedAt: r?.spot_saved_at ?? null,
         optedOut: !!r?.opted_out_at || emailOpt.has(j.id), repliedAt: replied.get(j.id) ?? null,
-        ownerEmail: j.owners?.email ?? null, done: done.get(j.id) ?? [],
+        ownerEmail: j.owners?.email ?? null, done: done.get(j.id) ?? [], sent: sentSteps.get(j.id) ?? [],
       });
     }
   }
@@ -122,14 +125,21 @@ export async function sendEstimateFollowupStep(j: JobRow, step: EstimateFollowup
   const key = estimateFollowupKey(j.id, step);
   await logEvent(j.id, null, ESTIMATE_FOLLOWUP_EVENT, `Estimate reminder ${code} (${step.replace("_", " ")} after the estimate email) prepared for the owner`, { step, key, template: code }, { internal: true });
   const render = (unsubscribeUrl: string | null) => renderEstimateFollowupEmail({ step, firstName: j.owners?.full_name ?? null, ...input, unsubscribeUrl, test });
+  // F09: the result is recorded AFTER the send; only sent = true lets a day-21 start the 7-day close.
+  const result = async (sent: boolean, detail: string) => {
+    await logEvent(j.id, null, ESTIMATE_FOLLOWUP_RESULT_EVENT, `Estimate reminder ${code} ${sent ? "sent" : "not sent"}${sent ? "" : `: ${detail}`}`.slice(0, 500), { step, key, sent, detail: detail.slice(0, 300) }, { internal: true }).catch(() => undefined);
+  };
   if (test) {
     const { sendTestEmail } = await import("./test-send.server");
     const m = render(null);
     const r = await sendTestEmail({ jobId: j.id, jobSource: j.source, partnerIsTest: true, label: `estimate_followup:${step}`, actorId: null }, to, m.subject, m.html, m.text);
+    await result(r.status === "sent", `${r.status}: ${r.detail}`);
     return `test email ${r.status}: ${r.detail}`;
   }
   const { sendGuardedOwnerEmail } = await import("./owner-email-send.server");
-  return `email ${await sendGuardedOwnerEmail({ jobId: j.id, jobSource: j.source, to, purpose: estimateFollowupPurpose(step), key, build: render })}`;
+  const r = await sendGuardedOwnerEmail({ jobId: j.id, jobSource: j.source, to, purpose: estimateFollowupPurpose(step), key, build: render });
+  await result(r === "sent", r);
+  return `email ${r}`;
 }
 
 /** Closes one estimate-only lead: conditional stage update (only from the estimate stage) + one stage_changed event. */
