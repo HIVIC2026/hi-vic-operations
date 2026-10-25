@@ -501,6 +501,21 @@ export async function sendAutomaticInsulationDetails(jobId: string): Promise<Hot
   return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true, ...(initial.action === "acknowledge" ? { mediaAcknowledgement: true } : {}), ...(newEnquiryAutoReply ? { newEnquiryAutoReply: true } : {}) });
 }
 
+/** Decision 393 (Jo 25 Oct 2026, "Yes, send all 54"): the Group B "3 quick questions" invitation for the one-off
+ *  backlog of website owners who were asked for photos or never sent anything. The same sendOne path and once-per-home
+ *  key as sendAutomaticInsulationDetails (existing_leads_launch_v1:insulation_details:<job>), with every guard: both
+ *  global switches (customer_comms_enabled + delivery), the onsite media blocker, the approval flag, consent, opt-out
+ *  and saved-spot checks. It never uses the new-enquiry auto-reply gate and never sends the media acknowledgement. */
+export async function sendInsulationQuestionsInvitation(jobId: string): Promise<HotSendResult> {
+  if (!(await groupBGlobalsOn())) return { jobId, jobNumber: null, outcome: "blocked", detail: GROUP_B_GLOBALS_OFF };
+  const initial = groupBInitialAction(await groupBMediaForJob(jobId));
+  if ("held" in initial) return { jobId, jobNumber: null, outcome: "blocked", detail: initial.held };
+  if (initial.action !== "request") return { jobId, jobNumber: null, outcome: "skipped", detail: "Existing enquiry photos/video received — office review, no 3-questions email" };
+  const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
+  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true });
+}
+
 /** S20-R01: the email service Save my spot already uses (Resend via the connector gateway), as a DeliveryAdapter for the
  *  automatic ineligible reply when no Base44 bridge is configured. A definite refusal is DeliveryRejectedError ("failed",
  *  retryable); any unknown outcome is a plain error, which the sender records as delivered_unrecorded (never retried). */

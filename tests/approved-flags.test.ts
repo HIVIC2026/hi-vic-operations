@@ -94,8 +94,8 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
 };
 
 describe("decision 388 (Jo 25 Oct 2026): pre-release Save my spot wording reworded spot-only and HELD until Jo approves", () => {
-  test("O1/O2 send flag and the two texts approved by Jo 25 Oct; the questions invitations stay held", () => {
-    expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: false, INSULATION_QUESTIONS_SEND_APPROVED: true });
+  test("O1/O2 send flag and the two texts approved by Jo 25 Oct; the questions invitation approved for the backlog (decision 393)", () => {
+    expect({ SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED, INSULATION_QUESTIONS_SEND_APPROVED }).toEqual({ SAVE_SPOT_REAL_SEND_APPROVED: true, INSULATION_DETAILS_REAL_SEND_APPROVED: true, INSULATION_QUESTIONS_SEND_APPROVED: true }); // decision 393: Jo approved the 3-questions email for the backlog 25 Oct 2026
     expect([SMS_MESSAGE_TYPES.spot_saved.wordingApproved, SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved]).toEqual([true, true]);
   });
 });

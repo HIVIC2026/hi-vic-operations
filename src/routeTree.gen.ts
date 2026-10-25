@@ -120,6 +120,7 @@ import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authen
 import { Route as AuthenticatedFieldMoneyJobIdRouteImport } from './routes/_authenticated/field.money_.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
+import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/public/hooks/backlog-send'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
@@ -745,6 +746,12 @@ const ApiPublicHooksAllocationTickRoute =
     path: '/api/public/hooks/allocation-tick',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksBacklogSendRoute =
+  ApiPublicHooksBacklogSendRouteImport.update({
+    id: '/api/public/hooks/backlog-send',
+    path: '/api/public/hooks/backlog-send',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksCustomerFollowupsRoute =
   ApiPublicHooksCustomerFollowupsRouteImport.update({
     id: '/api/public/hooks/customer-followups',
@@ -939,6 +946,7 @@ export interface FileRoutesByFullPath {
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
+  '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1061,6 +1069,7 @@ export interface FileRoutesByTo {
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
+  '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1189,6 +1198,7 @@ export interface FileRoutesById {
   '/_authenticated/field/money_/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
+  '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
@@ -1317,6 +1327,7 @@ export interface FileRouteTypes {
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
+    | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
@@ -1439,6 +1450,7 @@ export interface FileRouteTypes {
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
+    | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
@@ -1566,6 +1578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/money_/$jobId'
     | '/_authenticated/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
+    | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
@@ -1619,6 +1632,7 @@ export interface RootRouteChildren {
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
+  ApiPublicHooksBacklogSendRoute: typeof ApiPublicHooksBacklogSendRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
@@ -2412,6 +2426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksAllocationTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/backlog-send': {
+      id: '/api/public/hooks/backlog-send'
+      path: '/api/public/hooks/backlog-send'
+      fullPath: '/api/public/hooks/backlog-send'
+      preLoaderRoute: typeof ApiPublicHooksBacklogSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/customer-followups': {
       id: '/api/public/hooks/customer-followups'
       path: '/api/public/hooks/customer-followups'
@@ -2774,6 +2795,7 @@ const rootRouteChildren: RootRouteChildren = {
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
+  ApiPublicHooksBacklogSendRoute: ApiPublicHooksBacklogSendRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,

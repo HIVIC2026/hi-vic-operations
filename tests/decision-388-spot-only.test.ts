@@ -136,9 +136,9 @@ describe("pre-release page copy and shared constants", () => {
 });
 
 describe("approval flags: reworded live messages with a flag are held; nothing else switched", () => {
-  test("held until Jo approves the decision 388 wording", () => {
+  test("decision 388 wording approved by Jo (O1/O2 25 Oct; 3-questions email by decision 393)", () => {
     expect(SAVE_SPOT_REAL_SEND_APPROVED).toBe(true); // Jo approved the spot-only O1/O2 wording 25 Oct 2026
-    expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(false);
+    expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(true); // decision 393: Jo approved the 3-questions email for the backlog 25 Oct 2026
     expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(true); // Jo switched it back on 25 Oct 2026
     expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(true); // Jo re-approved O66–O68 spot-only 25 Oct 2026
     expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
