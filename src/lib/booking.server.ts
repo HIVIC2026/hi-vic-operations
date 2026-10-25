@@ -110,6 +110,11 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   }
   // Stage 5 (Jo 23 Oct): a rescheduled (or re-confirmed) Ready Check updates the booked date on the job's
   // existing Mitti form. A no-op when no form exists yet — the form is created with the booked date.
+  // Decision 327: the A4 needs the electrician at the start of the install day → ask them for THIS booking (a moved day is a
+  // new booking, so it is asked again), or auto-confirm a day they already said they can do. Never a booking failure.
+  if (kind === "installation") {
+    await (await import("./install-attendance.server")).onInstallBooked(jobId, actorId).catch((e) => console.error("electrician attendance skipped", (e as Error).message));
+  }
   if (kind === "ready_check") {
     await (await import("./mitti-pickup.server")).updateMittiFormDate(jobId, start, actorId).catch((e) => console.error("mitti form date update skipped", (e as Error).message));
   }

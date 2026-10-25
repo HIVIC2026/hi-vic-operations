@@ -157,8 +157,7 @@ export async function loadNeedsHivic() {
     const types = ["mitti_measureup_sync_failed", "mitti_measureup_synced", "mitti_sync_retried", "ready_check_needs_office", "installer_quote_held", "installer_quote_queued",
       "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped", "quote_declined", "mitti_access_needed", "mitti_access_override", "mitti_audit_linked", "mitti_synced",
       "ready_check_incomplete", "ready_check_incomplete_cleared", "mitti_pickup_needs_review", "mitti_pickup_auto_created",
-      "quote_auto_send_held", "quote_sent_automatically", "quote_sent_by_office", "xero_invoice_product_unconfirmed", "xero_invoice_product_confirmed",
-      "electrician_onsite_install_start", "electrician_onsite_install_start_cleared"];
+      "quote_auto_send_held", "quote_sent_automatically", "quote_sent_by_office", "xero_invoice_product_unconfirmed", "xero_invoice_product_confirmed"];
     const since = new Date(now.getTime() - 60 * 86_400_000).toISOString();
     const { data: mev, error: me } = await admin.from("workflow_events").select("job_id, event_type, created_at, details, summary").in("event_type", types).gte("created_at", since).order("created_at").limit(5000);
     if (me) throw new Error("Could not load Mitti office items.");
@@ -167,6 +166,28 @@ export async function loadNeedsHivic() {
       const j = it.jobId ? jobRows.find((r) => r.id === it.jobId) : undefined;
       const n = needsItem(it.code, it.jobId, j?.job_number ?? null, it.since, it.detail ?? undefined, j);
       kept.push({ ...n, key: it.key });
+    }
+  }
+  // Decision 327: electrician needed at the start of the install day — ONE row per job, only after 48h with no answer (the
+  // 24h reminder already went) or when they can do no day inside the window. Replaces the decision-314 line.
+  {
+    const { ATTENDANCE_EVENTS, ATTENDANCE_NEEDS_CODE, attendanceNeedsWhy, attendanceOfficeDetail, attendanceOfficeItems } = await import("./install-attendance.core");
+    const since = new Date(now.getTime() - 60 * 86_400_000).toISOString();
+    const { data: aev, error: ae } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", [...ATTENDANCE_EVENTS]).gte("created_at", since).order("created_at").limit(5000);
+    if (ae) throw new Error("Could not load electrician attendance.");
+    const ids = [...new Set((aev ?? []).map((e) => String((e.details as { booking_id?: string } | null)?.booking_id ?? "")).filter(Boolean))];
+    const current = new Set<string>();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: bk, error: be } = await admin.from("bookings").select("id").in("id", ids.slice(i, i + 200)).eq("status", "confirmed");
+      if (be) throw new Error("Could not load install bookings.");
+      (bk ?? []).forEach((b) => current.add(b.id));
+    }
+    const { needsItem } = await import("./allocation.core");
+    for (const it of attendanceOfficeItems((aev ?? []) as never, current, now)) {
+      if (!open.has(it.jobId)) continue;
+      const j = jobRows.find((r) => r.id === it.jobId);
+      const n = needsItem(ATTENDANCE_NEEDS_CODE, it.jobId, j?.job_number ?? null, it.since, attendanceOfficeDetail(it.reason), j);
+      kept.push({ ...n, why: `${attendanceNeedsWhy(j?.job_number ?? null)} ${attendanceOfficeDetail(it.reason)}`, key: it.key });
     }
   }
   return { items: kept, checkedAt: now.toISOString() };

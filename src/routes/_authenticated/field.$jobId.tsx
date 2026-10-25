@@ -58,6 +58,8 @@ import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
 import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
+import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
+import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -127,6 +129,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <FixesTimesCard jobId={jobId} />}
+        {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}
         {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
@@ -373,6 +376,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
           {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
           {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
+          {/* Decision 327: electrician needed at the start of the install day — confirmed / waiting, or the "can't make it" alert. */}
+          {page.electricianAttendance && <p className={`mt-2.5 text-sm font-medium ${page.electricianAttendance.line === ELECTRICIAN_ATTENDANCE_CONFIRMED ? "text-hiv-green" : "text-ink"}`} data-electrician-attendance>{page.electricianAttendance.alert ?? page.electricianAttendance.line}</p>}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}

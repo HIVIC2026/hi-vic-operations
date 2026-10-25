@@ -52,6 +52,7 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
   },
   // Decision 281 (Jo 25 Oct 2026): no "Fix details" pile or buttons — the portal completes addresses itself.
   { term: "Fix details pile / button", re: /Fix details/g, action: "Decision 281: one Enquiries list; addresses complete automatically (address-complete.core)" },
+  { term: "Office tells the trades the electrician-at-start day", re: /tell the installer and electrician the day/g, action: "Decision 327: the electrician is asked automatically once the install day is booked (install-attendance.core)" },
   // Decisions 283/285 (Jo 25 Oct 2026): no priority number and no chip panel on Enquiries.
   { term: "Enquiries priority number / chip panel", re: /1 = hottest|Pick as many as you like · every column is sortable · 1/g, action: "Decisions 283/285: sort hottest first silently; headings filter (286)" },
   {

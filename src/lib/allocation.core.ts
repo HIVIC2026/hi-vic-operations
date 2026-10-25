@@ -355,7 +355,7 @@ export type NeedsCode =
   | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades" | "ready_check_offer_returned"
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
-  | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_onsite_install_start";
+  | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -367,8 +367,9 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   quote_auto_send_held: { why: "Quote not sent automatically: the Ready Check is Complete but a check failed (or the form changed after the quote was sent).", next: "Office needs to: read the reason on the Quotes tab, sort it out, then press Send quote (or ask the installer to fix the form).", tab: "quotes", urgency: "today" },
   quote_not_delivered: { why: "Quote not delivered: the owner was not emailed.", next: "Office needs to: contact the owner about their quote (it is on their job page).", tab: "communications", urgency: "today" },
   mitti_setup_installer: { why: "Set up installer in Mitti: the installer isn't in our Mitti account.", next: "Office needs to: invite the installer to Mitti with their portal email, then retry the form.", tab: "overview", urgency: "today" },
-  // Decision 314 (Jo 25 Oct 2026): exact line agreed with Jo; recorded only, nothing is sent.
-  electrician_onsite_install_start: { why: "Electrician must be on site at the start of the install day — tell the installer and electrician the day once booked", next: "Office needs to: once the install day is booked, tell the installer and the electrician the day and that the electrician starts the day on site.", tab: "overview", urgency: "soon" },
+  // Decision 327 (Jo 25 Oct 2026) replaces the decision-314 "tell the installer and electrician" line: the electrician is asked
+  // automatically; this row appears only after 48h with no answer (one reminder sent at 24h) or when they can do no day left.
+  electrician_install_attendance: { why: "Electrician can't attend / hasn't confirmed install-day attendance", next: "Office needs to: call the electrician. If they can't do any day left in the 30-day window, arrange another electrician or a new PIESA with the owner.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },

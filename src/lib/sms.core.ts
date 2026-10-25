@@ -45,6 +45,13 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 315 (Jo 25 Oct 2026, route approved): the A4 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
   fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
+  // Decision 327 (Jo 25 Oct 2026, route approved): the A4 says the electrician must be on site at the start of the install
+  // day → once the day is booked (and on every change) the assigned electrician is asked to confirm on their job page.
+  // Wording: attendanceSmsText (install-attendance.core.ts).
+  electrician_install_attendance: { audience: "partner", label: "Install day booked – electrician needed at the start: confirm on the job page / 24h reminder / booked on a day they can do (decision 327)", wordingApproved: true, quietHours: true },
+  // Decision 327: the electrician can't make the booked install day → the installer is told once with the days the electrician
+  // can do. Wording: installerCantAttendText (install-attendance.core.ts), given by Jo.
+  electrician_cant_attend_installer: { audience: "partner", label: "Electrician can't make the install day – installer offers new days the electrician can do (decision 327)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -93,6 +100,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
   piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
   fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A4 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
+  electrician_install_attendance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the request / reminder recorded for this install booking (install-attendance.server); re-offered by the tick only while unanswered
+  electrician_cant_attend_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the electrician's "Can't make it" (recorded once per released booking before any send)
 };
 
 export type SmsEventInput = {

@@ -108,7 +108,7 @@ export const FIXES_WORK_OPTIONS = [
   "Remove or make safe old unused cables",
   "Label and protect solar or battery cables in the ceiling",
   // Decision 314 (Jo 25 Oct 2026): priced inside the same total; ticked = the official "electrician present at the start of
-  // installation" outcome (deriveRectificationOutcome) and an office item to tell both trades the day.
+  // installation" outcome (deriveRectificationOutcome); decision 327 lines the electrician up automatically once the day is booked.
   "Be on site at the start of the install day",
   "Other",
 ] as const;
@@ -116,10 +116,11 @@ export const FIXES_DOWNLIGHT_OPTION = FIXES_WORK_OPTIONS[0];
 export const FIXES_RCD_OPTION = FIXES_WORK_OPTIONS[1];
 export const FIXES_ONSITE_OPTION = FIXES_WORK_OPTIONS[9];
 export const FIXES_OTHER_OPTION = FIXES_WORK_OPTIONS[10];
-/** Decision 314 office item (Needs me line). */
+/** Decision 314 record (history only since decision 327: no Needs me line — the electrician is asked automatically once the
+ *  install day is booked, install-attendance.core). */
 export const ONSITE_START_EVENT = "electrician_onsite_install_start";
 export const ONSITE_START_CLEARED_EVENT = "electrician_onsite_install_start_cleared";
-export const ONSITE_START_OFFICE_TEXT = "Electrician must be on site at the start of the install day — tell the installer and electrician the day once booked";
+export const ONSITE_START_HISTORY_TEXT = "The safety check says the electrician must be on site at the start of the install day — they are asked to confirm automatically once the day is booked";
 
 const nrmTick = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 /** The ticked decision-308/314 options, in form order. Mitti joins multi-select labels with ", " (the portal also accepts

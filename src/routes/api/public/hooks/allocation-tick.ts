@@ -130,6 +130,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          // Decision 327: electrician needed at the start of the install day — ask any booking not yet asked, re-offer a held
+          // request (quiet hours), one reminder at 24h. Office row only at 48h (Needs me).
+          const { sweepElectricianAttendance } = await import("@/lib/install-attendance.server");
+          (out as Record<string, unknown>)['electricianAttendance'] = await sweepElectricianAttendance();
+        } catch (e) {
+          console.error("allocation tick: electrician attendance sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['electricianAttendance'] = "failed";
+        }
+        try {
           // Decision 186: installer told once when electrical clearance is in (text + email, offer 3 install days).
           // Catch-up only: jobs cleared in the last 7 days with nothing booked and no notice yet; the live trigger is
           // the PIESA completion / Section C sign-off itself.

@@ -12,7 +12,7 @@ import { jobScope } from "./requirements.server";
 import { provisionalGivesWayToMitti } from "./measurement.core";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
-import { customerOfOption, noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
+import { customerOfOption, noPriceTalkIssue, ONSITE_START_CLEARED_EVENT, ONSITE_START_EVENT, ONSITE_START_HISTORY_TEXT, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
 import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
@@ -362,7 +362,8 @@ async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, aud
 async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite: boolean) {
   const { data } = await admin.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", [ONSITE_START_EVENT, ONSITE_START_CLEARED_EVENT]).order("created_at", { ascending: false }).limit(1);
   const open = data?.[0]?.event_type === ONSITE_START_EVENT;
-  if (onsite && !open) await logEvent(jobId, actorId, ONSITE_START_EVENT, ONSITE_START_OFFICE_TEXT, { needs_office: true, rule: "decision 314" }, { internal: true });
+  // Decision 327: a record only (no Needs me line) — the electrician is asked automatically once the install day is booked.
+  if (onsite && !open) await logEvent(jobId, actorId, ONSITE_START_EVENT, ONSITE_START_HISTORY_TEXT, { rule: "decision 314 / 327" }, { internal: true });
   else if (!onsite && open) await logEvent(jobId, actorId, ONSITE_START_CLEARED_EVENT, "The safety check no longer says the electrician must be on site at the start of the install day", { rule: "decision 314" }, { internal: true });
 }
 
@@ -425,7 +426,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const [prefillCtx, ownerConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null)]);
         const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation });
         const ev = evaluatePiesa(expanded.answers);
-        // Decision 314: a completed A4 with "Be on site at the start of the install day" ticked raises ONE office item.
+        // Decision 314 / 327: a completed A4 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
