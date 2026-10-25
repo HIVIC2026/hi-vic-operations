@@ -1,4 +1,4 @@
-// Decision 315 (Jo 25 Oct 2026): the A4 PIESA sync saw the PIESA completed, repair work is needed (not fixed on the same
+// Decision 315 (Jo 25 Oct 2026): the A3 PIESA sync saw the PIESA completed, repair work is needed (not fixed on the same
 // visit, not the decision-314 on-site-only answer) and no electrician fixes windows exist → text the assigned electrician
 // ONE link to their job page to pick 3–5 fixes times + estimated hours. Same shape as the decision-288 boss price link:
 // the `fixes_times_link_sent` workflow event is recorded BEFORE anything is sent (once per job + PIESA form); TEST jobs /

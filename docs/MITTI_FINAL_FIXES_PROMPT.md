@@ -11,7 +11,7 @@ Make ONLY these changes in Mitti, then publish each template.
    It stays shown only when `Is there existing insulation in this ceiling area?` = Yes. Change nothing else.
 
 2. On ALL THREE templates — `A1 – Ready Check | Installer-Supplied Customer`, `A2 – Ready Check | HIVIC Sourced Customer`
-   and `A3 – Install day` — open the template settings (the gear icon next to Publish) and turn ON
+   and `A5 – Install day` — open the template settings (the gear icon next to Publish) and turn ON
    **Mandatory mark-as-complete** (every Required question must be answered before the inspection can be marked
    complete). While there, confirm location/GPS capture is ON for photo and video questions.
 

@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { electricalClearance, onsiteStartAtInstall, type ClearanceFacts } from "./allocation.core";
 
-/** Decision 314: the stored A4 PIESA snapshot's ONLY repair tick is "Be on site at the start of the install day"
+/** Decision 314: the stored A3 PIESA snapshot's ONLY repair tick is "Be on site at the start of the install day"
  *  (fixes-times.core `onsiteStartOnly`). No snapshot = false. */
 export async function onsiteStartOnlyFor(jobId: string): Promise<boolean> {
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
@@ -23,7 +23,7 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
     admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const { count: items } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId);
-  // Decision 314 follow-up: an A4 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
+  // Decision 314 follow-up: an A3 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
   // accepted fixes quote + the payment rule (no fixes visit, no Section C). Read only once the fixes quote is accepted.
   const onsiteOnly = rq?.status === "accepted" ? await onsiteStartOnlyFor(jobId).catch(() => false) : false;
   const fixesPaymentCleared = onsiteOnly ? await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false) : false;

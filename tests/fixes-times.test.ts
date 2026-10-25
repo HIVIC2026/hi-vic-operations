@@ -1,4 +1,4 @@
-// Decision 315 (Jo 25 Oct 2026): A4 PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the
+// Decision 315 (Jo 25 Oct 2026): A3 PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the
 // assigned electrician with a link to pick 3–5 fixes times on their job page; the fixes quote is held until the times
 // exist; 24h with no times → one Needs me row. Plus the decision-314 follow-up: "Be on site at the start of the install
 // day" alone clears on the accepted + paid fixes quote (basis electrician_at_start, 30 days from the official PIESA).
@@ -37,7 +37,7 @@ describe("fixesTimesNeeded — the existing rectification-needed reading (fixesF
     // No tick list at all (a form from before decision 308) is not "on site only".
     expect(onsiteStartOnly({ rectificationOutcome: REPAIR })).toBe(false);
   });
-  test("read from the real A4 labels (shortAnswersFromEntries)", () => {
+  test("read from the real A3 labels (shortAnswersFromEntries)", () => {
     const entries = (work: string) => [
       { label: "Is any electrical repair work needed before insulation can be installed?", value: "Yes" },
       { label: FIXES_WORK_LABEL, value: work },
@@ -143,7 +143,7 @@ describe("source pins", () => {
     expect(s).toContain("fixesTimesLink(test ? TEST_APP_BASE : SET_PASSWORD_BASE, jobId)");
     expect(s).not.toMatch(/fetch\(|twilio/i);
   });
-  test("the A4 sync calls it only when the PIESA is completed", () => {
+  test("the A3 sync calls it only when the PIESA is completed", () => {
     expect(read("src/lib/mitti.server.ts")).toContain('if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });');
   });
   test("new literal createServerFn chain → trade-view.server → the ONE shared write; the old portal path uses the same write", () => {

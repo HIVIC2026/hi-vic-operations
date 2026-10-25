@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// "A5 – Electrical fixes" Mitti template (decision 293, Jo 25 Oct 2026). PURE: no database, no network.
+// "A4 – Electrical fixes" Mitti template (decision 293, Jo 25 Oct 2026). PURE: no database, no network.
 // When the PIESA said repair work is needed (q20) and it was NOT fixed on the same visit (q30 not Yes), the fixes are done
 // on a later visit. The portal creates this short form for the electrician when that visit is booked, and reads it when
 // the electrician presses Complete: Q9 Yes with the CoES number, certification date, CoES file and finished-work photo
@@ -12,12 +12,12 @@ import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./pie
 import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
 
-export const FIXES_DAY_TEMPLATE_NAME = "A5 – Electrical fixes";
+export const FIXES_DAY_TEMPLATE_NAME = "A4 – Electrical fixes";
 export const FIXES_DAY_RULE = "fixes-day-2026-10-25";
 /** workflow_settings column holding the connected template id (pending migration docs/pending-migrations/mitti-fixes-template.sql). */
 export const FIXES_TEMPLATE_COLUMN = "mitti_fixes_template_id";
 export const FIXES_TEMPLATE_MIGRATION = "docs/pending-migrations/mitti-fixes-template.sql";
-export const FIXES_TEMPLATE_MISSING = "Electrical fixes Mitti form is not set up. Connect the \"A5 – Electrical fixes\" form in Compliance → Mitti forms; until then the electrician records the fixes on the portal job page.";
+export const FIXES_TEMPLATE_MISSING = "Electrical fixes Mitti form is not set up. Connect the \"A4 – Electrical fixes\" form in Compliance → Mitti forms; until then the electrician records the fixes on the portal job page.";
 export const FIXES_TEMPLATE_PENDING_DB = `Electrical fixes Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}). The electrician records the fixes on the portal job page until then.`;
 /** Workflow events (append-only history; the latest per audit wins). */
 export const FIXES_FORM_CREATED_EVENT = "fixes_form_created";
@@ -26,7 +26,7 @@ export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
 export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
-/** Job-file title of the CoES file(s) kept from the A5 form (documents kind piesa_evidence, source mitti). Decision 322:
+/** Job-file title of the CoES file(s) kept from the A4 form (documents kind piesa_evidence, source mitti). Decision 322:
  *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
 export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
 export const FIXES_COES_DOC_KIND = "piesa_evidence";
@@ -130,14 +130,14 @@ function labelledItems(doc: unknown): Labelled[] {
 const allWithLabel = (items: Labelled[], label: string) => items.filter((i) => labelKey(i.label) === labelKey(label));
 
 /** Decision 336: the signature captured on a Mitti form under `label` (first occurrence; exact wording) — media id + its own
- *  timestamp + signer name, only what Mitti recorded. Used for the A4 "Electrician signature" (and the A5 one via readFixesDay). */
+ *  timestamp + signer name, only what Mitti recorded. Used for the A3 "Electrician signature" (and the A4 one via readFixesDay). */
 export function mittiSignatureByLabel(audit: unknown, label: string): ReadSignature & { itemId: string | null } {
   const hit = allWithLabel(labelledItems(audit), label)[0];
   return hit ? { ...hit.signature, itemId: hit.id } : { ...NO_SIGNATURE, itemId: null };
 }
 export type MittiSignatureRead = ReadSignature;
 
-/** Is this template / audit the "A5 – Electrical fixes" form? (Two labels no other form carries together.) */
+/** Is this template / audit the "A4 – Electrical fixes" form? (Two labels no other form carries together.) */
 export function isFixesDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
   return allWithLabel(items, Q.done).length > 0 && allWithLabel(items, Q.repairList).length > 0;
@@ -260,13 +260,13 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
     const hits = out.filter((e) => key(e.label) === key(label));
     const hit = hits[nth];
     if (hit) { if (value != null) hit.value = value; if (media) hit.media = media; }
-    else out.push({ label, value, section: "fixes day (A5)", ...(media ? { media } : {}) });
+    else out.push({ label, value, section: "fixes day (A4)", ...(media ? { media } : {}) });
   };
   // Unique labels on the PIESA: set the one occurrence (or append).
   setNth(shortLabel("rectificationComplete"), 0, "Yes");
   setNth(shortLabel("coesNumber"), 0, done.coesNumber);
   setNth(shortLabel("certDate"), 0, done.certDate);
-  // Decision 329: the A5 signature's signer + Melbourne date, for the official Section C typed signature.
+  // Decision 329: the A4 signature's signer + Melbourne date, for the official Section C typed signature.
   const signer = done.signerName ?? r.electricianName;
   if (signer) setNth(shortLabel("fixesSignedBy"), 0, signer);
   const signedOn = done.signedAt && Number.isFinite(Date.parse(done.signedAt)) ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(done.signedAt)) : done.certDate;
@@ -274,7 +274,7 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
   // Electrician details: Part B3 (Section C is copied from it by expandPiesa). Only blanks are filled — the PIESA's own
   // pre-filled answers win over the fixes form.
   const b3: [string, string | null][] = [["b3.licence", r.licence], ["b3.name", r.electricianName], ["b3.recName", r.recName], ["b3.recNo", r.recNo], ["b3.phone", r.phone]];
-  for (const [id, v] of b3) { if (!v) continue; const hit = out.find((e) => key(e.label) === key(shortLabel(id))); if (!hit) out.push({ label: shortLabel(id), value: v, section: "fixes day (A5)" }); else if (!hit.value) hit.value = v; }
+  for (const [id, v] of b3) { if (!v) continue; const hit = out.find((e) => key(e.label) === key(shortLabel(id))); if (!hit) out.push({ label: shortLabel(id), value: v, section: "fixes day (A4)" }); else if (!hit.value) hit.value = v; }
   // q45: the CES file, read by piesa-evidence.core from the same label.
   setNth(CES_LABEL, 0, `${done.coesFiles.length} file${done.coesFiles.length === 1 ? "" : "s"}`, done.coesFiles);
   return out;

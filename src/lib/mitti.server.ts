@@ -214,7 +214,7 @@ export async function pointMeasurementAtMitti(jobId: string, m: MeasurementPoint
 
 /** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement).
  *  Decision 222 / 211: the per-area record (name, length × width, m², existing, removal) travels with the measurement row
- *  as `zones` (areas.v1 shape + install-day zone fields), read by jobUpgradeZones / rcAreasFromRecord for the A3 zone names.
+ *  as `zones` (areas.v1 shape + install-day zone fields), read by jobUpgradeZones / rcAreasFromRecord for the A5 zone names.
  *  Mitti jobs have no portal Ready Check draft row, so the canonical `measure.areas_v1` observation stays the office record. */
 async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown, zones: unknown[] | null = null) {
   const s = await jobScope(jobId);
@@ -355,7 +355,7 @@ async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, aud
   if (saved.length) await logEvent(jobId, actorId, "piesa_evidence_saved", `${saved.length} PIESA evidence file(s) saved to job files (decision 178)`, { audit_id: auditId, paths: saved, captured: files.map((f) => ({ item: f.id, media_id: f.file.mediaId, captured_at: f.file.capturedAt, geotagged: f.file.lat != null && f.file.lng != null })) });
 }
 
-/** Decision 314 (Jo 25 Oct 2026): one office item per job while the latest completed A4 says the electrician must be on site
+/** Decision 314 (Jo 25 Oct 2026): one office item per job while the latest completed A3 says the electrician must be on site
  *  at the start of the install day (Needs me via ready-check-chase.core RULES); cleared if a later sync no longer says so.
  *  Recorded only — nothing is sent. */
 async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite: boolean) {
@@ -410,7 +410,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const snapshot = attachPiesaMedia(audit, (plan.snapshot ?? []) as PiesaSnapshotEntry[]);
         const shortAnswers = shortAnswersFromEntries("piesa", snapshot);
         const evidenceBlockers = piesaEvidenceBlockers(shortAnswers, piesaMediaFromSnapshot(snapshot));
-        // Decisions 312/323: every completed A4 that has the "won't discuss prices" tick must have it ticked — an office item, never a blocker.
+        // Decisions 312/323: every completed A3 that has the "won't discuss prices" tick must have it ticked — an office item, never a blocker.
         const priceTalk = noPriceTalkIssue({ completed: plan.completed, entries: snapshot });
         // A PIESA marked complete in Mitti without its evidence is NOT complete here (stays pending, re-synced next tick).
         completed = plan.completed && evidenceBlockers.length === 0;
@@ -425,7 +425,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
         const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
-        // Decision 314 / 327: a completed A4 with "Be on site at the start of the install day" ticked is recorded (history only).
+        // Decision 314 / 327: a completed A3 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
@@ -442,7 +442,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
           await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
-          // Decision 336: the electrician's ACTUAL A4 signature image (media id + its own timestamp) is kept with the job for
+          // Decision 336: the electrician's ACTUAL A3 signature image (media id + its own timestamp) is kept with the job for
           // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
@@ -457,7 +457,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
         // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
         if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
-        // Decision 354: A4 Complete → prepare the electrician-priced fixes quote and send it automatically when every
+        // Decision 354: A3 Complete → prepare the electrician-priced fixes quote and send it automatically when every
         // existing check passes (same release as the office Send); otherwise it stays on Needs me with the reason. Never throws.
         if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
       }
@@ -655,7 +655,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
   if (!sameMittiTemplateId(mittiTemplateIdentity(template).id, MITTI_PIISA_TEMPLATE_ID))
     throw new WorkflowError("Mitti returned an unexpected or unidentifiable PIISA template; office review is required.");
-  // Decision 262: the "A3 – Install day" template (connected as the PIISA form) is prefilled by wording from job facts.
+  // Decision 262: the "A5 – Install day" template (connected as the PIISA form) is prefilled by wording from job facts.
   {
     const id = await import("./install-day.core");
     if (id.isInstallDayDoc(template)) {

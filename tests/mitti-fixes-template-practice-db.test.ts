@@ -1,4 +1,4 @@
-// Decision 293: the "A5 – Electrical fixes" template column proven on a practice Postgres (PGlite), never the live database:
+// Decision 293: the "A4 – Electrical fixes" template column proven on a practice Postgres (PGlite), never the live database:
 // docs/pending-migrations/mitti-fixes-template.sql adds a nullable text column, is idempotent, never resets a saved id,
 // and rolls back cleanly; before it is applied the code reads "pending" and fails closed (no form, office item).
 import { describe, expect, mock, test } from "bun:test";

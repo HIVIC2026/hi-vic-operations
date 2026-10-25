@@ -2,7 +2,7 @@
 // Decision 321 (Jo 25 Oct 2026): the manufacturer warranty PDF goes with O44 at install complete and
 // `warranty_copy_provided` is recorded THEN (so the automatic AP signature no longer waits for full payment); the
 // completion pack still attaches it after full payment but never records it a second time.
-// Decision 322: the Certificate of Electrical Safety file the electrician uploaded in the A5 fixes form (kept on the job by
+// Decision 322: the Certificate of Electrical Safety file the electrician uploaded in the A4 fixes form (kept on the job by
 // fixes-day.server.ts) is attached to the completion pack when present. No I/O here.
 
 /** A guarded owner send (sendOwnerTemplateEmail / test-send) went out. */

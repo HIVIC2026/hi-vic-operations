@@ -760,7 +760,7 @@ export function missingKnownFields(skipped: string[]): string[] {
   return skipped.filter((x) => !/attachment — shown in the portal|single choice on the Mitti form/.test(x));
 }
 
-/** A3 template id + mapping now live in piisa-a3.core.ts (observed native aliases, occurrence-aware). */
+/** A5 template id + mapping now live in piisa-a3.core.ts (observed native aliases, occurrence-aware). */
 export const PIISA_A3_TEMPLATE_ID = "template_f6a2597479164eb181453eb335ce5125";
 
 /** HV-1351 fix: a cancelled, soft-deleted or QA-archived job is never synced, never gets events and never gets a

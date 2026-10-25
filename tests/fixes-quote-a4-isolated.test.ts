@@ -1,4 +1,4 @@
-// Decision 305 (Jo 25 Oct 2026): generateRectificationQuote builds the owner's fixes quote from the electrician's A4 total
+// Decision 305 (Jo 25 Oct 2026): generateRectificationQuote builds the owner's fixes quote from the electrician's A3 total
 // (one line + the decision-142 margin), keeps the rate-card path for older forms, and the quote stays a held draft.
 import { beforeEach, expect, mock, test } from "bun:test";
 import { FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_INCLUDED_LABEL, FIXES_PRICE_LABEL, FIXES_WORK_LABEL } from "../src/lib/official-short.core";
@@ -61,7 +61,7 @@ const of = (t: string) => inserts.filter((i) => i.table === t).map((i) => i.row)
 
 beforeEach(() => { choiceEvent = null; usualCfg = null; elecBiz = null; jobChannel = null; snapshot = []; electricalCards = [card]; rectItems = []; inserts = []; updates = []; events = []; });
 
-test("A4 price + included → ONE 'Electrical repair work' line at electrician price + margin; cost = price ex GST", async () => {
+test("A3 price + included → ONE 'Electrical repair work' line at electrician price + margin; cost = price ex GST", async () => {
   snapshot = a4("$1,100.00", "Replace 6 downlights with IC-4 LEDs, install 1 RCD");
   expect(await generateRectificationQuote("job", "actor")).toBe("new-quote");
   const [quote] = of("quotes");
@@ -77,7 +77,7 @@ test("A4 price + included → ONE 'Electrical repair work' line at electrician p
   expect(events.map((e) => e.type)).toEqual(["rectification_quote_held"]);
 });
 
-test("no rate card needed on the A4 path (rate_card_id stays null)", async () => {
+test("no rate card needed on the A3 path (rate_card_id stays null)", async () => {
   snapshot = a4("900", "Install 1 RCD");
   electricalCards = [];
   await generateRectificationQuote("job", "actor");
@@ -126,7 +126,7 @@ test("decision 308: a downlight tick without the count falls back to the rate-ca
 
 // Decision 351 (Jo 25 Oct 2026): the margin follows WHOSE electrician on A1 too (replaces decision 313's channel rule).
 const sparkieUsual = { id: "cfg-1", details: { business_id: "inst-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
-test("decision 351: A1 + the installer's usual electrician (the one assigned) → A4 price as is, no $100", async () => {
+test("decision 351: A1 + the installer's usual electrician (the one assigned) → A3 price as is, no $100", async () => {
   jobChannel = "installer_sourced";
   usualCfg = sparkieUsual;
   elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };
@@ -180,7 +180,7 @@ test("decision 351: A1 rate-card fallback follows the same rule; our lead with o
 
 // Decision 374 (Jo 25 Oct 2026: "we ALWAYS choose the electrician"): on our leads the electrician is always ours — even
 // when the one assigned happens to be the installer's usual electrician — so fixes always carry the decision-142 $100.
-test("decision 374: our lead (A2) + the installer's usual electrician assigned → still ours: A4 price + $100", async () => {
+test("decision 374: our lead (A2) + the installer's usual electrician assigned → still ours: A3 price + $100", async () => {
   jobChannel = "hivic_sourced";
   usualCfg = { id: "cfg-1", details: { business_id: "rec-1", electrician: { name: "Sparkie Co", licence: "REC 12345", priceIncGst: 220 } } };
   elecBiz = { id: "rec-1", name: "Sparkie Co", trading_name: null, rec_number: "REC-12345" };

@@ -1,6 +1,6 @@
 // ONE write path for "electrical fixes done + PIESA Section C signed" (the post_rectification PIESA record).
 // Used by the portal "record fixes done" page (portal.functions recordPiesa) and, since decision 293 (Jo 25 Oct 2026),
-// by the Mitti "A5 – Electrical fixes" form completion (fixes-day.server.ts). Callers validate first (role, stage,
+// by the Mitti "A4 – Electrical fixes" form completion (fixes-day.server.ts). Callers validate first (role, stage,
 // evidence, Section C dates); this module only writes the same records the portal page always wrote, in the same order:
 // rectification items completed → piesa_records (new current post_rectification row) → piesa_recorded event → on a pass
 // compliance checks, the fixes booking completed, the guarded transition to installation scheduling → autoAdvance →

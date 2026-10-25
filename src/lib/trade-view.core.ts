@@ -97,7 +97,7 @@ export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at
 /** The office reason shown while an installer-supplied payout waits for the owner (payState "checking" with AP done). */
 export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer-supplied job: paid 7 days after the later of Final check and the owner's payment in full)";
 
-/** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the fixes (A5) 7 days after BOTH
+/** Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A3) and the fixes (A4) 7 days after BOTH
  *  (1) their Mitti form is 100% complete (Complete pressed, every check passed — the decision-318 gate) and (2) the owner
  *  has paid THAT step (safety check / fixes) — the later of the two. Installer pay is unchanged (`payState`). */
 export type ElectricianPayKind = "assessment" | "rectification";

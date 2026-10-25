@@ -1,4 +1,4 @@
-// Decision 293 (Jo 25 Oct 2026): the electrician's "A5 – Electrical fixes" Mitti form. Rules: fixes-day.core.ts (pure).
+// Decision 293 (Jo 25 Oct 2026): the electrician's "A4 – Electrical fixes" Mitti form. Rules: fixes-day.core.ts (pure).
 // Creation: when the rectification (electrical fixes) visit is booked (booking.server confirmBooking → onRectificationBooked)
 // for a job whose PIESA said repair work is needed and q30 (fixed on the same visit) is not Yes, ONE form per visit is
 // created through the same Mitti boundary as the PIESA/PIISA forms (mittiApi over realMittiCall, template identity
@@ -293,7 +293,7 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
     if (error) throw new WorkflowError(`PIESA Section C could not be written to the stored answers: ${error.message}`);
   }
   // Mitti's own report.
-  // Decision 336: the A5 signature IMAGE goes in the official Section C box (kept privately with the job first).
+  // Decision 336: the A4 signature IMAGE goes in the official Section C box (kept privately with the job first).
   await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);
   const { saveMittiReport } = await import("./mitti.server");
   await saveMittiReport(jobId, actorId, auditId, parsed.modifiedAt ? String(parsed.modifiedAt) : null, "Electrical fixes", mitti);

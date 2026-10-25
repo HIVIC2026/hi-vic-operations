@@ -1,4 +1,4 @@
-// Decision 323 (Jo 25 Oct 2026, replaces the conditional part of decision 312): the electrician confirms on EVERY A4
+// Decision 323 (Jo 25 Oct 2026, replaces the conditional part of decision 312): the electrician confirms on EVERY A3
 // that he won't discuss prices with the owner; "Whose customer is this?" is deleted. Decision 309: repairs always happen
 // before installation.
 import { describe, expect, test } from "bun:test";
@@ -43,7 +43,7 @@ describe("decision 323: no price talk on every job, whose-customer deleted", () 
     expect(validateTemplate("piesa", items).issues).not.toContain(`Missing: ${CUSTOMER_OF_LEGACY_LABEL}`);
     expect(shortAnswersFromEntries("piesa", [{ label: CUSTOMER_OF_LEGACY_LABEL, value: "The installer's customer" }])).not.toHaveProperty("customerOf");
   });
-  test("office item for ANY completed A4 that has the tick item but it isn't ticked", () => {
+  test("office item for ANY completed A3 that has the tick item but it isn't ticked", () => {
     expect(NO_PRICE_TALK_ISSUE).toBe("Electrician hasn't confirmed they won't discuss prices with the owner");
     const unticked = [{ label: NO_PRICE_TALK_LABEL, value: null }];
     expect(noPriceTalkIssue({ completed: true, entries: unticked })).toBe(NO_PRICE_TALK_ISSUE);
@@ -112,7 +112,7 @@ describe("decision 314: be on site at the start of the install day", () => {
     expect(e.flagged).not.toContain(REPAIR_LEGACY_NOT_BEFORE_FLAG);
     expect(sync("Install RCD safety switches")["rectificationOutcome"]).toBe(RECTIFICATION_OUTCOMES[1]);
   });
-  test("the A5 fixes form is not needed when ONLY the on-site option is ticked", () => {
+  test("the A4 fixes form is not needed when ONLY the on-site option is ticked", () => {
     expect(fixesFormNeeded(sync(ONSITE))).toBe(false);
     expect(fixesFormNeeded(sync(`${ONSITE}, Other`))).toBe(true);
     expect(fixesFormNeeded(sync(`Replace downlights with IC-4 rated LED downlights, ${ONSITE}`))).toBe(true);

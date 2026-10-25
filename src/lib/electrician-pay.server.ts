@@ -1,4 +1,4 @@
-// Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A4) and the electrical fixes (A5) 7 days
+// Decision 355 (Jo 25 Oct 2026): electricians are paid for the safety check (A3) and the electrical fixes (A4) 7 days
 // after their Mitti form is 100% complete AND the owner has paid that step. This module reads, batched by job id, WHEN
 // the owner paid the safety check and the fixes on the job's ONE invoice (decisions 139–144: cumulative payments in the
 // append-only `owner_payment_recorded` ledger reaching the step's threshold; the Xero mirror `invoices.total_paid` as the

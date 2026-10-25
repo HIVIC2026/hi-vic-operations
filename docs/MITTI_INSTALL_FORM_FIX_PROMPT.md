@@ -21,7 +21,7 @@ symbol**, because a connected software system reads every answer by its question
 split, add or drop any question. If Mitti does not offer an answer type I name, tell me the closest Mitti type and ask me
 before substituting.
 
-**Template name:** `A3 – Install day`
+**Template name:** `A5 – Install day`
 Build it as a NEW template. The existing "A3 - PIISA + AP Evidence" stays as it is for now.
 
 **Inspection title:** Portal Job Number + Site address (Q1 and Q2).

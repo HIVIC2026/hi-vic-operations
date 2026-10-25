@@ -1,11 +1,11 @@
 // Renders SAMPLE official DEECA PIESAs (mapping piesa-map-2.0.0, NOT approved) for Jo to approve by looking at them.
-// Three example jobs, answered on the current A4 Mitti short form (SHORT_PIESA_FIELDS labels), go through the SAME pure
-// steps the portal uses — shortAnswersFromEntries → (A5 fixes merge, mergeFixesIntoPiesaSnapshot) → expandPiesa with the
+// Three example jobs, answered on the current A3 Mitti short form (SHORT_PIESA_FIELDS labels), go through the SAME pure
+// steps the portal uses — shortAnswersFromEntries → (A4 fixes merge, mergeFixesIntoPiesaSnapshot) → expandPiesa with the
 // owner's secure-link confirmation → evaluatePiesa → buildSignedSnapshot → fillOfficialDocxXml (the Word form) and
 // officialPiesaPdfText + textToPdf (the PDF the electrician gets). The approval check (officialFormUseBlocker) is NOT called
 // and OFFICIAL_TEMPLATES.piesa.approved is never changed: nothing here is stored, signed or sent. No database, no network.
 // Decision 336: the electrician's signature is a sample signature PICTURE (scripts/sample-signature-png.ts) embedded the way the
-// portal embeds the real Mitti image (fillOfficialDocxParts / textToPdf), and the A4 hazard rows use the decision-336 block.
+// portal embeds the real Mitti image (fillOfficialDocxParts / textToPdf), and the A3 hazard rows use the decision-336 block.
 // Decision 338: case 3 answers the new "Does an electrician need to be on site at the start of the install?" question.
 // Output: docs/templates/compliance/piesa-mapping/ (case-N.docx, case-N.pdf, case-N-docx.pdf, PNG pages, README.md).
 // PNGs need LibreOffice (Word → PDF) and pdftoppm; without them the .docx/.pdf are still written and the README says so.
@@ -65,7 +65,7 @@ import { textToPdf } from "../src/lib/signed-pdf.server";
 const OUT = new URL("../docs/templates/compliance/piesa-mapping/", import.meta.url).pathname;
 const T = OFFICIAL_TEMPLATES.piesa;
 
-// ---------- A4 answers by the current short-form label ----------
+// ---------- A3 answers by the current short-form label ----------
 const L = (id: string) => {
   const f = SHORT_PIESA_FIELDS.find((x) => x.id === id);
   return f?.label ?? null; // retired questions (decisions 323/324) are simply not on the current form
@@ -83,8 +83,8 @@ const ELECTRICIAN = [
   e("electricianSignature", "signature captured in Mitti"),
 ];
 /** Decision 336: the sample signature pictures (made up — never a real signature). */
-const A4_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A4");
-const A5_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A5 fixes");
+const A4_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A3");
+const A5_SIGNATURE_PNG = sampleSignaturePng("Sam Spark A4 fixes");
 const hazardRow = (type: string, what: string, where: string, safe: "Yes" | "No", problem?: string, action?: string): Entry[] => [
   { label: APPLIANCE_Q.type, value: type },
   { label: APPLIANCE_Q.what, value: what },
@@ -142,7 +142,7 @@ const CASES: Case[] = [
     n: 2,
     slug: "case-2-life-support-fixes",
     title:
-      "Life support (medical plan) + solar + 4 non-IC downlights + a flue and a rotten joist; repairs needed, then done on the A5 fixes form with a CoES",
+      "Life support (medical plan) + solar + 4 non-IC downlights + a flue and a rotten joist; repairs needed, then done on the A4 fixes form with a CoES",
     jobNumber: "HV-SAMPLE-2",
     address: "7 Banksia Court, Frankston VIC 3199",
     inspectionDate: "2026-10-28",
@@ -252,75 +252,75 @@ const CASES: Case[] = [
   },
 ];
 
-// ---------- where each official answer comes from (A4 = the electrician's Mitti form) ----------
+// ---------- where each official answer comes from (A3 = the electrician's Mitti form) ----------
 const q = (id: string) => `"${L(id)}"`;
 export const SOURCE: Record<string, string> = {
-  jobRef: `A4 ${q("jobRef")} (portal prefill)`,
-  address: `A4 ${q("address")} (portal prefill)`,
-  inspectionDate: `A4 ${q("inspectionDate")}`,
-  lifeSupport: `A4 ${q("lifeSupportPresent")}`,
-  lifeSupportConsent: `A4 "Have you received written consent or a medical plan?…" ("No – not received" = stop, left blank + flagged)`,
-  lifeSupportAttachment: `A4 ${q("lifeSupportAttachment")} (photo)`,
-  "p2.mains": `A4 ${q("mainsSafe")} Yes → Yes; No → No only if "${MAINS_PROBLEMS[0]}" ticked`,
+  jobRef: `A3 ${q("jobRef")} (portal prefill)`,
+  address: `A3 ${q("address")} (portal prefill)`,
+  inspectionDate: `A3 ${q("inspectionDate")}`,
+  lifeSupport: `A3 ${q("lifeSupportPresent")}`,
+  lifeSupportConsent: `A3 "Have you received written consent or a medical plan?…" ("No – not received" = stop, left blank + flagged)`,
+  lifeSupportAttachment: `A3 ${q("lifeSupportAttachment")} (photo)`,
+  "p2.mains": `A3 ${q("mainsSafe")} Yes → Yes; No → No only if "${MAINS_PROBLEMS[0]}" ticked`,
   "p2.switch": `Derived: No if any of the three main-switch sub-items is No (the Word form has NO box for this line — kept in the signed record and the PDF, not written on the Word form)`,
-  "p2.switchAccessible": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[1]}"`,
-  "p2.switchIsolates": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[2]}"`,
-  "p2.switchSecured": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[3]}"`,
-  "p2.tested": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[4]}"`,
-  "p2.rcdPresent": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[5]}"`,
-  "p2.rcdTested": `A4 mains Yes/No + tick "${MAINS_PROBLEMS[6]}"`,
-  "p3.present": `A4 ${q("solarPresent")}`,
-  "p3.instructions": `A4 ${q("solarSafe")} + solar problem ticks`,
-  "p3.isolator": `A4 solar safe + solar problem ticks`,
-  "p3.conduit": `A4 solar safe + solar problem ticks`,
-  "p3.protected": `A4 solar safe + solar problem ticks`,
-  "p4.conduit": `A4 ${q("ceilingSafe")} + ceiling problem ticks`,
-  "p4.supported": `A4 ceiling safe + ceiling problem ticks`,
-  "p4.treatment": `A4 ceiling safe + ceiling problem ticks`,
-  "p4.tps": `A4 ceiling safe + ceiling problem ticks (never "N/A")`,
-  "p4.terminations": `A4 ceiling safe + ceiling problem ticks`,
-  "p4.plugBases": `A4 ceiling safe + ceiling problem ticks`,
-  "p4.foil": `A4 ceiling safe + ceiling problem ticks`,
-  "p5.nonTps": `A4 ceiling safe (Yes → No) + ceiling problem ticks`,
-  "p5.splitConduit": `A4 ceiling safe (Yes → No) + ceiling problem ticks`,
-  "p5.damaged": `A4 ceiling safe (Yes → No) + ceiling problem ticks`,
-  "p6.recessed": `A4 ${q("downlightsPresent")}`,
-  "p6.count": `A4 ${q("downlightCount")}`,
-  "p6.prohibited": `A4 ${q("downlightsNonIc")}`,
-  "p7.appliances": `A4 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Appliance (decision 336)`,
-  "p7.flues": `A4 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Flue or Exhaust fan (the official question names "exhaust fans or heating flues")`,
-  "p7.appliance": `A4 "${APPLIANCE_Q.what}" (one row per Appliance / Exhaust fan / Flue item)`,
-  "p7.location": `A4 "${APPLIANCE_Q.where}"`,
-  "p7.hazard": `A4 "${APPLIANCE_Q.problem}" (only when "${APPLIANCE_Q.safe}" = No), else "None — safe to insulate around"`,
-  "p7.actions": `A4 "${APPLIANCE_Q.action}" for each unsafe item ("None required" when all are safe)`,
+  "p2.switchAccessible": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[1]}"`,
+  "p2.switchIsolates": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[2]}"`,
+  "p2.switchSecured": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[3]}"`,
+  "p2.tested": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[4]}"`,
+  "p2.rcdPresent": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[5]}"`,
+  "p2.rcdTested": `A3 mains Yes/No + tick "${MAINS_PROBLEMS[6]}"`,
+  "p3.present": `A3 ${q("solarPresent")}`,
+  "p3.instructions": `A3 ${q("solarSafe")} + solar problem ticks`,
+  "p3.isolator": `A3 solar safe + solar problem ticks`,
+  "p3.conduit": `A3 solar safe + solar problem ticks`,
+  "p3.protected": `A3 solar safe + solar problem ticks`,
+  "p4.conduit": `A3 ${q("ceilingSafe")} + ceiling problem ticks`,
+  "p4.supported": `A3 ceiling safe + ceiling problem ticks`,
+  "p4.treatment": `A3 ceiling safe + ceiling problem ticks`,
+  "p4.tps": `A3 ceiling safe + ceiling problem ticks (never "N/A")`,
+  "p4.terminations": `A3 ceiling safe + ceiling problem ticks`,
+  "p4.plugBases": `A3 ceiling safe + ceiling problem ticks`,
+  "p4.foil": `A3 ceiling safe + ceiling problem ticks`,
+  "p5.nonTps": `A3 ceiling safe (Yes → No) + ceiling problem ticks`,
+  "p5.splitConduit": `A3 ceiling safe (Yes → No) + ceiling problem ticks`,
+  "p5.damaged": `A3 ceiling safe (Yes → No) + ceiling problem ticks`,
+  "p6.recessed": `A3 ${q("downlightsPresent")}`,
+  "p6.count": `A3 ${q("downlightCount")}`,
+  "p6.prohibited": `A3 ${q("downlightsNonIc")}`,
+  "p7.appliances": `A3 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Appliance (decision 336)`,
+  "p7.flues": `A3 "${APPLIANCE_PRESENT_LABEL}" + a row with "${APPLIANCE_Q.type}" = Flue or Exhaust fan (the official question names "exhaust fans or heating flues")`,
+  "p7.appliance": `A3 "${APPLIANCE_Q.what}" (one row per Appliance / Exhaust fan / Flue item)`,
+  "p7.location": `A3 "${APPLIANCE_Q.where}"`,
+  "p7.hazard": `A3 "${APPLIANCE_Q.problem}" (only when "${APPLIANCE_Q.safe}" = No), else "None — safe to insulate around"`,
+  "p7.actions": `A3 "${APPLIANCE_Q.action}" for each unsafe item ("None required" when all are safe)`,
   "p7.effective": `Derived: Yes when every item is safe as it is, or once repairs are recorded complete`,
-  "p7.otherHazard": `A4 Other hazard rows: "${APPLIANCE_Q.what}" (${APPLIANCE_Q.where}): "${APPLIANCE_Q.problem}"`,
-  "p7.otherAction": `A4 Other hazard rows: "${APPLIANCE_Q.action}" ("None required" when safe as it is)`,
-  b1: `A4 ${q("rectificationNeeded")} + "${ONSITE_START_LABEL}" (decision 338; old forms: the "${FIXES_ONSITE_OPTION}" tick, decision 314)`,
-  b2: `A4 ${q("rectificationWork")} (only when B1 = rectification required)`,
-  "b2.other": `A4 ${q("rectificationOther")}`,
-  "b3.licence": `A4 ${q("b3.licence")}`,
-  "b3.name": `A4 ${q("b3.name")}`,
-  "b3.recName": `A4 ${q("b3.recName")}`,
-  "b3.recNo": `A4 ${q("b3.recNo")}`,
-  "b3.phone": `A4 ${q("b3.phone")}`,
-  "b3.declaration": `A4 declaration tick`,
-  "c.licence": `Copied from B3 once repairs are recorded (A5 fills blanks only)`,
+  "p7.otherHazard": `A3 Other hazard rows: "${APPLIANCE_Q.what}" (${APPLIANCE_Q.where}): "${APPLIANCE_Q.problem}"`,
+  "p7.otherAction": `A3 Other hazard rows: "${APPLIANCE_Q.action}" ("None required" when safe as it is)`,
+  b1: `A3 ${q("rectificationNeeded")} + "${ONSITE_START_LABEL}" (decision 338; old forms: the "${FIXES_ONSITE_OPTION}" tick, decision 314)`,
+  b2: `A3 ${q("rectificationWork")} (only when B1 = rectification required)`,
+  "b2.other": `A3 ${q("rectificationOther")}`,
+  "b3.licence": `A3 ${q("b3.licence")}`,
+  "b3.name": `A3 ${q("b3.name")}`,
+  "b3.recName": `A3 ${q("b3.recName")}`,
+  "b3.recNo": `A3 ${q("b3.recNo")}`,
+  "b3.phone": `A3 ${q("b3.phone")}`,
+  "b3.declaration": `A3 declaration tick`,
+  "c.licence": `Copied from B3 once repairs are recorded (A4 fills blanks only)`,
   "c.name": `Copied from B3 once repairs are recorded`,
   "c.recName": `Copied from B3 once repairs are recorded`,
   "c.recNo": `Copied from B3 once repairs are recorded`,
   "c.phone": `Copied from B3 once repairs are recorded`,
-  "c.signature": `Decision 336: the A5 "Electrician signature" IMAGE in the box with "Signed in Mitti on DD/MM/YYYY" under it (no image on file → the typed "Name (signed electronically on DD/MM/YYYY)" + flag "Electrician signature image not available")`,
-  "c.completionDate": `"today" of the regeneration = A5 "Date of certification"`,
-  "c.coes": `A5 "Certificate of Electrical Safety number"`,
-  "c.certDate": `A5 "Date of certification"`,
+  "c.signature": `Decision 336: the A4 "Electrician signature" IMAGE in the box with "Signed in Mitti on DD/MM/YYYY" under it (no image on file → the typed "Name (signed electronically on DD/MM/YYYY)" + flag "Electrician signature image not available")`,
+  "c.completionDate": `"today" of the regeneration = A4 "Date of certification"`,
+  "c.coes": `A4 "Certificate of Electrical Safety number"`,
+  "c.certDate": `A4 "Date of certification"`,
   "o.signature": `Typed electronic signature: the owner's typed name on the latest secure-link confirmation + that date`,
   "o.name": `Latest owner secure-link confirmation (safety check, or the electrical fixes — decision 330): typed full name`,
   "o.date": `Latest owner secure-link confirmation: Melbourne date they confirmed`,
 };
 for (let i = 1; i <= 7; i++)
   SOURCE[`c.tick${i}`] =
-    `A5 "Have you completed all of the repair work listed…" = Yes (all seven ticked together)`;
+    `A4 "Have you completed all of the repair work listed…" = Yes (all seven ticked together)`;
 for (const i of [1, 2, 4])
   SOURCE[`o.tick${i}`] =
     `Owner's secure-link confirmation of the safety check (ONE tick "The assessment was completed on <date>")`;
@@ -378,13 +378,13 @@ function run(c: Case) {
     const plan = fixesCompletionPlan(c.fixes.read, { completed: true, today: c.fixes.completedOn });
     if (plan.kind !== "done")
       throw new Error(
-        `Case ${c.n}: A5 sample is not a complete fixes form: ${JSON.stringify(plan)}`,
+        `Case ${c.n}: A4 sample is not a complete fixes form: ${JSON.stringify(plan)}`,
       );
     snapshot = mergeFixesIntoPiesaSnapshot(snapshot, c.fixes.read, plan);
     today = plan.certDate; // regenerateOfficialPiesa passes today = certification date
   }
   const short = shortAnswersFromEntries("piesa", snapshot);
-  // The regenerated PIESA right after the A5 form (the owner has not confirmed the fixes yet) …
+  // The regenerated PIESA right after the A4 form (the owner has not confirmed the fixes yet) …
   const beforeOwnerFixes = c.fixes ? expandPiesa(short, { lifeSupportDeclared: null, today, ownerConfirmation: owner }) : null;
   // … and once the owner has confirmed them on the secure link (decision 330).
   const expanded = expandPiesa(short, {
@@ -457,7 +457,7 @@ function wordAudit(xml: string, a: OfficialAnswers, original: string): { lines: 
     `B1 outcome: ${show(a["b1"]) ? "answered" : "not answered"} — Word form shows ${shown["b1"] ? `"${String(shown["b1"]).slice(0, 60)}…"` : "no B1 box ticked"}.`,
     `B2 repair items: ${Array.isArray(a["b2"]) ? a["b2"].length : 0} answered — Word form shows ${Array.isArray(shown["b2"]) ? shown["b2"].length : 0} B2 boxes ticked.`,
     `Declaration ticks: ${items.filter((i) => i.kind === "tick" && a[i.id] === true).length} answered — Word form shows ${count((k, x) => kindOf(k) === "tick" && x === true)} ticked.`,
-    `Signatures: Part B3 ${/r:embed="rIdHivSignature1"/.test(xml) ? "electrician's signature PICTURE (from A4) + \"Signed in Mitti on …\"" : "no picture"}; Section C ${shown["c.signature"] ? `"${shown["c.signature"]}"` : "blank"}${(xml.match(/r:embed="rIdHivSignature\d+"/g) ?? []).length > 1 ? " under the A5 signature PICTURE" : ""}; owner ${shown["o.signature"] ? `"${shown["o.signature"]}"` : "blank"} (typed — owners sign on the secure link).`,
+    `Signatures: Part B3 ${/r:embed="rIdHivSignature1"/.test(xml) ? "electrician's signature PICTURE (from A3) + \"Signed in Mitti on …\"" : "no picture"}; Section C ${shown["c.signature"] ? `"${shown["c.signature"]}"` : "blank"}${(xml.match(/r:embed="rIdHivSignature\d+"/g) ?? []).length > 1 ? " under the A4 signature PICTURE" : ""}; owner ${shown["o.signature"] ? `"${shown["o.signature"]}"` : "blank"} (typed — owners sign on the secure link).`,
     `Part 7 other hazards on the Word form: ${Array.from({ length: 14 }, (_, r) => r).filter((r) => shown[`p7.otherHazard#${r}`]).map((r) => `"${shown[`p7.otherHazard#${r}`]}" → "${shown[`p7.otherAction#${r}`] ?? ""}"`).join("; ") || "none"}; actions line: ${shown["p7.actions"] ? `"${shown["p7.actions"]}"` : "blank"}.`,
     `Part 7 rows on the Word form: ${Array.from({ length: 10 }, (_, r) => r).filter((r) => shown[`p7.appliance#${r}`]).map((r) => `Appliance "${shown[`p7.appliance#${r}`]}" / Location "${shown[`p7.location#${r}`] ?? ""}" / Hazard "${shown[`p7.hazard#${r}`] ?? ""}"`).join("; ") || "none"}.`,
   ];
@@ -499,7 +499,7 @@ async function main() {
   const results = [];
   for (const c of CASES) {
     const r = run(c);
-    // Decision 336: the A4 signature picture in Part B3; the A5 one in Section C once the fixes form is signed.
+    // Decision 336: the A3 signature picture in Part B3; the A4 one in Section C once the fixes form is signed.
     const signatures: Partial<Record<SignatureSlot, SignatureInput>> = {
       "b3.signature": { images: [{ bytes: A4_SIGNATURE_PNG, contentType: "image/png", signedOn: c.inspectionDate }], fallbackText: null },
       ...(c.fixes && r.expanded.answers["c.signature"] ? { "c.signature": { images: [{ bytes: A5_SIGNATURE_PNG, contentType: "image/png", signedOn: c.fixes.completedOn }] } } : {}),
@@ -550,7 +550,7 @@ async function main() {
   out.push(
     `# Official PIESA mapping samples (${T.mappingVersion}) — for Jo's approval`,
     "",
-    `SAMPLES ONLY. The mapping is **not approved** (\`OFFICIAL_TEMPLATES.piesa.approved = false\`), so the portal produces no official PIESA yet. These files were made by \`bun scripts/render-piesa-mapping-samples.ts\` with the portal's own pure steps (A4 answers → \`shortAnswersFromEntries\` → A5 merge → \`expandPiesa\` with the owner's secure-link confirmations (safety check, decision 296; electrical fixes, decision 330) → \`evaluatePiesa\` → Word form fill / PDF), skipping only the approval check. Nothing was stored or sent. Names, numbers and addresses are made up.`,
+    `SAMPLES ONLY. The mapping is **not approved** (\`OFFICIAL_TEMPLATES.piesa.approved = false\`), so the portal produces no official PIESA yet. These files were made by \`bun scripts/render-piesa-mapping-samples.ts\` with the portal's own pure steps (A3 answers → \`shortAnswersFromEntries\` → A4 merge → \`expandPiesa\` with the owner's secure-link confirmations (safety check, decision 296; electrical fixes, decision 330) → \`evaluatePiesa\` → Word form fill / PDF), skipping only the approval check. Nothing was stored or sent. Names, numbers and addresses are made up.`,
     "",
     `Form: ${T.title} (${T.publication}), original \`${T.originalFile}\`, SHA-256 \`${T.sha256}\`.`,
     "",
@@ -566,8 +566,8 @@ async function main() {
     "Each case below reads the filled Word file back (`readOfficialDocx`) and compares EVERY box and text field with the answers; the run stops if the Word XML is not well-formed. Before → after:",
     "",
     '1. **Multi-select ticks.** Before: Mitti joins ticks with ", " but `expandPiesa` split on " | ", so two ticks were lost (case 2: both RCD questions said **Yes**) and B2 became one combined entry no box matched. After: ticks are matched against the known option wording, longest first (`splitSelections`, official-forms.core) — never comma-split, because the option labels contain commas; an unknown piece is flagged, never guessed. Case 2: RCDs present **No**, RCDs tested **No**, two B2 boxes ticked. Same for the solar, ceiling and B2 lists.',
-    '2. **Owner declarations.** Before: the ONE secure-link tick filled all four owner declarations, including "any electrical rectification works were completed on the above date" before the fixes were done. After: the P6 tick fills declarations 1, 2 and 4; declaration 3 is ticked only when no repair work was needed before installation, when the owner confirmed on/after the fixes were certified, or from the owner\'s post-fix confirmation (decision 330: one tick "The electrical fixes were completed on <date>" + typed name on the same secure link, asked when the A5 form is complete). Without it, declaration 3 stays blank and the expansion flags "Owner hasn\'t confirmed the electrical fixes" (nothing else is held). `o.name` / `o.date` = the latest owner confirmation used.',
-    '3. **Signatures.** Before: `c.signature` / `o.signature` were never written, so `evaluatePiesa` reported `REQ:o.signature` (and `REQ:c.signature`) on every PIESA. After: the typed electronic signature "Name (signed electronically on DD/MM/YYYY)" — the A5 signer + the A5 signature date for Section C, the owner\'s typed name + confirmation date for the owner block. Neither REQ appears any more.',
+    '2. **Owner declarations.** Before: the ONE secure-link tick filled all four owner declarations, including "any electrical rectification works were completed on the above date" before the fixes were done. After: the P6 tick fills declarations 1, 2 and 4; declaration 3 is ticked only when no repair work was needed before installation, when the owner confirmed on/after the fixes were certified, or from the owner\'s post-fix confirmation (decision 330: one tick "The electrical fixes were completed on <date>" + typed name on the same secure link, asked when the A4 form is complete). Without it, declaration 3 stays blank and the expansion flags "Owner hasn\'t confirmed the electrical fixes" (nothing else is held). `o.name` / `o.date` = the latest owner confirmation used.',
+    '3. **Signatures.** Before: `c.signature` / `o.signature` were never written, so `evaluatePiesa` reported `REQ:o.signature` (and `REQ:c.signature`) on every PIESA. After: the typed electronic signature "Name (signed electronically on DD/MM/YYYY)" — the A4 signer + the A4 signature date for Section C, the owner\'s typed name + confirmation date for the owner block. Neither REQ appears any more.',
     '4. **"No" boxes.** Before: a space run sits between the No box and the word "No"; the filler read only the first run, so no "No" was ever ticked. After: each box\'s own following text is read across space/tab runs.',
     "5. **B1 / B2 / declaration boxes.** Before: a tab run between the box and its wording — never ticked. After: ticked (see each case).",
     '6. **Main switch.** Before: "Is the main switch for the premises:" has no box on the Word form, so it and its three sub-items all landed on the first sub-row. After: each item claims its own Yes/No pair; the overall main-switch line is derived and stays in the signed record / PDF only (the Word form has nothing to tick).',
@@ -582,8 +582,8 @@ async function main() {
   out.push(
     "## Decisions 336 and 338 (Jo 25 Oct 2026)",
     "",
-    '1. **"WHERE IS THE ELECTRICIAN\'S SIGNATURE?"** The Word form now shows the electrician\'s ACTUAL signature picture captured in Mitti: the A4 "Electrician signature" straight after the Part B3 declaration (the official form prints no B3 signature box, so it sits in its own line there), and the A5 "Electrician signature" in the Section C "Signature" box — each with "Signed in Mitti on DD/MM/YYYY" under it. The picture is a real inline image (its own media part, an image relationship and the content type; the XML is checked well-formed). The PDF draws the same pictures. The samples use a made-up signature picture (`scripts/sample-signature-png.ts`). Owner blocks stay typed e-signatures (secure link). No image on file → the typed name and the office flag "Electrician signature image not available".',
-    '2. **Exact hazard rows.** The A4 block asks "What type is it?" (Appliance / Exhaust fan / Flue / Other hazard), "What is it?", "Where is it?", the photo, "Can insulation be safely installed around it as it is?", and when No "What is the problem?" + "What needs to be done to make it safe?". Part 7 is filled row by row from those answers (case 1: an exhaust fan; case 2: a flue and a rotten joist as an "other hazard"). Older forms keep the old standard wording.',
+    '1. **"WHERE IS THE ELECTRICIAN\'S SIGNATURE?"** The Word form now shows the electrician\'s ACTUAL signature picture captured in Mitti: the A3 "Electrician signature" straight after the Part B3 declaration (the official form prints no B3 signature box, so it sits in its own line there), and the A4 "Electrician signature" in the Section C "Signature" box — each with "Signed in Mitti on DD/MM/YYYY" under it. The picture is a real inline image (its own media part, an image relationship and the content type; the XML is checked well-formed). The PDF draws the same pictures. The samples use a made-up signature picture (`scripts/sample-signature-png.ts`). Owner blocks stay typed e-signatures (secure link). No image on file → the typed name and the office flag "Electrician signature image not available".',
+    '2. **Exact hazard rows.** The A3 block asks "What type is it?" (Appliance / Exhaust fan / Flue / Other hazard), "What is it?", "Where is it?", the photo, "Can insulation be safely installed around it as it is?", and when No "What is the problem?" + "What needs to be done to make it safe?". Part 7 is filled row by row from those answers (case 1: an exhaust fan; case 2: a flue and a rotten joist as an "other hazard"). Older forms keep the old standard wording.',
     '3. **On site at the start (decision 338).** "Be on site at the start of the install day" left the tick list and is its own Yes/No question, "Does an electrician need to be on site at the start of the install?" (case 3 = Yes, nothing ticked). Old forms with the tick read the same way.',
     "",
     "## Every official question: where it comes from, and what each case got",
@@ -608,11 +608,11 @@ async function main() {
     out.push(
       `## Case ${c.n} — ${c.title}`,
       "",
-      `Job ${c.jobNumber}, ${c.address}. Inspection ${c.inspectionDate}. Owner ${c.owner} confirmed on the secure link (${c.ownerSignedAt}).${c.fixes ? ` A5 fixes form completed ${c.fixes.completedOn}, CoES ${c.fixes.read.coesNumber}.` : ""}`,
+      `Job ${c.jobNumber}, ${c.address}. Inspection ${c.inspectionDate}. Owner ${c.owner} confirmed on the secure link (${c.ownerSignedAt}).${c.fixes ? ` A4 fixes form completed ${c.fixes.completedOn}, CoES ${c.fixes.read.coesNumber}.` : ""}`,
       "",
       `Files: \`${c.slug}.docx\`, \`${c.slug}-word.pdf\` (${docxPngs.length} pages: ${docxPngs.map((p) => `\`${p}\``).join(", ") || "not rendered"}), \`${c.slug}.pdf\` (${pdfPngs.length} pages: ${pdfPngs.map((p) => `\`${p}\``).join(", ") || "not rendered"}).`,
       "",
-      "A4 answers given:",
+      "A3 answers given:",
       "",
     );
     for (const x of c.a4.filter((y) => !y.label.startsWith("__retired__")))
@@ -620,7 +620,7 @@ async function main() {
     if (c.fixes)
       out.push(
         "",
-        "A5 fixes form: completed Yes, CoES number, date of certification, CoES file, geotagged work photo, signature — merged with `mergeFixesIntoPiesaSnapshot`.",
+        "A4 fixes form: completed Yes, CoES number, date of certification, CoES file, geotagged work photo, signature — merged with `mergeFixesIntoPiesaSnapshot`.",
       );
     out.push(
       "",
@@ -646,12 +646,12 @@ async function main() {
       for (const b of r.ev.nextActions) out.push(`- \`${b.rule}\` ${b.message}`);
     }
     if (r.beforeOwnerFixes) {
-      out.push("", `Right after the A5 form, before the owner confirms the fixes (decision 330) — flags:`);
+      out.push("", `Right after the A4 form, before the owner confirms the fixes (decision 330) — flags:`);
       for (const f of r.beforeOwnerFixes.flagged) out.push(`- ${f}`);
       out.push(`- (owner declaration 3 then: ${r.beforeOwnerFixes.answers["o.tick3"] === true ? "ticked" : "blank"}; o.date ${show(r.beforeOwnerFixes.answers["o.date"]) || "blank"})`);
     }
     if (r.initial && r.initialEv) {
-      out.push("", "Before the A5 fixes form (the PIESA as first synced) — flags:");
+      out.push("", "Before the A4 fixes form (the PIESA as first synced) — flags:");
       for (const f of r.initial.flagged) out.push(`- ${f}`);
       out.push("", "…and blockers:");
       for (const b of r.initialEv.blockers) out.push(`- \`${b.rule}\` ${b.message}`);
@@ -659,15 +659,15 @@ async function main() {
     out.push("");
   }
   out.push(
-    "## Still can't be filled from A4",
+    "## Still can't be filled from A3",
     "",
-    "These official items have no matching A4 question, so the portal cannot fill them truthfully. Proposal for each (Jo to decide; nothing changed):",
+    "These official items have no matching A3 question, so the portal cannot fill them truthfully. Proposal for each (Jo to decide; nothing changed):",
     "",
-    '- `p4.tps` N/A — A4 can only say Yes/No. Proposal: add "There are no TPS cables in the ceiling" as a choice so N/A can be ticked.',
+    '- `p4.tps` N/A — A3 can only say Yes/No. Proposal: add "There are no TPS cables in the ceiling" as a choice so N/A can be ticked.',
     '- B1 third outcome (case 3) — "Does an electrician need to be on site at the start of the install?" = Yes (decision 338) gives B1 "not possible … under parts 2 and 3"; B2 is only for rectification required, so nothing is printed in B2. Proposal: accept (the attendance is recorded and lined up automatically, decision 327).',
     '- `p2.switch` — the Word form prints no box; the derived answer lives only in the signed record and the PDF. Proposal: accept (the form\'s own note says the overall answer follows the sub-items).',
     '- `lifeSupportAttachment` — the consent / medical plan photo is kept as a job file, not printed on the Word form. Proposal: accept; attach the photo with the PIESA copy.',
-    '- The published A4 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312/323 questions, the decision 336 hazard-row questions and the decision 338 on-site question, and asks the retired "Can the repair work be done before installation?". Proposal: republish A4 from the current prompt before approving the mapping.',
+    '- The published A3 template (`tests/fixtures/mitti-piesa/a4-published-2026-10-25.json`) still lacks the decision 305/308/312/323 questions, the decision 336 hazard-row questions and the decision 338 on-site question, and asks the retired "Can the repair work be done before installation?". Proposal: republish A3 from the current prompt before approving the mapping.',
     "",
   );
   writeFileSync(`${OUT}README.md`, `${out.join("\n")}\n`);

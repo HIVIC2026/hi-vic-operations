@@ -1,5 +1,5 @@
 // Decision 355 (Jo 25 Oct 2026): the electrician payout timing — PURE. Paid 7 days after BOTH the electrician's Mitti
-// form is 100% complete (decision-318 gate passed; A4 for the safety check, A5 for the fixes, the A4 for same-visit fixes)
+// form is 100% complete (decision-318 gate passed; A3 for the safety check, A4 for the fixes, the A3 for same-visit fixes)
 // AND the owner has paid that step (safety check / fixes). Facts are read by electrician-pay.server.ts.
 import { electricianPayDueAt, ELECTRICIAN_PAY_WAITING, type ElectricianPayKind } from "./trade-view.core";
 import { electricianFormCompleteAt, type TradePayoutFacts } from "./trade-payout-gate.core";

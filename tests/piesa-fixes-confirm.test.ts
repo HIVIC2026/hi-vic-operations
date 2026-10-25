@@ -1,4 +1,4 @@
-// Decision 330 (Jo, 25 Oct 2026): after the A5 electrical fixes the owner confirms the FIXES on the secure link (one tick +
+// Decision 330 (Jo, 25 Oct 2026): after the A4 electrical fixes the owner confirms the FIXES on the secure link (one tick +
 // typed name, no code): pure rules, approved wording (email O72 + text), the server facts/sign path, and the request /
 // day 1 / day 3 / office day-5 sweep against an in-memory database. Every sender is a recorder; nothing is sent anywhere.
 import { beforeEach, describe, expect, mock, test } from "bun:test";

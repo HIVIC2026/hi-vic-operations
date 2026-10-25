@@ -23,7 +23,7 @@ describe("Templates navigation", () => {
     expect(TEMPLATE_SECTIONS.map((s) => s.key)).toEqual(["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "waiting"]);
     for (const s of TEMPLATE_SECTIONS) expect(entriesFor(s.key).length).toBeGreaterThan(0);
     expect(parseTemplateSearch({ cat: "email" })).toEqual({ cat: "owner" });
-    expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A3" })).toEqual({ cat: "mitti", t: "mitti:A3" });
+    expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A5" })).toEqual({ cat: "mitti", t: "mitti:A5" });
     expect(selectTemplate("mitti", "owner:O18").section).toBe("mitti");
   });
   test("unique ids; each section in job order (enquiry → Ready Check → quote → safety check → fixes → install → rebate → paid)", () => {
@@ -32,7 +32,7 @@ describe("Templates navigation", () => {
       const steps = entriesFor(s.key).map((e) => STEP_ORDER.indexOf(e.step));
       expect(steps).toEqual([...steps].sort((a, b) => a - b));
     }
-    expect(entriesFor("mitti").map((e) => e.code)).toEqual(["A1", "A2", "A4", "A5", "A3"]);
+    expect(entriesFor("mitti").map((e) => e.code)).toEqual(["A1", "A2", "A3", "A4", "A5"]);
   });
   test("drafts waiting for Jo sit only in their own section; everything else is approved", () => {
     for (const e of TEMPLATE_ENTRIES) expect({ id: e.id, waiting: e.section === "waiting" }).toEqual({ id: e.id, waiting: e.approval === "waiting" });
@@ -148,7 +148,7 @@ describe("status shows live / waits for a switch / off", () => {
     expect(templateStatus(byId("owner:sms-quote_ready"), { customer_comms: true }).label).toBe("Waits for its text switch");
     expect(templateStatus(byId("owner:sms-quote_ready"), { customer_comms: true, "sms:quote_ready": true }).label).toBe("Live");
     expect(templateStatus(byId("owner:sms-spot_saved"), { customer_comms: true, spot_saved: true }).label).toBe("Live");
-    expect(templateStatus(byId("mitti:A3"), null).label).toBe("Live");
+    expect(templateStatus(byId("mitti:A5"), null).label).toBe("Live");
     expect(templateStatus(byId("office:reply-drafts"), null).label).toBe("Off (EMAIL_REPLY_DRAFTS_ENABLED)");
   });
 });

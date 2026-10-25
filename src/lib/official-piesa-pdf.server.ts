@@ -13,7 +13,7 @@ export async function officialPiesaPdf(jobId: string, jobNumber: string): Promis
   const pe = await currentCopy(jobId, "piesa");
   if (pe.unavailable || !pe.copy) return null;
   const { textToPdf } = await import("./signed-pdf.server");
-  // Decision 336: the electrician's Mitti signature pictures (B3 from A4, Section C from A5) when kept with the job.
+  // Decision 336: the electrician's Mitti signature pictures (B3 from A3, Section C from A4) when kept with the job.
   const { answersFromDocument } = await import("./official-forms.core");
   const answers = answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>;
   const sig = await (await import("./official-signature.server")).officialSignatureImages(jobId, "piesa", answers).catch(() => null);

@@ -275,7 +275,7 @@ test("an unreadable PIISA provider audit stops all effects", async () => {
   assert.deepEqual(providerWrites(h.apiCalls), []); assert.deepEqual(h.eventCalls, []); assert.equal(h.observed.apChecks, 0);
 });
 
-test("a UUID A3 selection enters the actual verified-crew branch before any form creation", async () => {
+test("a UUID A5 selection enters the actual verified-crew branch before any form creation", async () => {
   for (const configured of [PIISA_A3_TEMPLATE_ID, A3_UUID.toUpperCase()]) {
     const h = piisaHarness({ configured, previous: null });
     await assert.rejects(h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call), /Choose the install crew/);

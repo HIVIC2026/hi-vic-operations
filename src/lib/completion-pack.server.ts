@@ -5,7 +5,7 @@
 // auto-signature (decision 271) no longer waits for full payment; the pack still attaches it but only records it when no
 // earlier send did (never twice). When a product's PDF is not on file the email still sends, nothing is recorded and the AP
 // signature keeps holding with "Warranty copy for <product> not on file".
-// Decision 322: the Certificate of Electrical Safety file(s) kept from the electrician's A5 fixes form (fixes-day.server.ts,
+// Decision 322: the Certificate of Electrical Safety file(s) kept from the electrician's A4 fixes form (fixes-day.server.ts,
 // documents titled FIXES_COES_DOC_TITLE) are attached to the pack when present (pure plan: completion-pack.core).
 // When: install recorded complete AND the installation invoice paid in full (O45 wording: "Once it's paid, we'll send your
 // completion pack"). Once per job (`completion_pack_sent` event, written only after a confirmed send). Delivery stays behind
@@ -51,7 +51,7 @@ export async function recordWarrantyCopyProvided(jobId: string, actorId: string 
   return true;
 }
 
-/** Decision 322: the CoES file(s) the electrician uploaded in the A5 fixes form, as email attachments (none when absent). Never throws. */
+/** Decision 322: the CoES file(s) the electrician uploaded in the A4 fixes form, as email attachments (none when absent). Never throws. */
 export async function coesAttachmentsFor(jobId: string): Promise<{ attachments: EmailAttachment[]; names: string[]; skipped: { path: string; reason: string }[] }> {
   const none = { attachments: [] as EmailAttachment[], names: [] as string[], skipped: [] as { path: string; reason: string }[] };
   try {

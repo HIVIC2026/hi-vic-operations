@@ -1,6 +1,6 @@
 # Official PIISA through the fixed Word filler (piisa-map-2.0.0, approved) — sample
 
-SAMPLE ONLY: one realistic install, answers keyed exactly as the live A3 path hands them to `renderOfficialDocx` (`piisa-declaration.server`). Made by `bun scripts/render-piisa-filler-sample.ts`; nothing stored or sent; names and numbers made up.
+SAMPLE ONLY: one realistic install, answers keyed exactly as the live A5 path hands them to `renderOfficialDocx` (`piisa-declaration.server`). Made by `bun scripts/render-piisa-filler-sample.ts`; nothing stored or sent; names and numbers made up.
 
 Form: VEU pre-installation installer safety assessment form (© DEECA March 2026), original `docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx`, SHA-256 `bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea`.
 
@@ -14,7 +14,7 @@ The approved PIISA uses the same Word filler (`official-docx.core.ts`) as the PI
 
 - Filler: 40 items placed; not placed: none; no field on the Word form: none.
 - Word XML: well-formed (tags balanced, no run nested in a run); xmllint clean.
-- Decision 336: Part 8 "Signature" box = the A3 lead installer's signature PICTURE (inline image `word/media/hiv-signature-1.png`, relationship `rIdHivSignature1`) with "Signed in Mitti on 12/11/2026" under it. Sample picture only (made up).
+- Decision 336: Part 8 "Signature" box = the A5 lead installer's signature PICTURE (inline image `word/media/hiv-signature-1.png`, relationship `rIdHivSignature1`) with "Signed in Mitti on 12/11/2026" under it. Sample picture only (made up).
 - Word form vs answers: every box and text field matches the answers.
 - Printed-rule blockers (`evaluatePiisa`): none.
 

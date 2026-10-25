@@ -20,7 +20,7 @@ export type ExpandContext = {
   /** Decision 296: the owner's secure-link confirmation of THIS PIESA (piesa-owner-confirm.core `ownerConfirmationForForm`):
    *  typed name + the Melbourne date they signed. Absent = the owner block stays blank and is flagged; the Mitti form is never read for it. */
   ownerConfirmation?: { name: string; date: string } | null;
-  /** Decision 330: the owner's secure-link confirmation that the electrical fixes (A5, post_rectification record) were done:
+  /** Decision 330: the owner's secure-link confirmation that the electrical fixes (A4, post_rectification record) were done:
    *  typed name + the Melbourne date they confirmed. Fills the "any electrical rectification works were completed" owner
    *  declaration (and o.name / o.date / o.signature, as the latest owner confirmation). */
   ownerFixesConfirmation?: { name: string; date: string } | null;
@@ -155,7 +155,7 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   // three go in the official Appliance / Location / Hazard table (Hazard = "What is the problem?", else the standard
   // "None — safe to insulate around"), the actions line lists "What needs to be done to make it safe?". Other hazard rows go
   // in the official other-hazards table. Decision 295 rows (no type / Where — older forms) keep the old standard wording.
-  // The official "effective" tick is Yes when every item is safe, or once the repair work is recorded complete (A5).
+  // The official "effective" tick is Yes when every item is safe, or once the repair work is recorded complete (A4).
   if (isYes(short["appliancesPresent"]) || isNo(short["appliancesPresent"])) {
     const rows = isYes(short["appliancesPresent"]) ? applianceRows(short) : [];
     const typed = rows.filter((r) => !r.legacy);
@@ -257,8 +257,8 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     if (isYes(short["rectificationComplete"])) {
       for (let i = 1; i <= 7; i++) out[`c.tick${i}`] = true;
       out["c.completionDate"] = ctx.today;
-      // Decision 329: the electrician's typed electronic signature — the A5 fixes form's signature (name + its own date), else the
-      // same-visit A4 signature (B3 name, certification date). Never written without a signature on the form.
+      // Decision 329: the electrician's typed electronic signature — the A4 fixes form's signature (name + its own date), else the
+      // same-visit A3 signature (B3 name, certification date). Never written without a signature on the form.
       const signer = txt(short["fixesSignedBy"]) || (txt(short["electricianSignature"]) ? txt(out["c.name"]) || txt(short["b3.name"]) : "");
       const signedOn = txt(short["fixesSignedOn"]) || txt(short["certDate"]) || ctx.today;
       if (signer) out["c.signature"] = electronicSignature(signer, signedOn);
@@ -399,7 +399,7 @@ export const expandShortAnswers = (key: OfficialKey, short: ShortAnswers, ctx: E
 
 /** Ids the expansion intentionally never fills (signed on paper / office-completed table detail). */
 export const EXPANSION_EXCLUDED: Record<OfficialKey, string[]> = {
-  // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A4 hazard rows now;
+  // Decision 336: Part 7 Location / Hazard / actions and the other-hazards table are filled from the A3 hazard rows now;
   // nothing is excluded.
   piesa: [],
   piisa: [],

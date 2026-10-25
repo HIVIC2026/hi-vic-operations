@@ -205,7 +205,7 @@ const plan = { kind: "done" as const, coesNumber: "CES 9", certDate: "2026-11-03
 const afterFixes = shortAnswersFromEntries("piesa", mergeFixesIntoPiesaSnapshot(A4_REPAIRS, A5, plan));
 
 describe("typed electronic signatures (point 3)", () => {
-  test("the A5 merge stores the signer and the signature's Melbourne date", () => {
+  test("the A4 merge stores the signer and the signature's Melbourne date", () => {
     expect(afterFixes["fixesSignedBy"]).toBe("Samuel Spark");
     expect(afterFixes["fixesSignedOn"]).toBe("2026-11-04"); // 23:30Z = 10:30 next morning in Melbourne
   });
@@ -218,7 +218,7 @@ describe("typed electronic signatures (point 3)", () => {
     expect(rules).not.toContain("REQ:c.signature");
     expect(rules).not.toContain("REQ:o.signature");
   });
-  test("no A5/A4 signature → no Section C signature (flagged), never invented", () => {
+  test("no A3/A4 signature → no Section C signature (flagged), never invented", () => {
     const { electricianSignature: _drop, ...noSig } = shortAnswersFromEntries("piesa", A4_REPAIRS);
     const e = expandPiesa({ ...noSig, rectificationComplete: "Yes", certDate: "2026-10-28", coesNumber: "CES 1" }, { lifeSupportDeclared: null, today: "2026-10-28" });
     expect(e.answers["c.signature"]).toBeUndefined();

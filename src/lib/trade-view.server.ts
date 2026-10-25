@@ -1141,7 +1141,7 @@ export async function tradeSafetyCheckPdf(jobId: string, userId: string) {
 }
 
 /** Decision 328: "Check my form now" on /field/day/{jobId} and /field/{jobId}. Installers only, business-scoped through
- *  requireTradeJob; runs the single-job A3 sync (install-day-confirm.server) and returns only the result lines — no
+ *  requireTradeJob; runs the single-job A5 sync (install-day-confirm.server) and returns only the result lines — no
  *  prices, no other partners. A Complete form on the install day also gets the result text once per revision. */
 export async function tradeCheckInstallForm(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);

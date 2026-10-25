@@ -1,4 +1,4 @@
-// Decision 305 (Jo 25 Oct 2026): the owner's fixes quote comes from the electrician's ONE total on the A4 PIESA form.
+// Decision 305 (Jo 25 Oct 2026): the owner's fixes quote comes from the electrician's ONE total on the A3 PIESA form.
 // Decision 308: what the price includes is TICKED (with counts / Other detail); the decision-305 free text is the fallback.
 // Decision 313: no $100 margin on installer-supplied jobs (A1).
 import { describe, expect, test } from "bun:test";
@@ -64,7 +64,7 @@ describe("decision 308 ticks", () => {
 });
 
 describe("fixesPriceSource", () => {
-  test("price + ticks (with counts and Other) → the A4 path, explanation from the ticks", () => {
+  test("price + ticks (with counts and Other) → the A3 path, explanation from the ticks", () => {
     expect(fixesPriceSource({ fixesPriceIncGst: "$1,234.50", fixesWork: `${DL}, ${RCD}, Other`, fixesDownlightCount: "6", fixesRcdCount: "1", fixesOtherDetail: "  Move the smoke alarm cable " }))
       .toEqual({ path: "a4_price", electricianPriceIncGst: 1234.5, included: "Replace 6 downlights with IC-4 rated LED downlights; Install 1 RCD safety switch; Other: Move the smoke alarm cable" });
     expect(fixesPriceSource({ fixesPriceIncGst: "900", fixesWork: BREAKERS })).toEqual({ path: "a4_price", electricianPriceIncGst: 900, included: BREAKERS });
@@ -132,7 +132,7 @@ describe("buildA4FixesQuote", () => {
     expect(fixesMarginFor("ours")).toBe(RECTIFICATION_MARGIN_INC_GST);
     expect(fixesMarginFor()).toBe(RECTIFICATION_MARGIN_INC_GST);
     expect(RECTIFICATION_MARGIN_INC_GST).toBe(100);
-    // A4 price $1,180 (not a fixed figure): usual → $1,180 exactly; ours → $1,280; trade cost is the electrician's price either way
+    // A3 price $1,180 (not a fixed figure): usual → $1,180 exactly; ours → $1,280; trade cost is the electrician's price either way
     const usual = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("installer_usual") });
     const ours = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("ours") });
     expect(usual.subtotalIncGst).toBe(1180);
@@ -141,7 +141,7 @@ describe("buildA4FixesQuote", () => {
   });
 });
 
-describe("A4 form fields (decisions 305/308)", () => {
+describe("A3 form fields (decisions 305/308)", () => {
   test("decision 324: right after 'repair needed?' (and the 309 legacy) — the ticks, the two counts, Other, then the total price LAST", () => {
     const i = SHORT_PIESA_FIELDS.findIndex((f) => f.id === "rectificationPossible");
     // Decision 338: the tick list is no longer Required (it may be empty when the only work is being on site at the start).
@@ -163,7 +163,7 @@ describe("A4 form fields (decisions 305/308)", () => {
     expect(mittiAiPrompt("piesa")).not.toContain(FIXES_INCLUDED_LABEL);
     expect(mittiAiPrompt("piesa")).toContain(FIXES_WORK_LABEL);
   });
-  test("the three A4 docs carry every new question, the options, the help text and the fallback instruction", () => {
+  test("the three A3 docs carry every new question, the options, the help text and the fallback instruction", () => {
     for (const f of ["docs/MITTI_PIESA_CHATGPT_PROMPT.md", "docs/MITTI_PIESA_BUILD_PROMPT.md", "docs/MITTI_PIESA_FORM_SPEC.md"]) {
       const doc = readFileSync(f, "utf8");
       for (const s of [FIXES_PRICE_LABEL, FIXES_WORK_LABEL, ...FIXES_WORK_OPTIONS, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, FIXES_OTHER_HELP, "Only if you ticked", "all these grey"]) expect(doc, `${f}: ${s}`).toContain(s);

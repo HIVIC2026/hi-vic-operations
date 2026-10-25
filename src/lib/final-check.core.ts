@@ -17,11 +17,11 @@ export type FinalCheckFacts = {
   stage: string | null;
   /** Latest initial PIESA record (null = none) + the decision-296 owner confirmation blocker for it (null = confirmed). */
   piesa: { completedDate: string | null; outcome: string | null; ownerConfirmationBlocker: string | null } | null;
-  /** Electrical fixes: needed when the PIESA failed or fixes items are open; recorded = post-fixes PIESA (A5 / CoES path) or fixed on the same visit. */
+  /** Electrical fixes: needed when the PIESA failed or fixes items are open; recorded = post-fixes PIESA (A4 / CoES path) or fixed on the same visit. */
   fixes: { needed: boolean; sameVisit: boolean; postFixes: { completedDate: string | null; ownerConfirmed: boolean } | null };
   /** Portal safety plan (decision 261). Null = couldn't be read / no plan yet. */
   swms: { complete: boolean; missing: string[] } | null;
-  /** Signed PIISA/A3 installer declaration + its A3 evidence gate (empty = complete). */
+  /** Signed PIISA/A5 installer declaration + its A5 evidence gate (empty = complete). */
   piisa: { declarationSigned: boolean; blockers: string[] };
   /** Activity Guide Table 4 install evidence + Activity 48 product check (install-evidence.server). */
   installEvidence: string[];
@@ -72,15 +72,15 @@ export function finalCheckList(f: FinalCheckFacts): FinalCheckItem[] {
   // 2. Electrical fixes + CoES (only when fixes were needed).
   const fw: string[] = [];
   if (f.fixes.needed && !f.fixes.sameVisit) {
-    if (!f.fixes.postFixes) fw.push("Electrical fixes (A5 form with the CoES) not recorded yet.");
+    if (!f.fixes.postFixes) fw.push("Electrical fixes (A4 form with the CoES) not recorded yet.");
     else if (!f.fixes.postFixes.ownerConfirmed) fw.push("Owner hasn't confirmed the electrical fixes (official PIESA owner declaration unticked).");
   }
   items.push(item("fixes", "Electrical fixes and CoES", fw, f.fixes.sameVisit ? "Fixed on the PIESA visit" : f.fixes.postFixes ? `Fixes certified ${ymd(f.fixes.postFixes.completedDate)}` : null, { label: "Electrical fixes", card: "piesa" }, !f.fixes.needed));
   // 3. SWMS signed by the lead and every listed installer (decision 261).
   items.push(item("swms", "Safety plan (SWMS) signed", !f.swms ? ["The safety plan couldn't be read or hasn't been prepared."] : f.swms.complete ? [] : [`Not signed by: ${f.swms.missing.join(", ") || "someone listed"}.`], f.swms?.complete ? "Lead and crew signed" : null, { label: "Install card · safety plan", card: "install" }));
-  // 4. PIISA / A3 complete.
+  // 4. PIISA / A5 complete.
   // Same wording as the stage guard (MISSING_INSTALLER_DECLARATION), so it is listed once.
-  items.push(item("piisa", "PIISA / A3 install form complete", [...(f.piisa.declarationSigned ? [] : [MISSING_INSTALLER_DECLARATION]), ...f.piisa.blockers], f.piisa.declarationSigned && !f.piisa.blockers.length ? "Signed PIISA on file" : null, { label: "Install card · PIISA", card: "install" }));
+  items.push(item("piisa", "PIISA / A5 install form complete", [...(f.piisa.declarationSigned ? [] : [MISSING_INSTALLER_DECLARATION]), ...f.piisa.blockers], f.piisa.declarationSigned && !f.piisa.blockers.length ? "Signed PIISA on file" : null, { label: "Install card · PIISA", card: "install" }));
   // 5. Install evidence & product (Table 4 + the Activity 48 product register check).
   items.push(item("install_evidence", "Install evidence and product", f.installEvidence, f.installEvidence.length ? null : "Every Table 4 item and the product check passed", { label: "Install card · evidence", card: "install" }));
   // 6. Photos verified.

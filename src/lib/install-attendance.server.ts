@@ -1,5 +1,5 @@
 // Decision 327 (Jo 25 Oct 2026) I/O. Rules in pure install-attendance.core.ts.
-//  - `onInstallBooked` (from confirmBooking kind installation, after the booking is written): when the A4 needs the
+//  - `onInstallBooked` (from confirmBooking kind installation, after the booking is written): when the A3 needs the
 //    electrician at the start, record the request for THIS booking BEFORE any send, then either text the request
 //    ("I'll be there" / "Can't make it" on the job page) or — when the day is one the electrician already said they can
 //    do — record an automatic confirmation and text them that they're booked.
@@ -26,7 +26,7 @@ type JobRow = { id: string; source: string | null; deleted_at: string | null; pr
 type Person = { business_id: string | null; profiles: { full_name: string | null; phone: string | null } | null; businesses: { id: string; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null };
 type Booking = { id: string; scheduled_start: string };
 
-/** Does the stored A4 PIESA snapshot need the electrician on site at the start of the install day? No snapshot = false. */
+/** Does the stored A3 PIESA snapshot need the electrician on site at the start of the install day? No snapshot = false. */
 export async function attendanceRequiredFor(jobId: string): Promise<boolean> {
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];

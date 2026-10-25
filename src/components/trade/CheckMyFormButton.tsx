@@ -1,4 +1,4 @@
-// Decision 328 (Jo, 25 Oct 2026): "Check my form now" on the installer's today page and job page. Runs the single-job A3
+// Decision 328 (Jo, 25 Oct 2026): "Check my form now" on the installer's today page and job page. Runs the single-job A5
 // Install day sync (server: trade-view.server tradeCheckInstallForm → install-day-confirm.server) and shows the same
 // result the lead installer is texted. Presentation only; every rule is server-side.
 import { useState } from "react";

@@ -58,8 +58,8 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
   // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
-  // the A5 fixes form, never on the PIESA visit.
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A5 fixes form (decision 298)", required: false } : {}),
+  // the A4 fixes form, never on the PIESA visit.
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A4 fixes form (decision 298)", required: false } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),

@@ -8,7 +8,7 @@ import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
 const it = (label: string, id: string, extra: Record<string, unknown> = {}) => ({ item_id: id, label, type: "text", ...extra });
 const fullTemplate = () => a3Template() as { items: unknown[] } & Record<string, unknown>;
 
-describe("A3 aliases map to real official ids", () => {
+describe("A5 aliases map to real official ids", () => {
   test("every alias key is an official PIISA item id", () => {
     const ids = new Set(OFFICIAL_ITEMS.piisa.map((i) => i.id));
     for (const k of Object.keys(A3_ALIASES)) expect(ids.has(k)).toBe(true);
@@ -109,7 +109,7 @@ describe("crew", () => {
   });
 });
 
-describe("A3 evidence", () => {
+describe("A5 evidence", () => {
   const ctx = { crewCount: 2, electricianRequiredAtStart: false, existingPlanMatchesInstall: true, lifeSupportConsentOnFile: false };
   test("electrician photo only when attendance required; plan only when no valid existing plan", () => {
     expect(a3EvidenceRequired({}, ctx).map((r) => r.key)).toEqual(["installer_photos", "isolation_photo", "before_video", "product_photos", "completed_video"]);
