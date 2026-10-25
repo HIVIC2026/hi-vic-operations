@@ -1,0 +1,390 @@
+<!-- Published as the "How a HIV Job Runs" artifact: https://claude.ai/artifact/M4z3n3LFqjESr7tAXWG7T3 . Update this file and republish to that URL (Artifact publish with url) whenever a decision changes the flow; replace old wording, never append. -->
+<title>How a HIV Job Runs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column; a wrapping "track" of stages up top, then one card per stage, then reference tables. */
+:root{
+  --bg:#f6f5f1; --surface:#ffffff; --ink:#1d2430; --sub:#5b6472; --line:#dcd9d0;
+  --accent:#0f6b63; --accent-soft:#e1efec;
+  --owner:#2f62c9; --owner-bg:#e7eefb;
+  --inst:#b8620b; --inst-bg:#fbefe1;
+  --elec:#7a3fb5; --elec-bg:#f1e9fa;
+  --office:#0f6b63; --office-bg:#e1efec;
+  --auto:#4f5b6b; --auto-bg:#e9ecf0;
+  --warn:#a3361f; --warn-bg:#fbe8e3;
+  --money:#6b5a00; --money-bg:#f7f0cf;
+  --display:"Archivo",system-ui,sans-serif; --body:"Source Sans 3",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14181e; --surface:#1c222a; --ink:#e7e9ec; --sub:#a3abb6; --line:#2e3640;
+  --accent:#5cc2b6; --accent-soft:#183531;
+  --owner:#8cb0f5; --owner-bg:#1d2b45; --inst:#f0a95a; --inst-bg:#3a2a17; --elec:#c49af0; --elec-bg:#2f2240;
+  --office:#5cc2b6; --office-bg:#183531; --auto:#b5c0cd; --auto-bg:#28303a;
+  --warn:#f08b74; --warn-bg:#3d211b; --money:#e5cf62; --money-bg:#36310f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14181e; --surface:#1c222a; --ink:#e7e9ec; --sub:#a3abb6; --line:#2e3640;
+  --accent:#5cc2b6; --accent-soft:#183531;
+  --owner:#8cb0f5; --owner-bg:#1d2b45; --inst:#f0a95a; --inst-bg:#3a2a17; --elec:#c49af0; --elec-bg:#2f2240;
+  --office:#5cc2b6; --office-bg:#183531; --auto:#b5c0cd; --auto-bg:#28303a;
+  --warn:#f08b74; --warn-bg:#3d211b; --money:#e5cf62; --money-bg:#36310f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:980px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:36px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(28px,5vw,40px);font-weight:800}
+h2{font-size:24px;font-weight:800}
+h3{font-size:19px;font-weight:700}
+p{margin:0}
+.lede{max-width:66ch;color:var(--sub);font-size:17px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+header{display:grid;gap:10px}
+section{display:grid;gap:14px}
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+.who{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.who::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.o{color:var(--owner);background:var(--owner-bg)} .i{color:var(--inst);background:var(--inst-bg)} .e{color:var(--elec);background:var(--elec-bg)}
+.f{color:var(--office);background:var(--office-bg)} .a{color:var(--auto);background:var(--auto-bg)}
+/* track */
+.track{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;counter-reset:s}
+.track a{display:grid;gap:6px;height:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-decoration:none}
+.track a:hover,.track a:focus-visible{border-color:var(--accent);outline:none}
+.track .n{font-family:var(--mono);font-size:12px;color:var(--sub)}
+.track .t{font-family:var(--display);font-weight:700;font-size:15px;line-height:1.2}
+.dots{display:flex;gap:4px}
+.dots i{width:10px;height:10px;border-radius:50%}
+.dots .o{background:var(--owner)} .dots .i{background:var(--inst)} .dots .e{background:var(--elec)} .dots .f{background:var(--office)} .dots .a{background:var(--auto)}
+/* routes */
+.routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.route{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:8px;min-width:0}
+.route ul{margin:0;padding-left:18px;display:grid;gap:4px}
+/* stage cards */
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px;scroll-margin-top:16px}
+.stage-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px}
+.stage-head .num{font-family:var(--mono);font-size:13px;color:var(--accent)}
+.stage .people{display:flex;flex-wrap:wrap;gap:6px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.box{border-radius:10px;padding:12px 14px;display:grid;gap:6px;min-width:0}
+.box h4{margin:0;font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase}
+.box ul{margin:0;padding-left:18px;display:grid;gap:3px}
+.do{background:var(--bg);border:1px solid var(--line)} .do h4{color:var(--ink)}
+.auto{background:var(--auto-bg)} .auto h4{color:var(--auto)}
+.form{background:var(--accent-soft)} .form h4{color:var(--accent)}
+.cash{background:var(--money-bg)} .cash h4{color:var(--money)}
+.veu{background:var(--surface);border:1px dashed var(--accent)} .veu h4{color:var(--accent)}
+.note{background:var(--warn-bg);color:var(--ink);border-radius:10px;padding:10px 14px;font-size:15px}
+.note b{color:var(--warn)}
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;padding:1px 6px;border-radius:4px;background:var(--auto-bg);color:var(--ink)}
+.new{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:1px 6px;border-radius:4px;background:var(--warn-bg);color:var(--warn);margin-left:4px;vertical-align:1px}
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-family:var(--display);font-size:14px;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600}
+.money-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.pay{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:4px}
+.pay .when{font-family:var(--mono);font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.06em}
+.pay .amt{font-family:var(--display);font-weight:800;font-size:20px;color:var(--money)}
+.off{display:grid;gap:8px;margin:0;padding-left:20px}
+footer{color:var(--sub);font-size:14px}
+@media (prefers-reduced-motion:no-preference){.track a{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Home Insulation Victoria · VEU Accredited Person A003654 · Activity 48 ceiling insulation</p>
+  <h1>How a job runs, from enquiry to VEECs</h1>
+  <p class="lede">Every step a job goes through, who does it, what the portal does on its own, which form is used and which VEU rule each step covers. Written for Tom, Dad and Lorraine. Correct as of 25 October 2026.</p>
+  <div class="legend" aria-label="Who does what">
+    <span class="who o">Owner (homeowner)</span>
+    <span class="who i">Installer</span>
+    <span class="who e">Electrician</span>
+    <span class="who f">Office (us)</span>
+    <span class="who a">Automatic (the portal)</span>
+  </div>
+</header>
+
+<section aria-labelledby="h-big">
+  <h2 id="h-big">The whole job at a glance</h2>
+  <p class="lede">Tap a step to jump to it. The dots show who is involved.</p>
+  <ol class="track">
+    <li><a href="#s1"><span class="n">Step 1</span><span class="t">Enquiry and estimate</span><span class="dots"><i class="o"></i><i class="a"></i></span></a></li>
+    <li><a href="#s2"><span class="n">Step 2</span><span class="t">The job starts</span><span class="dots"><i class="o"></i><i class="i"></i><i class="f"></i><i class="a"></i></span></a></li>
+    <li><a href="#s3"><span class="n">Step 3</span><span class="t">Ready Check visit</span><span class="dots"><i class="o"></i><i class="i"></i><i class="a"></i></span></a></li>
+    <li><a href="#s4"><span class="n">Step 4</span><span class="t">Quote</span><span class="dots"><i class="i"></i><i class="f"></i><i class="a"></i></span></a></li>
+    <li><a href="#s5"><span class="n">Step 5</span><span class="t">Owner accepts and pays the safety check</span><span class="dots"><i class="o"></i><i class="a"></i></span></a></li>
+    <li><a href="#s6"><span class="n">Step 6</span><span class="t">Electrical safety check (PIESA)</span><span class="dots"><i class="o"></i><i class="e"></i><i class="a"></i></span></a></li>
+    <li><a href="#s6b"><span class="n">Step 6b · only if needed</span><span class="t">Electrical fixes</span><span class="dots"><i class="o"></i><i class="e"></i><i class="f"></i><i class="a"></i></span></a></li>
+    <li><a href="#s7"><span class="n">Step 7</span><span class="t">Book the install day</span><span class="dots"><i class="o"></i><i class="i"></i><i class="a"></i></span></a></li>
+    <li><a href="#s8"><span class="n">Step 8</span><span class="t">Before the install</span><span class="dots"><i class="i"></i><i class="f"></i><i class="a"></i></span></a></li>
+    <li><a href="#s9"><span class="n">Step 9</span><span class="t">Install day</span><span class="dots"><i class="i"></i><i class="a"></i></span></a></li>
+    <li><a href="#s10"><span class="n">Step 10</span><span class="t">After the install</span><span class="dots"><i class="o"></i><i class="i"></i><i class="a"></i></span></a></li>
+    <li><a href="#s11"><span class="n">Step 11</span><span class="t">Final check and VEECs</span><span class="dots"><i class="f"></i></span></a></li>
+  </ol>
+</section>
+
+<section aria-labelledby="h-routes">
+  <h2 id="h-routes">Two ways a job comes in</h2>
+  <p class="lede">From the moment the owner accepts the quote, both kinds of job follow the same steps. Before that they differ.</p>
+  <div class="routes">
+    <div class="route">
+      <span class="who i">A1 · The installer's own customer</span>
+      <ul>
+        <li>The installer adds the job in the portal: owner's name, address, mobile, email and a tick that the owner said we can contact them.</li>
+        <li>The installer picks the electrician once, at Add a job: their usual electrician or ours.</li>
+        <li>The installer arranges the Ready Check visit with the owner directly.</li>
+        <li>The installer's business owner enters the price. Their staff never see prices.</li>
+        <li>We don't mark up the installer's price. We add our AP fee and the electrician's safety check.</li>
+        <li>The installer is paid when the owner pays the final balance.</li>
+      </ul>
+    </div>
+    <div class="route">
+      <span class="who f">A2 · Our lead</span>
+      <ul>
+        <li>The owner fills in the calculator on our website and gets an estimate.</li>
+        <li>The owner taps Save my spot. The office picks one installer.</li>
+        <li>The installer offers the owner 3 visit times.</li>
+        <li>The price comes from our price list (R5, R6, R7 per m², removal per m²).</li>
+        <li>The installer and electrician must not discuss price with the owner. We send all prices.</li>
+        <li>The installer is paid 7 days after AP approval.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-steps">
+  <h2 id="h-steps">Step by step</h2>
+
+  <article class="stage" id="s1">
+    <div class="stage-head"><span class="num">Step 1 · our leads only</span><h3>Enquiry and estimate</h3></div>
+    <div class="people"><span class="who o">Owner</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The owner uses the calculator on our website.</li><li>The portal works out a first eligibility answer from what they told us.</li><li>Missing suburbs and postcodes are filled in automatically.</li><li>Office does nothing here. Enquiries is one list you can search.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>Estimate and Save my spot email, plus a reminder text.</li><li>If they don't save a spot: reminders on day 2, 7 and 21, then the enquiry closes a week later.</li><li>Not eligible, or not in our area: a polite email.</li></ul></div>
+      <div class="box form"><h4>Form</h4><ul><li>Website calculator, then the owner's estimate page.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>No cold calling: the owner contacts us first.</li><li>One ceiling upgrade per home: "previous upgrade" question, office reviews.</li><li>Life support asked up front.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s2">
+    <div class="stage-head"><span class="num">Step 2</span><h3>The job starts</h3></div>
+    <div class="people"><span class="who o">Owner</span><span class="who i">Installer</span><span class="who f">Office</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li><b>Our lead:</b> the owner saves their spot. The job shows on Needs me. The office picks one installer.</li><li>The installer has 24 hours. "Not for me" or no answer comes back to the office to choose again.</li><li><b>Installer's customer:</b> the installer uses Add a job. The job starts straight away.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>Spot saved email and text to the owner.</li><li>Offer text, email and app alert to the installer. Texts wait overnight, 8pm to 7am.</li><li>The Mitti Ready Check form is created for the job.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Permission to contact: the tick at Add a job.</li><li>Only one open job per address. A repeat at the same address is linked and the office is told.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s3">
+    <div class="stage-head"><span class="num">Step 3</span><h3>Ready Check visit</h3></div>
+    <div class="people"><span class="who i">Installer</span><span class="who o">Owner</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li><b>Our lead:</b> the installer offers 3 times on 3 days. The owner taps one or suggests others.</li><li>The installer measures each ceiling area, films it and photographs any existing insulation with a ruler.</li><li>They rate the ceiling access, note every issue with a photo, and pick the product.</li><li>No safe access: the form stops and the office is told.</li><li>On our leads the installer ticks "I will not discuss pricing".</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>Booked email and text, and a day-before text.</li><li>6:30am text to the installer with the day's jobs and Mitti links.</li><li>The portal draws the ceiling plan from the measurements.</li><li>"Nearly there" text if answers are missing.</li></ul></div>
+      <div class="box form"><h4>Form</h4><ul><li>Mitti <b>A1 Ready Check</b> (installer's customer) or <b>A2 Ready Check</b> (our lead).</li></ul></div>
+      <div class="box cash"><h4>Money</h4><ul><li>None. The Ready Check is free.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Geotagged before video of every area.</li><li>Existing insulation assessed, depth photo with a ruler.</li><li>Floor plan with each area's size.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s4">
+    <div class="stage-head"><span class="num">Step 4</span><h3>Quote</h3></div>
+    <div class="people"><span class="who i">Installer</span><span class="who f">Office</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The installer presses Complete in Mitti.</li><li><b>Installer's customer:</b> the business owner gets one text with a link to enter their price and inclusions.</li><li>The office opens Needs me › Quotes to check, checks it, and presses <b>Send</b>.</li><li>A quote is held, with the reason shown, if: the price isn't in, the electrician isn't onboarded, or another check fails.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>The quote is prepared as soon as the form is complete.</li><li>After Send: quote email and text to the owner.</li><li>Reminders 3 days after sending, and 2 days before the price expires.</li><li>If the owner says "Not for me", the installer and office are told.</li></ul></div>
+      <div class="box form"><h4>Screen</h4><ul><li>Office: Needs me › Quotes to check.</li><li>Installer business owner: "Your price" card on the job page.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s5">
+    <div class="stage-head"><span class="num">Step 5</span><h3>Owner accepts and pays the safety check</h3></div>
+    <div class="people"><span class="who o">Owner</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>On their secure link the owner reads the quote, ticks to accept it and the Customer Agreement, ticks they're 18+ and the owner, and types their name.</li><li>They tap "Sign and pay".</li><li>When they book the safety check, they tick that they understand the install must happen within 30 days of it, or a new check is needed. They can't send their times until it's ticked. <span class="new">BUILT, NOT LIVE</span></li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>The Xero invoice is created.</li><li>"You're in!" email with a receipt. The installer is told.</li><li>The safety check offer goes to the electrician automatically.</li></ul></div>
+      <div class="box cash"><h4>Money</h4><ul><li>The safety check: $349 with our electrician, or the approved electrician's agreed rate. Card or bank transfer.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>The AP contracts directly with the owner.</li><li>Minimum $200 owner co-payment is met by this payment.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s6">
+    <div class="stage-head"><span class="num">Step 6</span><h3>Electrical safety check (PIESA)</h3></div>
+    <div class="people"><span class="who e">Electrician</span><span class="who o">Owner</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The electrician has 24 hours to offer the owner 3 times. The owner picks one.</li><li>On site the electrician photographs themselves holding their licence, and the switchboard cables.</li><li>They check life support, mains power, solar and batteries, ceiling wiring, downlights and every appliance or flue.</li><li>If repairs are needed they give one total price and tick what's included, with how many downlights and safety switches. "Other" needs a description. <span class="new">BUILT, NOT LIVE</span></li><li>On our leads they tick that they won't discuss any prices with the owner. <span class="new">BUILT, NOT LIVE</span></li><li>The owner then confirms the check on their secure link: one tick and their typed name. No code.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>Booking emails and texts, and a day-before text.</li><li>The official PIESA form is filled in from the Mitti answers.</li><li>"Please confirm your safety check" email and text, reminders on days 1 and 3, office alert on day 5.</li><li>The install can't be booked until the owner confirms.</li><li>No repairs needed: the 30-day clock starts and the installer is told to offer install days.</li></ul></div>
+      <div class="box form"><h4>Forms</h4><ul><li>Mitti <b>A4 PIESA</b> (electrician).</li><li>Owner's confirmation page on the secure link.</li><li>Official PIESA (filled in by the portal).</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Safety check by a licensed electrician from an approved REC.</li><li>Owner's declaration on the PIESA.</li><li>Life support: written consent or medical plan, or no install.</li><li>Only IC or IC-4 rated downlights may be covered.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s6b">
+    <div class="stage-head"><span class="num">Step 6b · only when repairs are needed</span><h3>Electrical fixes</h3></div>
+    <div class="people"><span class="who e">Electrician</span><span class="who o">Owner</span><span class="who f">Office</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The fixes quote is the electrician's price. On our leads we add $100. On installer customers we add nothing.</li><li>When the electrician marks the safety check complete in Mitti, they get a text with a link to pick 3 to 5 times for the fixes. <span class="new">BEING BUILT</span></li><li>The quote waits for those times. Then the office checks it and presses Send.</li><li>The owner approves, pays in full and picks one of the electrician's times, all in one go.</li><li>Repairs happen before the install. The one exception: if the electrician ticked "Be on site at the start of the install day", they attend the install instead, and the office tells them the day.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>Booking the fixes visit creates the Mitti fixes form.</li><li>When it's complete, the Certificate of Electrical Safety is filed and the official PIESA is updated.</li><li>The 30 days still count from the safety check (PIESA) date, not the repair date. Fixes must be done well inside that window.</li><li>Anything missing makes one office item.</li></ul></div>
+      <div class="box form"><h4>Form</h4><ul><li>Mitti <b>A5 Electrical fixes</b>: repairs done, certificate number, date, copy, geotagged photo of the finished work, signature.</li></ul></div>
+      <div class="box cash"><h4>Money</h4><ul><li>The fixes, paid in full by card or bank transfer before the visit.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Hazards fixed before the install.</li><li>Certificate of Electrical Safety for the electrical work.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s7">
+    <div class="stage-head"><span class="num">Step 7</span><h3>Book the install day</h3></div>
+    <div class="people"><span class="who i">Installer</span><span class="who o">Owner</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The installer offers 3 days, each with an arrival time, inside the 30 days.</li><li>The owner taps a day, signs the ESC Owner's Consent Form and pays the deposit.</li><li>Or the owner suggests 1 to 5 days and they go back and forth. The office isn't involved.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>"Your install is booked" email, and a copy of the signed consent.</li><li>A day the owner suggested is held 48 hours, then released if the deposit isn't paid.</li><li>Reminders at 20 and 10 days left to whoever needs to act.</li><li>One office alert at 10 days left with nothing booked.</li><li>If the 30 days run out, whoever caused the delay pays for the new safety check.</li></ul></div>
+      <div class="box form"><h4>Form</h4><ul><li><b>ESC Owner's Consent Form</b> on the owner's secure link. We sign our part.</li></ul></div>
+      <div class="box cash"><h4>Money</h4><ul><li>Deposit: 10% of (quote total − safety check). Bank transfer only.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Owner's written consent at least 24 hours before, signed again if the date changes.</li><li>Install within 30 days of the safety check.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s8">
+    <div class="stage-head"><span class="num">Step 8 · 24 hours to 5 days before</span><h3>Before the install</h3></div>
+    <div class="people"><span class="who f">Office</span><span class="who i">Installer</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li><b>ESC install notification:</b> the Registry robot logs into the VEU Registry, fills in the notification from the job, submits it and saves the reference and a screenshot to the job. <span class="new">BEING SET UP</span></li><li>Until the robot is live, or if it fails, the office submits it by hand from the prepared details. A failed robot run shows on Needs me.</li><li><b>Installer:</b> the lead opens the safety plan on the job page and adds a site note. Every crew member signs it with one tap.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>The PIESA copy goes to the owner and the installer at least 24 hours before.</li><li>Install-tomorrow texts to the installer and owner.</li><li>Pre-start check at noon the day before: the lead installer's licence is current, every crew member has read the privacy notice, the safety plan is signed. If it passes, the Mitti install day form is created.</li><li>The job won't start unless consent, notification and PIESA copies are all done at least 24 hours before, inside the 30 days.</li></ul></div>
+      <div class="box form"><h4>Forms</h4><ul><li>ESC install notification (VEU Registry).</li><li>Safety plan (SWMS) on the portal job page.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Install notification 24 hours to 5 days before.</li><li>PIESA copy to owner and installer.</li><li>Every installer is a certified insulation installer.</li><li>Every installer has the ESC privacy notice.</li><li>Safe work method statement signed.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s9">
+    <div class="stage-head"><span class="num">Step 9</span><h3>Install day</h3></div>
+    <div class="people"><span class="who i">Installer</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>Each installer is photographed at the front door with photo ID.</li><li>Solar and batteries checked, power isolated, locked out and tagged, switchboard photographed.</li><li>Product packaging photographed, insulation installed.</li><li>After video and depth photo with a ruler for every area.</li><li>They record who turned the power back on, and the lead signs.</li><li>Can't get in: the owner is told and the installer offers new days. Nobody is charged.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>The crew names are filled in from the booking.</li><li>The official PIISA is filled in from the answers.</li><li>Marked Complete and every photo is there: the install is recorded as done.</li></ul></div>
+      <div class="box form"><h4>Forms</h4><ul><li>Mitti <b>A3 Install day</b>.</li><li>Official PIISA (filled in by the portal).</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>PIISA by the lead installer on the day, rechecked daily on longer jobs.</li><li>Power isolated and locked out.</li><li>Geotagged, timestamped photos and videos.</li><li>Approved product, R5.0 or more.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s10">
+    <div class="stage-head"><span class="num">Step 10</span><h3>After the install</h3></div>
+    <div class="people"><span class="who o">Owner</span><span class="who i">Installer</span><span class="who a">Automatic</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The VEEC assignment form is signed in this order:</li><li>1. The lead installer, from their job page.</li><li>2. Us as the AP, signed automatically once the PIESA copies, notification, warranty copy, privacy notices and consent are all recorded.</li><li>3. The owner, on their secure link.</li></ul></div>
+      <div class="box auto"><h4>Automatic</h4><ul><li>"All done" email and text with the "sign your rebate form" box.</li><li>Final invoice with the balance due.</li><li>Owner signing reminders on days 1, 3 and 7, then an office alert on day 10.</li><li>Signed copy emailed within 10 business days.</li><li>Once paid in full: completion pack with the product warranty attached.</li><li>Review request a week later.</li></ul></div>
+      <div class="box form"><h4>Form</h4><ul><li><b>VEEC Assignment Form v1.1</b> (official ESC form).</li></ul></div>
+      <div class="box cash"><h4>Money</h4><ul><li>The balance, due on install day. Bank transfer only.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Assignment form signed after the install, owner gets a copy.</li><li>Product warranty of 5+ years given to the owner.</li><li>Invoice shows the AP, product, R-value, m², price and incentive.</li></ul></div>
+    </div>
+  </article>
+
+  <article class="stage" id="s11">
+    <div class="stage-head"><span class="num">Step 11</span><h3>Final check and VEECs</h3></div>
+    <div class="people"><span class="who f">Office</span></div>
+    <div class="grid2">
+      <div class="box do"><h4>What happens</h4><ul><li>The office reviews the job as the AP.</li><li>It can't move to Ready for VEEC until every photo and video is in, the owner has signed, and the product is approved, in date and R5.0 or more.</li><li>The Registry robot creates the VEECs in the VEU Registry, using the install notification number, once all three people have signed the assignment form. <span class="new">BEING SET UP</span> Until then, or if it fails, the office does it by hand.</li><li>Our-lead installers are paid 7 days after AP approval.</li></ul></div>
+      <div class="box veu"><h4>VEU rules covered</h4><ul><li>Product on the ESC register on the install date.</li><li>Records kept for at least 6 years. We keep signed copies for 7.</li></ul></div>
+    </div>
+  </article>
+</section>
+
+<section aria-labelledby="h-money">
+  <h2 id="h-money">The owner pays in four steps, on one invoice</h2>
+  <div class="money-row">
+    <div class="pay"><span class="when">At acceptance</span><span class="amt">Safety check</span><span>$349, or the approved electrician's rate. Card or bank.</span></div>
+    <div class="pay"><span class="when">Only if repairs</span><span class="amt">Fixes in full</span><span>Before the fixes visit. Card or bank.</span></div>
+    <div class="pay"><span class="when">Booking the install</span><span class="amt">10% deposit</span><span>Of the quote total less the safety check. Bank only.</span></div>
+    <div class="pay"><span class="when">Install day</span><span class="amt">Balance</span><span>Bank only. They can pay in full any time.</span></div>
+  </div>
+  <p class="lede">Payments are read from Stripe and Xero automatically. The office never types in a payment. No card fee is ever charged to the owner.</p>
+</section>
+
+<section aria-labelledby="h-forms">
+  <h2 id="h-forms">Every form, who fills it in and why</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Form</th><th>Who</th><th>When</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Mitti A1 Ready Check</td><td>Installer (their own customer)</td><td>Ready Check visit</td><td>Measures the ceiling and records before evidence. No price on it.</td></tr>
+      <tr><td>Mitti A2 Ready Check</td><td>Installer (our lead)</td><td>Ready Check visit</td><td>Same, for our leads, priced from our list.</td></tr>
+      <tr><td>Mitti A4 PIESA</td><td>Electrician</td><td>Safety check visit</td><td>The VEU electrical safety check, plus the repair price if needed.</td></tr>
+      <tr><td>Mitti A5 Electrical fixes</td><td>Electrician</td><td>Repair visit</td><td>Proves the repairs are done and holds the Certificate of Electrical Safety.</td></tr>
+      <tr><td>Mitti A3 Install day</td><td>Lead installer and crew</td><td>Install day</td><td>Safety steps, photo evidence and the PIISA answers.</td></tr>
+      <tr><td>Quote acceptance and Customer Agreement</td><td>Owner, secure link</td><td>After the quote</td><td>Our contract with the owner.</td></tr>
+      <tr><td>Safety check confirmation</td><td>Owner, secure link</td><td>After the PIESA</td><td>The owner's declaration on the official PIESA. They don't need to be home for the check.</td></tr>
+      <tr><td>ESC Owner's Consent Form</td><td>Owner, then us</td><td>Booking the install</td><td>Required by the ESC before we notify and install.</td></tr>
+      <tr><td>Safety plan (SWMS)</td><td>Lead and every crew member</td><td>Before work starts</td><td>Victorian safe-work law for ceiling work.</td></tr>
+      <tr><td>ESC install notification</td><td>Registry robot (office by hand as backup)</td><td>24 hours to 5 days before</td><td>Required by the ESC before the install.</td></tr><tr><td>VEEC creation</td><td>Registry robot (office by hand as backup)</td><td>After the final check</td><td>Creates the certificates we sell.</td></tr>
+      <tr><td>Official PIESA and PIISA</td><td>Portal fills them in</td><td>After each visit</td><td>The government's versions, built from the Mitti answers.</td></tr>
+      <tr><td>VEEC Assignment Form v1.1</td><td>Installer, then us, then owner</td><td>After the install</td><td>Gives us the right to create the VEECs.</td></tr>
+      <tr><td>ESC privacy notice</td><td>Every installer, once</td><td>Before their first job</td><td>Required by the ESC for every installer we register.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="h-screens">
+  <h2 id="h-screens">Who uses which screen</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Who</th><th>Where</th><th>What they see</th></tr></thead>
+    <tbody>
+      <tr><td><span class="who f">Office</span></td><td>Office portal</td><td>Needs me · Enquiries · Jobs · Partners · Money · More. Start every day on <b>Needs me</b>: it lists only what a person has to do.</td></tr>
+      <tr><td><span class="who i">Installer</span></td><td>Installer portal on their phone</td><td>My work, Add a job, Money, My business. One job page with the next step, quote status, install days, safety plan and rebate form. Crew without logins get a link.</td></tr>
+      <tr><td><span class="who e">Electrician</span></td><td>Same trade portal, plus Mitti</td><td>Their offers and jobs, and only their own agreed rate.</td></tr>
+      <tr><td><span class="who o">Owner</span></td><td>Secure link, no login</td><td>Estimate, visit times, quote, payments, safety check confirmation, consent, install day, rebate form.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="h-veu">
+  <h2 id="h-veu">VEU rules and where we meet them</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>VEU or ESC rule</th><th>Where it's covered</th><th>Step</th></tr></thead>
+    <tbody>
+      <tr><td>No cold calling, permission to contact</td><td>Owner contacts us, or the permission tick at Add a job</td><td>1, 2</td></tr>
+      <tr><td>AP contracts directly with the owner</td><td>Quote acceptance and Customer Agreement, invoice in our name</td><td>5</td></tr>
+      <tr><td>Minimum $200 owner co-payment</td><td>The safety check payment</td><td>5</td></tr>
+      <tr><td>Life support: consent or medical plan, else no install</td><td>Website question, A4 safety check (hard stop), PIISA</td><td>1, 6, 9</td></tr>
+      <tr><td>Safety check by a licensed electrician from a REC</td><td>Approved, onboarded electricians only, A4 with geotagged ID photo</td><td>6</td></tr>
+      <tr><td>Owner's declaration on the PIESA</td><td>Confirmation on the secure link</td><td>6</td></tr>
+      <tr><td>Only IC or IC-4 downlights covered</td><td>A4 downlight questions, PIISA</td><td>6, 9</td></tr>
+      <tr><td>Hazards fixed before install, Certificate of Electrical Safety</td><td>Fixes quote and A5 fixes form</td><td>6b</td></tr>
+      <tr><td>Install within 30 days of the safety check</td><td>Install days only offered inside the window, reminders, owner's 30-day tick</td><td>5, 7</td></tr>
+      <tr><td>PIESA copy to owner and installer 24 hours before</td><td>Sent automatically, checked before the install</td><td>8</td></tr>
+      <tr><td>Owner's written consent 24 hours before</td><td>ESC Owner's Consent Form at booking</td><td>7</td></tr>
+      <tr><td>ESC install notification 24 hours to 5 days before</td><td>Registry robot, office by hand as backup; never sent twice</td><td>8</td></tr>
+      <tr><td>Certified insulation installers only</td><td>Office checks each certificate, pre-start check</td><td>8</td></tr>
+      <tr><td>ESC privacy notice for every installer</td><td>Each person reads and ticks it, checked before crews</td><td>8</td></tr>
+      <tr><td>Safe work method statement</td><td>Safety plan signed by every crew member</td><td>8</td></tr>
+      <tr><td>Power isolated and locked out</td><td>A3 isolation photo and lock-out questions</td><td>9</td></tr>
+      <tr><td>PIISA on the day, daily recheck</td><td>A3 install day form, official PIISA</td><td>9</td></tr>
+      <tr><td>Geotagged, timestamped photos and videos</td><td>Ready Check before video and depth photo, A3 photos and after video, A4 photos</td><td>3, 6, 9</td></tr>
+      <tr><td>Existing insulation assessed</td><td>Ready Check depth photo and notes, PIISA</td><td>3, 9</td></tr>
+      <tr><td>Product on the ESC register, R5.0 or more</td><td>Product list in Mitti, checked at install and at VEECs</td><td>9, 11</td></tr>
+      <tr><td>Floor plan with area sizes</td><td>Drawn by the portal from the Ready Check</td><td>3</td></tr>
+      <tr><td>Product warranty of 5+ years to the owner</td><td>Completion pack with the warranty attached</td><td>10</td></tr>
+      <tr><td>Invoice content</td><td>Xero invoice wording</td><td>10</td></tr>
+      <tr><td>VEEC assignment form after the install, copy to owner</td><td>Installer, AP, owner signing order, copy within 10 business days</td><td>10</td></tr>
+      <tr><td>Records kept 6 years</td><td>Everything filed on the job, signed copies kept 7 years</td><td>11</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="h-off">
+  <h2 id="h-off">Not switched on yet</h2>
+  <ul class="off">
+    <li><b>Owner and trade emails and texts</b> are all written and approved but switched off. Nothing reaches a real owner or installer until Jo turns them on, one at a time.</li>
+    <li><b>Quotes</b> are sent by the office pressing Send. Automatic sending is off.</li>
+    <li><b>Our-lead installer offers</b> are chosen by the office. Electrician offers already go out automatically.</li>
+    <li><b>Mitti A4</b> needs the latest changes pasted and published, then connecting. <b>Mitti A5</b> isn't connected yet.</li>
+    <li><b>Built, waiting to go live:</b> the owner's 30-day tick, the repair tick list, the electrician's no-price tick on our leads, and no $100 on installer customers' fixes. <b>Being built:</b> the fixes-times text to the electrician.</li>
+    <li><b>ESC Registry robot.</b> The ESC has no way for software to connect directly, so a robot uses the Registry website like a person. Steps to switch it on: Jo adds the Registry login as secrets and allows the Registry website; a practice run on a TEST job fills the forms and takes screenshots without submitting; Jo checks the screenshots; then it goes live. It never submits the same notification or VEEC twice. Until then the office does it by hand.</li>
+    <li><b>Card payments</b> need the Stripe keys.</li>
+    <li><b>ECOWOOL</b> warranty PDF is still missing, so the AP signature waits on those jobs.</li>
+    <li>The AP signature waits until the owner has paid in full, because the warranty copy goes in the completion pack.</li>
+  </ul>
+</section>
+
+<footer>Built from the portal's current rules and Jo's decisions up to 25 October 2026.</footer>
+</div>
