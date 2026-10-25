@@ -43,8 +43,9 @@ export type NeedsFacts = {
   quoteToCheck?: { at: string; reason: string | null; ready: boolean } | null;
   /** Electrical fixes quote to price / review before it goes to the owner. */
   fixesQuoteToCheck?: { at: string; reason: string | null } | null;
-  /** ESC owner consent signed by the owner, waiting for the AP signature; dueAt = 24h before install. */
-  consentToSign?: { at: string; dueAt: string | null } | null;
+  /** ESC owner consent signed by the owner, AP part not signed; dueAt = 24h before install. Since decision 370 the AP part
+   *  signs itself — the row appears only when that is held >24h (or the deadline is <24h away), with the reasons. */
+  consentToSign?: { at: string; dueAt: string | null; reasons?: string[] } | null;
   /** VEEC form: installer Part B signed, Part A's automatic signature held >24h (decision 271) with the blocker reasons. Never "sign". */
   veecApHeld?: { at: string; reasons: string[] } | null;
   /** Decision 296: 5 days after the electrician's PIESA and the owner has not confirmed it on their secure link (install can't be booked). */
@@ -89,7 +90,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
     const soon = due == null || due - now <= 48 * HOUR;
-    add({ rank: soon ? 30 : 110, group: soon ? "today" : "week", kind: "sign_consent", line: `ESC consent · AP signature due ${f.consentToSign.dueAt ? fmtWhen(f.consentToSign.dueAt) : "before the install"}`, since: f.consentToSign.at, button: { label: "Sign", to: "job", section: "install" } });
+    const why = f.consentToSign.reasons?.[0];
+    add({ rank: soon ? 30 : 110, group: soon ? "today" : "week", kind: "sign_consent", line: `ESC consent · AP ${why ? "part held" : "signature"} due ${f.consentToSign.dueAt ? fmtWhen(f.consentToSign.dueAt) : "before the install"}${why ? ` · ${why}` : ""}`, since: f.consentToSign.at, button: { label: "Sign", to: "job", section: "install" } });
   }
   if (f.escWindow) {
     const closes = Date.parse(f.escWindow.closesAt);

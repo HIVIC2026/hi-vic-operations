@@ -96,6 +96,8 @@ export async function signOwnerConsent(p: { jobId: string; actorId: string; inpu
     owner_declarations: declarations as Json,
   }).eq("id", c.id);
   await logEvent(p.jobId, p.actorId, "esc_consent_owner_signed", `Owner signed ESC information-sharing consent (${tpl.version})${declarations ? " – all four Section 2 declarations ticked" : ""} – awaiting AP representative`, { consent_id: c.id, declarations });
+  // Decision 370: the AP part signs itself straight away when every check passes (held otherwise; the tick retries).
+  try { await (await import("./consent-ap-auto.server")).tryAutoConsentApSignature(p.jobId); } catch (e) { console.error("automatic consent AP signature skipped", (e as Error).message); }
 }
 
 /** Section 3 Part A prefill for the signing office user (their profile); role is typed by the user. */
@@ -105,7 +107,13 @@ export async function apRepPrefill(userId: string): Promise<ApRep> {
   return { first_name: n.first, last_name: n.last, role: "", phone: data?.phone ?? null, email: data?.email ?? null };
 }
 
-export async function confirmApConsent(p: { jobId: string; actorId: string; apRepName?: string | undefined; apRep?: ApRep | null | undefined; purposeExplained: boolean; ip: string | null; userAgent: string | null }) {
+/**
+ * Section 3 (AP part) of the owner consent. One path for the office Sign (fallback, `method: "manual"`) and the automatic
+ * signature (decision 370, `consent-ap-auto.server.ts`, actor null, `method: "automatic"`). The row is claimed with a
+ * conditional update (still awaiting_ap, no AP signature) BEFORE the copy is filed or emailed, so two runs can never
+ * sign, file or email twice.
+ */
+export async function confirmApConsent(p: { jobId: string; actorId: string | null; apRepName?: string | undefined; apRep?: ApRep | null | undefined; purposeExplained: boolean; ip: string | null; userAgent: string | null; method?: "manual" | "automatic" }) {
   const c = await currentConsent(p.jobId);
   if (!c) throw new WorkflowError("No open owner consent.");
   const esc = isEscTemplateVersion(c.template_version);
@@ -117,7 +125,7 @@ export async function confirmApConsent(p: { jobId: string; actorId: string; apRe
   const now = new Date().toISOString();
   const facts = c.snapshot as unknown as ConsentFacts;
   const declarations = (c.owner_declarations ?? null) as OwnerDeclarations | null;
-  const signed = { facts: c.snapshot, template: { version: c.template_version, body: tpl?.body ?? null }, owner: { name: c.owner_signatory_name, authority: c.owner_authority_type, typed: c.owner_signature_name, at: c.owner_signed_at, ip: c.owner_ip, declarations }, ap: { name: apRepName, rep, purpose_explained: true, at: now, ip: p.ip, user_id: p.actorId } };
+  const signed = { facts: c.snapshot, template: { version: c.template_version, body: tpl?.body ?? null }, owner: { name: c.owner_signatory_name, authority: c.owner_authority_type, typed: c.owner_signature_name, at: c.owner_signed_at, ip: c.owner_ip, declarations }, ap: { name: apRepName, rep, purpose_explained: true, at: now, ip: p.ip, user_id: p.actorId, method: p.method ?? "manual" } };
   const json = stableJson(signed); const sha = await sha256Hex(json);
   const { customerDeliveryState } = await import("./comms.server");
   const delivery = await customerDeliveryState(p.jobId);
@@ -128,9 +136,14 @@ export async function confirmApConsent(p: { jobId: string; actorId: string; apRe
   });
   const text = [`OWNER CONSENT – ESC INFORMATION SHARING (${c.template_version})`, `AP: ${esc ? ESC_AP_FULL_NAME : c.ap_legal_entity}`, `Premises: ${c.premises_address}`, `Installation day(s): ${(c.installation_days as string[]).join(", ")}`, "", form, "",
     `Owner/authorised representative: ${c.owner_signatory_name} (${c.owner_authority_type}) · typed signature "${c.owner_signature_name}" · ${c.owner_signed_at}`, `AP representative: ${apRepName}${rep?.role ? ` (${rep.role})` : ""} · purpose explained · ${now}`, `SHA-256: ${sha}`, "", json].join("\n");
+  const method = p.method ?? "manual";
+  const { data: claimed, error: claimErr } = await consentAdmin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: apRepName, ap_rep: rep as Json, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, delivery_status: delivery })
+    .eq("id", c.id).eq("status", "awaiting_ap").is("ap_signed_at", null).select("id");
+  if (claimErr) throw new Error(claimErr.message);
+  if (!claimed?.length) throw new WorkflowError("This consent is not awaiting AP confirmation.");
   const path = await storeCopy(p.jobId, `${p.jobId}/consent/esc-consent-v${c.version}-${sha.slice(0, 12)}.txt`, text, `Owner ESC consent v${c.version} (signed)`, p.actorId);
-  await consentAdmin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: apRepName, ap_rep: rep as Json, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, copy_path: path, delivery_status: delivery }).eq("id", c.id);
-  await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${apRepName} confirmed purpose explained (copy stored; delivery ${delivery === "ready_to_send" ? "ready" : delivery === "not_ready" ? "blocked – no owner contact consent" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha });
+  if (path) await consentAdmin.from("owner_esc_consents").update({ copy_path: path }).eq("id", c.id);
+  await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${apRepName}${method === "automatic" ? " (signed automatically)" : ""} confirmed purpose explained (copy stored; delivery ${delivery === "ready_to_send" ? "ready" : delivery === "not_ready" ? "blocked – no owner contact consent" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha, method });
   // The ESC recommends providing the owner a copy of the executed form: best-effort through the guarded owner path.
   try {
     const { emailOwnerConsentCopy } = await import("./consent-copy-email.server");

@@ -8,6 +8,7 @@ import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
+import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
@@ -124,7 +125,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (kind === "ready_check") delete x.spotSaved; else delete x.electricianToChoose;
     }
   }
-  for (const c of consents) { const x = f(String(c["job_id"])); if (x && !["cancelled", "stale", "superseded"].includes(String(c["status"]))) { const start = s(c["scheduled_start"]); x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null }; } }
+  // Decision 370: the consent's AP part signs itself; a row only once that has been held >24h (or the deadline is <24h away), with the reasons.
+  const heldConsents = consents.filter((c) => f(String(c["job_id"])) && !["cancelled", "stale", "superseded"].includes(String(c["status"])) && consentApHoldAlert({ ownerSignedAt: s(c["owner_signed_at"]), scheduledStart: s(c["scheduled_start"]), now, reasons: ["pending"] }).alert);
+  const consentReasons = new Map<string, string[]>();
+  if (heldConsents.length && heldConsents.length <= 40) {
+    const { consentApHoldReasons } = await import("./consent-ap-auto.server");
+    await Promise.all(heldConsents.map(async (c) => consentReasons.set(String(c["job_id"]), await consentApHoldReasons(String(c["job_id"])).catch(() => ["The consent checks could not be read."]))));
+  }
+  for (const c of heldConsents) {
+    const x = f(String(c["job_id"])); if (!x) continue;
+    const reasons = heldConsents.length <= 40 ? consentReasons.get(String(c["job_id"])) ?? [] : ["The AP part has not signed itself yet (open the job)."];
+    if (!reasons.length) continue; // nothing holds it — the next tick signs it
+    const start = s(c["scheduled_start"]);
+    x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null, reasons };
+  }
   // Decision 271: Part A signs itself; the office sees a row only once the automatic signature has been held >24h, with the reasons.
   const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"] && apAutoHoldAlert({ installerSignedAt: String(v["installer_signed_at"]), now, reasons: ["pending"] }).alert);
   if (partA.length && partA.length <= 40) {

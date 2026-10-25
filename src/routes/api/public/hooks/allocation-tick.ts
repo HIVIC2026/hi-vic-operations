@@ -141,6 +141,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['warrantyFollowups'] = "failed";
         }
         try {
+          // Decision 370: the AP part (Section 3) of the ESC owner consent signs itself once the owner has signed and every check passes.
+          const { sweepAutoConsentApSignatures } = await import("@/lib/consent-ap-auto.server");
+          (out as Record<string, unknown>)['consentApAuto'] = await sweepAutoConsentApSignatures();
+        } catch (e) {
+          console.error("allocation tick: automatic consent AP signature sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['consentApAuto'] = "failed";
+        }
+        try {
           // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
           const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
           (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
