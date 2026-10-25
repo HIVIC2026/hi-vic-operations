@@ -149,9 +149,9 @@ describe("reminders", () => {
 });
 
 describe("wording (DRAFT until Jo approves)", () => {
-  test("flags are off and the SMS type is registered as unapproved, window freshness", () => {
-    expect(PIESA_OWNER_CONFIRM_EMAIL_APPROVED).toBe(false); expect(PIESA_OWNER_CONFIRM_SMS_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES[PIESA_OWNER_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: false, quietHours: true });
+  test("decision 311: flags are on and the SMS type is approved, window freshness", () => {
+    expect(PIESA_OWNER_CONFIRM_EMAIL_APPROVED).toBe(true); expect(PIESA_OWNER_CONFIRM_SMS_APPROVED).toBe(true);
+    expect(SMS_MESSAGE_TYPES[PIESA_OWNER_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS[PIESA_OWNER_CONFIRM_SMS_TYPE]).toEqual({ kind: "window" });
   });
   test("texts: under two segments, carry the link and the STOP line", () => {

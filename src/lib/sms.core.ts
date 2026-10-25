@@ -41,7 +41,7 @@ export const SMS_MESSAGE_TYPES = {
   boss_price_link: { audience: "partner", label: "Ready Check done – business owner's link to enter the price (decision 288)", wordingApproved: true, quietHours: true },
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA on their secure link — request text after the electrician
   // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
-  piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; wording DRAFT, awaiting Jo)", wordingApproved: false, quietHours: true },
+  piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

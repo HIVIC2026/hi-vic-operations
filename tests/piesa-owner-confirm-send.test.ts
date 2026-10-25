@@ -150,10 +150,10 @@ describe("facts + gate", () => {
 });
 
 describe("request + reminders (email O71 + text), recorded once per PIESA before any send", () => {
-  test("real job: step recorded; email held (wording awaiting approval); the text goes to the one real sender and is held there", async () => {
+  test("real job (decision 311 approved): step recorded; email goes ONLY through the guarded owner sender (customer_comms_enabled lives there); the text goes to the one real sender", async () => {
     const r = await sendPiesaConfirmStep(J, "request");
-    expect(r).toBe("email not sent — wording awaiting approval; sms blocked: Wording not approved yet");
-    expect(guarded).toEqual([]);
+    expect(r).toBe("email sent; sms blocked: Wording not approved yet");
+    expect(guarded).toHaveLength(1);
     expect(sms).toEqual([{ type: "piesa_owner_confirm", idempotencyKey: `piesa-owner-confirm:v1:${J}:${REC}:request`, to: "0400111222", body: expect.stringContaining(LINK), jobId: J }]);
     expect(sms[0]!.body).toStartWith("Your electrical safety check is done.");
     const ev = events(PIESA_OWNER_CONFIRM_STEP_EVENT);

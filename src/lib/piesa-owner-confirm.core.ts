@@ -15,8 +15,9 @@ export const PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT = "piesa_owner_unconfirmed_5
 export const PIESA_OWNER_CONFIRM_SMS_TYPE = "piesa_owner_confirm" as const;
 /** O71 email wording is a DRAFT (docs/templates/drafts/O71-piesa-confirm.html) until Jo approves it. Real owners get
  *  nothing while false; TEST jobs use test-send. The text has the same status in sms.core (`wordingApproved: false`). */
-export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = false as boolean;
-export const PIESA_OWNER_CONFIRM_SMS_APPROVED = false as boolean;
+/** Decision 311 (Jo 25 Oct 2026): O71 approved as drafted (no code, 30-day line). Delivery still behind customer_comms_enabled. */
+export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = true as boolean;
+export const PIESA_OWNER_CONFIRM_SMS_APPROVED = true as boolean; // decision 311
 export const O71_TEMPLATE_CODE = "O71";
 
 /** The official warning, as a plain sentence (official PIESA owner tick 1 says the same in form language). */
