@@ -2,7 +2,7 @@
 // Required items only. Mitti templates are built in the Mitti UI; this spec is the build sheet
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
-export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa";
+export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa" | "fixes";
 export type FieldType = "text" | "phone" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime" | "date" | "tick" | "statement";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
@@ -26,6 +26,7 @@ import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
+import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
 import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
 const G = "ESC Guide V1.1";
@@ -157,6 +158,12 @@ const A2_NO_PRICING_TICK: FormField = { label: LEAN_Q.noPricingTick, type: "tick
 const SIGNATURE_A1: FormField = { label: LEAN_Q.signatureA1, type: "signature", required: true, aliases: [...al("signatureA1"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
 const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", required: true, aliases: [...al("signatureA2"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
 
+const FIXES_TYPE: Record<FixesDayType, FieldType> = { text: "text", date: "date", yes_no: "yesno", photo: "media", signature: "signature" };
+function fixesField(q: (typeof FIXES_DAY_QUESTIONS)[number]): FormField {
+  const when = q.showWhen ? `${FIXES_DAY_QUESTIONS.find((x) => x.n === q.showWhen!.n)!.label} = ${q.showWhen.is.join(" / ")}` : undefined;
+  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
+}
+
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
   // Form A2 — we bring the customer: evidence only, no pricing (owner is quoted at our set price) + the no-pricing tick.
   ready_check: {
@@ -175,6 +182,8 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
   piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
   piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS.slice(0, -3), ...PIISA_DECLARATION_FIELDS, ...SHORT_PIISA_FIELDS.slice(-3), ...PIISA_SUPPLEMENTAL] },
+  // Decision 293 (Jo 25 Oct 2026): the electrician's fixes-day form for repair work done on a later visit (docs/MITTI_FIXES_FORM_PROMPT.md).
+  fixes: { title: FIXES_DAY_TEMPLATE_NAME, role: "electrician", fields: FIXES_DAY_QUESTIONS.map(fixesField) },
 };
 
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded). */

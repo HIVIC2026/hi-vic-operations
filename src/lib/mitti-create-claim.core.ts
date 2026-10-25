@@ -10,7 +10,8 @@
 // automatic path can create a second form. Only an explicit office action may override an old uncertain
 // claim (see mitti-create.server.ts).
 
-export type MittiFormKind = "ready_check" | "piesa";
+/** "fixes" = the decision-293 "A5 – Electrical fixes" form (one per booked fixes visit). */
+export type MittiFormKind = "ready_check" | "piesa" | "fixes";
 
 export const CLAIM_EVENT = "mitti_audit_create_started";
 export const RELEASE_EVENT = "mitti_audit_create_released";

@@ -52,6 +52,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['rectification'] = "failed";
         }
         try {
+          // Decision 293: open "A5 – Electrical fixes" Mitti forms — on Complete, Section C is recorded and the files kept.
+          const { sweepFixesForms } = await import("@/lib/fixes-day.server");
+          (out as Record<string, unknown>)['fixesForms'] = await sweepFixesForms();
+        } catch (e) {
+          console.error("allocation tick: fixes form sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['fixesForms'] = "failed";
+        }
+        try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
           (out as Record<string, unknown>)['installHolds'] = await sweepInstallHolds();
         } catch (e) {

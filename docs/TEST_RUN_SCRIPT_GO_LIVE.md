@@ -26,3 +26,6 @@ Before you start: the PR is merged, the site has rebuilt (about 5 minutes after 
 
 Stop and tell me at any step where what you see doesn't match the middle column. Nothing in this run reaches a real
 customer or installer.
+
+### Electrical fixes visit (decision 293)
+If the TEST PIESA says repair work is needed and is not fixed on the spot: book the fixes visit from the electrician page → check the "A5 – Electrical fixes" form appears in the TEST Mitti login (workflow event `fixes_form_created`); fill it (Yes, CoES number, date, CoES photo, finished-work photo, sign), press Complete → after the tick: `fixes_form_completed` event, PIESA record `post_rectification`, CoES + photo under the job's files, stage moves to installation scheduling. Template not connected yet → the office item "Fixes form not set up" appears and the portal page is the fallback.
