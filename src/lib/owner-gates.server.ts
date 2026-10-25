@@ -179,15 +179,8 @@ export async function signGateDoc(i: SignInput) {
   }
   await logEvent(i.jobId, i.signedBy, "owner_paperwork_signed", `Owner paperwork ${d.gate}: "${d.title}" ${d.signer === "office" ? "recorded" : "signed"}${draft ? " (DRAFT wording, TEST job)" : ""}`, { signature_id: row.id, doc_key: d.key, version: d.version });
 
-  // Emailed copy: queued for real jobs only; delivery follows the sending switches.
-  if (!facts.isTest) {
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", "owner_paperwork_signed").contains("details", { signature_id: row.id }).limit(1).maybeSingle();
-    if (ev) {
-      const { error: e } = await admin.rpc("enqueue_external_action", { _job: i.jobId, _event: ev.id, _action: "customer_email", _target: `owner_paperwork:${row.id}`, _basis: "transactional_signed_copy", _version: d.version, _payload: `owner_paperwork:${row.id}`, _facts: row.id, _key: `owner-paperwork-${row.id}` });
-      if (!e) await admin.from("owner_gate_signatures").update({ copy_email_queued: true }).eq("id", row.id);
-      else console.error("signed copy enqueue skipped", e.message);
-    }
-  }
+  // F13: the signed copy is filed on the job above. There is no approved "signed paperwork copy" owner email, so nothing is
+  // queued (the old outbox row was never sendable) and copy_email_queued is no longer set — it would claim an email.
   return { id: row.id, draft };
 }
 

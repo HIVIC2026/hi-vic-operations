@@ -168,28 +168,36 @@ export async function fixesFormState(jobId: string): Promise<{ auditId: string |
 
 export type FixesCompleteResult = { status: "waiting" | "already" | "not_done" | "missing" | "done" | "held"; detail: string | null };
 
-/** Decision 178 style: keep the CoES file(s) and finished-work photo(s) with the job (6 years). One copy per Mitti media id. Never throws. */
-async function saveFixesFiles(jobId: string, auditId: string, files: { label: string; title: string; media: { mediaId: string | null }[] }[], fetchMedia: import("./mitti.server").MittiMediaFetch) {
-  const saved: string[] = [];
+/**
+ * Decision 178 style: keep the CoES file(s) and finished-work photo(s) with the job (6 years). One copy per Mitti media id.
+ * Never throws: `saved` = the files on the job (already-filed documents count), `failed` = what could not be read or stored
+ * (the caller holds the form so the 15-minute sweep retries — evidence is never marked uploaded without its files).
+ */
+export async function saveFixesFiles(jobId: string, auditId: string, files: { label: string; title: string; media: { mediaId: string | null }[] }[], fetchMedia: import("./mitti.server").MittiMediaFetch): Promise<{ saved: string[]; failed: { label: string; mediaId: string; reason: string }[] }> {
+  const saved: string[] = [], failed: { label: string; mediaId: string; reason: string }[] = [];
   for (const f of files) for (const m of f.media) {
     if (!m.mediaId) continue;
     const key = `${auditId}:${m.mediaId}`;
     try {
-      const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-      if (ex) continue;
+      const { data: ex, error: exErr } = await admin.from("documents").select("id, storage_path").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+      if (exErr) throw new Error(`documents could not be read: ${exErr.message}`);
+      if (ex) { saved.push(String((ex as { storage_path?: string | null }).storage_path ?? key)); continue; }
       const { bytes, contentType } = await fetchMedia(auditId, m.mediaId);
       if (!bytes.length) throw new Error("empty media");
       const ext = contentType.includes("pdf") ? "pdf" : contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "bin";
       const path = `${jobId}/mitti/fixes/${auditId}-${m.mediaId}.${ext}`;
       const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
       if (up.error && !/exists/i.test(up.error.message)) throw new Error("storage upload failed");
-      await admin.from("documents").insert({ job_id: jobId, kind: "piesa_evidence", title: f.title, storage_path: path, mime_type: contentType, uploaded_by: null, source_system: "mitti", external_id: key, original_name: `${m.mediaId}.${ext}`, size_bytes: bytes.length });
+      const ins = await admin.from("documents").insert({ job_id: jobId, kind: "piesa_evidence", title: f.title, storage_path: path, mime_type: contentType, uploaded_by: null, source_system: "mitti", external_id: key, original_name: `${m.mediaId}.${ext}`, size_bytes: bytes.length });
+      if (ins.error) throw new Error(`document record failed: ${ins.error.message}`);
       saved.push(path);
     } catch (e) {
-      await logEvent(jobId, null, "piesa_evidence_file_failed", `Electrical fixes evidence (${f.label}) could not be saved – refresh to retry`, { audit_id: auditId, media_id: m.mediaId, reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined);
+      const reason = e instanceof Error ? e.message : "error";
+      failed.push({ label: f.label, mediaId: m.mediaId, reason });
+      await logEvent(jobId, null, "piesa_evidence_file_failed", `Electrical fixes evidence (${f.label}) could not be saved – it will be retried`, { audit_id: auditId, media_id: m.mediaId, reason }, { internal: true }).catch(() => undefined);
     }
   }
-  return saved;
+  return { saved, failed };
 }
 
 /** Regenerate the official PIESA (signed copy + Word form) from the merged short answers through the existing guarded path.
@@ -266,17 +274,25 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   }
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   const signerName = plan.signerName ?? ((asg?.profiles ?? null) as { full_name: string | null } | null)?.full_name ?? read.electricianName;
-  // 1. The PIESA short answers carry Part C exactly where the same-visit answers would be.
+  // 1. Files with the job FIRST: CoES + finished-work photo(s). Any file not kept → one office item and stop here (no
+  //    Section C merge, no evidence marked uploaded, no PIESA record, no completion event), so the 15-minute sweep retries.
+  const files = await saveFixesFiles(jobId, auditId, [
+    { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
+    { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
+  ], fetchMedia);
+  if (files.failed.length) {
+    const what = [...new Set(files.failed.map((f) => f.label))].join(", ");
+    await heldOnce(jobId, `complete:${version}:files`, `The fixes form is complete but these files could not be kept with the job yet: ${what}. The portal keeps retrying every 15 minutes.`, { audit_id: auditId, version, failed: files.failed });
+    return { status: "held", detail: `files not saved: ${what}` };
+  }
+  const saved = files.saved;
+  // 2. The PIESA short answers carry Part C exactly where the same-visit answers would be.
   const merged = mergeFixesIntoPiesaSnapshot(snapshotOf(a?.mitti_raw_snapshot), read, plan);
   if (a) {
     const { error } = await admin.from("assessments").update({ mitti_raw_snapshot: merged as unknown as Json }).eq("id", a.id);
     if (error) throw new WorkflowError(`PIESA Section C could not be written to the stored answers: ${error.message}`);
   }
-  // 2. Files with the job: CoES + finished-work photo(s) + Mitti's own report.
-  const saved = await saveFixesFiles(jobId, auditId, [
-    { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
-    { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
-  ], fetchMedia);
+  // Mitti's own report.
   // Decision 336: the A5 signature IMAGE goes in the official Section C box (kept privately with the job first).
   await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);
   const { saveMittiReport } = await import("./mitti.server");

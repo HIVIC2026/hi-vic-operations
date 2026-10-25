@@ -474,7 +474,8 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h reminders (queued, sending switches decide delivery) for released visits with no proposed time. */
+/** 24h "no time proposed yet" points for released visits — record only (F13: there is no approved coordination reminder
+ *  wording, and the old outbox row was never sendable). */
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
@@ -488,43 +489,13 @@ export async function sweepCoordination(actorId: string | null = null) {
     ]);
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h reminder: no ${r.visit_kind} time proposed yet (prepared; delivery follows the sending switches)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      // Queue through the existing launch-control outbox: lands as EXECUTION_NOT_RELEASED and is only delivered once sending is released.
-      const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (ev) {
-        const { error } = await admin.rpc("enqueue_external_action", {
-          _job: r.job_id, _event: ev.id, _action: "booking_messages", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
-          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: await sha256Hex(`${r.assignment_id}-${r.visit_kind}`), _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
-        });
-        if (error) console.error("reminder outbox enqueue skipped", error.message); // e.g. TEST job suppression
-      }
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet (record only — no reminder message is approved)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       reminders++;
     }
   }
   return { reminders };
 }
 
-/** Installer planning-only notice after a CONFIRMED PIESA booking. Queued in the launch-control outbox
- *  (EXECUTION_NOT_RELEASED until sending is released). Idempotent per assignment + PIESA time. Never changes stage. */
-export async function queueInstallerPlanningNotice(jobId: string, installerAssignmentId: string, piesaStart: string) {
-  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_planning_notice")
-    .contains("details", { assignment_id: installerAssignmentId, piesa_start: piesaStart }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!ev) throw new Error("planning notice event missing");
-  const raw = `${installerAssignmentId}-${Date.parse(piesaStart)}`;
-  const facts = await sha256Hex(raw);
-  const { data, error } = await admin.rpc("enqueue_external_action", {
-    _job: jobId, _event: ev.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignmentId}`,
-    _basis: "transactional_job_coordination", _version: "installer-planning-notice-v1", _payload: "notice:installer_planning_notice",
-    _facts: facts, _key: `installer-planning-${raw}`,
-  });
-  if (error) throw new Error(error.message);
-  return data as string;
-}
-
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 
 // ---------- Owner-picked PIESA windows ----------
@@ -581,7 +552,7 @@ async function sweepPiesaWindows(actorId: string | null) {
 
 /** Owner submits 3–5 PIESA windows — old way only (decision 333): round 2 when asked for more times, or after a reopen
  *  on a job that already had a round. New jobs: the electrician offers 3 times (piesa-times.server.ts). */
-export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
+export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[], ack: { understandsThirtyDays: boolean | undefined; ip: string | null; userAgent: string | null }) {
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));
@@ -603,6 +574,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested");
     if (!count) throw new WorkflowError("Your PIESA times are already with our electricians.");
   }
+  // Decision 307 (F17): every owner path (signed-in or secure link) ticks the 30-day box before times are saved.
+  await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId, userId, ...ack });
   const round = w.round + 1;
   const rows = picks.map((p) => ({ job_id: jobId, kind: "assessment" as const, proposed_by: userId, proposer_role: "owner", piesa_window_round: round, ...windowBounds(p.date, p.slot) }));
   const { error } = await admin.from("appointment_proposals").insert(rows as never);
@@ -631,5 +604,8 @@ export async function ownerPiesaWindowState(jobId: string) {
   // Decision 333: the old 3–5 window picker only for jobs that started the old way (oldOwnerPickerOpen); new jobs use piesa-times.
   const { oldOwnerPickerOpen } = await import("./piesa-times.core");
   const canPick = stageOk && !elec && w.futureOpen === 0 && oldOwnerPickerOpen({ round: w.round, moreTimesAsked: !!asked, reopened });
-  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round) };
+  // Decision 307 (F17): the old picker asks the 30-day box too (a read failure shows the box; the server still decides).
+  const { THIRTY_DAY_ACK_WORDING } = await import("./thirty-day-ack.core");
+  const ack = canPick ? await (await import("./thirty-day-ack.server")).ownerThirtyDayAckState(jobId).catch(() => ({ needed: true, wording: THIRTY_DAY_ACK_WORDING })) : { needed: false, wording: THIRTY_DAY_ACK_WORDING };
+  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round), thirtyDayAck: { needed: ack.needed, wording: ack.wording } };
 }

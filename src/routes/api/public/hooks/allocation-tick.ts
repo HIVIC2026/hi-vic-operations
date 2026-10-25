@@ -132,6 +132,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['completionPacks'] = "failed";
         }
         try {
+          // Decision 363: a warranty PDF added after the pack went without it → ONE owner email (O73, draft until approved)
+          // with the PDF, then `warranty_copy_provided` so the AP auto-signature can proceed. Before the AP sweep below.
+          const { sweepWarrantyFollowups } = await import("@/lib/warranty-followup.server");
+          (out as Record<string, unknown>)['warrantyFollowups'] = await sweepWarrantyFollowups();
+        } catch (e) {
+          console.error("allocation tick: warranty follow-up sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['warrantyFollowups'] = "failed";
+        }
+        try {
           // Decision 271: Section 3 Part A of the VEEC assignment form signs itself once the installer has signed and every prerequisite is recorded.
           const { sweepAutoApSignatures } = await import("@/lib/veec-ap-auto.server");
           (out as Record<string, unknown>)['veecApAuto'] = await sweepAutoApSignatures();
@@ -175,6 +184,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: installer texts sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['installerTexts'] = "failed";
+        }
+        try {
+          // Decision 361: Ready Check job offers made after 8pm are texted at 7am (job_offer keeps quiet hours; a held
+          // text never claims its key). The offer's 24 hours still run from when it was made.
+          const { sweepJobOfferTexts } = await import("@/lib/ready-check-offer-text.server");
+          (out as Record<string, unknown>)['jobOfferTexts'] = await sweepJobOfferTexts();
+        } catch (e) {
+          console.error("allocation tick: job offer text catch-up failed", (e as Error).message);
+          (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an

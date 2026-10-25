@@ -2,7 +2,36 @@
 // offer. Real partners: the ONE real sender (`sendRealSms`, type "job_offer") with the decision 76 wording (approved,
 // switched on by decision 154) — still gated by customer_comms_enabled + the job_offer switch; one text per offer (idempotency key).
 // TEST jobs/partners: the test sender (allowlisted TEST numbers only), once per offer.
+// Decision 361: `job_offer` keeps SMS quiet hours; sweepJobOfferTexts (15-minute tick) texts held offers at 7am.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobOfferCatchUpDue, jobOfferSmsKey } from "./ready-check-offer-text.core";
+
+/** Decision 361: the 15-minute tick texts pending, unexpired Ready Check offers whose text was held by quiet hours
+ *  (key still unclaimed). Real partners only — TEST offers use the test sender at offer time. Never throws per offer. */
+export async function sweepJobOfferTexts(now = new Date()): Promise<{ checked: number; texted: number; failed: number }> {
+  const out = { checked: 0, texted: 0, failed: 0 };
+  const nowIso = now.toISOString();
+  const { smsQuietReason } = await import("./quote-hold.core");
+  if (smsQuietReason(nowIso)) return out;
+  const { data: offers, error } = await admin.from("partner_offers").select("id, job_id, kind, status, expires_at").eq("kind", "ready_check").eq("status", "pending").gt("expires_at", nowIso).limit(200);
+  if (error) throw new Error(`Job offers could not be read: ${error.message}`);
+  for (const o of offers ?? []) {
+    out.checked++;
+    try {
+      const key = jobOfferSmsKey(o.id);
+      const { claimKeyOf } = await import("./sms.core");
+      const { data: rows, error: re } = await (admin as unknown as { from: (t: string) => any }).from("sms_messages").select("idempotency_key, status, detail").like("idempotency_key", `${key}%`);
+      if (re) throw new Error(re.message);
+      const mine = ((rows ?? []) as { idempotency_key: string; status: string | null; detail: string | null }[]).filter((r) => claimKeyOf(r.idempotency_key) === key);
+      const claimed = mine.some((r) => r.idempotency_key === key);
+      const heldReasons = mine.filter((r) => r.idempotency_key !== key).map((r) => r.detail ?? "");
+      if (!jobOfferCatchUpDue({ kind: o.kind, status: o.status, expiresAt: o.expires_at, claimed, heldReasons }, nowIso)) continue;
+      const r = await textInstallerAboutOffer(o.id);
+      if (/^sent\b/.test(r)) out.texted++;
+    } catch (e) { out.failed++; console.error("job offer text catch-up failed", o.id, (e as Error).message); }
+  }
+  return out;
+}
 
 export async function textInstallerAboutOffer(offerId: string): Promise<string> {
   const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, offered_at, expires_at").eq("id", offerId).maybeSingle();
@@ -30,7 +59,7 @@ export async function textInstallerAboutOffer(offerId: string): Promise<string> 
   // must not text an old offer, so the sender gets the offer time and whether it is still open.
   const stillOpen = o.status === "pending" && (!o.expires_at || Date.parse(o.expires_at) > Date.now());
   const r = await (await import("./sms.server")).sendRealSms({
-    type: "job_offer", idempotencyKey: `job-offer:v1:${offerId}`, to, jobId: o.job_id, businessId: o.business_id,
+    type: "job_offer", idempotencyKey: jobOfferSmsKey(offerId), to, jobId: o.job_id, businessId: o.business_id,
     body: readyCheckOfferText(suburb, `${CUSTOMER_BASE}/field/offer/${offerId}`, area),
     event: { at: o.offered_at, current: stillOpen },
   });

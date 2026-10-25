@@ -4,7 +4,7 @@
 // sweep against an in-memory backend with every sender mocked. Run: bun test tests/estimate-followup.test.ts
 import { describe, expect, mock, test } from "bun:test";
 import {
-  ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_CLOSE_AFTER_DAYS, ESTIMATE_FOLLOWUP_CLOSE_REASON, ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT,
+  ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_CLOSE_AFTER_DAYS, ESTIMATE_FOLLOWUP_CLOSE_REASON, ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT, ESTIMATE_FOLLOWUP_RESULT_EVENT,
   ESTIMATE_FOLLOWUP_SCHEDULE, STOP, decideEstimateFollowup, estimateFollowupCopy, estimateFollowupKey, estimateFollowupPurpose, estimateFollowupStop,
   renderEstimateFollowupEmail, type EstimateFollowupFacts, type EstimateFollowupStep,
 } from "../src/lib/estimate-followup.core";
@@ -73,9 +73,15 @@ describe("which step is due", () => {
   });
   test("close only a week after the day-21 email was actually sent", () => {
     const done = [{ step: "day_2" as const, at: day(2) }, { step: "day_7" as const, at: day(7) }, { step: "day_21" as const, at: day(22) }];
-    expect(decide(day(27), { done })).toEqual({ kind: "wait", until: day(29) });
-    expect(decide(day(29), { done })).toEqual({ kind: "close" });
-    expect(decide(day(60), { done })).toEqual({ kind: "close" });
+    const sent = [{ step: "day_21" as const, at: day(22) }];
+    expect(decide(day(27), { done, sent })).toEqual({ kind: "wait", until: day(29) });
+    expect(decide(day(29), { done, sent })).toEqual({ kind: "close" });
+    expect(decide(day(60), { done, sent })).toEqual({ kind: "close" });
+  });
+  test("F09: a day-21 step that was recorded but not sent (not prepared / held / failed) never starts the close", () => {
+    const done = [{ step: "day_2" as const, at: day(2) }, { step: "day_7" as const, at: day(7) }, { step: "day_21" as const, at: day(22) }];
+    expect(decide(day(60), { done }).kind).toBe("stop");
+    expect(decide(day(60), { done, sent: [{ step: "day_7", at: day(7) }] }).kind).toBe("stop");
   });
   test("a lead whose day-21 reminder never went out (wording held) is never closed by the calendar: day 21 is still due first", () => {
     expect(decide(day(40), { done: [{ step: "day_7", at: day(7) }] })).toEqual({ kind: "send", step: "day_21" });
@@ -216,14 +222,15 @@ describe("server sweep (mocked backend)", () => {
     const r = await sweepEstimateFollowups(new Date(NOW));
     expect(r).toEqual({ checked: 1, sent: 1, held: 0, closed: 0, stopped: 0, failed: 0 });
     expect(calls.guarded.length).toBe(1);
-    expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"]]);
+    expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"], [ESTIMATE_FOLLOWUP_RESULT_EVENT, "day_2"]]);
+    expect(db.workflow_events![1]!.details.sent).toBe(true);
   });
   test("TEST job: day 2 goes through test-send once, recorded first; a second tick does nothing", async () => {
     const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");
     seed({ jobs: [job("t1", { source: "qa_test" })] });
     expect(await sweepEstimateFollowups(new Date(NOW))).toMatchObject({ sent: 1, held: 0 });
     expect(calls.test).toEqual(["estimate_followup:day_2:t1@example.com:Helen, your $1,610 rebate spot is still open"]);
-    expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"]]);
+    expect(db.workflow_events!.map((e) => [e.event_type, e.details.step])).toEqual([[ESTIMATE_FOLLOWUP_EVENT, "day_2"], [ESTIMATE_FOLLOWUP_RESULT_EVENT, "day_2"]]);
     expect(await sweepEstimateFollowups(new Date(day(3)))).toMatchObject({ sent: 0, held: 0 });
     expect(calls.test.length).toBe(1);
     expect(await sweepEstimateFollowups(new Date(day(7)))).toMatchObject({ sent: 1 });
@@ -255,7 +262,7 @@ describe("server sweep (mocked backend)", () => {
   test("close: a week after the recorded day-21 email the job is cancelled with the reason, prior stage kept, one stage_changed event", async () => {
     const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");
     const j = job("cl", { source: "qa_test" });
-    seed({ jobs: [j], events: [{ job_id: "cl", event_type: ESTIMATE_FOLLOWUP_EVENT, details: { step: "day_21" }, created_at: day(21) }] });
+    seed({ jobs: [j], events: [{ job_id: "cl", event_type: ESTIMATE_FOLLOWUP_EVENT, details: { step: "day_21" }, created_at: day(21) }, { job_id: "cl", event_type: ESTIMATE_FOLLOWUP_RESULT_EVENT, details: { step: "day_21", sent: true }, created_at: day(21) }] });
     expect(await sweepEstimateFollowups(new Date(day(27)))).toMatchObject({ closed: 0, sent: 0 });
     expect(await sweepEstimateFollowups(new Date(day(28)))).toMatchObject({ closed: 1 });
     expect(j.stage).toBe("cancelled");
@@ -266,6 +273,18 @@ describe("server sweep (mocked backend)", () => {
     expect(ev.details).toEqual({ source: "estimate_followup", reason: ESTIMATE_FOLLOWUP_CLOSE_REASON });
     // the closed job is no longer at the estimate stage, so the next tick leaves it alone
     expect(await sweepEstimateFollowups(new Date(day(29)))).toEqual({ checked: 0, sent: 0, held: 0, closed: 0, stopped: 0, failed: 0 });
+  });
+  test("F09: a day-21 that was not prepared, or whose send failed, never closes the lead", async () => {
+    const { sweepEstimateFollowups } = await import("../src/lib/estimate-followup.server");
+    const a = job("ns", { source: "qa_test" }), b = job("fl", { source: "qa_test" });
+    seed({ jobs: [a, b], events: [
+      { job_id: "ns", event_type: ESTIMATE_FOLLOWUP_NOT_SENT_EVENT, details: { step: "day_21", reason: "Estimate figures missing" }, created_at: day(21) },
+      { job_id: "fl", event_type: ESTIMATE_FOLLOWUP_EVENT, details: { step: "day_21" }, created_at: day(21) },
+      { job_id: "fl", event_type: ESTIMATE_FOLLOWUP_RESULT_EVENT, details: { step: "day_21", sent: false, detail: "failed: bounce" }, created_at: day(21) },
+    ] });
+    expect(await sweepEstimateFollowups(new Date(day(40)))).toMatchObject({ closed: 0, stopped: 2 });
+    expect(a.stage).toBe("preliminary_estimate_ready");
+    expect(b.stage).toBe("preliminary_estimate_ready");
   });
   test("real owner when comms are off is held, not recorded (so nothing is skipped when switched on)", async () => {
     const { sendEstimateFollowupStep } = await import("../src/lib/estimate-followup.server");

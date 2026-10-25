@@ -160,12 +160,13 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (expectedTpl === PIISA_A3_TEMPLATE_ID || installDay) {
     const { answers, crew } = parseA3Answers(audit);
     // Decision 262: Part 5 lights / cables from the PIESA and Part 6 from the Ready Check (never asked on the form).
-    let portalConductive: boolean | null = null;
+    let portalConductive: boolean | null = null, portalConductiveEvidence: string | null = null;
     if (installDay) {
-      const portal = await (await import("./piisa-prestart.server")).installDayPortalAnswers(jobId);
+      const portal = await (await import("./piisa-prestart.server")).installDayPortalAnswers(jobId, audit);
       if (portal.missing.length) return { status: "missing", message: `Official PIISA can't be completed from the job records: ${portal.missing.join(" • ")}` };
       Object.assign(answers, { ...portal.answers, ...answers });
       portalConductive = portal.conductive;
+      portalConductiveEvidence = portal.conductiveEvidence;
     }
     void crew;
     // Part 2 crew from the native choice list, resolved against CURRENT verified staff of the assigned company.
@@ -182,7 +183,8 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     Object.assign(answers, crewRes.answers, actualProducts?.answers ?? {});
     // Decision 210 c: the form's foil / conductive answer (+ facing photo) feeds the official P6 foil rule as the
     // portal-side conductivity record, so P6-FOIL-UNKNOWN no longer holds every existing-insulation job.
-    if (installDay && portalConductive != null) answers["supp.conductive"] = portalConductive ? "Yes" : "No";
+    // Decision 359: on Install day forms the Ready Check area answers (+ that area's foil photo) are that record.
+    if (installDay && portalConductive != null) { answers["supp.conductive"] = portalConductive ? "Yes" : "No"; if (portalConductiveEvidence) answers["supp.conductiveEvidence"] = portalConductiveEvidence; }
     else if (installEvidence?.foil != null) { answers["supp.conductive"] = installEvidence.foil ? "Yes" : "No"; if (installEvidence.foilPhotoMediaId) answers["supp.conductiveEvidence"] = `mitti:${auditId}:${installEvidence.foilPhotoMediaId}`; }
     if (directLike) {
       const assessmentDay = piisaAssessmentDay(signedAt);

@@ -21,9 +21,18 @@ export const INSTALL_WINDOW_REMINDER_STEPS: { step: InstallWindowStep; daysLeft:
  */
 export const RESPONSE_DUE_DAYS = 5;
 
-/** Next reminder due now, lowest first so a short window (earlier stored deadline) still gets the 10-day one. */
-export function dueInstallWindowReminder(x: { deadline: string | null; booked: boolean; expired: boolean; done: InstallWindowStep[]; now?: Date }): InstallWindowStep | null {
-  if (!x.deadline || x.booked || x.expired) return null;
+/** Idempotency key for one reminder message. v2 (F11) carries the deadline: a new window (re-done PIESA → new clearance)
+ *  gets its own 20/10-day messages instead of colliding with the first window's v1 keys. */
+export const installWindowKey = (jobId: string, deadline: string, step: InstallWindowStep, who: "owner" | "installer", ch: "email" | "sms") =>
+  `install-window:v2:${jobId}:${deadline}:${step}:${who}:${ch}`;
+
+/**
+ * Next reminder due now, lowest first so a short window (earlier stored deadline) still gets the 10-day one.
+ * `done` = steps already recorded for THIS deadline (a new clearance/deadline starts again). `quiet` = SMS quiet hours
+ * (8pm–7am Melbourne): nothing is due, so the step — recorded before sending — fires at the 07:00 tick with its text.
+ */
+export function dueInstallWindowReminder(x: { deadline: string | null; booked: boolean; expired: boolean; done: InstallWindowStep[]; now?: Date; quiet?: boolean }): InstallWindowStep | null {
+  if (!x.deadline || x.booked || x.expired || x.quiet) return null;
   const left = installDaysLeft(x.deadline, x.now);
   if (left < 0) return null;
   if (left <= 10) return x.done.includes("reminder_10") ? null : "reminder_10";

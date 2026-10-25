@@ -12,9 +12,13 @@ import { RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-shor
 
 const db = () => admin as unknown as { from: (t: string) => any };
 
-/** The electrician's PIESA (latest `initial` piesa_records row — a re-done PIESA is a new row) with everything the page and the gate need. Null = no PIESA yet. */
+/** PIESA record kinds the owner confirms: the electrician's assessment, first or re-done. Same set as the 30-day anchor
+ *  (electrical-clearance.server), so the confirmation always belongs to the PIESA that starts the install window. */
+export const OWNER_CONFIRMED_PIESA_KINDS = ["initial", "reassessment"] as const;
+
+/** The electrician's PIESA (latest `initial` or `reassessment` piesa_records row — a re-done PIESA is a new row) with everything the page and the gate need. Null = no PIESA yet. */
 export async function ownerPiesaConfirmFacts(jobId: string): Promise<PiesaOwnerConfirmFacts | null> {
-  const { data: rec } = await admin.from("piesa_records").select("id, outcome, completed_date, created_at, signed_off_by").eq("job_id", jobId).eq("kind", "initial").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: rec } = await admin.from("piesa_records").select("id, outcome, completed_date, created_at, signed_off_by").eq("job_id", jobId).in("kind", [...OWNER_CONFIRMED_PIESA_KINDS]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!rec || !rec.signed_off_by) return null;
   const [{ data: events }, { count: items }, { data: a }, { data: elecAsg }, copy] = await Promise.all([
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT),

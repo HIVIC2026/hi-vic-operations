@@ -208,3 +208,45 @@ describe("official PIESA owner block (Section 4 / O) from the confirmation recor
     }
   });
 });
+
+// F08: a reassessment (re-done PIESA) is the PIESA the owner confirms — the same kinds as the 30-day anchor.
+describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => {
+  type Row = Record<string, unknown>;
+  const JOB = "00000000-0000-0000-0000-0000000000f8";
+  const tables: Record<string, Row[]> = {
+    piesa_records: [
+      { id: "rec-initial", job_id: JOB, kind: "initial", outcome: "pass", completed_date: "2026-10-01", created_at: "2026-10-01T02:00:00Z", signed_off_by: "u1" },
+      { id: "rec-post", job_id: JOB, kind: "post_rectification", outcome: "pass", completed_date: "2026-10-20", created_at: "2026-10-20T02:00:00Z", signed_off_by: "u1" },
+      { id: "rec-reassess", job_id: JOB, kind: "reassessment", outcome: "pass", completed_date: "2026-11-05", created_at: "2026-11-05T02:00:00Z", signed_off_by: "u1" },
+    ],
+    workflow_events: [{ job_id: JOB, event_type: PIESA_OWNER_CONFIRMED_EVENT, created_at: "2026-10-02T00:00:00Z", details: { piesa_record_id: "rec-initial", name: "Helen Yang" } }],
+  };
+  const builder = (t: string) => {
+    const f: ((r: Row) => boolean)[] = [];
+    let one = false, count = false, desc = false, col: string | null = null, lim = Infinity;
+    const b: Record<string, unknown> = {
+      select: (_c?: string, o?: { count?: string }) => { count = o?.count === "exact"; return b; },
+      eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: (c: string, v: unknown[]) => { f.push((r) => v.includes(r[c])); return b; },
+      not: () => b, order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
+      maybeSingle: () => { one = true; return b; },
+      then: (res: (v: unknown) => unknown) => {
+        let out = (tables[t] ?? []).filter((r) => f.every((x) => x(r)));
+        if (col) out = [...out].sort((a, z) => (String(a[col!]) < String(z[col!]) ? -1 : 1) * (desc ? -1 : 1));
+        out = out.slice(0, lim);
+        return Promise.resolve(count ? { data: null, count: out.length, error: null } : { data: one ? out[0] ?? null : out, error: null }).then(res);
+      },
+    };
+    return b;
+  };
+  test("a newer reassessment wins over the initial PIESA; the old confirmation doesn't carry over; post-rectification is ignored", async () => {
+    const { mock } = await import("bun:test");
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
+    mock.module("../src/lib/official-forms.server", () => ({ currentCopy: async () => ({ copy: null }) }));
+    const { ownerPiesaConfirmFacts, OWNER_CONFIRMED_PIESA_KINDS } = await import("../src/lib/piesa-owner-confirm.server");
+    expect([...OWNER_CONFIRMED_PIESA_KINDS]).toEqual(["initial", "reassessment"]);
+    const f = await ownerPiesaConfirmFacts(JOB);
+    expect(f?.piesaRecordId).toBe("rec-reassess");
+    expect(f?.completedDate).toBe("2026-11-05");
+    expect(f?.confirmation).toBeNull(); // the re-done PIESA needs its own confirmation
+  });
+});

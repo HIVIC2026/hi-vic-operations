@@ -6,7 +6,7 @@ import { buildPrefill, contactAnswersFromEntries, flatten, isRValueBand, parseAu
 import { premisesTypeFromEntries, readyCheckStopReasons, STOP_NO_SAFE_ACCESS, STOP_R2 } from "../src/lib/ready-check-answers.core";
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
 import { areasFromReadyCheckEntries } from "../src/lib/area-diagram.core";
-import { rcAreasFromRecord } from "../src/lib/piisa-a3.core";
+import { rcAreasFromRecord, readyCheckPart6Answers } from "../src/lib/piisa-a3.core";
 import { readAreas } from "../src/lib/ready-check-areas.core";
 import { ELECTRICIAN_FIELDS, FORMS, PRICING_FIELDS, flattenDefinition, leanQuestionCount, mittiAiPrompt, validateTemplate, type FormField } from "../src/lib/mitti-forms.core";
 import {
@@ -218,9 +218,15 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
     // Decision 278: A1 lost its quote page (7 questions); decision 290 (corrected): both lost the access charge/fee pair
-    // — A1 34 questions; A2 keeps the no-pricing tick — 35.
-    expect(leanQuestionCount("ready_check_priced")).toBe(34);
-    expect(leanQuestionCount("ready_check")).toBe(35);
+    // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39.
+    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(34);
+    expect(leanQuestionCount("ready_check", { beforeDecision: 359 })).toBe(35);
+    expect(leanQuestionCount("ready_check_priced")).toBe(38);
+    expect(leanQuestionCount("ready_check")).toBe(39);
+    // A template built before decision 359 (no Part 6 questions) still validates.
+    const before359 = (key: "ready_check" | "ready_check_priced") => FORMS[key].fields.filter((f) => !f.portalOnly && f.addedByDecision !== 359).map((f) => ({ label: f.label, type: typeOf(f) }));
+    expect(validateTemplate("ready_check_priced", before359("ready_check_priced"))).toEqual({ ok: true, issues: [] });
+    expect(validateTemplate("ready_check", before359("ready_check"))).toEqual({ ok: true, issues: [] });
     for (const key of ["ready_check", "ready_check_priced"] as const) {
       const labels = FORMS[key].fields.map((f) => f.label);
       expect(labels).not.toContain(LEAN_REMOVE.accessCharge);
@@ -231,7 +237,7 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
   test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
     const f = FORMS.ready_check.fields;
     const perArea = f.filter((x) => x.perArea).map((x) => x.label);
-    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.beforeVideo, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
+    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.existingSuitable, LEAN_Q.existingConductive, LEAN_Q.existingConductivePhoto, LEAN_Q.existingKeepReason, LEAN_Q.beforeVideo, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
     expect([m2.required, m2.portalOnly]).toEqual([false, true]);
@@ -357,8 +363,9 @@ describe("docs/MITTI_READY_CHECK_PRICE_PROMPT.md (decision 278): delete the A1 q
     expect(body).toContain("on BOTH templates");
     expect(body).not.toMatch(/REPLACE the A1 help text|Difficult access\?|Why\?/);
     expect(body).toContain("Do NOT add anything in its place");
-    expect(body).toContain(`${leanQuestionCount("ready_check_priced")} questions`);
-    expect(body).toContain(`${leanQuestionCount("ready_check")} questions`);
+    // This prompt ran before decision 359's Part 6 questions were added (docs/MITTI_READY_CHECK_PART6_PROMPT.md).
+    expect(body).toContain(`${leanQuestionCount("ready_check_priced", { beforeDecision: 359 })} questions`);
+    expect(body).toContain(`${leanQuestionCount("ready_check", { beforeDecision: 359 })} questions`);
   });
 });
 
@@ -380,7 +387,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
     const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
-      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
+      "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "existingSuitable", "existingConductive", "existingConductivePhoto", "existingKeepReason", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "signatureA1", "signatureA2"];
     expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length); // every LEAN_Q key but the legacy m² entry and the deleted A1 quote page (decision 278)
     for (const k of order) {
@@ -431,5 +438,58 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   });
   test("old wording the readers still accept is never asked for as a question", () => {
     for (const old of [R_ABOVE_LEGACY, ...(LEAN_ALIASES.issuePhoto ?? []), ...(LEAN_ALIASES.issueNote ?? []), ...(LEAN_ALIASES.areaName ?? []), ...(LEAN_ALIASES.access ?? [])]) expect(body).not.toContain(`\`${old}\` —`);
+  });
+});
+
+// ---------- decision 359: official PIISA Part 6 facts asked per area at the Ready Check ----------
+describe("decision 359: Part 6 facts per ceiling area (parse → zones → readyCheckPart6Answers)", () => {
+  /** Area A topped up (with or without the four new answers); area B has no existing insulation. */
+  function part6Audit(answers: boolean) {
+    n = 0;
+    const areaA = { item_id: "areaA", label: "", type: "dynamicfield" }, areaB = { item_id: "areaB", label: "", type: "dynamicfield" };
+    return {
+      audit_id: "audit_p6", template_id: "template_lean",
+      header_items: [it_(LEAN_Q.jobNumber, "HV-3201")],
+      items: [
+        areaA,
+        it_(LEAN_Q.areaName, "Main house", "areaA"), it_(LEAN_Q.lengthM, "10", "areaA"), it_(LEAN_Q.widthM, "8", "areaA"), it_(LEAN_Q.measuredHow, ["Laser measure"], "areaA"),
+        it_(LEAN_Q.existing, ["Yes"], "areaA"), it_(LEAN_Q.existingType, ["Batts"], "areaA"), it_(LEAN_Q.rValue, ["Below R2.0"], "areaA"), it_(LEAN_Q.existingAction, ["Top up"], "areaA"),
+        ...(answers ? [it_(LEAN_Q.existingSuitable, ["Yes"], "areaA"), it_(LEAN_Q.existingConductive, ["No"], "areaA"), media(LEAN_Q.existingConductivePhoto, "areaA"), it_(LEAN_Q.existingKeepReason, "Batts are dry and even", "areaA")] : []),
+        areaB,
+        it_(LEAN_Q.areaName, "Garage", "areaB"), it_(LEAN_Q.lengthM, "5", "areaB"), it_(LEAN_Q.widthM, "4", "areaB"), it_(LEAN_Q.measuredHow, ["Tape measure"], "areaB"), it_(LEAN_Q.existing, ["No"], "areaB"),
+      ],
+    };
+  }
+  test("the four answers ride on the area record and fill Part 6 (depth aside, which the lean form does not ask)", () => {
+    const p = parseAudit(part6Audit(true));
+    expect(p.areas[0]).toMatchObject({ suitable: true, conductive: false, keepReason: "Batts are dry and even" });
+    expect(p.areas[0]!.conductiveEvidence).toMatch(/^mitti:audit_p6:item:m\d+$/);
+    expect(p.areas[1]).toMatchObject({ suitable: null, conductive: null, conductiveEvidence: null, keepReason: null });
+    const zones = rcAreasFromRecord({ insulation_present: true, existing_r_value: null, zones: JSON.parse(JSON.stringify(p.areas)) }, null);
+    const r = readyCheckPart6Answers(zones);
+    expect(r.answers).toMatchObject({ "p6.present": "Yes", "p6.treatment": ["Topped Up"], "p6.suitable": "Yes", "p6.reason": "Batts are dry and even" });
+    expect(r.conductive).toBe(false);
+    expect(r.conductiveEvidence).toBe(p.areas[0]!.conductiveEvidence!);
+    expect(r.missing).toEqual(["Ready Check: existing insulation depth (mm) not recorded"]);
+  });
+  test("an old form without the questions stays readable and the top-up facts are flagged missing", () => {
+    const p = parseAudit(part6Audit(false));
+    expect(p.areas[0]).toMatchObject({ present: true, removal: "no", suitable: null, conductive: null, conductiveEvidence: null, keepReason: null });
+    const r = readyCheckPart6Answers(rcAreasFromRecord({ insulation_present: true, existing_r_value: null, zones: p.areas }, null));
+    expect(r.missing.some((m) => /reason the existing insulation is being kept/.test(m))).toBe(true);
+    expect(r.missing.some((m) => /suitable to lay over/.test(m))).toBe(true);
+    expect(r.missing.some((m) => /foil, metallic or conductive/.test(m))).toBe(true);
+  });
+  test("docs/MITTI_PASTE_NOW.md block 4 carries the exact labels, both templates, the conditions and the counts", () => {
+    const doc = readFileSync("docs/MITTI_PASTE_NOW.md", "utf8");
+    const block = doc.slice(doc.indexOf("## 4."));
+    expect(block).toContain(`"${LEAN_Q.existingSuitable}" — Yes/No — Required — only show when "${LEAN_Q.existingAction}" = Top up`);
+    expect(block).toContain(`"${LEAN_Q.existingConductive}" — Yes/No — Required — only show when "${LEAN_Q.existing}" = Yes`);
+    expect(block).toContain(`"${LEAN_Q.existingConductivePhoto}" — Photo, location on — Required — only show when "${LEAN_Q.existing}" = Yes`);
+    expect(block).toContain(`"${LEAN_Q.existingKeepReason}" — Text — Required — only show when "${LEAN_Q.existingAction}" = Top up`);
+    expect(block).toContain(`straight after the question "${LEAN_Q.removeM2}" and before "${LEAN_Q.beforeVideo}"`);
+    expect(block).toContain(`"A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | HIVIC Sourced Customer"`);
+    expect(block).toContain(`A1 has ${leanQuestionCount("ready_check_priced")} questions and A2 has ${leanQuestionCount("ready_check")}`);
+    for (const f of FORMS.ready_check.fields.filter((x) => x.addedByDecision === 359)) expect(block, f.label).toContain(`"${f.label}"`);
   });
 });

@@ -1,7 +1,8 @@
 // Decision 158 (Jo, 24 Oct 2026): 20/10-day reminders to owner + installer, and who pays the repeat PIESA when the window lapses.
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
+import { smsQuietReason } from "../src/lib/quote-hold.core";
 import {
-  INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, RESPONSE_DUE_DAYS, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installerInstallWindowEmail, installerInstallWindowText,
+  INSTALL_WINDOW_EXPIRED_EVENT, INSTALL_WINDOW_REMINDER_EVENT, RESPONSE_DUE_DAYS, THIRTY_DAY_REMINDER_APPROVED, dueInstallWindowReminder, installWindowKey, installerInstallWindowEmail, installerInstallWindowText,
   ownerInstallWindowEmail, ownerInstallWindowText, repeatPiesaCharge, repeatPiesaNextAction, repeatPiesaPayer, repeatPiesaPayerLine, type InstallWindowEvent,
 } from "../src/lib/thirty-day-rule.core";
 import { SMS_MESSAGE_TYPES, SMS_BRAND_PREFIX, brandSmsBody } from "../src/lib/sms.core";
@@ -35,6 +36,37 @@ describe("30-day reminders (decision 158)", () => {
     expect(dueInstallWindowReminder({ deadline: "2026-10-12", booked: false, expired: false, done: [], now: at("2026-10-05") })).toBe("reminder_10"); // only 7 left from the start
     // The existing single office alert is unchanged and separate.
     expect(shouldFlagTenDaysLeft({ deadline, booked: false, flaggedAt: null, now: at("2026-10-21") })).toBe(true);
+  });
+  test("F10: nothing is due during SMS quiet hours, so the recorded-before-send step fires at the 07:00 tick with its text", () => {
+    const night = new Date("2026-10-11T11:30:00Z"); // 10:30pm Melbourne (AEDT), 20 days left
+    expect(smsQuietReason(night.toISOString())).toBeTruthy();
+    expect(dueInstallWindowReminder({ deadline, booked: false, expired: false, done: [], now: night, quiet: true })).toBeNull();
+    const seven = new Date("2026-10-11T20:00:00Z"); // 7:00am Melbourne next morning
+    expect(smsQuietReason(seven.toISOString())).toBeNull();
+    expect(dueInstallWindowReminder({ deadline, booked: false, expired: false, done: [], now: seven, quiet: false })).toBe("reminder_20");
+  });
+  test("F11: steps and message keys are per deadline — a new window after a re-done PIESA gets its own reminders", () => {
+    const at = (d: string) => new Date(`${d}T00:00:00Z`);
+    const later = installWindowDeadline("2026-11-10", null)!;
+    expect(later).not.toBe(deadline);
+    // The first window's steps don't count for the new deadline (doneSteps filters by deadline; see the server test below).
+    expect(dueInstallWindowReminder({ deadline: later, booked: false, expired: false, done: [], now: at("2026-11-20") })).toBe("reminder_20");
+    expect(installWindowKey("J1", deadline, "reminder_20", "owner", "sms")).toBe(`install-window:v2:J1:${deadline}:reminder_20:owner:sms`);
+    expect(installWindowKey("J1", later, "reminder_20", "owner", "sms")).not.toBe(installWindowKey("J1", deadline, "reminder_20", "owner", "sms"));
+  });
+  test("F11: doneSteps reads only the steps recorded for that deadline", async () => {
+    const rows = [
+      { job_id: "J1", event_type: INSTALL_WINDOW_REMINDER_EVENT, details: { step: "reminder_20", deadline: "2026-10-31" } },
+      { job_id: "J1", event_type: INSTALL_WINDOW_REMINDER_EVENT, details: { step: "reminder_10", deadline: "2026-10-31" } },
+      { job_id: "J1", event_type: INSTALL_WINDOW_REMINDER_EVENT, details: { step: "reminder_20", deadline: "2026-12-10" } },
+    ];
+    const q = () => { const f: [string, unknown][] = []; const b = { select: () => b, eq: (c: string, v: unknown) => { f.push([c, v]); return b; }, then: (r: (v: unknown) => unknown) => Promise.resolve({ data: rows.filter((x) => f.every(([c, v]) => (x as Record<string, unknown>)[c] === v)), error: null }).then(r) }; return b; };
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
+    mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => undefined }));
+    const { doneSteps } = await import("../src/lib/thirty-day-rule.server");
+    expect(await doneSteps("J1", "2026-10-31")).toEqual(["reminder_20", "reminder_10"]);
+    expect(await doneSteps("J1", "2026-12-10")).toEqual(["reminder_20"]);
+    expect(await doneSteps("J1", "2027-01-01")).toEqual([]);
   });
   test("texts: short, plain, deadline, link, STOP line; installer text has no owner details", () => {
     const f = { deadline, daysLeft: 20, link: "https://x.test/j/abc", jobNumber: "HV-3300", firstName: "Sam", installerName: "RAPID Insulation", ownerSuburb: "Reservoir" };

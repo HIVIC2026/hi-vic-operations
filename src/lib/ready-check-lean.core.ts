@@ -43,6 +43,14 @@ export const LEAN_Q = {
   depthPhoto: "Upload a photo clearly showing the measured insulation depth",
   existingAction: "What is required for the existing insulation?",
   removeM2: "How much existing insulation needs to be removed? (m²)",
+  // Decision 359 (Jo 25 Oct 2026): the official PIISA Part 6 facts, asked per area only when existing insulation is present
+  // (added to live A1/A2 by docs/MITTI_READY_CHECK_PART6_PROMPT.md; forms built before then simply lack them).
+  /** Only when the area's existing insulation is "Top up". */
+  existingSuitable: "Is the existing insulation in good enough condition to lay new insulation over?",
+  existingConductive: "Is the existing insulation foil-backed, metallic or electrically conductive?",
+  existingConductivePhoto: "Photo showing whether it is foil-backed or conductive",
+  /** Only when the area's existing insulation is "Top up". */
+  existingKeepReason: "Why is the existing insulation being kept?",
   /** Decision 264: the before video the rebate needs (replaces the optional overview photo); per area, before install. */
   beforeVideo: "Slow 360° video of this ceiling area, lit, saying its name",
   downlights: "Are there recessed downlights in this ceiling area?",

@@ -839,16 +839,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    const { data: installerAssignment } = await admin.from("job_assignments").select("id").eq("job_id", q.job_id).eq("role", "installer").eq("active", true).order("assigned_at", { ascending: false }).limit(1).maybeSingle();
-    if (installerAssignment) {
-      const { data: acceptedEvent } = await admin.from("workflow_events").select("id").eq("job_id", q.job_id).eq("event_type", ASSIGNMENT_EVENTS.QUOTE_ACCEPTED).contains("details", { quote_id: q.id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (acceptedEvent) {
-        const facts = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${q.id}-${installerAssignment.id}-${q.version}`));
-        const hash = [...new Uint8Array(facts)].map((x) => x.toString(16).padStart(2, "0")).join("");
-        const { error: notifyError } = await admin.rpc("enqueue_external_action", { _job: q.job_id, _event: acceptedEvent.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignment.id}`, _basis: "transactional_job_coordination", _version: "owner-quote-accepted-v1", _payload: `quote_accepted:${q.id}`, _facts: hash, _key: `quote-accepted-${q.id}-${installerAssignment.id}` });
-        if (notifyError) console.error("quote accepted installer notification enqueue skipped", notifyError.message);
-      }
-    }
+    // F13: the installer is told by the approved I23 email (emailInstallerQuoteAccepted, in invoiceAfterAcceptance below);
+    // the old partner_notifications outbox row here was never sendable and is gone.
     if (measuredPath) {
       // Ready Check path: next is the safety check payment, then the owner picks safety check times.
       await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – Pre Insulation Electrical Safety Assessment (PIESA) payment due next");

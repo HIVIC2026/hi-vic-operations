@@ -28,9 +28,10 @@ describe("Add job confirmations and source-specific pricing", () => {
     expect(page).not.toContain('to="/partner/bulk-import"');
   });
 
-  test("owner acceptance queues an idempotent installer update", () => {
+  test("owner acceptance tells the installer through the approved I23 email (once per quote), not a dead outbox row (F13)", () => {
     const acceptance = read("src/lib/portal.functions.ts");
-    expect(acceptance).toContain('owner-quote-accepted-v1');
-    expect(acceptance).toContain('quote_accepted:${q.id}');
+    expect(acceptance).toContain("emailInstallerQuoteAccepted(jobId, quoteId)");
+    expect(acceptance).not.toContain("owner-quote-accepted-v1");
+    expect(read("src/lib/installer-accepted-email.server.ts")).toContain('contains("details", { quote_id: quoteId })');
   });
 });

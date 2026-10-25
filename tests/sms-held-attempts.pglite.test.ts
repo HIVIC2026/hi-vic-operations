@@ -1,8 +1,11 @@
 // Decision 165 (Jo, 24 Oct 2026) proven on a practice Postgres (PGlite): a text held by a switch does NOT claim the
 // idempotency key; once the switch is on the same key sends exactly once; a second attempt is "already"; a stale one-off
 // trigger is held without claiming; held attempts stay visible as "blocked" rows. No live database, no Twilio.
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
+
+// Decision 361: job_offer keeps SMS quiet hours (8pm–7am Melbourne), so these tests run at a fixed 1pm Melbourne.
+setSystemTime(new Date("2026-10-22T02:00:00Z"));
 import { readFileSync } from "node:fs";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { HELD_KEY_MARK } from "../src/lib/sms.core";
