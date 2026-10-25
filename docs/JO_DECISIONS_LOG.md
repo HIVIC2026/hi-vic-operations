@@ -507,3 +507,4 @@ Newest first. Each line is settled; anything still open is under "Open".
 398. **A3 PIESA Mitti form created automatically when the owner picks the PIESA time (Jo 26 Oct, box: "Yes, automatic").** Same path as the office button (kept as backup); never twice; failure → Needs me.
 399. **Release refuses an installer with no rate card (Jo 26 Oct, box: "Yes, block + tell me why").** Message "This installer has no rate card yet"; nothing recorded or sent.
 400. **A repeat enquiry never wipes an earlier insulation answer (Jo 26 Oct, box: "Keep the earlier answer").** A blank answer never overwrites a real one; a new real answer still updates.
+    - (Decision 396 update) 26 Oct 2026, Jo: "Still keep access hatch in ready check but not mandatory" — the A1/A2 Ready Check keeps the ceiling access hatch photo question, optional; never required or chased.
