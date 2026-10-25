@@ -141,7 +141,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
       admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, veec_buy_price").eq("is_current", true).maybeSingle(),
       admin.from("pricing_settings").select("gst_rate").eq("is_active", true).maybeSingle(),
       db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
-      admin.from("quotes").select("id, quote_items(code), quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("quotes").select("id, quote_items(code, line_total_inc_gst), quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", data.jobId).maybeSingle(),
     ]);
     if (!rs.data || !ps.data) throw new Error("Price settings missing.");
@@ -162,13 +162,19 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     }
     const meas = m.data && m.data.status === "complete" && Number(m.data.measured_area_m2) > 0 ? m.data : null;
     const qi = (quote.data?.quote_internals as unknown as { ap_margin_ex_gst: number | null; calc_snapshot: Record<string, unknown> | null }[] | null)?.[0] ?? null;
-    const snap = qi?.calc_snapshot as { pricing_rule?: string; installer_markup?: { markupInc: number } } | null;
+    const snap = qi?.calc_snapshot as { pricing_rule?: string; installer_markup?: { markupInc: number }; piesa_electrician?: { source?: string; rate_inc_gst?: number | null } } | null;
     const acceptedMarkup = qi ? (snap?.pricing_rule ? Number(snap.installer_markup?.markupInc ?? 0) : Math.round(Number(qi.ap_margin_ex_gst ?? 0) * gst * 100) / 100) : null;
     const { jobProfitBreakdown } = await import("./job-profit.core");
     const { electricalBillingSource } = await import("./installer-led.core");
     const qItems = (quote.data as unknown as { quote_items?: { code: string | null }[] } | null)?.quote_items;
     const piesaOwnerDirect = electricalBillingSource({ channel: job.channel, choice: (job as { electrician_choice?: string | null }).electrician_choice ?? null, committedLineOnAcceptedQuote: quote.data ? (qItems ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
     const hivJob = job.channel !== "installer_sourced" && !job.installer_led;
+    // Decision 349: the owner's PIESA amount is the accepted quote's PIESA line (the installer's usual electrician's rate
+    // when they do it, else $349), and with the installer's usual electrician we pay exactly that (pass-through, no margin).
+    const { piesaLineCents } = await import("./safety-check-amount.core");
+    const quotedPiesaCents = piesaLineCents((qItems ?? []) as { code: string | null; line_total_inc_gst: number | null }[]);
+    const piesaCustomerInc = quotedPiesaCents != null ? quotedPiesaCents / 100 : Number(rs.data.piesa_assessment_inc_gst);
+    const usualPiesaRate = snap?.piesa_electrician?.source === "installer_usual" && Number(snap.piesa_electrician.rate_inc_gst) > 0 ? Number(snap.piesa_electrician.rate_inc_gst) : null;
     return {
       hivJob,
       ...jobProfitBreakdown({
@@ -179,7 +185,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
         ownerR5IncPerM2: Number(rs.data.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.data.removal_inc_gst_per_m2),
         installerR5IncPerM2: r5, installerRemovalIncPerM2: rem,
         apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
-        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
+        piesaCustomerInc, electricianPiesaRateInc: usualPiesaRate ?? piesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
         currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
         acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
         lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,

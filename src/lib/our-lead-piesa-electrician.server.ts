@@ -43,5 +43,27 @@ export async function noteUsualElectricianApplied(jobId: string, actorId: string
   const { data: dup } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", USUAL_ELECTRICIAN_APPLIED_EVENT).contains("details", { rate_id: sel.rateId, business_id: sel.businessId }).limit(1);
   if ((dup ?? []).length) return;
   const { logEvent } = await import("./workflow.server");
-  await logEvent(jobId, actorId, USUAL_ELECTRICIAN_APPLIED_EVENT, `${sel.note} (decision 157 — owner price unchanged)`, { business_id: sel.businessId, rate_inc_gst: sel.rateIncGst, rate_id: sel.rateId }, { internal: true });
+  await logEvent(jobId, actorId, USUAL_ELECTRICIAN_APPLIED_EVENT, `${sel.note} (decision 157; decision 349 — pass-through, no margin)`, { business_id: sel.businessId, rate_inc_gst: sel.rateIncGst, rate_id: sel.rateId }, { internal: true });
+}
+
+/** Decision 349: is this electrician business the quoted installer's usual electrician on this our-lead job?
+ *  Installer-supplied jobs (A1) and jobs with no installer / no usual saved → "ours". Read errors throw (no guessed margin). */
+export async function electricianSourceForJob(jobId: string, electricianBusinessId: string | null): Promise<import("./our-lead-piesa-electrician.core").ElectricianSource> {
+  const { electricianSourceFor } = await import("./our-lead-piesa-electrician.core");
+  if (!electricianBusinessId) return "ours";
+  const [{ data: job, error: je }, { data: inst, error: ie }] = await Promise.all([
+    admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
+    admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
+  ]);
+  if (je || ie) throw new Error("Could not check whose electrician is on this job.");
+  if (!job || job.channel === "installer_sourced" || !inst?.business_id) return "ours";
+  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(inst.business_id)).electrician;
+  if (!usual) return "ours";
+  const [{ data: b, error: be }, { data: workers, error: we }] = await Promise.all([
+    admin.from("businesses").select("id, name, trading_name, rec_number").eq("id", electricianBusinessId).maybeSingle(),
+    admin.from("partner_workers").select("licence_number").eq("business_id", electricianBusinessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null),
+  ]);
+  if (be || we) throw new Error("Could not check whose electrician is on this job.");
+  if (!b) return "ours";
+  return electricianSourceFor({ usual, assigned: { business_id: b.id, name: b.name ?? null, trading_name: b.trading_name ?? null, rec_number: b.rec_number ?? null, worker_licences: (workers ?? []).map((w) => w.licence_number) } });
 }

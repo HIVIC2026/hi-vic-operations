@@ -143,7 +143,7 @@ export async function loadJobMoney(jobId: string) {
     jobPaymentView(jobId),
     admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
     admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("quotes").select("customer_total_inc_gst").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("partner_offers").select("kind, summary").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
     db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", jobId).maybeSingle(),
@@ -162,8 +162,13 @@ export async function loadJobMoney(jobId: string) {
   const piesaOwnerDirect = electricalBillingSource({ channel: job.data?.channel ?? null, choice: job.data?.electrician_choice ?? null, committedLineOnAcceptedQuote: q && q.status === "accepted" ? ((q.quote_items as { code: string | null }[] | null) ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
   const piesaCostEx = piesaOwnerDirect ? 0 : ex(paidOut("assessment") ?? sum("piesa").electrician_rate_inc_gst ?? null);
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
-  // The $100 on fixes stays ours (decision 142): without a recorded payout, the electrician's cost is the price less $100.
-  const fixesCostEx = fixesPrice == null ? 0 : ex(paidOut("rectification") ?? sum("rectification").fixes_pay_inc_gst ?? Math.max(0, fixesPrice - 100)) ?? 0;
+  // The $100 on fixes stays ours (decision 142) — only with OUR electrician (decision 349: the installer's own electrician
+  // is passed through, margin 0). Without a recorded payout the electrician's cost is the price less the margin the
+  // fixes quote recorded ($100 for older quotes that recorded none).
+  const rectInternals = (rect.data as unknown as { quote_internals?: { calc_snapshot: { rectification_margin_inc_gst?: number } | null } | { calc_snapshot: { rectification_margin_inc_gst?: number } | null }[] | null } | null)?.quote_internals;
+  const rectSnap = (Array.isArray(rectInternals) ? rectInternals[0] : rectInternals)?.calc_snapshot ?? null;
+  const fixesMargin = rectSnap?.rectification_margin_inc_gst != null && Number.isFinite(Number(rectSnap.rectification_margin_inc_gst)) ? Number(rectSnap.rectification_margin_inc_gst) : 100;
+  const fixesCostEx = fixesPrice == null ? 0 : ex(paidOut("rectification") ?? sum("rectification").fixes_pay_inc_gst ?? Math.max(0, fixesPrice - fixesMargin)) ?? 0;
   const { jobMargin, veecValueReceived } = await import("./job-margin.core");
   const veec = veecValueReceived({ lodgedQty: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null, salePrice: lodg.data?.sale_price_per_veec != null ? Number(lodg.data.sale_price_per_veec) : null, quoteCount: q?.veec_count != null ? Number(q.veec_count) : null, spotPrice: ws.data?.current_veec_price != null ? Number(ws.data.current_veec_price) : null });
   const margin = { ...jobMargin({

@@ -99,7 +99,7 @@ function Overview({ payouts, invoices, veecs }: { payouts: Q<PayoutsData>; invoi
           ))}
         </OfficeTable>
       )}
-      <p className="mt-3 text-xs text-sub" data-why="decision 230 definition">Price is before the VEEC incentive and includes GST; VEEC net = value received − incentive given; margin after GST, installer, electrician and fixes cost (the $100 on fixes stays ours). Click a row for the breakdown. Office only — never shown to trades or owners.</p>
+      <p className="mt-3 text-xs text-sub" data-why="decision 230 definition">Price is before the VEEC incentive and includes GST; VEEC net = value received − incentive given; margin after GST, installer, electrician and fixes cost (the $100 on fixes with our electrician stays ours; none on an installer's own electrician). Click a row for the breakdown. Office only — never shown to trades or owners.</p>
     </section>
   );
 }

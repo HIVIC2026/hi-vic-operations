@@ -58,6 +58,12 @@ The AP gets **no input credit** for the $1,400 assignment received from a privat
 
 So on the ATO-consistent view, GST effectively arises twice: once on the $1,400 of value inside the installation price, and again when the certificates are sold. This is the known "double GST" cost of point-of-sale certificate discounts. On this job it is about $127 more than a net-price approach would give. The portal's full-price method matches the ATO's published STC position. Moving to net price would under-report GST by about $127 per job of this size, unless an accountant or ruling supports it.
 
+## Update 25 Oct 2026 (second search)
+
+- The ATO page "GST and the Small-scale Renewable Energy Scheme" was last updated **11 December 2025** (per search extract). Its second worked example: system $7,700 inc GST, $1,000 off for assigning the STCs, owner pays $6,700 — the installer's GST is **$700 (1/11 of $7,700)**, and it gets **no GST credit** for the $1,000 because the homeowner isn't GST-registered. A credit is only available when the owner is GST-registered (business system) and gives the installer a tax invoice.
+- Searches for a VEEC-specific ATO ruling, private ruling, ESC guidance or IPART (NSW ESC) guidance found **nothing**. The ESC fee notice (creation fee A$4.35 from 1 Jan 2026) doesn't say whether fees include GST.
+- Conclusion unchanged: charge GST on the full price before the VEEC discount (what the portal does), GST on VEEC sales, no credit for the assignment from a private owner. Accountant to confirm; a private ruling is the only way to be certain.
+
 ## What to confirm with your accountant
 
 - Confirm the STC treatment (GST on the full price before the certificate discount, no credit for an assignment received from a private owner) applies equally to VEECs under VEU. If you want certainty, consider a private ruling, because no VEEC-specific ATO guidance was found. Also ask whether business or GST-registered owners change the picture: their assignment may be a taxable supply, so the AP could claim a credit and would need a tax invoice from them.

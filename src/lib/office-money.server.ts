@@ -62,8 +62,8 @@ export async function moneyMargins(now = new Date()) {
   const jobs = await liveJobs(jobIds);
   const ids = [...jobs.keys()].filter((id) => jobs.get(id)!.stage !== "cancelled");
   const qIds = ((quotes ?? []) as { id: string; job_id: string }[]).filter((q) => jobs.has(q.job_id)).map((q) => q.id);
-  const internals: { quote_id: string; cost_ex_gst: number | null }[] = [];
-  for (const part of chunks(qIds)) { const { data } = await db.from("quote_internals").select("quote_id, cost_ex_gst").in("quote_id", part); internals.push(...(data ?? [])); }
+  const internals: { quote_id: string; cost_ex_gst: number | null; calc_snapshot?: { piesa_electrician?: { source?: string; rate_inc_gst?: number | null } } | null }[] = [];
+  for (const part of chunks(qIds)) { const { data } = await db.from("quote_internals").select("quote_id, cost_ex_gst, calc_snapshot").in("quote_id", part); internals.push(...(data ?? [])); }
   const [asg, lodg, items, spot, pricing] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string }>("job_assignments", "job_id, business_id, role", ids, (q) => q.eq("active", true).eq("role", "electrician")),
     inJobs<{ job_id: string; quantity: number | null; sale_price_per_veec: number | null }>("veec_lodgements", "job_id, quantity, sale_price_per_veec", ids),
@@ -86,7 +86,11 @@ export async function moneyMargins(now = new Date()) {
     const committed = inst ? items.some((it) => it.quote_id === inst.id) : null;
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct";
     const elec = asg.find((a) => a.job_id === id)?.business_id;
-    const piesaCostEx = ownerDirect ? 0 : elec && piesaRate.has(elec) ? piesaRate.get(elec)! : fallbackPiesa;
+    // Decision 349: with the installer's usual electrician (our leads) we pay exactly the quoted PIESA line (their
+    // onboarding rate); otherwise the electrician's own agreed onboarding rate (electrician_rates PIESA row).
+    const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
+    const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
+    const piesaCostEx = ownerDirect ? 0 : usualPiesaEx ?? (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : fallbackPiesa);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
