@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, logEvent } from "./workflow.server";
 import { myBusinesses, requireMember } from "./pilot.server";
+import { WORKER_COLS, isAdminCaller, jobBusinesses } from "./worker-links.server";
 import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
 
 const uuid = z.string().uuid();
@@ -14,12 +15,6 @@ const workerInput = z.object({
   licence_number: z.string().trim().max(60).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
 });
-const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status, certification";
-
-async function isAdminCaller(sb: Parameters<typeof requireAdmin>[0]) {
-  const { data } = await sb.rpc("is_admin");
-  return data === true;
-}
 
 // ---------- Company: manage own workers ----------
 export const listMyWorkers = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
@@ -104,35 +99,9 @@ export const decideWorker = createServerFn({ method: "POST" }).middleware([requi
   });
 
 // ---------- Job links ----------
-async function jobBusinesses(jobId: string) {
-  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-  const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("active", true).not("business_id", "is", null);
-  return [...new Set((data ?? []).map((r) => r.business_id!))];
-}
-
 export const jobWorkerLinks = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const office = await isAdminCaller(context.supabase);
-    const assigned = await jobBusinesses(data.jobId);
-    const mine = office ? assigned : [...(await myBusinesses(context.userId)).keys()].filter((b) => assigned.includes(b));
-    if (!office && !mine.length) return { workers: [], links: [], assignedBusinesses: 0 };
-    const none = ["00000000-0000-0000-0000-000000000000"];
-    const [{ data: workers }, { data: links }] = await Promise.all([
-      admin.from("partner_workers").select(`${WORKER_COLS}, businesses(name)`).in("business_id", mine.length ? mine : none).is("removed_at", null),
-      admin.from("worker_job_links").select("id, worker_id, business_id, created_at, expires_at, revoked_at, last_opened_at, open_count, partner_workers(full_legal_name, trade_role)").eq("job_id", data.jobId).in("business_id", mine.length ? mine : none).order("created_at", { ascending: false }),
-    ]);
-    const now = Date.now();
-    // Office flag: last automatic Mitti attempt needs attention (cleared once a form is created/re-shared).
-    const { data: mev } = await admin.from("workflow_events").select("event_type, summary").eq("job_id", data.jobId).in("event_type", ["mitti_access_needed", "mitti_audit_created", "mitti_audit_reshared"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    return {
-      mittiFlag: office && mev?.event_type === "mitti_access_needed" ? mev.summary : null,
-      assignedBusinesses: assigned.length,
-      workers: (workers ?? []).map((w) => ({ ...w, blocker: assignBlocker(w, assigned) })),
-      links: (links ?? []).map((l) => ({ ...l, state: linkState(l, now) })),
-    };
-  });
+  .handler(async ({ data, context }) => (await import("./worker-links.server")).workerLinksFor(context.supabase, context.userId, data.jobId));
 
 export const createWorkerJobLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, workerId: uuid }).parse(d))

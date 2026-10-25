@@ -53,6 +53,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['rectification'] = "failed";
         }
         try {
+          // Decision 293: open "A5 – Electrical fixes" Mitti forms — on Complete, Section C is recorded and the files kept.
+          const { sweepFixesForms } = await import("@/lib/fixes-day.server");
+          (out as Record<string, unknown>)['fixesForms'] = await sweepFixesForms();
+        } catch (e) {
+          console.error("allocation tick: fixes form sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['fixesForms'] = "failed";
+        }
+        try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
           (out as Record<string, unknown>)['installHolds'] = await sweepInstallHolds();
         } catch (e) {
@@ -68,6 +77,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: PIESA copy delivery sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
+        }
+        try {
+          // Decision 296: owner asked to confirm the PIESA on their secure link (email O71 + text) after the electrician completes it,
+          // reminders days 1/3, office alert day 5. DRAFT wording: real owners get nothing until approved; TEST jobs use test-send.
+          const { sweepOwnerPiesaConfirmations } = await import("@/lib/piesa-owner-confirm-send.server");
+          (out as Record<string, unknown>)['piesaOwnerConfirm'] = await sweepOwnerPiesaConfirmations();
+        } catch (e) {
+          console.error("allocation tick: PIESA owner confirmation sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['piesaOwnerConfirm'] = "failed";
         }
         try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
@@ -149,6 +167,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: payments sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
+        }
+        try {
+          // Decision 303: ONE REC onboarding invite per electrician an installer named who is not an approved REC
+          // (facts recorded by the quote pipeline; sends only through the existing manual invite path, TEST → test inbox).
+          const { sweepRecOnboardingInvites } = await import("@/lib/rec-onboarding-invite.server");
+          (out as Record<string, unknown>)['recOnboardingInvites'] = await sweepRecOnboardingInvites();
+        } catch (e) {
+          console.error("allocation tick: REC onboarding invite sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['recOnboardingInvites'] = "failed";
         }
         try {
           const { sweepTradeNoShows } = await import("@/lib/visit-events.server");

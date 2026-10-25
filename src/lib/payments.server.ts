@@ -70,9 +70,16 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     admin.from("jobs").select("job_number, stage, source").eq("id", jobId).maybeSingle(),
   ]);
   if (!inv) return null;
-  const { count: overrides } = await admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit");
+  const [{ count: overrides }, { data: piesaLines }] = await Promise.all([
+    admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit"),
+    inv.quote_id ? admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id).eq("code", "PIESA") : Promise.resolve({ data: [] as { code: string | null; line_total_inc_gst: number | string | null }[] }),
+  ]);
   const quote = inv.quotes as unknown as { accepted_at: string | null; customer_total_inc_gst: number } | null;
-  const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: ws?.safety_check_payment_inc_gst == null ? null : toCents(ws.safety_check_payment_inc_gst), fixesCents: rect ? toCents(rect.customer_total_inc_gst) : 0 });
+  // Decision 302: the upfront safety check = the accepted quote's PIESA line ($349 for our electrician, the REC's onboarded
+  // rate otherwise); the setting is only the fallback when the quote carries no PIESA line.
+  const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
+  const safety = safetyCheckCentsFor({ lines: piesaLines ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null });
+  const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents: rect ? toCents(rect.customer_total_inc_gst) : 0 });
   const ledger = await paymentLedger(jobId, inv.id);
   const paidCents = Math.max(toCents(inv.total_paid), cumulativePaidCents(ledger));
   const bookedAt = installBooking?.created_at ?? null;
@@ -92,7 +99,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const { stripeBlocker } = await import("./stripe.core");
   const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: process.env["STRIPE_SECRET_KEY"], jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
   return {
-    invoiceId: inv.id, plan, steps, paidCents, due, reference, bank, onlineInvoiceUrl: inv.xero_online_url ?? null, jobSource: job?.source ?? null,
+    invoiceId: inv.id, plan, steps, paidCents, due, reference, bank, onlineInvoiceUrl: inv.xero_online_url ?? null, jobSource: job?.source ?? null, safetyCheckSource: safety.source,
     stripe: { available: stripeBlock === null, blocker: stripeBlock },
     payNow: payNowBlock({ step: due.step, cardAvailable: stripeBlock === null, bank, reference, remainingCents: due.remainingCents }),
     provisional: { decision: provisional, bookedAt, expiresAt: bookedAt ? provisionalHoldExpiresAt(bookedAt) : null },

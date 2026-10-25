@@ -25,8 +25,9 @@ export const LEAN_Q = {
   // Page 3 — Roof and access
   roofType: "What type of roof does the home have?",
   access: "How would you rate the ceiling access?",
-  accessCharge: "Is there a difficult access charge?",
-  accessFee: "Difficult access fee ($ inc GST)",
+  // Decision 290 (Jo 25 Oct 2026, corrected): "Is there a difficult access charge?" / "Difficult access fee ($ inc GST)"
+  // are DELETED from A1 and A2 — the access rating, the access photo and the issues note are the flag; the boss (A1)
+  // or the office (A2) decides any fee. The old labels live in LEAN_REMOVE so legacy readers and the delete prompt agree.
   accessPhoto: "Upload a clear photo of the ceiling access point",
   // Page 4 — Ceiling areas (ONE repeating group "Add a ceiling area")
   areaName: "Which part of the home does this ceiling area cover?",
@@ -132,8 +133,6 @@ export const LEAN_HELP = {
   contactPermission: `If No, stop here and answer "${OUTCOME_FAILED}" on the last page.`,
   lifeSupport: "Pre-filled from what the owner told us. Change it if you learn otherwise; the office will call before anything goes out.",
   access: `No safe access: take the access photo, then go to the last page and answer "${OUTCOME_FAILED}".`,
-  accessFeeA1: "Included in the price your business owner enters in the portal; it is shown on the owner's quote.",
-  accessFeeA2: "Your charge to Home Insulation Victoria. Never discussed with the owner.",
   areaName: "Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.",
   dimensions: "Measure the longest length and width of this ceiling area. Split an L-shaped ceiling into two areas. The portal works out the m² and draws the diagram.",
   rValue: `R2.0 exactly counts as "${R_AT_OR_ABOVE}". Typical old 50–70 mm batts or thin loose fill are ${R_BELOW}.`,
@@ -161,6 +160,9 @@ export const LEAN_REMOVE = {
   explainDifficult: "Please explain why the access is difficult",
   explainNoSafe: "Please explain why there is no safe access",
   includedDifficultAccess: "Difficult access",
+  /** Decision 290 (corrected, Jo 25 Oct 2026): the access charge pair is deleted from BOTH templates; old forms are still read. */
+  accessCharge: "Is there a difficult access charge?",
+  accessFee: "Difficult access fee ($ inc GST)",
 } as const;
 export const LEAN_REMOVE_COPIES = { a1: 22, a2: 21 } as const;
 

@@ -153,6 +153,55 @@ real numbers:
 - Server timing per function (edge → Supabase hop latency, TTFB for `getTradeHome` and `getTradeJobPage`) from
   the Lovable logs once the branch is live.
 
+## Follow-up done: the installer job page in ONE call (branch `job-page-one-call`)
+
+Live measurement on the published site (TEST installer, 25 Oct): the installer job page fired 8 separate server calls
+per load, one after another (getTradeJobPage 1.3 s, getVisitAllocation 1.0 s, getTradeReadyCheckTimes 1.0 s,
+getTradeSwms 0.8 s, getJobOverview, getInstallerInstallDays, jobWorkerLinks, getInstallerPriceFn), 2–3.3 s wall time;
+each one a worker request that re-derived the trade context. Assets and the database were fine.
+
+What changed (behaviour-neutral, every guard unchanged):
+- `getTradeJobBundle` (`trade-view.functions.ts`, literal chain, same middleware) → `trade-job-bundle.server.ts`:
+  overview (its own `requireJobRole`, as `getJobOverview`) and `requireTradeJob` run together, then every installer
+  section runs in ONE `Promise.all` with that one checked context (`TradeJobAccess`, reused only for the same user AND
+  job; anything else re-runs the check). Sections: page, install days, Ready Check times, who's doing this, safety
+  plan, staff links, price (asked only for the business owner — staff get `null`, decision 278), owner quote, Mitti
+  invited, plus the job overview and `my_job_role`. A section that throws comes back as `{ error }`; the page draws
+  the rest and that card fetches itself as before. Electricians' visits get no installer sections.
+- The per-section bodies that lived inside server functions moved to shared server helpers, unchanged:
+  `job-overview.server.ts` (`jobOverviewFor`), `worker-links.server.ts` (`workerLinksFor`), `my-owner-quote.server.ts`
+  (`myOwnerQuoteFor`); their server functions now call them.
+- Route `/field/$jobId`: one `useQuery(["trade-job-bundle", jobId])` on first paint; its answer is written into the
+  cards' own Query keys (`trade-job-bundle.core.ts` `seedPlan`) before the page mounts, so no card fetches on load and
+  every existing invalidation keeps working. The bundle is never refetched (`useAction`'s global invalidation is
+  answered from its first result); after a mutation the cards refetch themselves exactly as before. The five cards
+  that had no `staleTime` (who's doing this, safety plan, staff links, price, owner quote) now treat a 20 s-old answer
+  as fresh, like the page facts. No component rendering changed.
+- First paint no longer waits on the auth server: `TradeShell`'s avatar, `useMe` and `useAccess` read the guard memo's
+  `currentUser()` (same `supabase.auth.getUser()` answer, remembered 60 s per tab, forgotten on any auth change);
+  `useAccess` keeps a 60 s `staleTime`.
+- Public pages whose server-rendered HTML holds no per-user data (`/`, `/calculator`, `/auth`) are served with
+  `public, max-age=60, s-maxage=60, stale-while-revalidate=300` (`public-cache.core.ts`) instead of `no-store`.
+  Signed-in pages and every token link stay `no-store`.
+
+Server calls on load, installer job page: before 8 (+ the client `my_job_role` RPC, + `getMyOwnerQuote` when the
+quote status shows) in series → after 1 (`getTradeJobBundle`), everything else from the cache. Critical path inside
+that one request: trade context (2 hops) + assignments (1) in parallel with the overview's role check, then the
+sections' own reads together (the deepest section, page facts, is still ~10 hops; the others ran beside it instead of
+after it).
+
+Tests: `tests/field-job-one-call.test.tsx` mounts the REAL route with the real React Query in happy-dom and counts
+server calls (exactly one on load; a failed section fetches itself and the page still draws; a refused bundle falls
+back to the per-card path); `tests/trade-job-bundle.test.ts` covers the role rules (staff → price null, electrician →
+no installer sections), error isolation, the seed plan and source pins. Pre-existing failures unchanged on the base
+commit: `comms` (graph), `engagement`, `ffs-field-access.step36`, `ffs-minimum-results`, `no-lead-fee`,
+`brief-e-silent-action-feedback` (missing `choose-trade` module), `ready-check-times-flow-db`.
+
+Still needs a live measurement: the wall time of the one `getTradeJobBundle` call on the published site (expected
+≈ the old `getTradeJobPage` alone, ~1.3 s, since the other sections now run beside it), and whether the edge honours
+the public cache header on `/`, `/calculator` and `/auth` (check `age` / `cf-cache-status` or equivalent on a second
+load).
+
 ## Follow-ups not done here (each changes behaviour or needs a wider pass)
 
 1. One `getInstallerJobScreen` server function for the job page instead of ~10 calls (biggest remaining win:

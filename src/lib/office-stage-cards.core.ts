@@ -2,6 +2,7 @@
 // Each card: number, title, one state word (Done · Now · Not yet) and up to five fact lines, exactly as drawn.
 // PURE: the server reads the facts; this only words them. Never decides a stage or moves a job.
 import type { JobsStage } from "./office-jobs.core";
+import { SAFETY_CHECK_DEFAULT_CENTS, safetyCheckShort } from "./safety-check-amount.core";
 
 export type CardKey = "enquiry" | "ready-check" | "quote" | "piesa" | "install" | "final-check";
 export type CardState = "done" | "now" | "not_yet";
@@ -14,7 +15,7 @@ export type StageCardFacts = {
   ownJob: boolean;
   enquiry: { receivedAt: string; source: string; estimateTotal: number | null; estimateRebate: number | null; linkSentAt: string | null; linkViewedAt: string | null; ownerSaid: string | null; eligibility: string | null; photos: number };
   readyCheck: { installer: string | null; chosenAt: string | null; acceptedAt: string | null; visitAt: string | null; mitti: string | null; measured: string | null; diagramAt: string | null };
-  quote: { sentAt: string | null; held: string | null; subtotal: number | null; incentive: number | null; ownerPays: number | null; acceptedAt: string | null; signer: string | null; safetyPaidAt: string | null; declined: string | null };
+  quote: { sentAt: string | null; held: string | null; subtotal: number | null; incentive: number | null; ownerPays: number | null; acceptedAt: string | null; signer: string | null; safetyPaidAt: string | null; declined: string | null; /** Decision 302: the quote's safety check amount in cents (null = $349 default). */ safetyCheckCents?: number | null };
   piesa: { electrician: string | null; offer: string | null; visitAt: string | null; outcome: string | null; fixes: string | null };
   install: { deadline: string | null; daysLeft: number | null; deposit: string | null; installAt: string | null; daysOffered: number; consent: string | null; escNotice: string | null };
   finalCheck: { installedAt: string | null; evidenceMissing: number | null; veecForm: string | null; readyForVeecAt: string | null; lodged: string | null };
@@ -59,7 +60,7 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Sent", value: q.sentAt ? `${dayTime(q.sentAt)}` : q.held ? `Held · ${q.held}` : "Prepared when the Ready Check form is complete" },
       { label: "Amount", value: q.subtotal != null ? `${money(q.subtotal)} inc GST${q.incentive ? ` · VEEC incentive −${money(q.incentive)}` : ""}${q.ownerPays != null ? ` · owner pays ${money(q.ownerPays)}` : ""}` : dash },
       { label: "Accepted", value: q.acceptedAt ? `${dayTime(q.acceptedAt)}${q.signer ? ` · agreement signed by ${q.signer}` : ""}` : q.declined ? `Declined · ${q.declined}` : dash },
-      { label: "$349", value: q.safetyPaidAt ? `Paid ${day(q.safetyPaidAt)}` : q.acceptedAt ? "Not paid yet" : dash },
+      { label: safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS), value: q.safetyPaidAt ? `Paid ${day(q.safetyPaidAt)}` : q.acceptedAt ? "Not paid yet" : dash },
     ] },
     { key: "piesa", n: 4, title: "PIESA", state: st.piesa, lines: [
       { label: "Electrician", value: p.electrician ?? "Not chosen yet" },

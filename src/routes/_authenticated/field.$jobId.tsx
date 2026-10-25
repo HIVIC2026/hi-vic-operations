@@ -6,7 +6,7 @@ import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +25,8 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
+import { seedPlan } from "@/lib/trade-job-bundle.core";
 import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 
@@ -54,14 +55,46 @@ import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { FixesFormCard } from "@/components/trade/FixesFormCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: FieldJob,
 });
 
+/** Speed (decision 280): ONE server call on first paint. The bundle answers every section the cards below read and is
+ *  written into their own Query cache entries before the page draws, so each card finds its answer already there and
+ *  fetches on its own only when one of its actions invalidates it (or the bundle left that section out). A section the
+ *  server could not answer is simply not seeded: that card fetches and handles its error exactly as before. */
+function useTradeJobBundle(jobId: string) {
+  const qc = useQueryClient();
+  const load = useServerFn(getTradeJobBundle);
+  return useQuery({
+    queryKey: ["trade-job-bundle", jobId],
+    queryFn: async ({ queryKey }) => {
+      // `useAction` invalidates every query after an action; the cards refetch themselves then, so the bundle is not
+      // asked again (its first answer is kept) — one call on first paint, none after.
+      const prev = qc.getQueryData<Awaited<ReturnType<typeof load>>>(queryKey);
+      if (prev) return prev;
+      const bundle = await load({ data: { jobId } });
+      for (const s of seedPlan(bundle, jobId)) qc.setQueryData([...s.key], s.data);
+      return bundle;
+    },
+    // First paint only: afterwards the cards' own queries, polls and invalidations carry on exactly as before.
+    staleTime: Infinity, retry: false, refetchOnMount: false, refetchOnWindowFocus: false, refetchOnReconnect: false,
+  });
+}
+
 function FieldJob() {
   const { jobId } = Route.useParams();
+  const bundle = useTradeJobBundle(jobId);
+  // While the one call is in flight nothing below mounts, so no card starts its own fetch. A failed bundle still renders
+  // the page: every card then loads itself (the pre-bundle behaviour) and the existing refusal wording applies.
+  if (!bundle.isFetched) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
+  return <FieldJobBody jobId={jobId} />;
+}
+
+function FieldJobBody({ jobId }: { jobId: string }) {
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
@@ -187,6 +220,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
         stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
+      {stage === "rectification_booked" && <FixesFormCard jobId={jobId} mittiInvited={mittiInvited} />}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
       {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}
@@ -295,7 +329,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
     piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
-    formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss,
+    formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, ownerPiesaConfirmed: page.ownerPiesaConfirmed,
   }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.

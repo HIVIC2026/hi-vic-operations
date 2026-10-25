@@ -173,8 +173,9 @@ export async function paymentGate(jobId: string) {
     ]);
     plan = (p as never) ?? null; overrideCount = count ?? 0;
   }
-  const { data: ws } = await admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle();
-  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount, qaSimulated, safetyFeeIncGst: ws?.safety_check_payment_inc_gst ?? null });
+  // Decision 302: the upfront amount is the accepted quote's PIESA line (setting = fallback when the quote has none).
+  const safety = await (await import("./safety-check-amount.server")).quoteSafetyCheck(quote?.id ?? null);
+  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount, qaSimulated, safetyFeeIncGst: safety.incGst });
 }
 
 /** True only when an approved payment option is verified (see paymentGate). */
@@ -314,6 +315,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
     if (cb) blockers.push(cb);
+  }
+  // Decision 296 (Jo 25 Oct 2026): the install day cannot be booked until the owner has confirmed the current PIESA on their secure link.
+  if (to === "installation_booked") {
+    const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
+    if (ob) blockers.push(ob);
   }
   const piesa = await piesaStatus(jobId);
 

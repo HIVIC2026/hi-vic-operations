@@ -29,18 +29,19 @@ export const CUSTOMER_INVOICE_COLUMNS = [
 const cents = (n: number | string) => Math.round(Number(n) * 100);
 
 /** Currency-safe split: deposit = configured minimum upfront payment (10% / 5%), balance = total − deposit. */
-export function splitTotal(total: number | string) {
-  const { deposit, balance, depositPct } = splitForOption(total);
+export function splitTotal(total: number | string, safetyFeeIncGst?: number | string | null) {
+  const { deposit, balance, depositPct } = splitForOption(total, safetyFeeIncGst);
   return { deposit, balance, depositPct };
 }
 
-/** One invoice per accepted quote – safe to call repeatedly or concurrently. */
-export async function ensureInvoice(store: InvoiceStore, quote: { id: string; job_id: string; kind: string; status: string; customer_total_inc_gst: number | string }, today: string) {
+/** One invoice per accepted quote – safe to call repeatedly or concurrently. Decision 302: `safetyFeeIncGst` = the quote's
+ *  PIESA line (the deposit raised in Xero), default $349 when the caller has none. */
+export async function ensureInvoice(store: InvoiceStore, quote: { id: string; job_id: string; kind: string; status: string; customer_total_inc_gst: number | string }, today: string, safetyFeeIncGst?: number | string | null) {
   if (quote.status !== "accepted") throw new Error(`Quote is ${quote.status}, not accepted – no invoice raised.`);
   const existing = await store.find(quote.id);
   if (existing) return { row: existing, created: false };
   const total = Number(quote.customer_total_inc_gst);
-  const { deposit, balance, depositPct } = splitTotal(total);
+  const { deposit, balance, depositPct } = splitTotal(total, safetyFeeIncGst);
   const row = { job_id: quote.job_id, quote_id: quote.id, kind: quote.kind, status: "invoice_not_created", total_inc_gst: total, deposit_pct: depositPct, deposit_amount: deposit, balance_amount: balance, deposit_due_date: today };
   try {
     return { row: await store.insert(row), created: true };

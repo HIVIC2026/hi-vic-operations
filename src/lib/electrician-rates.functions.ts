@@ -46,6 +46,9 @@ export const activateElectricianRate = createServerFn({ method: "POST" }).middle
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await (supabaseAdmin as unknown as Loose).rpc("activate_electrician_rate", { _rate_id: data.id, _actor: context.userId });
     if (error) throw new WorkflowError(error.message);
+    // Decision 303: once the REC is approved AND has an active PIESA rate, link it to the installers who named that electrician (best-effort).
+    const { data: rate } = await supabaseAdmin.from("electrician_rates").select("business_id, service_type").eq("id", data.id).maybeSingle();
+    if (rate?.service_type === "piesa") await (await import("./rec-auto-link.server")).autoLinkApprovedRec(rate.business_id, context.userId).catch((e) => console.error("REC auto-link skipped", (e as Error).message));
     return { ok: true };
   });
 

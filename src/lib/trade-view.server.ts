@@ -267,8 +267,8 @@ export async function tradeOfferReadyCheckTimes(offerId: string, userId: string,
 }
 
 /** The installer's side of the Ready Check times on an assigned job. */
-export async function tradeReadyCheckTimes(jobId: string, userId: string) {
-  await requireTradeJob(userId, jobId);
+export async function tradeReadyCheckTimes(jobId: string, userId: string, pre?: TradeJobAccess) {
+  await requireTradeJob(userId, jobId, pre);
   return (await import("./ready-check-times.server")).installerReadyCheckState(jobId, userId);
 }
 
@@ -289,12 +289,18 @@ export async function tradeReadyCheckChange(jobId: string, pick: { day: string; 
 }
 
 /** Day page for any of the three visit kinds. */
-/** The one server check for every trade job read: active assignment for this job AND this business (staff: assigned to them). */
-export async function requireTradeJob(userId: string, jobId: string) {
+/** A trade context that has already passed `requireTradeJob` for exactly this user and job (speed, decision 280: the job
+ *  bundle checks once and hands the same answer to every section instead of re-deriving it eight times). */
+export type TradeJobAccess = NonNullable<Awaited<ReturnType<typeof tradeContext>>> & { readonly checkedFor: { readonly userId: string; readonly jobId: string } };
+
+/** The one server check for every trade job read: active assignment for this job AND this business (staff: assigned to them).
+ *  `pre` is reused only when it was checked for the same user AND job; anything else runs the full check again. */
+export async function requireTradeJob(userId: string, jobId: string, pre?: TradeJobAccess): Promise<TradeJobAccess> {
+  if (pre && pre.checkedFor.userId === userId && pre.checkedFor.jobId === jobId) return pre;
   const c = await ctxOrThrow(userId);
   const { data } = await admin.from("job_assignments").select("job_id, business_id, user_id, active").eq("job_id", jobId).eq("active", true);
   if (!tradeJobAllowed({ signedIn: true, userId, businessId: c.biz.id, boss: c.boss, jobId, assignments: (data ?? []) as AccessAssignment[] })) throw new WorkflowError("This job isn't assigned to you.");
-  return c;
+  return { ...c, checkedFor: { userId, jobId } };
 }
 
 export async function tradeDay(jobId: string, userId: string) {
@@ -756,8 +762,8 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
   return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
 }
 
-export async function tradeJobPage(jobId: string, userId: string) {
-  const c = await requireTradeJob(userId, jobId);
+export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess) {
+  const c = await requireTradeJob(userId, jobId, pre);
   // Speed (decision 280): modules first (cached after the first call), then every independent read in one round trip —
   // including the boss's own pay rows, which used to wait for everything else.
   const [{ loadInstallerQuote }, { clearanceFacts }, { electricalClearance }, { mittiJobPresentation }, { needsFinishingTask }, { installerQuoteLine }, { needsFinishingList }, { currentAllocation }] = await Promise.all([
@@ -775,7 +781,7 @@ export async function tradeJobPage(jobId: string, userId: string) {
     installerPayForJob(jobId),
     installFormFacts(jobId),
     clearanceFacts(jobId).then(electricalClearance),
-    c.kind === "installer" ? mittiJobPresentation(jobId, userId).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    c.kind === "installer" ? mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
     c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
@@ -816,6 +822,8 @@ export async function tradeJobPage(jobId: string, userId: string) {
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
+    // Decision 296: whether the owner has confirmed the current PIESA on their secure link (null = no PIESA record yet). Read only once cleared.
+    ownerPiesaConfirmed: clearance.cleared ? await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,
@@ -927,8 +935,8 @@ export async function tradeMoneyExtras(userId: string) {
 
 /** Decision 261: the safety plan (SWMS) card on the installer's job page — from the install booking until the install is
  *  recorded (read-only afterwards). Business-scoped through requireTradeJob; holds no prices or other partners. */
-export async function tradeSwms(jobId: string, userId: string) {
-  const c = await requireTradeJob(userId, jobId);
+export async function tradeSwms(jobId: string, userId: string, pre?: TradeJobAccess) {
+  const c = await requireTradeJob(userId, jobId, pre);
   if (c.kind !== "installer") return { show: false as const };
   const [{ data: j }, { data: inBook }] = await Promise.all([
     admin.from("jobs").select("installation_completed_at").eq("id", jobId).single(),

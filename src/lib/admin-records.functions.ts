@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireAdmin, requireJobRole } from "./workflow.server";
+import { requireAdmin } from "./workflow.server";
 
 const uuid = z.string().uuid();
 
@@ -26,33 +26,7 @@ export const getAdminPartnerEnquiries = createServerFn({ method: "POST" }).middl
 
 export const getJobOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
-  .handler(async ({ data, context }) => {
-    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
-    const admin = await adminClient();
-    const { data: row, error } = await admin.from("job_overview").select("*").eq("id", data.jobId).maybeSingle();
-    if (error) throw new Error(`Job could not be loaded: ${error.message}`);
-    if (!row) throw new Error("Job not found or no longer available.");
-    if (role === "electrician" || role === "installer") {
-      // Trades see owner name/contact/exact address only while their own visit is current (SQL has_contact_release),
-      // or on a partner-supplied job their own business originated.
-      const { data: rel } = await admin.rpc("has_contact_release", { _job: data.jobId, _user: context.userId });
-      let own = false;
-      if (!rel && row.channel === "installer_sourced") {
-        const { data: j } = await admin.from("jobs").select("originating_installer_business_id").eq("id", data.jobId).maybeSingle();
-        const { data: m } = j?.originating_installer_business_id ? await admin.from("business_members").select("user_id").eq("business_id", j.originating_installer_business_id).eq("user_id", context.userId).maybeSingle() : { data: null };
-        own = !!m;
-      }
-      if (!rel && !own) {
-        const { data: p } = await admin.from("properties").select("suburb, postcode").eq("id", row.property_id!).maybeSingle();
-        return { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" };
-      }
-    }
-    if (role === "admin" && row.stage === "cancelled") {
-      const { data: c } = await admin.from("jobs").select("cancelled_reason").eq("id", data.jobId).maybeSingle();
-      return { ...row, cancelled_reason: c?.cancelled_reason ?? null };
-    }
-    return row;
-  });
+  .handler(async ({ data, context }) => (await (await import("./job-overview.server")).jobOverviewFor(context.supabase, context.userId, data.jobId)).row);
 
 export const getAdminBusinesses = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);

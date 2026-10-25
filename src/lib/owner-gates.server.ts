@@ -92,11 +92,13 @@ const audS = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigit
 /** Step B money from the current installation quote and the safety check payment setting. */
 async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: string }) | undefined> {
   const [{ data: q }, { data: ws }] = await Promise.all([
-    admin.from("quotes").select("customer_total_inc_gst, version").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("id, customer_total_inc_gst, version").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst" as never).eq("id", 1).maybeSingle(),
   ]);
   if (!q) return undefined;
-  const fee = Number((ws as { safety_check_payment_inc_gst?: number } | null)?.safety_check_payment_inc_gst ?? SAFETY_CHECK_FEE_DEFAULT);
+  // Decision 302: the quote's PIESA line is the upfront amount; the setting (default $349) only when the quote has none.
+  const setting = Number((ws as { safety_check_payment_inc_gst?: number } | null)?.safety_check_payment_inc_gst ?? SAFETY_CHECK_FEE_DEFAULT);
+  const fee = (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id, setting)).incGst;
   const b = balanceSplit(q.customer_total_inc_gst, fee);
   return { fee: audS(b.fee), balance: audS(b.balance), half: audS(b.firstHalf), half2: audS(b.secondHalf), total: audS(b.total), version: String(q.version ?? "") };
 }

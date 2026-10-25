@@ -26,9 +26,9 @@ describe("piesaEvidenceRequirements — which items the answers demand", () => {
     expect(piesaEvidenceRequirements(clean).map((r) => r.id)).toEqual(["switchboard_photo", "onsite_photo"]);
   });
   test("any hazard answered Yes adds one hazard photo per hazard listed", () => {
-    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[1]}, ${MAINS_PROBLEMS[5]}`, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[0], appliancesPresent: "Yes", applianceDetails: "Gas flue near the manhole" };
+    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[1]}, ${MAINS_PROBLEMS[5]}`, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[0], appliancesPresent: "Yes", applianceWhat: "Gas flue near the manhole", applianceSafe: "No" };
     const hz = piesaHazardsListed(a);
-    expect(hz).toEqual([MAINS_PROBLEMS[1], MAINS_PROBLEMS[5], CEILING_PROBLEMS[0], "Appliances, exhaust fans or flues: Gas flue near the manhole"]);
+    expect(hz).toEqual([MAINS_PROBLEMS[1], MAINS_PROBLEMS[5], CEILING_PROBLEMS[0], "Appliance or flue needs work: Gas flue near the manhole"]);
     const req = piesaEvidenceRequirements(a).find((r) => r.id === "hazard_photos");
     expect(req?.count).toBe(4);
     expect(req?.hazards).toEqual(hz);
@@ -64,10 +64,10 @@ describe("piesaEvidenceBlockers — plain messages", () => {
     expect(piesaEvidenceBlockers(clean, withMedia({ switchboard_photo: [mittiMediaFile(geo("m1", 0, 0))], onsite_photo: [mittiMediaFile(geo("m2"))] }))).toEqual(["Switchboard photo must be geotagged"]);
   });
   test("hazard photos: one per hazard, names the hazards still without a photo, all geotagged", () => {
-    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[0]}, ${MAINS_PROBLEMS[6]}`, appliancesPresent: "Yes", applianceDetails: "Exhaust fan" };
+    const a = { ...clean, mainsSafe: "No", mainsProblems: `${MAINS_PROBLEMS[0]}, ${MAINS_PROBLEMS[6]}`, appliancesPresent: "Yes", applianceWhat: "Exhaust fan", applianceSafe: "No" };
     const ok = withMedia({ switchboard_photo: [mittiMediaFile(geo("s"))], onsite_photo: [mittiMediaFile(geo("o"))] });
-    expect(piesaEvidenceBlockers(a, ok)).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[0]}; ${MAINS_PROBLEMS[6]}; Appliances, exhaust fans or flues: Exhaust fan`]);
-    expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1"))] })).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[6]}; Appliances, exhaust fans or flues: Exhaust fan`]);
+    expect(piesaEvidenceBlockers(a, ok)).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[0]}; ${MAINS_PROBLEMS[6]}; Appliance or flue needs work: Exhaust fan`]);
+    expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1"))] })).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[6]}; Appliance or flue needs work: Exhaust fan`]);
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(flat("h2")), mittiMediaFile(geo("h3"))] })).toEqual(["Hazard photos must be geotagged (1 without a location)"]);
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(geo("h2")), mittiMediaFile(geo("h3"))] })).toEqual([]);
   });
@@ -99,13 +99,14 @@ describe("labels: exact spec wording plus the earlier wordings", () => {
   test("q43 wording is the decision-178 wording (holding licence / photo ID)", () => {
     expect(ON).toBe("Photo showing you on site at the property, holding your licence / photo ID (geotagged)");
   });
-  test("the portal PIESA form definition carries the four evidence items, so the template check refuses a form without them", () => {
+  test("the portal PIESA form definition carries the four evidence items; the template check refuses a form without the three PIESA-visit photos (CES is on the A5 fixes form, decision 298)", () => {
     const labels = FORMS.piesa.fields.filter((f) => f.supplemental).map((f) => f.label);
     expect(labels).toEqual([SB, ON, HZ, CES]);
     const items = FORMS.piesa.fields.filter((f) => !f.supplemental).map((f) => ({ label: f.label, type: f.type === "yesno" ? "question" : f.type === "choice" || f.type === "multichoice" || f.type === "tick" ? "list" : f.type === "date" ? "datetime" : f.type === "text" || f.type === "number" ? "textsingle" : f.type }));
     const without = validateTemplate("piesa", items);
     expect(without.ok).toBe(false);
-    expect(without.issues).toEqual(expect.arrayContaining([`Missing: ${SB}`, `Missing: ${ON}`, `Missing: ${HZ}`, `Missing: ${CES}`]));
+    expect(without.issues).toEqual(expect.arrayContaining([`Missing: ${SB}`, `Missing: ${ON}`, `Missing: ${HZ}`]));
+    expect(without.issues).not.toContain(`Missing: ${CES}`);
     const withOld = validateTemplate("piesa", [...items, { label: "Switchboard cable photo", type: "media" }, { label: "Electrician photo at front of premises with photo ID", type: "media" }, { label: HZ, type: "media" }, { label: CES, type: "media" }]);
     expect(withOld.issues.filter((i) => /Missing: (Photo|Certificate)/.test(i))).toEqual([]);
   });
@@ -120,7 +121,7 @@ function fixtureAudit(o: { completed: boolean; switchboard?: unknown[]; onsite?:
     audit_id: "aud-178", template_id: "template_0123456789abcdef0123456789abcdef", completed: o.completed, modified_at: "2026-10-24T03:00:00Z",
     header_items: [T("h1", "Job Reference ID", "HV-9999"), T("h2", "Address including postcode", "1 Test St, Testville VIC 3000")],
     items: [
-      Q("q5", "Is the life support record shown above still correct?", "Yes"),
+      Q("q5", "Is there life support equipment at the property?", "No"),
       Q("q8", "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.", o.mainsSafe ?? "Yes"),
       ...(o.mainsSafe === "No" ? [Q("q9", "Please tick each item that is not right.", MAINS_PROBLEMS[0])] : []),
       Q("q10", "Is there solar, a battery or a generator at the property?", "No"),

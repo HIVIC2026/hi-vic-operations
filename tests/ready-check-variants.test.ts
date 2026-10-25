@@ -6,7 +6,8 @@ import { parseAudit } from "../src/lib/mitti.core";
 const ELECTRICIAN_FIELDS = ["Who is doing the electrical safety check?", "Electrician name", "Electrician licence number", "Electrician price (inc GST)"];
 const ELECTRICIAN_MISSING = ELECTRICIAN_FIELDS.map((label) => `Missing: ${label}`);
 // Decision 222 (lean Ready Check): questions the 2 Oct / 22 Oct live forms never had and the lean forms add.
-const LEAN_NEW_MISSING = ["Missing: Who lives at the property?", "Missing: Is there a difficult access charge?", "Missing: Difficult access fee ($ inc GST)"];
+// Decision 290 (corrected): the access charge/fee pair is deleted from both templates, so it is never "missing".
+const LEAN_NEW_MISSING = ["Missing: Who lives at the property?"];
 const PRODUCT_MISSING = "Missing: What insulation product will you be using on this job?";
 const R_VALUE_MISSING = "Missing: What is the determined R value of the existing ceiling insulation?";
 /** The hazard note the lean form adds (Jo 24 Oct: Mitti cannot require a note on a photo, so it is its own question). */

@@ -17,6 +17,7 @@ import { CARD_STATE_LABEL, type CardKey, type StageCard } from "@/lib/office-sta
 import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, type ContactRow } from "@/lib/contact-history.core";
 import { fileChecklist } from "@/lib/job-file-checklist.core";
 import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
+import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
@@ -228,7 +229,7 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         <ul className="divide-y divide-line rounded-[12px] border border-line">
           {(v.steps as PaymentStep[]).map((s) => (
             <li key={s.key} className="grid gap-1 px-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_80px_220px] md:items-center">
-              <span className="font-semibold">{s.key === "safety_check" ? "$349 safety check" : PAYMENT_STEP_LABEL[s.key]}{s.amountCents ? ` · ${money(s.amountCents)}` : ""}</span>
+              <span className="font-semibold">{s.key === "safety_check" ? `${safetyCheckShort(s.amountCents)} safety check` : `${PAYMENT_STEP_LABEL[s.key]}${s.amountCents ? ` · ${money(s.amountCents)}` : ""}`}</span>
               <span className={cn("text-xs font-semibold", s.state === "paid" ? "text-hiv-green" : s.state === "overdue" ? "text-rose" : "text-sub")}>{s.key === "fixes" && !s.amountCents ? "None yet" : STEP_STATE[s.state] ?? s.state}</span>
               <span className="text-xs text-sub">{STEP_HOW[s.key] ?? ""}{s.state !== "paid" && s.key !== "safety_check" && s.key !== "fixes" ? " · Xero" : ""}</span>
             </li>

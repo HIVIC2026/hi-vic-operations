@@ -15,6 +15,9 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
   const sendEnabled = i.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { done: "off", reasons: [] };
   if (!i.completed) return { done: "waiting", reasons: [] };
+  // Decision 288 (Jo 25 Oct 2026): an A1 Ready Check marked Complete with no price yet → the business owner is texted ONE
+  // link to the "Your price" card (whoever pressed Complete). Once per job; never once the price is in; never blocks.
+  if (!i.ourLead) await (await import("./boss-price-link.server")).textBossPriceLink(jobId, { auditId: i.auditId, completedAt: i.modifiedAt, entries: i.entries });
   const { held } = await import("./auto-quote-send.server");
 
   // 1. Measurements from the completed form (Mitti record for THIS form, not yet complete).

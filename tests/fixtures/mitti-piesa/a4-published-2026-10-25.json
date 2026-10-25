@@ -1,0 +1,1429 @@
+{
+ "template": {
+  "id": "eb3bf3b6-17d3-4c59-9244-5892a0ec16f5",
+  "name": "A4 \u2013 Electrical safety check (PIESA)",
+  "items": [
+   {
+    "id": "f3245d39-ea77-11e1-aff1-0800200c9a66",
+    "label": "Job",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "9bb36db0-e2e9-4e90-92e4-47702327bd8a",
+      "label": "Job Reference ID",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "a384a821-c954-4a11-b5e1-52287ea10dc7",
+      "label": "Address including postcode",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "77b9bac2-4d32-4ef6-9391-148225944559",
+      "label": "Date of inspection",
+      "children": [],
+      "datetime": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "enable_date": true,
+       "enable_time": false
+      }
+     },
+     {
+      "id": "f2095aae-b2fc-49c4-8878-151bf426dc85",
+      "label": "Photo showing you on site at the property, holding your licence / photo ID (geotagged)",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": "a5b62bc4-2d77-494b-98a6-a6852a6faec9",
+    "label": "Life support",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "6fa7786a-f1b7-42b3-8dad-67b371167f69",
+      "label": "Office life support record",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "371dcb21-3e3b-448d-b976-a563c2fe677e",
+      "label": "Is there life support equipment at the property?",
+      "children": [
+       {
+        "id": "8fcfef7e-9b66-4962-ad0e-324338c0a24c",
+        "label": "",
+        "children": [
+         {
+          "id": "d7814ee5-e49f-4c9d-8ccf-89d0829b5e3a",
+          "label": "Have you received written consent or a medical plan? Please attach a photo of it.",
+          "children": [
+           {
+            "id": "d276bc47-94f5-462b-b4a1-4148663d12cc",
+            "label": "",
+            "children": [
+             {
+              "id": "dc091eed-3feb-4853-b42f-b43e442a8016",
+              "label": "Written consent or medical plan (kept as an attachment to this assessment)",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "response_is_in": {
+              "responses": [
+               "60a80dcf-c111-499f-b82c-d7d1e8ec10b1",
+               "640769d6-2a08-45bb-a022-e637c0ecf161"
+              ]
+             },
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "9de3328d-da8d-4f96-978f-7e97cc8d58ee",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "1a84f458-2172-4a2d-95ce-389c63e20b2b"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "1011644e-ee35-43a4-89e8-d43270dc2939",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "ed5b859d-66bb-4ec7-bd70-6476a68016a8",
+    "label": "Mains power",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "a88a991f-ed46-40bc-9dec-c0d3e2761d11",
+      "label": "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.",
+      "children": [
+       {
+        "id": "3439ed7d-3d48-42f4-bff7-1e8f23141361",
+        "label": "",
+        "children": [
+         {
+          "id": "48eb6eeb-c86f-44de-824b-d56973ac5e63",
+          "list": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "ed518086-5cc5-4e49-a67f-41e5a3d66d2c",
+           "calculation_data": null,
+           "failed_responses": [],
+           "multiple_selection": true
+          },
+          "label": "Please tick each item that is not right.",
+          "children": []
+         },
+         {
+          "id": "a2b27273-7fc8-4fa7-98da-2cfc8a0df78b",
+          "label": "Photo of the problem",
+          "media": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           }
+          },
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "e7a48899-ab99-4ee8-910b-ab12691fac04"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+       "calculation_data": null,
+       "failed_responses": [
+        "e7a48899-ab99-4ee8-910b-ab12691fac04"
+       ]
+      }
+     },
+     {
+      "id": "6edb8fa0-90d9-4a12-a42a-d6a9ebe5f817",
+      "label": "Photo of the cables at the switchboard (geotagged)",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": "49155dda-d3e3-42c4-90bf-7ecf962447b5",
+    "label": "Solar, battery, generator",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "bc650f33-9cda-4238-a0f0-4b26b50e2df4",
+      "label": "Is there solar, a battery or a generator at the property?",
+      "children": [
+       {
+        "id": "51acfe43-674d-4f56-bd69-71d72c627ff2",
+        "label": "",
+        "children": [
+         {
+          "id": "8c34f80f-f077-4748-98f7-4d9eeeeff38a",
+          "label": "Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?",
+          "children": [
+           {
+            "id": "ac823fe5-0948-4f9f-b713-53244fa19756",
+            "label": "",
+            "children": [
+             {
+              "id": "47abf325-3b97-4800-b448-53399f84ef2b",
+              "list": {
+               "options": {
+                "weighting": 1,
+                "is_mandatory": true
+               },
+               "response_set_id": "0118d142-d9f0-453a-a9db-0796bec23fff",
+               "calculation_data": null,
+               "failed_responses": [],
+               "multiple_selection": true
+              },
+              "label": "Please tick each item that is not right.",
+              "children": []
+             },
+             {
+              "id": "f8e8a6db-ff14-4d66-bdfe-3444ef77083c",
+              "label": "Photo of the problem",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "e7a48899-ab99-4ee8-910b-ab12691fac04"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+           "calculation_data": null,
+           "failed_responses": [
+            "e7a48899-ab99-4ee8-910b-ab12691fac04"
+           ]
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "1a84f458-2172-4a2d-95ce-389c63e20b2b"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "1011644e-ee35-43a4-89e8-d43270dc2939",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "77c635c9-1a27-4842-90e6-b6b67d730470",
+    "label": "Ceiling wiring",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "a01bb468-d5ae-47ac-ada9-4127af54bbab",
+      "label": "Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?",
+      "children": [
+       {
+        "id": "c7f14684-0fb2-495e-b074-10e656d87175",
+        "label": "",
+        "children": [
+         {
+          "id": "9cb2bb0f-1e4c-49cc-aa1a-833a7a5f6f46",
+          "list": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "457379cd-7c99-4b8b-91a2-c93ad23bae19",
+           "calculation_data": null,
+           "failed_responses": [],
+           "multiple_selection": true
+          },
+          "label": "Please tick each problem you found.",
+          "children": []
+         },
+         {
+          "id": "d7b6b0fc-469c-4501-a632-2e59e5b45948",
+          "label": "Photo of the problem",
+          "media": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           }
+          },
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "e7a48899-ab99-4ee8-910b-ab12691fac04"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+       "calculation_data": null,
+       "failed_responses": [
+        "e7a48899-ab99-4ee8-910b-ab12691fac04"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "f38b4d93-50b3-44f0-8f9d-9aa5576c1f82",
+    "label": "Lights and appliances",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "a228f6f7-eea2-4164-b475-aeb2f74bc705",
+      "label": "Are there any downlights or other recessed lights in the ceiling?",
+      "children": [
+       {
+        "id": "c82cdde3-4a7b-4e5c-94e4-eb3946cfe75b",
+        "label": "",
+        "children": [
+         {
+          "id": "53eeedbd-a3c5-4c35-b752-464525d8c987",
+          "label": "How many are there?",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "NUMBER",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         },
+         {
+          "id": "17f0bfff-d44f-498d-8668-277d888523b3",
+          "label": "Are any of them not IC or IC-4 rated?",
+          "children": [
+           {
+            "id": "1f400339-5e1e-4146-83c9-191e938eff46",
+            "label": "",
+            "children": [
+             {
+              "id": "ed68a434-16c1-44aa-810d-6fec486925a9",
+              "label": "How many are not IC or IC-4 rated?",
+              "children": [],
+              "textsingle": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               },
+               "text_format": "NUMBER",
+               "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+               "calculation_data": null,
+               "reading_config_id": ""
+              }
+             },
+             {
+              "id": "e7e719a5-b494-4a5f-8248-3b500affb62e",
+              "label": "Photo of the problem",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "672ec868-bb1b-4386-a124-2c6f1d2f0b55"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "08be99de-baac-4431-8cc8-72a611a4dd84",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "1a84f458-2172-4a2d-95ce-389c63e20b2b"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "1011644e-ee35-43a4-89e8-d43270dc2939",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "5531a784-0546-4337-aeb7-00c1d611cb0e",
+      "label": "Are there any appliances, exhaust fans or flues in the ceiling space?",
+      "children": [
+       {
+        "id": "55ed5886-82de-471f-bd3c-838d15710511",
+        "label": "",
+        "children": [
+         {
+          "id": "8b96124b-bd9c-406b-9f20-9982d1913b87",
+          "label": "Add an appliance or flue",
+          "children": [
+           {
+            "id": "cc1a19d7-9948-42ca-8f27-4bf5ad6cba72",
+            "label": "One per appliance, exhaust fan or flue. Answer No if it needs work or clearance before insulation goes in \u2014 list that work under repair work.",
+            "children": [],
+            "instruction": {
+             "text": {}
+            }
+           },
+           {
+            "id": "e5ddd9af-2a45-4fed-bb48-314fd6713c17",
+            "label": "What is it and where is it?",
+            "children": [],
+            "textsingle": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             },
+             "text_format": "TEXT",
+             "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+             "calculation_data": null,
+             "reading_config_id": ""
+            }
+           },
+           {
+            "id": "afad14f9-34bb-4192-b2c1-6f30736ff1b3",
+            "label": "Photo of it",
+            "media": {
+             "options": {
+              "weighting": null,
+              "is_mandatory": true
+             }
+            },
+            "children": []
+           },
+           {
+            "id": "bf0997e1-fe64-4cd5-8fa7-cbd211f86ef5",
+            "label": "Can insulation be safely installed around it as it is?",
+            "children": [],
+            "question": {
+             "options": {
+              "weighting": 1,
+              "is_mandatory": true
+             },
+             "response_set_id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+             "calculation_data": null,
+             "failed_responses": [
+              "e7a48899-ab99-4ee8-910b-ab12691fac04"
+             ]
+            }
+           }
+          ],
+          "dynamicfield": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": false
+           }
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "672ec868-bb1b-4386-a124-2c6f1d2f0b55"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "08be99de-baac-4431-8cc8-72a611a4dd84",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "c1c9c4c7-1cca-4450-976b-3ba9ae209392",
+    "label": "Repair work",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "65a1625e-0f59-42bc-91c9-e0266439643f",
+      "label": "Is any electrical repair work needed before insulation can be installed?",
+      "children": [
+       {
+        "id": "93102aeb-d193-431d-a66a-99d20dfc38de",
+        "label": "",
+        "children": [
+         {
+          "id": "babc7ed3-c414-4138-af28-a2fdba7e4ff6",
+          "label": "Can the repair work be done before installation?",
+          "children": [],
+          "question": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+           "calculation_data": null,
+           "failed_responses": [
+            "e7a48899-ab99-4ee8-910b-ab12691fac04"
+           ]
+          }
+         },
+         {
+          "id": "8a5c5399-84db-45dc-8028-911a85d5353d",
+          "label": "No means an electrician must be present on installation day instead.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         },
+         {
+          "id": "48f80d5b-6bdd-4429-abfc-f2d37d3596a3",
+          "list": {
+           "options": {
+            "weighting": 1,
+            "is_mandatory": true
+           },
+           "response_set_id": "80819286-e308-43fd-9c95-0262014991aa",
+           "calculation_data": null,
+           "failed_responses": [],
+           "multiple_selection": true
+          },
+          "label": "Please tick the repair work that is required.",
+          "children": []
+         },
+         {
+          "id": "0d687110-98ea-4401-bbf9-8875e51f9f53",
+          "label": "Please describe the other repair work.",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "672ec868-bb1b-4386-a124-2c6f1d2f0b55"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       },
+       "response_set_id": "08be99de-baac-4431-8cc8-72a611a4dd84",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "2d89fc06-5b3f-4cac-a240-fb7458705054",
+    "label": "Electrician declaration",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "50a4c886-1d70-473d-9177-3f203c79ee1c",
+      "label": "Electrician licence number",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "e6c0b8d9-2586-4ba2-b4e6-6898de3fe510",
+      "label": "Electrician full name",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "c2d12dc3-6462-477b-959a-3c14deaa040b",
+      "label": "Electrical contractor (REC) business name",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "86c70434-f06b-4127-803b-83f4beb9d738",
+      "label": "REC registration number",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "489c5350-679f-45fd-825a-23cff713a48d",
+      "label": "Electrician phone",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "6609b65c-be7f-42e6-b571-c3fc6ae2142b",
+      "label": "I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission",
+      "checkbox": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "d2b450d1-2ecf-4549-881d-6768599d0608",
+      "label": "Electrician signature",
+      "children": [],
+      "signature": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "media": [],
+  "owner": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "author": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "added_at": "2026-10-25T00:15:14.644Z",
+  "archived": false,
+  "settings": {
+   "is_add_note_disabled": false,
+   "is_attach_media_disabled": false,
+   "is_create_action_disabled": false,
+   "is_inspection_completion_dialog_confirmation_disabled": false
+  },
+  "last_used": "2026-10-25T01:57:52Z",
+  "created_at": "2026-10-25T00:15:14.644Z",
+  "description": "",
+  "modified_at": "2026-10-25T02:06:01.490Z",
+  "permissions": {
+   "edit": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "view": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "owner": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    }
+   ],
+   "delete": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "context": [
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ]
+  },
+  "revision_id": "8-fd20347e8c0545d4917370a4537b44c6",
+  "title_rules": [
+   "9bb36db0-e2e9-4e90-92e4-47702327bd8a",
+   "a384a821-c954-4a11-b5e1-52287ea10dc7"
+  ],
+  "access_level": "ACCESS_LEVEL_DELETE",
+  "revision_key": "9a916c41-49bc-425c-a2ee-7bebe9d84d6c",
+  "response_sets": [
+   {
+    "id": "80819286-e308-43fd-9c95-0262014991aa",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "65ceabf4-a776-4800-88f6-535f45668f47",
+      "color": "198,0,34",
+      "label": "Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or \u2018do-not-cover\u2019 light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "c49e2c2b-a798-4c47-afe7-6fa17cbef2ec",
+      "color": "198,0,34",
+      "label": "Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated)",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "014cac32-87e3-45a3-b714-70439a828a78",
+      "color": "198,0,34",
+      "label": "Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6a22ec3b-540c-4845-b96e-dd1b39d3a2ad",
+      "color": "198,0,34",
+      "label": "Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "650519b6-2f26-465e-bb39-1334687cf201",
+      "color": "198,0,34",
+      "label": "Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5bbcab76-b26b-43d2-b374-f0e5413aac9d",
+      "color": "198,0,34",
+      "label": "Other (indicate below):",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "9de3328d-da8d-4f96-978f-7e97cc8d58ee",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "60a80dcf-c111-499f-b82c-d7d1e8ec10b1",
+      "color": "112,112,112",
+      "label": "Yes \u2013 received Consent",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "640769d6-2a08-45bb-a022-e637c0ecf161",
+      "color": "112,112,112",
+      "label": "Yes \u2013 received Medical Plan",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "a912cd67-ff73-4b12-8a33-9477b736bb3a",
+      "color": "198,0,34",
+      "label": "No \u2013 not received",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
+      "color": "19,133,95",
+      "label": "Pass",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
+      "color": "198,0,34",
+      "label": "Fail",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "ed518086-5cc5-4e49-a67f-41e5a3d66d2c",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "a41812ff-cba1-449c-9b00-e6fd3793fb36",
+      "color": "198,0,34",
+      "label": "The mains cable in the ceiling has not been identified and marked.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2277f989-6c49-46d4-8e36-061de22abec3",
+      "color": "198,0,34",
+      "label": "The main switch is not accessible or does not work.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2adb62cc-6388-4b0e-ad5f-7f5ac9331640",
+      "color": "198,0,34",
+      "label": "The main switch cannot isolate all of the cables in the ceiling space safely.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1142c03a-66cc-449e-b64e-57c5655841b1",
+      "color": "198,0,34",
+      "label": "The main switch cannot be secured in the off position.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "03786f1f-4625-4c8a-bd0f-49ed32835ffc",
+      "color": "198,0,34",
+      "label": "Testing has not confirmed that the ceiling is dead when the main switch is off.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "cb82c8b9-5bd4-495b-925a-4538e006a028",
+      "color": "198,0,34",
+      "label": "Safety switches (RCDs) are missing for the circuits in the ceiling area.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "8c79cc84-5f31-45ff-908e-c9378cfe63c9",
+      "color": "198,0,34",
+      "label": "The safety switches (RCDs) have not been tested.",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "08be99de-baac-4431-8cc8-72a611a4dd84",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "672ec868-bb1b-4386-a124-2c6f1d2f0b55",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "bece295c-6c39-44a7-bb07-817588cd340b",
+      "color": "112,112,112",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "1011644e-ee35-43a4-89e8-d43270dc2939",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "1a84f458-2172-4a2d-95ce-389c63e20b2b",
+      "color": "112,112,112",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "d0063569-1030-46e0-adaf-30902a0a93b9",
+      "color": "112,112,112",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "379d6993-03e7-463f-8918-a1437d246f8e",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "78c49ca3-ed6c-4988-a396-c1d0cce69775",
+      "color": "112,112,112",
+      "label": "No repair work is needed",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "fd8d4af6-f98b-4026-8ff9-4910850be840",
+      "color": "198,0,34",
+      "label": "Yes, repair work is needed",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3dbf2384-ea4e-4a7b-84f0-87f08dacc5a7",
+      "color": "198,0,34",
+      "label": "Repair work is not possible, so an electrician must be present on installation day",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "457379cd-7c99-4b8b-91a2-c93ad23bae19",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "b3df043f-8817-4b9a-9c21-bb89160e4e6c",
+      "color": "198,0,34",
+      "label": "There is electrically conductive conduit in the ceiling.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "b2360f1e-17cc-45ee-b1dc-826376688e62",
+      "color": "198,0,34",
+      "label": "The cables are not supported, or are run in a way that risks damage during the installation.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "24e035a7-a0cf-4ec3-985b-edf4ea5a86a0",
+      "color": "198,0,34",
+      "label": "Cables that will be surrounded by insulation do not meet the wiring rules for that situation.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ac205b84-c7f8-4b46-956d-80a2e09de4e2",
+      "color": "198,0,34",
+      "label": "Thermoplastic (TPS) cables in the ceiling are deteriorated or damaged.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5c0113cd-c0f4-4fc4-9735-e8df45e52cb8",
+      "color": "198,0,34",
+      "label": "Connections or terminations in the ceiling are exposed or not securely enclosed.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "4b09a778-bcdb-4ff1-abc6-5003d803e087",
+      "color": "198,0,34",
+      "label": "Plug bases for lights or fans are loose in the ceiling.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3781a871-7976-47de-a45c-edade105d50f",
+      "color": "198,0,34",
+      "label": "Foil-backed or electrically conductive insulation is present and has not been confirmed as not live.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "b95ffcb0-030b-4e61-9c8e-0fc16cdfdb1d",
+      "color": "198,0,34",
+      "label": "There are mains-connected cables in the ceiling that are not TPS.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "d3d04cd3-313e-48c5-ac4e-fe9ee2351f2c",
+      "color": "198,0,34",
+      "label": "There is split metal conduit wiring in the ceiling.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "9af07d5d-51bc-4a0e-948e-4084ceda91fd",
+      "color": "198,0,34",
+      "label": "There are damaged or deteriorated cables in the ceiling.",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "c6c011ed-4ade-460d-a04b-da730834b667",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "060ace00-1f61-468e-9c42-918fa93badcf",
+      "color": "19,133,95",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace01-1f61-468e-9c42-918fa93badcf",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace02-1f61-468e-9c42-918fa93badcf",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "d743f356-a147-472c-a790-0c46a187de92",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
+      "color": "19,133,95",
+      "label": "Compliant",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
+      "color": "198,0,34",
+      "label": "Non-Compliant",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "0118d142-d9f0-453a-a9db-0796bec23fff",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "4e32248a-be7a-4c42-9c43-7c264cc994a9",
+      "color": "198,0,34",
+      "label": "There are no instructions for safely shutting down and restarting the system.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "040cdb37-2e71-4eee-b8fc-8cd0af1fa658",
+      "color": "198,0,34",
+      "label": "The isolator is not accessible, not working, or cannot be switched off safely.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "41cea18a-2ad0-4e91-ba28-f72c30b4e2b4",
+      "color": "198,0,34",
+      "label": "The system cables in the ceiling are not in conduit or are not clearly labelled.",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "1ebf51fe-4bb7-45a7-bf13-1cdbdde34fc2",
+      "color": "198,0,34",
+      "label": "The system cables in the ceiling are not protected or supported where they could be damaged.",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "2ec1723e-4eb5-4c3d-9559-280f67c15772",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "c648b11f-c712-4c8d-b534-427d11df7f1a",
+      "color": "112,112,112",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "e7a48899-ab99-4ee8-910b-ab12691fac04",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "5b69aee5-0532-46a4-b2f5-d020d4d5381d",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca20",
+      "color": "19,133,95",
+      "label": "Good",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca21",
+      "color": "255,176,0",
+      "label": "Fair",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca22",
+      "color": "198,0,34",
+      "label": "Poor",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca23",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "7601fb75-80ae-4409-b31a-9acd58d45445",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "af89ffa0-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "19,133,95",
+      "label": "Safe",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa1-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "198,0,34",
+      "label": "At Risk",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa2-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   }
+  ],
+  "document_links": [],
+  "format_version": "FORMAT_VERSION_3",
+  "metadata_image": null,
+  "translation_id": "",
+  "draft_author_name": "",
+  "origin_information": null,
+  "date_draft_modified": "1970-01-01T00:00:00Z",
+  "global_response_sets": [],
+  "mandatory_mark_as_complete": false,
+  "procurement_order_settings": null,
+  "is_locked_from_shared_library": false,
+  "support_site_as_question_type": true
+ }
+}

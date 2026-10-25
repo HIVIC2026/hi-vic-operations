@@ -2,7 +2,7 @@
 // Required items only. Mitti templates are built in the Mitti UI; this spec is the build sheet
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
-export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa";
+export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa" | "fixes";
 export type FieldType = "text" | "phone" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime" | "date" | "tick" | "statement";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
@@ -16,6 +16,8 @@ export type FormField = {
   /** Required only when none of these labels exist in the form (the form captures the answer another way). */
   notRequiredIf?: string[];
   perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
+  /** The same question may appear up to this many times (e.g. "Photo of the problem" under each hazard section, decision 297). */
+  repeats?: number;
   /** Official item id (PIESA/PIISA). */ id?: string;
   /** Official repeating table row. */ row?: { group: string; rows: number };
   /** Printed heading/statement: reproduced verbatim, never answered. */ statement?: "heading" | "statement";
@@ -26,6 +28,7 @@ import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
+import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
 import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
 const G = "ESC Guide V1.1";
@@ -51,7 +54,9 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 // accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes" } : e.id === "ces_file" ? { when: "Repair work was completed (Section C answered)" } : {}),
+  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
+  // the A5 fixes form, never on the PIESA visit.
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A5 fixes form (decision 298)", required: false } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
@@ -122,8 +127,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   // Page 3 — Roof and access
   { label: LEAN_Q.roofType, type: "choice", required: true, choices: [...ROOF_OPTIONS], aliases: al("roofType"), source: "portal – notes for the install crew (no describe box)" },
   { label: LEAN_Q.access, type: "choice", required: true, choices: [...ACCESS_OPTIONS], aliases: al("access"), source: "portal – access_difficulty; No safe access = difficult + hard stop (decision 222). Mitti: note required on Difficult and No safe access" },
-  { label: LEAN_Q.accessCharge, type: "yesno", required: true, choices: [...YES_NO], when: `${LEAN_Q.access} = Difficult`, source: "portal – difficultAccessFee" },
-  { label: LEAN_Q.accessFee, type: "number", required: true, when: `${LEAN_Q.accessCharge} = Yes`, types: ["text"], source: "portal – A1: inside the installer total (shown on the owner line); A2: the installer's charge to Home Insulation Victoria, becomes the owner's DIFFICULT_ACCESS line" },
+  // Decision 290 (corrected): no "difficult access charge" / "fee" questions on either template — the rating above, the access photo and the issues note are the flag.
   { label: LEAN_Q.accessPhoto, type: "media", required: false, aliases: al("accessPhoto"), source: `${G} Table 4 access evidence – optional on the form (Jo 23 Oct); missing = install-day photo lock` },
   // Page 4 — Ceiling areas: ONE repeating group "Add a ceiling area"
   { label: LEAN_Q.areaName, type: "text", required: true, perArea: true, aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222)` },
@@ -157,6 +161,12 @@ const A2_NO_PRICING_TICK: FormField = { label: LEAN_Q.noPricingTick, type: "tick
 const SIGNATURE_A1: FormField = { label: LEAN_Q.signatureA1, type: "signature", required: true, aliases: [...al("signatureA1"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
 const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", required: true, aliases: [...al("signatureA2"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
 
+const FIXES_TYPE: Record<FixesDayType, FieldType> = { text: "text", date: "date", yes_no: "yesno", photo: "media", signature: "signature" };
+function fixesField(q: (typeof FIXES_DAY_QUESTIONS)[number]): FormField {
+  const when = q.showWhen ? `${FIXES_DAY_QUESTIONS.find((x) => x.n === q.showWhen!.n)!.label} = ${q.showWhen.is.join(" / ")}` : undefined;
+  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
+}
+
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
   // Form A2 — we bring the customer: evidence only, no pricing (owner is quoted at our set price) + the no-pricing tick.
   ready_check: {
@@ -175,6 +185,8 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
   piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
   piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS.slice(0, -3), ...PIISA_DECLARATION_FIELDS, ...SHORT_PIISA_FIELDS.slice(-3), ...PIISA_SUPPLEMENTAL] },
+  // Decision 293 (Jo 25 Oct 2026): the electrician's fixes-day form for repair work done on a later visit (docs/MITTI_FIXES_FORM_PROMPT.md).
+  fixes: { title: FIXES_DAY_TEMPLATE_NAME, role: "electrician", fields: FIXES_DAY_QUESTIONS.map(fixesField) },
 };
 
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded). */
@@ -227,7 +239,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
     const hits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
     if (hits.length === 0) { if (!optional(f)) issues.push(`Missing: ${f.label}`); continue; }
     const exp = expected.get(norm(f.label)) ?? 0;
-    const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0);
+    const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0) + (f.repeats ? f.repeats - 1 : 0);
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length > exp + rowCap) { if (!checked.has(norm(f.label))) issues.push(`Duplicate: ${f.label}`); checked.add(norm(f.label)); continue; }
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && !optional(f)) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
     if (hits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
@@ -247,7 +259,9 @@ export function buildSheet(key: FormKey): string {
 }
 
 /** Flattens a v1 template definition into {label,type}. The item type is its type-named key (e.g. "textsingle"). */
-const NON_QUESTION = new Set(["section", "category", "instruction", "logicfield"]);
+// `dynamicfield` is the repeating "Add a ceiling area" block (decision 222): a container, never a question. Without it the
+// lean Ready Check templates read as "unreadable" and the saved-form health check could prove nothing about them.
+const NON_QUESTION = new Set(["section", "category", "instruction", "logicfield", "dynamicfield"]);
 /**
  * Template questions from header_items + items (nested children or flat parent_id), typed deterministically by
  * mittiItemType (explicit `type`, else a known Mitti type key — never "first object-valued property", so

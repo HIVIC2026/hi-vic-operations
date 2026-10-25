@@ -219,7 +219,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const textFails = opts.onlyIds ? [] : await all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("id, detail, melbourne_date, businesses(name)").eq("status", "failed").is("acknowledged_at", null).range(a, b)); // eslint-disable-line @typescript-eslint/no-explicit-any
   const { movedFromTodo } = await import("./needs-me.core");
   const moved = opts.onlyIds ? [] : movedFromTodo({
-    formIds: ((await admin.from("workflow_settings").select("mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id").eq("id", 1).maybeSingle()).data as Record<string, string | null> | null),
+    formIds: ((await admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle()).data as unknown as Record<string, string | null> | null), // whole row: the decision-293 fixes column may not exist yet
     pendingWorkers: await all("pending workers", (a, b) => admin.from("partner_workers").select("id, full_legal_name, businesses(name)").eq("approval_status", "pending").is("removed_at", null).range(a, b)).then((rows) => rows.map((w) => ({ id: String(w["id"]), full_legal_name: (w["full_legal_name"] as string | null) ?? null, business: (w["businesses"] as { name?: string } | null)?.name ?? null }))),
   });
   const dts = opts.onlyIds ? null : await (await import("./daily-mitti-text.server")).dailyTextSettings();

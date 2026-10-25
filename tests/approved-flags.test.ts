@@ -71,6 +71,7 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   install_clearance: "186",
   ready_check_days_suggested: "79 (A)", ready_check_booked_installer: "82 (installer booked, A)", install_tomorrow: "99 (installer day before)",
   team_member_invite: "251 (draft) / 252 (approved as written)",
+  boss_price_link: "288 (boss price link; wording in boss-price-link.core.ts)",
 };
 
 describe("approved message switches are on (Jo 24 Oct 2026)", () => {
@@ -82,7 +83,7 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
       expect(SMS_MESSAGE_TYPES[type as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(true);
     });
   }
-  test("every SMS type is approved (the Ready Check booking text was removed by decision 171)", () => {
+  test("every SMS type is approved (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
     expect(off).toEqual([]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);

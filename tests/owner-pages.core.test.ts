@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { CONSUMER_DECLARATION } from "../src/lib/veec-assignment-form.core";
 import { OWNER_DECLARATIONS } from "../src/lib/consent.core";
 import { COLLECTION_NOTICE_ACK_TEXT } from "../src/lib/esc-collection-notice.core";
-import { P1, P2, P3, P4, P5, THIRTY_DAY_CLOCK, OWNER_PAGE_FOOTER, centsAud, clock, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "../src/lib/owner-pages.core";
+import { P1, P2, P3, P4, P5, P6, THIRTY_DAY_CLOCK, OWNER_PAGE_FOOTER, centsAud, clock, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "../src/lib/owner-pages.core";
 
 const approved = (f: string) => readFileSync(`docs/templates/approved/${f}`, "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓").replace(/&#9200;/g, "⏰").replace(/&amp;/g, "&");
 const inApproved = (f: string, texts: string[]) => { const html = approved(f); for (const t of texts) expect(html).toContain(t); };
@@ -18,7 +18,9 @@ describe("approved page wording", () => {
     // The page shows the official form text; the two bullets naming the AP carry its full registered name there, the mock-up shortened it.
     ...declarationBullets(CONSUMER_DECLARATION).filter((b) => !b.includes("(DC Construction"))]));
   test("P5 installer privacy notice page", () => inApproved("P5-installer-privacy-notice.html", [P5.title, P5.sub, P5.yourInstallers, COLLECTION_NOTICE_ACK_TEXT, P5.note + "<b>" + P5.noteTeam + "</b>" + P5.noteEnd, P5.button, "Acknowledged 24 Oct 2026, 2:15pm", P5.leadSuffix]));
-  test("footer line on P2–P4", () => { for (const f of ["P2-quote-accept-page.html", "P3-owner-consent-page.html", "P4-veec-sign-page.html"]) expect(approved(f)).toContain(OWNER_PAGE_FOOTER); });
+  test("footer line on P2–P4 and P6", () => { for (const f of ["P2-quote-accept-page.html", "P3-owner-consent-page.html", "P4-veec-sign-page.html", "P6-piesa-confirm-page.html"]) expect(approved(f)).toContain(OWNER_PAGE_FOOTER); });
+  // P6 (decision 296, owner confirms the PIESA by secure link) is pinned line by line in tests/piesa-owner-confirm.test.ts.
+  test("P6 PIESA confirmation page", () => inApproved("P6-piesa-confirm-page.html", [P6.kicker, P6.title, P6.formEyebrow, P6.button, P6.lockHint, P6.afterNote, P6.confirmedTitle]));
   test("decision 137: the 30-day clock wording matches the approved emails", () => {
     const o26 = approved("O26-safety-check-times.html"); const o29 = approved("O29-fixes-quote.html");
     expect(o26).toContain(THIRTY_DAY_CLOCK.title); expect(o26).toContain(`<strong>${THIRTY_DAY_CLOCK.lead}</strong>${THIRTY_DAY_CLOCK.body}`);

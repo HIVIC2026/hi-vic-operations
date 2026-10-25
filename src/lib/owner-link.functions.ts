@@ -74,14 +74,18 @@ export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware
     const jobId = await ownerJobId(data.token);
     if (!jobId) return null;
     const [{ ownerPiesaWindowState }, { ownerInstallDayState }] = await Promise.all([import("./allocation.server"), import("./install-days.server")]);
-    const [piesa, install] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId)]);
-    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })) }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
+    const { ownerThirtyDayAckState } = await import("./thirty-day-ack.server");
+    const [piesa, install, ack] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId)]);
+    return JSON.parse(JSON.stringify({ piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording } }, install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt } }));
   });
 
+/** Decision 307 (Jo 25 Oct 2026): the owner must tick the 30-day-rule box (`understandsThirtyDays: true`) before the
+ *  first PIESA times of each PIESA cycle; refused otherwise, recorded once per cycle (thirty-day-ack.server). */
 export const ownerChoosePiesaFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, session, picks }).parse(d))
-  .handler(async ({ data }) => {
+  .inputValidator((d) => z.object({ token, session, picks, understandsThirtyDays: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId: s.jobId, userId: s.userId, understandsThirtyDays: data.understandsThirtyDays, ip: context.ip, userAgent: context.userAgent });
     return (await import("./allocation.server")).submitOwnerPiesaWindows(s.jobId, s.userId, data.picks);
   });
 
@@ -179,6 +183,30 @@ export const ownerSignVeecAssignmentFn = createServerFn({ method: "POST" }).midd
     // Executed copy to the owner (within 10 business days): best-effort now, the 15-minute tick retries until sent.
     try { await (await import("./veec-copy-email.server")).sendVeecCopyEmail(s.jobId); } catch (e) { console.error("VEEC copy email failed", (e as Error).message); }
     return { ok: true };
+  });
+
+/** Decision 296: what the owner confirms about the electrician's PIESA (date, electrician, result, warning) — null when there is no PIESA yet. Link token only (read). */
+export const ownerPiesaConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { ownerPiesaConfirmFacts } = await import("./piesa-owner-confirm.server");
+    const { piesaConfirmPage } = await import("./piesa-owner-confirm.core");
+    const facts = await ownerPiesaConfirmFacts(jobId);
+    return facts ? JSON.parse(JSON.stringify(piesaConfirmPage(facts))) as ReturnType<typeof piesaConfirmPage> : null;
+  });
+
+/** Decision 296: the owner confirms the PIESA via the secure link (typed full name = signature, one tick). Idempotent per PIESA.
+ *  Decision 306 (Jo 25 Oct 2026): "Drop the code" — the secure link alone, no 6-digit code. */
+export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, ...signer, confirmed: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    const { signOwnerPiesaConfirmation } = await import("./piesa-owner-confirm.server");
+    return signOwnerPiesaConfirmation({ jobId, userId: null, codeId: null, fullName: data.signatoryName, signatureName: data.signatureName, authority: data.authorityType, confirmed: data.confirmed, ip: context.ip, userAgent: context.userAgent });
   });
 
 /** Decision 144: owner "Pay now by card" → Stripe Checkout for the step that is due ($349 safety check or electrical fixes only).

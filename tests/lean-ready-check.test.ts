@@ -217,9 +217,16 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
   test("A1 (ready_check_priced) and A2 (ready_check) lean templates pass with no issues; counts match the prompt", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
-    // Decision 278: A1 lost its quote page (7 questions) — 36 questions; A2 keeps the no-pricing tick — 37.
-    expect(leanQuestionCount("ready_check_priced")).toBe(36);
-    expect(leanQuestionCount("ready_check")).toBe(37);
+    // Decision 278: A1 lost its quote page (7 questions); decision 290 (corrected): both lost the access charge/fee pair
+    // — A1 34 questions; A2 keeps the no-pricing tick — 35.
+    expect(leanQuestionCount("ready_check_priced")).toBe(34);
+    expect(leanQuestionCount("ready_check")).toBe(35);
+    for (const key of ["ready_check", "ready_check_priced"] as const) {
+      const labels = FORMS[key].fields.map((f) => f.label);
+      expect(labels).not.toContain(LEAN_REMOVE.accessCharge);
+      expect(labels).not.toContain(LEAN_REMOVE.accessFee);
+      expect(labels).toContain(LEAN_Q.access); // the rating stays: it IS the flag
+    }
   });
   test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
     const f = FORMS.ready_check.fields;
@@ -275,7 +282,7 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
   const A1 = load("a1-published-r35.json"), A2 = load("a2-published-r13.json"), A1_OLD = load("a1-old-r34.json"), A2_OLD = load("a2-old-r12.json");
   test("22 Oct A1: every old wording is recognised; only questions the lean form ADDS are reported missing", () => {
     expect(validateTemplate("ready_check_priced", flattenDefinition(A1)).issues).toEqual([
-      `Missing: ${LEAN_Q.builtLast5}`, `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.accessCharge}`, `Missing: ${LEAN_Q.accessFee}`, `Missing: ${LEAN_Q.issueNote}`, `Missing: ${LEAN_Q.product}`,
+      `Missing: ${LEAN_Q.builtLast5}`, `Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issueNote}`, `Missing: ${LEAN_Q.product}`,
     ]);
   });
   test("22 Oct A2 (fixture carries only the first-branch items): no 'Wrong type' or 'Duplicate', only genuinely absent questions", () => {
@@ -341,14 +348,29 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
 describe("docs/MITTI_READY_CHECK_PRICE_PROMPT.md (decision 278): delete the A1 quote page, nothing else", () => {
   const prompt = readFileSync("docs/MITTI_READY_CHECK_PRICE_PROMPT.md", "utf8");
   const body = prompt.slice(prompt.indexOf("\n---\n"));
-  test("names A1 only, the page and its seven questions verbatim, the A1 access-fee help text, and adds nothing", () => {
-    expect(body).toContain("Edit ONLY the Mitti template `A1 – Ready Check | Installer-Supplied Customer`");
-    expect(body).toContain("Do NOT touch\n`A2 – Ready Check | HIVIC Sourced Customer`");
+  test("names A1 first, the page and its seven questions verbatim, deletes the access charge/fee pair on both (decision 290), and adds nothing", () => {
+    expect(body).toContain("Edit the Mitti template `A1 – Ready Check | Installer-Supplied Customer`");
     expect(body).toContain(`DELETE the whole page/section \`${A1_QUOTE_PAGE}\``);
     for (const q of A1_QUOTE_QUESTIONS) expect(body, q).toContain(`- \`${q}\``);
-    expect(body).toContain(`\`${LEAN_HELP.accessFeeA1}\``);
+    // Decision 290 (corrected): the fee pair goes from BOTH templates; nothing replaces it; no help text about a fee remains.
+    expect(body).toContain(`DELETE the questions \`${LEAN_REMOVE.accessCharge}\` and \`${LEAN_REMOVE.accessFee}\``);
+    expect(body).toContain("on BOTH templates");
+    expect(body).not.toMatch(/REPLACE the A1 help text|Difficult access\?|Why\?/);
     expect(body).toContain("Do NOT add anything in its place");
     expect(body).toContain(`${leanQuestionCount("ready_check_priced")} questions`);
+    expect(body).toContain(`${leanQuestionCount("ready_check")} questions`);
+  });
+});
+
+describe("docs/MITTI_READY_CHECK_ONE_PROMPT.md (the prompt Jo runs) agrees with the contracts", () => {
+  const prompt = readFileSync("docs/MITTI_READY_CHECK_ONE_PROMPT.md", "utf8");
+  const body = prompt.slice(prompt.indexOf("\n---\n"));
+  test("item 6 deletes the access charge/fee pair on both templates and adds nothing (decision 290, corrected)", () => {
+    expect(body).toContain(`6. In BOTH templates, DELETE the question \`${LEAN_REMOVE.accessCharge}\` and the question \`${LEAN_REMOVE.accessFee}\``);
+    expect(body).not.toMatch(/Difficult access\?|Why\?|REPLACE the A1 help text|Included in the price your business owner enters/);
+    for (const q of A1_QUOTE_QUESTIONS) expect(body, q).toContain(`- \`${q}\``);
+    expect(body).toContain(`DELETE the whole page/section \`${A1_QUOTE_PAGE}\``);
+    expect(body).toContain(`\`${LEAN_Q.access}\``);
   });
 });
 
@@ -357,7 +379,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   const body = prompt.slice(prompt.indexOf("\n---\n"));
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
-    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessCharge", "accessFee", "accessPhoto",
+    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
       "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "signatureA1", "signatureA2"];
     expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length); // every LEAN_Q key but the legacy m² entry and the deleted A1 quote page (decision 278)
@@ -386,7 +408,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
     expect(body).toContain(`\`${AREA_GROUP_BUTTON}\``);
   });
   test("the REMOVE list (§6.5): all 22 / 21 sketch copies, the fixed area copies 2–22, every dead question", () => {
-    for (const r of [LEAN_REMOVE.sketchA1, LEAN_REMOVE.sketchA2, LEAN_REMOVE.depthMm, LEAN_REMOVE.describeType, LEAN_REMOVE.pleaseExplain, LEAN_REMOVE.howMany, LEAN_REMOVE.clickOnMe, LEAN_REMOVE.propertyTypeOther, LEAN_REMOVE.describeRoof, LEAN_REMOVE.explainDifficult, LEAN_REMOVE.explainNoSafe, LEAN_REMOVE.includedDifficultAccess]) expect(body, r).toContain(`\`${r}\``);
+    for (const r of [LEAN_REMOVE.sketchA1, LEAN_REMOVE.sketchA2, LEAN_REMOVE.depthMm, LEAN_REMOVE.describeType, LEAN_REMOVE.pleaseExplain, LEAN_REMOVE.howMany, LEAN_REMOVE.clickOnMe, LEAN_REMOVE.propertyTypeOther, LEAN_REMOVE.describeRoof, LEAN_REMOVE.explainDifficult, LEAN_REMOVE.explainNoSafe, LEAN_REMOVE.includedDifficultAccess, LEAN_REMOVE.accessCharge, LEAN_REMOVE.accessFee]) expect(body, r).toContain(`\`${r}\``);
     expect(body).toContain(`\`${LEAN_REMOVE.areaHeading(1)}\``);
     expect(body).toContain(`\`${LEAN_REMOVE.areaHeading(6)}\``);
     expect(body).toContain(`${LEAN_REMOVE_COPIES.a1} old A1 area blocks and ${LEAN_REMOVE_COPIES.a2} old A2 area blocks`);

@@ -4,9 +4,9 @@
 >
 > | # | Evidence | When it is required | Checked by the portal |
 > |---|---|---|---|
-> | 42 | Photo of the cables at the switchboard (geotagged) | Always | Present **and** geotagged |
-> | 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Always | Present **and** geotagged |
-> | 44 | Photo of each hazard listed (one per hazard; geotagged) | Only when any hazard was answered Yes (mains/solar/ceiling not safe, non-IC downlights, appliances/flues) | One photo per hazard listed, all geotagged |
+> | 42 | Photo of the cables at the switchboard (geotagged) — on the Mains page | Always | Present **and** geotagged |
+> | 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) — on the Job page | Always | Present **and** geotagged |
+> | 44 | Photo of the problem (one question under each hazard section: mains Q8 = No, solar Q11 = No, ceiling Q13 = No, downlights Q17 = Yes; decision 297) | Only when any hazard was answered Yes (mains/solar/ceiling not safe, non-IC downlights, appliances/flues) | One photo per hazard listed, all geotagged |
 > | 45 | Certificate of Electrical Safety (photo or PDF) | Only once repair work was done (q30 answered Yes) | Present |
 >
 > Sources: ESC 30 Jul 2026 update (switchboard photo by the licensed electrician during the PIESA), DEECA industry pack (electrician identity at the premises). The files are copied into the job file (`documents`, kind `piesa_evidence`) for the 6-year AP record. Rules: `src/lib/piesa-evidence.core.ts`; sync: `src/lib/mitti.server.ts`; gates: `completeAssessment`, `stageEntryBlockers("piesa_complete")`, `piesaAdvanceDecision`.
@@ -28,11 +28,13 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 |---|---|---|---|
 | 1 | Job Reference ID | Text answer | Required · **portal fills this in** |
 | 2 | Address including postcode | Text answer | Required · **portal fills this in** |
+| 2a | Whose customer is this? | Multiple choice (single answer): Home Insulation Victoria / The installer's customer · help text: Filled in by the portal. Don't change it. · Mitti colours: both grey | Required · **portal fills this in** (installer-supplied job → The installer's customer, otherwise Home Insulation Victoria) · not on the official form (decision 312) |
+| 2b | I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices. | Checkbox (must tick) | Required · only show when: question 2a = Home Insulation Victoria · not on the official form (decision 312: a completed form on our lead without the tick is an office item "Electrician hasn't confirmed they won't discuss prices with the owner") |
 | 3 | Date of inspection | Date | Required |
 | 4 | Office life support record | Text answer | Required · **portal fills this in** |
-| 5 | Is the life support record shown above still correct? | Yes / No: Yes / No | Required |
-| 6 | Have you received written consent or a medical plan? Please attach a photo of it. | Multiple choice (pick one): Yes – received Consent / Yes – received Medical Plan | Required · only show when: Life support confirmed Yes |
-| 7 | Written consent or medical plan (kept as an attachment to this assessment) | Photo / attachment | Required · only show when: Life support confirmed Yes |
+| 5 | Is there life support equipment at the property? | Yes / No: Yes / No | Required · **portal fills this in** from the office record (decision 294) |
+| 6 | Have you received written consent or a medical plan? Please attach a photo of it. | Multiple choice (pick one): Yes – received Consent / Yes – received Medical Plan / No – not received | Required · only show when: Life support confirmed Yes |
+| 7 | Written consent or medical plan (kept as an attachment to this assessment) | Photo / attachment | Required · only show when: a Yes consent/medical plan answer |
 | 8 | Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested. | Yes / No: Yes / No | Required |
 | 9 | Please tick each item that is not right. | Multiple choice (tick all): The mains cable in the ceiling has not been identified and marked. / The main switch is not accessible or does not work. / The main switch cannot isolate all of the cables in the ceiling space safely. / The main switch cannot be secured in the off position. / Testing has not confirmed that the ceiling is dead when the main switch is off. / Safety switches (RCDs) are missing for the circuits in the ceiling area. / The safety switches (RCDs) have not been tested. | Required · only show when: mainsSafe = No |
 | 10 | Is there solar, a battery or a generator at the property? | Yes / No: Yes / No | Required |
@@ -43,42 +45,40 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 15 | Are there any downlights or other recessed lights in the ceiling? | Yes / No: Yes / No | Required |
 | 16 | How many are there? | Number | Required · only show when: downlightsPresent = Yes |
 | 17 | Are any of them not IC or IC-4 rated? | Yes / No: Yes / No | Required · only show when: downlightsPresent = Yes |
+| 17a | How many are not IC or IC-4 rated? | Number | Required · only show when: question 17 = Yes |
 | 18 | Are there any appliances, exhaust fans or flues in the ceiling space? | Yes / No: Yes / No | Required |
-| 19 | Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it. | Text answer | Required · only show when: appliancesPresent = Yes |
-| 19a | Does the action you described effectively reduce the risk from each hazard listed? | Yes / No: Yes / No | Required · only show when: appliancesPresent = Yes · decision 210: fills official Part 7 "effective" (`p7.effective`), so the printed P7 rule can pass without a rectification record for every hazard |
-| 20 | Is any electrical repair work needed before insulation can be installed? | Multiple choice (pick one): No repair work is needed / Yes, repair work is needed / Repair work is not possible, so an electrician must be present on installation day | Required |
-| 21 | Please tick the repair work that is required. | Multiple choice (tick all): Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights. / Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated) / Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000 / Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000 / Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000. / Other (indicate below): | Required · only show when: rectificationOutcome = Yes, repair work is needed |
+| 19 | Repeating block `Add an appliance or flue`: What is it and where is it? (Text) · Photo of it (Photo, location on) · Can insulation be safely installed around it as it is? (Yes/No) | — | Required · only show when: question 18 = Yes (decision 295) |
+| 20 | Is any electrical repair work needed before insulation can be installed? | Yes / No: Yes / No | Required · Yes red |
+| 21 | Please tick the repair work that is required. | Multiple choice (tick all): Prohibited luminaires (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) are present and need to be replaced with IC and/or IC4 rated LED lights. / Circuit protection rating needs to be upgraded to allow for effects of thermal insulation on the wiring system (derated) / Residual Current Devices (RCDs) need to be installed for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000 / Cables in the ceiling or at the switchboard need to be replaced with ThermoPlastic Sheathed (TPS) cables, (or an equivalent cable) as per the most current version of AS/NZS 3000 / Cables and wiring in the ceiling space need to be altered or repaired to meet Basic Protection requirements, as per the most current version of AS/NZS 3000. / Other (indicate below): | Required · only show when: question 20 = Yes |
 | 22 | Please describe the other repair work. | Text answer | Required · only show when: Other is ticked |
-| 23 | Licence no: | Text answer | Required · **portal fills this in** |
-| 24 | Full Name: | Text answer | Required · **portal fills this in** |
-| 25 | Name: | Text answer | Required · **portal fills this in** |
-| 26 | REC registration no: | Text answer | Required · **portal fills this in** |
-| 27 | Telephone no: | Text answer | Required · **portal fills this in** |
+| 22a | Your total price for all the repair work, including GST | Number | Required · only show when: question 20 = Yes · **quote only, not on the official form** (decision 305: the owner's fixes quote = this price + the decision-142 margin, one line "Electrical repair work") |
+| 22b | What will you do? Tick everything included in your price. | Multiple choice (tick all): Replace downlights with IC-4 rated LED downlights / Install RCD safety switches / Upgrade circuit protection (breakers) for insulation / Replace old cables with TPS cable / Secure and support loose cables in the ceiling / Repair or replace damaged connections or junction boxes / Identify and mark the mains cable in the ceiling / Remove or make safe old unused cables / Label and protect solar or battery cables in the ceiling / Be on site at the start of the install day / Other · Mitti colours: all these grey | Required · only show when: question 20 = Yes · **quote only, not on the official form** (decision 308: no free text; the ticks with their counts become the quote line's explanation) |
+| 22c | How many downlights are you replacing? | Number | Required · only show when: question 22b has "Replace downlights with IC-4 rated LED downlights" ticked (decision 308) |
+| 22d | How many RCD safety switches are you installing? | Number | Required · only show when: question 22b has "Install RCD safety switches" ticked (decision 308) |
+| 22e | Describe the other work | Text answer · help text: Say exactly what you'll do, where, and how many. | Required · only show when: question 22b has "Other" ticked (decision 308) |
+| 23 | Electrician licence number | Text answer | Required · **portal fills this in** |
+| 24 | Electrician full name | Text answer | Required · **portal fills this in** |
+| 25 | Electrical contractor (REC) business name | Text answer | Required · **portal fills this in** |
+| 26 | REC registration number | Text answer | Required · **portal fills this in** |
+| 27 | Electrician phone | Text answer | Required · **portal fills this in** |
 | 28 | I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission | Checkbox (must tick) | Required |
 | 29 | Electrician signature | Signature | Required |
-| 30 | Have you completed all of the repair work listed above, and is the ceiling now safe for insulation? | Yes / No: Yes / No | Required · only show when: rectificationOutcome = Yes, repair work is needed |
-| 31 | Certificate of Electrical Safety number (required for any electrical works completed): | Text answer | Required · only show when: rectificationOutcome = Yes, repair work is needed |
-| 32 | Date of Certification: | Date | Required · only show when: rectificationOutcome = Yes, repair work is needed |
-| 33 | Licence no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 34 | Full Name: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 35 | Name: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 36 | REC registration no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 37 | Telephone no: | Text answer | Required · **portal fills this in** · only show when: rectificationOutcome = Yes, repair work is needed |
-| 38 | Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment. | Yes / No: Yes / No | Required |
-| 39 | Name: | Text answer | Required · **portal fills this in** |
-| 40 | Date: | Date | Required |
-| 41 | Owner signature | Signature | Required |
-| 42 | Photo of the cables at the switchboard (geotagged) | Photo / attachment (location on) | Required · **VEU requirement for installs from 21 Aug 2026** · portal blocks completion until present and geotagged |
-| 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) | Photo / attachment (location on) | Required · **VEU evidence the electrician attended** · portal blocks completion until present and geotagged |
-| 44 | Photo of each hazard listed (one per hazard; geotagged) | Photo / attachment (location on, several files) | Required · only show when: any hazard answered Yes (mainsSafe = No, solarSafe = No, ceilingSafe = No, downlightsNonIc = Yes or appliancesPresent = Yes) · portal expects one photo per hazard listed, all geotagged |
+| 30 | Have you completed all of the repair work listed above, and is the ceiling now safe for insulation? | Yes / No: Yes / No | Required · only show when: question 20 = Yes |
+| 31 | Certificate of Electrical Safety number (required for any electrical works completed): | Text answer | Required · only show when: question 20 = Yes |
+| 32 | Date of Certification: | Date | Required · only show when: question 20 = Yes |
+| 42 | Photo of the cables at the switchboard (geotagged) — on the Mains page | Photo / attachment (location on) | Required · **VEU requirement for installs from 21 Aug 2026** · portal blocks completion until present and geotagged |
+| 43 | Photo showing you on site at the property, holding your licence / photo ID (geotagged) — on the Job page | Photo / attachment (location on) | Required · **VEU evidence the electrician attended** · portal blocks completion until present and geotagged |
+| 44 | Photo of the problem (one question under each hazard section: mains Q8 = No, solar Q11 = No, ceiling Q13 = No, downlights Q17 = Yes; decision 297) | Photo / attachment (location on, several files) | Required · only show when: any hazard answered Yes (mainsSafe = No, solarSafe = No, ceilingSafe = No, downlightsNonIc = Yes or appliancesPresent = Yes) · portal expects one photo per hazard listed, all geotagged |
 | 45 | Certificate of Electrical Safety (photo or PDF) | Photo / attachment (PDF allowed) | Required · only show when: rectificationComplete = Yes (q30) · portal blocks completion until present |
+
+If Mitti can't show a question based on one tick-all option, make it not Required with help text `Only if you ticked …` (naming the option). Decision 314: "Be on site at the start of the install day" is priced inside the same total; ticked = the official "electrician present at the start of installation" outcome and one office item, and when it is the only tick no fixes visit (A5) is needed. Decision 308 replaces decision 305's `What's included in that price?` text question — delete it (old answers are still read as the fallback). Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation, so `Can the repair work be done before installation?` and the instruction `No means an electrician must be present on installation day instead.` are no longer on the form.
 
 Questions 42–45 are the evidence items from decision 178 (Jo 24 Oct 2026). Earlier wordings ("Switchboard cable photo", "Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID") are still recognised by the portal, but build the form with the wording above. The portal copies each file into the job file (`documents`, kind `piesa_evidence`, private `job-files` bucket, one copy per Mitti media id) when the Mitti form is marked complete, so the AP record keeps them for 6 years even while another item is still missing.
 
 ### How the CES gets attached after fixes (q45)
 There is one PIESA template. Repair work is handled in two ways, and the CES follows the same path as the repair:
 - **Fixed on the same visit** (electrician repairs on the day, answers q30 "Have you completed all of the repair work…" = Yes and fills q31–q37): q45 appears on the same form and the CES is attached in Mitti. The portal will not count the PIESA as complete until q45 has a file.
-- **Fixed on a later visit** (q20 = "Yes, repair work is needed", q30 left as No/blank, electrician signs off, the office prices the fixes and the owner approves): the first form is completed without q45. After the electrical fixes visit the electrician records the result in the portal (`recordPiesa`, kind `post_rectification`, which already requires the "Electrical fixes completion" evidence upload and the Section C details, CES number and date). The CES photo/PDF goes in as that **portal evidence upload** (`rectification_completion` evidence category) — the current code supports this path; a second Mitti form is not sent for the re-visit. The Mitti form is read-only for the portal once the assessment is complete, so a CES added to Mitti later would not be read.
+- **Fixed on a later visit** (q20 = "Yes, repair work is needed", q30 left as No/blank, electrician signs off, the fixes quote is built from the electrician's q22a price + q22b description (decision 305; older forms without them use the rate card) and the owner approves): the first form is completed without q45. After the electrical fixes visit the electrician records the result in the portal (`recordPiesa`, kind `post_rectification`, which already requires the "Electrical fixes completion" evidence upload and the Section C details, CES number and date). The CES photo/PDF goes in as that **portal evidence upload** (`rectification_completion` evidence category) — the current code supports this path; a second Mitti form is not sent for the re-visit. The Mitti form is read-only for the portal once the assessment is complete, so a CES added to Mitti later would not be read.
 
 ## After it's published
 - Send me the template ID. I'll connect it (`workflow_settings.mitti_piesa_template_id`), and the portal's form-health check will confirm every question above (42–45 included) is present before the PIESA is marked approved.

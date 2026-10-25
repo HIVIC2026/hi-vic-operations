@@ -43,14 +43,17 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const ps = await piesaStatus(jobId);
     const blocked = installationDateBlocker(ps, start);
     if (blocked) throw new WorkflowError(blocked);
-    // 30-day hard gate on every path: clearance date (PIESA, or Section C when rectification) + 30 days.
+    // 30-day hard gate on every path: official PIESA date + 30 days (decision 316: never the fixes / Section C date).
     const { installWindowDeadline, installDayOutsideWindow, NEW_PIESA_NEEDED } = await import("./install-days.core");
     const c0 = electricalClearance(await clearanceFacts(jobId));
     const dl = installWindowDeadline(c0.timingDate, (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
-    if (installDayOutsideWindow(start, dl)) throw new WorkflowError(dl ? `Installation must be on or before ${dl} (30 days from electrical clearance). If that has passed: ${NEW_PIESA_NEEDED}.` : "Installation cannot be booked: no electrical clearance date.");
+    if (installDayOutsideWindow(start, dl)) throw new WorkflowError(dl ? `Installation must be on or before ${dl} (30 days from the safety check (PIESA)). If that has passed: ${NEW_PIESA_NEEDED}.` : "Installation cannot be booked: no electrical clearance date.");
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
     if (lead) throw new WorkflowError(lead);
+    // Decision 296: no install day (first booking or a move) until the owner has confirmed the current PIESA on their secure link.
+    const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
+    if (ob) throw new WorkflowError(ob);
   }
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
@@ -99,6 +102,11 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const holds = await import("./install-holds.server");
     const mv = kind === "assessment" ? holds.moveHoldForPiesa : holds.moveHoldForRectification;
     await mv(jobId, start, actorId).catch((e) => console.error("install hold move skipped", (e as Error).message));
+  }
+  // Decision 293: a booked electrical fixes visit gets the electrician's "A5 – Electrical fixes" Mitti form (one per visit,
+  // only when the PIESA left repair work for a later visit). Any problem is an office item, never a booking failure.
+  if (kind === "rectification") {
+    await (await import("./fixes-day.server")).onRectificationBooked(jobId, inserted.id, actorId).catch((e) => console.error("fixes form creation skipped", (e as Error).message));
   }
   // Stage 5 (Jo 23 Oct): a rescheduled (or re-confirmed) Ready Check updates the booked date on the job's
   // existing Mitti form. A no-op when no form exists yet — the form is created with the booked date.

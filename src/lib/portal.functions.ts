@@ -630,31 +630,13 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
         const sc = sectionCBlockers(clean({ outcome: data.outcome, completedDate: data.completedDate, sectionCCompleted: data.sectionCCompleted, sectionCSignedDate: data.sectionCSignedDate }));
         if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
       }
-      await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", data.jobId).eq("status", "required");
     } else {
       const p = await piesaStatus(data.jobId);
       if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
     }
-    await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-    await admin.from("piesa_records").insert({
-      job_id: data.jobId,
-      kind: data.kind,
-      outcome: data.outcome,
-      completed_date: data.completedDate,
-      signed_off_by: context.userId,
-      notes: data.notes ?? null,
-      ...(data.kind === "post_rectification" ? { rectification_completed_at: `${data.completedDate}T00:00:00.000Z` } : {}),
-      ...(data.kind === "post_rectification" && data.outcome === "pass" ? { section_c_signed_at: `${data.sectionCSignedDate!}T00:00:00.000Z` } : {}),
-    });
-    await logEvent(data.jobId, context.userId, "piesa_recorded", `PIESA (${data.kind.replace("_", " ")}) ${data.outcome} on ${data.completedDate}`);
-    if (data.kind === "post_rectification" && data.outcome === "pass") {
-      await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", data.jobId).in("check_key", ["rectification", "electrical_assessment"]);
-      await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "confirmed");
-      await transition(data.jobId, "installation_scheduling", context.userId, "Electrical fixes complete, PIESA passed – installation scheduling unlocked");
-    }
-    await autoAdvanceJob(data.jobId, context.userId, "PIESA recorded");
-    // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).
-    try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
+    // Decision 293: the same writes the Mitti "A5 – Electrical fixes" completion makes (piesa-record.server.ts).
+    const { applyPiesaRecord } = await import("./piesa-record.server");
+    await applyPiesaRecord({ jobId: data.jobId, actorId: context.userId, kind: data.kind, outcome: data.outcome, completedDate: data.completedDate, sectionCSignedDate: data.sectionCSignedDate ?? null, notes: data.notes ?? null, source: { kind: "portal" } });
     return { ok: true };
   });
 

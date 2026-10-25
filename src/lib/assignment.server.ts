@@ -1,4 +1,5 @@
 import { requiredDepositCents } from "./payment-gate.core";
+import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 // CENTRAL signing records (server-only, service role, after caller checks):
 //   customer_agreements  – Customer Agreement / Quote Acceptance (commercial; unlocks invoice/deposit only)
 //   installer_declarations – the installer's Mitti PIISA declaration (piisa-declaration.server.ts); the portal path below
@@ -79,7 +80,7 @@ export async function buildAcceptancePackage(quoteId: string) {
     quoted_product: product, quoted_area_m2: m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     price_before_benefit_inc_gst: Number(q.subtotal_inc_gst), veu_benefit_inc_gst: Number(q.veec_discount_inc_gst), final_customer_price_inc_gst: total,
     rectification_scope: (rect ?? []).map((r) => r.description),
-    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The Pre Insulation Electrical Safety Assessment (PIESA) payment of ${(requiredDepositCents(total) / 100).toFixed(2)} is required before the PIESA is booked. Then 10% of the remaining balance to book the install day (bank transfer / PayID) and the balance on install day, or paid in full at any time.`,
+    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The Pre Insulation Electrical Safety Assessment (PIESA) payment of ${(requiredDepositCents(total, safetyCheckIncGstFor({ lines: items })) / 100).toFixed(2)} is required before the PIESA is booked. Then 10% of the remaining balance to book the install day (bank transfer / PayID) and the balance on install day, or paid in full at any time.`,
     ap_legal_entity: AP_LEGAL_ENTITY,
   };
 }

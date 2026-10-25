@@ -14,7 +14,7 @@
 // `mittiMediaFile`: lat/lng only when Mitti actually recorded them — nothing is inferred). The stored
 // `assessments.mitti_raw_snapshot` carries the same media metadata per entry (`attachPiesaMedia`), so the
 // completion gates re-run the identical rule from the stored snapshot without another Mitti call.
-import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { applianceRows, CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
 
 export type PiesaEvidenceId = "switchboard_photo" | "onsite_photo" | "hazard_photos" | "ces_file";
 
@@ -56,7 +56,9 @@ export type PiesaEvidenceSpec = {
 export const PIESA_EVIDENCE: PiesaEvidenceSpec[] = [
   { id: "switchboard_photo", q: 42, label: "Photo of the cables at the switchboard (geotagged)", aliases: ["Switchboard cable photo"], geotagged: true, short: "Switchboard photo" },
   { id: "onsite_photo", q: 43, label: "Photo showing you on site at the property, holding your licence / photo ID (geotagged)", aliases: ["Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID"], geotagged: true, short: "On-site photo" },
-  { id: "hazard_photos", q: 44, label: "Photo of each hazard listed (one per hazard; geotagged)", aliases: [], geotagged: true, short: "Hazard photo" },
+  // Decision 297 (Jo 25 Oct 2026): one "Photo of the problem" question sits under each hazard section (mains, solar, ceiling
+  // wiring, downlights); every occurrence feeds this one evidence id. The old single end-of-form question is an alias.
+  { id: "hazard_photos", q: 44, label: "Photo of the problem", aliases: ["Photo of each hazard listed (one per hazard; geotagged)"], geotagged: true, short: "Hazard photo" },
   { id: "ces_file", q: 45, label: "Certificate of Electrical Safety (photo or PDF)", aliases: [], geotagged: false, short: "Certificate of Electrical Safety" },
 ];
 export const PIESA_EVIDENCE_BY_ID: Record<PiesaEvidenceId, PiesaEvidenceSpec> = Object.fromEntries(PIESA_EVIDENCE.map((e) => [e.id, e])) as Record<PiesaEvidenceId, PiesaEvidenceSpec>;
@@ -77,15 +79,17 @@ export function piesaHazardsListed(a: PiesaEvidenceAnswers): string[] {
   if (isNo(a["ceilingSafe"])) out.push(...ticked(a["ceilingProblems"], CEILING_PROBLEMS));
   if (isYes(a["downlightsPresent"]) && isYes(a["downlightsNonIc"])) out.push("Downlights that are not IC or IC-4 rated");
   if (isYes(a["appliancesPresent"])) {
-    const d = String(a["applianceDetails"] ?? "").trim();
-    out.push(d ? `Appliances, exhaust fans or flues: ${d.slice(0, 120)}${d.length > 120 ? "…" : ""}` : "Appliances, exhaust fans or flues in the ceiling space");
+    // Decision 295: only an item the electrician says is NOT safe as it is counts as a hazard (each has its own photo).
+    const rows = applianceRows(a as Record<string, unknown>);
+    if (rows.length) for (const r of rows) { if (r.safe === "No") out.push(`Appliance or flue needs work: ${(r.what || "(not described)").slice(0, 120)}`); }
+    else { const d = String(a["applianceDetails"] ?? "").trim(); out.push(d ? `Appliances, exhaust fans or flues: ${d.slice(0, 120)}${d.length > 120 ? "…" : ""}` : "Appliances, exhaust fans or flues in the ceiling space"); }
   }
   return out;
 }
 
 /** Any hazard answered Yes (or safe answered No) without a ticked detail still needs a photo. */
 function hazardAnsweredYes(a: PiesaEvidenceAnswers): boolean {
-  return isNo(a["mainsSafe"]) || (isYes(a["solarPresent"]) && isNo(a["solarSafe"])) || isNo(a["ceilingSafe"]) || (isYes(a["downlightsPresent"]) && isYes(a["downlightsNonIc"])) || isYes(a["appliancesPresent"]);
+  return isNo(a["mainsSafe"]) || (isYes(a["solarPresent"]) && isNo(a["solarSafe"])) || isNo(a["ceilingSafe"]) || (isYes(a["downlightsPresent"]) && isYes(a["downlightsNonIc"])) || (isYes(a["appliancesPresent"]) && (applianceRows(a as Record<string, unknown>).some((r) => r.safe === "No") || (!applianceRows(a as Record<string, unknown>).length)));
 }
 
 /** Rectification was done on this form (Section C answered): the CES must be attached. */

@@ -19,6 +19,7 @@ export const MITTI_FORM_ORDER: { key: FormKey; letter: string; forWho: string; w
   { key: "ready_check_priced", letter: "A1", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (price entered by the business owner in the portal)" },
   { key: "piesa", letter: "B", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
   { key: "piisa", letter: "C", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
+  { key: "fixes", letter: "A5", forWho: "For repair work done on a later visit", who: "Licensed electrician · electrical fixes day (CoES number, certificate and finished-work photo; decision 293)" },
 ];
 
 

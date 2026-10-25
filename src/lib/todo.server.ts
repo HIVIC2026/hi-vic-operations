@@ -39,9 +39,11 @@ export async function loadTodos(admin: Admin): Promise<TodoItem[]> {
       acceptedQuoteJobs: new Set(ok(accQ, "accepted quotes").map((r) => r.job_id)),
     });
     // Onsite forms that trades can't open yet because the Mitti form isn't connected.
-    const { data: ws, error: wsErr } = await admin.from("workflow_settings").select("mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id").eq("id", 1).maybeSingle();
+    const { data: ws, error: wsErr } = await admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle(); // whole row: the decision-293 fixes column may not exist yet
     if (wsErr) throw new Error(`Could not load form settings: ${wsErr.message}`);
-    const forms: [string, string | null | undefined][] = [["A1 Ready Check (installer's own customer)", ws?.mitti_ready_check_priced_template_id], ["A2 Ready Check (our lead)", ws?.mitti_ready_check_template_id], ["B Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piesa_template_id], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piisa_template_id]];
+    const wsRow = (ws ?? null) as unknown as Record<string, string | null | undefined> | null;
+    const forms: [string, string | null | undefined][] = [["A1 Ready Check (installer's own customer)", ws?.mitti_ready_check_priced_template_id], ["A2 Ready Check (our lead)", ws?.mitti_ready_check_template_id], ["B Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piesa_template_id], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piisa_template_id],
+      ...(wsRow && "mitti_fixes_template_id" in wsRow ? [["A5 Electrical fixes (electrician, later visit)", wsRow["mitti_fixes_template_id"]] as [string, string | null | undefined]] : [])];
     for (const [name, id] of forms) if (!id) items.unshift({ key: `mitti-form:${name}`, category: "Compliance", jobId: null, jobNumber: null, property: null, title: `Onsite form not set up: ${name}`, action: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", tab: null, since: null, urgent: true });
     return items;
 }

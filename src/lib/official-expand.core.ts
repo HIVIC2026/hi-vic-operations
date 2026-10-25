@@ -3,8 +3,10 @@
 // - A "yes, all safe" answer sets every matching official Yes/No. A "no" sets only the ticked problems.
 // - Anything the portal can't fill for sure stays null and is listed in `flagged` for the office — never a guessed "No".
 // - Life support comes from the enquiry record (confirmed onsite), never re-asked from scratch.
+import { applianceRows } from "./official-short.core";
 import { B1_OPTIONS, B2_OPTIONS, answerItems, type OfficialAnswers, type OfficialKey, type Value } from "./official-forms.core";
-import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, REPAIR_LEGACY_NOT_BEFORE_FLAG, SOLAR_PROBLEMS } from "./official-short.core";
+import { OWNER_CONFIRMATION_NOT_SIGNED_FLAG } from "./piesa-owner-confirm.core";
 
 export type ShortAnswers = Record<string, Value>;
 export type ExpandContext = {
@@ -14,6 +16,9 @@ export type ExpandContext = {
   /** Signed PIESA answers on the same job (PIISA expansion only). */ piesaAnswers?: OfficialAnswers | null;
   /** File id of the life-support consent/plan attached to the signed PIESA. */ piesaLifeSupportAttachment?: string | null;
   /** Accepted measure-up: existing insulation recorded? */ measuredInsulationPresent?: boolean | null;
+  /** Decision 296: the owner's secure-link confirmation of THIS PIESA (piesa-owner-confirm.core `ownerConfirmationForForm`):
+   *  typed name + the Melbourne date they signed. Absent = the owner block stays blank and is flagged; the Mitti form is never read for it. */
+  ownerConfirmation?: { name: string; date: string } | null;
 };
 export type ExpandResult = { answers: OfficialAnswers; flagged: string[] };
 
@@ -59,10 +64,28 @@ const copy = (out: OfficialAnswers, short: ShortAnswers, ids: string[]) => {
 export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResult {
   const out: OfficialAnswers = {};
   const flagged: string[] = [];
-  copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone", "o.name", "o.date"]);
+  copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone"]);
+  // Section C electrician details = the same person as Part B3 (Jo 25 Oct 2026: the Mitti form no longer repeats them);
+  // filled only once repair work is recorded (Section C is otherwise left blank on the official form).
+  if (isYes(short["rectificationComplete"]) || txt(short["coesNumber"])) {
+    for (const k of ["licence", "name", "recName", "recNo", "phone"]) if (!txt(short[`c.${k}`]) && txt(short[`b3.${k}`])) out[`c.${k}`] = txt(short[`b3.${k}`]);
+  }
 
-  // Life support: the enquiry record, confirmed onsite. A disputed record is flagged, never guessed.
-  if (isYes(short["lifeSupportConfirm"])) {
+  // Life support (decision 294): the electrician answers the fact directly ("Is there life support equipment at the
+  // property?"); consent/medical plan only when Yes, and "No – not received" is a stop. Older forms carried
+  // "Is the life support record shown above still correct?" against the enquiry record — still read, never guessed.
+  if (isYes(short["lifeSupportPresent"]) || isNo(short["lifeSupportPresent"])) {
+    const present = isYes(short["lifeSupportPresent"]);
+    out["lifeSupport"] = present ? "Yes" : "No";
+    if (present) {
+      const consent = txt(short["lifeSupportConsent"]);
+      if (!consent) flagged.push("Life support: consent or medical plan answer missing.");
+      else if (/^no\b/i.test(consent)) flagged.push("Life support: consent or medical plan NOT received — STOP, the office must resolve it before anything else happens on this job.");
+      else out["lifeSupportConsent"] = consent;
+      if (txt(short["lifeSupportAttachment"])) out["lifeSupportAttachment"] = txt(short["lifeSupportAttachment"]);
+      else if (consent && !/^no\b/i.test(consent)) flagged.push("Life support: consent or medical plan attachment missing.");
+    }
+  } else if (isYes(short["lifeSupportConfirm"])) {
     if (ctx.lifeSupportDeclared === "yes" || ctx.lifeSupportDeclared === "no") {
       out["lifeSupport"] = ctx.lifeSupportDeclared === "yes" ? "Yes" : "No";
       if (ctx.lifeSupportDeclared === "yes") {
@@ -113,26 +136,46 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     }
   } else flagged.push("Downlights: not answered.");
 
-  // Part 7 appliances/hazards: the short form asks one combined question; location/hazard detail stays with the office.
+  // Part 7 appliances/flues (decision 295): one row per item from the repeating block; "safe as it is" = No means the work
+  // sits under Part B2 repair work, so the official "effective" tick is Yes only when every item is safe, or once the
+  // repair work is recorded complete. Old forms (one description + self-graded "effective") are still read.
   if (isYes(short["appliancesPresent"]) || isNo(short["appliancesPresent"])) {
     out["p7.appliances"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
     out["p7.flues"] = isYes(short["appliancesPresent"]) ? "Yes" : "No";
     if (isYes(short["appliancesPresent"])) {
-      if (txt(short["applianceDetails"])) {
+      const rows = applianceRows(short);
+      if (rows.length) {
+        rows.slice(0, 10).forEach((r, i) => {
+          out[`p7.appliance#${i}`] = r.what || "(not described)";
+          out[`p7.location#${i}`] = r.what || "(not described)";
+          out[`p7.hazard#${i}`] = r.safe === "Yes" ? "None — insulation can be installed around it as it is" : r.safe === "No" ? "Needs work or clearance before insulation (see Part B2 repair work)" : "Not assessed";
+          if (!r.what) flagged.push(`Appliance ${i + 1}: not described.`);
+          if (r.safe == null) flagged.push(`Appliance ${i + 1}: "safe as it is" not answered.`);
+        });
+        const unsafe = rows.filter((r) => r.safe === "No");
+        out["p7.actions"] = unsafe.length ? "Work or clearance required before insulation — listed under Part B2 repair work" : "None required";
+        if (rows.every((r) => r.safe === "Yes")) out["p7.effective"] = "Yes";
+        else if (unsafe.length && isYes(short["rectificationComplete"])) out["p7.effective"] = "Yes";
+        else if (unsafe.length) flagged.push("Appliances: work required before insulation — the official \"effective\" tick waits for the repair work to be recorded complete.");
+      } else if (txt(short["applianceDetails"])) {
         out["p7.appliance#0"] = txt(short["applianceDetails"]);
         flagged.push("Appliances: the office must split the description into the official table (location, hazard, actions) before lodgement.");
-      } else flagged.push("Appliances: described as present but no details given.");
-      // Decision 210: the official "effective" tick comes from the electrician's own answer; a blank is flagged, never "Yes".
-      if (isYes(short["appliancesEffective"]) || isNo(short["appliancesEffective"])) out["p7.effective"] = isYes(short["appliancesEffective"]) ? "Yes" : "No";
-      else flagged.push("Appliances: \"does the action effectively reduce the risk\" not answered.");
+        if (isYes(short["appliancesEffective"]) || isNo(short["appliancesEffective"])) out["p7.effective"] = isYes(short["appliancesEffective"]) ? "Yes" : "No";
+        else flagged.push("Appliances: \"does the action effectively reduce the risk\" not answered.");
+      } else flagged.push("Appliances: described as present but none listed.");
     }
   } else flagged.push("Appliances and flues: not answered.");
 
   // B1/B2 outcome.
+  // Decision 309 (Jo 25 Oct 2026): an OLD form's "can't be done before installation" was read as the before-installation
+  // outcome (deriveRectificationOutcome) and is flagged once for the office. Decision 314: the third outcome (electrician
+  // present at the start of installation) comes only from the "Be on site at the start of the install day" tick.
   const outcome = txt(short["rectificationOutcome"]);
+  const legacyNotBefore = isYes(short[REPAIR_LEGACY_NOT_BEFORE]);
   if (outcome === RECTIFICATION_OUTCOMES[0]) out["b1"] = B1_OPTIONS[0];
   else if (outcome === RECTIFICATION_OUTCOMES[1]) {
     out["b1"] = B1_OPTIONS[1];
+    if (legacyNotBefore) flagged.push(REPAIR_LEGACY_NOT_BEFORE_FLAG);
     const work = list(short["rectificationWork"]);
     if (work.length) out["b2"] = work;
     else flagged.push("Electrical fixes: the required work isn't ticked.");
@@ -159,13 +202,17 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     else flagged.push("Section C: certification date missing.");
   }
 
-  // Owner declaration.
-  if (isYes(short["ownerConfirm"])) for (let i = 1; i <= 4; i++) out[`o.tick${i}`] = true;
-  else flagged.push("Owner declaration: not confirmed.");
+  // Owner declaration (decision 296, Jo 25 Oct 2026): filled ONLY from the owner's secure-link confirmation record — the
+  // owner block left the Mitti form ("the owner might not be there"), so nothing here reads ownerConfirm / o.name / o.date /
+  // ownerSignature from the short answers any more. No record = blank + flagged, never guessed.
+  if (ctx.ownerConfirmation) {
+    for (let i = 1; i <= 4; i++) out[`o.tick${i}`] = true;
+    out["o.name"] = ctx.ownerConfirmation.name;
+    out["o.date"] = ctx.ownerConfirmation.date;
+  } else flagged.push(`${OWNER_CONFIRMATION_NOT_SIGNED_FLAG} (secure link).`);
 
-  // Signatures live in the signed snapshot, not as form text.
+  // The electrician's signature lives in the signed snapshot, not as form text.
   if (!txt(short["electricianSignature"])) flagged.push("Electrician signature missing.");
-  if (!txt(short["ownerSignature"])) flagged.push("Owner signature missing.");
   return { answers: out, flagged };
 }
 

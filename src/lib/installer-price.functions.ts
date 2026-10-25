@@ -20,8 +20,7 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" }).middleware
     priceIncGst: z.union([z.number(), z.string().max(20)]),
     included: z.array(z.string().max(80)).max(10),
     includedOther: z.string().max(300).optional().nullable(),
-    electrician: z.enum(["hivic", "usual", "different"]).nullable(),
-    different: z.object({ name: z.string().max(120).optional().nullable(), licence: z.string().max(60).optional().nullable(), priceIncGst: z.union([z.number(), z.string().max(20)]).optional().nullable() }).optional().nullable(),
+    // Decision 289: no electrician fields — chosen once at Add a job.
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { setInstallerPrice } = await import("./installer-price-set.server");

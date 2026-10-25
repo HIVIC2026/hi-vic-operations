@@ -33,7 +33,10 @@ export const INSTALL_DAY_Q = {
   third3: "Is there a third installer?",
   third: "Third installer",
   thirdCii: "Third installer's CII number",
-  installerPhotos: "Photo of each installer at the front door, showing photo ID",
+  // Decision 300 (Jo 25 Oct 2026): one photo per installer, each mandatory — one shared question got one photo.
+  leadPhoto: "Photo of the lead installer at the front door, showing photo ID",
+  secondPhoto: "Photo of the second installer at the front door, showing photo ID",
+  thirdPhoto: "Photo of the third installer at the front door, showing photo ID",
   powerInformed: "Does the household know the power will be off today?",
   lifeSupport: "Does anyone here rely on life support?",
   lifeSupportConsent: "Do you have their written consent or medical plan?",
@@ -67,7 +70,9 @@ export const INSTALL_DAY_Q = {
 } as const;
 
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";
-export type InstallDayPrefillKey = "jobNumber" | "address" | "installDate" | "apName" | "businessName" | "leadName" | "leadCii" | "lifeSupport" | "solarPresent" | "electricianAtStart";
+export type InstallDayPrefillKey = "jobNumber" | "address" | "installDate" | "apName" | "businessName" | "leadName" | "leadCii" | "anyoneElse" | "secondName" | "secondCii" | "thirdOnSite" | "thirdName" | "thirdCii" | "lifeSupport" | "solarPresent" | "electricianAtStart";
+/** Decision 301: who turned the power back on — a pick, mapped to the pre-filled crew, never free text. */
+export const INSTALL_DAY_LOCKOUT_BY_OPTIONS = ["Lead installer", "Second installer", "Third installer", "The electrician"] as const;
 export type InstallDayQuestion = {
   n: number; label: string; type: InstallDayType; required: boolean; group: number;
   options?: readonly string[]; help?: string;
@@ -92,24 +97,27 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   q(2, Q.business, "text", true, { prefill: "businessName" });
   q(2, Q.lead, "text", true, { prefill: "leadName" });
   q(2, Q.leadCii, "text", true, { prefill: "leadCii" });
-  const anyone = q(2, Q.anyoneElse, "yes_no", true);
-  q(2, Q.second, "text", true, { showWhen: { n: anyone, is: ["Yes"] } });
-  q(2, Q.secondCii, "text", true, { showWhen: { n: anyone, is: ["Yes"] } });
-  const third = q(2, Q.third3, "yes_no", true, { showWhen: { n: anyone, is: ["Yes"] } });
-  q(2, Q.third, "text", true, { showWhen: { n: third, is: ["Yes"] } });
-  q(2, Q.thirdCii, "text", true, { showWhen: { n: third, is: ["Yes"] } });
-  q(2, Q.installerPhotos, "photo", true, { help: "One photo per person." });
+  q(2, Q.leadPhoto, "photo", true, { help: "Photo ID readable." });
+  const anyone = q(2, Q.anyoneElse, "yes_no", true, { prefill: "anyoneElse" });
+  q(2, Q.second, "text", true, { showWhen: { n: anyone, is: ["Yes"] }, prefill: "secondName" });
+  q(2, Q.secondCii, "text", true, { showWhen: { n: anyone, is: ["Yes"] }, prefill: "secondCii" });
+  q(2, Q.secondPhoto, "photo", true, { showWhen: { n: anyone, is: ["Yes"] }, help: "Photo ID readable." });
+  const third = q(2, Q.third3, "yes_no", true, { showWhen: { n: anyone, is: ["Yes"] }, prefill: "thirdOnSite" });
+  q(2, Q.third, "text", true, { showWhen: { n: third, is: ["Yes"] }, prefill: "thirdName" });
+  q(2, Q.thirdCii, "text", true, { showWhen: { n: third, is: ["Yes"] }, prefill: "thirdCii" });
+  q(2, Q.thirdPhoto, "photo", true, { showWhen: { n: third, is: ["Yes"] }, help: "Photo ID readable." });
   q(3, Q.powerInformed, "yes_no", true, { stop: { when: "No", text: "Stop. Tell them before you go on." } });
   const ls = q(3, Q.lifeSupport, "yes_no", true, { prefill: "lifeSupport" });
   const lsc = q(3, Q.lifeSupportConsent, "yes_no", true, { showWhen: { n: ls, is: ["Yes"] }, stop: { when: "No", text: "Stop. You need it before starting." } });
   q(3, Q.lifeSupportUpload, "photo", true, { showWhen: { n: lsc, is: ["Yes"] }, help: "Every page readable." });
   q(3, Q.swmsSigned, "yes_no", true, { help: "It's on your job page.", stop: { when: "No", text: "Stop. Sign it on your job page first." } });
   q(3, Q.hazardsCovered, "yes_no", true, { stop: { when: "No", text: "Stop." } });
-  q(3, Q.isolated, "yes_no", true, { stop: { when: "No", text: "Stop. Isolate, lock out and tag first." } });
-  q(3, Q.isolationPhoto, "photo", true, { help: "Solar and battery isolators off too, if the home has them." });
   const solar = q(4, Q.solar, "yes_no", true, { prefill: "solarPresent" });
   q(4, Q.solarInstructions, "yes_no", true, { showWhen: { n: solar, is: ["Yes"] }, stop: { when: "No", text: "Stop. An electrician must isolate it." } });
   q(4, Q.solarIsolator, "yes_no", true, { showWhen: { n: solar, is: ["Yes"] }, stop: { when: "No", text: "Stop. Get an electrician to check it." } });
+  // Jo 25 Oct 2026: isolation comes AFTER the solar question so the solar/battery step reads in order.
+  q(4, Q.isolated, "yes_no", true, { stop: { when: "No", text: "Stop. Isolate, lock out and tag first." } });
+  q(4, Q.isolationPhoto, "photo", true, { help: "If there's solar, a battery or a generator, it must be off too." });
   q(5, Q.piesaRead, "yes_no", true, { stop: { when: "No", text: "Stop." } });
   const needed = q(5, Q.electricianNeeded, "yes_no", true, { prefill: "electricianAtStart" });
   const here = q(5, Q.electricianHere, "yes_no", true, { showWhen: { n: needed, is: ["Yes"] }, stop: { when: "No", text: "Stop. Wait for the electrician." } });
@@ -125,7 +133,7 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
   const md = q(8, Q.multiDay, "yes_no", true);
   q(8, Q.dailyRecheck, "checkbox", true, { showWhen: { n: md, is: ["Yes"] } });
   const lo = q(9, Q.lockoutOff, "yes_no", true, { stop: { when: "No", text: "Don't leave until it is." } });
-  q(9, Q.lockoutBy, "text", true, { showWhen: { n: lo, is: ["Yes"] }, help: "Name, and whether it was the installer who locked it or the electrician." });
+  q(9, Q.lockoutBy, "pick_one", true, { showWhen: { n: lo, is: ["Yes"] }, options: INSTALL_DAY_LOCKOUT_BY_OPTIONS });
   q(9, Q.switchboardOn, "photo", true, { showWhen: { n: lo, is: ["Yes"] } });
   q(9, Q.solarBack, "pick_one", true, { options: INSTALL_DAY_SOLAR_BACK_OPTIONS });
   q(9, Q.supervised, "checkbox", true);
@@ -260,7 +268,7 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
 /** The A3 photo items of this form by the A3 evidence keys, plus the two after-install multi-file items (decisions 263/264). */
 export function installDayMedia(audit: unknown): { installer_photos: MittiMediaFile[]; electrician_photo: MittiMediaFile[]; isolation_photo: MittiMediaFile[]; product_photos: MittiMediaFile[]; life_support: MittiMediaFile[]; after_videos: MittiMediaFile[]; depth_photos: MittiMediaFile[] } {
   const r = readInstallDay(audit);
-  return { installer_photos: r.media(Q.installerPhotos), electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
+  return { installer_photos: [...r.media(Q.leadPhoto), ...r.media(Q.secondPhoto), ...r.media(Q.thirdPhoto)], electrician_photo: r.media(Q.electricianPhoto), isolation_photo: r.media(Q.isolationPhoto), product_photos: r.media(Q.productPhotos), life_support: r.media(Q.lifeSupportUpload), after_videos: r.media(Q.afterVideos), depth_photos: r.media(Q.depthPhotos) };
 }
 
 // ======================================================================================================
@@ -299,7 +307,10 @@ export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefi
 // ======================================================================================================
 export type InstallDayPrefillFacts = {
   jobNumber: string | null; address: string | null; installDate: string | null; apName: string | null; businessName: string | null;
-  leadName: string | null; leadCii: string | null; lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
+  leadName: string | null; leadCii: string | null;
+  /** Decision 299: the rest of the crew from the portal booking; null = not on site / unknown. */
+  secondName?: string | null; secondCii?: string | null; thirdName?: string | null; thirdCii?: string | null;
+  lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /** Prefill items for the template's own item IDs, matched by exact wording. Choice answers use the template's own option
@@ -314,6 +325,10 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
       switch (q.prefill) {
         case "jobNumber": return f.jobNumber; case "address": return f.address; case "installDate": return f.installDate; case "apName": return f.apName;
         case "businessName": return f.businessName; case "leadName": return f.leadName; case "leadCii": return f.leadCii;
+        case "anyoneElse": return f.secondName || f.thirdName ? "Yes" : f.secondName === null ? "No" : null;
+        case "secondName": return f.secondName ?? null; case "secondCii": return f.secondCii ?? null;
+        case "thirdOnSite": return f.thirdName ? "Yes" : f.secondName || f.secondName === null ? "No" : null;
+        case "thirdName": return f.thirdName ?? null; case "thirdCii": return f.thirdCii ?? null;
         case "lifeSupport": return yn(f.lifeSupport); case "solarPresent": return yn(f.solarPresent); case "electricianAtStart": return yn(f.electricianAtStart);
       }
     })();

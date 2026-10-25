@@ -287,6 +287,8 @@ describe("3. Complete in Mitti → quote prepared and released to the owner (TES
   test("pressing Complete: measurements recorded, eligible from the form, quote stage, draft held until the send switch", async () => {
     completeForm("audit_1", "Home Insulation Victoria electrician");
     const r = await ms.syncMittiAssessment(A, null, call);
+    // Decision 288: the form carries a price (old A1 form), so the business owner is NOT texted a price link.
+    expect(await events(A, "boss_price_link_sent")).toHaveLength(0);
     expect(r.completed).toBe(true);
     const m = (await q<Record<string, unknown>>("select status, measured_area_m2, insulation_present, removal_required, access_difficulty from ceiling_measurements where job_id=$1 and is_current", [A]))[0]!;
     expect(m).toMatchObject({ status: "complete", measured_area_m2: "120", insulation_present: false, removal_required: false, access_difficulty: "easy" });
@@ -322,6 +324,12 @@ describe("3. Complete in Mitti → quote prepared and released to the owner (TES
 
 describe("4. 'My usual electrician' with none saved → held; saved later → the next tick releases (decision 113)", () => {
   test("Complete with My usual electrician and no usual electrician on the business: no quote, reason recorded, job waits at the quote stage", async () => {
+    // Decision 289: the electrician is chosen at Add a job and that recorded choice wins over any old form answer. Job C was
+    // added with no usual electrician saved (default = HIV), so stand in for a job whose owner chose "my usual electrician"
+    // at Add a job and whose usual electrician is not on file any more: the recorded choice is "usual".
+    expect(await events(C, "electrician_choice_set")).toHaveLength(1);
+    expect((await events(C, "electrician_choice_set"))[0]!.details["choice"]).toBe("hivic");
+    await q("insert into workflow_events (job_id, event_type, summary, details) values ($1, 'electrician_choice_set', 'test: chosen at Add a job', $2)", [C, JSON.stringify({ choice: "usual", source: "add_job" })]);
     completeForm("audit_3", "My usual electrician");
     const r = await ms.syncMittiAssessment(C, null, call);
     expect(r.completed).toBe(true);

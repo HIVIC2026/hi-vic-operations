@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 import { installerJobSummary } from "./installer-job-summary.core";
+import { piesaLineCents } from "./safety-check-amount.core";
 import { A2_CORRECTION_EVENT, FLAG_EVENTS, FORM_CREATED_EVENTS, FORM_PROBLEM_EVENTS, HELD_EVENTS, classifyNewInstallerJob } from "./installer-new-jobs.core";
 
 export const getInstallerJobSummary = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -46,7 +47,7 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
       mittiAuditId: auditId, formProblem: problem?.summary?.trim() ?? null,
       basics: b ? { missing: b.missing ?? [], stops: b.stops ?? [], completed: b.completed === true } : null,
       heldReasons: held ? ((heldDetails["blockers"] as string[] | undefined) ?? (heldDetails["reasons"] as string[] | undefined) ?? ["Reason not recorded"]) : null,
-      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted, declined: ap.declined, held: ap.held } : null,
+      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted, declined: ap.declined, held: ap.held, safetyCheckIncGst: (() => { const c = piesaLineCents(ap.quote?.quote_items ?? []); return c == null ? null : c / 100; })() } : null,
       warnings,
     });
     return { applies: true as const, installer: biz?.name ?? null, consent: consent.data?.consent_status ?? null, ...summary };

@@ -211,6 +211,7 @@ export type PrefillCtx = {
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
   /** Ready Check "built or replaced in the last 5 years?" — from the owner's DECLARED enquiry answer: over 5 years "yes" → "No", "no" → "Yes"; unknown stays blank. */ builtLast5Years?: string | null;
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
+  /** Decision 312: A4 "Whose customer is this?" (official-short.core customerOfOption: A1 → "The installer's customer", else "Home Insulation Victoria"). */ customerOf?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
@@ -229,11 +230,13 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   // Decision 222: lean forms ask "Who lives at the property?" as a tap choice; the office occupancy record prefills it.
   { key: "occupancy", aliases: ["Occupancy", LEAN_Q.premisesType] },
-  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?", "Office life support record", "Is there life support equipment at the property?"] },
   { key: "propertyType", aliases: ["Property type"] },
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
   { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
+  // Decision 312: same wording as official-short.core CUSTOMER_OF_LABEL (tests/no-price-talk.test.ts keeps them equal).
+  { key: "customerOf", aliases: ["Whose customer is this?"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
@@ -468,6 +471,10 @@ export function parseAudit(audit: Any) {
         if (types.length > 1) issues.push("More than one existing insulation type was ticked (batts + loose fill) – mixed insulation needs office review.");
         if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
+    } else if (rooms.every((r) => r.present === false)) {
+      // 25 Oct 2026: no existing insulation in any area is an explicit "nothing to remove" — it clears a removal figure
+      // left behind by an earlier partial fill (a stale hidden branch once carried 20 m² into a job).
+      patch.removal_required = false;
     }
     // Per-area R-values (A1): record the lowest; differing values across areas need office review.
     const rvs = rooms.map((r) => r.rv).filter((v): v is number => v != null && v > 0);
