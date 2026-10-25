@@ -3,6 +3,8 @@ import { sameMittiTemplateId } from "./mitti-identity.core";
 // office and linkable to a job — installer's own measure counts as the Ready Check. Pure rules only:
 // parsing/classification lives here so tests can run without Mitti or the database.
 import { flatten, norm, contactAnswersFromEntries } from "./mitti.core";
+import { isOpenJobStage } from "./duplicate-address.core";
+import { normaliseStreetLine } from "./address.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -124,14 +126,9 @@ export function templateKindFor(templateId: string, ids: { readyCheck: string | 
   return "unknown";
 }
 
-/** Address key for non-blocking duplicate flags: street + suburb from Mitti's "street, suburb, state, postcode". */
-const STREET_SUFFIXES: [RegExp, string][] = [[/\bstreet\b/g, "street"], [/\bst\b/g, "street"], [/\brd\b/g, "road"], [/\broad\b/g, "road"], [/\bcrt?\b/g, "court"], [/\bcourt\b/g, "court"], [/\bdr\b/g, "drive"], [/\bdrive\b/g, "drive"], [/\bhwy\b/g, "highway"], [/\bhighway\b/g, "highway"], [/\bav(e|\.)?\b/g, "avenue"], [/\bavenue\b/g, "avenue"]];
-
-function streetKey(s: string): string {
-  let k = norm(s);
-  for (const [re, full] of STREET_SUFFIXES) if (re.test(k)) { k = k.replace(re, full).replace(/\s+/g, " ").trim(); break; }
-  return k;
-}
+/** Address key for non-blocking duplicate flags: street + suburb from Mitti's "street, suburb, state, postcode".
+ *  Decision 282: the street part uses the one shared normalisation in address.core (unit/number/abbreviations). */
+const streetKey = (s: string): string => normaliseStreetLine(s);
 
 export function pickupAddressKey(address: string | null | undefined): string | null {
   const parts = String(address ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -156,8 +153,10 @@ export function pickupDuplicates(
   const key = pickupAddressKey(item.siteAddress);
   if (!key) return [];
   // Audit 23 Oct: never link on owner name alone — the address must match.
+  // Decision 282 (Jo 25 Oct): only a job still OPEN counts; a cancelled/complete job at the address means a new job.
   return jobs
     .filter((j) => {
+      if (!isOpenJobStage(j.stage)) return false;
       const jk = propertyAddressKey(j.addressLine, j.suburb);
       return !!jk && jk === key;
     })

@@ -26,12 +26,12 @@ export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean
 export const SAVE_LABEL = "Add job";
 export const BUSY_LABEL = "Saving…";
 
-/** Jo 25 Oct: errors say why. The "customer who isn't yours" message names no other owner or business; raw database
- *  collisions (unique-key text) still become one neutral line. */
+/** Jo 25 Oct: errors say why (decision 273 wording rule). Decision 282: an email is never a reason to refuse, so the
+ *  only duplicate message is the server's own "This address already has an open job (HV-xxxx)…" line, shown as is;
+ *  raw database collisions (unique-key text) still become one neutral line that names nobody. */
 export const NEUTRAL_SAVE_ERROR = "Job not added. Please contact the office for help; your entered details are kept.";
 export function saveErrorMessage(msg: string | null | undefined): string {
   const m = msg ?? "";
-  if (/customer who isn't yours/i.test(m)) return m;
   if (/already on another customer record|owners_email_uq|duplicate key/i.test(m)) return NEUTRAL_SAVE_ERROR;
   if (/load failed|failed to fetch|network|timeout|fetch failed/i.test(m)) return "The save confirmation was interrupted. Your details are kept; tap Retry submission to finish the same job. Do not add it again.";
   if (!m) return "No signal — your details are kept. Tap again when you have signal.";
