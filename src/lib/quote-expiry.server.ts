@@ -1,10 +1,9 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { sha256Hex } from "./assignment.core";
 import { quoteTimerAction } from "./quote-expiry.core";
 
-/** Timer sweep: expire 14-day-old installation quotes and queue day-3/day-10 owner nudges.
- * Never changes job stage, never adds to the needs-attention list, never sends (outbox stays unreleased). */
+/** Timer sweep: expire 14-day-old installation quotes and record the day-3/day-10 points (record only).
+ * Never changes job stage, never adds to the needs-attention list, never sends. */
 export async function sweepQuoteExpiry(now: Date = new Date()) {
   const { data: rows, error } = await admin.from("quotes")
     .select("id, job_id, kind, status, sent_at, nudge_day3_at, nudge_day10_at")
@@ -27,15 +26,9 @@ export async function sweepQuoteExpiry(now: Date = new Date()) {
     const day = act === "nudge_day3" ? 3 : 10;
     const { data: u } = await admin.from("quotes").update({ [col]: iso } as never).eq("id", q.id).eq("status", "issued").is(col, null).select("id").maybeSingle();
     if (!u) continue;
-    await logEvent(q.job_id, null, "quote_nudge", `Day ${day} reminder to owner about their quote (prepared; delivery follows the sending switches)`, { quote_id: q.id, day }, { internal: true });
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", q.job_id).eq("event_type", "quote_nudge").contains("details", { quote_id: q.id, day }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ev) {
-      const { error: e } = await admin.rpc("enqueue_external_action", {
-        _job: q.job_id, _event: ev.id, _action: "customer_email", _target: `quote:${q.id}`, _basis: "transactional_quote_reminder",
-        _version: `quote-nudge-day${day}-v1`, _payload: `quote:${q.id}`, _facts: await sha256Hex(`${q.id}-day${day}`), _key: `quote-nudge-${q.id}-day${day}`,
-      });
-      if (e) console.error("quote nudge outbox enqueue skipped", e.message); // e.g. TEST job suppression
-    }
+    // F13: record only. The owner's quote reminders are the approved email + text (decisions 88/89: 3 days after the quote
+    // and 2 days before the price expires — owner-email-triggers / approved-texts); the old outbox row here was never sendable.
+    await logEvent(q.job_id, null, "quote_nudge", `Day ${day} since the quote (record only — the owner's reminders are the approved quote reminder email and text)`, { quote_id: q.id, day }, { internal: true });
     nudges++;
   }
   return { expired, nudges };

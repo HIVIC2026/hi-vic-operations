@@ -94,11 +94,9 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     // Installer planning visibility only — never an installation booking.
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
     const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    if (inst) {
-      await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
-      const { queueInstallerPlanningNotice } = await import("./allocation.server");
-      await queueInstallerPlanningNotice(jobId, inst.id, start).catch((e) => console.error("planning notice outbox skipped", (e as Error).message));
-    }
+    // F13: recorded on the job (installer job history) only — no approved installer message exists for it, and the old
+    // outbox row was never sendable. The installer is told by the approved clearance text once the job is cleared (186).
+    if (inst) await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
     // Decision 325: O26 booked version ("safety check booked") to the owner; `changed` when an existing PIESA booking moved. Best-effort.

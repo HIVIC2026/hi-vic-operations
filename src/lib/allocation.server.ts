@@ -474,7 +474,8 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h reminders (queued, sending switches decide delivery) for released visits with no proposed time. */
+/** 24h "no time proposed yet" points for released visits — record only (F13: there is no approved coordination reminder
+ *  wording, and the old outbox row was never sendable). */
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
@@ -488,43 +489,13 @@ export async function sweepCoordination(actorId: string | null = null) {
     ]);
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h reminder: no ${r.visit_kind} time proposed yet (prepared; delivery follows the sending switches)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      // Queue through the existing launch-control outbox: lands as EXECUTION_NOT_RELEASED and is only delivered once sending is released.
-      const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (ev) {
-        const { error } = await admin.rpc("enqueue_external_action", {
-          _job: r.job_id, _event: ev.id, _action: "booking_messages", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
-          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: await sha256Hex(`${r.assignment_id}-${r.visit_kind}`), _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
-        });
-        if (error) console.error("reminder outbox enqueue skipped", error.message); // e.g. TEST job suppression
-      }
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet (record only — no reminder message is approved)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       reminders++;
     }
   }
   return { reminders };
 }
 
-/** Installer planning-only notice after a CONFIRMED PIESA booking. Queued in the launch-control outbox
- *  (EXECUTION_NOT_RELEASED until sending is released). Idempotent per assignment + PIESA time. Never changes stage. */
-export async function queueInstallerPlanningNotice(jobId: string, installerAssignmentId: string, piesaStart: string) {
-  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_planning_notice")
-    .contains("details", { assignment_id: installerAssignmentId, piesa_start: piesaStart }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!ev) throw new Error("planning notice event missing");
-  const raw = `${installerAssignmentId}-${Date.parse(piesaStart)}`;
-  const facts = await sha256Hex(raw);
-  const { data, error } = await admin.rpc("enqueue_external_action", {
-    _job: jobId, _event: ev.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignmentId}`,
-    _basis: "transactional_job_coordination", _version: "installer-planning-notice-v1", _payload: "notice:installer_planning_notice",
-    _facts: facts, _key: `installer-planning-${raw}`,
-  });
-  if (error) throw new Error(error.message);
-  return data as string;
-}
-
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 
 // ---------- Owner-picked PIESA windows ----------

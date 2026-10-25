@@ -133,13 +133,12 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     expect(l({ stage: "rectification_required" })).toBe("Electrical fixes required");
     expect(l({ stage: "installation_scheduling" })).toBe("Electrically cleared");
   });
-  test("planning notice is queued only after a confirmed PIESA booking, through the outbox, never as a stage change", () => {
+  test("planning notice is recorded only after a confirmed PIESA booking, never as a stage change or a dead outbox row (F13)", () => {
     const src = readFileSync("src/lib/booking.server.ts", "utf8");
-    const i = src.indexOf("queueInstallerPlanningNotice(");
+    const i = src.indexOf('"installer_planning_notice", INSTALLER_PLANNING_NOTICE');
     expect(i).toBeGreaterThan(src.indexOf('status: "confirmed"'));
-    const fn = readFileSync("src/lib/allocation.server.ts", "utf8").split("export async function queueInstallerPlanningNotice")[1]!.split("\nasync function")[0]!;
-    expect(fn).toContain("enqueue_external_action");
-    expect(fn).not.toMatch(/transition\(|stage:/);
+    expect(src).not.toContain("queueInstallerPlanningNotice");
+    expect(readFileSync("src/lib/allocation.server.ts", "utf8")).not.toContain("enqueue_external_action");
   });
 });
 
