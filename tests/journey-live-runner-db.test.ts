@@ -138,16 +138,25 @@ const [alpha] = await q<{ id: string }>("select id from businesses where name='T
   await ta.archiveQaJourney({ data: { jobId: jb!.id }, context: officeCtx });
 }
 
+// A REAL installer business with a real, pending, unverified person covering the same postcode: the TEST setup must never
+// touch it (nor offer it anything).
+const REAL_BIZ = "30000000-0000-4000-8000-00000000e001";
+await q(`insert into businesses (id, name, trading_name, business_type, capabilities, is_active, onboarding_status, approved_at, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads)
+  values ($1,'Real Insulation Co','Real Insulation Co','eec_installer','{installer}',true,'approved',now(),'{3199}',now(),true)`, [REAL_BIZ]);
+await q(`insert into partner_workers (business_id, trade_role, full_legal_name, email, mobile, approval_status, certification_status) values ($1,'installer','Real Person','real.person@example.com','0412345678','pending','unverified')`, [REAL_BIZ]);
+const realState = () => q("select b.name, b.service_postcodes, b.coverage_verified_at, w.approval_status, w.certification_status, w.certification, w.piisa_status, w.piisa_verified_at from businesses b join partner_workers w on w.business_id = b.id where b.id = $1", [REAL_BIZ]);
+const realBefore = JSON.stringify(await realState());
+
 const snapshot = async () => ({
-  businesses: await q("select id, name, onboarding_notes from businesses order by name"),
-  workers: await q("select email, approval_status, certification_status, trade_role from partner_workers order by email"),
+  businesses: await q<{ name: string }>("select id, name, onboarding_notes from businesses where id <> $1 order by name", [REAL_BIZ]),
+  workers: await q<{ email: string }>("select email, approval_status, certification_status, trade_role from partner_workers where business_id <> $1 order by email", [REAL_BIZ]),
 });
 
 describe("live journey runner — TEST setup from a fresh live database", () => {
   test("the Test Centre accounts exist as on the live database (seed sanity)", async () => {
     expect(created.results.every((r) => r.status === "created")).toBe(true);
     expect(alpha).toBeTruthy();
-    expect(await q("select email, approval_status, certification_status from partner_workers")).toEqual([{ email: "qa.worker.alpha@hivic-test.example", approval_status: "pending", certification_status: "unverified" }]);
+    expect(await q("select email, approval_status, certification_status from partner_workers where business_id <> $1", [REAL_BIZ])).toEqual([{ email: "qa.worker.alpha@hivic-test.example", approval_status: "pending", certification_status: "unverified" }]);
   });
 
   let run: Awaited<ReturnType<typeof import("../src/lib/journey.server").runServerJourney>>;
@@ -164,10 +173,21 @@ describe("live journey runner — TEST setup from a fresh live database", () => 
     expect(run.result.passed).toBe(true);
   }, 300_000);
 
-  test("setup only ever touched TEST identities", async () => {
+  test("setup only ever touched TEST identities: the real business and its person are exactly as they were", async () => {
     const s = await snapshot();
-    expect(s.businesses.every((b) => String((b as { name: string }).name).startsWith("TEST "))).toBe(true);
-    expect(s.workers.every((w) => String((w as { email: string }).email).endsWith("@hivic-test.example"))).toBe(true);
+    expect(s.businesses.every((b) => b.name.startsWith("TEST "))).toBe(true);
+    expect(s.workers.every((w) => w.email.endsWith("@hivic-test.example"))).toBe(true);
+    expect(JSON.stringify(await realState())).toBe(realBefore);
+    expect(await q("select id from partner_offers where business_id = $1", [REAL_BIZ])).toEqual([]);
+    expect(await q("select id from admin_config_events where details::text like $1", [`%${REAL_BIZ}%`])).toEqual([]);
+  });
+
+  test("the setup refuses a business that is not a TEST partner (SAFETY STOP), and a non-TEST person", async () => {
+    const js = await import("../src/lib/journey-setup.server");
+    const [boss] = await q<{ id: string; business_id: string }>("select id, business_id from profiles where email = 'qa.installer.alpha@hivic-test.example'");
+    await expect(js.ensureJourneyTestTrades(OFFICE, { id: boss!.id, business_id: REAL_BIZ, email: "qa.installer.alpha@hivic-test.example" }, { id: boss!.id, business_id: REAL_BIZ, email: "qa.rec.delta@hivic-test.example" })).rejects.toThrow(/SAFETY STOP/);
+    await expect(js.ensureTestInstallerPeople(OFFICE, boss!.business_id, { id: boss!.id, email: "someone@example.com" }, [])).rejects.toThrow(/SAFETY STOP/);
+    expect(JSON.stringify(await realState())).toBe(realBefore);
   });
 
   test("a second run on the same database passes too (setup is idempotent)", async () => {
