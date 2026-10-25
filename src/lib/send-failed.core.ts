@@ -30,6 +30,7 @@ export const PURPOSE_LABEL: Record<string, string> = {
   quote_reminder: "Quote reminder email", quote_accepted: "You're in email", safety_check_times: "Safety check times email", safety_check_booked: "Safety check booked email",
   fixes_quote: "Electrical fixes quote email", install_days: "Install days email", install_day_changed: "Install day changed email", install_complete: "All done email",
   final_invoice: "Final invoice email", completion_pack: "Completion pack email", review_request: "Review request email",
+  job_cancelled: "Job cancelled email", job_cancelled_installer: "Job cancelled email (installer)",
   veec_sign_day_1: "Rebate form reminder (day 1)", veec_sign_day_3: "Rebate form reminder (day 3)", veec_sign_day_7: "Rebate form reminder (day 7)",
   save_spot_reminder: "Save my spot reminder text", spot_saved: "Spot saved text", quote_ready: "Quote ready text", owner_code: "Sign-in code text",
   veec_sign_request: "Rebate form request text", veec_sign_reminder: "Rebate form reminder text", three_questions_reminder_sms: "3 questions reminder text",

@@ -21,6 +21,7 @@ import { VEEC_SIGN_SMS_APPROVED } from "../src/lib/veec-assignment-form.core";
 import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { THIRTY_DAY_REMINDER_APPROVED } from "../src/lib/thirty-day-rule.core";
 import { INSTALL_CLEARANCE_EMAIL_APPROVED } from "../src/lib/install-clearance.core";
+import { CANCEL_NOTICE_EMAILS_APPROVED } from "../src/lib/cancel-notice.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
@@ -58,6 +59,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   VEEC_SIGN_SMS_APPROVED: { value: VEEC_SIGN_SMS_APPROVED, decisions: "166/168" },
   THIRTY_DAY_REMINDER_APPROVED: { value: THIRTY_DAY_REMINDER_APPROVED, decisions: "167/168" },
   INSTALL_CLEARANCE_EMAIL_APPROVED: { value: INSTALL_CLEARANCE_EMAIL_APPROVED, decisions: "186 (I65)" },
+  CANCEL_NOTICE_EMAILS_APPROVED: { value: CANCEL_NOTICE_EMAILS_APPROVED, decisions: "291 (O69, I70 — Jo 25 Oct 2026)" },
 };
 
 /** SMS type → decision. */
