@@ -156,13 +156,13 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
         <div className="rounded-2xl bg-estimate-blush/60 p-5 lg:p-6">
           <span className="inline-flex items-center gap-2 rounded-full bg-estimate-white px-3 py-1 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-navy shadow-sm">
             <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-estimate-green" />
-            High demand
+            Free, no obligation
           </span>
           <h2 className="mt-3 text-[1.35rem] font-extrabold leading-snug text-estimate-navy sm:text-[1.55rem]">
-            Demand is high. Installer availability is limited.
+            Thousands of Victorians have registered.
           </h2>
           <p className="mt-2 text-[0.8rem] leading-relaxed text-estimate-navy/75">
-            Register your interest now so our team can check your property and discuss availability in your area.
+            Spots are released in the order they were saved. We'll be in touch when your spot is released.
           </p>
           <p className="mt-3 text-[0.75rem] font-bold leading-relaxed text-estimate-navy">
             Free to register. No obligation to proceed.

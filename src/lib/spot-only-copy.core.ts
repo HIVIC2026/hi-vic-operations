@@ -22,7 +22,7 @@ export const SPOT_WAIT_LINE = `${SPOT_REGISTERED} ${SPOT_RELEASE_LINE}`;
 export const SPOT_PRICE_NOTE = "This is an estimate. You'll see your exact price before you agree to anything.";
 
 /** Anything matching this must never appear in pre-release owner copy (tests scan every renderer and constant). */
-export const PRE_RELEASE_FORBIDDEN = /ready check|installer (will|visits?|offers?|measures?|checks?)|offer(s|ed)? you( \d)? times|their times|times for your|\bmeasur|on-?site|as soon as|\bsoon\b|shortly|this week|jump the queue|move up|book your|to book\b|speed it up/i;
+export const PRE_RELEASE_FORBIDDEN = /ready check|installer (will|visits?|offers?|measures?|checks?)|offer(s|ed)? you( \d)? times|their times|times for your|\bmeasur|on-?site|as soon as|\bsoon\b|shortly|this week|jump the queue|move up|book your|to book\b|speed it up|demand is high|high demand|availability/i;
 
 /** The forbidden phrases found in `text` (empty = spot-only). */
 export function preReleaseViolations(text: string): string[] {
