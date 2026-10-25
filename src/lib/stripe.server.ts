@@ -3,13 +3,17 @@
 // jobs only ever use a test key. Webhook payments are recorded once per PaymentIntent in the append-only ledger and
 // then flow through the same payment-step effects as a bank transfer. Xero reconciliation of Stripe payouts is manual
 // (Xero's Stripe feed / bank rules) – this never writes payments into Xero. When that reconciled payment reaches the
-// invoice it is matched back to the card row (`reconcilePayments`: Stripe id in the Xero Reference, else same amount
-// within 10 days), so the money counts once (audit F01).
+// invoice it is matched back to the card row by the Stripe id (PaymentIntent / charge) in the Xero Reference, so the money
+// counts once (audit F01); a same-amount Xero payment WITHOUT that id is never assumed to be the card money — both count
+// and the office is asked (audit R02). One receipt = one ledger row even under concurrent deliveries: the row's
+// `receipt_key` is unique in the database (audit R06, pending payment-receipt-once.sql) and a 23505 reads as "duplicate".
+// A `charge.refunded` lowers the card row by Stripe's cumulative refunded amount, once per refund state.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { checkoutSessionParams, encodeForm, parseStripeEvent, stripeBlocker, stripePaymentKey, verifyStripeSignature, type StripePaymentFact } from "./stripe.core";
-import { PAYMENT_EVENT, afterPaymentsChanged, jobPaymentView, rawPaymentLedger, reconciledInvoicePaidCents } from "./payments.server";
-import { toCents } from "./payments.core";
+import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, afterPaymentsChanged, flagUnclearPaymentMatches, insertLedgerEvent, jobPaymentView, rawPaymentLedger, reconciledInvoicePaidCents } from "./payments.server";
+import { stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, toCents } from "./payments.core";
+import type { StripeRefundFact } from "./stripe.core";
 import { timeoutSignal } from "./network-timeout.core";
 
 const STRIPE_API = "https://api.stripe.com/v1";
@@ -52,8 +56,23 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
   if (!ok) return { status: 401, outcome: "bad_signature" };
   const ev = parseStripeEvent(rawBody);
   if (!ev) return { status: 400, outcome: "unreadable" };
+  if (ev.refund) return { status: 200, outcome: await recordStripeRefund(ev.refund) };
   if (!ev.fact) return { status: 200, outcome: `ignored:${ev.type}` };
   return { status: 200, outcome: await recordStripePayment(ev.fact) };
+}
+
+/** Audit R02: the charge id of a PaymentIntent (Xero's Stripe feed may reference the charge). Read-only, best-effort:
+ *  no key, a mode mismatch or any failure → null (the PaymentIntent id still identifies the receipt). */
+async function stripeChargeFor(paymentIntentId: string, livemode: boolean): Promise<string | null> {
+  const key = process.env["STRIPE_SECRET_KEY"] ?? null;
+  const { stripeKeyMode } = await import("./stripe.core");
+  if (!key || stripeKeyMode(key) !== (livemode ? "live" : "test")) return null;
+  try {
+    const res = await fetch(`${STRIPE_API}/payment_intents/${encodeURIComponent(paymentIntentId)}`, { headers: { Authorization: `Bearer ${key}` }, signal: timeoutSignal(STRIPE_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const pi = (await res.json()) as { latest_charge?: unknown };
+    return typeof pi.latest_charge === "string" && pi.latest_charge ? pi.latest_charge : null;
+  } catch { return null; }
 }
 
 export async function recordStripePayment(f: StripePaymentFact): Promise<string> {
@@ -67,12 +86,21 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
   }
   const key = stripePaymentKey(f);
   // The RAW ledger: a card row already matched to its Xero payment drops out of the reconciled view, but is still recorded.
+  // Fast path only — the unique receipt_key below is what makes two concurrent deliveries record ONE row (audit R06).
   const ledger = await rawPaymentLedger(inv.job_id, inv.id);
   if (ledger.some((r) => r.note?.includes(`stripe:${key}`))) return "duplicate";
-  await logEvent(inv.job_id, null, PAYMENT_EVENT, `Card payment of $${(f.amountCents / 100).toFixed(2)} received (Stripe, ${f.step.replace("_", " ")})`,
-    { invoice_id: inv.id, amount_cents: f.amountCents, source: "card", paid_at: f.paidAt, step: f.step, note: `stripe:${key}`, stripe_event_id: f.eventId, stripe_payment_intent: f.paymentIntentId, stripe_session: f.sessionId }, { internal: true });
+  const charge = f.chargeId ?? (f.paymentIntentId ? await stripeChargeFor(f.paymentIntentId, f.livemode) : null);
+  const outcome = await insertLedgerEvent(inv.job_id, null, PAYMENT_EVENT, `Card payment of $${(f.amountCents / 100).toFixed(2)} received (Stripe, ${f.step.replace("_", " ")})`,
+    { invoice_id: inv.id, amount_cents: f.amountCents, source: "card", paid_at: f.paidAt, step: f.step, note: `stripe:${key}`, stripe_event_id: f.eventId, stripe_payment_intent: f.paymentIntentId, stripe_session: f.sessionId, stripe_charge: charge, receipt_key: stripeReceiptKey(key) });
+  // Lost the race to a concurrent delivery of the same receipt: it applies the money and the downstream steps, once.
+  if (outcome === "duplicate") return "duplicate";
   // Gates read invoices.total_paid; Stripe money is real money, so it counts now — until Xero shows the same money
-  // (matched by the Stripe id in the Xero payment Reference, else same amount within 10 days; audit F01), never twice.
+  // (matched by the Stripe id in the Xero payment Reference; audit F01/R02), never twice.
+  await flagUnclearPaymentMatches(inv.job_id, inv.id).catch((e) => console.error("payment match check skipped", (e as Error).message));
+  return applyAfterStripeChange(inv);
+}
+
+async function applyAfterStripeChange(inv: { id: string; job_id: string; total_paid: number | string | null }): Promise<"recorded"> {
   const total = await reconciledInvoicePaidCents(inv.job_id, inv.id, { totalPaid: inv.total_paid });
   if (total !== toCents(inv.total_paid)) {
     const { applyPaidAmount } = await import("./xero.server");
@@ -80,4 +108,27 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
   }
   await afterPaymentsChanged(inv.job_id, inv.id, null);
   return "recorded";
+}
+
+/** Audit R02: `charge.refunded` → ONE `owner_payment_reversed` row (source card) per cumulative refunded amount of the
+ *  PaymentIntent, for the part not yet recorded. Repeat or concurrent deliveries of the same refund state write nothing
+ *  (unique receipt_key). The card row is found by its PaymentIntent; an unknown one is ignored. */
+export async function recordStripeRefund(r: StripeRefundFact): Promise<string> {
+  const { data: rows } = await admin.from("workflow_events").select("job_id, details").eq("event_type", PAYMENT_EVENT).contains("details", { stripe_payment_intent: r.paymentIntentId }).limit(1);
+  const row = ((rows ?? []) as { job_id: string | null; details: Record<string, unknown> | null }[])[0];
+  const invoiceId = typeof row?.details?.["invoice_id"] === "string" ? (row.details["invoice_id"] as string) : null;
+  if (!row?.job_id || !invoiceId) return "unknown_payment";
+  const { data: inv } = await admin.from("invoices").select("id, job_id, total_paid, jobs(source)").eq("id", invoiceId).eq("job_id", row.job_id).maybeSingle();
+  if (!inv) return "unknown_invoice";
+  const job = inv.jobs as unknown as { source: string | null } | null;
+  if ((job?.source === "qa_test") !== !r.livemode) return "mode_mismatch";
+  const paid = Number(row.details?.["amount_cents"] ?? 0);
+  const target = Math.min(r.refundedCents, Math.max(0, paid));
+  const ledger = await rawPaymentLedger(inv.job_id, inv.id);
+  const delta = target - stripeRefundedSoFarCents(ledger, r.paymentIntentId);
+  if (delta <= 0) return "duplicate";
+  const outcome = await insertLedgerEvent(inv.job_id, null, PAYMENT_REVERSED_EVENT, `Card payment refunded in Stripe: $${(delta / 100).toFixed(2)} no longer counted`,
+    { invoice_id: inv.id, amount_cents: delta, source: "card", paid_at: r.refundedAt, note: `stripe-refund:${r.paymentIntentId}`, stripe_payment_intent: r.paymentIntentId, stripe_charge: r.chargeId, stripe_event_id: r.eventId, refunded_total_cents: target, receipt_key: stripeRefundReceiptKey(r.paymentIntentId, target) });
+  if (outcome === "duplicate") return "duplicate";
+  return applyAfterStripeChange(inv);
 }

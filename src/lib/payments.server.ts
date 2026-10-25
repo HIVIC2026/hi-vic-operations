@@ -3,13 +3,15 @@
 // records stay as history) plus `owner_payment_reversed` rows for Xero payments later deleted/voided — the project's
 // existing immutable event log, so no new table and no live schema change. Xero is the system of record; the amount
 // received is `reconciledPaidCents` (Xero's live payments + card records not yet matched in Xero, audit F01), and
-// invoices.total_paid follows it down as well as up.
+// invoices.total_paid follows it down as well as up. Audit R06: every ledger row carries `details.receipt_key` (Stripe
+// PaymentIntent / refund state, Xero PaymentID / reversal) and pending migration payment-receipt-once.sql makes that key
+// unique, so two concurrent deliveries of one receipt write ONE row; the loser's 23505 reads as "already recorded".
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentRecord, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
   cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, isStepCleared, isStepPaid, ledgerRecordFromEvent, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
-  provisionalBookingDecision, provisionalHoldExpiresAt, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReversals,
+  provisionalBookingDecision, provisionalHoldExpiresAt, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
 } from "./payments.core";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";
@@ -17,6 +19,23 @@ export const PAYMENT_EVENT = "owner_payment_recorded";
 export const PAYMENT_REVERSED_EVENT = "owner_payment_reversed";
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
+/** Audit R02: a card payment and a same-amount Xero payment with no shared receipt identity — counted as two payments and
+ *  raised ONCE per pair for the office to settle in Xero. Cleared by `PAYMENT_MATCH_RESOLVED_EVENT` once no pair is left. */
+export const PAYMENT_MATCH_UNCLEAR_EVENT = "owner_payment_match_unclear";
+export const PAYMENT_MATCH_RESOLVED_EVENT = "owner_payment_match_resolved";
+
+/** Audit R06: append one ledger row (`owner_payment_recorded` / `owner_payment_reversed`) carrying its `receipt_key`.
+ *  A unique violation (23505, pending migration payment-receipt-once.sql) means a concurrent delivery already recorded
+ *  this receipt → "duplicate", and the caller must not apply it again. Any other error throws. */
+export async function insertLedgerEvent(jobId: string, actorId: string | null, eventType: typeof PAYMENT_EVENT | typeof PAYMENT_REVERSED_EVENT, summary: string, details: Record<string, unknown> & { receipt_key: string }): Promise<"recorded" | "duplicate"> {
+  const { error } = await admin.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: eventType, summary, details: details as never, internal: true });
+  if (error) {
+    if ((error as { code?: string }).code === "23505") return "duplicate";
+    throw new Error(error.message);
+  }
+  await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", jobId);
+  return "recorded";
+}
 
 /** Bank details for owner pages/emails: Jo's NAB account (decision 152), env vars override. */
 export function bankDetails(): BankDetails {
@@ -48,14 +67,15 @@ export async function recordXeroPayments(invoiceId: string, jobId: string, xeroP
   const raw = await rawPaymentLedger(jobId, invoiceId);
   const known = raw.filter((r) => r.kind !== "reversal").map((r) => r.xeroPaymentId).filter((x): x is string => !!x);
   const fresh = newXeroPayments(known, xeroPayments);
+  let written = 0;
   for (const p of fresh) {
-    await logEvent(jobId, actorId, PAYMENT_EVENT, `Payment of $${(p.amountCents / 100).toFixed(2)} received in Xero`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, xero_reference: p.reference }, { internal: true });
+    if (await insertLedgerEvent(jobId, actorId, PAYMENT_EVENT, `Payment of $${(p.amountCents / 100).toFixed(2)} received in Xero`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, xero_reference: p.reference, receipt_key: xeroReceiptKey(invoiceId, p.xeroPaymentId) }) === "recorded") written++;
   }
   const gone = opts.fullList === false ? [] : xeroReversals(raw, xeroPayments);
   for (const p of gone) {
-    await logEvent(jobId, actorId, PAYMENT_REVERSED_EVENT, `Xero payment of $${(p.amountCents / 100).toFixed(2)} was deleted or voided in Xero – no longer counted`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId }, { internal: true });
+    if (await insertLedgerEvent(jobId, actorId, PAYMENT_REVERSED_EVENT, `Xero payment of $${(p.amountCents / 100).toFixed(2)} was deleted or voided in Xero – no longer counted`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, receipt_key: xeroReversalReceiptKey(invoiceId, p.xeroPaymentId) }) === "recorded") written++;
   }
-  return fresh.length + gone.length;
+  return written;
 }
 
 /** The reconciled amount for an invoice in cents (audit F01; replaces max(total_paid, ledger)). With `xeroPayments` (the
@@ -76,7 +96,35 @@ export async function reconciledInvoicePaidCents(jobId: string, invoiceId: strin
 }
 
 // Decision 368 (audit F18): the office "Record payment" entry (recordManualPayment) is removed. Old office rows stay in
-// the ledger as history and are reconciled like card rows (matched once Xero shows the same money).
+// the ledger as history and are reconciled against Xero (amount/date — they never had a receipt identity).
+
+/** Audit R02: raise ONE internal office row per card receipt + Xero payment pair that has the same amount within 10 days
+ *  but no shared Stripe id. Both payments are counted meanwhile (never silently merged). When no pair is left (the Xero
+ *  payment was re-applied with the Stripe id in its Reference, or removed), ONE resolved row clears it. Best-effort:
+ *  never changes money; `xeroPayments` = the invoice's live Payments list (else the ledger's own Xero view). */
+export async function flagUnclearPaymentMatches(jobId: string, invoiceId: string, xeroPayments?: XeroPaymentInput[] | null): Promise<number> {
+  const raw = await rawPaymentLedger(jobId, invoiceId);
+  const facts = xeroPayments ? xeroPaymentFacts(xeroPayments) : ledgerXeroPayments(raw);
+  const pairs = reconcilePayments(raw, facts).unclear.filter((p) => !!p.xero.paymentId);
+  const { data: prior } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [PAYMENT_MATCH_UNCLEAR_EVENT, PAYMENT_MATCH_RESOLVED_EVENT]).order("created_at");
+  const rows = ((prior ?? []) as { event_type: string; created_at: string; details: Record<string, unknown> | null }[]).filter((r) => r.details?.["invoice_id"] === invoiceId);
+  const lastResolved = rows.filter((r) => r.event_type === PAYMENT_MATCH_RESOLVED_EVENT).at(-1)?.created_at ?? "";
+  const open = rows.filter((r) => r.event_type === PAYMENT_MATCH_UNCLEAR_EVENT && r.created_at > lastResolved);
+  const raisedKeys = new Set(open.map((r) => String(r.details?.["pair_key"] ?? "")));
+  let raised = 0;
+  for (const { record, xero } of pairs) {
+    const card = (record.stripeIds ?? [])[0] ?? record.id;
+    const pairKey = `${card}|${xero.paymentId}`;
+    if (raisedKeys.has(pairKey)) continue;
+    await logEvent(jobId, null, PAYMENT_MATCH_UNCLEAR_EVENT,
+      `Card payment of $${(record.amountCents / 100).toFixed(2)} (Stripe ${card}) and a Xero payment of $${(xero.amountCents / 100).toFixed(2)} on ${xero.paidAt.slice(0, 10)} have no shared Stripe id — counted as two payments. Needs Home Insulation Victoria`,
+      { invoice_id: invoiceId, pair_key: pairKey, stripe_ids: record.stripeIds ?? [], xero_payment_id: xero.paymentId, xero_reference: xero.reference ?? null, amount_cents: record.amountCents, needs_office: true }, { internal: true });
+    raisedKeys.add(pairKey);
+    raised++;
+  }
+  if (!pairs.length && open.length) await logEvent(jobId, null, PAYMENT_MATCH_RESOLVED_EVENT, "Card and Xero payments now reconcile by Stripe id – nothing left to check", { invoice_id: invoiceId }, { internal: true });
+  return raised;
+}
 
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. */
 export async function jobPaymentView(jobId: string, now = new Date()) {
