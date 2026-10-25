@@ -405,9 +405,9 @@ export function HoldDialog({ h, open, onOpenChange }: { h: Header; open: boolean
           <label className="block text-sm font-semibold">Until <Input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="mt-1" aria-label="Until" /></label>
           <p className="text-xs text-sub">Or leave blank until you resume it.</p>
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. owner overseas until 9 Nov" aria-label="Note" />
-          <TellTicks owner={tell.owner} installer={tell.installer} set={(o, i) => setTell({ owner: o, installer: i })} sends={false} />
+          {/* Decision 345 (Jo 25 Oct 2026): Hold sends nobody anything — no "tell them" ticks. */}
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={why.length < 3} className={cn(btn, "bg-ink text-white")} onClick={async () => { if (await hold({ jobId: h.jobId, reason: why, ...(until ? { until } : {}), ...(note.trim() ? { note: note.trim() } : {}), tellOwner: tell.owner, tellInstaller: tell.installer }, "On hold")) onOpenChange(false); }}>Put on hold</button>
+            <button type="button" disabled={why.length < 3} className={cn(btn, "bg-ink text-white")} onClick={async () => { if (await hold({ jobId: h.jobId, reason: why, ...(until ? { until } : {}), ...(note.trim() ? { note: note.trim() } : {}), tellOwner: false, tellInstaller: false }, "On hold")) onOpenChange(false); }}>Put on hold</button>
             <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => onOpenChange(false)}>Keep going</button>
           </div>
           <p className="text-xs text-sub">Pauses every reminder and text until then; the 30-day clock is unchanged; the job shows “On hold” on Jobs and Needs me.</p>
