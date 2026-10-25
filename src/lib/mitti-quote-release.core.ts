@@ -1,10 +1,14 @@
 import type { MittiElectricianResolution } from "./usual-electrician.core";
 
-/** Mitti fees are disclosed on the accepted quote; consent and electrical details remain mandatory. */
-export function mittiQuoteReleaseBlockers(consentStatus: string | null, electrician: MittiElectricianResolution | null): string[] {
+/** Mitti fees are disclosed on the accepted quote; consent and electrical details remain mandatory.
+ *  `ourLead` (our own leads, A2): the PIESA is always Home Insulation Victoria's electrician (decisions 246/289 — the
+ *  electrician choice exists only on the installer's own jobs and is never recorded for our leads), so there is no
+ *  electrician arrangement to decide. Night test run 25 Oct 2026: without this every A2 quote was refused at Send
+ *  ("Electrician arrangement is not decided"). Owner consent is still required. */
+export function mittiQuoteReleaseBlockers(consentStatus: string | null, electrician: MittiElectricianResolution | null, opts: { ourLead?: boolean } = {}): string[] {
   return [
     ...(consentStatus === "granted" ? [] : ["No current owner contact consent on record"]),
-    ...(electrician?.ready ? [] : electrician?.reasons ?? ["Electrician arrangement is not decided"]),
+    ...(opts.ourLead || electrician?.ready ? [] : electrician?.reasons ?? ["Electrician arrangement is not decided"]),
   ];
 }
 

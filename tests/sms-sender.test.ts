@@ -79,9 +79,13 @@ describe("real SMS gate", () => {
     expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z", commsEnabled: false })).toContain("switched off");
   });
   test("unknown type fails closed", () => expect(smsBlocker({ ...ok, type: "nope" })).toContain("Unknown"));
-  test("decision 388: the spot saved and save-spot reminder texts are held until Jo approves the spot-only wording", () => {
-    expect(smsBlocker({ ...ok, type: "spot_saved" })).toBe("Wording not approved yet");
-    expect(smsBlocker({ ...ok, type: "save_spot_reminder" })).toBe("Wording not approved yet");
+  // Decision 388 update (JO_DECISIONS_LOG, 25 Oct 2026): "Jo approved the spot-only 'Spot saved' text and 'Save my spot'
+  // reminder text ('Approve both'); spot_saved and save_spot_reminder wordingApproved back to true." Delivery still needs the
+  // per-type switch (Jo keeps the Spot saved TEXT switched off in Settings), consent, STOP and quiet hours — checked above.
+  test("decision 388 update: the spot-only spot saved and save-spot reminder wording is approved; their switches still decide", () => {
+    expect(smsBlocker({ ...ok, type: "spot_saved" })).toBeNull();
+    expect(smsBlocker({ ...ok, type: "save_spot_reminder" })).toBeNull();
+    expect(smsBlocker({ ...ok, type: "spot_saved", typeSwitchOn: false })).toContain("switched off");
   });
   test("AU formatting", () => {
     expect(toAuE164("0477 511 901")).toBe("+61477511901");

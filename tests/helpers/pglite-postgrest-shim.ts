@@ -3,6 +3,25 @@
 import type { PGlite } from "@electric-sql/pglite";
 
 type Filter = { sql: string; vals: unknown[] };
+const splitTop = (x: string) => { const out: string[] = []; let d = 0, cur = ""; for (const ch of x) { if (ch === "(") d++; if (ch === ")") d--; if (ch === "," && d === 0) { out.push(cur.trim()); cur = ""; continue; } cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
+/** PostgREST logical filter terms → SQL with $? placeholders (eq/neq/gt/gte/lt/lte/is/in/like/ilike, not.*, nested and/or). */
+function orTerms(expr: string, vals: unknown[], join = "OR"): string {
+  return splitTop(expr).map((t) => {
+    const nested = /^(and|or)\((.*)\)$/.exec(t);
+    if (nested) return `(${orTerms(nested[2]!, vals, nested[1]!.toUpperCase())})`;
+    const m = /^([a-z_0-9]+)\.(not\.)?([a-z]+)\.(.*)$/.exec(t);
+    if (!m) throw new Error(`shim: unsupported or() term ${t}`);
+    const [, col, neg, op, raw] = m as unknown as [string, string, string | undefined, string, string];
+    const v = raw.replace(/^"(.*)"$/, "$1");
+    const ops: Record<string, string> = { eq: "=", neq: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=", like: "LIKE", ilike: "ILIKE" };
+    let sql: string;
+    if (op === "is") sql = `"${col}" IS ${v === "null" ? "NULL" : v === "true" ? "TRUE" : "FALSE"}`;
+    else if (op === "in") { vals.push(splitTop(v.replace(/^\(|\)$/g, ""))); sql = `"${col}"::text = ANY($?)`; }
+    else if (ops[op]) { vals.push(op.endsWith("like") ? v.replace(/\*/g, "%") : v); sql = `"${col}" ${ops[op]} $?`; }
+    else throw new Error(`shim: unsupported or() operator ${op}`);
+    return neg ? `NOT (${sql})` : sql;
+  }).join(` ${join} `);
+}
 export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string, string[]> } = {}) {
   return {
     from(table: string) {
@@ -22,6 +41,8 @@ export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string
         contains(c: string, v: unknown) { filters.push({ sql: `"${c}" @> $?::jsonb`, vals: [JSON.stringify(v)] }); return b; },
         ilike(c: string, v: string) { filters.push({ sql: `"${c}" ILIKE $?`, vals: [v] }); return b; },
         in(c: string, v: unknown[]) { filters.push({ sql: `"${c}" = ANY($?)`, vals: [v] }); return b; },
+        /** PostgREST `or` string on this table's columns ("a.is.null,a.not.in.(x,y)"). */
+        or(expr: string) { const vals: unknown[] = []; filters.push({ sql: `(${orTerms(expr, vals)})`, vals }); return b; },
         insert(p: Record<string, unknown>) { op = "insert"; patch = p; return b; },
         upsert(p: Record<string, unknown>, o?: { onConflict?: string }) { op = "insert"; patch = p; conflict = o?.onConflict ?? "id"; return b; },
         delete() { op = "delete"; return b; },

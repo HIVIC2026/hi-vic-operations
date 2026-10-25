@@ -14,7 +14,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
     if (table === "jobs" && fields === "job_number") return { data: { job_number: "HV-ORDINARY" }, error: null };
     return { data: { source: "base44", channel: "hivic_sourced", eligibility_outcome: "needs_onsite_confirmation", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 150, estimated_area_unknown: false, properties: { enrichment: { base44: { raw: { answers: { existing_insulation: insulation } } } } } }, error: null };
   };
-  const q = { select(s: string) { fields = s; return q; }, eq() { return q; }, in() { return q; },
+  const q = { select(s: string) { fields = s; return q; }, eq() { return q; }, in() { return q; }, or() { return q; }, neq() { return q; }, // or/neq: the history check (Jo 21 Oct) — counts are answered as 0 above
     order(key: string, options: unknown) { reviewOrders.push([key, options]); return q; }, limit() { return q; },
     maybeSingle: async () => answer(), then(resolve: (v: unknown) => unknown) { return Promise.resolve(answer()).then(resolve); } };
   return q;

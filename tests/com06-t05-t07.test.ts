@@ -21,8 +21,9 @@ const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00
     jobStatus: { enabled: false, stages: [] }, enquiryDate: { enabled: false, window: "last_3_days", fromDate: null, toDate: null } } };
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
+  let exactCount = false, headOnly = false; // PostgREST count: "exact" / head (fakes predate the senders' exact counts)
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
+  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "neq" ? r[k] !== v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "insert") {
@@ -39,15 +40,16 @@ function from(table: string) {
       const hit = rows().filter(match); for (const r of hit) Object.assign(r, values as Row);
       return { data: returning ? hit.map((r) => ({ id: r.id })) : null, error: null };
     }
-    return { data: rows().filter(match), error: null };
+    const hit = rows().filter(match);
+    return { data: headOnly ? null : hit, error: null, count: exactCount ? hit.length : null };
   };
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => { if (op !== "select") returning = true; return q; },
+    select: (_c?: string, o?: { count?: string; head?: boolean }) => { if (op !== "select") returning = true; else { exactCount = o?.count === "exact"; headOnly = o?.head === true; } return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; }, in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
     like: (k: string, pat: string) => { f.push([k, "like", pat]); return q; },
-    neq: () => q, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
+    neq: (k: string, v: unknown) => { f.push([k, "neq", v]); return q; }, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
     insert: (v: unknown) => { op = "insert"; values = v; return q; }, update: (v: unknown) => { op = "update"; values = v; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
     single: async () => { const r = run(); const d = Array.isArray(r.data) ? r.data[0] ?? null : r.data; return { data: d, error: r.error ?? (d ? null : { message: "none" }) }; },
@@ -98,7 +100,7 @@ beforeEach(() => {
     jobs: [{ id: J, job_number: "HV-9606", source: "base44", channel: "hivic_sourced", stage: "preliminary_estimate_ready", created_at: "2026-10-01T00:00:00Z", deleted_at: null,
       eligibility_outcome: "likely_eligible", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 120, estimated_area_unknown: false,
       owners: { full_name: "COM06 Sample", email: "com06.sample@example.test" }, properties: { address_line: "6 Gate Street", suburb: "Testville", postcode: "3000", enrichment: { base44: { raw: { answers: { existing_insulation: "none" } } } } } }],
-    customer_estimate_links: [{ id: "l6", job_id: J, token: "T6".repeat(43), purpose: "step3_estimate", status: "active" }],
+    customer_estimate_links: [{ id: "l6", job_id: J, token: "T6".repeat(43), purpose: "step3_estimate", status: "active", expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }], // a usable link has a future expiry (sender since 20 Oct)
     veu_location_variables: [{ postcode: "3000" }], // S102: establish service coverage for the automatic offer_spot send
     indicative_estimates: [{ id: "e6", job_id: J, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] } }],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],

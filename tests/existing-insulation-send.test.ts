@@ -13,7 +13,7 @@ const data: Record<string, unknown> = {
   retail_estimator_settings:{indicative_veec_value:70},
 };
 mock.module("@/integrations/supabase/client.server", () => ({supabaseAdmin:{from(table: string) {
-  const q = {select(){return q;},eq(){return q;},maybeSingle:async()=>({data:data[table]??null,error:null}),insert(){writes++;return q;},update(){writes++;return q;},single:async()=>({data:{id},error:null})};return q;
+  const q = {select(){return q;},eq(){return q;},order(){return q;},limit(){const r={data:Array.isArray(data[table])?data[table]:[],error:null};return Object.assign(Promise.resolve(r),{maybeSingle:async()=>({data:data[table]??null,error:null})});} /* latest media review read (decision 392) */,maybeSingle:async()=>({data:data[table]??null,error:null}),insert(){writes++;return q;},update(){writes++;return q;},single:async()=>({data:{id},error:null})};return q;
 }}}));
 mock.module("../src/lib/launch-campaign.server",()=>({campaignLink:async()=>qualified?{group:"onsite",criteriaPassed:true,ownerQualified:!reviewed,mediaReview:reviewed?"below_r2":null,job:{id}}:null,campaignPermission:()=>qualified}));
 mock.module("../src/lib/group-b-media.server",()=>({groupBMediaForJob:async()=>{originalMediaReads++;throw new Error("Invitation exclusion must not gate qualified follow-up");}}));

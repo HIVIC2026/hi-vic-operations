@@ -1,5 +1,10 @@
-import { expect, mock, test } from "bun:test";
+import { expect, mock, test, setSystemTime } from "bun:test";
 import { BLAST_KEY, blastClaimId } from "../src/lib/save-spot-reminder-blast.core";
+
+// Environment: these texts honour the 8pm–7am Melbourne quiet hours (Jo 22 Oct 2026). Pin the clock to 1pm Melbourne on
+// today's date so the result never depends on when the suite runs.
+{ const midday = new Date(); midday.setUTCHours(2, 0, 0, 0); setSystemTime(midday); }
+
 let providerCalls = 0, claimed: Record<string, unknown> | null = null, optedOut = false, reminderOn = false;
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (table: string) => {
   let payload: Record<string, unknown> | null = null;

@@ -19,8 +19,9 @@ let isAdmin = true; // server-side authorisation result from the is_admin RPC
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select";
   let values: unknown = null;
+  let exactCount = false, headOnly = false; // PostgREST count: "exact" / head (fakes predate the senders' exact counts)
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => (kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "not" ? (r[k] ?? null) !== v : true));
+  const match = (r: Row) => f.every(([k, kind, v]) => (kind === "eq" ? r[k] === v : kind === "neq" ? r[k] !== v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "not" ? (r[k] ?? null) !== v : true));
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "select" && table === "workflow_settings" && failRulesColumn) return { data: null, error: { message: 'column "save_my_spot_auto_rules" does not exist', code: "42703" } };
@@ -39,16 +40,16 @@ function from(table: string) {
       return { data: hit.map((r) => ({ id: r.id })), error: null };
     }
     const all = rows().filter(match);
-    return { data: all, error: null };
+    return { data: headOnly ? null : all, error: null, count: exactCount ? all.length : null };
   };
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => q,
+    select: (_c?: string, o?: { count?: string; head?: boolean }) => { if (op === "select") { exactCount = o?.count === "exact"; headOnly = o?.head === true; } return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; },
     in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
     not: (k: string) => { f.push([k, "not", null]); return q; },
-    neq: () => q, gte: () => q, lte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
+    neq: (k: string, v: unknown) => { f.push([k, "neq", v]); return q; }, gte: () => q, lte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
     insert: (v: unknown) => { op = "insert"; values = v; return q; },
     update: (v: unknown) => { op = "update"; values = v; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
@@ -604,6 +605,9 @@ describe("live automatic path — maybeAutoRouteLeadEmail → offer_spot → sen
   test("Office manual sending is unaffected by these rules", async () => {
     eligible();
     setRules(R({ jobStatus: { enabled: true, stages: ["new_enquiry"] } })); // would block the automatic path
+    // Since 20 Oct the sender needs a current (unexpired) secure link before anything else; give the lead one so this
+    // test still isolates the automatic-sending rules.
+    T["customer_estimate_links"] = [{ id: "l-s103", job_id: JOB, token: "T".repeat(43), purpose: "step3_estimate", status: "active", expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }];
     const [res] = await sendSaveMySpot([JOB], "office-1");
     expect(res.outcome).not.toBe("blocked");
     expect(res.detail ?? "").not.toMatch(/chosen job status|automatic sending rules/i);

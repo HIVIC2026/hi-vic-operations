@@ -135,6 +135,12 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
   }
 }
 
+/** Same gate confirmBooking applies (decision 296), read before any day is taken so a refusal leaves the days open. */
+async function refuseUntilOwnerConfirmedPiesa(jobId: string) {
+  const b = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
+  if (b) throw new WorkflowError(b);
+}
+
 /** Installer takes one of the owner's suggested days (locked take) at the arrival time they select = booked. */
 export async function installerTakeDay(jobId: string, proposalId: string, userId: string, time: string) {
   if (!isInstallTime(time)) throw new WorkflowError("Please choose an arrival time.");
@@ -145,6 +151,7 @@ export async function installerTakeDay(jobId: string, proposalId: string, userId
   if (!p) throw new WorkflowError(TAKE_OUTCOME["not_found"]!);
   if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(TAKE_OUTCOME["outside_window"]!);
   if (!dayAllowedByElectrician(p.starts_at, c.limit)) throw new WorkflowError(ELECTRICIAN_DAYS_ONLY);
+  await refuseUntilOwnerConfirmedPiesa(jobId);
   const { data, error } = await admin.rpc("accept_install_day", { _proposal: proposalId, _assignment: a.id, _user: userId, _deadline: c.deadline as string });
   if (error) throw new Error(error.message);
   if (data !== "accepted") throw new WorkflowError(TAKE_OUTCOME[data as string] ?? "That day could not be booked.");
@@ -161,6 +168,9 @@ export async function ownerTakeDay(jobId: string, proposalId: string, userId: st
   if (!p) throw new WorkflowError(TAKE_OUTCOME["not_found"]!);
   if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(TAKE_OUTCOME["outside_window"]!);
   if (!dayAllowedByElectrician(p.starts_at, c.limit)) throw new WorkflowError(ELECTRICIAN_DAYS_ONLY);
+  // Decision 296: the booking needs the owner's PIESA confirmation. Checked BEFORE the day is taken (night test run 25 Oct
+  // 2026: the booking refused it only after the take, which closed all 3 offered days and sent the installer back to offer).
+  await refuseUntilOwnerConfirmedPiesa(jobId);
   const { data: took, error } = await admin.from("appointment_proposals").update({ status: "accepted", assignment_id: c.asg!.id, responded_by: userId, responded_at: new Date().toISOString(), response_note: "Owner took this installer install day" })
     .eq("id", proposalId).eq("status", "proposed").gt("starts_at", new Date().toISOString()).select("id");
   if (error) throw new Error(error.message);

@@ -81,7 +81,9 @@ let offerFails = false;
 mock.module("../src/lib/ready-check-times.server", () => ({
   officePickReadyCheckInstaller: async (jobId: string, actor: string | null, ids: string[]) => { if (offerFails) throw new Error("installer paused"); offers.push({ jobId, actor, ids }); return { offered: 1, exhausted: false, offerId: "o1" }; },
 }));
-mock.module("../src/lib/ready-check-booking-access.server", () => ({ assertOwnerReadyCheckBooking: async () => undefined }));
+// Release opens the job's Ready Check booking first (night run 25 Oct 2026); recorded here so the order is visible.
+const bookingOpened: string[] = [];
+mock.module("../src/lib/ready-check-booking-access.server", () => ({ assertOwnerReadyCheckBooking: async () => undefined, openOwnerReadyCheckBooking: async (jobId: string) => { bookingOpened.push(jobId); return { opened: true }; } }));
 mock.module("../src/lib/readycheck-booking.server", () => ({ installerCandidatesFor: async () => ({ postcode: "3000", candidates: [{ business_id: "biz-1", name: "Sample Insulation", blocker: null }, { business_id: "biz-2", name: "Other Co", blocker: null }] }) }));
 mock.module("../src/lib/offer-guard.server", () => ({ assertOfferPairsAllowed: async () => undefined }));
 
@@ -108,6 +110,7 @@ describe("Release", () => {
   test("REAL job approved → ONE pending release, owner email + text, installer NOT offered", async () => {
     const r = await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON, now: new Date("2026-10-26T00:00:00Z") });
     expect(r).toMatchObject({ mode: "released", installer: "Sample Insulation" });
+    expect(bookingOpened).toContain("job-1"); // Release opens the job's Ready Check booking (decision 389)
     expect(events("spot_released").length).toBe(1);
     expect(offers.length).toBe(0);
     expect(sent.map((s) => s.via)).toEqual(["live-email", "real-sms"]);
@@ -133,8 +136,9 @@ describe("Release", () => {
     expect(offers).toEqual([{ jobId: "job-1", actor: "jo", ids: ["biz-1"] }]);
   });
   test("an installer not eligible for the job → refused before the owner is told", async () => {
+    bookingOpened.length = 0;
     await expect(S.releaseSpot("job-1", "jo", "biz-x", { approved: ON })).rejects.toThrow(/isn't an approved installer/);
-    expect(events().length).toBe(0); expect(sent.length).toBe(0);
+    expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(bookingOpened).toEqual([]);
   });
 });
 

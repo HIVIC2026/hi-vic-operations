@@ -112,7 +112,13 @@ describe("reading an Install day audit", () => {
   test("maps every asked answer to the official PIISA item; Part 5 lights/cables and Part 6 are never read from the form", () => {
     const { answers, crew } = installDayOfficialAnswers(installDayAudit({ crew: 3 }));
     expect(answers).toEqual({ jobRef: "HV-3100", address: "1 Test St, Box Hill VIC 3128", startDate: "2026-11-03", "p2.installDate": "2026-11-03", "p2.ap": "Jo Smith", "p2.company": "Reinsulate Pty Ltd",
-      "p1.powerInformed": "Yes", lifeSupport: "No", "p3.swms": "Yes", "p3.table1": "Yes", "p3.isolated": "Yes", "p4.present": "No", "p5.reviewed": "Yes", "p5.electricianPresent": "N/A", "p5.noAccess": "Yes" });
+      "p1.powerInformed": "Yes", lifeSupport: "No", "p3.swms": "Yes", "p3.table1": "Yes", "p3.isolated": "Yes", "p4.present": "No", "p5.reviewed": "Yes", "p5.electricianPresent": "N/A", "p5.noAccess": "Yes",
+      // Q35 "Everything on this form is true and complete" is the official Part 8 declaration tick (night test run 25 Oct).
+      "p8.declaration": "Yes" });
+    // Unticked Q35 stays blank, never assumed.
+    const unticked = installDayAudit({ crew: 1 }) as { items: { label: string; responses?: unknown; value?: unknown }[] };
+    for (const it of unticked.items) if (it.label === Q.declaration) { delete it.responses; delete it.value; }
+    expect(installDayOfficialAnswers(unticked).answers["p8.declaration"]).toBeUndefined();
     expect(crew).toEqual([{ name: "Bhavdeep Singh", cii: "CII-001" }, { name: "Dominic Doherty", cii: "CII-002" }, { name: "Third Person", cii: "CII-003" }]);
     expect(installDayOfficialAnswers(installDayAudit({ crew: 1 })).crew).toEqual([{ name: "Bhavdeep Singh", cii: "CII-001" }, null, null]);
   });
