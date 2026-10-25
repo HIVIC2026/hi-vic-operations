@@ -106,6 +106,10 @@ export function flatten(doc: Any): Entry[] {
   // Support nested children arrays as well as flat parent_id lists.
   const all: { it: Any; header: boolean; parent: string | null }[] = [];
   const walk = (it: Any, header: boolean, parent: string | null) => {
+    // Mitti marks items hidden by "only show when" logic (and branches the installer never opened, e.g. a fixed
+    // "Ceiling Area 3" section or a stale answer behind a changed count) as `inactive: true`. They keep their old
+    // values, so they must never be read — 25 Oct 2026 a stale inactive 200 × 200 area was summed into a job.
+    if (it?.inactive === true) return;
     all.push({ it, header, parent: it.parent_id ?? parent });
     for (const c of (it.children ?? it.items ?? []) as Any[]) walk(c, header, it.item_id ?? it.id ?? null);
   };

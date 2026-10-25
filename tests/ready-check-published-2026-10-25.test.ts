@@ -242,3 +242,25 @@ describe("three areas in the new shape: 6×5, 4×3.5 (Remove 12 m²), 3×2 (Top 
     expect(p.patch.removal_m2).toBe(20);
   });
 });
+
+describe("inactive Mitti items are never read (25 Oct: a stale 200 × 200 area behind a changed count)", () => {
+  it("flatten drops inactive items and their children; the live area still parses", () => {
+    const doc = { items: [
+      { item_id: "sec", label: "Add a ceiling area", type: "dynamicfield" },
+      { item_id: "n", label: LEAN_Q.areaName, parent_id: "sec", responses: { text: "Main house" } },
+      { item_id: "l", label: LEAN_Q.lengthM, parent_id: "sec", responses: { text: "5" } },
+      { item_id: "w", label: LEAN_Q.widthM, parent_id: "sec", responses: { text: "5" } },
+      { item_id: "e", label: LEAN_Q.existing, parent_id: "sec", responses: { selected: [{ label: "No" }] } },
+      { item_id: "old", label: "Ceiling Area 1", type: "section", inactive: true },
+      { item_id: "ol", label: LEAN_Q.lengthM, parent_id: "old", inactive: true, responses: { text: "200" } },
+      { item_id: "ow", label: LEAN_Q.widthM, parent_id: "old", inactive: true, responses: { text: "200" } },
+      { item_id: "oe", label: LEAN_Q.existing, parent_id: "old", inactive: true, responses: { selected: [{ label: "Yes" }] } },
+      { item_id: "or", label: LEAN_Q.removeM2, parent_id: "old", inactive: true, responses: { text: "20" } },
+    ] };
+    expect(flatten(doc).map((e) => e.id)).toEqual(["sec", "n", "l", "w", "e"]);
+    const p = parseAudit({ audit_id: "audit_x", audit_data: {}, items: doc.items, header_items: [] } as never);
+    expect(p.patch.measured_area_m2).toBe(25);
+    expect(p.patch.removal_m2 ?? null).toBeNull();
+    expect(p.areas).toHaveLength(1);
+  });
+});
