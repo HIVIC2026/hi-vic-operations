@@ -110,7 +110,7 @@ export function buildInvoicePayload(a: {
   const ref = xeroReference(a.jobNumber);
   const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
   const address = a.installationAddress?.trim() ? ` – ${INSTALLATION_ADDRESS_LABEL}: ${a.installationAddress.trim()}` : "";
-  const LineItems = a.items.map((i, n) => {
+  const LineItems: { Description: string; Quantity: number; UnitAmount: number; AccountCode: string; TaxType?: string; Tracking: { Name: string; Option: string }[] | undefined }[] = a.items.map((i, n) => {
     const q = Number(i.quantity), u = Number(i.unit_price_inc_gst), lt = Number(i.line_total_inc_gst);
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
     const head = `${ref}${n === 0 ? address : ""}`;
