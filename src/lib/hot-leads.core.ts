@@ -103,6 +103,8 @@ export const SAVE_SPOT_REAL_SEND_APPROVED = true as boolean;
 /** Jo (9 Oct 2026, "Ok then fix it"): the preserved Group B invitation is approved for real delivery through
  *  its own guarded path only. Global switches, consent, original-media, idempotency and opt-out guards still apply. */
 // Decision 388: HELD with SAVE_SPOT_REAL_SEND_APPROVED (the O2 questions email was reworded spot-only).
-export const INSULATION_DETAILS_REAL_SEND_APPROVED = false as boolean;
+// Decision 393 (Jo 25 Oct 2026, "Yes, send all 54"): Jo approved the spot-only 3-questions email for the "waiting for
+// photos / never sent" backlog. Since decision 392 the automatic router never sends it to an unreviewed new enquiry.
+export const INSULATION_DETAILS_REAL_SEND_APPROVED = true as boolean;
 /** Leads Jo may already have emailed by hand: shown with a note so she can untick them. */
 export const HOT_MAYBE_EMAILED_BY_HAND: Record<string, string> = { "HV-1114": "Jo may already have emailed this owner by hand. Untick if so." };

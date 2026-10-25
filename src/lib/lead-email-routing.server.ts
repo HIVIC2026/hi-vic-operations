@@ -38,6 +38,25 @@ export async function selectLeadEmailRoute(jobId: string) {
   });
 }
 
+/** Jo 23 Oct 2026: record the owner-declared qualification (system, never an Office review) unless one already exists,
+ *  then reuse the guarded existing-insulation sender exactly as the Office-approved sends; all its checks still run.
+ *  Shared by the automatic router (offer_spot + existingInsulation) and the decision 393 backlog send. */
+export async function sendOwnerDeclaredExistingInsulationOffer(jobId: string, insulationUnknown: boolean): Promise<{ ok: false; reason: string } | { ok: true; result: import("./hot-leads-send.server").HotSendResult }> {
+  const { PRESENT_AUTO_OFFER_EVENT, presentAutoOfferDetails } = await import("./insulation-review.core");
+  const prior = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PRESENT_AUTO_OFFER_EVENT).limit(1);
+  if (prior.error) return { ok: false, reason: "Could not verify the insulation qualification record." };
+  if (!prior.data?.length) {
+    // Decision 392: "don't know" is recorded as what the owner said (answer "unknown"), never as insulation present.
+    const summary = insulationUnknown
+      ? "Owner doesn't know if there is insulation — automatic existing-insulation Save my spot offer (decision 392, Jo 25 Oct). Final onsite verification required."
+      : "Owner declared existing insulation — automatic existing-insulation Save my spot offer (Jo 23 Oct). Final onsite verification required.";
+    const ins = await admin.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: PRESENT_AUTO_OFFER_EVENT, summary, details: presentAutoOfferDetails(insulationUnknown ? "unknown" : "present") as never, internal: true });
+    if (ins.error) return { ok: false, reason: "Could not record the insulation qualification." };
+  }
+  const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
+  return { ok: true, result: await sendExistingInsulationSaveSpot(jobId, null, false) };
+}
+
 /** The single post-Gate-1 email selector. Individual senders retain delivery, consent, opt-out and idempotency guards. */
 export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<LeadEmailRouteResult> {
   try {
@@ -88,22 +107,9 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
       const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(route.existingInsulation ? { existingInsulationOffer: route.insulationUnknown ? "unknown" as const : true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) });
       if (!gate.allowed) return { route: "none", sent: false, reason: gate.reason };
       if (route.existingInsulation) {
-        // Jo 23 Oct 2026: record the owner-declared qualification (system, never an Office review), then reuse the
-        // guarded existing-insulation sender exactly as the Office-approved sends; all its checks still run.
-        const { PRESENT_AUTO_OFFER_EVENT, presentAutoOfferDetails } = await import("./insulation-review.core");
-        const prior = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PRESENT_AUTO_OFFER_EVENT).limit(1);
-        if (prior.error) return { route: "none", sent: false, reason: "Could not verify the insulation qualification record." };
-        if (!prior.data?.length) {
-          // Decision 392: "don't know" is recorded as what the owner said (answer "unknown"), never as insulation present.
-          const summary = route.insulationUnknown
-            ? "Owner doesn't know if there is insulation — automatic existing-insulation Save my spot offer (decision 392, Jo 25 Oct). Final onsite verification required."
-            : "Owner declared existing insulation — automatic existing-insulation Save my spot offer (Jo 23 Oct). Final onsite verification required.";
-          const ins = await admin.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: PRESENT_AUTO_OFFER_EVENT, summary, details: presentAutoOfferDetails(route.insulationUnknown ? "unknown" : "present") as never, internal: true });
-          if (ins.error) return { route: "none", sent: false, reason: "Could not record the insulation qualification." };
-        }
-        const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
-        const result = await sendExistingInsulationSaveSpot(jobId, null, false);
-        return { route: "offer_spot", sent: result.outcome === "sent", reason: result.detail };
+        const offer = await sendOwnerDeclaredExistingInsulationOffer(jobId, !!route.insulationUnknown);
+        if (!offer.ok) return { route: "none", sent: false, reason: offer.reason };
+        return { route: "offer_spot", sent: offer.result.outcome === "sent", reason: offer.result.detail };
       }
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
       const result = (await sendSaveMySpot([jobId], null, { automaticInitial: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) }))[0];
