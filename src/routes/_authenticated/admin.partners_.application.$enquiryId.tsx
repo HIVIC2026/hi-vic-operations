@@ -62,7 +62,7 @@ function SignedApplication({ row, appId }: { row: Row; appId: string }) {
   const type = row.enquiry_type === "installer" ? "installer" as const : "rec" as const;
   const data = (r.data.data ?? {}) as Parameters<typeof applicationChecks>[0]["data"] & { installers?: { full_legal_name?: string; email?: string; cii_holds?: string | null; cii_level?: string | null; cii_expiry?: string }[]; legal_entity_name?: string; trading_name?: string; business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; r6_rate?: number | null; r7_rate?: number | null; batts_removal_rate?: number | null; service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string; electrician_choice?: string | null };
   const verified = (v.data ?? []).filter((x) => x.status === "verified").map((x) => x.worker_email);
-  const checks = applicationChecks({ type, data, signedAt: r.data.signed_at, signerName: r.data.signer_name, agreementVersion: r.data.agreement_version, hasCertificate: !!r.data.certificateUrl, verifiedCiiEmails: verified, today: melbourneToday() });
+  const checks = applicationChecks({ type, data, signedAt: r.data.signed_at, signerName: r.data.signer_name, agreementVersion: r.data.agreement_version, hasCertificate: !!r.data.certificateUrl, verifiedCiiEmails: verified, today: melbourneToday(), registerLookups: c.data.registerLookups ?? [] });
   const outstanding = checks.filter((x) => x.mark !== "ok");
   const activated = c.data.activated;
   const people = data.installers ?? [];

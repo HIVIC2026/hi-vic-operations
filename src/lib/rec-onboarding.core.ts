@@ -1,4 +1,5 @@
 import { melbourneToday as melbourneTodayCore } from "./melbourne-time.core";
+import { licenceNumberProblem, recNumberProblem } from "./trade-numbers.core";
 // Pure rules for the portal REC (electrician) onboarding + partner agreement signing.
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
@@ -295,6 +296,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       // Only licensed electricians may register; old drafts with false/null must be explicitly confirmed again.
       if (d.contact_is_licensed_electrician !== true) e.push("Confirm you are a licensed electrician to continue.");
       if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
+      else { const f = licenceNumberProblem(d.licence_number); if (f) e.push(f); } // decision 371(b): shape check only
       if (!validCalendarDate(d.licence_expiry)) e.push("Enter your licence expiry date.");
       else if ((d.licence_expiry as string) < melbourneToday(now)) e.push("Your licence has expired. Enter the new expiry date.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
@@ -305,9 +307,11 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (d.works_under_rec === true) {
         if (!txt(d.host_rec_name)) e.push("Enter the REC business you work under.");
         if (!txt(d.host_rec_number)) e.push("Enter their REC number.");
+        else { const f = recNumberProblem(d.host_rec_number); if (f) e.push(f); }
       } else {
         if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
         if (!txt(d.rec_registration_number)) e.push("Enter your REC number.");
+        else { const f = recNumberProblem(d.rec_registration_number); if (f) e.push(f); }
       }
       break;
     case "contact":

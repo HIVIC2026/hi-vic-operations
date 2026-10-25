@@ -1,6 +1,8 @@
 // Office O5 Partners (decisions 153, 130, 22/188, 157/173, 229, 232): pure presentation rules for the People,
 // Approved, Rates and Coverage tabs and the business file. No database, no network. Clearance itself is decided by
 // worker-compliance.core `crewClearance` (decision 153) — this file only words the facts and picks ONE next action.
+import { licenceNumberProblem, recNumberProblem } from "./trade-numbers.core";
+import { registerCheckLine, type RegisterLookupResult } from "./esv-register.core";
 import type { MittiAccess } from "./mitti-membership.core";
 
 export type PersonFacts = {
@@ -100,7 +102,7 @@ type AppData = {
  * approves anything — activatePartnerApplication keeps every guard (a verified CII is mandatory, expired insurance
  * needs an office override reason).
  */
-export function applicationChecks(f: { type: "installer" | "rec"; data: AppData; signedAt: string | null; signerName: string | null; agreementVersion: string | null; hasCertificate: boolean; verifiedCiiEmails: readonly string[]; today: string }): ApplicationCheck[] {
+export function applicationChecks(f: { type: "installer" | "rec"; data: AppData; signedAt: string | null; signerName: string | null; agreementVersion: string | null; hasCertificate: boolean; verifiedCiiEmails: readonly string[]; today: string; registerLookups?: readonly RegisterLookupResult[] | null }): ApplicationCheck[] {
   const d = f.data;
   const out: ApplicationCheck[] = [];
   const abn = (d.abn ?? "").replace(/\D/g, "");
@@ -121,8 +123,13 @@ export function applicationChecks(f: { type: "installer" | "rec"; data: AppData;
       : { mark: verified > 0 ? "warn" : "missing", text: `CII certificates · ${verified} of ${ws.length} verified${notHeld.length ? ` (${notHeld.join(", ")}: not held)` : ""}${verified === 0 ? " — at least one must be verified before approval" : ""}` });
   } else {
     out.push(d.assessment_rate ? { mark: "ok", text: `PIESA rate proposed · $${d.assessment_rate}` } : { mark: "missing", text: "No PIESA rate proposed" });
-    out.push(d.rec_registration_number ? { mark: "ok", text: `REC ${d.rec_registration_number}` } : { mark: "missing", text: "REC number not given" });
-    out.push(d.licence_number && d.licence_expiry && d.licence_expiry >= f.today ? { mark: "ok", text: `Electrical licence ${d.licence_number} · to ${d.licence_expiry}` } : { mark: "missing", text: "Electrical licence or its expiry missing" });
+    // Decision 371(b): number shape checks (a warning for the reviewer; never an approval decision).
+    out.push(!d.rec_registration_number ? { mark: "missing", text: "REC number not given" } : recNumberProblem(d.rec_registration_number) ? { mark: "warn", text: `REC ${d.rec_registration_number} · number format looks wrong` } : { mark: "ok", text: `REC ${d.rec_registration_number}` });
+    out.push(!(d.licence_number && d.licence_expiry && d.licence_expiry >= f.today) ? { mark: "missing", text: "Electrical licence or its expiry missing" }
+      : licenceNumberProblem(d.licence_number) ? { mark: "warn", text: `Electrical licence ${d.licence_number} · number format looks wrong · to ${d.licence_expiry}` }
+      : { mark: "ok", text: `Electrical licence ${d.licence_number} · to ${d.licence_expiry}` });
+    // Decision 371(c): the recorded ESV register lookups ("not checked" = check by hand; never a pass).
+    for (const r of f.registerLookups ?? []) out.push(registerCheckLine(r));
   }
   const acc = (d.bank_account_number ?? "").replace(/\D/g, "");
   out.push(d.bank_account_name && acc ? { mark: "ok", text: `Bank details given · ${d.bank_account_name} · ••••${acc.slice(-4)}` } : { mark: "warn", text: "Bank details not given (collected after approval)" });
@@ -131,7 +138,8 @@ export function applicationChecks(f: { type: "installer" | "rec"; data: AppData;
 
 /** The default "Ask for the missing items" message: one line per outstanding check. */
 export function missingItemsMessage(checks: readonly ApplicationCheck[]): string {
-  const lines = checks.filter((c) => c.mark !== "ok").map((c) => `• ${c.text}`);
+  // Register lookups (decision 371c) are the reviewer's own check — never asked of the applicant.
+  const lines = checks.filter((c) => c.mark !== "ok" && !c.text.startsWith("ESV register")).map((c) => `• ${c.text}`);
   return lines.length ? `Thanks for your application. Before we can approve it, please send us:\n${lines.join("\n")}` : "";
 }
 

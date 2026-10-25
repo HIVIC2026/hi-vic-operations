@@ -69,7 +69,20 @@ export async function prestartFacts(jobId: string, start: string) {
     swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
     // Decision 319: the White Card rule applies only to installations booked on/after WHITE_CARD_ENFORCED_FROM.
     bookingCreatedAt: await installationBookingCreatedAt(jobId, start),
+    // Decision 367: the install cannot start while its 10% deposit is unpaid (payment-rule jobs with an invoice).
+    installDepositBlocker: await installDepositBlockerFor(jobId, start),
   };
+}
+
+/** "Install deposit not paid" when the booking for this start is still provisional (or past its hold) — read from the
+ *  same jobPaymentView the deposit sweep uses. Null when paid, waived, not under the payment rule, or no invoice. */
+export async function installDepositBlockerFor(jobId: string, start: string): Promise<string | null> {
+  const { jobPaymentView } = await import("./payments.server");
+  const { installDepositPrestartBlocker } = await import("./payments.core");
+  const v = await jobPaymentView(jobId);
+  if (!v) return null;
+  if (v.provisional.installStart && Date.parse(v.provisional.installStart) !== Date.parse(start)) return null;
+  return installDepositPrestartBlocker(v.provisional.decision);
 }
 
 /** When the installation booking for this start was made (decision 319 cutoff). Null = no matching booking found. */

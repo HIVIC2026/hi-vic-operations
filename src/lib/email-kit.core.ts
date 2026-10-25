@@ -1,4 +1,4 @@
-// Shared email kit for the approved designs in docs/templates/approved/*.html (Jo, 24 Oct 2026, decisions 66–137).
+// Shared email kit for the approved designs in docs/templates/{owner,installer,electrician,invoices}/*.html (Jo, 24 Oct 2026, decisions 66–137).
 // PURE: strings only. Every owner/installer email renderer builds its HTML from these pieces so the real emails match
 // the approved files (390px, email-safe tables + inline styles, no flex, logo as the bundled PNG data URI, the shared
 // campaign button). Wording lives in each renderer; this file holds presentation only.

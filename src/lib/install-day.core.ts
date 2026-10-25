@@ -294,9 +294,14 @@ const isTicked = (v: unknown) => v === true || (typeof v === "string" && /^(yes|
  *    (c.tick2 lights, c.tick3 RCD, c.tick4 TPS, c.tick5 basic protection) — a missing tick is a missing fact;
  *  - when the PIESA outcome (B1) is "rectification is not required", the PIESA itself records that no electrical defects
  *    were found, so the four confirmations are Yes.
+ *  - decision 362: when B1 is "rectification is not possible … an electrician must be present at the start" (option 3,
+ *    decision 338), the PIESA validator has already required Parts 4–6 to find nothing, so the confirmations are Yes as for
+ *    no fixes; p5.electricianPresent is Yes only from this form's "Is the electrician here?" = Yes WITH the electrician
+ *    photo (`installDay`), otherwise it stays missing.
  * Anything not established is listed in `missing` (a pre-start blocker), never guessed.
  */
-export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefined): { answers: Record<string, string>; missing: string[] } {
+export const ELECTRICIAN_AT_START_MISSING = "PIESA needs an electrician at the start: \"Is the electrician here?\" is not Yes with the electrician's photo";
+export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefined, installDay?: { electricianHere: "Yes" | "No" | null; electricianPhoto: boolean } | null): { answers: Record<string, string>; missing: string[] } {
   const answers: Record<string, string> = {}, missing: string[] = [];
   if (!piesa) return { answers, missing: ["No signed PIESA on this job — the light and cable answers can't be filled in"] };
   const s = (k: string) => (typeof piesa[k] === "string" ? String(piesa[k]).trim() : "");
@@ -307,7 +312,12 @@ export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefi
   const ticks: [string, string, string][] = [["p5.icConfirmed", "c.tick2", "lights IC / IC-4"], ["p5.safeToCover", "c.tick2", "lights safe to cover"], ["p5.rcd", "c.tick3", "RCD protection"], ["p5.tps", "c.tick4", "TPS cables"], ["p5.basic", "c.tick5", "basic protection"]];
   if (b1 === B1_NO_FIXES) for (const [id] of ticks) answers[id] = "Yes";
   else if (b1 === B1_FIXES) for (const [id, c, label] of ticks) { if (isTicked(piesa[c])) answers[id] = "Yes"; else missing.push(`PIESA Section C: ${label} not confirmed by the electrician`); }
-  else missing.push(b1 ? "PIESA outcome needs an electrician at the start — the light and cable confirmations need office review" : "PIESA outcome (B1) not recorded");
+  else if (b1 === B1_OPTIONS[2]) {
+    for (const [id] of ticks) answers[id] = "Yes";
+    if (installDay?.electricianHere === "Yes" && installDay.electricianPhoto) answers["p5.electricianPresent"] = "Yes";
+    else missing.push(ELECTRICIAN_AT_START_MISSING);
+  }
+  else missing.push(b1 ? "PIESA outcome not recognised — the light and cable confirmations need office review" : "PIESA outcome (B1) not recorded");
   return { answers, missing: [...new Set(missing)] };
 }
 

@@ -261,6 +261,7 @@ export function AdminAssignmentPanel({ jobId, sections = [1, 2, 4] }: { jobId: s
             {c.status === "awaiting_ap" && form?.esc && <div className="space-y-2 rounded border p-2">
               {/* ESC template Section 3 (decision 123): Part A details prefilled from your profile, Part B declaration tick, then sign. */}
               <div className="font-medium">Section 3 – Accredited person details and declaration</div>
+              <p className="text-xs text-muted-foreground" data-why="decision 370">Normally this signs itself as the AP representative as soon as the owner has signed and every check passes. Sign here only if it is held.</p>
               <div className="text-muted-foreground">Part A: Accredited person name: DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654)</div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Input placeholder="First name" value={apRep.first_name} onChange={(e) => setApRepEdit({ ...apRep, first_name: e.target.value })} />

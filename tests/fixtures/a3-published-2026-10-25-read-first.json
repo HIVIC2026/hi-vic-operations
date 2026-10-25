@@ -1,0 +1,1806 @@
+{
+ "template": {
+  "id": "1f325828-3f71-4b1a-988f-083c83414f95",
+  "name": "A3 – Install day",
+  "items": [
+   {
+    "id": "f3245d39-ea77-11e1-aff1-0800200c9a66",
+    "label": "Job",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "8394e308-e866-4ae0-879c-0dec2cda3e41",
+      "label": "READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you \"All filled in\". You are only paid when this form is 100% complete.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "28e39da4-56b7-4e6a-9b6f-cc75e9542dca",
+      "label": "Portal Job Number",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "16d07166-3b2e-4b28-850f-5a0fb339af95",
+      "label": "Site address",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "e36f7bc1-4230-4894-9a07-283feca49863",
+      "label": "Install date",
+      "children": [],
+      "datetime": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "enable_date": true,
+       "enable_time": false
+      }
+     },
+     {
+      "id": "88847044-222c-460a-8b54-fb93357b6216",
+      "label": "Accredited person",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     }
+    ]
+   },
+   {
+    "id": "dad35e2b-eb3f-451d-b7af-5eb17bcb9d57",
+    "label": "Who's on site",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "ec07da9a-05fe-4f10-a0b6-a3810b963a86",
+      "label": "Installer business",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "2216ac5d-8e73-4b66-a0b7-51edba28d2e6",
+      "label": "Lead installer",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "7bd77efe-d54f-47b3-81f7-9420dafac7da",
+      "label": "Lead installer's CII number",
+      "children": [],
+      "textsingle": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       },
+       "text_format": "TEXT",
+       "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+       "calculation_data": null,
+       "reading_config_id": ""
+      }
+     },
+     {
+      "id": "d074c959-d273-4220-8321-17c0dd7d45fc",
+      "label": "Photo of the lead installer at the front door, showing photo ID",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "b9259f38-340c-41c9-b799-e0b2031d21b5",
+      "label": "Photo ID readable.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "e79ec187-f4c2-4125-a367-fe85640c262a",
+      "label": "Is anyone else installing today?",
+      "children": [
+       {
+        "id": "4e96da22-9ed7-4efd-ad3b-c0708666596e",
+        "label": "",
+        "children": [
+         {
+          "id": "117b7187-28cf-4052-a88a-b0bba70f3770",
+          "label": "Second installer",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         },
+         {
+          "id": "d791235d-a9ea-4c87-bcbc-4d883507e236",
+          "label": "Second installer's CII number",
+          "children": [],
+          "textsingle": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           },
+           "text_format": "TEXT",
+           "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+           "calculation_data": null,
+           "reading_config_id": ""
+          }
+         },
+         {
+          "id": "b540c15f-0ab6-49df-bbba-57f02fd4e592",
+          "label": "Photo of the second installer at the front door, showing photo ID",
+          "media": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           }
+          },
+          "children": []
+         },
+         {
+          "id": "434712a1-6e57-40a6-801d-2e6a0d9f95d5",
+          "label": "Photo ID readable.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         },
+         {
+          "id": "ab7b0346-ebc9-4b0d-8823-4f5cb6cbbe59",
+          "label": "Is there a third installer?",
+          "children": [
+           {
+            "id": "1891db12-ba0d-4137-a5c8-409aebab843a",
+            "label": "",
+            "children": [
+             {
+              "id": "dd6a96ff-104c-43c3-83d2-6b2a84db0ede",
+              "label": "Third installer",
+              "children": [],
+              "textsingle": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               },
+               "text_format": "TEXT",
+               "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+               "calculation_data": null,
+               "reading_config_id": ""
+              }
+             },
+             {
+              "id": "22a8f48f-a4ee-4cfa-87cd-5a108856916c",
+              "label": "Third installer's CII number",
+              "children": [],
+              "textsingle": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               },
+               "text_format": "TEXT",
+               "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+               "calculation_data": null,
+               "reading_config_id": ""
+              }
+             },
+             {
+              "id": "d96a9584-e372-4baa-9127-f1d9ce74edd0",
+              "label": "Photo of the third installer at the front door, showing photo ID",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             },
+             {
+              "id": "903d0f7b-dd92-4050-8712-222e9a72dee1",
+              "label": "Photo ID readable.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "59b8017a-0c07-4b18-a6ea-050c70c6510d"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "f1b04528-f3d0-405c-9a53-24807f988a55",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "59b8017a-0c07-4b18-a6ea-050c70c6510d"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "f1b04528-f3d0-405c-9a53-24807f988a55",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "26939228-845c-4850-9097-87f0b3e51376",
+    "label": "Before anyone goes up",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "3c9c55c5-8236-4963-aedc-2cd4ac7f1da5",
+      "label": "Does the household know the power will be off today?",
+      "children": [
+       {
+        "id": "50029253-9051-4be1-ab79-7291e679290e",
+        "label": "",
+        "children": [
+         {
+          "id": "03aa030b-bda9-4812-b3ca-964ae1a2bdaa",
+          "label": "Stop. Tell them before you go on.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "cb61e111-4d61-4607-b86a-7706f4c2b143",
+      "label": "Does anyone here rely on life support?",
+      "children": [
+       {
+        "id": "d054a0ba-7ca7-40eb-bf63-361291ce2bdc",
+        "label": "",
+        "children": [
+         {
+          "id": "70367e47-4408-4efa-9b51-48ada0ac0a87",
+          "label": "Do you have their written consent or medical plan?",
+          "children": [
+           {
+            "id": "c785a22c-1bc1-4b7c-97f6-7d567380d6af",
+            "label": "",
+            "children": [
+             {
+              "id": "20e45ce9-77c4-4f94-ba73-1f5950a61e52",
+              "label": "Stop. You need it before starting.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           },
+           {
+            "id": "55080943-b275-420c-8bd1-a02e30137fc4",
+            "label": "",
+            "children": [
+             {
+              "id": "5112d59a-ecea-4f44-a000-75030fb465d3",
+              "label": "Upload the consent or medical plan",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             },
+             {
+              "id": "edae1fe7-ebe2-4e5a-97d6-2db09b82746b",
+              "label": "Every page readable.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "fb092c4a-2551-4872-9496-04820ddd4de2"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "c835bb47-b2aa-4bbd-9a8a-b61a4fdcfd79"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "37343501-4265-42eb-b015-cd2acace2d09",
+       "calculation_data": null,
+       "failed_responses": [
+        "c835bb47-b2aa-4bbd-9a8a-b61a4fdcfd79"
+       ]
+      }
+     },
+     {
+      "id": "00bf1130-9ff9-4738-a09c-8ca46d06dbbc",
+      "label": "Is the safety plan for this job signed?",
+      "children": [
+       {
+        "id": "81d7b55b-d596-46a9-91df-fb2e0853db32",
+        "label": "",
+        "children": [
+         {
+          "id": "487cf87d-0281-4e4f-bb50-ef87b17c6d4a",
+          "label": "Stop. Sign it on your job page first.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "1b0be72c-4ce2-4604-a58d-30833699f457",
+      "label": "It's on your job page.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "f40d794d-4545-456b-873f-d845d59e37db",
+      "label": "Are all the common hazards covered in it?",
+      "children": [
+       {
+        "id": "76f67970-b405-4155-b12f-f87b04dd2a61",
+        "label": "",
+        "children": [
+         {
+          "id": "6125bf1a-bec6-4ae5-af2d-a358153bc52e",
+          "label": "Stop.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "4945d2d2-1c53-4ab1-b579-1090be9d68e0",
+      "label": "Is the power isolated, locked out and tagged, and the ceiling safe to enter?",
+      "children": [
+       {
+        "id": "d29ae659-a74a-4dd8-914c-83722184a7f7",
+        "label": "",
+        "children": [
+         {
+          "id": "636aeaf4-5877-4a2c-8616-e7668ec3ff6d",
+          "label": "Stop. Isolate, lock out and tag first.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "0e9228ca-d1ba-442b-91c9-a2a7a752ed0c",
+      "label": "Photo of the switchboard with the lock-out tag on",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "88bca68b-1bda-4667-8398-c700633043aa",
+      "label": "Solar and battery isolators off too, if the home has them.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     }
+    ]
+   },
+   {
+    "id": "b2862c7c-9914-45f2-b8d0-8f397d76d49d",
+    "label": "Solar, battery or generator",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "3b6d020e-fbf2-4f7c-b0d9-fcd80b0c7d66",
+      "label": "Is there solar, a battery or a generator?",
+      "children": [
+       {
+        "id": "c0ae06d3-6423-41de-8572-e864c6b917ef",
+        "label": "",
+        "children": [
+         {
+          "id": "a9c6fdb9-515a-46c3-b4bc-09bfe5217ac0",
+          "label": "Do you have the shutdown and restart instructions?",
+          "children": [
+           {
+            "id": "c8f46753-647e-488c-b18f-713a2745756c",
+            "label": "",
+            "children": [
+             {
+              "id": "e568aa7f-4670-45c6-a631-482a3055a383",
+              "label": "Stop. An electrician must isolate it.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         },
+         {
+          "id": "cf83d0f3-fd76-4152-9b95-ddda0be075eb",
+          "label": "Does the ground-level isolator work and switch off safely?",
+          "children": [
+           {
+            "id": "9b513973-63e2-4ea3-b219-ad9ef0927aef",
+            "label": "",
+            "children": [
+             {
+              "id": "f796419e-8353-42db-ac1f-d3d655304a43",
+              "label": "Stop. Get an electrician to check it.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "ba22697b-dab5-41e4-ac36-d22ffc1541ff"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "9ce34247-fc06-40da-9d44-b72e85b1e53f",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "e114cba7-9fd0-4438-9931-d03b56b74e09",
+    "label": "The electrician's check (PIESA)",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "ce314be0-ee7a-478f-88cb-ebe494eea899",
+      "label": "Have you read the PIESA and is it safe to start?",
+      "children": [
+       {
+        "id": "cbe4dd36-a0f7-403f-87a1-3fdd37565818",
+        "label": "",
+        "children": [
+         {
+          "id": "2f5a2afc-6bc7-4d5c-9b5c-adacda9e82a8",
+          "label": "Stop.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "3b49921e-dad0-4d3a-bae0-c9c6a1d540bb",
+      "label": "Does the PIESA need an electrician here at the start?",
+      "children": [
+       {
+        "id": "44581185-f092-4e27-bc06-802c4faa0c78",
+        "label": "",
+        "children": [
+         {
+          "id": "e96eb3a2-e272-4096-8099-2d32164a28c8",
+          "label": "Is the electrician here?",
+          "children": [
+           {
+            "id": "fbdb2cf5-29a4-4b9b-9c27-81cddf4e0896",
+            "label": "",
+            "children": [
+             {
+              "id": "71ed1a6d-992e-4da1-a5af-4cd39ea1a6a3",
+              "label": "Stop. Wait for the electrician.",
+              "children": [],
+              "instruction": {
+               "text": {}
+              }
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           },
+           {
+            "id": "0f2726ad-0788-4dd9-a03d-372d085a4bbf",
+            "label": "",
+            "children": [
+             {
+              "id": "0f77b6e5-0895-47cc-bb2d-f60af8bec5fd",
+              "label": "Photo of the electrician at the front door, showing photo ID",
+              "media": {
+               "options": {
+                "weighting": null,
+                "is_mandatory": true
+               }
+              },
+              "children": []
+             }
+            ],
+            "logicfield": {
+             "skip_to": null,
+             "response_is": {
+              "responses": [
+               "fb092c4a-2551-4872-9496-04820ddd4de2"
+              ]
+             },
+             "require_note": false,
+             "require_media": false,
+             "require_action": false,
+             "procurement_trigger": false,
+             "preset_action_type_ids": []
+            }
+           }
+          ],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "ba22697b-dab5-41e4-ac36-d22ffc1541ff"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "9ce34247-fc06-40da-9d44-b72e85b1e53f",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "8e37ab0a-c258-4ce8-951f-d7b813830585",
+      "label": "Has anyone been in the ceiling since the PIESA?",
+      "children": [
+       {
+        "id": "462cf8e9-7be5-4d52-a2b7-877d4f4ebc50",
+        "label": "",
+        "children": [
+         {
+          "id": "871f6d5a-5f34-406a-aa9c-12754d8c4c61",
+          "label": "Stop. An electrician must check again.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "db0ab221-cb03-422f-8b15-5c1684c9ac70"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "6504f3e7-6848-4fce-af44-a9c5027b18f0",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "4b859e40-d754-4b2d-82c9-c8eb19001b6d",
+      "label": "Ask the owner.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     }
+    ]
+   },
+   {
+    "id": "d3cb5e67-ebf2-43fe-83c9-d92a80dfad12",
+    "label": "Product",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "40c8ed07-2ddc-4c68-b62a-518ede34af0b",
+      "label": "Photo of the packaging showing brand, model and R-value",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "5b53935a-24e4-4ed5-bfe0-7b346a97a2e7",
+      "label": "One per product.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     }
+    ]
+   },
+   {
+    "id": "b37974a8-ea19-4bd5-968d-f9d7f6962f95",
+    "label": "Declaration (sign before you start)",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "f845ff38-73e1-4a69-8ce3-825d6add32c2",
+      "label": "INSTALLER DECLARATION – Sign BEFORE insulation work starts.\n\nAs the lead EEC Certified installer responsible for this installation, I confirm that:\n\na. I have received a completed copy of the Pre-installation electrical safety assessment for the premises; and\n\nb. I have completed the current Pre-installation installer safety assessment, as published on the department's Internet site within 30 days of the completion of the pre-installation electrical safety assessment; and\n\nc. the pre-installation installer safety assessment confirms\n   i. the worksite is safe and the installation or upgrade will proceed in accordance with any recommendations or conditions from the pre-installation electrical safety assessment including, if required, that a licensed electrician must be present during the insulation upgrade; and\n   ii. that safe work methods are in place as per Occupational Health and Safety Regulations 2017 (Vic); and",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "419b57c6-2ec3-4661-9fba-98f2c2ee4818",
+      "label": "d. I will ensure that:\n   i. all applicable occupation health and safety laws and requirements are complied with; and\n   ii. the insulation will be installed in compliance with the effective version of AS 3999; and\n   iii. if the installation is carried out on multiple days, that I will check that all items remain compliant with this assessment form at the start of each day prior to undertaking the work; and\n   iv. the insulation product/s being installed are listed on the ESC Register of Products.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "c9f4116f-17ce-47b2-9504-3fdbeec016a4",
+      "label": "Privacy Collection Statement: DEECA and ESC collect and use this information under the Privacy and Data Protection Act 2014 (Vic) to administer, monitor and enforce VEU. Refer to the complete Privacy Collection Statement in the linked official form: https://www.energy.vic.gov.au/__data/assets/word_doc/0042/788397/VEU-pre-installation-installer-safety-assessment-form-.docx",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "9299a34a-cd3d-4ebb-ab25-aeb4d3fda988",
+      "label": "Everything on this form is true and complete",
+      "checkbox": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "96d26ff1-7bfa-4a1f-aada-6969c7d97ea1",
+      "label": "Lead installer's signature",
+      "children": [],
+      "signature": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      }
+     },
+     {
+      "id": "de44850a-6284-4dd9-a92b-e671925498ee",
+      "label": "STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     }
+    ]
+   },
+   {
+    "id": "446f246f-a83e-4aea-8658-1c5b6372db4f",
+    "label": "Videos and photos (after the install)",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "d5447b00-c344-4be7-b510-77574169e61c",
+      "label": "AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "031cad03-c5a4-4dc9-bc6d-29982ac99676",
+      "label": "After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "d048bed2-260c-4e04-9a27-daedf48a17c8",
+      "label": "Depth photos: the new insulation in each area with a ruler standing in it",
+      "media": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "f8cfe0d8-4303-4e3a-bacc-81a604406e9e",
+      "label": "Don't squash it.",
+      "children": [],
+      "instruction": {
+       "text": {}
+      }
+     },
+     {
+      "id": "53ef2129-44b4-410b-a3ff-131ff46f2bdf",
+      "label": "Did the install take more than one day?",
+      "children": [
+       {
+        "id": "c24152ce-0c26-4a22-8662-edb21123ad51",
+        "label": "",
+        "children": [
+         {
+          "id": "18988523-42fc-4b81-bf48-deb6145b3006",
+          "label": "I checked every item on this form again before starting each day",
+          "checkbox": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           }
+          },
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "59b8017a-0c07-4b18-a6ea-050c70c6510d"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "f1b04528-f3d0-405c-9a53-24807f988a55",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     }
+    ]
+   },
+   {
+    "id": "4289f348-6c00-400e-953e-e3248ed0a713",
+    "label": "Finishing up",
+    "section": {
+     "approvers": null,
+     "autoshares": null,
+     "section_type": "SECTION_TYPE_UNSPECIFIED",
+     "user_defined_approvers": false
+    },
+    "children": [
+     {
+      "id": "4b21c034-23c0-4e7a-b255-55334bd31e83",
+      "label": "Is the lock-out off and the power back on?",
+      "children": [
+       {
+        "id": "1c72a7c1-fae1-43fe-ab13-30e1b35b1d4c",
+        "label": "",
+        "children": [
+         {
+          "id": "f1bf8ae9-a963-4ecd-8c52-32170bbd74d9",
+          "label": "Don't leave until it is.",
+          "children": [],
+          "instruction": {
+           "text": {}
+          }
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "2b35a7f8-4a14-49e2-8623-00c48a2a1a26"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       },
+       {
+        "id": "122381bf-b41d-4a24-acfc-b60a57d2d7ba",
+        "label": "",
+        "children": [
+         {
+          "id": "6c83f071-b963-497d-b777-d543f655cf7a",
+          "label": "Who turned it back on?",
+          "children": [],
+          "question": {
+           "options": {
+            "weighting": 0,
+            "is_mandatory": true
+           },
+           "response_set_id": "198042f3-a790-4cf8-af49-1eb64293c6a4",
+           "calculation_data": null,
+           "failed_responses": []
+          }
+         },
+         {
+          "id": "62c8e78b-c9ae-46d0-bf59-8526b4c1afed",
+          "label": "Photo of the switchboard with the main switch on",
+          "media": {
+           "options": {
+            "weighting": null,
+            "is_mandatory": true
+           }
+          },
+          "children": []
+         }
+        ],
+        "logicfield": {
+         "skip_to": null,
+         "response_is": {
+          "responses": [
+           "fb092c4a-2551-4872-9496-04820ddd4de2"
+          ]
+         },
+         "require_note": false,
+         "require_media": false,
+         "require_action": false,
+         "procurement_trigger": false,
+         "preset_action_type_ids": []
+        }
+       }
+      ],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "c6347c1c-4588-4ea4-9790-2e0615bf3b14",
+      "label": "Is the solar, battery or generator back on?",
+      "children": [],
+      "question": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       },
+       "response_set_id": "6d5d90c6-1107-4644-b0b9-ecadb8abc888",
+       "calculation_data": null,
+       "failed_responses": []
+      }
+     },
+     {
+      "id": "789f85eb-928d-4531-8325-a7d9e079172c",
+      "label": "I was here the whole time and supervised everyone",
+      "checkbox": {
+       "options": {
+        "weighting": 0,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "8e580308-501d-40f9-87cf-992f17046ad5",
+      "label": "Every answer, photo and video on this form is filled in, and I won't leave site until the portal texts me \"All filled in\".",
+      "checkbox": {
+       "options": {
+        "weighting": 1,
+        "is_mandatory": true
+       }
+      },
+      "children": []
+     },
+     {
+      "id": "97702a12-f200-4b75-9733-75473d4f1b31",
+      "label": "Lead installer's signature",
+      "children": [],
+      "signature": {
+       "options": {
+        "weighting": null,
+        "is_mandatory": true
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "media": [],
+  "owner": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "author": {
+   "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+   "name": "Jo Lowe"
+  },
+  "added_at": "2026-10-24T20:57:23.868Z",
+  "archived": false,
+  "settings": {
+   "is_add_note_disabled": false,
+   "is_attach_media_disabled": false,
+   "is_create_action_disabled": false,
+   "is_inspection_completion_dialog_confirmation_disabled": false
+  },
+  "last_used": "2026-10-25T04:42:30Z",
+  "created_at": "2026-10-24T20:57:23.868Z",
+  "description": "",
+  "modified_at": "2026-10-25T05:05:44.158Z",
+  "permissions": {
+   "edit": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "view": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "owner": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    }
+   ],
+   "delete": [
+    {
+     "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+     "type": "USER"
+    },
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ],
+   "context": [
+    {
+     "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+     "type": "ROLE"
+    }
+   ]
+  },
+  "revision_id": "8-1cc92a43aa284d9c8bf0826097b63fd9",
+  "title_rules": [
+   "28e39da4-56b7-4e6a-9b6f-cc75e9542dca",
+   "16d07166-3b2e-4b28-850f-5a0fb339af95"
+  ],
+  "access_level": "ACCESS_LEVEL_DELETE",
+  "revision_key": "06b5af76-2a27-423d-9d15-a6346b8a7cf5",
+  "response_sets": [
+   {
+    "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
+      "color": "19,133,95",
+      "label": "Pass",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
+      "color": "198,0,34",
+      "label": "Fail",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "c354f51b-f625-450c-8236-065c3ccaf647",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "9f010b52-1fe3-472b-b181-00568713d907",
+      "color": "0,68,163",
+      "label": "1",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "519ab9ab-48f3-4a7e-a699-8fbe01001ab0",
+      "color": "0,68,163",
+      "label": "2",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "f86ee69c-7a8c-43f2-a655-ba17a0064f7d",
+      "color": "0,68,163",
+      "label": "3",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "c6c011ed-4ade-460d-a04b-da730834b667",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "060ace00-1f61-468e-9c42-918fa93badcf",
+      "color": "19,133,95",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace01-1f61-468e-9c42-918fa93badcf",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "060ace02-1f61-468e-9c42-918fa93badcf",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "fcdf6676-585e-4091-a5e4-e355b98d7a18",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "1fa1b3ff-3266-47e0-a1bc-9034db50218d",
+      "color": "0,68,163",
+      "label": "Bradford Gold R5",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "98af6140-7737-42f8-bc86-fbf37a2df668",
+      "color": "0,68,163",
+      "label": "Bradford Gold R6",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6a719343-a112-41dc-89a9-16638c227bbf",
+      "color": "0,68,163",
+      "label": "Bradford Gold R7",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "bd0b8365-c2fc-4167-a075-daac4f0c598a",
+      "color": "0,68,163",
+      "label": "Fletchers Pink Batts R5",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "5545af6b-fb24-4733-96fd-9623a86ffa0f",
+      "color": "0,68,163",
+      "label": "Fletchers Pink Batts R6",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "d8a6a058-5fce-487f-a6f3-382f3fcd818a",
+      "color": "0,68,163",
+      "label": "Fletchers Pink Batts R7",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "91f446ce-dfa6-4eb8-a5b8-fe30288b6212",
+      "color": "0,68,163",
+      "label": "Earthwool R5",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "799c76fd-7caa-4b22-9618-8a0fed83b128",
+      "color": "0,68,163",
+      "label": "ECOWOOL R5",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "1076a3fb-d7b6-4d12-ab8a-fe85ad21d147",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "fb092c4a-2551-4872-9496-04820ddd4de2",
+      "color": "129,181,50",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "2b35a7f8-4a14-49e2-8623-00c48a2a1a26",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "198042f3-a790-4cf8-af49-1eb64293c6a4",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "750b4a95-51f0-4ffb-a382-88cbb4e0ab08",
+      "color": "127,127,127",
+      "label": "Lead installer",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ed27f507-d732-4603-9138-0d381d3c8877",
+      "color": "127,127,127",
+      "label": "Second installer",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "3e624e1d-2b05-4a12-97e1-5b7583684423",
+      "color": "127,127,127",
+      "label": "Third installer",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "a5ccc756-e447-49bc-b40a-cc12989cee73",
+      "color": "127,127,127",
+      "label": "The electrician",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "37343501-4265-42eb-b015-cd2acace2d09",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "c835bb47-b2aa-4bbd-9a8a-b61a4fdcfd79",
+      "color": "127,127,127",
+      "label": "Yes",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "7b9b3703-06d8-48f5-89fa-54ac0f14e909",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "5b69aee5-0532-46a4-b2f5-d020d4d5381d",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca20",
+      "color": "19,133,95",
+      "label": "Good",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca21",
+      "color": "255,176,0",
+      "label": "Fair",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca22",
+      "color": "198,0,34",
+      "label": "Poor",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "ef4abf51-3361-46f5-ba04-70c23c85ca23",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "6504f3e7-6848-4fce-af44-a9c5027b18f0",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "db0ab221-cb03-422f-8b15-5c1684c9ac70",
+      "color": "198,0,34",
+      "label": "Yes",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "3646b768-00fa-4069-91ed-30d74e320bc6",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "6d5d90c6-1107-4644-b0b9-ecadb8abc888",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "c5448be7-5dae-4e62-b797-fe5b2f1eb657",
+      "color": "129,181,50",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "fcbf5b0d-57df-4802-ae17-b1064a5a5e16",
+      "color": "198,0,34",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "008c4153-fd5e-40ea-907c-b9e3a61814a1",
+      "color": "129,181,50",
+      "label": "There isn't one",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "d743f356-a147-472c-a790-0c46a187de92",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
+      "color": "19,133,95",
+      "label": "Compliant",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
+      "color": "198,0,34",
+      "label": "Non-Compliant",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "f1b04528-f3d0-405c-9a53-24807f988a55",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "59b8017a-0c07-4b18-a6ea-050c70c6510d",
+      "color": "127,127,127",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "f8af311b-4aad-4bae-9dca-eaca272ddbce",
+      "color": "127,127,127",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   },
+   {
+    "id": "7601fb75-80ae-4409-b31a-9acd58d45445",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "af89ffa0-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "19,133,95",
+      "label": "Safe",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa1-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "198,0,34",
+      "label": "At Risk",
+      "score": 0,
+      "score_enabled": true
+     },
+     {
+      "id": "af89ffa2-5db2-4a49-93e5-7dd392ab8f10",
+      "color": "112,112,112",
+      "label": "N/A",
+      "score": 1,
+      "score_enabled": false
+     }
+    ]
+   },
+   {
+    "id": "9ce34247-fc06-40da-9d44-b72e85b1e53f",
+    "is_grs": false,
+    "responses": [
+     {
+      "id": "ba22697b-dab5-41e4-ac36-d22ffc1541ff",
+      "color": "112,112,112",
+      "label": "Yes",
+      "score": 1,
+      "score_enabled": true
+     },
+     {
+      "id": "7ebd09b7-8d1c-4d3f-a904-f93111e2cd36",
+      "color": "129,181,50",
+      "label": "No",
+      "score": 1,
+      "score_enabled": true
+     }
+    ]
+   }
+  ],
+  "document_links": [],
+  "format_version": "FORMAT_VERSION_3",
+  "metadata_image": null,
+  "translation_id": "",
+  "draft_author_name": "",
+  "origin_information": null,
+  "date_draft_modified": "1970-01-01T00:00:00Z",
+  "global_response_sets": [],
+  "mandatory_mark_as_complete": false,
+  "procurement_order_settings": null,
+  "is_locked_from_shared_library": false,
+  "support_site_as_question_type": true
+ }
+}

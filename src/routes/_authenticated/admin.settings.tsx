@@ -81,7 +81,7 @@ function Templates({ initialKey }: { initialKey?: string | undefined }) {
           <OfficeTable why="decision 60 touchpoint list: who · when · auto or pressed" head={["Message", "Who · when", "How it goes", ""]}>
             {q.data.map((m, i) => (
               <tr key={i} data-why={m.why}>
-                <td><Link to="/admin/templates" search={{ cat: "email" }} className="font-semibold text-hiv-blue hover:underline">{m.message}</Link> <span className="text-xs text-sub">· {m.channel}</span></td>
+                <td><Link to="/admin/templates" search={{ cat: "owner" }} className="font-semibold text-hiv-blue hover:underline">{m.message}</Link> <span className="text-xs text-sub">· {m.channel}</span></td>
                 <td>{m.who}</td><td>{m.how}</td>
                 <td>{m.approved ? <Pill tone="green">Approved</Pill> : <Pill tone="amber">Draft · for Jo</Pill>}</td>
               </tr>

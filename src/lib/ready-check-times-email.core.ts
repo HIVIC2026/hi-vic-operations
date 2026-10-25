@@ -1,5 +1,5 @@
 // Jo 24 Oct 2026 (decisions 52–53, 77): when the installer offers Ready Check times, the owner gets a link to pick one.
-// Design approved (decision 77): docs/templates/approved/O11-ready-check-times.html — "{First}, pick a time for your
+// Design approved (decision 77): docs/templates/owner/O11-ready-check-times.html — "{First}, pick a time for your
 // free Ready Check"; the 3 offered times as tap buttons; "None suit? Suggest other days"; "At your Ready Check";
 // two-figure price box; included / not included. READY_CHECK_TIMES_EMAIL_APPROVED is on (decision 77); real delivery
 // still needs customer_comms_enabled through the guarded owner-email path. Pure.

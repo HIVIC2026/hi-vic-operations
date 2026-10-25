@@ -39,8 +39,10 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   assessment_booking: ["assessment_booked", "ready_check_ready_to_schedule"],
   assessment_booked: ["assessment_complete", "assessment_booking", "ready_check_ready_to_schedule"],
   assessment_complete: ["rectification_required", "ready_for_installer_quotes"],
-  rectification_required: ["awaiting_owner_rectification_approval"],
-  awaiting_owner_rectification_approval: ["ready_for_installer_quotes", "rectification_required"],
+  // Decision 366: once the installation quote is accepted (Ready Check path), an approved fixes quote goes straight to
+  // fixes scheduling (pay in full, then pick the electrician's time) — never back to installer quotes.
+  rectification_required: ["awaiting_owner_rectification_approval", "rectification_scheduling"],
+  awaiting_owner_rectification_approval: ["ready_for_installer_quotes", "rectification_required", "rectification_scheduling"],
   ready_for_installer_quotes: ["awaiting_quote_acceptance"],
   awaiting_quote_acceptance: ["awaiting_deposit_payment", "ready_for_installer_quotes"],
   awaiting_deposit_payment: ["rectification_scheduling", "installation_scheduling"],
@@ -426,6 +428,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   if (["rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const g = await paymentGate(jobId);
     if (!g.cleared) blockers.push(g.blocker);
+  }
+  // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
+  if (to === "rectification_booked") {
+    const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
+    if (fb) blockers.push(fb);
   }
   if (to === "installation_scheduling" || to === "installation_booked") {
     // Decision 314 follow-up: open fixes items on an on-site-only job cleared on `electrician_at_start` are done on the

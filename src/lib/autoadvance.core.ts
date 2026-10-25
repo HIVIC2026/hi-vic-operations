@@ -86,7 +86,9 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "rectification_required":
       return f.rectQuoteIssued ? t("awaiting_owner_rectification_approval", "Electrical fixes quote issued to owner") : stop("Electrical fixes quote not yet issued");
     case "awaiting_owner_rectification_approval":
-      return f.rectQuoteAccepted ? t("ready_for_installer_quotes", "Electrical fixes scope approved – preparing final installation quotes") : stop("Owner must approve the electrical fixes scope");
+      if (!f.rectQuoteAccepted) return stop("Owner must approve the electrical fixes scope");
+      // Decision 366: installation quote already accepted (Ready Check path) → the fixes flow, never new installer quotes.
+      return f.installQuoteAccepted ? t("rectification_scheduling", "Electrical fixes approved – owner pays the fixes in full, then picks the electrician's time") : t("ready_for_installer_quotes", "Electrical fixes scope approved – preparing final installation quotes");
     case "ready_for_installer_quotes":
       return f.installQuotesIssued ? t("awaiting_quote_acceptance", "Installation quotes issued to owner") : { kind: "generate_quotes", to: "awaiting_quote_acceptance", summary: "Installation quotes auto-generated from active rate cards and issued to owner" };
     case "awaiting_quote_acceptance":

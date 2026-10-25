@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-  AUTO_OFFER_READY_STAGES, autoOfferExclusion, autoOfferMisses, autoOfferParityBlocker, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
+  AUTO_OFFER_READY_STAGES, autoOfferExclusion, autoOfferMisses, autoOfferParityBlocker, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   rankAutoElectricians, rankAutoInstallers, type AutoOfferCandidate, type AutoOfferFacts, type AutoOfferRow,
 } from "../src/lib/auto-offer.core";
+import { readFileSync } from "node:fs";
 import { TEST_PARTNER_MARK, isTestPartner, partnerAllowedForJob } from "../src/lib/test-send.core";
 
 // Decision 246: automatic offers by coverage.
@@ -119,7 +120,23 @@ describe("ready stages", () => {
 });
 
 describe("electrician pick", () => {
-  test("usual electrician first when eligible, else nearest approved REC covering the postcode", () => {
+  test("decision 374: an A2 job whose installer has a usual electrician is offered to the NEAREST REC, not the usual one", () => {
+    const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 0 }), cand("mid", { distanceKm: 10 })];
+    // our leads: the installer's usual electrician never goes first
+    for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual" })).toBeNull();
+    const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual" });
+    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 1 });
+    // next match on decline/lapse, then after 2 misses back to the office (unchanged)
+    expect(autoOfferStep({ ...base("piesa", [miss("near")]), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "mid", attempt: 2 });
+    expect(autoOfferStep({ ...base("piesa", [miss("near"), miss("mid", "expired")]), candidates: cs, usualBusinessId })).toMatchObject({ action: "return_to_office", reason: "two_misses" });
+    // the server picks the preferred electrician only through this rule (no decision-157 selection on our leads)
+    const server = readFileSync("src/lib/auto-offer.server.ts", "utf8");
+    expect(server).toContain("autoOfferPreferredElectrician({ channel,");
+    expect(server).not.toContain("ourLeadPiesaSelection");
+  });
+  test("A1 unchanged: the electrician the installer chose goes first when eligible, else nearest approved REC covering the postcode", () => {
+    expect(autoOfferPreferredElectrician({ channel: "installer_sourced", a1PreferredBusinessId: "usual" })).toBe("usual");
+    expect(autoOfferPreferredElectrician({ channel: "installer_sourced", a1PreferredBusinessId: null })).toBeNull();
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 9 }), cand("mid", { distanceKm: 10 })];
     expect(rankAutoElectricians(cs, new Set(), "usual").map((c) => c.business_id)).toEqual(["usual", "near", "mid"]);
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "usual", basis: "usual_electrician" });

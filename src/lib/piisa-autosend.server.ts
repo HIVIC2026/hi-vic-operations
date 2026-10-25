@@ -1,9 +1,10 @@
 // Jo 24 Oct 2026: automatic PIISA Mitti form the day(s) before the install, on the 15-minute tick, so the 6:30am
 // daily text can link it. Rule: piisa-autosend.core.ts. Creation: createPiisaMittiAudit (same guards as the office
-// button, one form per job). A failure is logged once as a workflow event and retried the next day — never in a loop.
+// button, one form per job). A failure is logged as a workflow event and retried about hourly until the install starts
+// (F15); with the install today or tomorrow it also raises ONE office item (Needs me "piisa_form_failed").
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUTOSEND_MAX_PER_TICK, piisaAutoSendDecision } from "./piisa-autosend.core";
+import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUTOSEND_MAX_PER_TICK, PIISA_AUTOSEND_OFFICE_EVENT, piisaAutoSendDecision, piisaAutoSendOfficeAlertDue } from "./piisa-autosend.core";
 
 export type PiisaAutoSendResult = { jobId: string; jobNumber: string; outcome: "created" | "skipped" | "failed"; message: string };
 
@@ -17,7 +18,7 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
   if (!ids.length) return { checked: 0, results };
   const [{ data: jobs, error: je }, { data: events, error: ee }] = await Promise.all([
     admin.from("jobs").select("id, job_number, stage, source, deleted_at, qa_archived_at").in("id", ids),
-    admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", ids).in("event_type", [PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT]).order("created_at", { ascending: false }),
+    admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", ids).in("event_type", [PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT]).order("created_at", { ascending: false }),
   ]);
   if (je || ee) throw new Error("PIISA auto-send could not read job facts.");
   const { officialFormUseBlocker } = await import("./official-forms.core");
@@ -44,6 +45,10 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
     } catch (e) {
       const message = (e as Error).message;
       await logEvent(j.id, null, PIISA_AUTOSEND_FAILED_EVENT, `Automatic PIISA form not created: ${message}`, { install_start: start, message }, { internal: true }).catch(() => undefined);
+      // F15: install today or tomorrow → one office item per install start (cleared by the form being created).
+      const alerted = mine.some((e) => e.event_type === PIISA_AUTOSEND_OFFICE_EVENT && (e.details as { install_start?: string } | null)?.install_start === start);
+      if (start && !alerted && piisaAutoSendOfficeAlertDue(start, now))
+        await logEvent(j.id, null, PIISA_AUTOSEND_OFFICE_EVENT, `Install day form could not be created in Mitti: ${message}`.slice(0, 500), { install_start: start, message: message.slice(0, 300), needs_office: true }, { internal: true }).catch(() => undefined);
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "failed", message });
     }
   }

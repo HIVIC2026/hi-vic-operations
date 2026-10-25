@@ -8,8 +8,8 @@
 /** A guarded owner send (sendOwnerTemplateEmail / test-send) went out. */
 export const ownerEmailSent = (result: string) => result === "sent" || /^sent\b/.test(result);
 
-export type WarrantyRecordVia = "all_done_email" | "completion_pack";
-export const WARRANTY_VIA_LABEL: Record<WarrantyRecordVia, string> = { all_done_email: "the All done email", completion_pack: "the completion pack" };
+export type WarrantyRecordVia = "all_done_email" | "completion_pack" | "warranty_followup";
+export const WARRANTY_VIA_LABEL: Record<WarrantyRecordVia, string> = { all_done_email: "the All done email", completion_pack: "the completion pack", warranty_followup: "the warranty follow-up email (decision 363)" };
 
 /** Record `warranty_copy_provided` only for a real send that carried every installed product's warranty, and only once per job. */
 export function shouldRecordWarrantyProvided(x: { sent: boolean; recordProvided: boolean; alreadyRecorded: boolean }): boolean {
@@ -41,4 +41,11 @@ export function coesAttachmentPlan(docs: readonly CoesDoc[], maxBytes = COES_ATT
     attach.push({ path: d.storage_path, filename: `Certificate-of-Electrical-Safety${sorted.length > 1 ? `-${n}` : ""}.${ext}`, contentType: ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg" });
   }
   return { attach, skipped };
+}
+
+/** Fully paid = cumulative payments on the installation invoice reach its total (decision 139 ledger; `total_paid` never drops). */
+export function invoiceFullyPaid(inv: { total_inc_gst: number | string | null; total_paid: number | string | null } | null | undefined): boolean {
+  if (!inv) return false;
+  const total = Number(inv.total_inc_gst ?? 0), paid = Number(inv.total_paid ?? 0);
+  return total > 0 && paid + 0.005 >= total;
 }

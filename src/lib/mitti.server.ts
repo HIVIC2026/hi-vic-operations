@@ -457,6 +457,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
         // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
         if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
+        // Decision 354: A4 Complete → prepare the electrician-priced fixes quote and send it automatically when every
+        // existing check passes (same release as the office Send); otherwise it stays on Needs me with the reason. Never throws.
+        if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
       }
     }
   }

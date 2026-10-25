@@ -43,7 +43,8 @@ export async function emailOwnerSafetyCheckBooked(jobId: string, startIso: strin
 export async function emailOwnerFixesQuote(jobId: string, quoteId: string, i: Omit<import("./rectification-quote-email.core").FixesQuoteEmailInput, "firstName" | "approveUrl" | "test">) {
   const { FIXES_QUOTE_EMAIL_APPROVED, renderFixesQuoteEmail } = await import("./rectification-quote-email.core");
   return sendOwnerTemplateEmail({ jobId, purpose: "fixes_quote", key: ownerEmailKey.fixesQuote(quoteId), approved: FIXES_QUOTE_EMAIL_APPROVED, label: "Electrical fixes quote email", notSentEvent: "fixes_quote_email_not_sent",
-    render: (f) => renderFixesQuoteEmail({ ...i, firstName: f.firstName, approveUrl: `${f.myJobUrl}?screen=quote`, test: f.test }) });
+    render: (f) => renderFixesQuoteEmail({ ...i, firstName: f.firstName, approveUrl: `${f.myJobUrl}?screen=fixes`, test: f.test }) }); // decision 366: the My job fixes screen
+
 }
 
 export async function emailOwnerInstallDays(jobId: string, startsAt: string[], balanceIncGst: number | null, installBy: string | null) {

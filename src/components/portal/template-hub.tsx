@@ -1,235 +1,224 @@
+// Office Templates page (decision 379): only what the portal sends or shows today, grouped by who gets it and in job
+// order, each rendered from the live builder with TEST sample data (template-hub.core.ts). Read-only: viewing never
+// sends, saves or connects anything (the Mitti card keeps its own existing "Check & connect" button).
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { renderJoOutcomeEmail } from "@/lib/jo-outcome-email.core";
-import { withUnsubscribe } from "@/lib/emailsafety.core";
-
-/** P1-S77: Jo samples get the same footer/opt-out wrapping as a real send (sample opt-out link only). */
-const SAMPLE_UNSUBSCRIBE = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"S".repeat(43)}`;
-import type { JoTemplateId } from "@/lib/jo-email-templates.core";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight } from "lucide-react";
-import { Btn, Pill, btnClass, fieldInput } from "./kit";
+import { Pill, fieldInput, type PillTone } from "./kit";
 import { MittiFormCard } from "./mitti-forms";
-import { useAction } from "@/hooks/use-me";
 import { cn } from "@/lib/utils";
-import { TEMPLATE_CATEGORIES, TEMPLATE_STANDING, entriesFor, entriesForStanding, registerFor, templateStanding, type TemplateCategory, type TemplateEntry, type TemplateStanding } from "@/lib/template-hub.core";
-import { ACTIVITY_48_FORMS, MITTI_FORM_ORDER } from "@/lib/template-catalog";
-import { samples } from "@/lib/step3-email-samples";
-import { partnerWelcomeEmail } from "@/lib/partner-email.core";
-import { changesEmail, declineEmail } from "@/lib/application-review.core";
-import { partnerLoginEmail } from "@/lib/partner-login-email.core";
-import { FORMS } from "@/lib/mitti-forms.core";
-import { approveComplianceTemplate, listComplianceTemplates } from "@/lib/portal.functions";
+import {
+  KIND_LABEL, STEP_LABEL, STEP_ORDER, TEMPLATE_SECTIONS, entriesFor, templateStatus,
+  type SwitchStates, type TemplateEntry, type TemplatePreview, type TemplateSection,
+} from "@/lib/template-hub.core";
+import type { FormKey } from "@/lib/mitti-forms.core";
 import { getMittiForms } from "@/lib/mitti-forms.functions";
+import { getOfficeSwitches } from "@/lib/office-settings.functions";
 import { paperworkCatalogueFn } from "@/lib/owner-gates.functions";
-import { parseFormFields } from "@/lib/assignment.core";
 
-const SAMPLE_LINK = "https://estimate.homeinsulationvictoria.com.au/portal";
+/** Approved page designs (My job P-pages, the P5 notice page), loaded only when opened. */
+const PAGE_FILES = import.meta.glob(["/docs/templates/owner/P*.html", "/docs/templates/installer/P*.html"], { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
+/** Compliance samples, official originals and product warranties: served as files, opened in a new tab. */
+const DOC_FILES = import.meta.glob(["/docs/templates/compliance/**/*.pdf", "/docs/official-forms/*.docx", "/docs/product-warranties/*.pdf"], { query: "?url", import: "default" }) as Record<string, () => Promise<string>>;
 
-export function TemplatesHub({ cat, t, standing }: { cat: TemplateCategory; t?: string; standing?: TemplateStanding }) {
+const TONE: Record<"green" | "amber" | "rose" | "neutral", PillTone> = { green: "green", amber: "amber", rose: "rose", neutral: "plain" };
+const MITTI_KEY: Record<string, FormKey> = { A1: "ready_check_priced", A2: "ready_check", A3: "piisa", A4: "piesa", A5: "fixes" };
+
+export function TemplatesHub({ cat, t }: { cat: TemplateSection; t?: string }) {
   const navigate = useNavigate();
-  const list = entriesForStanding(cat, standing);
-  const selected = (list.find((e) => e.id === t) ?? list[0] ?? entriesFor(cat)[0])!;
-  const choose = (id: string) => navigate({ to: "/admin/templates", search: { cat, t: id, ...(standing ? { standing } : {}) }, replace: true });
-  const groups = [...new Set(list.map((e) => e.group))];
+  const list = entriesFor(cat);
+  const selected = list.find((e) => e.id === t) ?? list[0];
+  const choose = (id: string) => navigate({ to: "/admin/templates", search: { cat, t: id }, replace: true });
+  const steps = STEP_ORDER.filter((s) => list.some((e) => e.step === s));
+  const getSwitches = useServerFn(getOfficeSwitches);
+  const sw = useQuery({ queryKey: ["office-switches"], queryFn: () => getSwitches(), staleTime: 60_000 });
+  const switches: SwitchStates | null = sw.data ? Object.fromEntries(sw.data.switches.map((s) => [s.key, s.on])) : null;
+  const section = TEMPLATE_SECTIONS.find((s) => s.key === cat)!;
   return (
     <div>
-      <header className="mb-4"><h1 className="font-display text-[26px] font-bold leading-tight">Templates</h1><p className="mt-1 text-sm text-sub">The ONE register of every approved email, Mitti form and compliance wording. Viewing here never sends, saves or connects anything.</p></header>
-      <nav aria-label="Template categories" className="mb-3 flex gap-1 border-b border-line">
-        {TEMPLATE_CATEGORIES.map((c) => <Link key={c.key} to="/admin/templates" search={{ cat: c.key }} aria-current={c.key === cat ? "page" : undefined} className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-semibold", c.key === cat ? "border-hiv-blue text-ink" : "border-transparent text-sub hover:text-ink")}>{c.label} <span className="text-xs font-normal text-sub">{entriesFor(c.key).length}</span></Link>)}
-      </nav>
-      <div role="tablist" aria-label="Template standing" className="mb-4 flex flex-wrap gap-1.5">
-        <Link to="/admin/templates" search={{ cat }} role="tab" aria-selected={!standing} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", !standing ? "border-hiv-blue bg-mist text-ink" : "border-line text-sub hover:text-ink")}>All <span className="font-normal">{entriesFor(cat).length}</span></Link>
-        {TEMPLATE_STANDING.map((s) => (
-          <Link key={s.key} to="/admin/templates" search={{ cat, standing: s.key }} role="tab" aria-selected={standing === s.key} title={s.hint} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", standing === s.key ? "border-hiv-blue bg-mist text-ink" : "border-line text-sub hover:text-ink")}>
-            {s.label} <span className="font-normal">{entriesFor(cat).filter((e) => templateStanding(e) === s.key).length}</span>
+      <header className="mb-4">
+        <h1 className="font-display text-[26px] font-bold leading-tight">Templates</h1>
+        <p className="mt-1 text-sm text-sub">Only what the portal sends or shows today, exactly as people see it — rendered from the live code with TEST sample data. Viewing never sends, saves or connects anything.</p>
+      </header>
+      <nav aria-label="Who gets it" className="mb-3 flex flex-wrap gap-1 border-b border-line">
+        {TEMPLATE_SECTIONS.map((c) => (
+          <Link key={c.key} to="/admin/templates" search={{ cat: c.key }} aria-current={c.key === cat ? "page" : undefined}
+            className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-semibold", c.key === cat ? "border-hiv-blue text-ink" : "border-transparent text-sub hover:text-ink", c.key === "waiting" && "text-rose")}>
+            {c.label} <span className="text-xs font-normal text-sub">{entriesFor(c.key).length}</span>
           </Link>
         ))}
-      </div>
-      {standing === "historical" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">These templates are superseded. They are kept for history and are never used for a new send.</p>}
-      {standing === "draft" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">No recorded approval. Do not treat these as current office wording.</p>}
-      {list.length === 0 ? <p className="rounded-md border bg-card p-6 text-sm text-sub">No templates in this standing.</p> : null}
-      {list.length > 0 && <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <div>
-          <label className="block lg:hidden"><span className="sr-only">Choose a template</span>
-            <select aria-label="Choose a template" className={fieldInput} value={selected.id} onChange={(e) => choose(e.target.value)}>
-              {groups.map((g) => <optgroup key={g} label={g}>{list.filter((e) => e.group === g).map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}</optgroup>)}
-            </select>
-          </label>
-          <div className="hidden space-y-3 lg:block" role="listbox" aria-label="Templates">
-            {groups.map((g) => <div key={g}><p className="px-2 pb-1 text-[11px] font-bold uppercase text-sub">{g}</p>
-              {list.filter((e) => e.group === g).map((e) => <button key={e.id} type="button" role="option" aria-selected={e.id === selected.id} onClick={() => choose(e.id)} className={cn("block w-full rounded-[8px] px-2 py-1.5 text-left text-sm", e.id === selected.id ? "bg-mist font-semibold text-ink" : "text-sub hover:bg-mist/60 hover:text-ink")}>{e.title}</button>)}
-            </div>)}
+      </nav>
+      <p className="mb-3 text-xs text-sub">{section.hint}{sw.isError ? " · Switch states could not load." : ""}</p>
+      {cat === "waiting" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">Nothing here is sent to anyone until Jo approves the wording.</p>}
+      {!selected ? <p className="rounded-md border bg-card p-6 text-sm text-sub">Nothing in this section.</p> : (
+        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <div>
+            <label className="block lg:hidden"><span className="sr-only">Choose a template</span>
+              <select aria-label="Choose a template" className={fieldInput} value={selected.id} onChange={(e) => choose(e.target.value)}>
+                {steps.map((s) => <optgroup key={s} label={STEP_LABEL[s]}>{list.filter((e) => e.step === s).map((e) => <option key={e.id} value={e.id}>{e.code ? `${e.code} · ` : ""}{e.name}</option>)}</optgroup>)}
+              </select>
+            </label>
+            <div className="hidden space-y-3 lg:block" role="listbox" aria-label="Templates">
+              {steps.map((s) => (
+                <div key={s}>
+                  <p className="px-2 pb-1 text-[11px] font-bold uppercase text-sub">{STEP_LABEL[s]}</p>
+                  {list.filter((e) => e.step === s).map((e) => (
+                    <button key={e.id} type="button" role="option" aria-selected={e.id === selected.id} onClick={() => choose(e.id)}
+                      className={cn("flex w-full items-baseline gap-2 rounded-[8px] px-2 py-1.5 text-left text-sm", e.id === selected.id ? "bg-mist font-semibold text-ink" : "text-sub hover:bg-mist/60 hover:text-ink")}>
+                      <span className="w-10 shrink-0 text-[11px] font-bold text-hiv-blue">{e.code || KIND_LABEL[e.kind]}</span>
+                      <span className="min-w-0">{e.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
+          <section aria-label="Selected template" className="min-w-0"><TemplateDetail key={selected.id} entry={selected} switches={switches} /></section>
         </div>
-        <section aria-label="Selected template" className="min-w-0"><TemplateDetail key={selected.id} entry={selected} /></section>
-      </div>}
+      )}
     </div>
   );
 }
 
-function Facts({ entry }: { entry: TemplateEntry }) {
-  return (
-    <div className="rounded-[14px] border border-line bg-paper p-4">
-      <p className="text-[11px] font-bold uppercase text-hiv-blue">{entry.group}</p>
-      <h2 className="font-display text-xl font-bold">{entry.title}</h2>
-      <p className="mt-1 text-sm text-sub">{entry.purpose}</p>
-      <dl className="mt-3 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-sub">Audience / signer</dt><dd>{entry.audience}</dd>
-        <dt className="text-sub">When used</dt><dd>{entry.trigger}</dd>
-        <dt className="text-sub">Approval</dt><dd>{entry.approval}</dd>
-      </dl>
-    </div>
-  );
-}
-
-function JoSample({ templateId }: { templateId: JoTemplateId }) {
-  const mail = useMemo(() => {
-    const raw = (() => { try {
-      const recipient = { firstName: "Alex", propertyAddress: "12 Sample St, Melbourne VIC 3000", enquiryReference: "HV-0000" };
-      // Sample data only: size-known templates preview as homeowner-provided (210 m²); size-unknown
-      // templates preview the approved 150 m² assumption. Neither value is used for a real send.
-      const ceilingSizeKnown = templateId.endsWith("size_known");
-      const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: ceilingSizeKnown ? 210 : 150, areaEstimated: !ceilingSizeKnown };
-      const links = { saveMySpotUrl: SAMPLE_LINK, uploadMediaUrl: SAMPLE_LINK, reviewResultUrl: SAMPLE_LINK, calculatorUrl: SAMPLE_LINK };
-      if (templateId === "ineligible") return renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient, reason: "[The official ineligibility reason appears here]", links });
-      const outcome = templateId.startsWith("eligible") ? "likely_eligible" : templateId.startsWith("potentially") ? "needs_onsite_confirmation" : "likely_eligible";
-      const insulation = templateId.startsWith("eligible_no_insulation") ? "none" : templateId.startsWith("eligible_below_r2") ? "present" : "unknown";
-      const deskCheckStatus = templateId.startsWith("eligible_below_r2") ? "looks_eligible" : null;
-      return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links });
-    } catch { return null; } })();
-    return raw ? withUnsubscribe(raw, SAMPLE_UNSUBSCRIBE) : null;
-  }, [templateId]);
-  if (!mail) return <p className="text-sm text-rose">This template could not be previewed with sample data.</p>;
-  const areaNote = templateId.endsWith("size_known")
-    ? " Sample ceiling area: 210 m² provided by the owner."
-    : templateId === "ineligible"
-      ? ""
-      : " Sample ceiling area: 150 m² assumed (owner did not provide one).";
-  return <HtmlEmail subject={mail.subject} html={mail.html} note={`Sample values only.${areaNote} Rendered by the same function every real send uses.`} />;
-}
-
-function TemplateDetail({ entry }: { entry: TemplateEntry }) {
-  const v = entry.view;
+function TemplateDetail({ entry, switches }: { entry: TemplateEntry; switches: SwitchStates | null }) {
+  const status = templateStatus(entry, switches);
+  const preview = useMemo<{ ok: true; p: TemplatePreview } | { ok: false; error: string }>(() => {
+    try { return { ok: true, p: entry.render() }; } catch (e) { return { ok: false, error: (e as Error).message }; }
+  }, [entry]);
+  const mittiKey = entry.section === "mitti" ? MITTI_KEY[entry.code] : undefined;
   return (
     <div className="space-y-4">
-      <Facts entry={entry} />
-      {v.kind === "sample_email" && <HtmlEmail subject={samples[v.sample].subject} preview={samples[v.sample].previewText} html={samples[v.sample].html} note="Sample values only. Same renderer as every real send." />}
-      {v.kind === "partner_email" && <PartnerEmail email={v.email} />}
-      {v.kind === "plain_email" && <PlainEmail />}
-      {v.kind === "mitti" && <MittiDetail formKey={v.formKey} />}
-      {v.kind === "compliance_template" && <ComplianceVersions templateKey={v.templateKey} />}
-      {v.kind === "register" && <RegisterDetail index={v.index} mitti={v.mitti} />}
-      {v.kind === "owner_paperwork" && <OwnerPaperwork gate={v.gate} />}
-      {v.kind === "jo_sample" && <JoSample templateId={v.templateId} />}
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <p className="text-[11px] font-bold uppercase text-hiv-blue">{KIND_LABEL[entry.kind]} · {STEP_LABEL[entry.step]}</p>
+        <h2 className="font-display text-xl font-bold">{entry.code ? `${entry.code} · ` : ""}{entry.name}</h2>
+        <dl className="mt-3 grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-sub">Who gets it</dt><dd>{entry.who}</dd>
+          <dt className="text-sub">When</dt><dd>{entry.when}</dd>
+          <dt className="text-sub">Status</dt><dd><Pill tone={TONE[status.tone]}>{status.label}</Pill></dd>
+          <dt className="text-sub">Approved</dt><dd>{entry.approval === "waiting" ? <span className="text-rose">Waiting for Jo — {entry.approvalNote}</span> : entry.approvalNote}</dd>
+          <dt className="text-sub">Live code</dt><dd className="break-all text-xs"><code>{entry.source.fn}</code> in <code>{entry.source.builder}</code>, used by <code>{entry.source.sender}</code></dd>
+          {entry.design && <><dt className="text-sub">Design file</dt><dd className="break-all text-xs"><code>{entry.design}</code></dd></>}
+        </dl>
+        {entry.paperworkKey && <PaperworkApproval docKey={entry.paperworkKey} />}
+      </div>
+      {preview.ok ? <Preview p={preview.p} /> : <p role="alert" className="rounded-[14px] border border-line bg-paper p-4 text-sm text-rose">This template could not be rendered with sample data: {preview.error}</p>}
+      {mittiKey && <MittiConnection formKey={mittiKey} />}
     </div>
   );
 }
 
-function HtmlEmail({ subject, preview, html, note, original }: { subject: string; preview?: string; html: string; note: string; original?: { href: string; label: string } }) {
+function Preview({ p }: { p: TemplatePreview }) {
+  switch (p.kind) {
+    case "email": return (
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <p className="text-sm"><b>Subject:</b> {p.subject}</p>
+        <p className="mt-1 text-xs text-sub">TEST sample data. Same builder as every real send. Links are disabled in this preview.</p>
+        <iframe title={`${p.subject} preview`} srcDoc={p.html} sandbox="" className="mt-3 h-[70vh] min-h-[480px] w-full rounded-[10px] border border-line bg-paper" />
+      </div>
+    );
+    case "text": return <Texts variants={[{ label: "Text message", body: p.body }]} />;
+    case "texts": return <Texts variants={p.variants} />;
+    case "doc": return (
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <h3 className="font-semibold">{p.title}</h3>
+        {p.note && <p className="mt-1 text-xs text-sub">{p.note}</p>}
+        <pre className="mt-3 max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-[10px] bg-mist p-3 font-sans text-sm">{p.body}</pre>
+      </div>
+    );
+    case "questions": return (
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <h3 className="font-semibold">{p.title}</h3>
+        <p className="mt-1 text-xs text-sub">The questions the portal reads from this form. Record: {p.record}</p>
+        {p.groups.map((g) => (
+          <div key={g.heading} className="mt-3">
+            <p className="text-[11px] font-bold uppercase text-sub">{g.heading}</p>
+            <ol className="mt-1 divide-y divide-line">{g.items.map((q, i) => <li key={i} className="py-1.5 text-sm"><span>{q.label}</span> <span className="text-xs text-sub">· {q.type}{q.note ? ` · ${q.note}` : ""}</span></li>)}</ol>
+          </div>
+        ))}
+      </div>
+    );
+    case "table": return (
+      <div className="overflow-x-auto rounded-[14px] border border-line bg-paper p-4">
+        <h3 className="font-semibold">{p.title}</h3>
+        {p.note && <p className="mt-1 text-xs text-sub">{p.note}</p>}
+        <table className="mt-3 w-full text-left text-sm">
+          <thead><tr>{p.columns.map((c) => <th key={c} className="border-b border-line py-1.5 pr-3 text-xs font-bold text-sub">{c}</th>)}</tr></thead>
+          <tbody>{p.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className="border-b border-line py-1.5 pr-3 align-top">{c}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    );
+    case "file": return <PageFile path={p.path} note={p.note} />;
+    case "files": return (
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <ul className="divide-y divide-line">{p.items.map((f) => <li key={f.label} className="py-2 text-sm"><DocLink path={f.path} label={f.label} /><p className="text-xs text-sub">{f.note}</p></li>)}</ul>
+      </div>
+    );
+  }
+}
+
+function Texts({ variants }: { variants: { label: string; body: string }[] }) {
   return (
     <div className="rounded-[14px] border border-line bg-paper p-4">
-      <p className="text-sm"><b>Subject:</b> {subject}</p>
-      {preview && <p className="mt-1 text-sm"><b>Preheader:</b> {preview}</p>}
-      <p className="mt-1 text-xs text-sub">{note} Links are disabled in this preview.</p>
-      {original && <a href={original.href} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-hiv-blue hover:underline">{original.label}<ArrowUpRight className="h-4 w-4" /></a>}
-      <iframe title={`${subject} preview`} srcDoc={html} sandbox="" className="mt-3 h-[70vh] min-h-[480px] w-full rounded-[10px] border border-line bg-paper" />
+      <p className="text-xs text-sub">TEST sample data. Same wording function as every real text; the brand line is added exactly as sent.</p>
+      <div className="mt-3 space-y-3">
+        {variants.map((v) => (
+          <div key={v.label}>
+            {variants.length > 1 && <p className="text-[11px] font-bold uppercase text-sub">{v.label}</p>}
+            <p className="mt-1 max-w-[420px] whitespace-pre-wrap rounded-[16px] rounded-bl-[4px] bg-mist px-3 py-2 text-sm">{v.body}</p>
+            <p className="mt-0.5 text-[11px] text-sub">{v.body.length} characters</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function PartnerEmail({ email }: { email: "welcome" | "changes" | "decline" }) {
-  const m = email === "welcome" ? partnerWelcomeEmail({ firstName: "Alex", businessName: "Sample Insulation Co", trade: "installer", email: "alex@example.com", link: SAMPLE_LINK, test: false })
-    : email === "changes" ? changesEmail({ contactName: "Alex Sample", message: "[The office's typed message appears here]", link: SAMPLE_LINK, test: false })
-    : declineEmail({ contactName: "Alex Sample", reason: null, test: false });
-  return <HtmlEmail subject={m.subject} html={m.html} note="Sample names only. Same builder as the real send." />;
+function PageFile({ path, note }: { path: string; note: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  const load = PAGE_FILES[`/${path}`];
+  useEffect(() => { let live = true; if (load) void load().then((h) => { if (live) setHtml(h); }); return () => { live = false; }; }, [load]);
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4">
+      <p className="text-xs text-sub">{note}</p>
+      {!load ? <p className="mt-2 text-sm text-rose">Design file not found: {path}</p>
+        : html === null ? <p className="mt-2 text-sm text-sub">Loading…</p>
+        : <iframe title={`${path} preview`} srcDoc={html} sandbox="" className="mt-3 h-[75vh] min-h-[520px] w-full max-w-[460px] rounded-[10px] border border-line bg-paper" />}
+    </div>
+  );
 }
 
-function PlainEmail() {
-  const m = partnerLoginEmail(null, SAMPLE_LINK);
-  return <div className="rounded-[14px] border border-line bg-paper p-4"><p className="text-sm"><b>Subject:</b> {m.subject}</p><p className="mt-1 text-xs text-sub">Plain-text email. Sample link only.</p><pre className="mt-3 whitespace-pre-wrap rounded-[10px] bg-mist p-3 font-sans text-sm">{m.message}</pre></div>;
+function DocLink({ path, label }: { path: string | null; label: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const load = path ? DOC_FILES[`/${path}`] : undefined;
+  useEffect(() => { let live = true; if (load) void load().then((u) => { if (live) setUrl(u); }); return () => { live = false; }; }, [load]);
+  if (!load) return <span className="font-semibold">{label} <Pill tone="rose">Not on file</Pill></span>;
+  return url ? <a href={url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-semibold text-hiv-blue hover:underline">{label}<ArrowUpRight className="h-4 w-4" /></a> : <span className="font-semibold">{label}</span>;
 }
 
-function useMittiIds() {
+type CatalogueDoc = { key: string; version: string; status: string; approvedBy: string | null; approvedAt: string | null };
+function PaperworkApproval({ docKey }: { docKey: string }) {
+  const load = useServerFn(paperworkCatalogueFn);
+  const q = useQuery({ queryKey: ["paperwork-catalogue"], queryFn: () => load() });
+  const d = ((q.data?.docs ?? []) as CatalogueDoc[]).find((x) => x.key === docKey);
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-sub">Stored approval:</span>
+      {q.isError ? <span className="text-rose">could not load</span> : q.isLoading ? <span className="text-sub">loading…</span> : d ? <><Pill tone={d.status === "Approved" ? "green" : "rose"}>{d.status}</Pill><span className="text-xs text-sub">{d.version}{d.approvedBy ? ` · ${d.approvedBy}` : ""}{d.approvedAt ? `, ${d.approvedAt.slice(0, 10)}` : ""}</span></> : <span className="text-sub">not recorded</span>}
+      <Link to="/admin/settings" search={{ tab: "templates" }} className="text-xs font-semibold text-hiv-blue hover:underline">Settings › Owner paperwork</Link>
+    </p>
+  );
+}
+
+function MittiConnection({ formKey }: { formKey: FormKey }) {
   const get = useServerFn(getMittiForms);
-  return useQuery({ queryKey: ["mitti_forms"], queryFn: () => get() });
-}
-
-function MittiDetail({ formKey }: { formKey: keyof typeof FORMS }) {
-  const q = useMittiIds();
+  const q = useQuery({ queryKey: ["mitti_forms"], queryFn: () => get() });
   const id = q.data?.[formKey] ?? null;
   return (
     <div className="space-y-3">
-      <dl className="grid grid-cols-[150px_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[14px] border border-line bg-paper p-4 text-sm">
-        <dt className="text-sub">Template version</dt><dd>Portal build sheet · {FORMS[formKey].fields.length} required questions (no version number stored)</dd>
-        <dt className="text-sub">Saved connection</dt><dd className="break-all">{q.isError ? <span className="text-rose">Settings could not load</span> : q.isLoading ? "Loading…" : id ? `Form ID saved in settings: ${id}` : "No form ID saved"}</dd>
-        <dt className="text-sub">Live health</dt><dd>Use the form checks below to verify access, identity and required questions. A replacement connection is saved only through "Check &amp; connect".</dd>
-      </dl>
+      <p className="rounded-[14px] border border-line bg-paper p-4 text-sm"><span className="text-sub">Saved Mitti form: </span>{q.isError ? <span className="text-rose">settings could not load</span> : q.isLoading ? "loading…" : id ? <span className="break-all">{id}</span> : "no form ID saved"}</p>
       {q.data && <MittiFormCard formKey={formKey} connected={id} />}
-    </div>
-  );
-}
-
-function ComplianceVersions({ templateKey }: { templateKey: string }) {
-  const list = useServerFn(listComplianceTemplates);
-  const approve = useAction(approveComplianceTemplate);
-  const q = useQuery({ queryKey: ["compliance_templates"], queryFn: () => list() });
-  const rows = (q.data ?? []).filter((r) => r.template_key === templateKey);
-  const reg = registerFor(templateKey);
-  return (
-    <div className="space-y-3">
-      {reg && <p className="rounded-[14px] border border-line bg-paper p-4 text-sm"><b>Blocks:</b> {reg.blocks} · <b>Source:</b> {reg.source}</p>}
-      <div className="rounded-[14px] border border-line bg-paper p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Versions</h3><Link to="/admin/settings" search={{ tab: "templates", key: templateKey }} className={btnClass("secondary")}>Add a new version<ArrowUpRight className="h-4 w-4" /></Link></div>
-        <p className="mt-1 text-xs text-sub">Approved versions can't be edited — add a new version instead.</p>
-        {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Versions could not load.</p>
-          : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
-          : rows.length === 0 ? <p className="mt-2 text-sm text-rose">Not configured</p>
-          : <ul className="mt-2 space-y-2">{rows.map((r) => <li key={r.id} className="rounded-[10px] border border-line p-3 text-sm">
-            <div className="flex flex-wrap items-center gap-2"><b>{r.version}</b>{r.approved && r.is_active ? <Pill tone="green">Approved and active</Pill> : r.approved ? <Pill>Superseded</Pill> : <Pill tone="amber">{r.is_active ? "Selected draft · not approved" : "Draft · not approved"}</Pill>}
-              {!r.approved && <Btn className="ml-auto min-h-9 px-3 py-1 text-xs" onClick={() => void approve({ id: r.id }, "Approved and activated")}>Approve &amp; activate</Btn>}</div>
-            {r.source_note && <p className="mt-1 text-xs text-sub">{r.source_note}</p>}
-            <details className="mt-1"><summary className="cursor-pointer text-xs text-hiv-blue">Official wording</summary><pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap text-xs">{r.body}</pre></details>
-            {parseFormFields(r.form_fields).length > 0 && <p className="mt-1 text-xs">Form fields: {parseFormFields(r.form_fields).map((f) => `${f.label}${f.required ? "*" : ""}`).join(", ")}</p>}
-          </li>)}</ul>}
-      </div>
-    </div>
-  );
-}
-
-function RegisterDetail({ index, mitti }: { index: number; mitti: (keyof typeof FORMS)[] }) {
-  const f = ACTIVITY_48_FORMS[index]!;
-  const q = useMittiIds();
-  return (
-    <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">
-      <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1">
-        <dt className="text-sub">Blocks</dt><dd>{f.blocks}</dd><dt className="text-sub">Source</dt><dd>{f.source}</dd>
-        <dt className="text-sub">Retention</dt><dd>Permanent job record; keep Activity 48 records for six years after registration.</dd>
-      </dl>
-      {"pdf" in f && <a className="mt-3 inline-flex items-center gap-1 font-semibold text-hiv-blue hover:underline" href={f.pdf} target="_blank" rel="noreferrer">Open official form (read-only)<ArrowUpRight className="h-4 w-4" /></a>}
-      {mitti.length > 0 && <div className="mt-3 border-t border-line pt-3"><p className="text-xs text-sub">The Mitti entry shows the saved form and its separate access, question and approval checks.</p>
-        {q.isError && <p role="alert" className="mt-1 text-xs text-rose">Form settings could not load.</p>}
-        <ul className="mt-1 space-y-1">{mitti.map((k) => { const o = MITTI_FORM_ORDER.find((m) => m.key === k)!; return <li key={k} className="flex flex-wrap items-center gap-2"><Link to="/admin/templates" search={{ cat: "mitti", t: `mitti:${k}` }} className="font-semibold text-hiv-blue hover:underline">Mitti {o.letter} · {o.forWho}</Link>{q.data ? (q.data[k] ? <Pill>ID saved · check required</Pill> : <Pill tone="amber">No ID saved</Pill>) : null}</li>; })}</ul></div>}
-    </div>
-  );
-}
-
-type Doc = { key: string; gate: string; title: string; version: string; status: string; approvedBy: string | null; approvedAt: string | null; managedIn: string; templateId: string | null };
-function OwnerPaperwork({ gate }: { gate: string }) {
-  const load = useServerFn(paperworkCatalogueFn);
-  const q = useQuery({ queryKey: ["paperwork-catalogue"], queryFn: () => load() });
-  const docs = ((q.data?.docs ?? []) as Doc[]).filter((d) => d.gate === gate);
-  const bodies = (q.data?.bodies ?? {}) as Record<string, string>;
-  return (
-    <div className="rounded-[14px] border border-line bg-paper p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Documents</h3><Link to="/admin/settings" search={{ tab: "templates" }} className={btnClass("secondary")}>Approve in Settings › Templates<ArrowUpRight className="h-4 w-4" /></Link></div>
-      {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Owner paperwork could not load.</p> : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : docs.length === 0 ? <p className="mt-2 text-sm text-sub">No documents recorded for this gate.</p> :
-        <ul className="mt-2 divide-y divide-line">{docs.map((d) => <li key={d.key} className="py-2 text-sm">
-          <div className="flex flex-wrap items-center gap-2"><b>{d.title}</b><span className="text-sub">{d.version}</span><Pill tone={d.status === "Approved" ? "green" : "rose"}>{d.status}</Pill>{d.approvedBy && <span className="text-xs text-sub">{d.approvedBy}{d.approvedAt ? `, ${d.approvedAt.slice(0, 10)}` : ""}</span>}</div>
-          {d.managedIn === "Templates" ? <Link to="/admin/templates" search={{ cat: "compliance", t: `compliance:${d.key}` }} className="mt-1 inline-block text-xs font-semibold text-hiv-blue hover:underline">Wording is managed in the versioned template →</Link>
-            : bodies[d.key] ? <details className="mt-1"><summary className="cursor-pointer text-xs text-hiv-blue">Wording</summary><pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap text-xs">{bodies[d.key]}</pre></details> : null}
-        </li>)}</ul>}
     </div>
   );
 }

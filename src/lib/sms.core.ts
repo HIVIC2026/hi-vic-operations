@@ -18,7 +18,7 @@ export const SMS_MESSAGE_TYPES = {
   veec_sign_reminder: { audience: "owner", label: "Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: true, quietHours: true },
   usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: true /* decision 83 (Jo 24 Oct 2026), kept by decision 113: usualElectricianReminderBody */, quietHours: true },
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
-  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: true /* decision 76 wording; switched on by decision 154 (Jo 24 Oct) */, quietHours: false },
+  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: true /* decision 76 wording; switched on by decision 154 (Jo 24 Oct) */, quietHours: true /* decision 361: after 8pm → texted at 7am by sweepJobOfferTexts */ },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },
   daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
   // Decision 130: each installer person's secure link to the ESC privacy collection notice (+ 3/7-day reminders). Wording: decision 146; on since decision 154 (Jo 24 Oct).
@@ -77,6 +77,16 @@ export const SMS_MESSAGE_TYPES = {
   // My job → the booked trade is told once (installer: offer new times/days; electrician: booking cancelled, don't go).
   // Wording: ownerChangedVisitText (installer-texts.core.ts). Real sends still need the per-type switch.
   owner_changed_visit: { audience: "partner", label: "Owner changed the booked visit on My job – trade told (decision 337)", wordingApproved: true, quietHours: true },
+  // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
+  // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
+  swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377; wording approved by Jo 25 Oct)", wordingApproved: true, quietHours: true },
+  // Decision 376 (Jo 25 Oct 2026): DRAFT wording — held until Jo approves. Each records one workflow event before any send.
+  // The trade cancelled a booked visit → the owner (O74 text, visit-new-times.core visitNewTimesText).
+  visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  // 24h after accepting a safety check job with no times offered → the electrician (E14 text, piesa-times-reminder.core).
+  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
+  // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
+  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decision 376, DRAFT)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -87,6 +97,12 @@ export function withSafetyPlanLinks(body: string, links: readonly (string | null
   const real = [...new Set(links.filter((l): l is string => !!l && l.trim().length > 0))];
   return real.length ? `${body} ${safetyPlanLine(real)}` : body;
 }
+/** Decision 364: these texts go to ONE person per job (the allocated installer, else the business owner), so each unsigned
+ *  person's OWN sign link is listed as "<name>: <link>" for them to pass on; each link signs only that person's line.
+ *  Decision 377: a person whose own sign link was texted to their mobile is listed by name only (no link to pass on);
+ *  anyone without a mobile (or whose text did not go) keeps the decision 364 "<name>: <link>". */
+export const safetyPlanSignerLinks = (entries: readonly { name: string; link: string; ownLinkTexted?: boolean }[]) =>
+  entries.map((e) => (e.ownLinkTexted ? `${e.name} (own link texted)` : `${e.name}: ${e.link}`));
 /** The office one-off blasts: their explicit admin authorization stands in for the per-type switch (nothing else is bypassed). */
 export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_reminder", "three_questions_reminder"];
 
@@ -139,6 +155,10 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
   mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
   owner_changed_visit: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's change on My job (recorded once per change before any send; installer-texts.server)
+  swms_sign_link: { kind: "window" }, // key = job + signer + install date + step (booked / day before); recomputed each tick, only while unsigned (swms-sign-text.core)
+  visit_new_times: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the trade's cancel (visit_times_reopened); also needs the visit still not rebooked
+  piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered
+  installer_planning_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
 };
 
 export type SmsEventInput = {

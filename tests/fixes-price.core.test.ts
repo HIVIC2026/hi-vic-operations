@@ -125,24 +125,16 @@ describe("buildA4FixesQuote", () => {
     expect(q.lines[0]!.unit_price_inc_gst).toBe(1234.5);
     expect(q.marginIncGst).toBe(0);
   });
-  test("decision 313: A1 (installer-supplied) gets no margin, everything else the $100", () => {
-    expect(fixesMarginFor("installer_sourced")).toBe(0);
-    expect(fixesMarginFor("hivic_sourced")).toBe(RECTIFICATION_MARGIN_INC_GST);
-    expect(fixesMarginFor(null)).toBe(RECTIFICATION_MARGIN_INC_GST);
-  });
-  test("decision 349: the margin follows WHOSE electrician — installer's own (usual) = pass-through, ours = +$100", () => {
-    // A2 + installer's usual electrician → no margin
-    expect(fixesMarginFor("hivic_sourced", "installer_usual")).toBe(0);
-    expect(fixesMarginFor("website", "installer_usual")).toBe(0);
-    // A2 + our electrician → +$100 (decision 142)
-    expect(fixesMarginFor("hivic_sourced", "ours")).toBe(RECTIFICATION_MARGIN_INC_GST);
+  test("decision 351: the margin follows WHOSE electrician on both routes — installer's own = pass-through, ours = +$100", () => {
+    // installer's own / usual / nominated electrician (A1 only since decision 374) → no markup ever
+    expect(fixesMarginFor("installer_usual")).toBe(0);
+    // our (HIV-supplied) electrician → +$100 (decision 142), including on A1 jobs and ALWAYS on our leads (decision 374)
+    expect(fixesMarginFor("ours")).toBe(RECTIFICATION_MARGIN_INC_GST);
+    expect(fixesMarginFor()).toBe(RECTIFICATION_MARGIN_INC_GST);
     expect(RECTIFICATION_MARGIN_INC_GST).toBe(100);
-    // A1 → pass-through whoever the electrician is (decision 313 unchanged)
-    expect(fixesMarginFor("installer_sourced", "ours")).toBe(0);
-    expect(fixesMarginFor("installer_sourced", "installer_usual")).toBe(0);
     // A4 price $1,180 (not a fixed figure): usual → $1,180 exactly; ours → $1,280; trade cost is the electrician's price either way
-    const usual = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("website", "installer_usual") });
-    const ours = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("website", "ours") });
+    const usual = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("installer_usual") });
+    const ours = buildA4FixesQuote({ electricianPriceIncGst: 1180, included: "x", gstRate: 0.1, margin: fixesMarginFor("ours") });
     expect(usual.subtotalIncGst).toBe(1180);
     expect(ours.subtotalIncGst).toBe(1280);
     expect(usual.costExGst).toBe(ours.costExGst);

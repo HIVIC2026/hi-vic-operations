@@ -2,6 +2,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
+import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { clearanceFacts } from "./electrical-clearance.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -77,7 +78,9 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
       // G: a non-empty licence/rec number is NOT proof of a verified, current licence.
       // Only verified, unexpired electrical_licence / rec_registration credentials count.
-      has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc),
+      // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
+      has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
+        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,
@@ -223,9 +226,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
-  // Decision 157: on our leads the installer's usual electrician is paid their onboarding rate for the PIESA — decision 349: the owner's PIESA line passes that same rate through (ownerPiesaLineIncGst).
-  const usualSel = kind === "piesa" ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates) : null;
-  if (usualSel?.mode === "usual") rates.set(usualSel.businessId, { id: usualSel.rateId, rate: usualSel.rateIncGst });
+  // Decision 374: no usual-electrician preference on our leads — every electrician is paid their own agreed onboarding rate.
   const { offerRateBlocker } = await import("./allocation.core");
   const summary = await offerFacts(jobId);
   const expires = offerExpiryBusinessHours(new Date(), businessHours);
@@ -247,7 +248,6 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     const rows = chosen.map((c) => { const r = row(c.business_id, true); return { ...r, expires_at: exp, summary: (auto ? { ...(r.summary as Record<string, unknown>), auto_offer: true } : r.summary) as Json }; });
     const { data: inserted, error } = await admin.from("partner_offers").insert(rows).select("id, business_id");
     if (error) throw new Error(error.message);
-    if (usualSel?.mode === "usual" && chosen.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
     if (auto) {
       const c = chosen[0]!;
       await logEvent(jobId, actorId, "auto_offer_sent", `Automatic electrician offer: ${c.name} for the PIESA (offer ${auto.attempt} of 2, open 24 hours)`, { kind, business_id: c.business_id, business_name: c.name, offer_id: (inserted ?? []).find((x) => x.business_id === c.business_id)?.id ?? null, attempt: auto.attempt, basis: auto.basis, active_jobs: auto.activeJobs, distance_km: auto.distanceKm, expires_at: exp }, { internal: true });
@@ -273,7 +273,6 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
-  if (usualSel?.mode === "usual" && batch.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Electrical fixes"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }
@@ -474,7 +473,9 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h reminders (queued, sending switches decide delivery) for released visits with no proposed time. */
+/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
+ *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; DRAFT until Jo approves) after the event
+ *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
@@ -488,43 +489,16 @@ export async function sweepCoordination(actorId: string | null = null) {
     ]);
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h reminder: no ${r.visit_kind} time proposed yet (prepared; delivery follows the sending switches)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      // Queue through the existing launch-control outbox: lands as EXECUTION_NOT_RELEASED and is only delivered once sending is released.
-      const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (ev) {
-        const { error } = await admin.rpc("enqueue_external_action", {
-          _job: r.job_id, _event: ev.id, _action: "booking_messages", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
-          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: await sha256Hex(`${r.assignment_id}-${r.visit_kind}`), _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
-        });
-        if (error) console.error("reminder outbox enqueue skipped", error.message); // e.g. TEST job suppression
-      }
+      const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
+      const sends = coordinationReminderSends(r.visit_kind);
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
+      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
       reminders++;
     }
   }
   return { reminders };
 }
 
-/** Installer planning-only notice after a CONFIRMED PIESA booking. Queued in the launch-control outbox
- *  (EXECUTION_NOT_RELEASED until sending is released). Idempotent per assignment + PIESA time. Never changes stage. */
-export async function queueInstallerPlanningNotice(jobId: string, installerAssignmentId: string, piesaStart: string) {
-  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_planning_notice")
-    .contains("details", { assignment_id: installerAssignmentId, piesa_start: piesaStart }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!ev) throw new Error("planning notice event missing");
-  const raw = `${installerAssignmentId}-${Date.parse(piesaStart)}`;
-  const facts = await sha256Hex(raw);
-  const { data, error } = await admin.rpc("enqueue_external_action", {
-    _job: jobId, _event: ev.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignmentId}`,
-    _basis: "transactional_job_coordination", _version: "installer-planning-notice-v1", _payload: "notice:installer_planning_notice",
-    _facts: facts, _key: `installer-planning-${raw}`,
-  });
-  if (error) throw new Error(error.message);
-  return data as string;
-}
-
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 
 // ---------- Owner-picked PIESA windows ----------
@@ -581,7 +555,7 @@ async function sweepPiesaWindows(actorId: string | null) {
 
 /** Owner submits 3–5 PIESA windows — old way only (decision 333): round 2 when asked for more times, or after a reopen
  *  on a job that already had a round. New jobs: the electrician offers 3 times (piesa-times.server.ts). */
-export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
+export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[], ack: { understandsThirtyDays: boolean | undefined; ip: string | null; userAgent: string | null }) {
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));
@@ -603,6 +577,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested");
     if (!count) throw new WorkflowError("Your PIESA times are already with our electricians.");
   }
+  // Decision 307 (F17): every owner path (signed-in or secure link) ticks the 30-day box before times are saved.
+  await (await import("./thirty-day-ack.server")).requireOwnerThirtyDayAck({ jobId, userId, ...ack });
   const round = w.round + 1;
   const rows = picks.map((p) => ({ job_id: jobId, kind: "assessment" as const, proposed_by: userId, proposer_role: "owner", piesa_window_round: round, ...windowBounds(p.date, p.slot) }));
   const { error } = await admin.from("appointment_proposals").insert(rows as never);
@@ -631,5 +607,8 @@ export async function ownerPiesaWindowState(jobId: string) {
   // Decision 333: the old 3–5 window picker only for jobs that started the old way (oldOwnerPickerOpen); new jobs use piesa-times.
   const { oldOwnerPickerOpen } = await import("./piesa-times.core");
   const canPick = stageOk && !elec && w.futureOpen === 0 && oldOwnerPickerOpen({ round: w.round, moreTimesAsked: !!asked, reopened });
-  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round) };
+  // Decision 307 (F17): the old picker asks the 30-day box too (a read failure shows the box; the server still decides).
+  const { THIRTY_DAY_ACK_WORDING } = await import("./thirty-day-ack.core");
+  const ack = canPick ? await (await import("./thirty-day-ack.server")).ownerThirtyDayAckState(jobId).catch(() => ({ needed: true, wording: THIRTY_DAY_ACK_WORDING })) : { needed: false, wording: THIRTY_DAY_ACK_WORDING };
+  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round), thirtyDayAck: { needed: ack.needed, wording: ack.wording } };
 }

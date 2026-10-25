@@ -1,7 +1,7 @@
 // Decision 186 (Jo, 24 Oct 2026): the moment electrical clearance becomes valid (PIESA passed with no fixes, or the
 // fixes are completed and Section C is signed — allocation.core `electricalClearance`), the assigned installer business
 // gets ONE text and ONE email: offer the owner 3 install days before the 30-day deadline. Pure wording + keys only.
-// Design approved: docs/templates/approved/I65-install-clearance.html (partner kit, 30-day box of decision 137, AP footer).
+// Design approved: docs/templates/installer/I65-install-clearance.html (partner kit, 30-day box of decision 137, AP footer).
 // The text is the decision's wording verbatim (one-off partner job text, same shape as `job_offer`: no STOP line).
 import * as K from "./email-kit.core";
 

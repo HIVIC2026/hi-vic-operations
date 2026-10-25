@@ -31,9 +31,10 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
       if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
       const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
       const usual = profile?.electrician;
-      // Decision 303: an approved-REC snapshot carries the REC's onboarded rate, not the declared price — identity must still match.
-      const priceChanged = saved.source === "approved_rec" ? false : usual?.priceIncGst !== saved.priceIncGst;
-      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence || priceChanged) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+      // Decision 303: an approved-REC snapshot carries the REC's onboarded rate, not the declared price — identity must still
+      // match. Decision 369: My business no longer records a price, so only the identity is compared (a re-save without a
+      // price must not hold an existing quote).
+      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
     }
     const { data: lines, error: ie } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
     if (ie) return "Quote electrical lines could not be checked";

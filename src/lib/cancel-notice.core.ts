@@ -1,6 +1,6 @@
 // Decision 291 (Jo, 25 Oct 2026): cancelling a job with "tell the owner" / "tell the installer" ticked SENDS the owner
 // email O69 "Job cancelled" and the installer email I70 "Job cancelled" (both EMAIL, no text) — wording approved
-// verbatim; designs docs/templates/approved/O69-job-cancelled.html and I70-job-cancelled.html. Pure: wording, keys and
+// verbatim; designs docs/templates/owner/O69-job-cancelled.html and I70-job-cancelled.html. Pure: wording, keys and
 // event names only. Delivery lives in cancel-notice.server.ts (TEST → test-send; real owner → sendGuardedOwnerEmail
 // behind customer_comms_enabled + consent/opt-out; real installer → the partner office-email path). No prices anywhere.
 import * as K from "./email-kit.core";

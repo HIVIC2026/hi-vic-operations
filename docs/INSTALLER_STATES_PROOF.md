@@ -2,7 +2,7 @@
 
 Jo approved the seven installer screens and every state (decisions 194–237, 24 Oct 2026). Decision 204: "make sure it actually all works" — every screen driven by real data and real actions. Decision 241: every button, panel and piece of information must be needed; anything that cannot be justified is removed.
 
-This file maps **each approved state** (`docs/templates/approved/installer-redesign/*.html` and `states/*.html`) to the route and condition that renders it, the server function(s) each button calls (all business-scoped through `trade-view.server.ts`; no customer prices), the pure state → view rule and its unit test, and **why each element exists**. A state that is not yet backed by real data or a real action is marked **GAP** with what is missing — nothing is faked.
+This file maps **each approved state** (`docs/templates/installer/portal/*.html` and `states/*.html`) to the route and condition that renders it, the server function(s) each button calls (all business-scoped through `trade-view.server.ts`; no customer prices), the pure state → view rule and its unit test, and **why each element exists**. A state that is not yet backed by real data or a real action is marked **GAP** with what is missing — nothing is faked.
 
 Pure rules: `src/lib/installer-home.core.ts` (M1), `src/lib/installer-screens.core.ts` (M2/M4/M5/M6), `src/lib/trade-view.core.ts` (M7), `src/lib/add-job-flow.core.ts` (M3). Tests: `tests/installer-states.test.ts` (every state below), plus the older `tests/installer-screens.core.test.ts`, `tests/installer-home.test.ts`, `tests/add-job-flow.test.ts`, `tests/trade-view.test.ts`.
 

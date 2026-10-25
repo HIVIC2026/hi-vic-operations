@@ -1,5 +1,5 @@
 // Decision 293 (Jo 25 Oct 2026): the "A5 – Electrical fixes" form. Pure rules + prompt drift, no database.
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   FIXES_DAY_Q, FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, fixesCompletionPlan, fixesDayMissingQuestions, fixesDayPrefillItems, fixesFormNeeded,
@@ -127,5 +127,92 @@ describe("prefill by exact wording", () => {
     const items = fixesDayPrefillItems(tpl, { jobNumber: "HV-1", address: "1 Test St", electricianName: "Sam", licence: null, recName: "Sparks", recNo: "R1", phone: "0400", repairList: [B2_OPTIONS[0], "Other: box"] });
     expect(items.map((i) => i.item_id)).toEqual(["i1", "i2", "i3", "i5", "i6", "i8"]); // no licence (null), no phone (not on template)
     expect(items.at(-1)!.responses).toEqual({ text: `1. ${B2_OPTIONS[0]}\n2. Other: box` });
+  });
+});
+
+// ---------- F06: a file that can't be kept holds the form (no evidence / PIESA record / completion) and the sweep retries ----------
+describe("completeFixesForm: files are kept first; a failed download holds and is retried", () => {
+  type Row = Record<string, unknown>;
+  const JOB = "00000000-0000-0000-0000-0000000000f6", AUDIT = "audit-fixes-1", TPL = `template_${"f6".repeat(16)}`;
+  let tables: Record<string, Row[]> = {};
+  let uploads: string[] = [];
+  const reset = () => {
+    uploads = [];
+    tables = {
+      jobs: [{ id: JOB, job_number: "HV-3001", stage: "rectification_booked", source: "website", deleted_at: null, qa_archived_at: null }],
+      assessments: [{ id: "as1", job_id: JOB, mitti_raw_snapshot: [{ label: "Original", value: "kept" }] }],
+      workflow_settings: [{ id: 1, mitti_fixes_template_id: TPL }],
+      evidence_requirements: [{ job_id: JOB, category: "rectification_completion", status: "outstanding" }],
+      documents: [], workflow_events: [], job_assignments: [],
+    };
+  };
+  function builder(table: string) {
+    const filters: ((r: Row) => boolean)[] = [];
+    let op: "select" | "insert" | "update" = "select", patch: Row = {}, mode: "many" | "maybe" = "many", count = false;
+    const rows = () => (tables[table] ??= []);
+    const contains = (have: unknown, want: Row) => Object.entries(want).every(([k, v]) => (have as Row | null)?.[k] === v);
+    const run = () => {
+      if (op === "insert") { rows().push({ ...patch }); return { data: null, error: null }; }
+      if (op === "update") { for (const r of rows()) if (filters.every((f) => f(r))) Object.assign(r, patch); return { data: null, error: null }; }
+      const out = rows().filter((r) => filters.every((f) => f(r)));
+      if (count) return { data: null, count: out.length, error: null };
+      return { data: mode === "many" ? out : out[0] ?? null, error: null };
+    };
+    const b: Record<string, unknown> = {
+      select: (_c?: string, o?: { count?: string }) => { if (op === "select") count = o?.count === "exact"; return b; },
+      insert: (p: Row) => { op = "insert"; patch = p; return b; }, update: (p: Row) => { op = "update"; patch = p; return b; },
+      eq: (c: string, v: unknown) => { filters.push((r) => r[c] === v); return b; }, in: (c: string, v: unknown[]) => { filters.push((r) => v.includes(r[c])); return b; },
+      contains: (c: string, v: Row) => { filters.push((r) => contains(r[c], v)); return b; },
+      order: () => b, limit: () => b, maybeSingle: () => { mode = "maybe"; return b; },
+      then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve().then(run).then(res, rej),
+    };
+    return b;
+  }
+  const fakeAdmin = { from: builder, storage: { from: () => ({ upload: async (path: string) => { uploads.push(path); return { data: { path }, error: null }; } }) } };
+  mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin }));
+  mock.module("../src/lib/workflow.server", () => ({
+    WorkflowError: class WorkflowError extends Error {},
+    getStage: async () => "rectification_booked",
+    logEvent: async (job: string, _actor: string | null, type: string, summary: string, details?: unknown) => { (tables["workflow_events"] ??= []).push({ job_id: job, event_type: type, summary, details: details ?? {} }); },
+  }));
+  const audit = { items: [...fullAudit().items, item(Q.repairList, "1. Replace RCD")], audit_id: AUDIT, template_id: TPL, completed: true };
+  const call = (async () => audit) as never;
+  const PDF = new TextEncoder().encode("%PDF-1.4");
+
+  test("saveFixesFiles: a throwing download is reported as failed, a later run saves it, a filed document counts as saved", async () => {
+    reset();
+    const { saveFixesFiles } = await import("../src/lib/fixes-day.server");
+    let calls = 0;
+    const flaky = async () => { calls++; if (calls === 1) throw new Error("Mitti media 502"); return { bytes: PDF, contentType: "application/pdf" }; };
+    const files = [{ label: "Certificate of Electrical Safety", title: "CoES", media: [{ mediaId: "c1" }] }, { label: "Finished work photo", title: "Photo", media: [{ mediaId: "w1" }] }];
+    const first = await saveFixesFiles(JOB, AUDIT, files, flaky as never);
+    expect(first.failed).toEqual([{ label: "Certificate of Electrical Safety", mediaId: "c1", reason: "Mitti media 502" }]);
+    expect(first.saved).toHaveLength(1);
+    const second = await saveFixesFiles(JOB, AUDIT, files, flaky as never);
+    expect(second.failed).toEqual([]);
+    expect(second.saved).toHaveLength(2); // c1 stored now; w1 already on the job counts as saved
+    expect(tables["documents"]!.length).toBe(2);
+  });
+
+  test("a failed file → held once; no Section C, no evidence update, no completion event; the next run gets past the files", async () => {
+    reset();
+    const { completeFixesForm } = await import("../src/lib/fixes-day.server");
+    const failing = async () => { throw new Error("Mitti media timeout"); };
+    const r = await completeFixesForm(JOB, AUDIT, { call, fetchMedia: failing as never, today: "2026-10-25" });
+    expect(r.status).toBe("held");
+    expect(r.detail).toContain("Certificate of Electrical Safety");
+    const ev = tables["workflow_events"]!;
+    expect(ev.filter((e) => e["event_type"] === "fixes_form_held")).toHaveLength(1);
+    expect(ev.some((e) => e["event_type"] === "fixes_form_completed")).toBe(false);
+    expect(tables["assessments"]![0]!["mitti_raw_snapshot"]).toEqual([{ label: "Original", value: "kept" }]);
+    expect(tables["evidence_requirements"]![0]!["status"]).toBe("outstanding");
+    // Retry (still failing): the office item is not repeated.
+    await completeFixesForm(JOB, AUDIT, { call, fetchMedia: failing as never, today: "2026-10-25" });
+    expect(tables["workflow_events"]!.filter((e) => e["event_type"] === "fixes_form_held")).toHaveLength(1);
+    // Media readable again: the files are kept and processing moves on to the Section C merge (later steps not stubbed here).
+    const ok = async () => ({ bytes: PDF, contentType: "application/pdf" });
+    await completeFixesForm(JOB, AUDIT, { call, fetchMedia: ok as never, today: "2026-10-25" }).catch(() => undefined);
+    expect(tables["documents"]!.length).toBeGreaterThan(0);
+    expect((tables["assessments"]![0]!["mitti_raw_snapshot"] as unknown[]).length).toBeGreaterThan(1);
   });
 });

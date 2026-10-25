@@ -9,11 +9,6 @@ import {
 
 type Booking = { id: string; job_id: string; kind: VisitKind; scheduled_start: string; business_id: string | null; assignment_id: string | null; contractor_id: string | null };
 
-async function sha256Hex(s: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-}
-
 export async function currentBooking(jobId: string, kind?: VisitKind): Promise<Booking | null> {
   let q = admin.from("bookings").select("id, job_id, kind, scheduled_start, business_id, assignment_id, contractor_id").eq("job_id", jobId).eq("status", "confirmed");
   if (kind) q = q.eq("kind", kind);
@@ -30,18 +25,6 @@ async function record(b: Booking, event: string, countsAgainst: "owner" | "trade
 async function needsOffice(jobId: string, code: VisitNeedsCode, kind: VisitKind, bookingId: string | null, summary: string) {
   await logEvent(jobId, null, "visit_needs_office", summary, { code, kind, booking_id: bookingId }, { internal: true });
   await admin.from("jobs").update({ next_action: `Needs Home Insulation Victoria: ${summary}` }).eq("id", jobId);
-}
-
-/** Queue (never send) the "please pick new times" owner message. Delivery follows the sending switches. */
-async function queueOwnerNewTimes(jobId: string, b: Booking) {
-  if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
-  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "visit_times_reopened").contains("details", { booking_id: b.id }).limit(1).maybeSingle();
-  if (!ev) return;
-  const { error } = await admin.rpc("enqueue_external_action", {
-    _job: jobId, _event: ev.id, _action: "customer_email", _target: `job:${jobId}`, _basis: "transactional_job_coordination",
-    _version: "visit-new-times-v1", _payload: `visit_new_times:${b.kind}`, _facts: await sha256Hex(`${jobId}-${b.id}-new-times`), _key: `visit-new-times-${b.id}`,
-  });
-  if (error) console.error("new-times outbox enqueue skipped", error.message); // e.g. TEST job suppression
 }
 
 /** Cancel the booking and send the visit back to "pick times" (or to the office for rectification). */
@@ -63,9 +46,10 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });
   if (plan.office) { await needsOffice(b.job_id, "rectification_new_times", b.kind, b.id, "Electrical fixes visit cancelled — arrange new times with the electrician and owner"); return; }
   if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(b.job_id)).allowed) return;
-  await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: owner asked to pick new times (prepared; delivery follows the sending switches)`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
+  // F13 / decision 376: no outbox row. A TRADE cancellation tells the owner once (O74 + text, visit-new-times.server, DRAFT
+  // until Jo approves); owner-made changes and no-shows are not messaged here.
+  await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: times reopened`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
   await admin.from("jobs").update({ next_action: `Waiting for the owner to pick new ${VISIT_LABEL[b.kind]} times` }).eq("id", b.job_id);
-  await queueOwnerNewTimes(b.job_id, b);
 }
 
 /** Owner misses (late change or not home): first = one free rebook, second = office. */
@@ -163,6 +147,8 @@ export async function tradeCancelVisit(jobId: string, userId: string, reason: st
   await requireBookingTrade(b, userId);
   await record(b, "trade_cancelled", "trade", userId, reason);
   await reopen(b, userId, `trade cancelled: ${reason}`);
+  // Decision 376: the owner is told once (O74 + text; held until Jo approves). Best-effort, never undoes the cancel.
+  await (await import("./visit-new-times.server")).notifyOwnerVisitNewTimes({ jobId, bookingId: b.id, kind: b.kind, wasIso: b.scheduled_start }).catch((e) => console.error("visit new times notice skipped", (e as Error).message));
   return { ok: true };
 }
 

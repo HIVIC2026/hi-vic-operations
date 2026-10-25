@@ -1,4 +1,4 @@
-/** "Not in your area yet" owner email (Jo, decision 74; design docs/templates/approved/O7-not-in-area.html). Pure: no data
+/** "Not in your area yet" owner email (Jo, decision 74; design docs/templates/owner/O7-not-in-area.html). Pure: no data
  *  access or delivery. Subject unchanged; the body follows the approved design through the shared email kit. */
 import { PUBLIC_CALCULATOR_URL, type EstimateEmail } from "./estimate-email";
 import * as K from "./email-kit.core";

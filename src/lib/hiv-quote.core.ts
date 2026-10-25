@@ -1,8 +1,8 @@
 // Pure pricing for NEW installation quotes on Home Insulation Victoria-generated jobs (Jo, 4 Oct 2026).
 // Owner prices are fixed for every installer (the same owner prices as the estimate). Our installer
 // markup = owner price − that installer's agreed rate, both inc GST. PIESA and the AP fee are two
-// separate lines ($349 each; decision 349: the PIESA line is the installer's usual electrician's onboarding rate when
-// they do it — `ownerPiesaLineIncGst`, our-lead-piesa-electrician.core). Installer-supplied jobs never use this (no installer markup there).
+// separate lines ($349 each; decision 373: always the standard $349 on our leads, whoever does it —
+// `ownerPiesaLineIncGst`, our-lead-piesa-electrician.core). Installer-supplied jobs never use this (no installer markup there).
 export const HIV_PRICING_RULE = "hiv_fixed_owner_price_v1";
 const r2 = (n: number) => Math.round(n * 100) / 100;
 import { productQuoteDescription, type ProductRValue, type InsulationProduct } from "./insulation-product.core";
@@ -41,7 +41,7 @@ export type HivQuoteInput = {
   removalM2: number;
   ownerR5IncPerM2: number; // $30
   ownerRemovalIncPerM2: number; // $15
-  piesaIncGst: number; // $349 with our electrician; the installer's usual electrician's rate (decision 349)
+  piesaIncGst: number; // $349 — our leads always use our electrician at the standard price (decisions 373/374)
   apFeeIncGst: number; // $349
   gstRate: number; // 0.1
   installerR5ExPerM2: number | null; // agreed rate card (stored ex GST)

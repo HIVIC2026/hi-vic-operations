@@ -105,6 +105,12 @@ export const READY_CHECK_FIELDS: readonly FieldDef[] = [
   f("B", "removal.required", "Removal required", "enum", { options: TRI, required: true }),
   f("B", "removal.area_m2", "Estimated removal m²", "number"),
   f("B", "removal.reason", "Removal evidence / reason", "text"),
+  // Decision 359 (Jo 25 Oct 2026): official PIISA Part 6 facts, only where existing insulation is present (Mitti asks them
+  // per area — LEAN_Q.existingSuitable / existingConductive / existingConductivePhoto / existingKeepReason).
+  f("B", "insulation.suitable_to_lay_over", "Existing insulation in good enough condition to lay new insulation over (top up only)", "enum", { options: TRI }),
+  f("B", "insulation.conductive", "Existing insulation foil-backed, metallic or electrically conductive", "enum", { options: TRI }),
+  f("B", "insulation.conductive_photo", "Photo showing whether it is foil-backed or conductive", "evidence"),
+  f("B", "insulation.keep_reason", "Why the existing insulation is being kept (top up only)", "text"),
   // C. Access / install factors
   f("C", "access.manhole_size", "Manhole/access size", "text"),
   f("C", "access.manhole_photo", "Manhole photo", "evidence"),

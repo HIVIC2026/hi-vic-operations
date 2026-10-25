@@ -689,6 +689,8 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
 export const respondToQuoteSchema = z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     windowId: uuid.optional(), noneSuit: z.boolean().optional(), expectedVersion: z.number().int().optional(),
+    // Decision 366: My job approves the fixes first, the owner pays them in full, THEN picks the electrician's time.
+    pickLater: z.boolean().optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
       readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
@@ -728,7 +730,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     const stage = await getStage(q.job_id);
     // Installation quotes: the Ready Check path (office-released measured quote at measured_estimate_ready, Jo 7 Oct)
     // and the older awaiting_quote_acceptance path both accept. Every other guard below still applies to both.
-    const expected: Stage[] = q.kind === "rectification" ? ["awaiting_owner_rectification_approval"] : ["awaiting_quote_acceptance", "measured_estimate_ready"];
+    // Decision 366: a fixes quote is answered at the stages it is sent from (decision 354 AUTO_FIXES_STAGES) as well.
+    const expected: Stage[] = q.kind === "rectification" ? ["awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required"] : ["awaiting_quote_acceptance", "measured_estimate_ready"];
     const measuredPath = q.kind === "installation" && stage === "measured_estimate_ready";
     if (!expected.includes(stage)) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
@@ -785,6 +788,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
         const { error: re } = await admin.rpc("approve_rectification_with_window", { _quote: q.id, _proposal: data.windowId, _user: context.userId });
         if (re) throw new WorkflowError(re.message);
         pickedWindow = open.find((w) => w.id === data.windowId)!.starts_at;
+      } else if (data.pickLater) {
+        // Decision 366: the owner picks one of these times on My job once the fixes are paid; the windows stay open.
       } else if (ws?.length && !data.noneSuit) {
         throw new WorkflowError("Please choose one of the electrician's times, or tap \"None of these work\".");
       } else if (ws?.length) {
@@ -807,8 +812,22 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
 
     if (q.kind === "rectification") {
-      // Scope approval only – no invoice. The rectification lines are folded into the final installation quote.
       await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved electrical fixes scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
+      // Decision 366 (audit F03): the installation quote is already accepted (Ready Check path), so this stays in the fixes
+      // flow — the fixes are paid in full (their own payment step on the ONE invoice), then the owner picks the
+      // electrician's time and the visit is booked. Installer quotes are never regenerated here.
+      const { count: installAccepted } = await admin.from("quotes").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted");
+      if (installAccepted) {
+        const now = await getStage(q.job_id);
+        if (now !== "rectification_scheduling" && now !== "rectification_booked") {
+          try { await transition(q.job_id, "rectification_scheduling", context.userId, "Owner approved the electrical fixes – the owner pays the fixes in full, then picks the electrician's time"); }
+          catch (e) { await logEvent(q.job_id, context.userId, "fixes_approved_stage_held", `Electrical fixes approved, but fixes scheduling could not open yet: ${(e as Error).message}`, { quote_id: q.id, needs_office: true }, { internal: true }); }
+        }
+        if (pickedWindow) await (await import("./owner-fixes.server")).bookPickedFixesTime(q.job_id, context.userId).catch(() => undefined);
+        return { ok: true };
+      }
+      // Old model (no accepted installation quote yet): scope approval only – no invoice. The rectification lines are
+      // folded into the final installation quote.
       await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Electrical fixes scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
       { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(q.job_id); }
@@ -820,16 +839,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    const { data: installerAssignment } = await admin.from("job_assignments").select("id").eq("job_id", q.job_id).eq("role", "installer").eq("active", true).order("assigned_at", { ascending: false }).limit(1).maybeSingle();
-    if (installerAssignment) {
-      const { data: acceptedEvent } = await admin.from("workflow_events").select("id").eq("job_id", q.job_id).eq("event_type", ASSIGNMENT_EVENTS.QUOTE_ACCEPTED).contains("details", { quote_id: q.id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (acceptedEvent) {
-        const facts = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${q.id}-${installerAssignment.id}-${q.version}`));
-        const hash = [...new Uint8Array(facts)].map((x) => x.toString(16).padStart(2, "0")).join("");
-        const { error: notifyError } = await admin.rpc("enqueue_external_action", { _job: q.job_id, _event: acceptedEvent.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignment.id}`, _basis: "transactional_job_coordination", _version: "owner-quote-accepted-v1", _payload: `quote_accepted:${q.id}`, _facts: hash, _key: `quote-accepted-${q.id}-${installerAssignment.id}` });
-        if (notifyError) console.error("quote accepted installer notification enqueue skipped", notifyError.message);
-      }
-    }
+    // F13: the installer is told by the approved I23 email (emailInstallerQuoteAccepted, in invoiceAfterAcceptance below);
+    // the old partner_notifications outbox row here was never sendable and is gone.
     if (measuredPath) {
       // Ready Check path: next is the safety check payment, then the owner picks safety check times.
       await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – Pre Insulation Electrical Safety Assessment (PIESA) payment due next");

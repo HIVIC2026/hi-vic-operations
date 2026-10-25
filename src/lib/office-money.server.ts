@@ -8,6 +8,7 @@ import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type Payou
 import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
+import { INSTALLER_PAY_WAITING_OWNER, ownerPaidInFullAt, payState } from "./trade-view.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -86,11 +87,12 @@ export async function moneyMargins(now = new Date()) {
     const committed = inst ? items.some((it) => it.quote_id === inst.id) : null;
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct";
     const elec = asg.find((a) => a.job_id === id)?.business_id;
-    // Decision 349: with the installer's usual electrician (our leads) we pay exactly the quoted PIESA line (their
-    // onboarding rate); otherwise the electrician's own agreed onboarding rate (electrician_rates PIESA row).
+    // Decisions 349/352/353: we pay whoever does the PIESA THEIR own onboarding rate (electrician_rates PIESA row of the
+    // assigned electrician) — for the installer's usual electrician that is the quoted line; if our electrician did it
+    // instead, the owner's quoted price stands and we pay ours their rate. The quoted usual rate is only the fallback.
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
-    const piesaCostEx = ownerDirect ? 0 : usualPiesaEx ?? (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : fallbackPiesa);
+    const piesaCostEx = ownerDirect ? 0 : (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : usualPiesaEx ?? fallbackPiesa);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
@@ -106,17 +108,26 @@ export async function moneyMargins(now = new Date()) {
   return { rows, month, spot: spot.price };
 }
 
-/** Payouts (decisions 30/109): what we owe each installer / electrician once the job is through Final check. Mark paid = existing markPayoutPaid. */
+/** Payouts (decisions 30/109/355): what we owe each installer (once the job is through Final check) and each electrician
+ *  (7 days after their form is complete and the owner paid that step). Mark paid = existing markPayoutPaid. */
 export async function moneyPayouts() {
   const { data: js, error } = await db.from("jobs").select("id").in("stage", ["ready_for_veec", "complete"]).neq("source", "qa_test").is("deleted_at", null).limit(2000);
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
-  const jobs = await liveJobs(((js ?? []) as { id: string }[]).map((j) => j.id));
+  // Decision 355: electrician pay falls due long before Final check (7 days after the form is complete AND the owner paid
+  // that step), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
+  const { data: eb, error: ebe } = await db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed").limit(4000);
+  if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
+  const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
+  const elecVisits = (eb ?? []) as { job_id: string; kind: string }[];
+  const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])]);
   const ids = [...jobs.keys()];
-  const [asg, quotes, paidEv, apEv] = await Promise.all([
+  const [asg, quotes, paidEv, apEv, invs] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string; businesses: { name: string; trading_name: string | null } | null }>("job_assignments", "job_id, business_id, role, businesses(name, trading_name)", ids, (q) => q.eq("active", true)),
     inJobs<{ id: string; job_id: string; kind: string }>("quotes", "id, job_id, kind", ids, (q) => q.eq("status", "accepted")),
     inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
     inJobs<{ job_id: string; created_at: string }>("workflow_events", "job_id, created_at", ids, (q) => q.eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec")),
+    // Audit F19: owner paid in full (Xero mirror) — installer-supplied jobs wait for it, exactly as the installer's screen.
+    inJobs<{ job_id: string; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, status, balance_paid_at, paid_at, updated_at", ids),
   ]);
   const internals: { quote_id: string; cost_ex_gst: number | null }[] = [];
   for (const part of chunks(quotes.map((q) => q.id))) { const { data } = await db.from("quote_internals").select("quote_id, cost_ex_gst").in("quote_id", part); internals.push(...(data ?? [])); }
@@ -130,22 +141,40 @@ export async function moneyPayouts() {
   for (const id of ids) {
     const j = jobs.get(id)!;
     const ap = apEv.filter((e) => e.job_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null;
-    const dueAt = ap ? new Date(Date.parse(ap) + 7 * 86_400_000).toISOString() : null;
+    // Audit F19: installer pay uses the SAME payState as the installer's Money screen — AP + 7 days for our leads; for
+    // installer-supplied jobs 7 days after the LATER of AP approval and the owner's payment in full.
+    const installerSupplied = j.channel === "installer_sourced";
+    const instPay = payState({ paidAt: null, apApprovedAt: ap, installerSupplied, ownerPaidInFullAt: ownerPaidInFullAt(invs.filter((x) => x.job_id === id)) });
+    const dueAt = instPay.kind === "coming" ? instPay.on : null;
+    const waitingOwner = installerSupplied && !!ap && instPay.kind === "checking";
     const paidFor = (kind: string) => paidEv.filter((e) => e.job_id === id && ((e.details?.kind ?? "installation") === kind)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null;
     const name = (a?: { businesses: { name: string; trading_name: string | null } | null }) => a?.businesses?.trading_name || a?.businesses?.name || "Not assigned";
+    const atFinal = finalIds.has(id);
     const inst = asg.find((a) => a.job_id === id && a.role === "installer");
-    lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation") });
+    // Installer pay (Final check jobs only): payState above; an installer-supplied job still waiting for the owner's
+    // payment in full is Held with that reason (never in a Mark paid group).
+    if (atFinal) lines.push({ jobId: id, jobNumber: j.job_number, businessId: inst?.business_id ?? null, business: name(inst), kind: "installation", amountEx: costOf(id, "installation"), dueAt, paidAt: paidFor("installation"), ...(waitingOwner ? { held: [INSTALLER_PAY_WAITING_OWNER] } : {}) });
     const elec = asg.find((a) => a.job_id === id && a.role === "electrician");
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
+    const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
     if (elec && !ownerDirect) {
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt, paidAt: paidFor("assessment") });
-      if (quotes.some((q) => q.job_id === id && q.kind === "rectification")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt, paidAt: paidFor("rectification") });
+      // dueAt for electrician lines is set below from the decision-355 rule.
+      if (atFinal || visited("assessment")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
+      if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
   // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.
+  // Decision 355: an electrician payout is due 7 days after its form is complete AND the owner paid that step.
+  const elecJobs = [...new Set(lines.filter((l) => l.kind !== "installation").map((l) => l.jobId))];
   const unpaidJobs = [...new Set(lines.filter((l) => !l.paidAt).map((l) => l.jobId))];
-  const facts = await payoutGateFacts(unpaidJobs);
-  for (const l of lines) if (!l.paidAt) { const f = facts.get(l.jobId); l.held = f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]; }
+  const facts = await payoutGateFacts([...new Set([...unpaidJobs, ...elecJobs])]);
+  const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
+  const ownerPaid = await ownerElectricalStepsPaidAt(elecJobs);
+  for (const l of lines) {
+    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId), ownerPaid.get(l.jobId));
+    if (t) l.dueAt = t.dueAt;
+    if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
+  }
   const g = groupPayouts(lines);
   return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }

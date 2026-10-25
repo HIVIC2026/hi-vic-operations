@@ -173,14 +173,14 @@ describe("wording (DRAFT until Jo approves)", () => {
     expect(r.html).toContain("We can't book your install day until you've confirmed it."); expect(r.html).toContain("TEST — only sent to Jo");
     expect(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, firstName: null, reminder: false }).subject).toBe("there, please confirm your electrical safety check");
   });
-  test("the draft files under docs/templates/drafts are the renderer's output (run scripts/render-decision-296-drafts.ts after a wording change)", () => {
+  test("the O71 files under docs/templates/owner are the renderer's output (run scripts/render-decision-296-drafts.ts after a wording change)", () => {
     for (const reminder of [false, true]) {
-      const file = readFileSync(`docs/templates/drafts/${reminder ? O71_FILES.reminder : O71_FILES.request}`, "utf8");
+      const file = readFileSync(`docs/templates/owner/${reminder ? O71_FILES.reminder : O71_FILES.request}`, "utf8");
       expect(file).toBe(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder }).html);
     }
   });
   test("P6 mock-up carries the page wording byte for byte", () => {
-    const html = readFileSync("docs/templates/approved/P6-piesa-confirm-page.html", "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓");
+    const html = readFileSync("docs/templates/owner/P6-piesa-confirm-page.html", "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓");
     for (const t of [P6.kicker, P6.title, P6.sub("24 October 2026"), P6.whyLead + "</b>" + P6.why, P6.formEyebrow, P6.factsTitle, P6.rows.date, P6.rows.electrician, P6.rows.result, P6.warningLead + "</b>" + CEILING_ENTRY_WARNING, P6.declareTitle, P6.declare, confirmTickText("24 October 2026"), P6.signLabel, P6.typeHere, P6.dateLine("25 October 2026"), P6.button, P6.lockHint, P6.afterNote, P6.confirmedTitle, P6.confirmedOn("25 October 2026", "Helen Yang"), OUTCOME_LABEL.all_clear, OWNER_PAGE_FOOTER]) expect(html).toContain(t);
   });
 });
@@ -206,5 +206,47 @@ describe("official PIESA owner block (Section 4 / O) from the confirmation recor
       expect(r.flagged).toContain(`${OWNER_CONFIRMATION_NOT_SIGNED_FLAG} (secure link).`);
       expect(r.flagged.some((f) => /Owner signature missing|Owner declaration: not confirmed/.test(f))).toBe(false);
     }
+  });
+});
+
+// F08: a reassessment (re-done PIESA) is the PIESA the owner confirms — the same kinds as the 30-day anchor.
+describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => {
+  type Row = Record<string, unknown>;
+  const JOB = "00000000-0000-0000-0000-0000000000f8";
+  const tables: Record<string, Row[]> = {
+    piesa_records: [
+      { id: "rec-initial", job_id: JOB, kind: "initial", outcome: "pass", completed_date: "2026-10-01", created_at: "2026-10-01T02:00:00Z", signed_off_by: "u1" },
+      { id: "rec-post", job_id: JOB, kind: "post_rectification", outcome: "pass", completed_date: "2026-10-20", created_at: "2026-10-20T02:00:00Z", signed_off_by: "u1" },
+      { id: "rec-reassess", job_id: JOB, kind: "reassessment", outcome: "pass", completed_date: "2026-11-05", created_at: "2026-11-05T02:00:00Z", signed_off_by: "u1" },
+    ],
+    workflow_events: [{ job_id: JOB, event_type: PIESA_OWNER_CONFIRMED_EVENT, created_at: "2026-10-02T00:00:00Z", details: { piesa_record_id: "rec-initial", name: "Helen Yang" } }],
+  };
+  const builder = (t: string) => {
+    const f: ((r: Row) => boolean)[] = [];
+    let one = false, count = false, desc = false, col: string | null = null, lim = Infinity;
+    const b: Record<string, unknown> = {
+      select: (_c?: string, o?: { count?: string }) => { count = o?.count === "exact"; return b; },
+      eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: (c: string, v: unknown[]) => { f.push((r) => v.includes(r[c])); return b; },
+      not: () => b, order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
+      maybeSingle: () => { one = true; return b; },
+      then: (res: (v: unknown) => unknown) => {
+        let out = (tables[t] ?? []).filter((r) => f.every((x) => x(r)));
+        if (col) out = [...out].sort((a, z) => (String(a[col!]) < String(z[col!]) ? -1 : 1) * (desc ? -1 : 1));
+        out = out.slice(0, lim);
+        return Promise.resolve(count ? { data: null, count: out.length, error: null } : { data: one ? out[0] ?? null : out, error: null }).then(res);
+      },
+    };
+    return b;
+  };
+  test("a newer reassessment wins over the initial PIESA; the old confirmation doesn't carry over; post-rectification is ignored", async () => {
+    const { mock } = await import("bun:test");
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
+    mock.module("../src/lib/official-forms.server", () => ({ currentCopy: async () => ({ copy: null }) }));
+    const { ownerPiesaConfirmFacts, OWNER_CONFIRMED_PIESA_KINDS } = await import("../src/lib/piesa-owner-confirm.server");
+    expect([...OWNER_CONFIRMED_PIESA_KINDS]).toEqual(["initial", "reassessment"]);
+    const f = await ownerPiesaConfirmFacts(JOB);
+    expect(f?.piesaRecordId).toBe("rec-reassess");
+    expect(f?.completedDate).toBe("2026-11-05");
+    expect(f?.confirmation).toBeNull(); // the re-done PIESA needs its own confirmation
   });
 });

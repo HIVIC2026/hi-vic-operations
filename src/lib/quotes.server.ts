@@ -80,17 +80,13 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
-  // Decision 349 (Jo 25 Oct 2026): the PIESA line follows WHOSE electrician will do it — the same decision-157 selection
-  // the PIESA offer uses. The installer's usual electrician → their onboarding rate exactly (pass-through); our
-  // electrician → HIV's standard price ($349). The safety-check payment (decision 302) and the repeat-PIESA charge
-  // (decision 342) read this line, so they follow automatically.
-  const { recCandidatesFor } = await import("./allocation.server");
-  const piesaSel = await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, (await recCandidatesFor(jobId)).candidates);
+  // Decisions 373/374 (Jo 25 Oct 2026): on our leads WE always choose the electrician (nearest approved REC covering the
+  // postcode), so the PIESA line is always HIV's standard price ($349) and the electrician is ours (paid their own
+  // onboarding rate on the offer). The safety-check payment (decision 302) and the repeat-PIESA charge (decision 342)
+  // read this line, so they follow automatically.
   const { ownerPiesaLineIncGst } = await import("./our-lead-piesa-electrician.core");
-  const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst), piesaSel);
-  const piesaElectrician = piesaSel.mode === "usual"
-    ? { source: "installer_usual" as const, business_id: piesaSel.businessId, rate_inc_gst: piesaSel.rateIncGst, rate_id: piesaSel.rateId }
-    : { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
+  const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst));
+  const piesaElectrician = { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
@@ -202,7 +198,7 @@ async function a4FixesPriceSource(jobId: string) {
  *  Same supersede/insert/release shape as the rate-card path below — the quote is still a held draft for office review.
  *  Decision 308: `included` is built from the electrician's ticks (fixes-price.core). Decision 310 (Jo 25 Oct 2026):
  *  office-added rectification_items are NOT added on top of the electrician's total — the A4 price is the whole price. */
-async function generateA4FixesQuote(jobId: string, actorId: string, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number, electricianSource: "installer_usual" | "ours") {
+async function generateA4FixesQuote(jobId: string, actorId: string | null, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number, electricianSource: "installer_usual" | "ours") {
   // quotes.rate_card_id is nullable: keep the electrician's active card for reference when there is one, never required here.
   const { data: cards } = await admin.from("rate_cards").select("id, version").eq("kind", "electrical").eq("is_active", true).eq("business_id", businessId).order("version", { ascending: false }).limit(1);
   const card = cards?.[0] ?? null;
@@ -231,16 +227,15 @@ async function generateA4FixesQuote(jobId: string, actorId: string, businessId: 
   return q.id;
 }
 
-export async function generateRectificationQuote(jobId: string, actorId: string) {
+export async function generateRectificationQuote(jobId: string, actorId: string | null) {
   const settings = await activePricing();
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the electrical fixes quote.");
   // Decision 305: the electrician's own total from the A4 PIESA wins; older forms without it keep the rate-card path below.
-  // Decision 313: installer-supplied jobs (A1) get the electrician's price as is. Decision 349: on our leads the $100 is
-  // added ONLY with our electrician — the installer's own (usual) electrician is passed through too.
-  const { data: jobRow } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
+  // Decision 351: the $100 follows WHOSE electrician on both routes — ours (incl. on A1) → +$100; the installer's own /
+  // usual / nominated electrician → passed through as is.
   const electricianSource = await (await import("./our-lead-piesa-electrician.server")).electricianSourceForJob(jobId, rec.business_id);
-  const margin = fixesMarginFor((jobRow as { channel?: string | null } | null)?.channel ?? null, electricianSource);
+  const margin = fixesMarginFor(electricianSource);
   const a4 = await a4FixesPriceSource(jobId);
   if (a4.path === "a4_price") return generateA4FixesQuote(jobId, actorId, rec.business_id, a4, settings, margin, electricianSource);
   const card = await activeRateCard("electrical", rec.business_id, false);
@@ -265,7 +260,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     lines.push({ code: it.rate_code, description: it.description, quantity: Number(it.quantity), unit: approved?.display_unit || approved?.unit || "each", unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * Number(it.quantity)), is_other: it.is_other, explanation: it.explanation, sort: lines.length });
   }
   // Decision 142: owner price = electrician price + the margin spread over the lines; trade cost below stays unmarked.
-  // Decision 313: no margin on installer-supplied jobs (A1); decision 349: none with the installer's own electrician either.
+  // Decision 351: no margin with the installer's own electrician (A1 or A2); our electrician → +$100 on both routes.
   const priced = margin > 0 ? applyRectificationMargin(lines, margin) : lines;
   const subtotal = r2(priced.reduce((a, l) => a + l.line_total_inc_gst, 0));
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);

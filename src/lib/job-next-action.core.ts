@@ -24,7 +24,7 @@ const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   choose_electrician: (f) => `Choose the electrician for the PIESA${f.electricianToChoose?.usual ? ` — ${f.electricianToChoose.usual} is the installer's usual electrician` : ""}.`,
   quote_check: (f) => (f.quoteToCheck?.ready ? "The quote is drafted and every check passed — check it and press Send." : `The quote is held: ${f.quoteToCheck?.reason ?? "something is missing"}.`),
   fixes_quote_check: () => "Check the electrical fixes quote and send it to the owner.",
-  sign_consent: () => "Sign the ESC owner consent as the AP representative before the install.",
+  sign_consent: (f) => f.consentToSign?.reasons?.length ? `The ESC owner consent's AP part signs itself once this is fixed: ${f.consentToSign.reasons.join(" ")} (Sign is the fallback.)` : "Sign the ESC owner consent as the AP representative before the install.",
   esc_window: () => "Submit the ESC installation notification inside its window.",
   final_check: () => "Install complete — do the final check and approve.",
   veec_a_held: (f) => `VEEC Part A signs itself once these are recorded: ${(f.veecApHeld?.reasons ?? []).join(" ")}`,

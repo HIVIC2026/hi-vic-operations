@@ -162,7 +162,7 @@ async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" 
     const next = p.todo.find((t) => (gates as string[]).includes(t.gate));
     if (!next) break;
     await og.signGateDoc({ jobId: s.jobId, key: next.key as never, signatoryName: "Test Journey", ticked: true, method: "link_code", signedBy: s.userId, ip: "127.0.0.1", userAgent: "journey-test",
-      answers: { role: "owner", life_support: "no", payment_option: "two_instalments", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
+      answers: { role: "owner", life_support: "no", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
     signed.push(next.key);
   }
   const left = (await og.ownerPaperworkToSign(ctx.jobId!)).todo.filter((t) => (gates as string[]).includes(t.gate));
@@ -384,7 +384,8 @@ const s7: StepFn = async (ctx, r) => {
     const rec = await import("./job-records.server");
     const now = new Date().toISOString();
     await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
-    await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
+    // Decision 370: the AP part normally signs itself right after the owner; the office path runs only if it was held.
+    if ((await cs.currentConsent(ctx.jobId!))?.status === "awaiting_ap") await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
     await act(r, "ESC pre-install notice prepared for the booked day", async () => { await (await import("./esc.server")).regenerateEscNotification(ctx.jobId!, ctx.actorId); });
     for (const to of ["owner", "installer"] as const) await act(r, `signed PIESA copy recorded as given to the ${to}`, () => rec.recordPiesaCopyDelivery({ jobId: ctx.jobId!, recipient: to, deliveredAt: now, method: "portal", actorId: ctx.actorId }));
     await act(r, "office records pre-install consumer documents given", () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key: "pre_install_consumer_docs", occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));

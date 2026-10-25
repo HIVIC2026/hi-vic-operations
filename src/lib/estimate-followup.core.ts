@@ -8,12 +8,13 @@
 // reopen possible) one week after the day-21 email — unless the owner saved a spot, replied, opted out or the job
 // moved stage in the meantime. One workflow event per send and per auto-close.
 //
-// Wording is NOT approved yet: ESTIMATE_FOLLOWUP_APPROVED stays false until Jo approves the drafts under
-// docs/templates/drafts/ (O66 day 2, O67 day 7, O68 day 21). While it is false, real owners get nothing and nothing
-// is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs use test-send so the flow can be checked.
+// Wording APPROVED (decision 242, reconfirmed decision 357, Jo 25 Oct 2026): designs filed under docs/templates/owner/
+// (O66 day 2, O67 day 7, O68 day 21). Real owners still need `customer_comms_enabled` (and consent); if the flag were
+// ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
+// use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
 
-export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242)
+export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Jo approved O66/O67/O68 wording 24 Oct 2026 (decision 242; reconfirmed 25 Oct, decision 357)
 
 export type EstimateFollowupStep = "day_2" | "day_7" | "day_21";
 export const ESTIMATE_FOLLOWUP_STEPS: readonly EstimateFollowupStep[] = ["day_2", "day_7", "day_21"];
@@ -26,6 +27,8 @@ export const ESTIMATE_FOLLOWUP_CLOSE_AFTER_DAYS = 7;
 export const ESTIMATE_FOLLOWUP_EVENT = "estimate_followup_sent";
 /** Workflow event when a due reminder could not be prepared for this job (figures or link missing); counts as that step done. */
 export const ESTIMATE_FOLLOWUP_NOT_SENT_EVENT = "estimate_followup_not_sent";
+/** F09: the send RESULT, recorded after the send (details.step, details.sent). Only a sent day-21 starts the close. */
+export const ESTIMATE_FOLLOWUP_RESULT_EVENT = "estimate_followup_result";
 /** The auto-close is a `stage_changed` event to cancelled with this reason (jobs.cancelled_reason), like the other closers. */
 export const ESTIMATE_FOLLOWUP_CLOSE_REASON = "no response after estimate";
 export const ESTIMATE_FOLLOWUP_CLOSE_SOURCE = "estimate_followup";
@@ -51,6 +54,8 @@ export type EstimateFollowupFacts = {
   ownerEmail: string | null;
   /** Steps already recorded (sent or not-sent events), with when the send event was recorded. */
   done: { step: EstimateFollowupStep; at: string }[];
+  /** F09: steps whose email actually went out (result event recorded after the send with sent = true). */
+  sent?: { step: EstimateFollowupStep; at: string }[];
 };
 
 export const STOP = {
@@ -100,7 +105,8 @@ export function decideEstimateFollowup(f: EstimateFollowupFacts, nowIso: string)
     if (now < from) return { kind: "wait", until: new Date(from).toISOString() };
     if (now < until && !doneSteps.has(step)) return { kind: "send", step };
   }
-  const last = f.done.find((d) => d.step === "day_21");
+  // F09: only a day-21 email that actually went out starts the close — a not-prepared, held or failed send never does.
+  const last = (f.sent ?? []).find((d) => d.step === "day_21");
   if (!last) return { kind: "stop", reason: "Day-21 reminder was never sent, so the estimate is not closed automatically" };
   const closeAt = t(last.at) + ESTIMATE_FOLLOWUP_CLOSE_AFTER_DAYS * DAY;
   return now >= closeAt ? { kind: "close" } : { kind: "wait", until: new Date(closeAt).toISOString() };

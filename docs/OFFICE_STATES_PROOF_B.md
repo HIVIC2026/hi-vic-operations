@@ -2,7 +2,7 @@
 
 Branch `office-build-b` (from `installer-mitti-workflow` @ `9bf49321`). Decisions 204/241 ("build for real; every element
 traces to a decision, rule or daily action"), 229–232, 240–243, 246, 248, 249. Approved mock-ups:
-`docs/templates/approved/office-redesign/O5-partners.html`, `O5b-business-file.html`, `O5-partners-application-review.html`,
+`docs/templates/office/portal/O5-partners.html`, `O5b-business-file.html`, `O5-partners-application-review.html`,
 `O6-money.html`, `O7-communications.html`, `O7-settings.html`. Every built section/tab/button carries a `data-why`
 attribute (never visible) with the same source as the "why" column below.
 
@@ -73,7 +73,7 @@ Legend: route/condition → server fn → test → why. **GAP** = not built / no
 |---|---|---|---|---|
 | Tiles: VEECs lodged · Owners owe · We owe trades · Margin this month | Melbourne month; non-test | `getMoneyVeecs`, `getMoneyInvoices`, `getMoneyPayouts`, `getMoneyMargins` | T1 marginTotal | audit §6; 230 |
 | Per-job margin table (Job · Owner · Price · Installer pay · Electrician · VEEC net · Margin · %) + click → breakdown | accepted quotes, latest 200 live jobs | `moneyMargins` → **`src/lib/job-margin.core.ts` `jobMargin` (the one pure rule; Job page Money card should import the same)** | T1 decision 230 block (matches mock rows) | 230 |
-| Payouts grouped per business + Mark paid (bank reference) | jobs at ready_for_veec/complete; due = Final check + 7 days; owner-direct electricians excluded | `moneyPayouts` + existing `markPayoutPaid` per job/kind | T1 groupPayouts | 30/109 — **GAP (re-checked office-gaps, 24 Oct): "Mark paid sends the remittance" (mock) — no approved remittance template exists in `docs/templates/approved/` or the decisions log, so nothing is sent; the page says "records the bank reference"** |
+| Payouts grouped per business + Mark paid (bank reference) | jobs at ready_for_veec/complete; due = Final check + 7 days; owner-direct electricians excluded | `moneyPayouts` + existing `markPayoutPaid` per job/kind | T1 groupPayouts | 30/109 — **GAP (re-checked office-gaps, 24 Oct): "Mark paid sends the remittance" (mock) — no approved remittance template exists in `docs/templates/` or the decisions log, so nothing is sent; the page says "records the bank reference"** |
 | Invoices (Invoice · Owner · Job · Total · Steps · Paid · State) | latest installation invoice per live job (80 open + 20 paid) | `moneyInvoices` → existing `jobPaymentView` (payments.core thresholds) | T1 invoiceRowState / stepsLine | 139–144 |
 | Overdue → **Chase ›** → Log a call or note | `state = overdue` | existing `recordManualCommunicationFn` (phoned / followup_required; nothing sent) | T1 "no Record payment" | **240** |
 | No Record payment anywhere | — | no record fn in `office-money.functions.ts` | T1 | **240** |

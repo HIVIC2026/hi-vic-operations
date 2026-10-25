@@ -1,5 +1,5 @@
 // Electrical fixes (rectification) quote email (Jo 24 Oct 2026, decisions 95 and 137).
-// Design approved: docs/templates/approved/O29-fixes-quote.html — "{First}, your safety check found something to fix
+// Design approved: docs/templates/owner/O29-fixes-quote.html — "{First}, your safety check found something to fix
 // first"; plain explanation; amber "What they found" list; itemised "Your fixes quote" with total incl. GST; the red
 // "⏰ The 30-day clock" box with the actual expiry date; "Checked by our office… Paid in full when you approve…";
 // Approve and pay button. FIXES_QUOTE_EMAIL_APPROVED is on (decision 95); sent through approved-owner-emails.server.ts

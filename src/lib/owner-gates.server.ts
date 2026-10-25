@@ -1,8 +1,9 @@
 // Owner paperwork gates — persistence. Facts in, pure evaluator (owner-gates.core) out. Server-only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
-import { GATE_DOCS, RETIRED_DOC_KEYS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { SAFETY_CHECK_FEE_DEFAULT } from "./payment-gate.core";
+import { paymentPlan, toCents } from "./payments.core";
+import { GATE_DOCS, RETIRED_DOC_KEYS, paymentTermsMoney, paymentTermsText, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -88,8 +89,7 @@ async function jobVars(jobId: string) {
   } as Record<string, string | null | undefined> };
 }
 
-const audS = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-/** Step B money from the current installation quote and the safety check payment setting. */
+/** Step B money from the current installation quote: the same `paymentPlan()` the payment steps charge (decision 365). */
 async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: string }) | undefined> {
   const [{ data: q }, { data: ws }] = await Promise.all([
     admin.from("quotes").select("id, customer_total_inc_gst, version").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -99,8 +99,8 @@ async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: s
   // Decision 302: the quote's PIESA line is the upfront amount; the setting (default $349) only when the quote has none.
   const setting = Number((ws as { safety_check_payment_inc_gst?: number } | null)?.safety_check_payment_inc_gst ?? SAFETY_CHECK_FEE_DEFAULT);
   const fee = (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id, setting)).incGst;
-  const b = balanceSplit(q.customer_total_inc_gst, fee);
-  return { fee: audS(b.fee), balance: audS(b.balance), half: audS(b.firstHalf), half2: audS(b.secondHalf), total: audS(b.total), version: String(q.version ?? "") };
+  const plan = paymentPlan({ quoteTotalCents: toCents(q.customer_total_inc_gst), safetyCheckCents: toCents(fee) });
+  return { ...paymentTermsMoney(plan), version: String(q.version ?? "") };
 }
 
 /** What the owner still needs to sign now, with the exact text they would sign. */
@@ -113,14 +113,13 @@ export async function ownerPaperworkToSign(jobId: string) {
   return {
     pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,
     gates: gates.filter((g) => g.gate !== "A").map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
-    todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: t.key === "payment_terms" && money ? paymentChoices(money).safetyFee : fillTemplate(d.body, vars), paymentOptions: t.key === "payment_terms" && money ? paymentChoices(money).options : undefined }; }),
+    todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: t.key === "payment_terms" && money ? paymentTermsText(money) : fillTemplate(d.body, vars) }; }),
     isTest: facts.isTest,
   };
 }
 
 const ANSWERS: Partial<Record<GateDocKey, (a: Record<string, string>) => string | null>> = {
   details_confirmation: (a) => (["owner", "tenant", "buying", "other"].includes(a["role"] ?? "") ? null : "Tell us who owns the home."),
-  payment_terms: (a) => (["two_instalments", "pay_in_full"].includes(a["payment_option"] ?? "") ? null : "Choose how you'd like to pay."),
   life_support_answer: (a) => (["yes", "no"].includes(a["life_support"] ?? "") ? null : "Please answer the life support question."),
   tenancy_details: (a) => ((a["landlord_name"] ?? "").trim().length >= 2 && ((a["landlord_phone"] ?? "").trim().length >= 6 || /@/.test(a["landlord_email"] ?? "")) ? null : "Add your landlord or agent's name and phone or email."),
 };
@@ -142,7 +141,8 @@ export async function signGateDoc(i: SignInput) {
   const draft = facts.approved[i.key] !== d.version;
   if (draft && !facts.isTest) throw new WorkflowError(`"${d.title}" is still DRAFT wording. It can be signed on real jobs once Jo approves it.`);
   const { vars, jobNumber, ownerId, money } = await jobVars(i.jobId);
-  if (i.key === "payment_terms" && (!money || !["two_instalments", "pay_in_full"].includes(i.answers["payment_option"] ?? ""))) throw new WorkflowError("Choose how you'd like to pay the balance.");
+  // Decision 365: one plain statement of the payment steps — no option to choose; the amounts come from the quote.
+  if (i.key === "payment_terms" && !money) throw new WorkflowError("Your quote isn't ready yet, so the payment amounts can't be shown. Please try again shortly.");
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
   const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
   const { data: row, error } = await admin.from("owner_gate_signatures").insert({
@@ -179,15 +179,9 @@ export async function signGateDoc(i: SignInput) {
   }
   await logEvent(i.jobId, i.signedBy, "owner_paperwork_signed", `Owner paperwork ${d.gate}: "${d.title}" ${d.signer === "office" ? "recorded" : "signed"}${draft ? " (DRAFT wording, TEST job)" : ""}`, { signature_id: row.id, doc_key: d.key, version: d.version });
 
-  // Emailed copy: queued for real jobs only; delivery follows the sending switches.
-  if (!facts.isTest) {
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", "owner_paperwork_signed").contains("details", { signature_id: row.id }).limit(1).maybeSingle();
-    if (ev) {
-      const { error: e } = await admin.rpc("enqueue_external_action", { _job: i.jobId, _event: ev.id, _action: "customer_email", _target: `owner_paperwork:${row.id}`, _basis: "transactional_signed_copy", _version: d.version, _payload: `owner_paperwork:${row.id}`, _facts: row.id, _key: `owner-paperwork-${row.id}` });
-      if (!e) await admin.from("owner_gate_signatures").update({ copy_email_queued: true }).eq("id", row.id);
-      else console.error("signed copy enqueue skipped", e.message);
-    }
-  }
+  // F13: the signed copy is filed on the job above; nothing is queued here and copy_email_queued is no longer set.
+  // Decision 376: the owner's emailed copy (O75, DRAFT until Jo approves) is sent by the 15-minute tick, one email per
+  // signing sitting (paperwork-copy-email.server sweepOwnerPaperworkCopies), with these PDFs attached.
   return { id: row.id, draft };
 }
 

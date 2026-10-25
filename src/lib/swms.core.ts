@@ -151,3 +151,43 @@ export function swmsRecordText(plan: SwmsPlan, sigs: SwmsSignature[]): string {
   }
   return L.join("\n");
 }
+
+const SWMS_TZ = "Australia/Melbourne";
+/** Decision 358: a signature time on the filed SWMS — DD/MM/YYYY h:mma, Melbourne time (e.g. 02/11/2026 7:00pm). */
+export function swmsDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-AU", { timeZone: SWMS_TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(t))) p[x.type] = x.value;
+  const h24 = Number(p["hour"]) % 24;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${p["day"]}/${p["month"]}/${p["year"]} ${h12}:${p["minute"]}${h24 < 12 ? "am" : "pm"}`;
+}
+/** Decision 358: the install date (YYYY-MM-DD, already a Melbourne day) as DD/MM/YYYY; anything else is printed as stored. */
+export function swmsDate(ymd: string | null | undefined): string {
+  if (!ymd || !ymd.trim()) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ymd.trim();
+}
+
+// ── Decision 364 (Jo 25 Oct 2026): each person signs on their OWN phone. ──
+/** How a signature was given: logged in to the portal as that worker, or through that person's own secure text link. */
+export type SwmsSignMethod = "login" | "link";
+/** A logged-in person may sign only a line whose key is one of their own worker keys (`w:<partner_workers.id>`). */
+export function swmsOwnLineBlocker(plan: SwmsPlan, key: string, ownKeys: readonly string[]): string | null {
+  const signer = plan.signers.find((s) => s.key === key);
+  if (!signer) return "That person is not on this job's crew.";
+  return ownKeys.includes(key) ? null : `Only ${signer.name} can sign their own line.`;
+}
+/** What the job-page card shows on one sign-off line for this viewer. */
+export function swmsLineView(signer: SwmsSigner, signed: boolean, ownKeys: readonly string[], editable: boolean): { kind: "signed" } | { kind: "sign" } | { kind: "waiting"; text: string } | { kind: "closed" } {
+  if (signed) return { kind: "signed" };
+  if (!editable) return { kind: "closed" };
+  return ownKeys.includes(signer.key) ? { kind: "sign" } : { kind: "waiting", text: `Waiting for ${signer.name}` };
+}
+/** Unsigned people on the plan (lead first), for the per-person sign links in the install texts. */
+export function swmsUnsignedSigners(plan: SwmsPlan, sigs: SwmsSignature[]): SwmsSigner[] {
+  const by = latestSignatures(sigs);
+  return plan.signers.filter((s) => !by.has(s.key));
+}

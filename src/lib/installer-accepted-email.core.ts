@@ -1,5 +1,5 @@
 // Jo 24 Oct 2026 (decisions 4, 91, 92, 136): installer emails when the owner accepts or declines the quote.
-// Designs approved: docs/templates/approved/I23-owner-accepted.html ("Good news, {InstallerFirst}. {OwnerFirst}
+// Designs approved: docs/templates/installer/I23-owner-accepted.html ("Good news, {InstallerFirst}. {OwnerFirst}
 // accepted!") and I24-owner-declined.html ("{InstallerFirst}, {OwnerFirst} has declined the quote"). Pure. No prices:
 // trades never see the owner's price. Both flags are on (decisions 91/136); real partners get them through sendOfficeEmail.
 import * as K from "./email-kit.core";

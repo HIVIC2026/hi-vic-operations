@@ -207,7 +207,7 @@ try {
       { step: "office-needs-me", persona: "office", path: "/admin", expectedPath: "/admin/needs-me", mustSee: ["Needs me", "Today", "This week", "Watch"] },
       { step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/active", mustSee: ["Jobs", "Active", "Closed", "Choose installer", "Ready Check", "Final check"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
-      { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "email" }, mustSee: ["Templates", "Viewing here never sends, saves or connects anything."] },
+      { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "owner" }, mustSee: ["Templates", "Viewing never sends, saves or connects anything."] },
       { step: "office-partners", persona: "office", path: "/admin/partners?tab=approved", expectedPath: "/admin/partners" }, // O5: Partners overview removed (office audit); Approved shows stored names
       { step: "office-templates", persona: "office", path: "/admin/templates" },
       { step: "rec-home", persona: "rec", path: "/field", noPrices: false },

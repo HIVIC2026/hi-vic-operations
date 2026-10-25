@@ -35,13 +35,19 @@ export type ColumnRow = {
   estimateDollars: number | null; heard: LastHeardChip;
 };
 
-const has = (s: string | undefined) => !!s && s.trim().length > 0;
-const inRange = (v: number | null, r: Range | undefined) => {
+/** Any list whose headings sort AND filter (Enquiries, decision 286; Choose installer list, decision 378). */
+export type ListColumn =
+  | { key: string; label: string; filter: "text"; sortLabels?: readonly [string, string] }
+  | { key: string; label: string; filter: "range"; unit: string; sortLabels?: readonly [string, string] }
+  | { key: string; label: string; filter: "pick"; options: readonly string[]; labels: Record<string, string>; sortLabels?: readonly [string, string] };
+
+export const has = (s: string | undefined) => !!s && s.trim().length > 0;
+export const inRange = (v: number | null, r: Range | undefined) => {
   if (!r || (r.min == null && r.max == null)) return true;
   if (v == null) return false;
   return (r.min == null || v >= r.min) && (r.max == null || v <= r.max);
 };
-const textHit = (hay: string, needle: string | undefined) => !has(needle) || hay.toLowerCase().includes(needle!.trim().toLowerCase());
+export const textHit = (hay: string, needle: string | undefined) => !has(needle) || hay.toLowerCase().includes(needle!.trim().toLowerCase());
 
 export function matchesColumnFilters(r: ColumnRow, f: ColumnFilters): boolean {
   return textHit(r.jobNumber, f.job) && textHit(r.ownerName, f.owner) && textHit(r.address, f.address)

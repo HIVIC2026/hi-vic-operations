@@ -4,8 +4,9 @@
 //
 // Money: ONE full Xero invoice per accepted quote (xero.core / invoice.lifecycle). Every payment step below is paid
 // AGAINST THAT SAME INVOICE; nothing here creates a second invoice. A step is "paid" when the cumulative amount
-// received on the invoice reaches the step's running threshold. Xero is the system of record; the office may record a
-// bank transfer it has seen (manual), and the next Xero sync reconciles.
+// received on the invoice reaches the step's running threshold. Xero is the system of record; card (Stripe) payments
+// count until Xero shows the same money (`reconciledPaidCents`, audit F01). The office never types a payment in
+// (decision 368): payments arrive only from Xero and Stripe.
 //
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.
@@ -13,6 +14,8 @@
 //   • 10% install deposit, balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
 // Card (decision 144) = Stripe Checkout for exactly the step amount (stripe.core.ts); Xero stays the invoice,
 // bank-transfer reference and reconciliation side. All amounts are integer cents.
+
+import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 
 export const PAYMENT_DECISION = "Jo 24 Oct 2026 (decisions 139, 140, 141, 144)";
 export const SAFETY_CHECK_CENTS = 34_900;
@@ -116,6 +119,35 @@ export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partia
   });
 }
 
+/** Decision 355: WHEN a step was paid — the payment that took the cumulative total (in paid-at order) to the step's
+ *  threshold. `fallback` covers money the Xero mirror shows (invoices.total_paid) without ledger rows. Null = not paid
+ *  (or nothing to pay for that step). */
+export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { amountCents: number; paidAt: string }[], fallback?: { paidCents: number; at: string | null } | null): string | null {
+  if (stepAmountCents(plan, key) <= 0) return null;
+  const threshold = plan.thresholds[key];
+  let sum = 0;
+  for (const r of [...records].sort((a, b) => a.paidAt.localeCompare(b.paidAt))) {
+    sum += Math.max(0, Math.round(r.amountCents));
+    if (sum >= threshold) return r.paidAt;
+  }
+  return fallback && fallback.at && Math.round(fallback.paidCents) >= threshold ? fallback.at : null;
+}
+
+/** Decision 366 / audit F03: the fixes amount the owner pays as its OWN step. Only a fixes (rectification) quote accepted
+ *  AFTER the installation quote counts — in the old model the fixes lines were folded into a later installation quote
+ *  (so the invoice total already holds them) and counting the fixes quote too would charge them twice. */
+export function fixesCountedCents(f: { rectTotalCents: number | null | undefined; rectAcceptedAt: string | null | undefined; installAcceptedAt: string | null | undefined }): number {
+  if (!f.rectAcceptedAt || !(Number(f.rectTotalCents) > 0)) return 0;
+  if (f.installAcceptedAt && Date.parse(f.rectAcceptedAt) < Date.parse(f.installAcceptedAt)) return 0;
+  return Math.round(Number(f.rectTotalCents));
+}
+/** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer). */
+export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
+export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {
+  if (plan.fixesCents <= 0) return null;
+  return isStepCleared(steps, "fixes") ? null : FIXES_NOT_PAID_BLOCKER;
+}
+
 export const isStepPaid = (steps: PaymentStep[], key: PaymentStepKey) => (steps.find((s) => s.key === key)?.state ?? "not_yet") === "paid";
 export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["paid", "waived"].includes(steps.find((s) => s.key === key)?.state ?? "not_yet");
 
@@ -126,25 +158,140 @@ export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paidCents: n
   return { step: due, dueNowCents: due ? due.outstandingCents : 0, remainingCents, cardAvailable: !!due && cardAllowedFor(due.key) };
 }
 
-// ---------- Provisional install booking (48h) ----------
-export const provisionalHoldExpiresAt = (bookedAtIso: string) => new Date(Date.parse(bookedAtIso) + PROVISIONAL_HOLD_MS).toISOString();
+// ---------- Provisional install booking (decision 367: 48h, or noon the day before the install if sooner) ----------
+/** Decision 367 (Jo 25 Oct 2026, "48h or noon day before"): the 10% deposit hold ends at 12:00 Melbourne the day before. */
+export const DEPOSIT_DEADLINE_HOUR = 12;
+export const INSTALL_DEPOSIT_NOT_PAID = "Install deposit not paid";
+const ymdMinus1 = (ymd: string) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+/** Noon Melbourne on the day before the install start. */
+export const depositDeadlineBeforeStart = (installStartIso: string) => melbourneAt(ymdMinus1(melbourneYmd(new Date(installStartIso))), DEPOSIT_DEADLINE_HOUR).toISOString();
+/** When an unpaid provisional booking is released: min(booked + 48h, noon Melbourne the day before the install). Without
+ *  a start (older callers) it is booked + 48h. A booking made after that noon expires at once unless the deposit is in. */
+export function provisionalHoldExpiresAt(bookedAtIso: string, installStartIso?: string | null): string {
+  const hold = Date.parse(bookedAtIso) + PROVISIONAL_HOLD_MS;
+  if (!installStartIso) return new Date(hold).toISOString();
+  return new Date(Math.min(hold, Date.parse(depositDeadlineBeforeStart(installStartIso)))).toISOString();
+}
 export type ProvisionalDecision = "confirmed" | "provisional" | "release" | "not_applicable";
-/** Booking stays provisional until the deposit step is paid; unpaid after 48h → release. Jobs outside the payment rule are untouched. */
-export function provisionalBookingDecision(f: { bookedAt: string | null; now: string; depositCleared: boolean; gateEnabled: boolean; hasInvoice: boolean }): ProvisionalDecision {
+/** Booking stays provisional until the deposit step is paid; unpaid at the hold expiry → release. Jobs outside the payment rule are untouched. */
+export function provisionalBookingDecision(f: { bookedAt: string | null; now: string; depositCleared: boolean; gateEnabled: boolean; hasInvoice: boolean; installStart?: string | null }): ProvisionalDecision {
   if (!f.bookedAt || !f.gateEnabled || !f.hasInvoice) return "not_applicable";
   if (f.depositCleared) return "confirmed";
-  return Date.parse(f.now) >= Date.parse(provisionalHoldExpiresAt(f.bookedAt)) ? "release" : "provisional";
+  return Date.parse(f.now) >= Date.parse(provisionalHoldExpiresAt(f.bookedAt, f.installStart)) ? "release" : "provisional";
 }
+/** What the 15-minute sweep does with one confirmed install booking (decision 367). An unpaid booking whose start has
+ *  already passed is never silently skipped or released mid-job: the office gets ONE Needs me row. */
+export function depositSweepAction(f: { decision: ProvisionalDecision; installStart: string; now: string }): "release" | "office_alert" | "none" {
+  if (f.decision !== "release") return "none";
+  return Date.parse(f.installStart) > Date.parse(f.now) ? "release" : "office_alert";
+}
+/** Pre-start fact (decision 367): the install cannot start while the deposit for this booking is unpaid. */
+export const installDepositPrestartBlocker = (decision: ProvisionalDecision | null | undefined): string | null =>
+  decision === "provisional" || decision === "release" ? INSTALL_DEPOSIT_NOT_PAID : null;
 
 // ---------- Ledger (append-only payment records → cumulative) ----------
+// Audit F01: the ledger holds Xero payments (one per PaymentID), card payments (one per Stripe PaymentIntent) and old
+// office records. A card payment that later lands in Xero arrives as a NEW Xero PaymentID for the SAME money, and a Xero
+// payment can be deleted/voided after it was recorded. So the amount received is never the plain ledger sum (and never
+// max(Xero, ledger)): it is `reconciledPaidCents` — Xero's live payments + card/office records not yet matched in Xero.
 export type PaymentSource = "xero" | "bank" | "card" | "manual";
-export type PaymentRecord = { amountCents: number; source: PaymentSource; paidAt: string; xeroPaymentId?: string | null; recordedBy?: string | null; note?: string | null };
-export const cumulativePaidCents = (records: { amountCents: number }[]) => records.reduce((s, r) => s + Math.max(0, Math.round(r.amountCents)), 0);
+export type PaymentRecord = {
+  amountCents: number; source: PaymentSource; paidAt: string; xeroPaymentId?: string | null; recordedBy?: string | null; note?: string | null;
+  /** "reversal" = an `owner_payment_reversed` row: the Xero payment with this id was deleted/voided/removed in Xero. */
+  kind?: "payment" | "reversal";
+  /** Xero payment Reference (as Xero returned it) — used to match card payments by their Stripe id. */
+  reference?: string | null;
+  /** Stripe ids for a card payment (PaymentIntent, charge, session) — a Xero payment whose Reference holds one is the same money. */
+  stripeIds?: string[] | null;
+};
+/** One `owner_payment_recorded` / `owner_payment_reversed` workflow event → ledger record (pure; shared by every reader). */
+export function ledgerRecordFromEvent(eventType: string, createdAt: string, actorId: string | null, d: Record<string, unknown> | null | undefined): PaymentRecord {
+  const det = d ?? {};
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const note = str(det["note"]);
+  const stripeIds = [str(det["stripe_payment_intent"]), str(det["stripe_charge"]), str(det["stripe_session"]), note?.startsWith("stripe:") ? note.slice(7) : null].filter((x): x is string => !!x);
+  return {
+    amountCents: Number(det["amount_cents"] ?? 0), source: (str(det["source"]) as PaymentSource | null) ?? "manual", paidAt: String(det["paid_at"] ?? createdAt),
+    xeroPaymentId: str(det["xero_payment_id"]), recordedBy: actorId, note, kind: eventType === "owner_payment_reversed" ? "reversal" : "payment",
+    reference: str(det["xero_reference"]), stripeIds: stripeIds.length ? [...new Set(stripeIds)] : null,
+  };
+}
+/** Payments minus reversals (never below 0). Reversal rows carry the reversed payment's positive amount. */
+export const cumulativePaidCents = (records: { amountCents: number; kind?: "payment" | "reversal" }[]) =>
+  Math.max(0, records.reduce((s, r) => s + (r.kind === "reversal" ? -1 : 1) * Math.max(0, Math.round(r.amountCents)), 0));
+
+export type XeroPaymentFact = { paymentId: string | null; amountCents: number; paidAt: string; reference?: string | null; status?: string | null };
+export type XeroPaymentInput = { PaymentID?: string; Amount?: number; Date?: string; Status?: string; Reference?: string };
+const XERO_DEAD = new Set(["DELETED", "VOIDED"]);
+const isLiveXero = (p: { Status?: string; Amount?: number }) => !XERO_DEAD.has(String(p.Status ?? "").toUpperCase()) && Number(p.Amount ?? 0) > 0;
+export const xeroPaymentFacts = (xero: XeroPaymentInput[]): XeroPaymentFact[] =>
+  xero.map((p) => ({ paymentId: p.PaymentID ?? null, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date), reference: p.Reference ?? null, status: p.Status ?? null }));
+const liveXero = (xero: XeroPaymentFact[]) => xero.filter((p) => !XERO_DEAD.has(String(p.status ?? "").toUpperCase()) && p.amountCents > 0);
+
+/** Same amount within this many days counts as the same money when no Stripe id is in the Xero Reference. */
+export const RECONCILE_WINDOW_DAYS = 10;
+const RECONCILE_WINDOW_MS = RECONCILE_WINDOW_DAYS * 86_400_000;
+
+/** Pure: which card/office records are already in Xero. Exact first (the Xero payment Reference contains one of the
+ *  record's Stripe ids), then same amount within 10 days (closest date first). Each Xero payment claims at most one record. */
+export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPayments: XeroPaymentFact[]) {
+  const live = liveXero(xeroPayments);
+  const xeroCents = live.reduce((s, p) => s + p.amountCents, 0);
+  const others = ledger.filter((r) => r.source !== "xero" && r.kind !== "reversal" && r.amountCents > 0);
+  const claimed = new Set<number>();
+  const matched = new Map<T, XeroPaymentFact>();
+  for (const r of others) {
+    const ids = (r.stripeIds ?? []).filter((x) => !!x && x.length >= 6);
+    if (!ids.length) continue;
+    const i = live.findIndex((p, k) => !claimed.has(k) && !!p.reference && ids.some((id) => p.reference!.includes(id)));
+    if (i >= 0) { claimed.add(i); matched.set(r, live[i]!); }
+  }
+  for (const r of others) {
+    if (matched.has(r)) continue;
+    let best = -1, bestGap = Infinity;
+    live.forEach((p, k) => {
+      if (claimed.has(k) || p.amountCents !== Math.round(r.amountCents)) return;
+      const gap = Math.abs(Date.parse(p.paidAt) - Date.parse(r.paidAt));
+      if (gap <= RECONCILE_WINDOW_MS && gap < bestGap) { best = k; bestGap = gap; }
+    });
+    if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); }
+  }
+  const unmatched = others.filter((r) => !matched.has(r));
+  const paidCents = xeroCents + unmatched.reduce((s, r) => s + Math.round(r.amountCents), 0);
+  return { paidCents, xeroCents, unmatched, matched };
+}
+/** The amount truly received on the invoice: Xero's live payments + card/office records not yet matched in Xero. */
+export const reconciledPaidCents = (ledger: PaymentRecord[], xeroPayments: XeroPaymentFact[]) => reconcilePayments(ledger, xeroPayments).paidCents;
+
+/** Xero payments already in the ledger, minus those reversed — the ledger's own view of Xero (no network call). */
+export function ledgerXeroPayments(ledger: PaymentRecord[]): XeroPaymentFact[] {
+  const reversed = new Set(ledger.filter((r) => r.kind === "reversal" && r.xeroPaymentId).map((r) => r.xeroPaymentId as string));
+  return ledger.filter((r) => r.source === "xero" && r.kind !== "reversal" && !(r.xeroPaymentId && reversed.has(r.xeroPaymentId)))
+    .map((r) => ({ paymentId: r.xeroPaymentId ?? null, amountCents: Math.round(r.amountCents), paidAt: r.paidAt, reference: r.reference ?? null, status: null }));
+}
+/** The ledger as money actually received: live Xero rows + card/office rows not matched in Xero. No reversal rows, no
+ *  duplicates — so `cumulativePaidCents`/`stepPaidAt` over it equal `reconciledPaidCents` against the ledger's Xero view. */
+export function effectiveLedger<T extends PaymentRecord>(ledger: T[]): T[] {
+  const xero = ledgerXeroPayments(ledger);
+  const liveIds = new Set(xero.map((p) => p.paymentId));
+  const { unmatched } = reconcilePayments(ledger, xero);
+  const keep = new Set<T>(unmatched);
+  return ledger.filter((r) => r.kind !== "reversal" && (r.source === "xero" ? liveIds.has(r.xeroPaymentId ?? null) : keep.has(r)));
+}
+
 /** Xero payments not yet in the ledger (by PaymentID). Idempotent: re-running with the same input returns nothing new. */
-export function newXeroPayments(knownIds: Iterable<string>, xero: { PaymentID?: string; Amount?: number; Date?: string; Status?: string }[]) {
+export function newXeroPayments(knownIds: Iterable<string>, xero: XeroPaymentInput[]) {
   const known = new Set(knownIds);
-  return xero.filter((p) => p.PaymentID && !known.has(p.PaymentID) && p.Status !== "DELETED" && Number(p.Amount ?? 0) > 0)
-    .map((p) => ({ xeroPaymentId: p.PaymentID as string, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date) }));
+  return xero.filter((p) => p.PaymentID && !known.has(p.PaymentID) && isLiveXero(p))
+    .map((p) => ({ xeroPaymentId: p.PaymentID as string, amountCents: toCents(p.Amount), paidAt: xeroDateIso(p.Date), reference: p.Reference ?? null }));
+}
+/** Recorded Xero payments that Xero no longer shows as live (DELETED/VOIDED or gone from the invoice) and that have no
+ *  reversal yet. Only call with the invoice's FULL Payments list. Idempotent: once reversed, never again. */
+export function xeroReversals(ledger: PaymentRecord[], xero: XeroPaymentInput[]): { xeroPaymentId: string; amountCents: number; paidAt: string }[] {
+  const live = new Set(xero.filter((p) => p.PaymentID && isLiveXero(p)).map((p) => p.PaymentID as string));
+  const reversed = new Set(ledger.filter((r) => r.kind === "reversal" && r.xeroPaymentId).map((r) => r.xeroPaymentId as string));
+  return ledger.filter((r) => r.source === "xero" && r.kind !== "reversal" && r.xeroPaymentId && !live.has(r.xeroPaymentId) && !reversed.has(r.xeroPaymentId))
+    .map((r) => ({ xeroPaymentId: r.xeroPaymentId as string, amountCents: Math.round(r.amountCents), paidAt: r.paidAt }));
 }
 export function xeroDateIso(d?: string): string {
   if (!d) return new Date(0).toISOString();
@@ -187,7 +334,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
-    `${aud(plan.installDepositCents)} (10%) to book your install day, by bank transfer or PayID — your day is held for ${PROVISIONAL_HOLD_HOURS} hours while you pay`,
+    `${aud(plan.installDepositCents)} (10%) to book your install day, by bank transfer or PayID — your day is held for ${PROVISIONAL_HOLD_HOURS} hours (or until noon the day before your install, if that's sooner) while you pay`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];

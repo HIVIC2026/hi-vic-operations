@@ -554,10 +554,13 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
     // The form has no conductivity field: an explicit recorded answer plus evidence is required; blank never means "No".
     // Authority: the printed Part 6 note ("foil backed or electrically conductive insulation cannot be topped up and must be
     // removed") can't be applied without knowing the answer, so an explicit Yes/No is a Home Insulation Victoria operational rule implementing it.
-    if (ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false)
+    // Decision 360 (Jo 25 Oct 2026): a COMPLETE removal (only "Removed" ticked) already does what the note requires, so
+    // the conductivity answer and its photo are not needed; any top-up still needs both.
+    const fullRemoval = treatment.length > 0 && treatment.every((t) => t === "Removed");
+    if (!fullRemoval && ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false)
       blockers.push({ rule: "P6-FOIL-UNKNOWN", message: CONDUCTIVITY_UNCONFIRMED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
     // Authority: Home Insulation Victoria operational requirement only. The official PIISA asks for no photo; this is separate supporting evidence.
-    if (!ctx.conductivityEvidence) blockers.push({ rule: "HIVIC-CONDUCTIVITY-PHOTO", message: CONDUCTIVITY_PHOTO_MISSING });
+    if (!fullRemoval && !ctx.conductivityEvidence) blockers.push({ rule: "HIVIC-CONDUCTIVITY-PHOTO", message: CONDUCTIVITY_PHOTO_MISSING });
     if (ctx.conductiveExistingInsulation === true && treatment.includes("Topped Up")) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
     if (ctx.conductiveExistingInsulation === true && !treatment.includes("Removed")) blockers.push({ rule: "P6-FOIL", message: "\"…must be removed prior to installation.\" Removed is not ticked." });
   }

@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { COULDNT_GET_IN, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -394,7 +394,8 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
   return { ok: true };
 }
 
-/** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
+/** Money rows: own pay only. Paid = office marked paid; Coming = installers 7 days after AP approval (decisions 30/109/344),
+ *  electricians 7 days after the form is complete AND the owner paid that step (decision 355); else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
@@ -428,15 +429,23 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { payoutGateFacts } = await import("./trade-payout-gate.server");
   const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
   const gate = await payoutGateFacts(ids);
-  const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
+  // Decision 355: electricians — 7 days after the form is 100% complete AND the owner paid that step (later of the two).
+  const ep = kind === "electrician" ? await import("./electrician-pay.server") : null;
+  const ownerPaid = ep ? await ep.ownerElectricalStepsPaidAt(ids) : null;
+  const { ownerPaidInFullAt } = await import("./trade-view.core");
+  const paidInFull = (jobId: string) => ownerPaidInFullAt((invs ?? []).filter((x) => x.job_id === jobId));
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
-    const timed = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const gf = gate.get(b.job_id);
+    const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
+    const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf, ownerPaid?.get(b.job_id)) : null;
+    const timed: PayState = et
+      ? electricianPayState({ paidAt: pe?.created_at ?? null, formCompleteAt: et.formCompleteAt, ownerPaidAt: et.ownerPaidAt })
+      : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
     const state: PayState = held.length ? { kind: "checking" } : timed;
@@ -635,7 +644,7 @@ export async function tradeSaveUsualElectrician(userId: string, value: unknown) 
   if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual electrician.");
   const { usualElectrician, USUAL_ELECTRICIAN_EVENT } = await import("./usual-electrician.core");
   const electrician = usualElectrician(value);
-  if (!electrician) throw new WorkflowError("Enter the electrician name, licence number and a valid price inc GST.");
+  if (!electrician) throw new WorkflowError("Enter the electrician name and licence number.");
   const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_ELECTRICIAN_EVENT,
     summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
   if (error) throw new WorkflowError("Could not save your usual electrician.");
@@ -678,6 +687,21 @@ export async function tradeRequestLoginInvite(userId: string, workerId: string) 
   if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
   if (w.profile_id) return { ok: true, already: true };
   return { ...(await tradeChangeRequest(userId, "other", `Please send a login invite to ${w.full_legal_name} (team member ${w.id}).`)), already: false };
+}
+
+/** Decision 377: the business owner saves a team member's mobile once on My business (partner_workers.mobile, +61
+ *  format; empty clears it). Their own safety plan sign link is texted there. Business-scoped, owner only. */
+export async function tradeSetWorkerMobile(userId: string, workerId: string, raw: string) {
+  const c = await bossOrThrow(userId);
+  const { crewMobileInput } = await import("./swms-sign-text.core");
+  const v = crewMobileInput(raw);
+  if (!v.ok) throw new WorkflowError(v.error);
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, mobile").eq("id", workerId).is("removed_at", null).maybeSingle();
+  if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
+  if ((w.mobile ?? null) === v.mobile) return { ok: true, mobile: v.mobile };
+  const { error } = await admin.from("partner_workers").update({ mobile: v.mobile }).eq("id", w.id).eq("business_id", c.biz.id);
+  if (error) throw new WorkflowError("The mobile couldn't be saved. Try again.");
+  return { ok: true, mobile: v.mobile };
 }
 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */
@@ -959,22 +983,35 @@ export async function tradeSwms(jobId: string, userId: string, pre?: TradeJobAcc
   ]);
   if (!inBook) return { show: false as const };
   const { loadSwms } = await import("./swms.server");
-  const { plan, signatures, status } = await loadSwms(jobId);
-  return { show: true as const, editable: !j?.installation_completed_at, plan, signatures, status };
+  const [{ plan, signatures, status }, myKeys] = await Promise.all([loadSwms(jobId), mySwmsKeys(userId, c.biz.id)]);
+  return { show: true as const, editable: !j?.installation_completed_at, plan, signatures, status, myKeys };
+}
+/** Decision 364: the signed-in person's own sign-off keys — their worker record(s) in the installing business. */
+async function mySwmsKeys(userId: string, businessId: string): Promise<string[]> {
+  const { data } = await admin.from("partner_workers").select("id").eq("business_id", businessId).eq("profile_id", userId).is("removed_at", null);
+  const { swmsSignerKey } = await import("./swms.core");
+  return (data ?? []).map((w) => swmsSignerKey({ name: "", workerId: w.id }));
 }
 async function requireOpenSwms(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   if (c.kind !== "installer") throw new WorkflowError("Only the installing business signs the safety plan.");
   const { data: j } = await admin.from("jobs").select("installation_completed_at").eq("id", jobId).single();
   if (j?.installation_completed_at) throw new WorkflowError("The installation is recorded; the safety plan can't be changed now.");
+  return c;
 }
 export async function tradeSwmsNote(jobId: string, userId: string, note: string) {
   await requireOpenSwms(jobId, userId);
   return (await import("./swms.server")).saveSwmsSiteNote(jobId, userId, note);
 }
+/** Decision 364: a signed-in person signs ONLY their own line (crew without a login use their own text link). */
 export async function tradeSwmsSign(jobId: string, userId: string, key: string, typedName: string) {
-  await requireOpenSwms(jobId, userId);
-  return (await import("./swms.server")).signSwms(jobId, userId, key, typedName);
+  const c = await requireOpenSwms(jobId, userId);
+  const swms = await import("./swms.server");
+  const { swmsOwnLineBlocker } = await import("./swms.core");
+  const [{ plan }, myKeys] = await Promise.all([swms.loadSwms(jobId), mySwmsKeys(userId, c.biz.id)]);
+  const block = swmsOwnLineBlocker(plan, key, myKeys);
+  if (block) throw new WorkflowError(block);
+  return swms.signSwms(jobId, userId, key, typedName, "login");
 }
 
 // ---- Decision 315: the electrician's "Fixes times" card (/field/{jobId}#fixes-times). Electricians only, business-scoped

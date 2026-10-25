@@ -81,15 +81,45 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
 }
 
 /** 15-minute tick: one due step per unconfirmed PIESA on jobs that have not booked the install yet. */
+/** Perf 25 Oct 2026: the facts the step decision needs (latest owner-confirmed-kind PIESA record, its confirmation and
+ *  the steps already recorded) read for EVERY candidate job at once, instead of ownerPiesaConfirmFacts (≈8 reads) +
+ *  doneSteps per job per tick. Same rule (nextPiesaConfirmStep); the send path re-reads everything itself. */
+export async function duePiesaConfirmSteps(jobIds: string[], now: Date): Promise<Map<string, PiesaConfirmStep>> {
+  const due = new Map<string, PiesaConfirmStep>();
+  if (!jobIds.length) return due;
+  const { readByJobIds } = await import("./sweep-batch.server");
+  const { groupByJob, latestPerJob, stepsForRecord } = await import("./sweep-batch.core");
+  const { OWNER_CONFIRMED_PIESA_KINDS } = await import("./piesa-owner-confirm.server");
+  const { PIESA_OWNER_CONFIRMED_EVENT, confirmationFromEvents } = await import("./piesa-owner-confirm.core");
+  type Rec = { id: string; job_id: string | null; created_at: string; signed_off_by: string | null };
+  type Ev = { job_id: string | null; details: unknown; created_at: string };
+  const [recs, confirms, steps] = await Promise.all([
+    readByJobIds<Rec>("PIESA records", jobIds, (c) => admin.from("piesa_records").select("id, job_id, created_at, signed_off_by").in("job_id", c).in("kind", [...OWNER_CONFIRMED_PIESA_KINDS])),
+    readByJobIds<Ev>("PIESA owner confirmations", jobIds, (c) => admin.from("workflow_events").select("job_id, details, created_at").in("job_id", c).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT)),
+    readByJobIds<Ev>("PIESA confirmation steps", jobIds, (c) => admin.from("workflow_events").select("job_id, details, created_at").in("job_id", c).eq("event_type", PIESA_OWNER_CONFIRM_STEP_EVENT)),
+  ]);
+  const latest = latestPerJob(recs), confirmsBy = groupByJob(confirms), stepsBy = groupByJob(steps);
+  for (const id of jobIds) {
+    const rec = latest.get(id);
+    if (!rec || !rec.signed_off_by) continue; // ownerPiesaConfirmFacts → null
+    const confirmation = confirmationFromEvents(confirmsBy.get(id) ?? [], rec.id);
+    const step = nextPiesaConfirmStep({ completedAt: rec.created_at, confirmedAt: confirmation?.signedAt ?? null, done: stepsForRecord<PiesaConfirmStep>(stepsBy.get(id) ?? [], rec.id), now: now.toISOString() });
+    if (step) due.set(id, step);
+  }
+  return due;
+}
+
 export async function sweepOwnerPiesaConfirmations(now = new Date()): Promise<{ checked: number; sent: number; alerts: number }> {
-  const { data: jobs } = await admin.from("jobs").select("id").in("stage", [...PIESA_CONFIRM_ACTIVE_STAGES]).is("deleted_at", null);
+  const { data: jobs, error } = await admin.from("jobs").select("id").in("stage", [...PIESA_CONFIRM_ACTIVE_STAGES]).is("deleted_at", null);
+  if (error) throw new Error(`Could not read PIESA confirmation jobs: ${error.message}`);
+  const ids = (jobs ?? []).map((j) => j.id);
+  const due = await duePiesaConfirmSteps(ids, now);
   let sent = 0, alerts = 0;
-  for (const j of jobs ?? []) {
+  for (const id of ids) {
+    const step = due.get(id);
+    if (!step) continue;
+    const j = { id };
     try {
-      const f = await ownerPiesaConfirmFacts(j.id);
-      if (!f) continue;
-      const step = nextPiesaConfirmStep({ completedAt: f.completedAt, confirmedAt: f.confirmation?.signedAt ?? null, done: await doneSteps(j.id, f.piesaRecordId), now: now.toISOString() });
-      if (!step) continue;
       await sendPiesaConfirmStep(j.id, step);
       if (step === "office_alert_5") alerts++; else sent++;
     } catch (e) { console.error("PIESA owner confirmation step failed", j.id, (e as Error).message); }

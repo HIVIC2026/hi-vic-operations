@@ -1,4 +1,4 @@
-// Renders the decision 170 sample emails into docs/templates/approved (O63, O64, I62) with the fixed sample data used by
+// Renders the decision 170 sample emails into docs/templates/owner (O63, O64) and docs/templates/installer (I62) with the fixed sample data used by
 // tests/approved-email-designs.test.ts. Pure renderers only; nothing is sent. Run: bun scripts/render-decision-170-samples.ts
 import { writeFileSync } from "node:fs";
 import { renderConsentCopyEmail } from "../src/lib/consent-copy-email.core";
@@ -8,7 +8,8 @@ import { partnerEmailLayout } from "../src/lib/partner-email.core";
 import { HIV_BANK_DETAILS, bankDetailLines } from "../src/lib/payments.core";
 import { brandSmsBody } from "../src/lib/sms.core";
 
-const DIR = new URL("../docs/templates/approved/", import.meta.url).pathname;
+const DIR = new URL("../docs/templates/owner/", import.meta.url).pathname;
+const INSTALLER_DIR = new URL("../docs/templates/installer/", import.meta.url).pathname;
 const JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const SAMPLE_CONSENT_FORM = [
   "Section 1: Information to be shared", "First Name: Helen", "Last Name: Yang", "Address of premises: 824 High Street Road, Glen Waverley VIC 3150", "Installation day(s): Tuesday 11 November 2026", "",
@@ -22,7 +23,7 @@ const o64 = renderDepositReleasedEmail({ firstName: "Helen", day: "Tuesday 11 No
 writeFileSync(`${DIR}O64-deposit-released.html`, o64.html);
 const n = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });
 const i62 = partnerEmailLayout({ subject: n.subject, heading: n.heading, blocks: n.blocks, test: false });
-writeFileSync(`${DIR}I62-notice-copy.html`, i62.html);
+writeFileSync(`${INSTALLER_DIR}I62-notice-copy.html`, i62.html);
 
 if (import.meta.main) {
   console.log(o63.subject, "|", o64.subject, "|", n.subject);

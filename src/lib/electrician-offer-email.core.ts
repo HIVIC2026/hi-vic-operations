@@ -1,5 +1,5 @@
 // Decision 326: E1 "New safety check job near you" — the approved electrician offer email
-// (docs/templates/approved/electrician/E1-piesa-offer-email.html, drawn from the live TEST sender in jo-tradie.server.ts).
+// (docs/templates/electrician/E1-piesa-offer-email.html, drawn from the live TEST sender in jo-tradie.server.ts).
 // Pure wording only: suburb, the electrician's OWN agreed rate and the ceiling area — never the owner's name, address,
 // phone or price. "The owner has offered three times." is printed only when the owner's times are open on the job.
 import { simpleEmail } from "./simple-email.core";

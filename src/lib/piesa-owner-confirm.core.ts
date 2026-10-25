@@ -2,7 +2,8 @@
 // electrician's A4 Mitti form. After the electrician completes the PIESA the owner is asked by email (O71) + text, reminded
 // on days 1 and 3, and the office is alerted on day 5; the official PIESA owner block (Section 4 / "O": o.tick1–4, o.name,
 // o.date) is filled from that record and NEVER from the Mitti form any more; the install day cannot be booked until the
-// current PIESA is confirmed. A re-done PIESA (a new initial PIESA record) needs a new confirmation.
+// current PIESA is confirmed. A re-done PIESA (a new `initial` or `reassessment` PIESA record — the same kinds that anchor
+// the 30-day window) needs a new confirmation.
 // PURE: what the page shows, validation, the append-only record shape, the reminder schedule and the blocker. No I/O.
 
 export const PIESA_OWNER_CONFIRM_VERSION = "piesa-owner-confirm-v1";
@@ -13,7 +14,7 @@ export const PIESA_OWNER_CONFIRM_STEP_EVENT = "piesa_owner_confirm_reminder";
 /** Day-5 office alert (Needs me row `piesa_owner_unsigned`). */
 export const PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT = "piesa_owner_unconfirmed_5_days";
 export const PIESA_OWNER_CONFIRM_SMS_TYPE = "piesa_owner_confirm" as const;
-/** O71 email wording is a DRAFT (docs/templates/drafts/O71-piesa-confirm.html) until Jo approves it. Real owners get
+/** O71 email wording is a DRAFT (docs/templates/owner/O71-piesa-confirm.html) until Jo approves it. Real owners get
  *  nothing while false; TEST jobs use test-send. The text has the same status in sms.core (`wordingApproved: false`). */
 /** Decision 311 (Jo 25 Oct 2026): O71 approved as drafted (no code, 30-day line). Delivery still behind customer_comms_enabled. */
 export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = true as boolean;
@@ -46,7 +47,7 @@ export type OwnerPiesaConfirmation = {
   name: string; authority: "owner" | "authorised_representative"; signedAt: string; piesaRecordId: string; signedCopyId: string | null;
 };
 export type PiesaOwnerConfirmFacts = {
-  /** The electrician's PIESA record being confirmed (latest `initial` piesa_records row). */
+  /** The electrician's PIESA record being confirmed (latest `initial` or `reassessment` piesa_records row). */
   piesaRecordId: string;
   /** Assessment date (YYYY-MM-DD, Melbourne) and when the record was written (ISO) — the reminder clock starts here. */
   completedDate: string; completedAt: string;

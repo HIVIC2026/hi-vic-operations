@@ -5,7 +5,7 @@
 // SAMPLE ONLY: no database, no network, nothing stored or sent; names and numbers are made up.
 // Decision 336: the Part 8 box shows the A3 lead installer's signature PICTURE (a made-up sample, scripts/sample-signature-png.ts)
 // embedded through the same package filler the live path uses (fillOfficialDocxParts), with "Signed in Mitti on DD/MM/YYYY".
-// Output: docs/templates/samples/piisa-filler/ (piisa-sample.docx, piisa-sample-word.pdf, PNG pages, README.md).
+// Output: docs/templates/compliance/piisa-filler/ (piisa-sample.docx, piisa-sample-word.pdf, PNG pages, README.md).
 // Run: bun scripts/render-piisa-filler-sample.ts
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -16,7 +16,7 @@ import { fillOfficialDocxParts, readOfficialDocx, xmlProblems } from "../src/lib
 import { sampleSignaturePng } from "./sample-signature-png";
 import { OFFICIAL_TEMPLATES, answerItems, electronicSignature, evaluatePiisa, type OfficialAnswers } from "../src/lib/official-forms.core";
 
-const OUT = new URL("../docs/templates/samples/piisa-filler/", import.meta.url).pathname;
+const OUT = new URL("../docs/templates/compliance/piisa-filler/", import.meta.url).pathname;
 const T = OFFICIAL_TEMPLATES.piisa;
 
 /** One install: Cranbourne, existing batts topped up, solar on the roof, one additional crew member. */

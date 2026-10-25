@@ -7,7 +7,7 @@
 // Decision 336: the electrician's signature is a sample signature PICTURE (scripts/sample-signature-png.ts) embedded the way the
 // portal embeds the real Mitti image (fillOfficialDocxParts / textToPdf), and the A4 hazard rows use the decision-336 block.
 // Decision 338: case 3 answers the new "Does an electrician need to be on site at the start of the install?" question.
-// Output: docs/templates/samples/piesa-mapping/ (case-N.docx, case-N.pdf, case-N-docx.pdf, PNG pages, README.md).
+// Output: docs/templates/compliance/piesa-mapping/ (case-N.docx, case-N.pdf, case-N-docx.pdf, PNG pages, README.md).
 // PNGs need LibreOffice (Word → PDF) and pdftoppm; without them the .docx/.pdf are still written and the README says so.
 // Run: bun scripts/render-piesa-mapping-samples.ts
 import { createHash } from "node:crypto";
@@ -62,7 +62,7 @@ import {
 } from "../src/lib/electrician-piesa-copy.core";
 import { textToPdf } from "../src/lib/signed-pdf.server";
 
-const OUT = new URL("../docs/templates/samples/piesa-mapping/", import.meta.url).pathname;
+const OUT = new URL("../docs/templates/compliance/piesa-mapping/", import.meta.url).pathname;
 const T = OFFICIAL_TEMPLATES.piesa;
 
 // ---------- A4 answers by the current short-form label ----------
@@ -576,7 +576,7 @@ async function main() {
     "9. **Invalid Word XML.** Before: each tick was a run inside another run (`<w:r><w:r>`). After: no glyph run is inserted at all (the box state carries the tick); the filled XML is checked for balanced tags / no nested runs (and `xmllint` where installed).",
     '10. **Plain-text PDF.** Before: every non-ASCII character became "-" ("don-t"), colons doubled ("Licence no::"), and every empty table row printed. After: characters the PDF font can draw are kept (’ “ ” – — • ²), others map to the closest plain text (✓ → [x]); no second colon; empty table rows are skipped and answered rows carry their row number.',
     "",
-    "The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/samples/piisa-filler/` for one realistic install filled through the fixed filler.",
+    "The same Word filler fills the approved PIISA: it had the same No / tick / nested-run faults. See `docs/templates/compliance/piisa-filler/` for one realistic install filled through the fixed filler.",
     "",
   );
   out.push(

@@ -353,20 +353,28 @@ export function signatureAttachment(auditId: string, sig: ReturnType<typeof a3Si
 }
 
 // ---------- Ready Check -> Part 6 prefill (multi-area aware) ----------
-export type RcArea = { name?: string | null; present?: boolean | null; depthMm?: number | null; rValue?: number | null; downlights?: number | null; removal?: boolean | null };
+export type RcArea = {
+  name?: string | null; present?: boolean | null; depthMm?: number | null; rValue?: number | null; downlights?: number | null; removal?: boolean | null;
+  /** Decision 375: the area's measured m² (weights the Part 6 average depth when areas differ). */
+  areaM2?: number | null;
+  /** Decision 359 (Ready Check, per area with existing insulation): suitable to lay over / foil-metallic-conductive / photo ref / reason kept. */
+  suitable?: boolean | null; conductive?: boolean | null; conductiveEvidence?: string | null; keepReason?: string | null;
+};
 /** Strict yes/no: real booleans, or exact Yes/No text. "No", "false", "" and anything else never become true. */
 export const strictPresent = (v: unknown): boolean | null => typeof v === "boolean" ? v : typeof v === "string" ? (/^\s*(yes|true)\s*$/i.test(v) ? true : /^\s*(no|false)\s*$/i.test(v) ? false : null) : null;
 /**
  * Areas from the CANONICAL persisted Ready Check record. Mitti syncs store raw_snapshot as a flat entry list
  * (id/label/section/value) and the canonical parser's per-room results are written to the row columns, so the row
- * columns are the source. Structured per-area zones are used only when present as objects. Depth is not captured
- * canonically -> null. Removal/top-up only when actually recorded; never inferred from absence.
+ * columns are the source. Structured per-area zones are used only when present as objects; only they carry the
+ * existing-insulation depth and m² (decision 375), the row columns never do -> null. Removal/top-up only when actually recorded; never inferred from absence.
  */
 export function rcAreasFromRecord(m: { insulation_present: unknown; existing_r_value: unknown; removal_required?: unknown; zones?: unknown } | null, downlightsQty: number | null): RcArea[] {
   if (!m) return [];
   const n = (v: unknown) => { const x = v == null || v === "" ? NaN : Number(v); return Number.isFinite(x) ? x : null; };
   const zones = Array.isArray(m.zones) ? (m.zones as Any[]).filter((z) => z && typeof z === "object" && !Array.isArray(z)) : [];
-  if (zones.length) return zones.map((a) => ({ name: typeof a.name === "string" ? a.name : null, present: strictPresent(a.present ?? a.insulation_present), depthMm: n(a.depth_mm ?? a.depthMm), rValue: n(a.r_value ?? a.rValue ?? a.existing_r_value), downlights: n(a.downlights), removal: strictPresent(a.removal_required ?? a.removal) }));
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  // Decision 359: the Part 6 facts ride on the same zone record (absent on older forms → null, i.e. not recorded).
+  if (zones.length) return zones.map((a) => ({ name: typeof a.name === "string" ? a.name : null, present: strictPresent(a.present ?? a.insulation_present), depthMm: n(a.depth_mm ?? a.depthMm), areaM2: n(a.areaM2 ?? a.area_m2), rValue: n(a.r_value ?? a.rValue ?? a.existing_r_value), downlights: n(a.downlights), removal: strictPresent(a.removal_required ?? a.removal), suitable: strictPresent(a.suitable), conductive: strictPresent(a.conductive), conductiveEvidence: str(a.conductiveEvidence), keepReason: str(a.keepReason) }));
   return [{ present: strictPresent(m.insulation_present), depthMm: null, rValue: n(m.existing_r_value), downlights: downlightsQty, removal: strictPresent(m.removal_required) }];
 }
 
@@ -400,32 +408,104 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
 
 /**
  * Decision 262: official PIISA Part 6 (existing insulation) filled by the portal from the job's Ready Check record — the
- * install day form no longer asks it. `extra` carries facts the Ready Check record may hold beyond the area columns
- * (condition / suitability, reason for retaining, foil or conductive). Every fact the record does not establish is listed
- * in `missing` (a pre-start blocker), never guessed.
+ * install day form no longer asks it. Decision 359: condition (suitable to lay over), reason kept, foil/metallic/conductive
+ * and its photo come from each area's Ready Check answers (`RcArea`); `extra` (when non-null) overrides them. Decision 360:
+ * when every area with existing insulation is Removed, Part 6 is filled by the portal (suitable = No, no reason, the foil
+ * note satisfied by removal). Decision 375: p6.height = the areas' recorded depth (m²-weighted average when they differ). Every fact the record does not establish is listed in `missing` (a pre-start blocker), never guessed.
  */
-export function readyCheckPart6Answers(areas: RcArea[], extra: { suitable: boolean | null; conductive: boolean | null; reason: string | null }): { answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null } {
+export type Part6Extra = { suitable: boolean | null; conductive: boolean | null; reason: string | null; conductiveEvidence?: string | null };
+export type Part6Result = {
+  answers: Record<string, string | string[]>; missing: string[];
+  /** Portal conductivity record (supp.conductive); null = not recorded (never needed on a full removal). */
+  conductive: boolean | null;
+  /** Portal conductivity photo reference (supp.conductiveEvidence), null when none. */
+  conductiveEvidence: string | null;
+  /** Decision 360: every area with existing insulation is removed (the foil note is satisfied by removal). */
+  fullRemoval: boolean;
+};
+const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
+/** Decision 375: average existing insulation depth weighted by each area's m², rounded to the nearest mm. */
+export function weightedDepthMm(areas: { depthMm: number; areaM2: number }[]): number {
+  const m2 = areas.reduce((s, a) => s + a.areaM2, 0);
+  return Math.round(areas.reduce((s, a) => s + a.depthMm * a.areaM2, 0) / m2);
+}
+export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_EXTRA): Part6Result {
   const answers: Record<string, string | string[]> = {}, missing: string[] = [];
-  if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], conductive: null };
+  const none = { conductive: null, conductiveEvidence: null, fullRemoval: false };
+  if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], ...none };
   const pres = areas.map((a) => a.present);
-  if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, conductive: null }; }
+  if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, ...none }; }
   const present = pres.some(Boolean);
   answers["p6.present"] = present ? "Yes" : "No";
-  if (!present) return { answers, missing, conductive: null };
+  if (!present) return { answers, missing, ...none };
   const withIns = areas.filter((a) => a.present === true);
-  const depths = [...new Set(withIns.map((a) => a.depthMm).filter((x): x is number => x != null && Number.isFinite(x)))];
-  if (depths.length === 1 && withIns.every((a) => a.depthMm != null)) answers["p6.height"] = String(depths[0]);
-  else missing.push(depths.length > 1 ? `Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average` : "Ready Check: existing insulation depth (mm) not recorded");
+  // Decision 375 (Jo 25 Oct 2026): the official form asks the average height whenever insulation is present (removal
+  // included); the Ready Check asks the depth per area with existing insulation. One shared depth is used as is; differing
+  // depths become ONE average weighted by each area's m² (nearest mm). A missing depth, or a missing m² when weighting is
+  // needed, names the area — never guessed.
+  const okNum = (x: number | null | undefined): x is number => x != null && Number.isFinite(x);
+  const areaName = (a: RcArea) => a.name?.trim() || `Area ${areas.indexOf(a) + 1}`;
+  const whichAreas = (xs: RcArea[]) => (withIns.length > 1 ? ` (${xs.map(areaName).join(", ")})` : "");
+  const noDepth = withIns.filter((a) => !okNum(a.depthMm));
+  const depths = [...new Set(withIns.map((a) => a.depthMm).filter(okNum))];
+  if (noDepth.length) missing.push(`Ready Check: existing insulation depth (mm) not recorded${whichAreas(noDepth)}`);
+  else if (depths.length === 1) answers["p6.height"] = String(depths[0]);
+  else {
+    const noM2 = withIns.filter((a) => !okNum(a.areaM2) || a.areaM2 <= 0);
+    if (noM2.length) missing.push(`Ready Check: ceiling area (m²) not recorded, so the average existing insulation depth can't be worked out${whichAreas(noM2)}`);
+    else answers["p6.height"] = String(weightedDepthMm(withIns as { depthMm: number; areaM2: number }[]));
+  }
   const rs = [...new Set(withIns.map((a) => a.rValue).filter((x): x is number => x != null && Number.isFinite(x)))];
   if (rs.length === 1) answers["p6.rValue"] = String(rs[0]);
-  if (withIns.every((a) => a.removal != null)) {
-    const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
-    answers["p6.treatment"] = [...(rem ? ["Removed"] : []), ...(top ? ["Topped Up"] : [])];
-    if (top) { if (extra.reason?.trim()) answers["p6.reason"] = extra.reason.trim(); else missing.push("Ready Check: reason the existing insulation is being kept not recorded"); }
-  } else missing.push("Ready Check: removal or top-up not recorded for every area with existing insulation");
-  if (extra.suitable != null) answers["p6.suitable"] = extra.suitable ? "Yes" : "No"; else missing.push("Ready Check: condition of the existing insulation (suitable to lay over) not recorded");
-  if (extra.conductive == null) missing.push("Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded");
-  return { answers, missing, conductive: extra.conductive };
+  if (!withIns.every((a) => a.removal != null)) {
+    missing.push("Ready Check: removal or top-up not recorded for every area with existing insulation");
+    // Without the treatment the Part 6 facts can't be scoped; the recorded answers still show what is missing.
+    if (extra.suitable != null) answers["p6.suitable"] = extra.suitable ? "Yes" : "No"; else missing.push("Ready Check: condition of the existing insulation (suitable to lay over) not recorded");
+    if (extra.conductive == null) missing.push("Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded");
+    return { answers, missing, conductive: extra.conductive, conductiveEvidence: extra.conductiveEvidence ?? null, fullRemoval: false };
+  }
+  const topUp = withIns.filter((a) => a.removal === false);
+  const rem = withIns.some((a) => a.removal === true);
+  answers["p6.treatment"] = [...(rem ? ["Removed"] : []), ...(topUp.length ? ["Topped Up"] : [])];
+  // Decision 360: every area with existing insulation is removed → the portal fills Part 6 itself: not laid over
+  // (suitable = No, as official-expand already does), the foil/conductive note is satisfied by removal, no reason needed.
+  if (!topUp.length) {
+    answers["p6.suitable"] = "No";
+    const recorded = withIns.map((a) => a.conductive).filter((x): x is boolean => x != null);
+    const conductive = extra.conductive ?? (recorded.length === withIns.length ? recorded.some(Boolean) : null);
+    return { answers, missing, conductive, conductiveEvidence: extra.conductiveEvidence ?? withIns.map((a) => a.conductiveEvidence).find((x) => !!x) ?? null, fullRemoval: true };
+  }
+  // Decision 359: top-up areas carry their own answers from the Ready Check (one official field → combined across areas).
+  const named = topUp.map((a) => ({ a, n: a.name?.trim() || `Area ${areas.indexOf(a) + 1}` }));
+  const gap = (xs: { n: string }[]) => (topUp.length > 1 ? ` (${xs.map((x) => x.n).join(", ")})` : "");
+  // Reason the existing insulation is kept.
+  if (extra.reason?.trim()) answers["p6.reason"] = extra.reason.trim();
+  else {
+    const noReason = named.filter((x) => !x.a.keepReason?.trim());
+    if (noReason.length) missing.push(`Ready Check: reason the existing insulation is being kept not recorded${gap(noReason)}`);
+    else { const rs = [...new Set(named.map((x) => x.a.keepReason!.trim()))]; answers["p6.reason"] = rs.length === 1 ? rs[0]! : named.map((x) => `${x.n}: ${x.a.keepReason!.trim()}`).join("; "); }
+  }
+  // Condition: suitable to lay over (any No = No, which the official P6 rule then refuses for a top-up).
+  if (extra.suitable != null) answers["p6.suitable"] = extra.suitable ? "Yes" : "No";
+  else {
+    const noAns = named.filter((x) => x.a.suitable == null);
+    if (noAns.length) missing.push(`Ready Check: condition of the existing insulation (suitable to lay over) not recorded${gap(noAns)}`);
+    else answers["p6.suitable"] = named.every((x) => x.a.suitable === true) ? "Yes" : "No";
+  }
+  // Foil / metallic / conductive (+ the HI VIC photo) for every area being topped up.
+  let conductive: boolean | null = extra.conductive;
+  if (conductive == null) {
+    const noAns = named.filter((x) => x.a.conductive == null);
+    if (noAns.length) missing.push(`Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded${gap(noAns)}`);
+    else conductive = named.some((x) => x.a.conductive === true);
+  }
+  let conductiveEvidence: string | null = extra.conductiveEvidence ?? null;
+  if (!conductiveEvidence) {
+    const noPhoto = named.filter((x) => !x.a.conductiveEvidence);
+    if (noPhoto.length) missing.push(`Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added${gap(noPhoto)}`);
+    else conductiveEvidence = named[0]!.a.conductiveEvidence!;
+  }
+  return { answers, missing, conductive, conductiveEvidence, fullRemoval: false };
 }
 
 // ---------- crew ----------

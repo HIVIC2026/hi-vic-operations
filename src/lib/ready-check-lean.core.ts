@@ -43,6 +43,14 @@ export const LEAN_Q = {
   depthPhoto: "Upload a photo clearly showing the measured insulation depth",
   existingAction: "What is required for the existing insulation?",
   removeM2: "How much existing insulation needs to be removed? (m²)",
+  // Decision 359 (Jo 25 Oct 2026): the official PIISA Part 6 facts, asked per area only when existing insulation is present
+  // (added to live A1/A2 by docs/MITTI_READY_CHECK_PART6_PROMPT.md; forms built before then simply lack them).
+  /** Only when the area's existing insulation is "Top up". */
+  existingSuitable: "Is the existing insulation in good enough condition to lay new insulation over?",
+  existingConductive: "Is the existing insulation foil-backed, metallic or electrically conductive?",
+  existingConductivePhoto: "Photo showing whether it is foil-backed or conductive",
+  /** Only when the area's existing insulation is "Top up". */
+  existingKeepReason: "Why is the existing insulation being kept?",
   /** Decision 264: the before video the rebate needs (replaces the optional overview photo); per area, before install. */
   beforeVideo: "Slow 360° video of this ceiling area, lit, saying its name",
   downlights: "Are there recessed downlights in this ceiling area?",
@@ -149,6 +157,8 @@ export const A1_QUOTE_QUESTIONS = [LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q
 export const LEAN_REMOVE = {
   sketchA1: "Upload your area sketch or floor plan.",
   sketchA2: "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+  /** Decision 375 (Jo 25 Oct 2026): KEPT on the live A1/A2 forms (asked per area whenever there is existing insulation,
+   *  removals included) and read as the existing insulation depth (EXISTING_DEPTH_Q). Only the lean rebuild drops it. */
   depthMm: "What is the measured insulation depth (mm)?",
   describeType: "Please describe the existing insulation type",
   pleaseExplain: "Please explain",
@@ -165,6 +175,8 @@ export const LEAN_REMOVE = {
   accessFee: "Difficult access fee ($ inc GST)",
 } as const;
 export const LEAN_REMOVE_COPIES = { a1: 22, a2: 21 } as const;
+/** Decision 375: the live per-area depth question the portal reads for official PIISA Part 6 "average height" (mm). */
+export const EXISTING_DEPTH_Q = LEAN_REMOVE.depthMm;
 
 // ---------- pure readers shared by the label readers ----------
 const t = (v: unknown) => String(v ?? "").trim();

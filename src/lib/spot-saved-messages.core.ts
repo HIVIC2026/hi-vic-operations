@@ -1,5 +1,5 @@
 // "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
-// Email design APPROVED by Jo 24 Oct 2026 (decision 70): docs/templates/approved/O10-spot-saved.html — "Smart move,
+// Email design APPROVED by Jo 24 Oct 2026 (decision 70): docs/templates/owner/O10-spot-saved.html — "Smart move,
 // {First}. Your spot is saved." + green "Your {rebate} rebate is waiting."; demand line; two-figure price box; three
 // "What happens next" steps; See my job; the Save my spot included / not included cards (+ the existing-insulation card
 // for those owners); friend card. The text keeps its earlier approved wording (task scope: emails only).

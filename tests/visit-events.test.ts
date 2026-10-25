@@ -99,9 +99,10 @@ describe("wiring (static)", () => {
     expect(src("src/lib/visit-events.server.ts")).toContain('=== "qa_test") continue');
     expect(src("src/routes/api/public/hooks/allocation-tick.ts")).toContain("sweepTradeNoShows");
   });
-  test("owner messages are queued only (outbox), never sent directly", () => {
+  test("reopened times are recorded only — no dead outbox row (F13), never sent directly", () => {
     const s = src("src/lib/visit-events.server.ts");
-    expect(s).toContain("enqueue_external_action");
+    expect(s).not.toContain("enqueue_external_action");
+    expect(s).toContain('"visit_times_reopened"');
     expect(s).not.toMatch(/sendEmail|resend|fetch\(/i);
   });
 });

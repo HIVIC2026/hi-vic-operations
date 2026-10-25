@@ -6,16 +6,21 @@ import { intakeSendBlockers } from "./installer-intake.server";
 import { quoteBillingBlocker } from "./installer-quote.server";
 
 export async function officeQuoteBlockers(jobId: string, quote: { id: string; created_at: string; release_hold_reason?: string | null; option_code?: string | null }) {
-  const [{ data: job, error: je }, { data: events, error: ee }, intake, billing] = await Promise.all([
+  // One read of the current measurement serves both the Mitti check and the measurement check below (was two).
+  const { jobProductProblems } = await import("./install-evidence.server");
+  const [{ data: job, error: je }, { data: events, error: ee }, intake, billing, { data: mitti, error: me }, product] = await Promise.all([
     admin.from("jobs").select("stage, deleted_at, qa_archived_at, channel").eq("id", jobId).maybeSingle(),
     admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }).limit(1),
     intakeSendBlockers(jobId), quoteBillingBlocker(quote.id),
+    admin.from("ceiling_measurements").select("id, status, measured_area_m2, removal_required, removal_m2, access_difficulty, external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    // Decision 205 (checklist D6): the declared product must be on the ESC register, in date and reach R5.0 — shown here
+    // so the office sees it on Quotes to check, long before AP review blocks on the same rule.
+    jobProductProblems(jobId),
   ]);
   if (je || ee || !job) throw new WorkflowError("Quote readiness could not be checked.");
   const e = events?.[0];
   const d = e?.details as { reasons?: string[]; blockers?: string[] } | null;
   const reasons = quoteReviewReasons(quote.release_hold_reason, e ? { at: e.created_at, reasons: d?.reasons ?? d?.blockers ?? [] } : null, quote.created_at);
-  const { data: mitti, error: me } = await admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (me) throw new WorkflowError("Ready Check could not be checked.");
   if (mitti?.external_source === "mitti" && mitti.external_id) {
     // Old drafts retain their history, but these two superseded Add job disclosures are not Mitti holds.
@@ -23,14 +28,9 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
   }
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) reasons.push("Job is closed or archived");
   if (job.channel !== "installer_sourced") {
-    const { data: m, error } = await admin.from("ceiling_measurements").select("id, status, measured_area_m2, removal_required, removal_m2, access_difficulty").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-    if (error) throw new WorkflowError("Ready Check could not be checked.");
+    const m = mitti;
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
-  // Decision 205 (checklist D6): the declared product must be on the ESC register, in date and reach R5.0 — shown here
-  // so the office sees it on Quotes to check, long before AP review blocks on the same rule.
-  const { jobProductProblems } = await import("./install-evidence.server");
-  const product = await jobProductProblems(jobId);
   // Jo 24 Oct: no installer approval on any Ready Check quote — Complete in Mitti + these checks are the gate.
   return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...product])];
 }

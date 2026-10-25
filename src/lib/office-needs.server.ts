@@ -8,9 +8,11 @@ import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
+import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
+import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -28,9 +30,9 @@ async function all(what: string, page: (from: number, to: number) => PromiseLike
 }
 /** Job-id lookups are batched (AGENTS: one all-ids URL stalled Office reads for minutes). */
 async function byIds(what: string, ids: string[], q: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Row[]> {
-  const out: Row[] = [];
-  for (let i = 0; i < ids.length; i += 150) { const chunk = ids.slice(i, i + 150); out.push(...(await all(what, (f, t) => q(chunk, f, t)))); }
-  return out;
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+  return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
 }
 
 export type GatheredNeeds = {
@@ -38,23 +40,27 @@ export type GatheredNeeds = {
   system: SystemRow[];
 };
 
-/** Facts for every live job (Needs me) or for `onlyIds` (the Job page). The same derivation feeds both. */
+/** Facts for every live job (Needs me) or for `onlyIds` (the Job page). The same derivation feeds both.
+ *  Perf 25 Oct 2026: three waves instead of ~40 sequential round trips — (1) the office facts and every Needs-me read
+ *  that does not depend on them, (2) the few follow-up reads keyed by what wave 1 found, (3) the pure rules. */
 export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: string[] }): Promise<GatheredNeeds> {
-  const office = await loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) });
-  const now = office.now;
-  const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
-  const ids = jobs.map((j) => j.id);
-  const idSet = new Set(ids);
-  const facts = new Map<string, NeedsFacts>();
-  for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
-  const f = (id: string) => facts.get(id);
-  const since7 = new Date(now - 7 * DAY).toISOString();
+  const t0 = Date.now();
+  const since7 = new Date(t0 - 7 * DAY).toISOString();
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
+  const listMode = !opts.onlyIds;
+  const { loadQuotesToCheck } = await import("./installer-quote-review.server");
+  const { openRobotFailureRows } = await import("./esc-registry-robot.server");
+  const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
+  const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
+  const { openEmailItems } = await import("./email-office.server");
+  const { CHANGE_LINE } = await import("./office-needs.core");
 
-  const [consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms] = await Promise.all([
+  // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb] = await Promise.all([
+    loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
-    all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
+    all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
     all("failed emails", (a, b) => scoped(admin.from("customer_email_sends").select("job_id, purpose, status, created_at, error")).eq("status", "failed").gte("created_at", since7).range(a, b)),
     all("failed texts", (a, b) => scoped(admin.from("sms_messages").select("job_id, message_type, status, created_at, detail")).in("status", ["failed", "undelivered"]).gte("created_at", since7).range(a, b)),
     all("10-day flags", (a, b) => (opts.onlyIds ? admin.from("jobs").select("id, install_10day_flagged_at, stage").in("id", opts.onlyIds) : admin.from("jobs").select("id, install_10day_flagged_at, stage")).not("install_10day_flagged_at", "is", null).eq("stage", "installation_scheduling").range(a, b)),
@@ -63,7 +69,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, effective_status, total_inc_gst, total_paid, deposit_due_date, balance_due_date")).eq("effective_status", "overdue").range(a, b)),
     // Decision 246: automatic offers that came back to the office (2 misses or no covering trade) -> "Choose again".
     all("auto offers returned", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, summary, details")).eq("event_type", AUTO_OFFER_RETURNED_EVENT).order("created_at", { ascending: false }).range(a, b)),
-    all("install bookings on hold", (a, b) => scoped(admin.from("bookings").select("job_id, created_at, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("created_at", new Date(now - 2 * DAY).toISOString()).gt("scheduled_start", new Date(now).toISOString()).range(a, b)),
+    all("install bookings on hold", (a, b) => scoped(admin.from("bookings").select("job_id, created_at, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("created_at", new Date(t0 - 2 * DAY).toISOString()).gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
     // Decision 296: day-5 alerts for an unconfirmed PIESA, cleared by a confirmation of the same PIESA record.
     all("PIESA owner day-5 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT).range(a, b)),
     all("PIESA owner confirmations", (a, b) => scoped(admin.from("workflow_events").select("job_id, details")).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT).range(a, b)),
@@ -73,7 +79,30 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // Decision 330: day-5 alerts for unconfirmed electrical fixes, cleared by a confirmation of the same fixes record.
     all("fixes owner day-5 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT).range(a, b)),
     all("fixes owner confirmations", (a, b) => scoped(admin.from("workflow_events").select("job_id, details")).eq("event_type", PIESA_FIXES_CONFIRMED_EVENT).range(a, b)),
+    // Decision 354: an electrician-priced fixes quote goes out by itself; a held automatic send keeps the row.
+    all("fixes quote drafts", (a, b) => scoped(admin.from("quotes").select("id, job_id, created_at")).eq("kind", "rectification").eq("status", "draft").range(a, b)),
+    all("fixes quote holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", AUTO_FIXES_QUOTE_HELD_EVENT).order("created_at", { ascending: false }).range(a, b)),
+    // Quotes to check — the one shared read (held with reasons, ready drafts, declined by the owner).
+    loadQuotesToCheck({ showTestJobs: false, ...(opts.onlyIds ? { onlyJobIds: opts.onlyIds } : {}) }),
+    opts.includeTest && listMode ? loadQuotesToCheck({ showTestJobs: true }) : Promise.resolve(null),
+    // Decision 272: the ESC Registry robot failed on a job → the office does that submission by hand.
+    openRobotFailureRows(opts.onlyIds),
+    // F15: the automatic install day (PIISA) form failed with the install today/tomorrow → one row until a form is created.
+    all("install day form alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", PIISA_AUTOSEND_OFFICE_EVENT).gte("created_at", since7).range(a, b)),
+    // Email rows (decisions 245/247): the backend's open items (email-office.server).
+    openEmailItems(),
+    listMode ? (async () => (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => []))() : Promise.resolve([]),
+    // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
+    listMode ? all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(t0 - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b)) : Promise.resolve([] as Row[]),
   ]);
+  const now = office.now;
+  const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
+  const ids = jobs.map((j) => j.id);
+  const idSet = new Set(ids);
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+  const facts = new Map<string, NeedsFacts>();
+  for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
+  const f = (id: string) => facts.get(id);
 
   for (const j of jobs) {
     const x = f(j.id)!;
@@ -92,32 +121,62 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
   }
 
-  // Quotes to check — the one shared read (held with reasons, ready drafts, declined by the owner).
-  const { loadQuotesToCheck } = await import("./installer-quote-review.server");
-  const q = await loadQuotesToCheck({ showTestJobs: false, ...(opts.onlyIds ? { onlyJobIds: opts.onlyIds } : {}) });
-  const qTest = opts.includeTest && !opts.onlyIds ? await loadQuotesToCheck({ showTestJobs: true }) : null;
+  // Wave 2: follow-up reads keyed by what wave 1 found, all at once.
+  type Guess = { job_id: string; job_number: string; why?: string[] };
+  const guessOf = (u: Record<string, unknown>) => ((u["guesses"] as Guess[] | undefined) ?? [])[0] ?? null;
+  const rIds = [...new Set(returned.map((r) => String(r["job_id"])).filter((id) => idSet.has(id)))];
+  // Decision 271: Part A signs itself; the office sees a row only once the automatic signature has been held >24h, with the reasons.
+  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"] && apAutoHoldAlert({ installerSignedAt: String(v["installer_signed_at"]), now, reasons: ["pending"] }).alert);
+  const aIds = [...new Set(piisaAlerts.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+  const finalIds = [...facts.values()].filter((x) => x.finalCheck).map((x) => x.jobId);
+  const askJobIds = [...new Set([...items.changes.map((c) => c.jobId as string | null), ...items.unmatched.map((u) => guessOf(u as Record<string, unknown>)?.job_id ?? null)].filter((x): x is string => !!x))];
+  const fbIds = [...new Set(fb.map((e) => String(e["job_id"])))];
+  // Decision 370: the consent's AP part signs itself; a row only once that has been held >24h (or the deadline is <24h away), with the reasons.
+  const heldConsents = consents.filter((c) => f(String(c["job_id"])) && !["cancelled", "stale", "superseded"].includes(String(c["status"])) && consentApHoldAlert({ ownerSignedAt: s(c["owner_signed_at"]), scheduledStart: s(c["scheduled_start"]), now, reasons: ["pending"] }).alert);
+  const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows] = await Promise.all([
+    rIds.length ? byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
+    partA.length && partA.length <= 40
+      ? import("./veec-ap-auto.server").then(({ apAutoHoldReasons }) => Promise.all(partA.map(async (v) => (f(String(v["job_id"])) ? await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]) : null))))
+      : Promise.resolve(null),
+    heldConsents.length && heldConsents.length <= 40
+      ? import("./consent-ap-auto.server").then(({ consentApHoldReasons }) => Promise.all(heldConsents.map(async (c) => [String(c["job_id"]), await consentApHoldReasons(String(c["job_id"])).catch(() => ["The consent checks could not be read."])] as const)))
+      : Promise.resolve([] as (readonly [string, string[]])[]),
+    aIds.length ? byIds("install day forms created", aIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).eq("event_type", PIISA_AUDIT_CREATED_EVENT).range(a, b)) : Promise.resolve([] as Row[]),
+    // Install deposit (10%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
+    provisionalBookings.length && provisionalBookings.length <= 40
+      ? import("./payments.server").then(({ jobPaymentView }) => Promise.all(provisionalBookings.map((b) => (f(String(b["job_id"])) ? jobPaymentView(String(b["job_id"]), new Date(now)).catch(() => null) : Promise.resolve(null)))))
+      : Promise.resolve(null),
+    finalIds.length ? byIds("final check flags", finalIds, (chunk, a, b) => admin.from("compliance_checks").select("job_id, status").in("job_id", chunk).eq("status", "fail").range(a, b)) : Promise.resolve([] as Row[]),
+    askJobIds.length ? byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
+    fbIds.length ? byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
+  ]);
+
+  for (const qd of rectDrafts) {
+    const x = f(String(qd["job_id"])); if (!x) continue;
+    const h = rectHolds.find((e) => e["job_id"] === qd["job_id"] && (e["details"] as { quote_id?: string } | null)?.quote_id === qd["id"]);
+    if (h) x.fixesQuoteToCheck = { at: String(h["created_at"]), reason: s((h["details"] as { reason?: string } | null)?.reason) };
+  }
   for (const r of [...q.rows, ...(qTest?.rows ?? [])]) { const x = f(r.jobId); if (x) x.quoteToCheck = { at: r.at, reason: r.kind === "ready" ? null : r.note, ready: r.kind === "ready" }; }
   for (const r of [...q.declined, ...(qTest?.declined ?? [])]) { const x = f(r.jobId); if (x && !x.quoteToCheck) x.quoteToCheck = { at: r.at, reason: `owner declined${r.reason ? ` (“${r.reason}”)` : ""} · reopen or close`, ready: false }; }
 
-  if (returned.length) {
-    const rIds = [...new Set(returned.map((r) => String(r["job_id"])).filter((id) => idSet.has(id)))];
-    const later = rIds.length ? await byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : [];
-    for (const r of returned) {
-      const x = f(String(r["job_id"])); if (!x || x.offerLapsed) continue;
-      const kind = String((r["details"] as { kind?: string } | null)?.kind ?? "ready_check");
-      // Cleared as soon as a new offer of that kind goes out after the hand-back.
-      if (later.some((o) => o["job_id"] === r["job_id"] && o["kind"] === kind && String(o["offered_at"]) > String(r["created_at"]))) continue;
-      x.offerLapsed = { role: kind === "piesa" ? "electrician" : "installer", name: null, declined: false, at: String(r["created_at"]), note: String(r["summary"] ?? "") };
-      if (kind === "ready_check") delete x.spotSaved; else delete x.electricianToChoose;
-    }
+  for (const r of returned) {
+    const x = f(String(r["job_id"])); if (!x || x.offerLapsed) continue;
+    const kind = String((r["details"] as { kind?: string } | null)?.kind ?? "ready_check");
+    // Cleared as soon as a new offer of that kind goes out after the hand-back.
+    if (later.some((o) => o["job_id"] === r["job_id"] && o["kind"] === kind && String(o["offered_at"]) > String(r["created_at"]))) continue;
+    x.offerLapsed = { role: kind === "piesa" ? "electrician" : "installer", name: null, declined: false, at: String(r["created_at"]), note: String(r["summary"] ?? "") };
+    if (kind === "ready_check") delete x.spotSaved; else delete x.electricianToChoose;
   }
-  for (const c of consents) { const x = f(String(c["job_id"])); if (x && !["cancelled", "stale", "superseded"].includes(String(c["status"]))) { const start = s(c["scheduled_start"]); x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null }; } }
-  // Decision 271: Part A signs itself; the office sees a row only once the automatic signature has been held >24h, with the reasons.
-  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"] && apAutoHoldAlert({ installerSignedAt: String(v["installer_signed_at"]), now, reasons: ["pending"] }).alert);
-  if (partA.length && partA.length <= 40) {
-    const { apAutoHoldReasons } = await import("./veec-ap-auto.server");
-    await Promise.all(partA.map(async (v) => { const x = f(String(v["job_id"])); if (!x) return; const reasons = await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]); if (reasons.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; }));
-  } else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
+  const consentReasons = new Map<string, string[]>(consentReasonList);
+  for (const c of heldConsents) {
+    const x = f(String(c["job_id"])); if (!x) continue;
+    const reasons = heldConsents.length <= 40 ? consentReasons.get(String(c["job_id"])) ?? [] : ["The AP part has not signed itself yet (open the job)."];
+    if (!reasons.length) continue; // nothing holds it — the next tick signs it
+    const start = s(c["scheduled_start"]);
+    x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null, reasons };
+  }
+  if (partAReasons) partA.forEach((v, i) => { const x = f(String(v["job_id"])); const reasons = partAReasons[i]; if (x && reasons?.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; });
+  else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
   for (const e of escRows) {
     const x = f(String(e["job_id"])); if (!x || ["cancelled", "withdrawn", "superseded", "stale"].includes(String(e["status"]))) continue;
     const opens = s(e["earliest_send_at"]);
@@ -127,16 +186,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const r of sendFailedRows({ now, emails: emailFails.map((e) => ({ job_id: String(e["job_id"]), purpose: String(e["purpose"]), status: String(e["status"]), created_at: String(e["created_at"]), error: s(e["error"]) })), sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) })) {
     const x = f(r.jobId); if (x) x.sendFailed = { at: r.latestAt, text: r.text };
   }
-  // Decision 272: the ESC Registry robot failed on a job → the office does that submission by hand (cleared once it is recorded).
-  const { openRobotFailureRows } = await import("./esc-registry-robot.server");
-  for (const r of await openRobotFailureRows(opts.onlyIds)) { const x = f(r.jobId); if (x && !x.robotFailed) x.robotFailed = { at: r.at, text: r.text, task: r.task }; }
-  for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft ={ at: String(t["install_10day_flagged_at"]), deadline: jobs.find((j) => j.id === t["id"])?.facts.installDeadline ?? null }; }
-  for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobs.find((k) => k.id === e["job_id"]); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
+  for (const r of robotRows) { const x = f(r.jobId); if (x && !x.robotFailed) x.robotFailed = { at: r.at, text: r.text, task: r.task }; }
+  for (const id of aIds) {
+    const j = jobById.get(id); const x = f(id);
+    if (!x || j?.stage !== "installation_booked") continue;
+    const open = piisaFormFailedOpen([...piisaAlerts, ...made].filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { message?: string | null } | null })));
+    if (open) x.piisaFormFailed = open;
+  }
+  for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft = { at: String(t["install_10day_flagged_at"]), deadline: jobById.get(String(t["id"]))?.facts.installDeadline ?? null }; }
+  for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.
   const confirmedRecords = new Set(piesaConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
   for (const e of piesaAlerts) {
     const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; completed_date?: string } | null) ?? null;
-    const x = f(id); const j = jobs.find((k) => k.id === id);
+    const x = f(id); const j = jobById.get(id);
     if (!x || !j || !["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(j.stage)) continue;
     if (confirmedRecords.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
     if (!x.piesaOwnerUnsigned || String(e["created_at"]) > x.piesaOwnerUnsigned.at) x.piesaOwnerUnsigned = { at: String(e["created_at"]), completedDate: s(rec?.completed_date) };
@@ -145,7 +208,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const fixesConfirmed = new Set(fixesConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
   for (const e of fixesAlerts) {
     const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; fixes_date?: string } | null) ?? null;
-    const x = f(id); const j = jobs.find((k) => k.id === id);
+    const x = f(id); const j = jobById.get(id);
     if (!x || !j || ["complete", "cancelled"].includes(j.stage)) continue;
     if (fixesConfirmed.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
     if (!x.fixesOwnerUnsigned || String(e["created_at"]) > x.fixesOwnerUnsigned.at) x.fixesOwnerUnsigned = { at: String(e["created_at"]), fixesDate: s(rec?.fixes_date) };
@@ -157,30 +220,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
-  // Install deposit (10%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
-  if (provisionalBookings.length && provisionalBookings.length <= 40) {
-    const { jobPaymentView } = await import("./payments.server");
-    await Promise.all(provisionalBookings.map(async (b) => {
-      const x = f(String(b["job_id"])); if (!x) return;
-      const v = await jobPaymentView(String(b["job_id"]), new Date(now)).catch(() => null);
-      if (v?.provisional.decision !== "provisional") return;
-      const dep = v.steps.find((st) => st.key === "install_deposit");
-      x.paymentNotInXero = { at: String(b["created_at"]), text: `Deposit $${((dep?.amountCents ?? 0) / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })}${v.provisional.expiresAt ? ` · hold ends ${new Date(v.provisional.expiresAt).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" })}` : ""}` };
-    }));
-  }
+  if (payViews) provisionalBookings.forEach((b, i) => {
+    const x = f(String(b["job_id"])); const v = payViews[i];
+    if (!x || v?.provisional.decision !== "provisional") return;
+    const dep = v.steps.find((st) => st.key === "install_deposit");
+    x.paymentNotInXero = { at: String(b["created_at"]), text: `Deposit $${((dep?.amountCents ?? 0) / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })}${v.provisional.expiresAt ? ` · hold ends ${new Date(v.provisional.expiresAt).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" })}` : ""}` };
+  });
   // Final check flags: failed compliance checks on jobs at Final check.
-  const finalIds = [...facts.values()].filter((x) => x.finalCheck).map((x) => x.jobId);
-  if (finalIds.length) for (const c of await byIds("final check flags", finalIds, (chunk, a, b) => admin.from("compliance_checks").select("job_id, status").in("job_id", chunk).eq("status", "fail").range(a, b))) { const x = f(String(c["job_id"])); if (x?.finalCheck) x.finalCheck.flags++; }
+  for (const c of finalFlags) { const x = f(String(c["job_id"])); if (x?.finalCheck) x.finalCheck.flags++; }
 
-  // Email rows (decisions 245/247): the backend's open items (email-office.server). Renders nothing when there are none.
-  const { openEmailItems } = await import("./email-office.server");
-  const { CHANGE_LINE } = await import("./office-needs.core");
-  const items = await openEmailItems();
-  type Guess = { job_id: string; job_number: string; why?: string[] };
-  const guessOf = (u: Record<string, unknown>) => ((u["guesses"] as Guess[] | undefined) ?? [])[0] ?? null;
-  const askJobIds = [...new Set([...items.changes.map((c) => c.jobId as string | null), ...items.unmatched.map((u) => guessOf(u as Record<string, unknown>)?.job_id ?? null)].filter((x): x is string => !!x))];
+  // Email rows (decisions 245/247). Renders nothing when there are none.
   const askJobs = new Map<string, { jobNumber: string; surname: string; suburb: string | null; source: string | null }>();
-  for (const r of askJobIds.length ? await byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : [])
+  for (const r of askRows)
     askJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), suburb: (r["properties"] as { suburb?: string } | null)?.suburb ?? null, source: s(r["source"]) });
   const wantJob = (id: string | null) => !opts.onlyIds || (id != null && idSet.has(id));
   const emails: EmailRowInput[] = [];
@@ -200,21 +251,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
 
   // Partner & system fold (decision 221): partner items from the office rulebook + per-job system failures + quotes not drafted.
   const system: SystemRow[] = [];
-  if (!opts.onlyIds) {
+  if (listMode) {
     for (const p of office.needs.items.filter((i) => i.rule === "j_partner")) system.push({ key: p.key, tag: /application/i.test(p.what) ? "Application" : /worker|staff/i.test(p.what) ? "Person" : /form/i.test(p.what) ? "Mitti" : "Partner", who: p.what, line: p.why, since: p.dueAt, button: "Review", href: p.href ?? "/admin/partners" });
     for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
-    for (const r of await (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => [])) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
+    for (const r of recLinks) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
-    // Decision 335: 1–3 star private feedback from the My job review screen → ONE row per job for 14 days (the job is
-    // often already closed, so this reads the events directly rather than the live-job list).
-    const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
-    const fb = await all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(now - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b));
     if (fb.length) {
-      const fbIds = [...new Set(fb.map((e) => String(e["job_id"])))];
       const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
-      for (const r of await byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)))
-        fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
+      for (const r of fbRows) fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
       system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
     }
   }

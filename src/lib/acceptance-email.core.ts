@@ -1,5 +1,5 @@
 // "You're in!" acceptance + safety check receipt email (Jo 24 Oct 2026, decisions 90, 126).
-// Design approved: docs/templates/approved/O22-youre-in.html — payment received card (amount, date, card, Paid, remaining
+// Design approved: docs/templates/owner/O22-youre-in.html — payment received card (amount, date, card, Paid, remaining
 // balance with the 10% / install-day split); next steps (electrician offers times; separate quote only if fixes needed;
 // installer offers 3 install days within 30 days of the safety check); See my job; signed acceptance + receipt attached.
 // Sent through approved-owner-emails.server.ts (sendOwnerTemplateEmail): TEST jobs via test-send, real owners only with

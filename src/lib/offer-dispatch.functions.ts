@@ -76,9 +76,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       const { data: items } = await admin.from("rate_card_items").select("rate_card_id, r_value, unit, unit_price_ex_gst").in("rate_card_id", cardIds.length ? cardIds : NONE);
       for (const [b, cid] of latest) { const it = (items ?? []).find((i) => i.rate_card_id === cid && Number(i.r_value) === 5) ?? (items ?? []).find((i) => i.rate_card_id === cid); if (it) rates.set(b, Math.round(Number(it.unit_price_ex_gst) * 1.1 * 100) / 100); }
     }
-    // Decision 157: our-lead PIESA → the installer's usual electrician at their onboarding rate (badge + rate shown to the office).
-    const usualSel = !isRc ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(data.jobId, r.candidates) : null;
-    if (usualSel?.mode === "usual") rates.set(usualSel.businessId, usualSel.rateIncGst);
+    // Decision 374: no "installer's usual electrician" mark or preference on our leads — we choose the electrician.
     // HIV owner prices (and the "rate at or above owner price" warning) apply only to HIV leads (Jo 7 Oct); partner jobs aren't marked up.
     const ownerPrice = isRc ? (job?.channel === "installer_sourced" ? null : retail?.r5_install_inc_gst_per_m2 != null ? Number(retail.r5_install_inc_gst_per_m2) : null) : (retail?.piesa_assessment_inc_gst != null ? Number(retail.piesa_assessment_inc_gst) : null);
     const count = (rows: { business_id: string | null }[] | null, id: string) => (rows ?? []).filter((x) => x.business_id === id).length;
@@ -104,7 +102,6 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
           certExpiresOn: [...(creds ?? []).filter((x) => x.business_id === c.business_id && /cert|licen/.test(x.kind)).map((x) => x.expires_at), ...(workers ?? []).filter((w) => w.business_id === c.business_id).map((w) => w.licence_expires_on)],
         }),
         blocker: c.blocker, matching: !c.blocker && (c.covers_postcode || c.exact_postcode), alreadyOffered: offered.get(c.business_id) ?? null,
-        usualElectrician: usualSel?.mode === "usual" && usualSel.businessId === c.business_id,
       };
     });
     if (isRc) { // "Choose installer": shared matching order (nearby that day → reliability → fewest recent → speed)
@@ -120,8 +117,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       openOffer: open ? { business: trades.find((t) => t.id === open.business_id)?.business ?? null, expiresAt: open.expires_at } : null,
       jobNumber: job?.job_number ?? null, suburb: [p?.suburb, p?.postcode].filter(Boolean).join(" "), ownerPrice, isTestJob: job?.source === "qa_test",
       officePicks: officePicks(await dispatchMode(), job?.offer_dispatch_override ?? null), jobOverride: job?.offer_dispatch_override === "office_picks",
-      usualElectricianNote: usualSel?.note ?? null,
-      matching: trades.filter((t) => t.matching).sort((a, b) => Number(b.usualElectrician) - Number(a.usualElectrician)), others: trades.filter((t) => !t.matching),
+      matching: trades.filter((t) => t.matching), others: trades.filter((t) => !t.matching),
     };
   });
 

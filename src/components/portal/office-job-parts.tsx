@@ -1,7 +1,6 @@
 // O2 Job page working parts kept from the old job page (decisions 218/223): trade coverage (229), the one eligibility
-// change-result form, the PIESA / electrical fixes records, Final check (checks + Approve), VEEC lodgement and the
-// Activity 48 records. Moved here unchanged except Final check, which approves on the card (approveApJob) instead of
-// sending the office to the old AP queue page.
+// change-result form, the PIESA / electrical fixes records, compliance checks, VEEC lodgement and the
+// Activity 48 records. Moved here unchanged; Approve now lives on the one-screen Final check (decision 372, final-check.tsx).
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +16,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getAdminJobEligibility } from "@/lib/admin-records.functions";
 import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
-import { approveApJob } from "@/lib/ap-queue.functions";
 import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
@@ -107,17 +105,14 @@ export function AssessmentView({ jobId, part }: { jobId: string; part: "assessme
   );
 }
 
-/** Final check (workflow steps 28–29): the checks, then ONE human Approve on this job (approveApJob: stage check, a note
- *  is required when the job is flagged; never bulk or automatic). */
-export function Compliance({ jobId, atFinalCheck }: { jobId: string; atFinalCheck: boolean }) {
+/** Compliance checks (workflow steps 28–29). Decision 372: Approve moved to the one-screen Final check
+ *  (final-check.tsx, the one human Approve), which lists these blocking checks among its items. */
+export function Compliance({ jobId }: { jobId: string }) {
   const run = useAction(runComplianceReview);
   const set = useAction(setComplianceCheck);
-  const approve = useAction(approveApJob);
-  const [note, setNote] = useState("");
   const { data } = useQuery({ queryKey: ["compliance", jobId], queryFn: async () => (await supabase.from("compliance_checks").select("*").eq("job_id", jobId).order("sort")).data ?? [] });
-  const failed = (data ?? []).filter((c) => c.status === "fail").length;
   return (
-    <Section title="Final check" action={<Button size="sm" variant="outline" onClick={() => run({ jobId }, "Automated checks updated")}>Run automated checks</Button>}>
+    <Section title="Compliance checks" action={<Button size="sm" variant="outline" onClick={() => run({ jobId }, "Automated checks updated")}>Run automated checks</Button>}>
       <ul className="space-y-2">
         {data?.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-sm">
@@ -130,12 +125,6 @@ export function Compliance({ jobId, atFinalCheck }: { jobId: string; atFinalChec
           </li>
         ))}
       </ul>
-      {atFinalCheck && (
-        <div className="mt-3 grid gap-2">
-          {failed > 0 && <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={`${failed} check${failed === 1 ? "" : "s"} flagged — say why it is still OK to approve`} aria-label="Approval note" />}
-          <Button className="w-full" disabled={failed > 0 && note.trim().length < 5} onClick={() => void approve({ jobId, ...(note.trim() ? { note: note.trim() } : {}) }, "Approved – Ready for VEEC")}>Approve</Button>
-        </div>
-      )}
     </Section>
   );
 }

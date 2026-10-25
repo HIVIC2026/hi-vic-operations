@@ -7,7 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { TradeShell, aud } from "@/components/trade/TradeShell";
 import { getTradeMoneyExtras, getTradeMoneyView } from "@/lib/trade-view.functions";
-import { heldPayPill, payPill } from "@/lib/trade-view.core";
+import { ELECTRICIAN_PAY_RULE_LINE, heldPayPill, payPill } from "@/lib/trade-view.core";
 import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, paidByMonth, shortDay } from "@/lib/installer-screens.core";
 import { Group, LinkRow, NoFormNoPay, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
 
@@ -105,7 +105,7 @@ function Money() {
           {data.kind === "installer" ? <>
             {HOW_PAY_WORKS.map((h) => <div key={h.who} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-sm leading-[1.45]"><span className="shrink-0 text-sub">{h.who}</span><span className="text-right">{h.how}</span></div>)}
             <Note className="mt-2">{READY_CHECKS_FREE}</Note>
-          </> : <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-sm"><span className="text-sub">Your visits</span><span className="text-right">Paid within 7 days of our approval</span></div>}
+          </> : <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-sm"><span className="text-sub">Your visits</span><span className="text-right">{ELECTRICIAN_PAY_RULE_LINE}</span></div>}
         </Group>
 
         <Group title="Paid to">

@@ -36,6 +36,7 @@ import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
 import { Route as SaveSpotPreliminaryTokenRouteImport } from './routes/save-spot-preliminary.$token'
+import { Route as SpTokenRouteImport } from './routes/sp.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
@@ -105,6 +106,7 @@ import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as AuthenticatedAdminJobsActiveRouteImport } from './routes/_authenticated/admin.jobs.active'
+import { Route as AuthenticatedAdminJobsChooseInstallerRouteImport } from './routes/_authenticated/admin.jobs.choose-installer'
 import { Route as AuthenticatedAdminJobsClosedRouteImport } from './routes/_authenticated/admin.jobs.closed'
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
@@ -267,6 +269,11 @@ const SaveSpotPreliminaryTokenRoute =
     path: '/save-spot-preliminary/$token',
     getParentRoute: () => rootRouteImport,
   } as any)
+const SpTokenRoute = SpTokenRouteImport.update({
+  id: '/sp/$token',
+  path: '/sp/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WTokenRoute = WTokenRouteImport.update({
   id: '/w/$token',
   path: '/w/$token',
@@ -653,6 +660,12 @@ const AuthenticatedAdminJobsActiveRoute =
     path: '/active',
     getParentRoute: () => AuthenticatedAdminJobsRoute,
   } as any)
+const AuthenticatedAdminJobsChooseInstallerRoute =
+  AuthenticatedAdminJobsChooseInstallerRouteImport.update({
+    id: '/choose-installer',
+    path: '/choose-installer',
+    getParentRoute: () => AuthenticatedAdminJobsRoute,
+  } as any)
 const AuthenticatedAdminJobsClosedRoute =
   AuthenticatedAdminJobsClosedRouteImport.update({
     id: '/closed',
@@ -835,6 +848,7 @@ export interface FileRoutesByFullPath {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -904,6 +918,7 @@ export interface FileRoutesByFullPath {
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -954,6 +969,7 @@ export interface FileRoutesByTo {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -1023,6 +1039,7 @@ export interface FileRoutesByTo {
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -1079,6 +1096,7 @@ export interface FileRoutesById {
   '/notice/$token': typeof NoticeTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
+  '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/_authenticated/admin/board': typeof AuthenticatedAdminBoardRoute
@@ -1148,6 +1166,7 @@ export interface FileRoutesById {
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/_authenticated/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/_authenticated/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/_authenticated/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
@@ -1204,6 +1223,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/board'
@@ -1273,6 +1293,7 @@ export interface FileRouteTypes {
     | '/partner/'
     | '/admin/jobs/$jobId'
     | '/admin/jobs/active'
+    | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
@@ -1323,6 +1344,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/board'
@@ -1392,6 +1414,7 @@ export interface FileRouteTypes {
     | '/partner'
     | '/admin/jobs/$jobId'
     | '/admin/jobs/active'
+    | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
@@ -1447,6 +1470,7 @@ export interface FileRouteTypes {
     | '/notice/$token'
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
+    | '/sp/$token'
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
     | '/_authenticated/admin/board'
@@ -1516,6 +1540,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
     | '/_authenticated/admin/jobs/active'
+    | '/_authenticated/admin/jobs/choose-installer'
     | '/_authenticated/admin/jobs/closed'
     | '/_authenticated/field/business_/agreement'
     | '/_authenticated/field/business_/bank'
@@ -1567,6 +1592,7 @@ export interface RootRouteChildren {
   NoticeTokenRoute: typeof NoticeTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
   SaveSpotPreliminaryTokenRoute: typeof SaveSpotPreliminaryTokenRoute
+  SpTokenRoute: typeof SpTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiFilesSplatRoute: typeof ApiFilesSplatRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
@@ -1782,6 +1808,13 @@ declare module '@tanstack/react-router' {
       path: '/save-spot-preliminary/$token'
       fullPath: '/save-spot-preliminary/$token'
       preLoaderRoute: typeof SaveSpotPreliminaryTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sp/$token': {
+      id: '/sp/$token'
+      path: '/sp/$token'
+      fullPath: '/sp/$token'
+      preLoaderRoute: typeof SpTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/w/$token': {
@@ -2267,6 +2300,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsActiveRouteImport
       parentRoute: typeof AuthenticatedAdminJobsRoute
     }
+    '/_authenticated/admin/jobs/choose-installer': {
+      id: '/_authenticated/admin/jobs/choose-installer'
+      path: '/choose-installer'
+      fullPath: '/admin/jobs/choose-installer'
+      preLoaderRoute: typeof AuthenticatedAdminJobsChooseInstallerRouteImport
+      parentRoute: typeof AuthenticatedAdminJobsRoute
+    }
     '/_authenticated/admin/jobs/closed': {
       id: '/_authenticated/admin/jobs/closed'
       path: '/closed'
@@ -2455,6 +2495,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminJobsRouteChildren {
   AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
   AuthenticatedAdminJobsActiveRoute: typeof AuthenticatedAdminJobsActiveRoute
+  AuthenticatedAdminJobsChooseInstallerRoute: typeof AuthenticatedAdminJobsChooseInstallerRoute
   AuthenticatedAdminJobsClosedRoute: typeof AuthenticatedAdminJobsClosedRoute
 }
 
@@ -2462,6 +2503,8 @@ const AuthenticatedAdminJobsRouteChildren: AuthenticatedAdminJobsRouteChildren =
   {
     AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
     AuthenticatedAdminJobsActiveRoute: AuthenticatedAdminJobsActiveRoute,
+    AuthenticatedAdminJobsChooseInstallerRoute:
+      AuthenticatedAdminJobsChooseInstallerRoute,
     AuthenticatedAdminJobsClosedRoute: AuthenticatedAdminJobsClosedRoute,
   }
 
@@ -2696,6 +2739,7 @@ const rootRouteChildren: RootRouteChildren = {
   NoticeTokenRoute: NoticeTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
   SaveSpotPreliminaryTokenRoute: SaveSpotPreliminaryTokenRoute,
+  SpTokenRoute: SpTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiFilesSplatRoute: ApiFilesSplatRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,

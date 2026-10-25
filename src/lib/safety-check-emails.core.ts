@@ -1,5 +1,5 @@
 // Electrical safety check (PIESA) owner emails (Jo 24 Oct 2026, decisions 94 and 137).
-// "Pick a time" design approved: docs/templates/approved/O26-safety-check-times.html — "{First}, pick a time for your
+// "Pick a time" design approved: docs/templates/owner/O26-safety-check-times.html — "{First}, pick a time for your
 // electrical safety check"; "{Electrician}, a licensed electrician, has offered these times"; 3 time buttons; Suggest
 // other days; the red "⏰ The 30-day clock" box; "At your safety check". The booked email mirrors the Ready Check
 // "You're booked" email (decision 81) with the electrician's name/phone, the switchboard line and the 30-day box.

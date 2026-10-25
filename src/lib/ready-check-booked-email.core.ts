@@ -1,6 +1,6 @@
 // Jo 24 Oct 2026 (decisions 80–81): on our leads the owner gets "You're booked" for the free Ready Check, and an updated
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
-// Design approved (decision 81): docs/templates/approved/O12-ready-check-booked.html — green date/time card with address
+// Design approved (decision 81): docs/templates/owner/O12-ready-check-booked.html — green date/time card with address
 // and installer name + phone; "Before they arrive"; Change time line; See my job; price box; included / not included.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";

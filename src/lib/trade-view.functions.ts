@@ -78,7 +78,8 @@ export const getTradeBusinessFile = createServerFn({ method: "POST" }).middlewar
 
 
 export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), priceIncGst: z.number().finite().min(0).max(1_000_000), email: z.string().trim().email().max(320).nullish(), phone: z.string().trim().max(40).nullish() }).parse(d))
+  // Decision 369: no price — the electrician's onboarding rate is the only rate (decision 353).
+  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), email: z.string().trim().email().max(320).nullish(), phone: z.string().trim().max(40).nullish() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));
 
 /** ESC collection notice: the business's installers and their acknowledgement state (boss sees all; a worker only their own row). */
@@ -111,6 +112,11 @@ export const testSetPasswordLink = createServerFn({ method: "POST" }).middleware
 export const requestTeamLoginInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ workerId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeRequestLoginInvite(context.userId, data.workerId));
+
+/** Decision 377: the business owner saves a team member's mobile (their own safety plan link is texted there). */
+export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
 /** Jo 24 Oct 2026 (decision 110): A1 installer enters the Ready Check day + time (same slots as the owner's times link). */
 export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -185,7 +191,13 @@ export const saveTradeFixesTimes = createServerFn({ method: "POST" }).middleware
     jobId: uuid, hours: z.number(),
     windows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5),
   }).parse(d))
-  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows));
+  .handler(async ({ data, context }) => {
+    const r = await (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows);
+    // Decision 354: with the times in, the electrician-priced fixes quote can go to the owner automatically (best-effort;
+    // never throws; the 15-minute tick catches up).
+    await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(data.jobId, { actorId: context.userId, generate: true });
+    return r;
+  });
 
 /** Decision 327: the electrician's "Start of the install day" card (electricians only; business-scoped read). */
 export const getTradeInstallAttendance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

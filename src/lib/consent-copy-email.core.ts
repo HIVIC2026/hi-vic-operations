@@ -1,6 +1,6 @@
 // Jo 24 Oct 2026 (decisions 123 and 170): the ESC recommends giving the property owner a copy of the executed consent
 // form, so once the AP representative has signed Part B the owner is emailed "Your signed consent form" in the approved
-// kit design (docs/templates/approved/O63-consent-copy.html). Wording approved by Jo (decision 170); delivery still goes
+// kit design (docs/templates/owner/O63-consent-copy.html). Wording approved by Jo (decision 170); delivery still goes
 // only through the guarded owner-email path (customer_comms_enabled, consent, opt-outs) and TEST jobs use test-send.
 // The executed PDF from the job file is attached when it can be read (same Resend `attachments` path as the O62 VEEC
 // copy); the form text also travels in the body and the owner is pointed to the copy on their job page. Pure.

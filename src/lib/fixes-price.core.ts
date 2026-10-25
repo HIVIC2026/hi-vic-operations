@@ -7,25 +7,25 @@
  * the fallback for old forms. When the price and the inclusions are there the owner's fixes quote is ONE line "Electrical
  * repair work" (explanation = the inclusions) — no rate-card lookup, no office pricing — and the existing owner margin
  * (decision 142, `applyRectificationMargin`) is added on top. Anything missing keeps the rate-card path.
- * Decision 313 (Jo 25 Oct 2026): no margin on installer-supplied jobs (A1) — `fixesMarginFor`.
- * Decision 349 (Jo 25 Oct 2026): the margin follows WHOSE electrician — the installer's own (usual) electrician on our
- * leads (A2) is passed through as well; only our electrician gets the $100.
+ * Decisions 313/349/351 (Jo 25 Oct 2026): the margin follows WHOSE electrician, not the lead route — the installer's own
+ * (usual / nominated) electrician is passed through on A1; our electrician gets the $100 — always on our leads since
+ * decision 374 (we always choose the electrician there) (`fixesMarginFor`).
  * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A4 total.
- * Release rules are unchanged: the quote is still a held draft for office review (quote-release.core).
+ * Decision 354: when the A4 is complete and every existing check passes, the fixes quote goes to the owner automatically
+ * (auto-fixes-quote-send.{core,server}.ts); otherwise it stays a held draft on Needs me with the reason.
  */
 import { applyRectificationMargin, RECTIFICATION_MARGIN_INC_GST, type RectificationLine } from "./rectification-pricing.core";
 import { FIXES_DOWNLIGHT_OPTION, FIXES_OTHER_OPTION, FIXES_RCD_OPTION, fixesWorkTicks, fixesWorkWithOnsite } from "./official-short.core";
 export { fixesWorkTicks };
-import { priceFromPortal } from "./installer-price.core";
 import type { ElectricianSource } from "./our-lead-piesa-electrician.core";
 
-/** Decision 349 (Jo 25 Oct 2026: "we don't add $100 to an installer's own electrician's fee — we do not mark them up!"):
- *  the decision-142 owner margin applies ONLY when it is OUR electrician. The installer's own (usual) electrician on our
- *  leads (A2, `electricianSourceFor`) → the electrician's price AS IS. Installer-supplied jobs (A1, decision 313, same
- *  classifier as the quote code: installer-price.core `priceFromPortal`) stay pass-through whoever the electrician is.
+/** Decision 351 (Jo 25 Oct 2026; replaces the channel rule of decisions 313/349): the decision-142 $100 follows WHOSE
+ *  electrician, on BOTH routes — our (Home Insulation Victoria-supplied) electrician → +$100, including on installer-
+ *  supplied jobs (A1); the installer's own / usual / nominated electrician → no markup ever (A1 only —
+ *  `electricianSourceForA1`; our leads are always ours since decision 374, both via `electricianSourceForJob`).
  *  Used by both the A4-price path and the rate-card fallback. */
-export const fixesMarginFor = (channel: string | null | undefined, electricianSource: ElectricianSource = "ours"): number =>
-  priceFromPortal(channel) || electricianSource === "installer_usual" ? 0 : RECTIFICATION_MARGIN_INC_GST;
+export const fixesMarginFor = (electricianSource: ElectricianSource = "ours"): number =>
+  electricianSource === "installer_usual" ? 0 : RECTIFICATION_MARGIN_INC_GST;
 
 export const A4_FIXES_LINE_DESCRIPTION = "Electrical repair work";
 /** Recorded in quote_internals.calc_snapshot.pricing_source so the office can see where the price came from. */

@@ -57,7 +57,7 @@ function builder(table: string) {
     is: (c: string, v: unknown) => { filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return b; },
     not: (c: string, o?: string, v?: unknown) => { filters.push((r) => (o === "in" ? !inList(r[c], String(v)) : r[c] != null)); return b; },
     contains: (c: string, v: Row) => { filters.push((r) => containsObj(r[c], v)); return b; },
-    order: (c: string, o?: { ascending?: boolean }) => { orderCol = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
+    order: (c: string, o?: { ascending?: boolean }) => { orderCol = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; }, range: (_from: number, to: number) => { lim = to + 1; return b; }, // batched sweep reads page from 0
     maybeSingle: () => { mode = "maybe"; return b; }, single: () => { mode = "one"; return b; },
     then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve().then(run).then(res, rej),
   };
