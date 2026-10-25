@@ -40,7 +40,8 @@ export const chooseTrade = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind, businessId: z.string().uuid(), rateToConfirm: z.boolean().optional(), reason: z.string().max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    if (data.kind === "ready_check") return (await import("./readycheck-booking.server")).startReadyCheckOffers(data.jobId, context.userId, data.businessId);
+    // Decision 389: the office Releases the spot; the installer offer runs only once the owner confirms.
+    if (data.kind === "ready_check") { const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, data.businessId); return { offered: r.mode === "offered" ? 1 : 0, exhausted: false, released: r.mode === "released" }; }
     const { rateToConfirmReasonBlocker } = await import("./allocation.core");
     const b = rateToConfirmReasonBlocker(!!data.rateToConfirm, data.reason);
     if (b) throw new WorkflowError(b);

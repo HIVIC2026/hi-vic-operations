@@ -88,6 +88,9 @@ export const SMS_MESSAGE_TYPES = {
   piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: true, quietHours: true },
   // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
   installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
+  // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
+  // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (docs/designs/O77.jpg).
+  spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -160,6 +163,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   visit_new_times: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the trade's cancel (visit_times_reopened); also needs the visit still not rebooked
   piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered
   installer_planning_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
+  spot_released: { kind: "window" }, // key = job + release number + slot (released / reminder / release_text); each slot recorded once before any send (spot-release.server)
 };
 
 export type SmsEventInput = {

@@ -114,6 +114,11 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   // PIESA: a job still in measured_quote_accepted is ready only once it may ENTER the PIESA stage (decisions 139–141:
   // $349 safety check recorded, quote approved, verified eligible …) — the same entry check startPiesaAllocation makes,
   // so an unpaid acceptance is "not ready" rather than a refused send every tick.
+  // Decision 389: nothing reaches an installer before the owner confirms their released spot (Jo releases by hand).
+  if (jobReady && kind === "ready_check") {
+    const s = await (await import("./spot-release.server")).spotReleaseStateFor(jobId).catch(() => null);
+    if (s?.state !== "confirmed") return { jobId, kind, step: "none", reason: "owner_not_confirmed" };
+  }
   if (jobReady && kind === "piesa" && job.stage === "measured_quote_accepted") {
     const entry = await stageEntryBlockers(jobId, "piesa_and_install_window_pending", null).catch(() => ["unreadable"]);
     if (entry.length) jobReady = false;

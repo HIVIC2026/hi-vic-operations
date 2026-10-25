@@ -27,11 +27,14 @@ import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
+import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
+import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes"] as const satisfies readonly OwnerScreen[];
+// Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -79,6 +82,7 @@ function MyJobPage() {
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
+          : screen === "turn" ? <TurnScreen token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -198,6 +202,46 @@ function StatusSnapshot({ v }: { v: View }) {
 }
 
 function useSession() { return useState<string | null>(null); }
+
+/** Decision 389: "It's your turn". Two buttons, the link token only (it signs nothing). Confirm offers the Ready Check to the
+ *  installer Jo chose; "I'm no longer interested" closes the spot and nothing else is sent. */
+function TurnScreen({ token }: { token: string }) {
+  const load = useServerFn(ownerTurnStateFn);
+  const confirm = useServerFn(ownerConfirmTurnFn);
+  const decline = useServerFn(ownerDeclineTurnFn);
+  const qc = useQueryClient();
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-turn", token], queryFn: () => load({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const [view, setView] = useState<OwnerTurnView | null>(null);
+  const [busy, setBusy] = useState<"confirm" | "decline" | null>(null);
+  const [sure, setSure] = useState(false);
+  const [err, setErr] = useState("");
+  const v = view ?? st ?? null;
+  const act = async (which: "confirm" | "decline") => {
+    setErr(""); setBusy(which);
+    try { setView(await (which === "confirm" ? confirm : decline)({ data: { token } })); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(null); }
+  };
+  if (isLoading && !v) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (!v || v.kind === "closed") return <section data-testid="owner-turn" data-turn="closed" className={card}><p className="text-sm">{SPOT_RELEASE_PAGE.closed}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+  if (v.kind === "confirmed") return <section data-testid="owner-turn" data-turn="confirmed" className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{SPOT_RELEASE_PAGE.thanks(v.installer)}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+  if (v.kind === "declined") return <section data-testid="owner-turn" data-turn="declined" className={card}><p className="text-sm">{SPOT_RELEASE_PAGE.declined}</p></section>;
+  return (
+    <section data-testid="owner-turn" data-turn="ask" className={card}>
+      <h1 className="font-display text-2xl font-extrabold">{SPOT_RELEASE_PAGE.title}</h1>
+      <p className="text-sm">{SPOT_RELEASE_PAGE.lead}</p>
+      <InfoBox>
+        <p className="font-bold">{WHAT_HAPPENS_NEXT.title}</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">{WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+      </InfoBox>
+      <button type="button" className={signBtn} disabled={!!busy} onClick={() => void act("confirm")}>{busy === "confirm" ? SPOT_RELEASE_PAGE.confirming : SPOT_RELEASE_PAGE.confirm}</button>
+      {!sure
+        ? <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={!!busy} onClick={() => setSure(true)}>{SPOT_RELEASE_PAGE.decline}</button>
+        : <div className="rounded-[14px] border border-estimate-line p-4 text-sm"><p>We'll close your spot and won't contact you about it again.</p><button type="button" className="mt-3 flex h-11 w-full items-center justify-center rounded-full border border-estimate-navy font-bold" disabled={!!busy} onClick={() => void act("decline")}>{busy === "decline" ? "Closing…" : SPOT_RELEASE_PAGE.decline}</button></div>}
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    </section>
+  );
+}
 
 /** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
  *  set), 1–3 → a private "What could we have done better?" box (never Google). Link token only — it signs nothing. */

@@ -133,7 +133,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const fbIds = [...new Set(fb.map((e) => String(e["job_id"])))];
   // Decision 370: the consent's AP part signs itself; a row only once that has been held >24h (or the deadline is <24h away), with the reasons.
   const heldConsents = consents.filter((c) => f(String(c["job_id"])) && !["cancelled", "stale", "superseded"].includes(String(c["status"])) && consentApHoldAlert({ ownerSignedAt: s(c["owner_signed_at"]), scheduledStart: s(c["scheduled_start"]), now, reasons: ["pending"] }).alert);
-  const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows] = await Promise.all([
+  // Decision 389: release state for the "choose installer" jobs (pending → nothing for the office; lapsed → its one row).
+  const releaseIds = [...facts.values()].filter((x) => x.spotSaved).map((x) => x.jobId);
+  const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows, releases] = await Promise.all([
     rIds.length ? byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
     partA.length && partA.length <= 40
       ? import("./veec-ap-auto.server").then(({ apAutoHoldReasons }) => Promise.all(partA.map(async (v) => (f(String(v["job_id"])) ? await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]) : null))))
@@ -149,7 +151,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     finalIds.length ? byIds("final check flags", finalIds, (chunk, a, b) => admin.from("compliance_checks").select("job_id, status").in("job_id", chunk).eq("status", "fail").range(a, b)) : Promise.resolve([] as Row[]),
     askJobIds.length ? byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
     fbIds.length ? byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
+    releaseIds.length ? import("./spot-release.server").then((m) => m.spotReleaseStates(releaseIds)) : Promise.resolve(new Map()),
   ]);
+  {
+    const { officeItemWithRelease } = await import("./spot-release.core");
+    for (const id of releaseIds) {
+      const x = f(id); if (!x) continue;
+      const item = officeItemWithRelease({ code: "choose_installer" as const }, releases.get(id));
+      if (!item) delete x.spotSaved;
+      else if (item.code === "release_lapsed") { delete x.spotSaved; x.releaseLapsed = { at: item.at, name: item.name }; }
+    }
+  }
 
   for (const qd of rectDrafts) {
     const x = f(String(qd["job_id"])); if (!x) continue;
