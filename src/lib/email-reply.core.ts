@@ -473,6 +473,17 @@ export function assertDraftOnlyRequest(method: "POST" | "PATCH", path: string): 
   if (!ok) throw new Error(`Refused: ${method} ${p} is not a draft-only Outlook request.`);
 }
 
+/** Decision 386: the ONE non-draft Outlook write — move a single message to the well-known Archive folder after its
+ *  automatic owner reply was sent (behind OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED). Anything else is refused: no send, no
+ *  delete, no other folder, no other message operation. */
+export const ARCHIVE_FOLDER = "archive";
+export function assertArchiveMoveRequest(method: string, path: string, body: unknown): void {
+  const p = path.split("?")[0]!;
+  if (method !== "POST" || p !== path || !/^\/users\/[^/]+\/messages\/[^/]+\/move$/.test(p)) throw new Error(`Refused: ${method} ${path} is not a move-to-Archive Outlook request.`);
+  const b = body as { destinationId?: unknown } | null;
+  if (!b || Object.keys(b).length !== 1 || b.destinationId !== ARCHIVE_FOLDER) throw new Error("Refused: a message may only be moved to the Archive folder.");
+}
+
 /** Outlook categories put on the draft (visible to the office in Outlook, never in the message text). */
 export function draftCategories(d: Pick<ReplyDraft, "type" | "checkBeforeSending">): string[] {
   return ["Portal draft", `Portal: ${REPLY_TYPE_LABEL[d.type]}`, ...(d.checkBeforeSending ? [CHECK_BEFORE_SENDING] : [])];

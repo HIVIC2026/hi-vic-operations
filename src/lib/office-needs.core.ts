@@ -123,6 +123,8 @@ export const CHANGE_LINE = {
   reschedule: "Owner can't make the day",
   contact_change: "Owner asks to change contact details",
   attachment: "Owner sent a photo or document",
+  /** Decision 386: an owner email that was not answered automatically — reply from the Outlook draft, then Done. */
+  reply: "Owner emailed — reply needed (draft in Outlook)",
   other: "Owner asks for a change",
 } as const;
 
@@ -131,7 +133,7 @@ export type EmailRowInput =
   | { type: "unmatched"; eventId: string; guessJobId: string | null; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string };
 
 export function emailRow(e: EmailRowInput): NeedsRow {
-  if (e.type === "change") return { key: `email:${e.eventId}`, group: "today", kind: "email_change", eventId: e.eventId, ...(e.intent ? { intent: e.intent } : {}), jobId: e.jobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Apply", to: "act", act: "apply" }, secondary: { label: "Ignore", to: "act", act: "ignore" } };
+  if (e.type === "change") return { key: `email:${e.eventId}`, group: "today", kind: "email_change", eventId: e.eventId, ...(e.intent ? { intent: e.intent } : {}), jobId: e.jobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: e.intent === "reply" ? "Done" : "Apply", to: "act", act: "apply" }, secondary: { label: "Ignore", to: "act", act: "ignore" } };
   return { key: `email:${e.eventId}`, group: "today", kind: "email_unmatched", eventId: e.eventId, jobId: e.guessJobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Match", to: "act", act: "match" }, secondary: { label: "Not a customer", to: "act", act: "not_customer" } };
 }
 

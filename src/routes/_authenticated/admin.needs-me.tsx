@@ -43,7 +43,7 @@ function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => void }) {
         await apply({ data: { eventId: row.eventId! } });
         // A day change is never applied to a booking: the office rearranges it on the job's Install card.
         if (row.intent === "reschedule" && row.jobId) void navigate({ to: "/admin/jobs/$jobId", params: { jobId: row.jobId }, hash: "stage-install" });
-      }, row.intent === "cancel" ? "Job cancelled" : row.intent === "reschedule" ? "Noted — rearrange the day on the job" : "Applied")}>Apply</button>
+      }, row.intent === "cancel" ? "Job cancelled" : row.intent === "reschedule" ? "Noted — rearrange the day on the job" : row.intent === "reply" ? "Marked replied" : "Applied")}>{row.intent === "reply" ? "Done" : "Apply"}</button>
       <button type="button" disabled={busy} className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void run(() => ignore({ data: { eventId: row.eventId! } }), "Ignored")}>Ignore</button>
     </div>
   );
