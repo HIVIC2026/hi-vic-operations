@@ -39,7 +39,7 @@ describe("body validation", () => {
 
 const OK: BacklogJobFacts = {
   jobNumber: "HV-2000", source: "base44", stage: "lead", deletedAt: null, qaArchivedAt: null, eligibilityOutcome: "needs_onsite_confirmation",
-  spotSavedAt: null, campaignOptedOutAt: null, emailOptedOutAt: null, intakeMediaCount: 0, mediaReceivedAt: null, priorEmailBlocker: null,
+  spotSavedAt: null, campaignOptedOutAt: null, emailOptedOutAt: null, intakeMediaCount: 0, mediaReceivedAt: null, priorOfferCount: 0, priorQuestionsCount: 0,
 };
 const T = "2026-10-20T00:00:00Z";
 
@@ -57,13 +57,18 @@ describe("per-job refusal", () => {
     ["email opt-out", { emailOptedOutAt: T }, "opted out"],
     ["spot saved", { spotSavedAt: T }, "Spot already saved"],
     ["ineligible", { eligibilityOutcome: "does_not_appear_eligible" }, "Does not appear eligible"],
-    ["already emailed", { priorEmailBlocker: "An earlier email exists" }, "Already emailed"],
+    ["already offered a spot", { priorOfferCount: 1 }, "Already offered a spot"],
   ];
   for (const [name, patch, reason] of cases) {
     test(`${name} → refused for every kind`, () => {
       for (const kind of ["save_spot_none", "save_spot_existing", "questions"] as const) expect(backlogRefusal(kind, { ...OK, ...patch })).toContain(reason);
     });
   }
+  test("decision 393: an earlier photo request or questions email never blocks Save my spot; a second questions email is refused", () => {
+    expect(backlogRefusal("save_spot_existing", { ...OK, priorQuestionsCount: 1 })).toBeNull();
+    expect(backlogRefusal("questions", { ...OK, priorQuestionsCount: 1 })).toContain("Already got the 3-questions email");
+    expect(backlogRefusal("questions", OK)).toBeNull();
+  });
   test("Jo's legacy exclusions are refused", () => expect(backlogRefusal("questions", OK, "LEGACY_EXCLUDED")).toContain("Excluded by Jo"));
   test("photos sent → only the questions email is refused", () => {
     for (const patch of [{ intakeMediaCount: 2 }, { mediaReceivedAt: T }]) {

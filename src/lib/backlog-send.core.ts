@@ -42,8 +42,10 @@ export type BacklogJobFacts = {
   /** documents.kind = 'intake_media' rows for the job. */
   intakeMediaCount: number;
   mediaReceivedAt: string | null;
-  /** initialResponseHistoryBlocker: any earlier own-job email or uncertain attempt (null = none). */
-  priorEmailBlocker: string | null;
+  /** Sent or in-flight Save my spot offers (save_my_spot / existing_insulation_save_spot / likely_size / office_outlook_save_spot). */
+  priorOfferCount: number;
+  /** Sent or in-flight 3-questions invitations (insulation_details key). */
+  priorQuestionsCount: number;
 };
 
 /** null = may go to the existing sender (which still runs every guard of its own). */
@@ -57,7 +59,10 @@ export function backlogRefusal(kind: BacklogSendKind, f: BacklogJobFacts, legacy
   if (f.spotSavedAt) return "Spot already saved.";
   if (f.eligibilityOutcome === "does_not_appear_eligible") return "Does not appear eligible.";
   if (legacyExcluded) return `Excluded by Jo (${legacyExcluded}).`;
-  if (f.priorEmailBlocker) return `Already emailed: ${f.priorEmailBlocker}`;
+  // Jo's "send all 54" covers owners who only got a photo request or (wrongly) the questions email, so an earlier email
+  // alone never blocks; an earlier Save my spot offer always does, and nobody gets the same questions email twice.
+  if (f.priorOfferCount > 0) return "Already offered a spot.";
+  if (kind === "questions" && f.priorQuestionsCount > 0) return "Already got the 3-questions email.";
   if (kind === "questions" && (f.intakeMediaCount > 0 || f.mediaReceivedAt)) return "Owner already sent photos/video — no 3-questions email.";
   return null;
 }
