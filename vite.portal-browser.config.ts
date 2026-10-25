@@ -9,6 +9,7 @@ export default defineConfig({ root, plugins: [react(), tailwindcss()], resolve: 
   { find: "@tanstack/react-start", replacement: fileURLToPath(new URL("./tests/portal-browser-serverfn-stub.ts", import.meta.url)) },
   { find: "@/lib/mitti-forms.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
   { find: "@/lib/owner-gates.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
+  { find: "@/lib/office-settings.functions", replacement: fileURLToPath(new URL("./tests/templates-hub-stubs.ts", import.meta.url)) },
   { find: "@/lib/portal.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/admin-records.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-admin-records-stub.ts", import.meta.url)) },
   { find: "@/lib/pilot.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },

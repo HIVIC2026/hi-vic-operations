@@ -1,5 +1,5 @@
 // Owner "your quote is ready" email + text, and the quote reminder emails. PURE: no I/O.
-// Quote email design APPROVED by Jo 24 Oct 2026 (decision 86): docs/templates/approved/O18-quote-ready.html — "Hi {Name},
+// Quote email design APPROVED by Jo 24 Oct 2026 (decision 86): docs/templates/owner/O18-quote-ready.html — "Hi {Name},
 // your quote is ready." / "You save {rebate} on ceiling insulation"; price box (green rebate, big price, full price
 // crossed out, address, "Measured at your Ready Check"); View and accept; itemised "Your quote"; not included; one-line
 // Next; held-until line. Subject, SMS and every delivery guard are unchanged (OWNER_QUOTE_EMAIL_APPROVED, customer_comms_enabled).

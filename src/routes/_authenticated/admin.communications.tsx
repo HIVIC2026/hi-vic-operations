@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/admin/communications")({
   }),
   // The old communications page was a template draft editor. Drafts now live only in Templates.
   beforeLoad: ({ search }) => {
-    if (search.key) throw redirect({ to: "/admin/templates", search: { cat: "email" }, replace: true });
+    if (search.key) throw redirect({ to: "/admin/templates", search: { cat: "owner" }, replace: true });
   },
   head: () => ({ meta: [{ title: "Communications – Home Insulation Victoria" }, { name: "description", content: "What went out, what failed, what is held." }, { name: "robots", content: "noindex, nofollow" }] }),
   component: CommunicationsPage,

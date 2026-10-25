@@ -1,4 +1,4 @@
-// Presentation pieces for Jo's approved owner pages (24 Oct 2026, P1–P4 mock-ups in docs/templates/approved).
+// Presentation pieces for Jo's approved owner pages (24 Oct 2026, P1–P4 mock-ups in docs/templates/owner).
 // PURE PRESENTATION: no server reads, no workflow, price or access decisions — pages pass in facts they already have
 // and keep their own server functions, validation and guards. Phone-first (390px, 16px gutters, no horizontal scroll).
 import { useState, type ReactNode } from "react";

@@ -54,7 +54,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     expect(text).toContain("no card fee");
     expect(text).not.toMatch(/instalment|half|\{/i);
     // the draft file Jo approves holds exactly this wording
-    expect(readFileSync(new URL(`../docs/templates/drafts/owner-payment-terms-${PAYMENT_TERMS_VERSION}.md`, import.meta.url), "utf8")).toContain(PAYMENT_TERMS_BODY);
+    expect(readFileSync(new URL(`../docs/templates/owner/owner-payment-terms-${PAYMENT_TERMS_VERSION}.md`, import.meta.url), "utf8")).toContain(PAYMENT_TERMS_BODY);
     const v = answerVars({ payment_option: "pay_in_full", total: "$1.00", deposit: "$0.01" }, m);
     expect(v["total"]).toBe("$3,728.00"); expect(v["deposit"]).toBe("$337.90"); expect(v["payment_option"]).toBeUndefined();
   });

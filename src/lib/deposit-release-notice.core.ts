@@ -1,6 +1,6 @@
 // Decision 170 (Jo, 24 Oct 2026): when the 10% install deposit is not received within 48 hours and the provisional
 // install day is released (payments.server sweepProvisionalBookings, decision 139), the owner is told by text + email.
-// Approved wording lives here; design docs/templates/approved/O64-deposit-released.html. Pure: no I/O.
+// Approved wording lives here; design docs/templates/owner/O64-deposit-released.html. Pure: no I/O.
 // Delivery: TEST jobs → test-send; real owners → the guarded owner-email path and the one real SMS sender (type
 // `deposit_release`), both behind customer_comms_enabled. One notice per released booking (keys below).
 import * as K from "./email-kit.core";

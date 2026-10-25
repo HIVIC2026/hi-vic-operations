@@ -1,5 +1,5 @@
 // Wording for Jo's approved owner/installer PAGES (24 Oct 2026, decisions 125–130 and 137). PURE: labels and
-// formatting only. Source of truth: docs/templates/approved/P1…P5 HTML mock-ups — copied byte-for-byte (Jo rejects
+// formatting only. Source of truth: docs/templates/owner/P1…P4, P6 and docs/templates/installer/P5 HTML mock-ups — copied byte-for-byte (Jo rejects
 // paraphrases). Nothing here decides workflow, prices, eligibility or access: pages pass in facts they already have.
 
 /* ---------- Shared ---------- */

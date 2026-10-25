@@ -7,7 +7,7 @@
   "channel": "Email",
   "when": "Sent automatically when a website enquiry is eligible and the owner says there is no insulation.",
   "status": "Approved",
-  "design": "docs/templates/approved/O1-save-my-spot.html",
+  "design": "docs/templates/owner/O1-save-my-spot.html",
   "image": "O1.jpg",
   "built": true,
   "note": null
@@ -20,7 +20,7 @@
   "channel": "Email",
   "when": "Sent automatically when an eligible enquiry says there is some, thin or unknown insulation.",
   "status": "Approved",
-  "design": "docs/templates/approved/O2-save-my-spot-some-insulation.html",
+  "design": "docs/templates/owner/O2-save-my-spot-some-insulation.html",
   "image": "O2-some.jpg",
   "built": true,
   "note": null
@@ -33,7 +33,7 @@
   "channel": "Email",
   "when": "Office presses the one-off reminder for enquiries made before 23 Oct that haven't answered the 3 insulation questions.",
   "status": "Approved",
-  "design": "docs/templates/approved/O2-save-my-spot-questions.html",
+  "design": "docs/templates/owner/O2-save-my-spot-questions.html",
   "image": "O2-questions.jpg",
   "built": true,
   "note": "Office one-off send, once per home (decision 172)."
@@ -59,7 +59,7 @@
   "channel": "Email",
   "when": "Sent when an enquiry is found not eligible, or the office closes it as not eligible.",
   "status": "Approved",
-  "design": "docs/templates/approved/O6-not-eligible.html",
+  "design": "docs/templates/owner/O6-not-eligible.html",
   "image": "O6.jpg",
   "built": true,
   "note": null
@@ -72,7 +72,7 @@
   "channel": "Email",
   "when": "Office sends it when no checked installer and electrician cover the owner's area yet.",
   "status": "Approved",
-  "design": "docs/templates/approved/O7-not-in-area.html",
+  "design": "docs/templates/owner/O7-not-in-area.html",
   "image": "O7.jpg",
   "built": true,
   "note": "Office button on Coverage."
@@ -98,7 +98,7 @@
   "channel": "Email",
   "when": "Sent 2 days after the estimate email if the owner hasn't saved their spot or replied.",
   "status": "Approved",
-  "design": "docs/templates/approved/O66-estimate-reminder-day-2.html",
+  "design": "docs/templates/owner/O66-estimate-reminder-day-2.html",
   "image": "O66.jpg",
   "built": true,
   "note": null
@@ -111,7 +111,7 @@
   "channel": "Email",
   "when": "Sent 7 days after the estimate email if the owner still hasn't saved their spot or replied.",
   "status": "Approved",
-  "design": "docs/templates/approved/O67-estimate-reminder-day-7.html",
+  "design": "docs/templates/owner/O67-estimate-reminder-day-7.html",
   "image": "O67.jpg",
   "built": true,
   "note": null
@@ -124,7 +124,7 @@
   "channel": "Email",
   "when": "Sent 21 days after the estimate email; the enquiry closes itself a week later if nothing happens.",
   "status": "Approved",
-  "design": "docs/templates/approved/O68-estimate-closing-day-21.html",
+  "design": "docs/templates/owner/O68-estimate-closing-day-21.html",
   "image": "O68.jpg",
   "built": true,
   "note": null
@@ -137,7 +137,7 @@
   "channel": "Email",
   "when": "Sent once when the owner taps Save my spot.",
   "status": "Approved",
-  "design": "docs/templates/approved/O10-spot-saved.html",
+  "design": "docs/templates/owner/O10-spot-saved.html",
   "image": "O10.jpg",
   "built": true,
   "note": null
@@ -267,7 +267,7 @@
   "channel": "Email",
   "when": "Sent when the installer offers 3 Ready Check times on one of our leads.",
   "status": "Approved",
-  "design": "docs/templates/approved/O11-ready-check-times.html",
+  "design": "docs/templates/owner/O11-ready-check-times.html",
   "image": "O11.jpg",
   "built": true,
   "note": null
@@ -306,7 +306,7 @@
   "channel": "Email",
   "when": "Sent when a Ready Check time is booked or changed on one of our leads.",
   "status": "Approved",
-  "design": "docs/templates/approved/O12-ready-check-booked.html",
+  "design": "docs/templates/owner/O12-ready-check-booked.html",
   "image": "O12.jpg",
   "built": true,
   "note": null
@@ -449,7 +449,7 @@
   "channel": "Email",
   "when": "Sent when the office presses Send on a checked quote, or automatically when the Ready Check is complete and every check passes.",
   "status": "Approved",
-  "design": "docs/templates/approved/O18-quote-ready.html",
+  "design": "docs/templates/owner/O18-quote-ready.html",
   "image": "O18.jpg",
   "built": true,
   "note": null
@@ -501,7 +501,7 @@
   "channel": "Email",
   "when": "Meant for 3 days after the quote and 2 days before the price expires, if not answered.",
   "status": "Approved",
-  "design": "docs/templates/approved/O19-quote-reminder.html",
+  "design": "docs/templates/owner/O19-quote-reminder.html",
   "image": "O19.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -540,7 +540,7 @@
   "channel": "Email",
   "when": "Meant for when the owner accepts the quote and pays the safety check.",
   "status": "Approved",
-  "design": "docs/templates/approved/O22-youre-in.html",
+  "design": "docs/templates/owner/O22-youre-in.html",
   "image": "O22.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -553,7 +553,7 @@
   "channel": "Email",
   "when": "Sent when the owner accepts the quote.",
   "status": "Approved",
-  "design": "docs/templates/approved/I23-owner-accepted.html",
+  "design": "docs/templates/installer/I23-owner-accepted.html",
   "image": "I23.jpg",
   "built": true,
   "note": null
@@ -592,7 +592,7 @@
   "channel": "Email",
   "when": "Meant to go with the safety check offer.",
   "status": "Approved",
-  "design": "docs/templates/approved/electrician/E1-piesa-offer-email.html",
+  "design": "docs/templates/electrician/E1-piesa-offer-email.html",
   "image": "E1.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -618,7 +618,7 @@
   "channel": "Email",
   "when": "Meant for when the electrician offers safety check times.",
   "status": "Approved",
-  "design": "docs/templates/approved/O26-safety-check-times.html",
+  "design": "docs/templates/owner/O26-safety-check-times.html",
   "image": "O26.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends). The booked version mirrors O12 and has no design file of its own."
@@ -644,7 +644,7 @@
   "channel": "Email",
   "when": "Sent when the electrician completes the safety check in Mitti.",
   "status": "Approved",
-  "design": "docs/templates/drafts/O71-piesa-confirm.html",
+  "design": "docs/templates/owner/O71-piesa-confirm.html",
   "image": "O71.jpg",
   "built": true,
   "note": "Wording approved 25 Oct (decision 311); the design file is still in the drafts folder."
@@ -657,7 +657,7 @@
   "channel": "Email",
   "when": "Sent 1 and 3 days later if the owner hasn't confirmed.",
   "status": "Approved",
-  "design": "docs/templates/drafts/O71b-piesa-confirm-reminder.html",
+  "design": "docs/templates/owner/O71b-piesa-confirm-reminder.html",
   "image": "O71b.jpg",
   "built": true,
   "note": "Approved 25 Oct (decision 311); design file in drafts."
@@ -735,7 +735,7 @@
   "channel": "Email",
   "when": "Meant for when the office sends the electrical fixes quote.",
   "status": "Approved",
-  "design": "docs/templates/approved/O29-fixes-quote.html",
+  "design": "docs/templates/owner/O29-fixes-quote.html",
   "image": "O29.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -787,7 +787,7 @@
   "channel": "Email",
   "when": "Sent with the cleared-for-install text.",
   "status": "Approved",
-  "design": "docs/templates/approved/I65-install-clearance.html",
+  "design": "docs/templates/installer/I65-install-clearance.html",
   "image": "I65.jpg",
   "built": true,
   "note": null
@@ -800,7 +800,7 @@
   "channel": "Email",
   "when": "Meant for when the installer offers 3 install days.",
   "status": "Approved",
-  "design": "docs/templates/approved/O33-install-days.html",
+  "design": "docs/templates/owner/O33-install-days.html",
   "image": "O33.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -813,7 +813,7 @@
   "channel": "Email",
   "when": "Sent when an install day and time are agreed and the 10% deposit is still to pay (day held 48 hours).",
   "status": "Approved",
-  "design": "docs/templates/approved/O35b-install-booked-deposit-owed.html",
+  "design": "docs/templates/owner/O35b-install-booked-deposit-owed.html",
   "image": "O35b.jpg",
   "built": true,
   "note": null
@@ -826,7 +826,7 @@
   "channel": "Email",
   "when": "Sent once the deposit is received and the day is locked in.",
   "status": "Approved",
-  "design": "docs/templates/approved/O35-install-booked.html",
+  "design": "docs/templates/owner/O35-install-booked.html",
   "image": "O35.jpg",
   "built": true,
   "note": null
@@ -839,7 +839,7 @@
   "channel": "Email",
   "when": "Sent when the deposit hasn't arrived within 48 hours and the day is released.",
   "status": "Approved",
-  "design": "docs/templates/approved/O64-deposit-released.html",
+  "design": "docs/templates/owner/O64-deposit-released.html",
   "image": "O64.jpg",
   "built": true,
   "note": null
@@ -865,7 +865,7 @@
   "channel": "Email",
   "when": "Sent after the owner signs the ESC consent form and the office signs its part, with the signed copy.",
   "status": "Approved",
-  "design": "docs/templates/approved/O63-consent-copy.html",
+  "design": "docs/templates/owner/O63-consent-copy.html",
   "image": "O63.jpg",
   "built": true,
   "note": null
@@ -969,7 +969,7 @@
   "channel": "Email",
   "when": "Sent automatically once the safety check is done and the install day is booked, at least 24 hours before the install.",
   "status": "Approved",
-  "design": "docs/templates/approved/O28-piesa-copy.html",
+  "design": "docs/templates/owner/O28-piesa-copy.html",
   "image": "O28.jpg",
   "built": true,
   "note": "A 'repairs completed' version is used after fixes."
@@ -982,7 +982,7 @@
   "channel": "Email",
   "when": "Sent to the installer at the same time as the owner's copy.",
   "status": "Approved",
-  "design": "docs/templates/approved/O28-piesa-copy.html",
+  "design": "docs/templates/owner/O28-piesa-copy.html",
   "image": "O28.jpg",
   "built": true,
   "note": null
@@ -1034,7 +1034,7 @@
   "channel": "Email",
   "when": "Sent when the installer reports they couldn't get in on the install day.",
   "status": "Approved",
-  "design": "docs/templates/approved/O65-install-no-access.html",
+  "design": "docs/templates/owner/O65-install-no-access.html",
   "image": "O65.jpg",
   "built": true,
   "note": "The design file title still says DRAFT; approved by decision 217."
@@ -1073,7 +1073,7 @@
   "channel": "Email",
   "when": "Sent once when the install is recorded complete.",
   "status": "Approved",
-  "design": "docs/templates/approved/O44-install-complete.html",
+  "design": "docs/templates/owner/O44-install-complete.html",
   "image": "O44.jpg",
   "built": true,
   "note": null
@@ -1099,7 +1099,7 @@
   "channel": "Email",
   "when": "Sent 1, 3 and 7 days after the install if the rebate form isn't signed.",
   "status": "Approved",
-  "design": "docs/templates/approved/O61-veec-reminder.html",
+  "design": "docs/templates/owner/O61-veec-reminder.html",
   "image": "O61.jpg",
   "built": true,
   "note": null
@@ -1151,7 +1151,7 @@
   "channel": "Email",
   "when": "Sent when the owner signs the rebate form, with the signed copy attached.",
   "status": "Approved",
-  "design": "docs/templates/approved/O62-veec-copy.html",
+  "design": "docs/templates/owner/O62-veec-copy.html",
   "image": "O62.jpg",
   "built": true,
   "note": null
@@ -1164,7 +1164,7 @@
   "channel": "Email",
   "when": "Meant for install completion, with the balance due and a pay button.",
   "status": "Approved",
-  "design": "docs/templates/approved/O45-final-invoice.html",
+  "design": "docs/templates/invoices/O45-final-invoice.html",
   "image": "O45.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -1190,7 +1190,7 @@
   "channel": "Email",
   "when": "Sent once the install is complete and the invoice is paid in full, with the product warranty attached.",
   "status": "Approved",
-  "design": "docs/templates/approved/O47-completion-pack.html",
+  "design": "docs/templates/owner/O47-completion-pack.html",
   "image": "O47.jpg",
   "built": true,
   "note": null
@@ -1203,7 +1203,7 @@
   "channel": "Email",
   "when": "Meant for a week after the install.",
   "status": "Approved",
-  "design": "docs/templates/approved/O51-review.html",
+  "design": "docs/templates/owner/O51-review.html",
   "image": "O51.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -1255,7 +1255,7 @@
   "channel": "Email",
   "when": "Sent when the office cancels a job with Tell the owner ticked.",
   "status": "Approved",
-  "design": "docs/templates/approved/O69-job-cancelled.html",
+  "design": "docs/templates/owner/O69-job-cancelled.html",
   "image": "O69.jpg",
   "built": true,
   "note": null
@@ -1268,7 +1268,7 @@
   "channel": "Email",
   "when": "Sent when the office cancels a job with Tell the installer ticked.",
   "status": "Approved",
-  "design": "docs/templates/approved/I70-job-cancelled.html",
+  "design": "docs/templates/installer/I70-job-cancelled.html",
   "image": "I70.jpg",
   "built": true,
   "note": null
@@ -1294,7 +1294,7 @@
   "channel": "Email",
   "when": "Meant for when the owner declines the quote.",
   "status": "Approved",
-  "design": "docs/templates/approved/I24-owner-declined.html",
+  "design": "docs/templates/installer/I24-owner-declined.html",
   "image": "I24.jpg",
   "built": false,
   "note": "Approved design and sender exist, but nothing calls the sender yet. The installer sees 'declined' in the app."
@@ -1307,7 +1307,7 @@
   "channel": "Email",
   "when": "Meant for when an agreed install day moves.",
   "status": "Approved",
-  "design": "docs/templates/approved/O42-install-day-changed.html",
+  "design": "docs/templates/owner/O42-install-day-changed.html",
   "image": "O42.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -1437,7 +1437,7 @@
   "channel": "Email",
   "when": "Meant for when a business applies to join.",
   "status": "Approved",
-  "design": "docs/templates/approved/I53-application-received.html",
+  "design": "docs/templates/installer/I53-application-received.html",
   "image": "I53.jpg",
   "built": false,
   "note": "Approved design, but nothing in the code sends it automatically yet (only TEST or preview sends)."
@@ -1476,7 +1476,7 @@
   "channel": "Email",
   "when": "Office sends the login link when an installer business is approved.",
   "status": "Approved",
-  "design": "docs/templates/approved/I54-welcome.html",
+  "design": "docs/templates/installer/I54-welcome.html",
   "image": "I54.jpg",
   "built": true,
   "note": null
@@ -1489,7 +1489,7 @@
   "channel": "Email",
   "when": "Office sends the login link when an electrician business is approved.",
   "status": "Approved",
-  "design": "docs/templates/approved/electrician/E13-welcome-email.html",
+  "design": "docs/templates/electrician/E13-welcome-email.html",
   "image": "E13.jpg",
   "built": true,
   "note": "Same email as I54, electrician version."
@@ -1528,7 +1528,7 @@
   "channel": "Email",
   "when": "Sent with the privacy notice text, with reminders at 3 and 7 days.",
   "status": "Approved",
-  "design": "docs/templates/approved/I60-privacy-notice-link.html",
+  "design": "docs/templates/installer/I60-privacy-notice-link.html",
   "image": "I60.jpg",
   "built": true,
   "note": null
@@ -1541,7 +1541,7 @@
   "channel": "Email",
   "when": "Sent when the person ticks the notice.",
   "status": "Approved",
-  "design": "docs/templates/approved/I62-notice-copy.html",
+  "design": "docs/templates/installer/I62-notice-copy.html",
   "image": "I62.jpg",
   "built": true,
   "note": null

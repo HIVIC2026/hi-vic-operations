@@ -4,7 +4,7 @@
 // 30-day clock keeps running and the email states the end date. The office is alerted only on the SECOND no-access on
 // the same job (decision 214 alert path, `needs_office` on the trade_couldnt_get_in event).
 // DRAFT wording (not yet approved by Jo): text type `install_no_access` has wordingApproved=false, the email flag below
-// is false — TEST jobs still see both through test-send. Design draft: docs/templates/approved/O65-install-no-access.html.
+// is false — TEST jobs still see both through test-send. Design draft: docs/templates/owner/O65-install-no-access.html.
 import * as K from "./email-kit.core";
 import type { ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 

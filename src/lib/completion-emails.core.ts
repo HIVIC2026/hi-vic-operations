@@ -1,8 +1,8 @@
 // After-install owner emails (Jo 24 Oct 2026, decisions 101–105, 119–120, 132–133).
-//   O44 "All done!"            docs/templates/approved/O44-install-complete.html  (summary card, sign your rebate form, what you'll get)
-//   O45 Final invoice          docs/templates/approved/O45-final-invoice.html     (tax invoice lines, balance due today; decision 334: pay by bank transfer)
-//   O47 Completion pack        docs/templates/approved/O47-completion-pack.html   (downloads, who to contact, care tips)
-//   O51 Review request         docs/templates/approved/O51-review.html           (tap a star, Google review, refer a friend)
+//   O44 "All done!"            docs/templates/owner/O44-install-complete.html  (summary card, sign your rebate form, what you'll get)
+//   O45 Final invoice          docs/templates/invoices/O45-final-invoice.html     (tax invoice lines, balance due today; decision 334: pay by bank transfer)
+//   O47 Completion pack        docs/templates/owner/O47-completion-pack.html   (downloads, who to contact, care tips)
+//   O51 Review request         docs/templates/owner/O51-review.html           (tap a star, Google review, refer a friend)
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
 // through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 are approved too
 // (COMPLETION_EMAILS_APPROVED, decisions 133/103/105) and go through the same guarded sender. Pure.

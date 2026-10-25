@@ -1,7 +1,7 @@
 // Pure rules + emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
 // Both wordings APPROVED by Jo 8 Oct 2026 7:44am: real sends go to the partner's real address. Since 24 Oct 2026
 // (decision 137) they render in the approved kit shell. "We've got your application" (decision 136,
-// docs/templates/approved/I53-application-received.html) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
+// docs/templates/installer/I53-application-received.html) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
 import { partnerEmailLayout } from "./partner-email.core";
 import * as K from "./email-kit.core";
 

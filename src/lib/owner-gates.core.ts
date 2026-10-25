@@ -62,7 +62,7 @@ export const GATE_DOCS: GateDoc[] = [
   // the retired 50/50 instalment choice of "jo-2026-10-21" (signed copies keep their stored text as history). No option is
   // chosen. New wording = NEW version, so it stays unapproved (DRAFT: TEST jobs only) until Jo approves it in Settings ›
   // Owner paperwork (owner_paperwork_approvals row for this exact version + body). Draft copy:
-  // docs/templates/drafts/owner-payment-terms-steps-2026-10-25.md.
+  // docs/templates/owner/owner-payment-terms-steps-2026-10-25.md.
   { key: "payment_terms", gate: "B", title: "Payment", version: PAYMENT_TERMS_VERSION, signer: "owner", tick: "I agree",
     body: PAYMENT_TERMS_BODY },
   { key: "piesa_copy_receipt", gate: "C", title: "Your safety check copy", ...L, signer: "owner", tick: "I have received it",

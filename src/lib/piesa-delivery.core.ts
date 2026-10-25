@@ -1,7 +1,7 @@
 // Jo 24 Oct 2026 (decision 111): once the PIESA is signed and the install day is booked, the signed copy goes to the
 // owner and the installer automatically, so "Signed PIESA copy delivery" (readyToInstall) and PIISA Part 8(a) clear
 // without an office step. Pure rules + wording only. Persistence and sending: piesa-delivery.server.ts.
-// Design approved (decision 131): docs/templates/approved/O28-piesa-copy.html — "your electrical safety check: all clear"
+// Design approved (decision 131): docs/templates/owner/O28-piesa-copy.html — "your electrical safety check: all clear"
 // (or "repairs completed"), result card (date, electrician, repairs, install day), PDF button, "don't let anyone into the
 // ceiling before the install". PIESA_COPY_EMAIL_APPROVED is on (decision 131); real delivery still needs customer_comms_enabled.
 import { escDueBy } from "./esc.core";

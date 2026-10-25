@@ -18,7 +18,7 @@ import {
 import { subjectForTemplate } from "../src/lib/jo-email-templates.core";
 import { withUnsubscribe, REMOVE_ENQUIRY_TEXT_SLOT } from "../src/lib/emailsafety.core";
 import { PUBLIC_CALCULATOR_URL } from "../src/lib/estimate-email";
-import { TEMPLATE_ENTRIES, RETIRED_EMAIL_ENTRY_IDS } from "../src/lib/template-hub.core";
+import { TEMPLATE_ENTRIES } from "../src/lib/template-hub.core";
 import { CUSTOMER_COMMUNICATION_CATALOG } from "../src/lib/template-catalog";
 
 const FIG = { veuRebate: 1325, customerTotal: 3747, totalBeforeRebate: 5072, installation: 4023, piesaFee: 349, apFee: 700, ceilingAreaM2: 150, areaEstimated: true };
@@ -113,12 +113,11 @@ describe("Part B — one template source; superseded templates unreachable", () 
     expect(h).toMatch(/followup\) \{[\s\S]{0,900}c\.mediaReview === "below_r2" \|\| desk === "looks_eligible"[\s\S]{0,400}deskCheckStatus: "looks_eligible"/);
   });
 
-  test("Templates hub lists Jo's seven (T8 retired 24 Oct 2026) and none of the superseded entries", () => {
+  test("Templates page shows Jo's enquiry designs (O1, O2 ×2, O6) through renderJoOutcomeEmail and none of the superseded entries (decision 379)", () => {
     const ids = TEMPLATE_ENTRIES.map((e) => e.id);
-    for (const r of RETIRED_EMAIL_ENTRY_IDS) expect(ids).not.toContain(r);
-    expect(ids.filter((i) => i.startsWith("email:jo:"))).toHaveLength(7);
-    expect(ids).not.toContain("email:jo:ready_check_invitation");
-    expect(JSON.stringify(TEMPLATE_ENTRIES)).not.toContain("/admin/campaign-emails");
+    for (const r of ["email:likely_estimate", "email:save_my_spot", "email:save_my_spot_no_size", "email:onsite_estimate", "email:insulation_details", "email:ineligible_result", "email:jo:ready_check_invitation"]) expect(ids).not.toContain(r);
+    expect(TEMPLATE_ENTRIES.filter((e) => e.source.fn === "renderJoOutcomeEmail").map((e) => e.code)).toEqual(["O1", "O2", "O2", "O6"]);
+    expect(JSON.stringify(TEMPLATE_ENTRIES.map(({ render: _r, ...e }) => e))).not.toContain("/admin/campaign-emails");
   });
 
   test("superseded review drafts and their editor are gone (stored versions stay in the database as history)", () => {

@@ -165,7 +165,7 @@ describe("the O70 email (plain, kit design)", () => {
     expect(m.text).toContain("TEST — only sent to Jo.");
   });
   test("the approved sample file is exactly what the renderer writes (scripts/render-decision-292-sample.ts)", () => {
-    expect(renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" }).html).toBe(readFileSync("docs/templates/approved/O70-new-sender-calculator.html", "utf8"));
+    expect(renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" }).html).toBe(readFileSync("docs/templates/owner/O70-new-sender-calculator.html", "utf8"));
   });
 });
 

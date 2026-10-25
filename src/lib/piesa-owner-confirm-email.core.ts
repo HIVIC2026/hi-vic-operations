@@ -1,6 +1,6 @@
 // Decision 296: O71 "Confirm your electrical safety check" (request) and its days-1/3 reminder variant. PURE renderer on the
 // email kit; kept apart from piesa-owner-confirm.core.ts so the client screens that read the rules never bundle the kit.
-// DRAFT until Jo approves (docs/templates/drafts/O71-piesa-confirm.html, rendered by scripts/render-decision-296-drafts.ts).
+// DRAFT until Jo approves (docs/templates/owner/O71-piesa-confirm.html, rendered by scripts/render-decision-296-drafts.ts).
 import * as K from "./email-kit.core";
 import { CEILING_ENTRY_WARNING, OUTCOME_LABEL, type PiesaOutcomeKind } from "./piesa-owner-confirm.core";
 

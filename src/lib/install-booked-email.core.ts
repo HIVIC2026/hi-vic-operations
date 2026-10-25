@@ -1,5 +1,5 @@
 // Jo 24 Oct 2026 (decisions 43–46, 98, 132): once the install day and time are agreed, the owner gets "Your install is
-// booked". Design approved (decision 98): docs/templates/approved/O35-install-booked.html — "Consent signed and deposit
+// booked". Design approved (decision 98): docs/templates/owner/O35-install-booked.html — "Consent signed and deposit
 // received ✓"; day + arrival card with installer and phone (+ deposit/balance rows when known); "⚡ Your power will be
 // off"; "On the day" checklist (removal dust line only when removal is included); what happens + balance due; Change day.
 // INSTALL_BOOKED_EMAIL_APPROVED is on (decisions 98/151); real delivery still needs customer_comms_enabled. Pure.

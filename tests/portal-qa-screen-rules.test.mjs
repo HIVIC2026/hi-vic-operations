@@ -47,8 +47,8 @@ test('legacy operations screenshot checks the actual current Enquiries destinati
 test('legacy campaign screenshot checks the actual Templates email redirect and current read-only wording',()=>{
   const spec=screens.find(s=>s.step==='office-campaign-emails');
   assert.throws(()=>route('admin.campaign-emails').beforeLoad(),e=>e.redirect.to===spec.expectedPath&&e.redirect.search.cat===spec.expectedSearch.cat);
-  assert.equal(spec.expectedPath,'/admin/templates');assert.deepEqual(spec.expectedSearch,{cat:'email'});
-  assert.deepEqual(spec.mustSee,['Templates','Viewing here never sends, saves or connects anything.']);
+  assert.equal(spec.expectedPath,'/admin/templates');assert.deepEqual(spec.expectedSearch,{cat:'owner'});
+  assert.deepEqual(spec.mustSee,['Templates','Viewing never sends, saves or connects anything.']);
   for(const needle of spec.mustSee)assert.ok(read('src/components/portal/template-hub.tsx').includes(needle));
 });
 test('only the partner stored-name branding check is scoped; every other forbidden term remains global',()=>{

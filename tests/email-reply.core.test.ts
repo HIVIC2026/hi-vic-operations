@@ -40,7 +40,7 @@ describe("the sample drafts (shown to Jo)", () => {
     });
   }
   test("the approval document shows exactly what the drafter writes today", () => {
-    const doc = readFileSync("docs/templates/drafts/email-reply-samples.md", "utf8");
+    const doc = readFileSync("docs/templates/office/email-reply-samples.md", "utf8");
     for (const s of SAMPLES) expect(doc).toContain(draft(s.input).text);
   });
   test("sample facts appear verbatim; nothing is invented", () => {

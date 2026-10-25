@@ -367,13 +367,13 @@ All paths are under the repository root as extracted from `origin/installer-mitt
 - Your staff: `src/routes/_authenticated/partner.workers.tsx`, `src/components/portal/workers.tsx`, `src/components/portal/worker-invites.tsx`
 
 **Guide / Welcome / Notice**
-- `src/routes/_authenticated/field.guide.tsx` (approved copy: `docs/templates/approved/G55-installer-guide.html`)
+- `src/routes/_authenticated/field.guide.tsx` (approved copy: `docs/templates/installer/G55-installer-guide.html`)
 - `src/routes/_authenticated/field.welcome.tsx`, `src/routes/_authenticated/field.setup.tsx`
-- `src/routes/notice.$token.tsx` (approved: `docs/templates/approved/P5-installer-privacy-notice.html`)
+- `src/routes/notice.$token.tsx` (approved: `docs/templates/installer/P5-installer-privacy-notice.html`)
 
 **Installer texts and emails**
 - Offer text/email: `src/lib/ready-check-times.core.ts` (`readyCheckOfferText`), `src/lib/ready-check-offer-email.core.ts`
-- Accepted/declined: `src/lib/installer-accepted-email.core.ts`, `src/lib/installer-declined-email.server.ts` (approved: `docs/templates/approved/I23-owner-accepted.html`, `I24-owner-declined.html`)
+- Accepted/declined: `src/lib/installer-accepted-email.core.ts`, `src/lib/installer-declined-email.server.ts` (approved: `docs/templates/installer/I23-owner-accepted.html`, `I24-owner-declined.html`)
 - Welcome / application received: `src/lib/partner-email.core.ts`, `src/lib/application-review.core.ts` (`I54-welcome.html`, `I53-application-received.html`)
 - Privacy notice: `src/lib/esc-collection-notice.core.ts` (`I60-privacy-notice-link.html`, `I62-notice-copy.html`)
 - 30-day: `src/lib/thirty-day-rule.core.ts`

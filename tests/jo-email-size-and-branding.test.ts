@@ -243,13 +243,11 @@ describe("G. email safety is unchanged", () => {
     const t5 = render({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, figures: figures(150, true) });
     expect(t5.html).not.toContain("/campaign");
   });
-  test("the Templates preview uses template-specific sample data (210 known / 150 assumed)", () => {
-    const src = readFileSync("src/components/portal/template-hub.tsx", "utf8");
-    expect(src).toContain('const ceilingSizeKnown = templateId.endsWith("size_known")');
-    expect(src).toContain("ceilingAreaM2: ceilingSizeKnown ? 210 : 150");
-    expect(src).toContain("areaEstimated: !ceilingSizeKnown");
-    expect(src).toContain("Sample values only.");
-    expect(src).toContain("210 m² provided by the owner");
+  test("the Templates page previews Jo's emails through the same renderer + opt-out wrapping as a real send (decision 379)", () => {
+    const src = readFileSync("src/lib/template-hub.core.ts", "utf8");
+    expect(src).toContain("const m = renderJoOutcomeEmail(input);");
+    expect(src).toContain("const w = withUnsubscribe(m, UNSUB);");
+    expect(readFileSync("src/components/portal/template-hub.tsx", "utf8")).toContain("TEST sample data.");
   });
 });
 
