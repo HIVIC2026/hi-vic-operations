@@ -42,9 +42,6 @@ export const LEAN_Q = {
   rValue: "What is the determined R value of the existing ceiling insulation?",
   depthPhoto: "Upload a photo clearly showing the measured insulation depth",
   existingAction: "What is required for the existing insulation?",
-  /** Decision 375 (Jo 25 Oct 2026): official PIISA Part 6 "average height of the existing insulation" (mm), per area, asked
-   *  only when the area's existing insulation is Top up / Not sure (not when it is removed). Forms built before then lack it. */
-  existingDepthMm: "Average depth of the existing insulation (mm)",
   removeM2: "How much existing insulation needs to be removed? (m²)",
   // Decision 359 (Jo 25 Oct 2026): the official PIISA Part 6 facts, asked per area only when existing insulation is present
   // (added to live A1/A2 by docs/MITTI_READY_CHECK_PART6_PROMPT.md; forms built before then simply lack them).
@@ -98,9 +95,6 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   existing: ["Is there existing insulation?"],
   existingType: ["Insulation type (tick all that apply)"],
   depthPhoto: ["Photo with tape measure showing depth"],
-  /** Decision 375: the 22–25 Oct live forms still ask the old free-text depth (LEAN_REMOVE.depthMm, every area with existing
-   *  insulation, any action) — read as the same fact; a non-number there is simply not recorded. */
-  existingDepthMm: ["What is the measured insulation depth (mm)?"],
   existingAction: ["What needs to happen to it?"],
   removeM2: ["Area to remove (m2)"],
   beforeVideo: ["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
@@ -163,6 +157,8 @@ export const A1_QUOTE_QUESTIONS = [LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q
 export const LEAN_REMOVE = {
   sketchA1: "Upload your area sketch or floor plan.",
   sketchA2: "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+  /** Decision 375 (Jo 25 Oct 2026): KEPT on the live A1/A2 forms (asked per area whenever there is existing insulation,
+   *  removals included) and read as the existing insulation depth (EXISTING_DEPTH_Q). Only the lean rebuild drops it. */
   depthMm: "What is the measured insulation depth (mm)?",
   describeType: "Please describe the existing insulation type",
   pleaseExplain: "Please explain",
@@ -179,6 +175,8 @@ export const LEAN_REMOVE = {
   accessFee: "Difficult access fee ($ inc GST)",
 } as const;
 export const LEAN_REMOVE_COPIES = { a1: 22, a2: 21 } as const;
+/** Decision 375: the live per-area depth question the portal reads for official PIISA Part 6 "average height" (mm). */
+export const EXISTING_DEPTH_Q = LEAN_REMOVE.depthMm;
 
 // ---------- pure readers shared by the label readers ----------
 const t = (v: unknown) => String(v ?? "").trim();

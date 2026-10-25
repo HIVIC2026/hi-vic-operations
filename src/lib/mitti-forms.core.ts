@@ -32,7 +32,7 @@ import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
-import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, LEAN_REMOVE, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
+import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
@@ -145,8 +145,6 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.rValue, type: "choice", required: true, perArea: true, choices: [...R_VALUE_OPTIONS], when: WHEN_EXISTING, types: ["text"], source: `${G} eligibility – R2.0 exactly counts as "${R_AT_OR_ABOVE}" (STOP_R2); "${R_ABOVE_LEGACY}" on 22–24 Oct forms reads the same` },
   { label: LEAN_Q.depthPhoto, type: "media", required: false, perArea: true, when: WHEN_EXISTING, aliases: al("depthPhoto"), source: `${G} Table 4 – optional on the form; missing = install-day photo lock` },
   { label: LEAN_Q.existingAction, type: "choice", required: true, perArea: true, choices: [...EXISTING_ACTION_OPTIONS], when: WHEN_EXISTING, aliases: al("existingAction"), source: `${G} removal criteria; Not sure goes to office review` },
-  // Decision 375 (Jo 25 Oct 2026): official PIISA Part 6 average height of the existing insulation, per area, not asked when removed.
-  { label: LEAN_Q.existingDepthMm, type: "number", required: true, perArea: true, when: `${LEAN_Q.existingAction} = Top up or Not sure`, types: ["text"], addedByDecision: 375, source: "official PIISA Part 6 – average height of the existing insulation, mm (decision 375)" },
   { label: LEAN_Q.removeM2, type: "number", required: true, perArea: true, when: `${LEAN_Q.existingAction} = Remove`, types: ["text"], aliases: al("removeM2"), source: "portal – removal pricing (summed over areas)" },
   // Decision 359 (Jo 25 Oct 2026): official PIISA Part 6 facts per area (piisa-a3.core readyCheckPart6Answers).
   { label: LEAN_Q.existingSuitable, type: "yesno", required: true, perArea: true, choices: [...YES_NO], when: `${LEAN_Q.existingAction} = Top up`, addedByDecision: 359, source: "official PIISA Part 6 – suitable to lay new insulation over (decision 359)" },
@@ -366,7 +364,7 @@ export function mittiAiPrompt(key: FormKey): string {
     perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
     key === "ready_check_priced" ? `- Do NOT add a price, quote or electrician section (no "${LEAN_Q.included}", "${LEAN_Q.totalPrice}" or "${LEAN_Q.electrician}" questions): the business owner enters the price in the portal, not on the form (decision 278).` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add a diagram, sketch or floor plan question: the portal draws the upgrade area diagram from each area's "${LEAN_Q.areaName}", "${LEAN_Q.lengthM}" and "${LEAN_Q.widthM}" answers (decisions 211/222).` : "",
-    key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add an extras section, an "Assessor" question, an "are these details correct" pair, the old "${LEAN_REMOVE.depthMm}" question (the depth is "${LEAN_Q.existingDepthMm}", decision 375), any "describe"/"explain" text box or a "how many areas" question (decision 222 lean form).` : "",
+    key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add an extras section, an "Assessor" question, an "are these details correct" pair, a depth (mm) question, any "describe"/"explain" text box or a "how many areas" question (decision 222 lean form).` : "",
     rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
     key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",

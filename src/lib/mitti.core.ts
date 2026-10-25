@@ -4,7 +4,7 @@
 // completeAssessment remains the authoritative gate.
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
-import { isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
+import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -373,7 +373,7 @@ export type MittiArea = {
   suitable?: boolean | null; conductive?: boolean | null;
   /** Reference to this area's foil/conductive photo on the Ready Check audit (`mitti:{auditId}:item:{itemId}`), null when none. */
   conductiveEvidence?: string | null; keepReason?: string | null;
-  /** Decision 375: average depth of this area's existing insulation in mm (official PIISA Part 6 height); null = not recorded. */
+  /** Decision 375: this area's existing insulation depth in mm (official PIISA Part 6 height); null = not recorded. */
   depthMm?: number | null;
   product: string | null; scope: string | null; sources: Record<string, never>;
 };
@@ -459,14 +459,10 @@ export function parseAudit(audit: Any) {
     const condPhoto = present === true ? find(kids, [LEAN_Q.existingConductivePhoto], { withValue: true }) : undefined;
     const conductiveEvidence = condPhoto ? `mitti:${auditId}:item:${condPhoto.id}` : null;
     const keepReason = present === true ? val(kids, [LEAN_Q.existingKeepReason])?.trim().slice(0, 2000) || null : null;
-    // Decision 375: average depth of the existing insulation (mm) → official PIISA Part 6 height. The Number question is
-    // checked like any measure; the old live free-text depth (LEAN_ALIASES) is read only when it is a clean number.
-    let depthMm: number | null = null;
-    if (present === true) {
-      const d = physical(val(kids, [LEAN_Q.existingDepthMm]), LEAN_Q.existingDepthMm);
-      if (d.issue) issues.push(d.issue);
-      depthMm = d.value ?? (() => { const x = num(val(kids, [...(LEAN_ALIASES.existingDepthMm ?? [])])); return x != null && x >= 0 ? x : null; })();
-    }
+    // Decision 375: the live free-text depth question (kept by Jo, asked whenever there is insulation) → official PIISA
+    // Part 6 height. Only a clean number counts; anything else stays not recorded (listed missing for Part 6).
+    const depthRaw = present === true ? num(val(kids, [EXISTING_DEPTH_Q])) : null;
+    const depthMm = depthRaw != null && depthRaw >= 0 ? depthRaw : null;
     return { parent: p, suitable, depthMm, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
   for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo was added${r.hazardNote ? ` (installer note: ${r.hazardNote})` : ""} – office review required.`);
