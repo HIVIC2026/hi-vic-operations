@@ -45,6 +45,11 @@ export const RECTIFICATION_OUTCOMES = [
 const LIFE_SUPPORT_RECORD = "Office life support record";
 const LIFE_SUPPORT_CONFIRM = "Is the life support record shown above still correct?";
 const LIFE_SUPPORT_WHEN = "Life support confirmed Yes";
+/** Decision 294 (Jo 25 Oct 2026): the PIESA asks the fact directly; consent only when life support is present. */
+export const LIFE_SUPPORT_PRESENT = "Is there life support equipment at the property?";
+export const LIFE_SUPPORT_NOT_RECEIVED = "No – not received";
+const LIFE_SUPPORT_PRESENT_WHEN = "Life support = Yes";
+const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
 
 /** Short PIESA (electrician). Life support is confirmed against the enquiry record, never re-asked from scratch. */
 /** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
@@ -54,9 +59,9 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("address", "Address including postcode"),
   { id: "inspectionDate", label: "Date of inspection", type: "date", required: true, source: "short onsite form" },
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
-  yn("lifeSupportConfirm", LIFE_SUPPORT_CONFIRM),
-  { id: "lifeSupportConsent", label: "Have you received written consent or a medical plan? Please attach a photo of it.", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan"], when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
-  { id: "lifeSupportAttachment", label: "Written consent or medical plan (kept as an attachment to this assessment)", type: "media", required: true, when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
+  yn("lifeSupportPresent", LIFE_SUPPORT_PRESENT),
+  { id: "lifeSupportConsent", label: "Have you received written consent or a medical plan? Please attach a photo of it.", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan", LIFE_SUPPORT_NOT_RECEIVED], when: LIFE_SUPPORT_PRESENT_WHEN, source: "short onsite form" },
+  { id: "lifeSupportAttachment", label: "Written consent or medical plan (kept as an attachment to this assessment)", type: "media", required: true, when: LIFE_SUPPORT_CONSENT_WHEN, source: "short onsite form" },
   yn("mainsSafe", "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested."),
   { id: "mainsProblems", label: "Please tick each item that is not right.", type: "multichoice", required: true, choices: [...MAINS_PROBLEMS], when: "mainsSafe = No", source: "short onsite form" },
   yn("solarPresent", "Is there solar, a battery or a generator at the property?"),

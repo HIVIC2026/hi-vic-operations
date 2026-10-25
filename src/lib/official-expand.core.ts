@@ -61,8 +61,21 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
   const flagged: string[] = [];
   copy(out, short, ["jobRef", "address", "inspectionDate", "b3.licence", "b3.name", "b3.recName", "b3.recNo", "b3.phone", "c.licence", "c.name", "c.recName", "c.recNo", "c.phone", "o.name", "o.date"]);
 
-  // Life support: the enquiry record, confirmed onsite. A disputed record is flagged, never guessed.
-  if (isYes(short["lifeSupportConfirm"])) {
+  // Life support (decision 294): the electrician answers the fact directly ("Is there life support equipment at the
+  // property?"); consent/medical plan only when Yes, and "No – not received" is a stop. Older forms carried
+  // "Is the life support record shown above still correct?" against the enquiry record — still read, never guessed.
+  if (isYes(short["lifeSupportPresent"]) || isNo(short["lifeSupportPresent"])) {
+    const present = isYes(short["lifeSupportPresent"]);
+    out["lifeSupport"] = present ? "Yes" : "No";
+    if (present) {
+      const consent = txt(short["lifeSupportConsent"]);
+      if (!consent) flagged.push("Life support: consent or medical plan answer missing.");
+      else if (/^no\b/i.test(consent)) flagged.push("Life support: consent or medical plan NOT received — STOP, the office must resolve it before anything else happens on this job.");
+      else out["lifeSupportConsent"] = consent;
+      if (txt(short["lifeSupportAttachment"])) out["lifeSupportAttachment"] = txt(short["lifeSupportAttachment"]);
+      else if (consent && !/^no\b/i.test(consent)) flagged.push("Life support: consent or medical plan attachment missing.");
+    }
+  } else if (isYes(short["lifeSupportConfirm"])) {
     if (ctx.lifeSupportDeclared === "yes" || ctx.lifeSupportDeclared === "no") {
       out["lifeSupport"] = ctx.lifeSupportDeclared === "yes" ? "Yes" : "No";
       if (ctx.lifeSupportDeclared === "yes") {

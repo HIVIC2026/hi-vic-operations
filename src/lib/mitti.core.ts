@@ -229,7 +229,7 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   // Decision 222: lean forms ask "Who lives at the property?" as a tap choice; the office occupancy record prefills it.
   { key: "occupancy", aliases: ["Occupancy", LEAN_Q.premisesType] },
-  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?", "Office life support record", "Is there life support equipment at the property?"] },
   { key: "propertyType", aliases: ["Property type"] },
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },

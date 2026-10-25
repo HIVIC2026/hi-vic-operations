@@ -28,7 +28,7 @@ describe("short onsite form", () => {
     }
   });
   test("the safety questions are clear full sentences, not shorthand", () => {
-    const ids = ["mainsSafe", "ceilingSafe", "lifeSupportConfirm", "swmsComplete", "piesaReviewed"];
+    const ids = ["mainsSafe", "ceilingSafe", "lifeSupportPresent", "swmsComplete", "piesaReviewed"];
     for (const f of [...SHORT_PIESA_FIELDS, ...SHORT_PIISA_FIELDS]) {
       if (!ids.includes(f.id!)) continue;
       expect(f.label.endsWith("?") || f.label.endsWith(".")).toBe(true);
@@ -79,12 +79,25 @@ describe("expansion to official answers", () => {
     for (const v of Object.values(answers)) expect(v ?? "").not.toBe("No");
     expect(flagged.length).toBeGreaterThan(0);
   });
-  test("life support comes from the enquiry record, confirmed onsite — never re-asked or guessed", () => {
-    const ok = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportConfirm: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
-    expect(ok.answers.lifeSupport).toBe("No");
-    const disputed = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportConfirm: "No" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
-    expect(disputed.answers.lifeSupport ?? null).toBeNull();
-    expect(disputed.flagged.some((f) => /office must resolve/i.test(f))).toBe(true);
+  test("decision 294: the electrician answers life support directly; consent only when present; 'No – not received' is a stop", () => {
+    const ctx = { lifeSupportDeclared: "no" as const, today: "2026-10-03" };
+    const none = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportPresent: "No" })), ctx);
+    expect(none.answers.lifeSupport).toBe("No");
+    expect(none.flagged.some((f) => /life support/i.test(f))).toBe(false);
+    const withPlan = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportPresent: "Yes", lifeSupportConsent: "Yes – received Medical Plan", lifeSupportAttachment: "media_1" })), ctx);
+    expect(withPlan.answers.lifeSupport).toBe("Yes");
+    expect(withPlan.answers.lifeSupportConsent).toBe("Yes – received Medical Plan");
+    expect(withPlan.flagged.some((f) => /life support/i.test(f))).toBe(false);
+    const notReceived = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportPresent: "Yes", lifeSupportConsent: "No – not received" })), ctx);
+    expect(notReceived.answers.lifeSupport).toBe("Yes");
+    expect(notReceived.answers.lifeSupportConsent ?? null).toBeNull();
+    expect(notReceived.flagged.some((f) => /NOT received — STOP/.test(f))).toBe(true);
+    // Older forms: "Is the life support record shown above still correct?" against the enquiry record is still read.
+    const legacyOk = expandPiesa({ lifeSupportConfirm: "Yes" }, ctx);
+    expect(legacyOk.answers.lifeSupport).toBe("No");
+    const legacyDisputed = expandPiesa({ lifeSupportConfirm: "No" }, ctx);
+    expect(legacyDisputed.answers.lifeSupport ?? null).toBeNull();
+    expect(legacyDisputed.flagged.some((f) => /office must resolve/i.test(f))).toBe(true);
   });
   test("legal declarations are only set when the signer actually ticked them; signatures never", () => {
     const { answers, flagged } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", {})), { lifeSupportDeclared: "no", today: "2026-10-03" });
@@ -150,7 +163,7 @@ describe("official Word form filling", () => {
   test("a full short-form PIESA round trip fills the official document and passes evaluation", () => {
     const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", {
       jobRef: "HV-1003", address: "1 Test St, Melbourne VIC 3000", inspectionDate: "2026-10-03",
-      lifeSupportConfirm: "Yes", mainsSafe: "Yes", solarPresent: "No", ceilingSafe: "Yes",
+      lifeSupportPresent: "No", mainsSafe: "Yes", solarPresent: "No", ceilingSafe: "Yes",
       downlightsPresent: "No", appliancesPresent: "No", rectificationOutcome: "No repair work is needed",
       "b3.declaration": "Yes", ownerConfirm: "Yes",
       "b3.licence": "A12345", "b3.name": "Sam Spark", "b3.recName": "Sparky Pty Ltd", "b3.recNo": "REC12345", "b3.phone": "0400000000",

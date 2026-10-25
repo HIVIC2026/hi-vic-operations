@@ -120,7 +120,7 @@ function fixtureAudit(o: { completed: boolean; switchboard?: unknown[]; onsite?:
     audit_id: "aud-178", template_id: "template_0123456789abcdef0123456789abcdef", completed: o.completed, modified_at: "2026-10-24T03:00:00Z",
     header_items: [T("h1", "Job Reference ID", "HV-9999"), T("h2", "Address including postcode", "1 Test St, Testville VIC 3000")],
     items: [
-      Q("q5", "Is the life support record shown above still correct?", "Yes"),
+      Q("q5", "Is there life support equipment at the property?", "No"),
       Q("q8", "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.", o.mainsSafe ?? "Yes"),
       ...(o.mainsSafe === "No" ? [Q("q9", "Please tick each item that is not right.", MAINS_PROBLEMS[0])] : []),
       Q("q10", "Is there solar, a battery or a generator at the property?", "No"),

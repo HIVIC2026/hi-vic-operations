@@ -30,9 +30,9 @@ For whoever builds the electrician's **PIESA** form in Mitti. It's generated fro
 | 2 | Address including postcode | Text answer | Required · **portal fills this in** |
 | 3 | Date of inspection | Date | Required |
 | 4 | Office life support record | Text answer | Required · **portal fills this in** |
-| 5 | Is the life support record shown above still correct? | Yes / No: Yes / No | Required |
-| 6 | Have you received written consent or a medical plan? Please attach a photo of it. | Multiple choice (pick one): Yes – received Consent / Yes – received Medical Plan | Required · only show when: Life support confirmed Yes |
-| 7 | Written consent or medical plan (kept as an attachment to this assessment) | Photo / attachment | Required · only show when: Life support confirmed Yes |
+| 5 | Is there life support equipment at the property? | Yes / No: Yes / No | Required · **portal fills this in** from the office record (decision 294) |
+| 6 | Have you received written consent or a medical plan? Please attach a photo of it. | Multiple choice (pick one): Yes – received Consent / Yes – received Medical Plan / No – not received | Required · only show when: Life support confirmed Yes |
+| 7 | Written consent or medical plan (kept as an attachment to this assessment) | Photo / attachment | Required · only show when: a Yes consent/medical plan answer |
 | 8 | Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested. | Yes / No: Yes / No | Required |
 | 9 | Please tick each item that is not right. | Multiple choice (tick all): The mains cable in the ceiling has not been identified and marked. / The main switch is not accessible or does not work. / The main switch cannot isolate all of the cables in the ceiling space safely. / The main switch cannot be secured in the off position. / Testing has not confirmed that the ceiling is dead when the main switch is off. / Safety switches (RCDs) are missing for the circuits in the ceiling area. / The safety switches (RCDs) have not been tested. | Required · only show when: mainsSafe = No |
 | 10 | Is there solar, a battery or a generator at the property? | Yes / No: Yes / No | Required |
