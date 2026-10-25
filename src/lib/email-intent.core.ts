@@ -165,3 +165,12 @@ export function openChangeRequests<T extends { id: string }>(requests: T[], reso
   const done = new Set(resolutions.map((r) => r.request_event_id).filter(Boolean));
   return requests.filter((r) => !done.has(r.id));
 }
+
+/** Decision 337 (Jo 25 Oct 2026, replaces 245 for these): is the Apply/Ignore office row still raised for this change?
+ *  A date/time change or cancel that got the automatic My job reply raises no row — except a cancel the owner can't do
+ *  themselves (`keepOfficeRow`). No reply sent (held, not the owner, no visit to change …) = the row as before. */
+export function officeRowNeeded(intent: string, outcome: { sent: boolean; keepOfficeRow: boolean } | null): boolean {
+  if (intent !== "reschedule" && intent !== "cancel") return true;
+  if (!outcome || !outcome.sent) return true;
+  return outcome.keepOfficeRow;
+}

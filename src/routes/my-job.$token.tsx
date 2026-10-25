@@ -16,7 +16,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
@@ -268,7 +268,9 @@ function BookPickers({ token }: { token: string }) {
   const takeDay = useServerFn(ownerTakeInstallDayFn);
   const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
   const changeDay = useServerFn(ownerChangeInstallDayFn);
+  const changePiesa = useServerFn(ownerChangePiesaFn);
   const [changing, setChanging] = useState(false);
+  const [changingPiesa, setChangingPiesa] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession();
   const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
@@ -278,11 +280,21 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (!data) return null;
   const installMove = data.install.turn === "owner_to_answer";
-  const any = data.piesa.canPick || installMove || changing;
+  const piesaBooked = data.piesa.booked as { startsAt: string; canChange: boolean; late: boolean } | null;
+  const any = data.piesa.canPick || installMove || changing || changingPiesa;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   return <>
-    {!any && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {/* Decision 337: a booked safety check can be changed here; the electrician is told and new times go out as a new offer. */}
+    {piesaBooked && <section data-testid="piesa-booked" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
+      <p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) is booked for {visitPill(piesaBooked.startsAt)}.</p>
+      {piesaBooked.canChange && (!changingPiesa ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChangingPiesa(true)}>Change time</button> : session ? <>
+        <p className="mt-3">This cancels the booked time and your electrician is told straight away. You then pick new times{piesaBooked.late ? ". It's less than 24 hours away, so this uses your one free change" : ""}.</p>
+        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changePiesa({ data: { token, session } }); setChangingPiesa(false); })}>Yes, change the time</button>
+        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChangingPiesa(false)}>Keep it</button>
+      </> : null)}
+    </section>}
+    {!any && !piesaBooked && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
@@ -514,6 +526,8 @@ function BookScreen({ v, token }: { v: View; token: string }) {
     <FixesNote />
     <BookPickers token={token} />
     <PayNowCard v={v} token={token} />
+    {/* Decision 337: the change-day email says "you can cancel on the same page" — while the owner may cancel, it is here too. */}
+    {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
 

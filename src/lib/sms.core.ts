@@ -73,6 +73,10 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 331 (Jo 25 Oct 2026, route approved): an approved trade the portal has just created a Mitti user for gets ONE
   // text to look for Mitti's email and download the app. Wording: MITTI_INVITE_MESSAGE (mitti-invite.core.ts).
   mitti_invite: { audience: "partner", label: "Invited to Mitti – check Mitti's email, set a password, get the app (decision 331)", wordingApproved: true, quietHours: true },
+  // Decision 337 (Jo 25 Oct 2026, route approved): the owner changed a booked Ready Check / safety check / install day on
+  // My job → the booked trade is told once (installer: offer new times/days; electrician: booking cancelled, don't go).
+  // Wording: ownerChangedVisitText (installer-texts.core.ts). Real sends still need the per-type switch.
+  owner_changed_visit: { audience: "partner", label: "Owner changed the booked visit on My job – trade told (decision 337)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -134,6 +138,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   install_moved: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the new install booking after a changed day; also needs it still booked
   piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
   mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
+  owner_changed_visit: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's change on My job (recorded once per change before any send; installer-texts.server)
 };
 
 export type SmsEventInput = {

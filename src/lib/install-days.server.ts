@@ -198,6 +198,13 @@ export async function changeInstallDay(jobId: string, userId: string, who: "inst
   const dayLabel = c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day";
   await logEvent(jobId, userId, "install_day_changed", opts.couldntGetIn ? `Installer couldn't get in on the booked install day (${opts.couldntGetIn}) – offers new days` : who === "electrician" ? `Electrician can't make the booked install day (${dayLabel}; ${opts.electricianCantAttend}) – installer offers new days` : `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${dayLabel})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt, who, ...(opts.couldntGetIn ? { couldnt_get_in: opts.couldntGetIn } : {}), ...(who === "electrician" ? { electrician_cant_attend: opts.electricianCantAttend } : {}) }, { internal: true });
   await admin.from("jobs").update({ next_action: opts.couldntGetIn ? `Needs me: installer couldn't get in on the install day (${opts.couldntGetIn}). Installer offers 3 new days.` : who === "electrician" ? "Waiting for the installer to offer new install days the electrician can do" : "Waiting for the installer to offer new install days" }).eq("id", jobId);
+  // Decision 337: an owner change tells the installer straight away (once per change; best-effort, never undoes the change).
+  if (who === "owner") {
+    try {
+      const { data: ev } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "install_day_changed").contains("details", { who: "owner" }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (ev) await (await import("./installer-texts.server")).textTradeOwnerChangedVisit({ jobId, kind: "installation", triggerEventId: ev.id, changedAt: ev.created_at, wasIso: c.bookedAt ?? null });
+    } catch (e) { console.error("owner changed install day installer text skipped", (e as Error).message); }
+  }
   return { ok: true };
 }
 
