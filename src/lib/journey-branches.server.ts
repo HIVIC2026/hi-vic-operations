@@ -217,9 +217,7 @@ async function archived(jobId: string | null) {
 // Branch 2 — safety check (PIESA) needs fixes
 // =====================================================================================================================
 async function defaultReadyCheck(ctx: JourneyCtx, r: StepResult) {
-  // Default step 4 exactly (eligible Ready Check + quote maths).
-  const { journeyStep4 } = await import("./journey.server");
-  await journeyStep4(ctx, r);
+  await J.s4(ctx, r); // default step 4 exactly (eligible Ready Check + quote maths)
 }
 
 const FIXES_PRICE = 880;

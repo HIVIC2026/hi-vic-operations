@@ -748,4 +748,4 @@ export async function latestJourneyRun() {
 }
 
 /** Internals shared with the opt-in hard-case branches (journey-branches.server.ts). The default run does not use this. */
-export const journeyInternals = { s1, s2, s3, s5, assertOwnTestJob, uploadEvidence, melbourneDate, payStep, act, stageOf, TINY_JPEG, TEST_DOMAIN };
+export const journeyInternals = { s1, s2, s3, s4, s5, assertOwnTestJob, uploadEvidence, melbourneDate, payStep, act, stageOf, TINY_JPEG, TEST_DOMAIN };
