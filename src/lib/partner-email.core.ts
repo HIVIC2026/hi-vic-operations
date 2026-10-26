@@ -45,15 +45,16 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
   const benefits = i.trade === "installer"
     ? ["<strong>Jobs sent to you</strong>, plus add your own customers", "<strong>Your price, never marked up.</strong> We only add our $349 AP fee", "<strong>Quotes, electrician, compliance and rebate paperwork</strong> handled by us"]
     : ["<strong>PIESAs sent to you</strong> near where you work", "<strong>Your agreed rate, paid 7 days after approval</strong>", "<strong>Bookings, compliance and rebate paperwork</strong> handled by us"];
-  const guide = { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL, label: "Read the guide", marginTop: 18 };
+  // Electricians get no guide box (their E13 design has none; the guide page is installer-only).
+  const guide = i.trade === "installer" || i.guideUrl ? { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL, label: "Read the guide", marginTop: 18 } : null;
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
-  const body = [K.h1(headline, 8), K.p(intro, "0 0 14px"), K.checkList(benefits, 15, "9px"), K.button(i.link, "Set your password", "14px 0 4px"), K.small(signIn, "10px 0 0", { center: true }), K.linkCard(guide),
+  const body = [K.h1(headline, 8), K.p(intro, "0 0 14px"), K.checkList(benefits, 15, "9px"), K.button(i.link, "Set your password", "14px 0 4px"), K.small(signIn, "10px 0 0", { center: true }), ...(guide ? [K.linkCard(guide)] : []),
     // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, appended after the approved I54 content.
     K.mistBox(NO_FORM_NO_PAY.headline, K.p(NO_FORM_NO_PAY.body, "0"), { marginTop: 14 }), K.small("Questions? Just reply to this email.")].join("\n");
   const html = K.emailShell({ body, previewText: `${i.businessName} is now an approved Home Insulation Victoria partner.`, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([
     `Hi ${first ?? "there"},`, "", headline, "", intro, ...benefits.map((b) => `✓ ${K.stripTags(b)}`), "",
-    `Set your password: ${i.link}`, signIn, "", `${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, "", `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.", "", "Welcome aboard,", "Jo", "Home Insulation Victoria",
+    `Set your password: ${i.link}`, signIn, "", ...(guide ? [`${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, ""] : []), `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.", "", "Welcome aboard,", "Jo", "Home Insulation Victoria",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }
