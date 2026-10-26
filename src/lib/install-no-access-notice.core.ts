@@ -4,8 +4,9 @@
 // 30-day clock keeps running and the email states the end date. The office is alerted only on the SECOND no-access on
 // the same job (decision 214 alert path, `needs_office` on the trade_couldnt_get_in event).
 // DRAFT wording (not yet approved by Jo): text type `install_no_access` has wordingApproved=false, the email flag below
-// is false — TEST jobs still see both through test-send. Design draft: docs/templates/owner/O65-install-no-access.html.
+// is false — TEST jobs still see both through test-send. Design: docs/templates/mjml/owner_O65.mjml.
 import * as K from "./email-kit.core";
+import { mjEmail, esc } from "./mail-mjml.core";
 import type { ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 
 /** Flip to true only when Jo approves the O65 wording (and the SMS type in sms.core at the same time). */
@@ -44,32 +45,40 @@ export function installNoAccessText(f: Pick<InstallNoAccessFacts, "firstName" | 
   return `Hi ${first}, we couldn't get in today for your insulation install. You're not charged anything. ${days}: ${f.link} Reply STOP to opt out.`;
 }
 
-/** DRAFT owner email O65. */
+const dayRow = (d: { day: string; time: string; href: string }, first: boolean) => {
+  const border = first ? "" : "border-top:1px solid #E4E9F5;";
+  return `<tr><td style="padding:12px 0;${border}"><a href="${esc(d.href)}" style="color:#22376B;text-decoration:none;"><strong>${esc(d.day)}</strong>${d.time ? `<br /><span class="muted">${esc(d.time)}</span>` : ""}</a></td><td align="right" style="padding:12px 0;${border}"><a href="${esc(d.href)}" style="color:#3C51C4;font-weight:700;text-decoration:none;white-space:nowrap;">Pick &#8250;</a></td></tr>`;
+};
+
+/** Owner email O65 (design docs/templates/mjml/owner_O65.mjml). */
 export function renderInstallNoAccessEmail(f: InstallNoAccessFacts): { subject: string; html: string; text: string } {
   const first = K.cleanName(f.firstName) ?? "there";
   const installer = f.installerName?.trim() || "Your installer";
   const subject = `${first}, we couldn't get in today`;
   const headline = subject;
-  const intro = `${installer} came for your install on ${f.day} but couldn't get in to do the work. No problem — nothing is charged for today, and your quote, rebate and deposit all stay exactly as they are.`;
-  const daysTitle = f.newDays.length ? "Pick a new install day" : "What happens next";
-  const daysBody = f.newDays.length
+  const intro1 = `${installer} came for your install on ${f.day} but couldn't get in to do the work.`;
+  const intro2 = "No problem. Nothing is charged for today, and your quote, rebate and deposit all stay exactly as they are.";
+  const preview = "Nothing is charged for today. Your quote, rebate and deposit stay as they are.";
+  const days = f.newDays.map((d) => ({ day: d.day, time: d.time, href: d.href || f.link }));
+  const daysTitle = days.length ? "Pick a new install day" : "What happens next";
+  const daysBody = days.length
     ? `${installer} has offered these days. Tap the one that suits you.`
-    : `${installer} will send you three new days shortly. You'll get an email with the days to tap, or you can suggest your own from your job page.`;
+    : `${installer} will send you three new days soon. You'll get an email with the days to tap, or you can suggest your own on your job page.`;
   const clock = f.installBy
-    ? `Your install still needs to happen by <strong>${K.esc(f.installBy)}</strong> — that's 30 days after your safety check. After that date a new safety check would be needed, so please pick a day as soon as they come through.`
-    : "Your install still needs to happen within 30 days of your safety check, so please pick a day as soon as they come through.";
+    ? `Your install still needs to happen by <strong>${esc(f.installBy)}</strong>, 30 days after your safety check. After that, a new safety check would be needed. So please pick a day as soon as they come through.`
+    : "Your install still needs to happen within 30 days of your safety check. So please pick a day as soon as they come through.";
+  const daysPanel = days.length
+    ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">${esc(daysTitle)}</mj-text><mj-text padding="0 18px 4px">${esc(daysBody)}</mj-text><mj-table padding="0 18px 8px" font-size="16px">${days.map((d, n) => dayRow(d, n === 0)).join("")}</mj-table><mj-text mj-class="small" padding="0 18px 16px">None suit? <a href="${esc(f.link)}" style="color:#3C51C4;font-weight:700;">Suggest other days</a></mj-text></mj-column></mj-section>`
+    : `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">${esc(daysTitle)}</mj-text><mj-text padding="0 18px 16px">${esc(daysBody)}</mj-text></mj-column></mj-section>`;
   const body = [
-    K.h1(headline),
-    K.p(intro),
-    K.sectionTitle(daysTitle),
-    K.p(daysBody),
-    f.newDays.length ? K.tapTimeButtons(f.newDays.map((d) => ({ day: d.day, time: d.time, href: d.href || f.link })), { href: f.link }) : K.button(f.link, "See my job"),
-    K.mistBox("The 30-day clock keeps running", `<div style="font-size:14px;color:${K.KIT.NAVY};line-height:1.55;">${clock}</div>`, { padding: "14px 16px", radius: 14, marginTop: 16 }),
-    K.small("Questions? Just reply to this email."),
-  ].join("\n");
-  const html = K.emailShell({ body, previewText: intro, testLabel: f.test === true, unsubscribe: null });
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro1)}</mj-text><mj-text>${esc(intro2)}</mj-text></mj-column></mj-section>`,
+    daysPanel,
+    `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">The 30-day clock keeps running</mj-text><mj-text padding="0 18px 16px">${clock}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-button href="${esc(f.link)}" padding="18px 12px 18px">See my job</mj-button><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
   const text = K.plainText([
-    headline, "", intro, "", daysTitle.toUpperCase(), daysBody, ...f.newDays.map((d) => `• ${d.day}${d.time ? ` ${d.time}` : ""}`), `See my job: ${f.link}`, "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", "Questions? Just reply to this email.",
+    headline, "", intro1, intro2, "", daysTitle.toUpperCase(), daysBody, ...days.map((d) => `• ${d.day}${d.time ? ` ${d.time}` : ""}`), ...(days.length ? [`None suit? Suggest other days: ${f.link}`] : []), "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", `See my job: ${f.link}`, "", "Questions? Just reply to this email.",
   ], { testLabel: f.test === true });
   return { subject, html, text };
 }
