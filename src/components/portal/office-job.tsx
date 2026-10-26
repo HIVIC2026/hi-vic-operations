@@ -209,7 +209,7 @@ function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
 
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
-const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · bank transfer", balance: "On install day · bank transfer" };
+const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "To book the install · bank transfer · held 48h", balance: "On install day · bank transfer" };
 export function MoneyCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);

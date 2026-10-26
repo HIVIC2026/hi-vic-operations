@@ -434,11 +434,6 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
     if (fb) blockers.push(fb);
   }
-  // Jo 26 Oct 2026: no install booking until the 10% install deposit is paid.
-  if (to === "installation_booked") {
-    const db = await (await import("./payments.server")).installDepositBlockerFor(jobId);
-    if (db) blockers.push(db);
-  }
   if (to === "installation_scheduling" || to === "installation_booked") {
     // Decision 314 follow-up: open fixes items on an on-site-only job cleared on `electrician_at_start` are done on the
     // install day (read only when fixes items are open, so every other job reads exactly as before).

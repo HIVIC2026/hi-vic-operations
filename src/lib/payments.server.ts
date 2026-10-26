@@ -11,7 +11,7 @@ import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
   cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
-  provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
+  provisionalBookingDecision, provisionalHoldExpiresAt, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
 } from "./payments.core";
 
 // Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
@@ -157,8 +157,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const facts: Partial<Record<PaymentStepKey, PaymentStepFacts>> = {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },
     fixes: { requestedAt: fixesCents > 0 ? rect?.accepted_at ?? null : null },
-    // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold.
-    install_deposit: { requestedAt: bookedAt ?? (INSTALL_DEPOSIT_DUE_STAGES.has(job?.stage ?? "") ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
+    install_deposit: { requestedAt: bookedAt, dueAt: holdExpiresAt },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
@@ -187,13 +186,6 @@ export async function fixesPaymentBlockerFor(jobId: string): Promise<string | nu
   return v ? fixesPaymentBlocker(v.plan, v.steps) : null;
 }
 
-/** Jo 26 Oct 2026: "The 10% install deposit must be paid…" until paid/waived; null with no invoice. Shared by
- *  confirmBooking (kind installation), stageEntryBlockers("installation_booked") and the install-day offers. */
-export async function installDepositBlockerFor(jobId: string): Promise<string | null> {
-  const v = await jobPaymentView(jobId);
-  return v ? installDepositBlocker(v.plan, v.steps) : null;
-}
-
 /** Downstream of any new payment: confirm a provisional booking, note fixes/balance paid once, then the usual auto-advance. */
 export async function afterPaymentsChanged(jobId: string, invoiceId: string, actorId: string | null) {
   const v = await jobPaymentView(jobId);
@@ -203,11 +195,10 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
     if (!prior) await logEvent(jobId, actorId, eventType, summary, { invoice_id: invoiceId, ...details }, { internal: true });
     return !prior;
   };
-  // Jo 26 Oct 2026: deposit in → the install can be booked now (the installer offers days). The "Your install is booked"
-  // email goes only when a day is actually booked (install-days bookAgreedDay), never before the deposit.
-  if (v.plan.installDepositCents > 0 && isStepCleared(v.steps, "install_deposit") && !v.provisional.bookedAt
-    && await once("install_deposit_received", "10% install deposit received – the install day can now be booked", { amount_cents: v.plan.installDepositCents })) {
-    await admin.from("jobs").update({ next_action: "Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
+  if (v.provisional.decision === "confirmed" && v.provisional.bookedAt && await once("install_booking_confirmed", "Install deposit received – the provisional install booking is confirmed", { booked_at: v.provisional.bookedAt })) {
+    // Jo 24 Oct 2026 (decision 151): the "Deposit received ✓ Your day is locked in" version of Your install is booked.
+    const { data: book } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+    if (book?.scheduled_start) await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, book.scheduled_start, { depositReceived: true }).catch((e) => console.error("deposit-received email skipped", (e as Error).message));
   }
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
   if (isStepPaid(v.steps, "safety_check")) await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));

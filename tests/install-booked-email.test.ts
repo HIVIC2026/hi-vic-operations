@@ -42,5 +42,5 @@ test("approved (decisions 98/151); sent after booking behind customer comms, bes
   const srv = readFileSync("src/lib/install-booked-email.server.ts", "utf8");
   expect(srv).toContain("assertCustomerDeliveryAllowed");
   expect(srv).toContain("install-booked:v1:${jobId}:${startIso}");
-  expect(readFileSync("src/lib/install-days.server.ts", "utf8")).toMatch(/emailOwnerInstallBooked\(jobId, startsAt, \{ depositReceived: true \}\)\.catch/);
+  expect(readFileSync("src/lib/install-days.server.ts", "utf8")).toMatch(/emailOwnerInstallBooked\(jobId, startsAt\)\.catch/);
 });

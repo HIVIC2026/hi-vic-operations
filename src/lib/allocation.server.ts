@@ -479,33 +479,15 @@ export { clearanceFacts } from "./electrical-clearance.server";
 export async function sweepCoordination(actorId: string | null = null) {
   const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
-  // Speed (26 Oct 2026): read the first proposal and any earlier reminder for ALL released jobs at once (was 2 reads per
-  // release on every sweep). Same answers: earliest proposal per job + kind, any reminder per job + assignment + visit.
-  const jobIds = [...new Set((rel ?? []).map((r) => r.job_id))];
-  const firstProp = new Map<string, string>();
-  const reminded = new Map<string, string>();
-  for (let i = 0; i < jobIds.length; i += 100) {
-    const ids = jobIds.slice(i, i + 100);
-    const [props, rems] = await Promise.all([
-      admin.from("appointment_proposals").select("job_id, kind, created_at").in("job_id", ids).order("created_at"),
-      admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "coordination_reminder"),
-    ]);
-    if (props.error) throw new Error(props.error.message);
-    if (rems.error) throw new Error(rems.error.message);
-    for (const p of props.data ?? []) { const k = `${p.job_id}|${p.kind}`; if (!firstProp.has(k)) firstProp.set(k, p.created_at); }
-    for (const e of rems.data ?? []) {
-      const d = (e.details ?? {}) as { assignment_id?: string; visit_kind?: string };
-      const k = `${e.job_id}|${d.assignment_id}|${d.visit_kind}`;
-      if (!reminded.has(k)) reminded.set(k, e.created_at);
-    }
-  }
   for (const r of rel ?? []) {
     const a = r.job_assignments as { active: boolean; booking_confirmed_at: string | null };
     if (!a.active) continue;
     const bookingKind = r.visit_kind === "piesa" ? "assessment" : r.visit_kind;
-    const propAt = firstProp.get(`${r.job_id}|${bookingKind}`) ?? null;
-    const remAt = reminded.get(`${r.job_id}|${r.assignment_id}|${r.visit_kind}`) ?? null;
-    const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: propAt, confirmedAt: a.booking_confirmed_at, reminderSentAt: remAt });
+    const [{ data: prop }, { data: rem }] = await Promise.all([
+      admin.from("appointment_proposals").select("created_at").eq("job_id", r.job_id).eq("kind", bookingKind as never).order("created_at").limit(1).maybeSingle(),
+      admin.from("workflow_events").select("created_at").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).limit(1).maybeSingle(),
+    ]);
+    const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
       const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
       const sends = coordinationReminderSends(r.visit_kind);

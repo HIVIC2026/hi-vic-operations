@@ -469,8 +469,7 @@ function ConsentCard({ v, token }: { v: View; token: string }) {
   const all = OWNER_DECLARATIONS.every((d) => ticks[d.key] === true);
   const ready = all && f.name.trim().length >= 2;
   const q = v.quote as { total: number; split?: { deposit: number } | null } | null;
-  // Jo 26 Oct 2026: a booked day means the 10% deposit is already paid — only an unbooked install asks for it.
-  const deposit = v.payment?.provisional?.deposit ?? (q && !c.scheduledStart ? paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null }).installDepositCents / 100 : null);
+  const deposit = v.payment?.provisional?.deposit ?? (q ? paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null }).installDepositCents / 100 : null);
   const s1 = c.section1 ?? null;
   const doSign = async () => {
     if (!session) { setNeedCode(true); return; }

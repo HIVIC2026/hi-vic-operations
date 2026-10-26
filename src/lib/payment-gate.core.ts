@@ -38,12 +38,18 @@ export function requiredDepositCents(totalIncGst: number | string, safetyFee?: n
 }
 
 /** Balance after the safety check payment, split into two halves. First half rounds DOWN to the cent; second takes the remainder. */
-/** Invoice split (Jo 26 Oct 2026: no half-and-half balance, no instalments). The `deposit` field is the PIESA fee
- *  (stored in the invoice's legacy deposit_* columns that mirror Xero) — shown to people as "PIESA fee", never "deposit". */
-export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
+export function balanceSplit(totalIncGst: number | string, safetyFee?: number | string | null) {
   const t = cents(totalIncGst);
   const fee = requiredDepositCents(totalIncGst, safetyFee);
-  return { depositPct: t > 0 ? Math.round((fee / t) * 10000) / 10000 : 0, deposit: fee / 100, balance: (t - fee) / 100 };
+  const bal = t - fee;
+  const first = Math.floor(bal / 2);
+  return { total: t / 100, fee: fee / 100, balance: bal / 100, firstHalf: first / 100, secondHalf: (bal - first) / 100 };
+}
+
+/** Invoice split kept under its old name: deposit = safety check payment, balance = the rest. */
+export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
+  const b = balanceSplit(totalIncGst, safetyFee);
+  return { depositPct: b.total > 0 ? Math.round((b.fee / b.total) * 10000) / 10000 : 0, deposit: b.fee, balance: b.balance, firstHalf: b.firstHalf, secondHalf: b.secondHalf };
 }
 
 export type RefundOutcome = "none" | "refund_all" | "refund_except_safety_fee" | "keep_safety_fee";

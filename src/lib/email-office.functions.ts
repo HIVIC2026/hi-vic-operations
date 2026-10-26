@@ -37,11 +37,3 @@ export const ignoreEmailChange = createServerFn({ method: "POST" }).middleware([
     await requireAdmin(context.supabase);
     return (await import("./email-office.server")).ignoreEmailChange(data.eventId, context.userId);
   });
-
-/** Enquiries "Emails to match" (Jo 26 Oct 2026): unmatched emails with their best guess. */
-export const getUnmatchedEmailRows = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { requireAdmin } = await import("./workflow.server");
-    await requireAdmin(context.supabase);
-    return (await import("./email-unmatched-rows.server")).unmatchedEmailRows();
-  });

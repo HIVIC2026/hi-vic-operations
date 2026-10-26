@@ -87,7 +87,6 @@ export async function installerOfferDays(jobId: string, userId: string, picks: {
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "installer_to_offer" && c.turn !== "installer_to_answer") throw new WorkflowError("Install days can't be offered right now.");
-  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Waiting for the owner's 10% deposit — install days can be offered once it's paid."); }
   await propose(jobId, userId, "installer", picks, windowDays(c));
   await logEvent(jobId, userId, "install_days_offered_by_installer", `Installer offered ${picks.length} install day${picks.length === 1 ? "" : "s"} to the owner`, { days: picks, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's install days" }).eq("id", jobId);
@@ -102,7 +101,6 @@ export async function ownerSuggestDays(jobId: string, userId: string, picks: str
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "owner_to_answer") throw new WorkflowError("Install days can't be suggested right now.");
-  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Please pay your 10% deposit first — then you can pick your install day."); }
   await propose(jobId, userId, "owner", picks.map((day) => ({ day })), windowDays(c));
   await logEvent(jobId, userId, "install_days_offered", `Owner suggested ${picks.length} other install day${picks.length === 1 ? "" : "s"} for the installer`, { days: picks }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new ones" }).eq("id", jobId);
@@ -121,12 +119,14 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(jobId, "installation", startsAt, userId, roleLabel);
     await releaseInstallationContacts(jobId, userId);
+    // Decision 139: the day is provisional for 48h until the 10% install deposit is received (bank transfer / PayID).
+    await (await import("./payments.server")).noteProvisionalBooking(jobId, userId).catch((e) => console.error("provisional booking note skipped", (e as Error).message));
     // Decision 325: a new day after the installer moved a booked one → O42 "Your install day has changed" (it points back
     // to the booking email's checklist); otherwise the owner "Your install is booked" email. Both best-effort.
     const triggers = await import("./owner-email-triggers.server");
     const movedFrom = await triggers.installDayMoveFor(jobId, startsAt);
     if (movedFrom) await triggers.onInstallDayMoved(jobId, startsAt, movedFrom).catch((e) => console.error("install day changed email skipped", (e as Error).message));
-    else await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt, { depositReceived: true }).catch((e) => console.error("install booked email skipped", (e as Error).message));
+    else await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt).catch((e) => console.error("install booked email skipped", (e as Error).message));
     return { ok: true, booked: true };
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);

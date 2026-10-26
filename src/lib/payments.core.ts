@@ -150,16 +150,6 @@ export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCe
   return Math.round(f.invoiceTotalCents);
 }
 
-/** Jo 26 Oct 2026: the install is booked only once the 10% install deposit (10% of the install price — never the PIESA
- *  fee or the fixes) is paid. No "book first, pay within 48 hours". The PIESA fee alone never unlocks the install. */
-export const INSTALL_DEPOSIT_BLOCKER = "The 10% install deposit must be paid before the install is booked.";
-/** Stages where the install is the next thing to book, so the 10% deposit is due now. */
-export const INSTALL_DEPOSIT_DUE_STAGES: ReadonlySet<string> = new Set(["piesa_complete", "installation_scheduling", "installation_booked"]);
-export function installDepositBlocker(plan: Pick<PaymentPlan, "installDepositCents">, steps: PaymentStep[]): string | null {
-  if (plan.installDepositCents <= 0) return null;
-  return isStepCleared(steps, "install_deposit") ? null : INSTALL_DEPOSIT_BLOCKER;
-}
-
 /** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer). */
 export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
 export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {
@@ -446,7 +436,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
-    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
+    `${aud(plan.installDepositCents)} (10%) to book your install day, by bank transfer or PayID — your day is held for ${PROVISIONAL_HOLD_HOURS} hours (or until noon the day before your install, if that's sooner) while you pay`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];

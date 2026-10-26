@@ -292,8 +292,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const line = CHANGE_LINE[(c.intent ?? "other") as keyof typeof CHANGE_LINE] ?? CHANGE_LINE.other;
     emails.push({ type: "change", eventId: c.eventId, jobId: c.jobId, jobNumber: j?.jobNumber ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null, line: `${line}${c.phrase ? ` · “${c.phrase}”` : ""}`, at: c.at, intent: c.intent ?? null });
   }
-  // Jo 26 Oct 2026: unmatched emails moved to Enquiries ("Emails to match", email-unmatched-rows.server) — not listed here.
-  for (const u of [] as ({ eventId: string; at: string; from?: string | null; subject?: string | null } & Record<string, unknown>)[]) {
+  for (const u of items.unmatched as unknown as ({ eventId: string; at: string; from?: string | null; subject?: string | null } & Record<string, unknown>)[]) {
     const g = guessOf(u);
     if (!wantJob(g?.job_id ?? null)) continue;
     const j = g ? askJobs.get(g.job_id) : undefined;

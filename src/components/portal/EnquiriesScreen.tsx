@@ -22,7 +22,6 @@ import { createEnquiry } from "@/lib/portal.functions";
 import { tidyEnquiryDetails } from "@/lib/name-address-tidy.core";
 import { INSULATION_LABEL, type SortDir } from "@/lib/office-filters.core";
 import { ENQUIRY_COLUMNS, activeColumnFilters, estimateLabel, sizeLabel, type ColumnFilters } from "@/lib/enquiry-columns.core";
-import { EmailsToMatch } from "@/components/portal/emails-to-match";
 import { ActionsMenu, ColumnHead, Pager, ReasonDialog, heardLabel, type ColumnFilterValue } from "@/components/portal/office-lists";
 
 const btn = "inline-flex min-h-[38px] items-center justify-center rounded-[10px] px-3.5 text-[13px] font-bold disabled:opacity-50";
@@ -108,7 +107,6 @@ export function EnquiriesScreen() {
         </div>
         <NewEnquiryDialog />
       </div>
-      <EmailsToMatch />
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2" data-why="decision 285 one search box; 286 headings sort and filter; 283 no priority number; 281 one list">
         <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-10 w-full max-w-[420px] bg-paper" />
         <div className="flex items-center gap-3">

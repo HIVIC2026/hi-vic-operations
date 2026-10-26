@@ -442,13 +442,6 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   return raised;
 }
 
-/** Decision 337 already SENT the owner their change link for this message (then no AI draft is needed). */
-async function changeReplied(jobId: string, messageId: string): Promise<boolean> {
-  const { data } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["email_change_replied", "email_change_reply_held"]).contains("details", { message_id: messageId }).limit(5);
-  const t = ((data ?? []) as { event_type: string }[]).map((r) => r.event_type);
-  return t.includes("email_change_replied") && !t.includes("email_change_reply_held");
-}
-
 /** Decision 386: ONE automatic reply to a matched owner's standard question, before any decision-244 draft. Returns
  *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before. */
 async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
@@ -456,16 +449,6 @@ async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string 
   try {
     const r = await (await import("./owner-email-auto-reply.server")).autoReplyToOwner({ jobIds, message: m, mailbox });
     if (r.status === "sent" && counts) bump(counts, "ownerAutoReplies");
-    // Jo 26 Oct: anything not sent gets ONE fresh AI reply draft saved on the job for Jo to approve and send.
-    // Simple = standard questions and thanks; a change/cancel ask is left to decision 337 unless it didn't reply.
-    if (r.status !== "sent" && r.status !== "already" && r.detail !== "sender is not the owner on file" && r.detail !== "not a matched inbound email" && r.detail !== "too old for an automatic reply" && r.detail !== "job not found" && !/partner or staff/.test(r.detail)) {
-      const changeAsk = r.status === "skip" && /245\/337/.test(r.detail);
-      const replied337 = changeAsk ? await changeReplied(jobIds[0]!, m.providerMessageId) : false;
-      if (!replied337) {
-        const kind = r.status === "none" || changeAsk || /approval|comms are switched off/.test(r.detail) ? "simple" : "other";
-        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail });
-      }
-    }
     return r.suppressDraft;
   } catch (e) {
     console.error("owner auto reply skipped", e instanceof Error ? e.message : e);
