@@ -1,6 +1,6 @@
 // O4 Enquiries (decisions 216, 225, 228, 238, 281, 283, 285, 286; redesigned with Jo 26 Oct 2026): the website leads,
-// grouped by where each one is up to (enquiry-categories.core): offered a spot, asked for insulation details, answered
-// the questions, email didn't send, opted out, gone quiet. Saved spots are jobs (Jobs › Choose installer) and
+// grouped by where each one is up to (enquiry-categories.core): offered a spot, email didn't send, opted out, gone
+// quiet (no questions step: Jo 26 Oct, "we don't ask for answers"). Saved spots are jobs (Jobs › Choose installer) and
 // not-eligible leads are closed (Jobs › Closed): the screen links there. Emails live in the Inbox, not here. Inside a
 // group the rows sort hottest first (the rank is never shown, 283); on a computer the columns Job · Owner · Address ·
 // Size (m²) · Insulation · Estimate ($) · Last heard sort AND filter from their headings (286); one search box (285).
@@ -34,7 +34,7 @@ import { Pill, btnClass } from "@/components/portal/kit";
 import { ageLabel } from "@/lib/office-needs.core";
 
 const INSULATION_WORDS: Record<InsulationChip, string> = { no: "no insulation", some: "some insulation", not_sure: "insulation not sure" };
-const CATEGORY_DOT: Record<EnquiryCategory, string> = { offered: "bg-hiv-blue", details_asked: "bg-hiv-blue/50", details_answered: "bg-hiv-green", not_sent: "bg-rose", opted_out: "border-2 border-sub/50 bg-transparent", quiet: "border-2 border-sub/50 bg-transparent" };
+const CATEGORY_DOT: Record<EnquiryCategory, string> = { offered: "bg-hiv-blue", not_sent: "bg-rose", opted_out: "border-2 border-sub/50 bg-transparent", quiet: "border-2 border-sub/50 bg-transparent" };
 
 /** New enquiry (phone) — the existing guarded createEnquiry (moved here from the retired Pipeline board). */
 function NewEnquiryDialog() {
@@ -141,7 +141,7 @@ export function EnquiriesScreen() {
   const refresh = () => { setPicked(new Set()); void qc.invalidateQueries({ queryKey: ["office-enquiries"] }); };
   const onFilter = (k: string, v: ColumnFilterValue) => { setFilters({ ...filters, [k]: v } as ColumnFilters); setPage(1); };
   const pick = (v: EnquiryView) => { setView(v); setPage(1); setPicked(new Set()); };
-  const meta = view === "active" ? { label: "In play", hint: "Still in the journey: offered a spot, asked for insulation details, answered, or the email didn't send." }
+  const meta = view === "active" ? { label: "In play", hint: "Still in the journey: offered a spot, or the automatic email didn't send." }
     : view === "all" ? { label: "Every open enquiry", hint: "Everything before a spot is saved, in one list." }
     : ENQUIRY_CATEGORIES.find((x) => x.key === view)!;
   const closeReason = view !== "active" && view !== "all" ? CLOSABLE[view] : undefined;

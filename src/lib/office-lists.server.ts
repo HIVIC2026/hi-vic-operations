@@ -139,7 +139,7 @@ export async function loadEnquiriesList(p: EnquiryListParams) {
     const latestFailed = r["latest_attempt_status"] === "failed" && r["needs_first_response"] === true;
     const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
-    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, answeredQuestions: answeredSet.has(id), optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet: r["needs_first_response"] === true }, now);
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet: r["needs_first_response"] === true }, now);
     return {
       category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
