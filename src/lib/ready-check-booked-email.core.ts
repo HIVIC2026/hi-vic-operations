@@ -6,8 +6,8 @@
 // the shared mjBookingBox / mjReadyCheckEstimate stay unchanged for the other emails.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
-import { esc, mjEmail, plusRow, tickRow } from "./mail-mjml.core";
-import { CLOSING, INCLUDED, NOT_INCLUDED, estimateNote, splitDayTime, type ReadyCheckEstimate } from "./ready-check-times-email.core";
+import { esc, mjEmail } from "./mail-mjml.core";
+import { mjO12Estimate, o12EstimateText, splitDayTime } from "./ready-check-times-email.core";
 
 /** Jo 24 Oct 2026, decision 81 (O12 "You're booked"): approved. Delivery still behind customer_comms_enabled. */
 export const READY_CHECK_BOOKED_EMAIL_APPROVED = true as boolean;
@@ -31,30 +31,10 @@ export function mjBookingBox(i: { label: string; day: string; time: string; line
 /** "Before they arrive" tick rows (HTML with <strong>, already safe). */
 export const mjBeforeRows = (rows: string[]) => rows.map((b) => `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">${b}</td></tr>`).join("");
 
-const FREE_READY_CHECK = { title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." };
 /** O12 only: mint booking box with green border, navy day, green time. */
 function mjO12BookingBox(i: { label: string; day: string; time: string; lines: string[] }): string {
   const lines = i.lines.map(esc).join("<br />");
   return `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow" padding="18px 18px 6px">${esc(i.label)}</mj-text><mj-text font-family="${DISPLAY}" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">${esc(i.day)}</mj-text>${i.time ? `<mj-text font-family="${DISPLAY}" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px ${lines ? 10 : 18}px">${esc(i.time)}</mj-text>` : ""}${lines ? `<mj-text font-size="15px" line-height="22px" padding="0 18px 18px">${lines}</mj-text>` : ""}</mj-column></mj-section>`;
-}
-/** O12 only: rebate | price side by side in one box, note underneath; included list starts with the free Ready Check. */
-function mjO12Estimate(e: ReadyCheckEstimate): string {
-  const inc = [FREE_READY_CHECK, ...INCLUDED(e.rebate)];
-  const cell = (label: string, value: string, color: string, divider: boolean) => `<td width="50%" align="center" valign="top" style="padding:16px 8px 6px;${divider ? "border-right:1px solid #DCE2F2;" : ""}"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">${esc(label)}</div><div style="font-family:${DISPLAY};font-size:30px;line-height:38px;font-weight:800;color:${color};">${esc(value)}</div></td>`;
-  return [
-    `<mj-section><mj-column mj-class="panel"><mj-table padding="4px 12px 0"><tr>${cell("VEU rebate", K.whole(e.rebate), "#057D40", true)}${cell("You pay about", K.whole(e.price), "#3C51C4", false)}</tr></mj-table><mj-text mj-class="small center" padding="8px 16px 18px">${esc(estimateNote(e))}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What's included in ${esc(K.whole(e.price))}</mj-text><mj-table padding="0 18px 6px">${inc.map((t, n) => tickRow(esc(t.title), esc(t.detail), n === inc.length - 1)).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text><mj-table padding="0 18px 6px">${NOT_INCLUDED.map(([b, rest]) => plusRow(`<strong>${esc(b)}</strong>${esc(rest)}`)).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(CLOSING)}</mj-text></mj-column></mj-section>`,
-  ].join("");
-}
-function o12EstimateText(e: ReadyCheckEstimate): string[] {
-  return [
-    `VEU rebate: ${K.whole(e.rebate)} | You pay about: ${K.whole(e.price)}`, estimateNote(e), "",
-    `WHAT'S INCLUDED IN ${K.whole(e.price)}`, ...[FREE_READY_CHECK, ...INCLUDED(e.rebate)].map((t) => `✓ ${t.title}: ${t.detail}`), "",
-    "NOT INCLUDED – ONLY IF NEEDED", ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
-    CLOSING,
-  ];
 }
 
 export function renderReadyCheckBookedEmail(i: ReadyCheckBookedInput) {
