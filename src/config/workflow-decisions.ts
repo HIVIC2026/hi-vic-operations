@@ -80,6 +80,16 @@ export const WORKFLOW_DECISIONS = {
     mustBe: "installation_commenced_within_window",
     status: "operational_rule_pending_written_confirmation",
   },
+  partnerPeople: {
+    // Decision 402 (Jo 26 Oct 2026): approving/activating a business approves its pending people whose certification is office-verified.
+    autoApproveWithBusiness: {
+      decision: 402,
+      installer: "certification_status_verified_and_crew_cleared",
+      electrician: "never_automatic_no_office_verified_person_certification",
+      neverTouched: ["rejected", "removed", "already_approved"],
+      eventSummary: "Worker approved automatically with the business (decision 402)",
+    },
+  },
   hardStops: [
     "missing_eligibility_evidence",
     "conflicting_eligibility_evidence",
