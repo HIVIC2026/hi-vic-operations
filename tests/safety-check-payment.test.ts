@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { balanceSplit, evaluatePaymentGate, refundOutcome, safetyCheckBlocker, splitForOption, piesaRequestBlockers } from "../src/lib/payment-gate.core";
+import { evaluatePaymentGate, refundOutcome, safetyCheckBlocker, splitForOption, piesaRequestBlockers } from "../src/lib/payment-gate.core";
 import { GATE_DOCS, PAYMENT_TERMS_BODY, PAYMENT_TERMS_VERSION, answerVars, paymentTermsMoney, paymentTermsText } from "../src/lib/owner-gates.core";
 import { paymentPlan } from "../src/lib/payments.core";
 
