@@ -64,7 +64,9 @@ function formHtml(blocks: FormBlock[]): string {
     if (b.kind === "sub") return `<mj-text font-weight="700" font-size="15px" padding="0 18px ${bottom ?? 4}px">${esc(b.text)}</mj-text>`;
     if (b.kind === "para") return `<mj-text font-size="14px" line-height="20px" padding="0 18px ${bottom ?? 8}px">${esc(b.text)}</mj-text>`;
     if (b.kind === "ticks") return `<mj-table padding="0 18px ${bottom ?? 4}px" font-size="14px" line-height="20px">${b.rows.map((r) => `<tr><td width="28" valign="top" style="padding:2px 0 10px;">${r.on ? `<span class="tick">&#10003;</span>` : `<span class="muted">&#9744;</span>`}</td><td style="padding:0 0 10px;">${esc(r.text)}</td></tr>`).join("")}</mj-table>`;
-    return `<mj-table padding="0 18px ${bottom ?? 10}px" font-size="14px" line-height="20px">${b.rows.map(([k, v]) => `<tr><td style="${KV_TD}" valign="top">${esc(k)}</td><td style="${KV_TD2}" valign="top"><strong>${esc(v)}</strong></td></tr>`).join("")}</mj-table>`;
+    if (b.kind !== "kv") return "";
+    const kv = b.rows;
+    return `<mj-table padding="0 18px ${bottom ?? 10}px" font-size="14px" line-height="20px">${kv.map(([k, v]) => `<tr><td style="${KV_TD}" valign="top">${esc(k)}</td><td style="${KV_TD2}" valign="top"><strong>${esc(v)}</strong></td></tr>`).join("")}</mj-table>`;
   }).join("");
 }
 
