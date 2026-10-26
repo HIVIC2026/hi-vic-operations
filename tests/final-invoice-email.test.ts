@@ -56,9 +56,7 @@ describe("finalInvoiceFacts", () => {
   test("the facts render: bank details, invoice number reference, no card wording", () => {
     const { balanceDueCents: _b, ...facts } = f;
     const m = renderFinalInvoiceEmail({ ...facts, firstName: "Helen", ownerName: "Helen Yang", address: null, installer: { name: "Reinsulate" }, bank: HIV_BANK_DETAILS, invoicePdfAttached: false });
-    for (const s of ["PAY BY BANK TRANSFER", "Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: INV-3117", "Amount: $1,065.90"]) expect(m.text).toContain(s);
-    // O45 design: the same bank details as label/value rows in the HTML.
-    for (const s of ["Pay by bank transfer", "<strong>Home Insulation Victoria</strong>", "<strong>082-902</strong>", "<strong>777966349</strong>", "<strong>INV-3117</strong>", "<strong>$1,065.90</strong>"]) expect(m.html).toContain(s);
+    for (const s of ["Pay by bank transfer", "Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: INV-3117", "Amount: $1,065.90"]) expect(m.html).toContain(s);
     for (const s of ["card", "Stripe", "Invoice PDF attached"]) expect(m.text).not.toContain(s);
   });
 });

@@ -238,7 +238,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
 
 test("Jo 24 Oct (decision 86): fixes are quoted separately, nothing done without the owner's OK", () => {
   for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
-    expect(body).toContain("They're quoted separately, and nothing is done without your OK.");
+    expect(body).toContain("Quoted separately, nothing done without your OK.");
   }
 });
 
@@ -248,7 +248,7 @@ test("quote reminders (decisions 88/89/134): reminder line, price box, button, n
   expect(day3.subject).toBe("Courtney, your quote is waiting");
   expect(day3.html).toContain("Just checking you saw it.");
   expect(day3.html).toContain("Your $1,850 rebate is ready to go,");
-  expect(day3.html).toContain("held until 6 November.");
+  expect(day3.html).toContain("held until <strong>6 November</strong>");
   expect(day3.html).toContain(">View and accept your quote<");
   expect(day3.html).not.toContain("Your quote</div>");
   const expiry = renderQuoteReminderEmail({ ...base, subtotalIncGst: 4197, kind: "expiry" });

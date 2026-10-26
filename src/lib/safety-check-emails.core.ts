@@ -1,15 +1,15 @@
 // Electrical safety check (PIESA) owner emails (Jo 24 Oct 2026, decisions 94 and 137).
-// Designs: docs/templates/mjml/owner_O26.mjml and owner_safety-check-booked.mjml (MJML email refresh, Jo 27 Oct 2026) — "{First}, pick a time for your
+// Designs: docs/templates/mjml/owner_O26.mjml and owner_safety-check-booked.mjml (MJML email refresh, 27 Oct 2026 — not approved by Jo) — "{First}, pick a time for your
 // electrical safety check"; "{Electrician}, a licensed electrician, has offered these times"; 3 time buttons; Suggest
 // other days; the amber "⏰ The 30-day clock" box; "At your safety check". The booked email mirrors the Ready Check
 // "You're booked" email (decision 81) with the electrician's name/phone, the switchboard line and the 30-day box.
 // Sent through approved-owner-emails.server.ts; SAFETY_CHECK_EMAILS_APPROVED is on (decision 94), real delivery behind customer_comms_enabled. Pure.
+
 import { myJobScreen } from "./mail-mjml.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { mjTimeButtons, splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 import { mjBeforeRows, mjBookingBox } from "./ready-check-booked-email.core";
-
 /** Jo 24 Oct 2026, decision 94 (O26 safety check times + the mirrored booked email): approved. Delivery still behind customer_comms_enabled. */
 export const SAFETY_CHECK_EMAILS_APPROVED = true as boolean;
 
@@ -33,19 +33,11 @@ export function renderSafetyCheckTimesEmail(i: SafetyCheckTimesInput) {
   const subject = "Pick a time for your electrical safety check";
   const headline = `${first}, pick a time for your electrical safety check`;
   const intro = `${el}, a licensed electrician, has offered these times. Tap the one that suits you and it's booked.`;
-  const pick = myJobScreen(i.myJobUrl, "book");
+  const pick = myJobScreen(i.myJobUrl, "book"); // link fix: time buttons open the booking screen
   const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
-  const paid = i.paid && i.paid > 0 ? i.paid : null;
-  const n = slots.length;
-  const preview = `${el} has offered ${n} time${n === 1 ? "" : "s"}. Tap one and it's booked${paid ? " – it's already paid for" : ""}.`;
-  const at = `The electrician checks your switchboard, ceiling wiring and downlights are safe to insulate over.${paid ? ` It's already paid for (${K.cents(paid)}).` : ""} If anything needs fixing, we'll send you a separate quote first. Nothing is done without your OK.`;
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    mjTimeButtons(slots, pick),
-    mjThirtyDayClock(thirtyDayClockHtml()),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">At your safety check</mj-text><mj-text padding="0 12px 0">${esc(at)}</mj-text></mj-column></mj-section>`,
-  ].join("");
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+  const at = `The electrician checks your switchboard, ceiling wiring and downlights are safe to insulate over.${i.paid && i.paid > 0 ? ` It's already paid for (${K.cents(i.paid)}).` : ""} If anything needs fixing, we'll send you a separate quote first. Nothing is done without your OK.`;
+  const body = [K.h1(headline), K.p(intro), K.tapTimeButtons(slots, { href: pick }), K.thirtyDayClockBox({ kind: "safety_check" }), K.sectionTitle("At your safety check"), K.p(at)].join("\n");
+  const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a time: ${pick}`, `None suit? Suggest other days: ${pick}`, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "AT YOUR SAFETY CHECK", at], { testLabel: i.test === true });
   return { subject, html, text };
 }

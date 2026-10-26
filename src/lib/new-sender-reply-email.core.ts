@@ -1,5 +1,5 @@
 // Decision 292: the "O70 – New sender: homeowner enquiry page" email, with Jo's approved wording and the homeowner
-// enquiry page (decision 387) as its one link (shown inline, no button). MJML refresh (Jo 27 Oct 2026):
+// enquiry page (decision 387) as its one link (shown inline, no button). MJML refresh (27 Oct 2026, not approved by Jo):
 // docs/templates/mjml/owner_O70.mjml — a short heading ("Hi {first}, thanks for getting in touch") and "add your home".
 // Pure renderer: nothing is sent here. No unsubscribe link: this is a one-off reply to the sender's own email, never a
 // campaign, and the sender has no job to opt out of.

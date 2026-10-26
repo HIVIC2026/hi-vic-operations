@@ -10,7 +10,7 @@ export function renderPiesaFixesConfirmEmail(i: PiesaFixesConfirmEmailInput) {
   const subject = piesaFixesConfirmSubject(first);
   const body = piesaFixesConfirmBody(i.electricianLine, i.fixesDate);
   const label = "Open my job page";
-  // Design: docs/templates/mjml/owner_fixes-confirm.mjml (MJML email refresh, Jo 27 Oct 2026) — the date in bold.
+  // Design: docs/templates/mjml/owner_fixes-confirm.mjml (MJML email refresh, 27 Oct 2026 — not approved by Jo) — the date in bold.
   const dateAt = body.lastIndexOf(i.fixesDate);
   const bodyHtml = dateAt >= 0 ? `${esc(body.slice(0, dateAt))}<strong>${esc(i.fixesDate)}</strong>${esc(body.slice(dateAt + i.fixesDate.length))}` : esc(body);
   const preview = `${i.electricianLine} finished on ${i.fixesDate}. Confirming on your job page takes a minute.`;

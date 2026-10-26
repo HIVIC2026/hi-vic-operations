@@ -2,36 +2,29 @@
 // Both wordings APPROVED by Jo 8 Oct 2026 7:44am: real sends go to the partner's real address. Since 24 Oct 2026
 // (decision 137) they render in the approved kit shell; since 26 Oct 2026 in the MJML designs (docs/templates/mjml/
 // installer_changes, installer_decline, installer_I53). "We've got your application" (decision 136) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
-import { partnerEmailLayout } from "./partner-email.core";
+
+import { partnerEmailLayout } from "./partner-email-current.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
-
 export const APPLICATION_REVIEW_WORDING_APPROVED = true as const;
 /** Jo 24 Oct 2026, decision 136 (I53 "We've got your application"): approved. */
 export const APPLICATION_RECEIVED_EMAIL_APPROVED = true as boolean;
 
-/** Decision 136: "Thanks {First}," / "We've got your application" — what we check, approval + Mitti invite, start adding jobs. */
+/** Decision 136: "Thanks {First}, we've got your application" — what we check, approval + Mitti invite, start adding jobs. */
 export function renderApplicationReceivedEmail(i: { contactName?: string | null; businessName: string; test?: boolean }) {
   const name = K.cleanName(i.contactName);
   const subject = "We've got your application";
-  const hi = `Thanks${name ? ` ${name}` : ""},`;
-  const headline = "We've got your application";
-  const intro = `${i.businessName}'s application to install under the VEU program with Home Insulation Victoria is in.`;
-  const preview = "Here's what happens next, and how long it usually takes.";
+  const headline = `Thanks${name ? ` ${name}` : ""}, we've got your application`;
+  const intro = `${i.businessName}'s application to install under the VEU program with Home Insulation Victoria is in. Here's what happens next.`;
   const steps: K.Step[] = [
     { title: "We check your details", detail: "CII certification, public liability insurance (min $5 million) and PIISA training. Usually within 2 business days." },
     { title: "You're approved", detail: "You get an email to set your password, plus an invite to Mitti, the app you'll fill forms in." },
     { title: "Start adding jobs", detail: "Add your own customers in about 30 seconds, and take the jobs we send you." },
   ];
-  const missing = "If anything's missing, we'll email you exactly what we need.";
-  const step = (s: K.Step, n: number) => { const pad = n === steps.length - 1 ? 12 : 14; return `<tr><td width="32" valign="top" style="padding:2px 0 ${pad}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${pad}px;"><strong>${esc(s.title)}</strong><br /><span class="muted">${esc(s.detail)}</span></td></tr>`; };
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What happens next</mj-text><mj-table padding="0 18px 6px">${steps.map(step).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text padding="14px 12px 14px">${esc(missing)}</mj-text><mj-text mj-class="small">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
-  ].join("");
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([hi, "", headline, "", intro, "", "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", missing, "", "Questions? Just reply to this email."], { testLabel: i.test === true });
+  const missing = "If anything's missing from your application we'll email you exactly what we need.";
+  const body = [K.h1(headline, 8), K.p(intro), K.numberedSteps(steps), K.note(missing, "6px 0 0"), K.small("Questions? Just reply to this email.")].join("\n");
+  const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
+  const text = K.plainText([headline, "", intro, "", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", missing, "", "Questions? Just reply to this email."], { testLabel: i.test === true });
   return { subject, html, text };
 }
 export type ReviewDecision = "changes_requested" | "declined";

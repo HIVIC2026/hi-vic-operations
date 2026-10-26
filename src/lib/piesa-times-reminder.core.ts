@@ -11,10 +11,8 @@
 //    never a "released, nothing proposed" gap; the installer was already told by the approved I65 email + text (186).
 //  - Electrical fixes: the electrician was already texted the approved fixes-times link (decision 315), and their fixes
 //    windows are normally given before the contacts are shared.
-// The 48-hour office alert (needs `piesa_booking_overdue`) is unchanged. Design (MJML refresh, Jo 26 Oct 2026):
-// docs/templates/mjml/electrician_E14.mjml. PURE: wording, keys, which kinds send.
+// The 48-hour office alert (needs `piesa_booking_overdue`) is unchanged. PURE: wording, keys, which kinds send.
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
 
 /** Jo 25 Oct 2026 (decision 384): E14 and the text approved as drafted in decision 376. Real delivery also needs customer_comms_enabled (+ the text switch). */
 export const PIESA_TIMES_REMINDER_APPROVED = true as boolean;
@@ -41,13 +39,12 @@ export function piesaTimesReminderText(f: PiesaTimesReminderFacts): string {
 export function renderPiesaTimesReminderEmail(i: PiesaTimesReminderFacts & { firstName: string | null; test?: boolean }) {
   const first = K.cleanName(i.firstName) ?? "there";
   const subject = `${i.jobNumber}: please offer the owner 3 safety check times`;
-  const hi = `Hi ${first},`;
   const headline = "Please offer the owner 3 safety check times";
-  const lead = `You took the safety check job ${i.jobNumber}${i.address ? ` at ${i.address}` : ""} a day ago, but no times have been offered to the owner yet.`;
-  const ask = "Please offer 3 times on 3 different days from your job page. The owner picks one and it's booked. It only takes a minute.";
+  const lead = `Hi ${first}, you took the safety check job ${i.jobNumber}${i.address ? ` at ${i.address}` : ""} a day ago, but no times have been offered to the owner yet.`;
+  const ask = "Please offer 3 times on 3 different days from your job page. The owner picks one and it's booked — it only takes a minute.";
   const cant = "Can't do this job any more? Just reply to this email and we'll sort it out.";
-  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(i.link)}">Offer 3 times</mj-button><mj-text mj-class="small">${esc(cant)}</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject, preview: "You took this job a day ago and no times have been offered yet.", body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([hi, "", headline, "", lead, "", ask, "", `Offer 3 times: ${i.link}`, "", cant], { testLabel: i.test === true });
+  const body = [K.h1(headline, 8), K.p(lead), K.p(ask), K.button(i.link, "Offer 3 times"), K.small(cant)].join("\n");
+  const html = K.emailShell({ body, previewText: lead, testLabel: i.test === true, unsubscribe: null });
+  const text = K.plainText([headline, "", lead, "", ask, "", `Offer 3 times: ${i.link}`, "", cant], { testLabel: i.test === true });
   return { subject, html, text };
 }

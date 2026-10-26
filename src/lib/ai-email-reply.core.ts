@@ -113,7 +113,7 @@ export function aiLinkLabel(url: string): string {
 }
 
 /**
- * The AI reply as an email in the refreshed look (Jo 27 Oct 2026: same frame and layout as the O76 automatic replies):
+ * The AI reply as an email in the refreshed look (27 Oct 2026, not approved by Jo: same frame and layout as the O76 automatic replies):
  * greeting line, short paragraphs, each link as a green button, sign-off on its own lines.
  */
 export function aiReplyEmailHtml(body: string, o: { subject: string; unsubscribe: string | null; test?: boolean }): string {

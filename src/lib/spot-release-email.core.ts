@@ -1,6 +1,6 @@
 // Decision 389: O77 "It's your turn — confirm your free Ready Check" (and its day-2 reminder). PURE renderer; kept apart
 // from spot-release.core.ts so the owner page that reads the rules never bundles the email code.
-// Approved by Jo 25 Oct 2026 (SPOT_RELEASED_APPROVED = true, decision 389); MJML refresh 27 Oct 2026:
+// Approved by Jo 25 Oct 2026 (SPOT_RELEASED_APPROVED = true, decision 389); MJML refresh 27 Oct 2026 (not approved by Jo):
 // docs/templates/mjml/owner_O77.mjml (Confirm button above the steps, intro reworded to read without "Press here").
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";

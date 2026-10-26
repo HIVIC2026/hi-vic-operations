@@ -189,8 +189,7 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     expect(calls.owner[0]!.text).not.toContain("call us");
     expect(calls.office).toHaveLength(1);
     expect(calls.office[0]).toMatchObject({ recipient: "partner", to: "office@reinsulate.test", label: "job_cancelled_installer", businessId: "b-real", subject: "HV-3117 cancelled – 824 High Street Road, Glen Waverley" });
-    expect(calls.office[0]!.text).toContain("HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.");
-    expect(calls.office[0]!.text).not.toContain("HIV:"); // I70 design fix: no text-message prefix in the email
+    expect(calls.office[0]!.text).toContain("HIV: HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.");
     expect(calls.office[0]!.text).not.toContain("Helen");
     expect(calls.test).toHaveLength(0);
     // The installer was released (assignment ended) and still told: the recipient is read before the release.
