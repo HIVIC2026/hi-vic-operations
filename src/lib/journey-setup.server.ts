@@ -223,8 +223,9 @@ export type LeadInstaller = { workerId: string; name: string };
 export async function ensureTestInstallerPeople(actorId: string, installerBiz: string, boss: { id: string; email: string; full_name?: string | null }, log: SetupLog): Promise<LeadInstaller | null> {
   await ensureBossListed(actorId, installerBiz, boss, log);
   for (const w of await testWorkers(installerBiz, "installer")) {
-    await ensureApproved(actorId, w, log);
+    // CII verified first: the live guard (0082 guard_installer_worker_certified) refuses approving an unverified installer.
     await ensureEecCleared(actorId, w, log);
+    await ensureApproved(actorId, w, log);
     await ensureWhiteCard(actorId, w, log);
     await ensurePiisa(actorId, w, log);
   }

@@ -48,6 +48,9 @@ await j.db.exec(`create function journey_invoice_status_mirror() returns trigger
 create trigger journey_invoice_status_mirror after insert or update on public.invoices for each row execute function journey_invoice_status_mirror();`);
 // The live database seeds every new job's evidence checklist, compliance checks and VEEC row (migration 0000 trigger).
 await j.db.exec("create trigger jobs_seed_requirements after insert on public.jobs for each row execute function public.seed_job_requirements();");
+// The live database refuses approving an installer whose CII is not office-verified (pending migration 0082 guard).
+const guard0082 = /CREATE FUNCTION public\.guard_installer_worker_certified\(\)[\s\S]*?FOR EACH ROW EXECUTE FUNCTION public\.guard_installer_worker_certified\(\);/.exec(readFileSync(new URL("../docs/pending-migrations/0082_installer_sign_activation.sql", import.meta.url), "utf8"))![0];
+await j.db.exec(`DROP TRIGGER IF EXISTS partner_workers_installer_certified ON public.partner_workers; DROP FUNCTION IF EXISTS public.guard_installer_worker_certified() CASCADE; ${guard0082}`);
 const { admin: baseAdmin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
