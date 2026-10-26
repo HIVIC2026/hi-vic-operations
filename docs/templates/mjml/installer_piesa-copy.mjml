@@ -38,8 +38,8 @@
       </mj-section>
       <mj-section>
         <mj-column>
-          <mj-text padding="8px 0 0"></mj-text>
-          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB">View your safety check (PDF)</mj-button>
+          <mj-text padding="14px 12px 14px"><strong>Your signed safety check is attached to this email (PDF).</strong></mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB">Open the job</mj-button>
           <mj-text mj-class="small">Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.</mj-text>
           <mj-text mj-class="small" padding="0 12px 0">Questions? Just reply to this email.</mj-text>
         </mj-column>

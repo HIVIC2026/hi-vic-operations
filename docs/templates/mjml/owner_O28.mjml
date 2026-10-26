@@ -30,7 +30,8 @@
 
       <mj-section>
         <mj-column>
-          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?doc=piesa" padding="14px 12px 14px">View your safety check (PDF)</mj-button>
+          <mj-text padding="14px 12px 14px"><strong>Your signed safety check is attached to this email (PDF).</strong></mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" padding="0 12px 18px">See my job</mj-button>
           <mj-text>Your installer has the same copy. One thing to know: <strong>please don't let anyone into the ceiling before the install.</strong> If anything changes up there, the check may need to be done again.</mj-text>
           <mj-text mj-class="small" padding="0 12px 0">Questions about the safety check? Just reply to this email.</mj-text>
         </mj-column>
