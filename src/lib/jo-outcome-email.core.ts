@@ -343,7 +343,7 @@ export const mjLinkCard = (title: string, body: string, href: string, label: str
   section(`<mj-text mj-class="h2" padding="18px 18px 2px">${K.esc(title)}</mj-text><mj-text padding="0 18px 6px">${K.esc(body)}</mj-text><mj-text padding="0 18px 16px">${mjLink(href, `${K.esc(label)} &rarr;`)}</mj-text>`, "panel-card");
 
 /** Decision 67: "Your existing insulation" card ($0 if it can stay, $/m² if some needs removing). */
-function mjExistingInsulation(areaM2: number, ratePerM2: number, upTo: number): string {
+export function mjExistingInsulation(areaM2: number, ratePerM2: number, upTo: number): string {
   const td = (top: boolean) => (top ? "border-top:1px solid #E4E9F5;" : "");
   const row = (icon: string, title: string, detail: string, amount: string, color: string, top: boolean) =>
     `<tr><td width="32" valign="top" style="padding:12px 0;${td(top)}"><span class="${icon}">${icon === "tick" ? "&#10003;" : "+"}</span></td><td valign="top" style="padding:10px 0;${td(top)}"><strong>${title}</strong><br /><span class="muted">${detail}</span></td><td valign="top" align="right" style="padding:10px 0 10px 10px;white-space:nowrap;font-weight:700;color:${color};${td(top)}">${amount}</td></tr>`;

@@ -13,6 +13,8 @@
 // ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
 // use test-send so the flow can be checked.
 import * as K from "./email-kit.core";
+import { mjEmail } from "./mail-mjml.core";
+import { mjHeadline, mjRebateAndPrice, mjSmallEnd, mjSubSection, rebateAndPriceText } from "./jo-outcome-email.core";
 
 export const ESTIMATE_FOLLOWUP_APPROVED = true as boolean; // Decision 388: paused 25 Oct 2026, reworded spot-only; Jo re-approved O66–O68 the same day ("Approve, use /homeowner" for the day-21 come-back line)
 
@@ -113,7 +115,7 @@ export function decideEstimateFollowup(f: EstimateFollowupFacts, nowIso: string)
 }
 
 // ---------------------------------------------------------------------------
-// Emails (drafts O66 / O67 / O68 — re-use the O1 price box and Save my spot button)
+// Emails (O66 / O67 / O68 — re-use the O1 rebate and price boxes and Save my spot button)
 // ---------------------------------------------------------------------------
 export type EstimateFollowupEmailInput = {
   step: EstimateFollowupStep;
@@ -130,38 +132,44 @@ export type EstimateFollowupEmailInput = {
   test?: boolean;
 };
 
-const SAVE_TITLE = "Save your spot, it's free";
+const SAVE_TITLE = "Save your spot – it's free";
 const SAVE_LABEL = "Save my free spot";
 const REPLY = "Questions? Just reply to this email.";
+/** Day 21's come-back page, shown as a tappable link in the email. */
+const COME_BACK_URL = "https://homeinsulationvictoria.com.au/homeowner";
+const COME_BACK_LABEL = "homeinsulationvictoria.com.au/homeowner";
 
-type Copy = { subject: string; intro: string; saveTitle: string; save: string; after: string | null; closing: string };
+type Copy = { subject: string; preview: string; intro: string; saveTitle: string; save: string; after: string | null; closing: string };
 
-/** The three wordings, reworded spot-only for decision 388 and HELD (ESTIMATE_FOLLOWUP_APPROVED = false) until Jo
- *  approves them again (docs/decision-388-spot-only-wording.md); the design is the O1 kit. */
-export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, rebate: string): Copy {
+/** The three wordings (decision 388 spot-only, re-approved by Jo 25 Oct 2026; MJML refresh 27 Oct 2026:
+ *  docs/templates/mjml/owner_O66–O68). */
+export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, rebate: string, price?: string): Copy {
   switch (step) {
     case "day_2": return {
       subject: `${first}, your ${rebate} rebate spot is still open`,
+      preview: price ? `Your price could be ${price} after the rebate. Saving your spot takes a few seconds.` : "Saving your spot takes a few seconds.",
       intro: `A couple of days ago we sent your ceiling insulation estimate. Nothing has changed: the ${rebate} Victorian Energy Upgrades rebate is still available and your spot is still open.`,
       saveTitle: SAVE_TITLE,
-      save: "Thousands of Victorians have registered, and spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
+      save: "Thousands of Victorians have registered. Spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_7": return {
       subject: `${first}, still thinking about your ceiling insulation?`,
-      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price, and nothing is locked in until you've seen your exact price and agreed to it.`,
+      preview: "Nothing is locked in until you've seen your exact price and agreed to it.",
+      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price. Nothing is locked in until you've seen your exact price and agreed to it.`,
       saveTitle: SAVE_TITLE,
-      save: "Save your spot to keep your place in line. Spots are released in the order they were saved, and we'll be in touch when your spot is released. No payment, no obligation.",
+      save: "Save your spot to keep your place in line. Spots are released in the order they were saved, and we'll be in touch when yours is released. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_21": return {
       subject: `${first}, we'll close your estimate in a week`,
-      intro: "We sent your ceiling insulation estimate three weeks ago and haven't heard back, so we'll close it in a week to keep our list accurate.",
+      preview: `Save your spot now to stay on the list with your ${rebate} rebate.`,
+      intro: "We sent your ceiling insulation estimate three weeks ago and haven't heard back. So we'll close it in a week to keep our list accurate.",
       saveTitle: "Want to keep your spot? Save it now",
       save: `Save your spot and you stay on the list with your ${rebate} rebate. No payment, no obligation.`,
-      after: "If now isn't the right time, that's fine. You can come back any time: reply to this email or visit homeinsulationvictoria.com.au/homeowner and we'll pick up where we left off.",
+      after: `If now isn't the right time, that's fine. You can come back any time: reply to this email or visit ${COME_BACK_LABEL} and we'll pick up where we left off.`,
       closing: REPLY,
     };
   }
@@ -169,26 +177,22 @@ export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, 
 
 export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { subject: string; html: string; text: string } {
   const first = K.cleanName(i.firstName) ?? "there";
-  const rebate = K.whole(i.rebate), price = K.whole(i.price), full = K.whole(i.fullPrice);
-  const c = estimateFollowupCopy(i.step, first, rebate);
+  const rebate = K.whole(i.rebate), price = K.whole(i.price);
+  const c = estimateFollowupCopy(i.step, first, rebate, price);
   const some = i.someInsulation === true;
-  const calc = i.calculatorUrl ? { href: i.calculatorUrl, label: "Try a different ceiling size" } : null;
+  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: i.rebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price: i.price, fullPrice: i.fullPrice, basis: i.basis, calculatorUrl: i.calculatorUrl };
+  const afterHtml = c.after ? K.esc(c.after).replace(COME_BACK_LABEL, `<a href="${COME_BACK_URL}" style="color:#3C51C4;font-weight:700;">${COME_BACK_LABEL}</a>`) : null;
   const body = [
-    K.h1(c.subject),
-    K.p(c.intro),
-    K.priceBox({ rebateLabel: some ? "Your potential VEU rebate" : "Your estimated VEU rebate", rebate: i.rebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price, fullPrice: full, basis: i.basis, calculator: calc }),
-    K.sectionTitle(c.saveTitle, "22px 0 6px"),
-    K.p(c.save, "0 0 4px"),
-    K.button(i.saveUrl, SAVE_LABEL),
-    c.after ? K.p(c.after, "18px 0 0") : "",
-    K.small(c.closing, "14px 0 0", { size: 14 }),
+    mjHeadline(c.subject, c.intro),
+    mjRebateAndPrice(box),
+    mjSubSection(c.saveTitle, c.save, { href: i.saveUrl, label: SAVE_LABEL }),
+    afterHtml ? `<mj-section><mj-column><mj-text>${afterHtml}</mj-text></mj-column></mj-section>` : "",
+    mjSmallEnd(K.esc(c.closing), "4px 12px 0"),
   ].filter(Boolean).join("\n");
-  const html = K.emailShell({ body, previewText: null, testLabel: i.test === true, unsubscribe: i.unsubscribeUrl });
+  const html = mjEmail({ subject: c.subject, preview: c.preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   const text = K.plainText([
     c.subject, "", c.intro, "",
-    `${some ? "YOUR POTENTIAL VEU REBATE" : "YOUR ESTIMATED VEU REBATE"}: You save ${rebate}`,
-    `${some ? "YOUR COST IF ELIGIBLE" : "YOU PAY AFTER THE REBATE"}: ${price} incl. GST (full price before rebate ${full})`,
-    i.basis, i.calculatorUrl ? `Try a different ceiling size: ${i.calculatorUrl}` : null, "",
+    ...rebateAndPriceText(box), "",
     c.saveTitle.toUpperCase(), c.save, `${SAVE_LABEL}: ${i.saveUrl}`, "",
     c.after, c.after ? "" : null, c.closing,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
