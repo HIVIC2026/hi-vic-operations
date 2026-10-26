@@ -62,6 +62,29 @@ class Recorder {
   }
 }
 
+/** A fresh run whose street number no other job uses (the default step 1 address is "<digits> Journey Test Street",
+ *  and an address match links onto that older job instead of making a new one). */
+async function freshCtx(): Promise<JourneyCtx> {
+  for (let i = 0; i < 40; i++) {
+    const ctx = await freshCtx();
+    const num = ctx.runId.slice(0, 2).replace(/\D/g, "") || "7";
+    const { count } = await admin.from("properties").select("id", { count: "exact", head: true }).ilike("address_line", `${num} Journey Test Street`);
+    if (!count) return ctx;
+  }
+  throw new Error("no free TEST street number for a fresh job");
+}
+
+/** Never archive a job this run did not create. */
+async function ownJob(ctx: JourneyCtx) {
+  if (!ctx.jobId) return false;
+  const { data } = await admin.from("jobs").select("external_enquiry_id, source").eq("id", ctx.jobId).maybeSingle();
+  return data?.source === "qa_test" && data.external_enquiry_id === `qa-journey-${ctx.runId}`;
+}
+async function safeCleanup(ctx: JourneyCtx) {
+  if (!(await ownJob(ctx))) { ctx.jobId = null; }
+  await safeCleanup(ctx);
+}
+
 /** Steps 1..n of the default run (same code) on a fresh TEST job. */
 async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx, r: StepResult) => Promise<void>) {
   const fns: [string, (c: JourneyCtx, r: StepResult) => Promise<void>][] = [["s1_calculator", J.s1], ["s2_owner_links", J.s2], ["s3_office_offer", J.s3]];
@@ -71,6 +94,7 @@ async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx
     const r: StepResult = { key: key as StepResult["key"], label: `${ctx.jobNumber ?? "new job"} setup ${key}`, passed: false, checks: [] };
     try { await fn(ctx, r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); out.push(r); return { ok: false, out }; }
     r.label = `${ctx.jobNumber} setup ${key}`;
+    if (key === "s1_calculator" && !(await ownJob(ctx))) { r.passed = false; r.error = `step 1 linked onto an older job ${ctx.jobNumber}; stopped without touching it`; out.push(r); ctx.jobId = null; return { ok: false, out }; }
     out.push(r);
   }
   return { ok: true, out };
@@ -107,7 +131,7 @@ async function readyCheckWith(ctx: JourneyCtx, m: { insulation_present: boolean 
 // Branch 1 — Ready Check says not eligible
 // =====================================================================================================================
 async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
-  const ctx = await newJourneyCtx();
+  const ctx = await freshCtx();
   try {
     const s = await setupSteps(ctx, 3);
     setup.push(...s.out);
@@ -172,12 +196,12 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
       return { ok: calls.length === 0 && (ev ?? 0) === 0, detail: `Needs me rows on this job ${rows.length}; asking to call the owner=${calls.length}; events mentioning it=${ev}` };
     }, ["1.1"]);
   } finally {
-    await cleanupJourney(ctx).catch(() => undefined);
+    await safeCleanup(ctx);
     const j = jobs.find((x) => x.jobId === ctx.jobId); if (j) j.archived = await archived(ctx.jobId);
   }
 
   // Second case: missing/conflicting evidence → needs_review (not not_eligible), job stays in office review, owner not told.
-  const c2 = await newJourneyCtx();
+  const c2 = await freshCtx();
   try {
     const s = await setupSteps(c2, 3);
     setup.push(...s.out);
@@ -202,7 +226,7 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
       return { ok, detail: `suggested=${view.assessment.suggested} (missing: ${view.assessment.missing.join(", ") || "none"}; review: ${view.assessment.reviewReasons.join(" ") || "none"}); saved=${row?.outcome}; stage ${stageBefore}→${stageAfter}; owner told not eligible=${told}; ${diff(b, a)}`, ids: { verification_id: v.id } };
     });
   } finally {
-    await cleanupJourney(c2).catch(() => undefined);
+    await safeCleanup(c2);
     const j = jobs.find((x) => x.jobId === c2.jobId); if (j) j.archived = await archived(c2.jobId);
   }
 }
@@ -223,7 +247,7 @@ async function defaultReadyCheck(ctx: JourneyCtx, r: StepResult) {
 const FIXES_PRICE = 880;
 
 async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
-  const ctx = await newJourneyCtx();
+  const ctx = await freshCtx();
   try {
     const s = await setupSteps(ctx, 5, defaultReadyCheck);
     setup.push(...s.out);
@@ -413,7 +437,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: !!t.formCompleteAt && !!t.ownerPaidAt && got === want, detail: `form complete ${t.formCompleteAt ?? "none"}; owner paid ${t.ownerPaidAt ?? "none"}; due ${got ?? "none"}; expected ${want ?? "-"}${t.waiting.length ? `; waiting: ${t.waiting.join("; ")}` : ""}` };
     }, ["2.6"]);
   } finally {
-    await cleanupJourney(ctx).catch(() => undefined);
+    await safeCleanup(ctx);
     const j = jobs.find((x) => x.jobId === ctx.jobId); if (j) j.archived = await archived(ctx.jobId);
   }
 }
