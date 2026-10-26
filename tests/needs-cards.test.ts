@@ -1,6 +1,6 @@
 // Needs me grouped by kind (Jo 26 Oct 2026). Pure: regroups decided rows only. Run: bun test tests/needs-cards.test.ts
 import { describe, expect, test } from "bun:test";
-import { NEEDS_CARD_TITLE, cardOf, needsCards, needsHeadline } from "../src/lib/needs-cards.core";
+import { NEEDS_CARD_TITLE, bulkMatchable, cardOf, confidentGuess, needsCards, needsHeadline } from "../src/lib/needs-cards.core";
 import type { NeedsKind, NeedsRow } from "../src/lib/office-needs.core";
 
 const row = (key: string, kind: NeedsKind, since = "2026-10-25T00:00:00Z"): NeedsRow => ({
@@ -35,5 +35,21 @@ describe("needs me headline", () => {
     expect(needsHeadline(40, 325)).toBe("40 need you today · 325 spots waiting for an installer");
     expect(needsHeadline(1, 1)).toBe("1 needs you today · 1 spot waiting for an installer");
     expect(needsHeadline(0, 0)).toBe("Nothing needs you today");
+  });
+});
+
+describe("match all best guesses", () => {
+  const email = (key: string, jobId: string | null, why: string[]): NeedsRow => ({ ...row(key, "email_unmatched"), jobId, guessWhy: why });
+  test("only specific reasons count: HV number, address or full owner name", () => {
+    expect(confidentGuess(email("a", "j", ["mentions HV-3117"]))).toBe(true);
+    expect(confidentGuess(email("b", "j", ["address 12 Smith St"]))).toBe(true);
+    expect(confidentGuess(email("c", "j", ["owner name Wayne Materazzo"]))).toBe(true);
+    expect(confidentGuess(email("d", "j", ["surname kirby", "postcode 3132"]))).toBe(false);
+    expect(confidentGuess(email("e", null, ["mentions HV-1"]))).toBe(false);
+    expect(confidentGuess({ ...row("f", "email_change"), guessWhy: ["mentions HV-1"] })).toBe(false);
+  });
+  test("bulkMatchable keeps order and drops the rest", () => {
+    const rows = [email("a", "j1", ["mentions HV-1"]), email("b", "j2", ["suburb Croydon"]), row("c", "quote_check"), email("d", "j3", ["owner name A B"])];
+    expect(bulkMatchable(rows).map((r) => r.key)).toEqual(["a", "d"]);
   });
 });

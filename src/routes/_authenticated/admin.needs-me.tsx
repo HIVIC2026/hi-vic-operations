@@ -11,12 +11,15 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/portal/AppShell";
 import { OfficeSearch } from "@/components/portal/office";
 import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
-import { getNeedsMePage } from "@/lib/office-screens.functions";
+import { getNeedsMePage, getOfficeJobPage } from "@/lib/office-screens.functions";
 import { checkedLabel } from "@/lib/office-needs-snapshot.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
-import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
-import { needsCards, needsHeadline, type NeedsCard, type NeedsCardId } from "@/lib/needs-cards.core";
+import { ageLabel, NEEDS_GROUPS, type JobSection, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
+import { bulkMatchable, needsCards, needsHeadline, type NeedsCard, type NeedsCardId } from "@/lib/needs-cards.core";
+import type { CardKey } from "@/lib/office-stage-cards.core";
+import { ContactHistory, JobHeader, MoneyCard, NextPanel, StageWorkspace } from "@/components/portal/office-job";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { btnClass } from "@/components/portal/kit";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
 import { INSTALLER_WAITING_PATH, foldChooseInstaller } from "@/lib/installer-waiting-columns.core";
@@ -101,19 +104,118 @@ function Row({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => v
   );
 }
 
+/**
+ * "Review and match all" (Jo 26 Oct 2026): unmatched emails whose best guess is specific (needs-cards.core
+ * confidentGuess) in one review list, all ticked; the office unticks any that look wrong and presses Match. Each match
+ * is the same audited matchOutlookEmail the row's own button uses, one after another; a failure stays on the list.
+ */
+function BulkMatch({ rows, onDone }: { rows: NeedsRow[]; onDone: (keys: string[]) => void }) {
+  const match = useServerFn(matchOutlookEmail);
+  const [open, setOpen] = useState(false);
+  const [off, setOff] = useState<Set<string>>(() => new Set());
+  const [progress, setProgress] = useState<number | null>(null);
+  if (rows.length === 0) return null;
+  const picked = rows.filter((r) => !off.has(r.key));
+  const run = async () => {
+    const ok: string[] = [];
+    let failed = 0;
+    setProgress(0);
+    for (const r of picked) {
+      try { await match({ data: { messageEventId: r.eventId!, jobId: r.jobId! } }); ok.push(r.key); }
+      catch (e) { console.error("Needs me bulk match failed", r.eventId, e); failed++; }
+      setProgress(ok.length + failed);
+    }
+    if (failed) toast.error(`Matched ${ok.length}. ${failed} didn't save and ${failed === 1 ? "stays" : "stay"} on the list.`);
+    else toast.success(`Matched ${ok.length} email${ok.length === 1 ? "" : "s"}`);
+    setProgress(null); setOpen(false); setOff(new Set());
+    onDone(ok);
+  };
+  return (
+    <div className="grid gap-2 border-b border-line bg-mist px-4 py-3" data-why="Jo 26 Oct: match all confident best guesses after a review">
+      {!open ? (
+        <>
+          <span className="text-sm text-ink">{rows.length} {rows.length === 1 ? "has" : "have"} a confident best guess (job number, address or the owner's full name in the email).</span>
+          <button type="button" className={btn("primary")} onClick={() => setOpen(true)}>Review and match {rows.length === 1 ? "it" : `all ${rows.length}`}</button>
+        </>
+      ) : (
+        <>
+          <span className="text-sm font-semibold text-ink">Untick any that look wrong, then match.</span>
+          <ul className="grid gap-1">
+            {rows.map((r) => (
+              <li key={r.key}>
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] bg-paper px-3 py-2">
+                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--hiv-blue)]" checked={!off.has(r.key)} disabled={progress !== null} onChange={(e) => setOff((o) => { const n = new Set(o); if (e.target.checked) n.delete(r.key); else n.add(r.key); return n; })} />
+                  <span className="grid min-w-0 gap-0.5 text-sm">
+                    <span><strong>{r.jobNumber}</strong> {r.surname}<span className="text-sub"> · {r.guessWhy?.find((w) => /^(mentions |address |owner name )/.test(w)) ?? ""}</span></span>
+                    <span className="break-words text-sub">{r.line}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="grid grid-cols-2 gap-2 md:flex">
+            <button type="button" className={btn("primary")} disabled={picked.length === 0 || progress !== null} onClick={() => void run()}>{progress !== null ? `Matching ${progress} of ${picked.length}…` : `Match ${picked.length}`}</button>
+            <button type="button" className={btn("secondary")} disabled={progress !== null} onClick={() => { setOpen(false); setOff(new Set()); }}>Cancel</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+type Peek = { jobId: string; section?: JobSection };
+
+/**
+ * Desktop side panel (Jo 26 Oct 2026): the job's next step and the stage card a Needs me row points at, using the job
+ * page's own pieces (same guards and actions), so the office can act without leaving Needs me. "Open the full job"
+ * goes to the job page for anything else.
+ */
+function JobPeek({ peek, onClose }: { peek: Peek | null; onClose: () => void }) {
+  return (
+    <Sheet open={!!peek} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="portal-theme w-full overflow-y-auto bg-background text-ink sm:max-w-[760px]">
+        {peek && <PeekBody key={`${peek.jobId}:${peek.section ?? ""}`} peek={peek} />}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function PeekBody({ peek }: { peek: Peek }) {
+  const load = useServerFn(getOfficeJobPage);
+  const { data, error, refetch } = useQuery({ queryKey: ["office-job-page", peek.jobId], queryFn: () => load({ data: { jobId: peek.jobId } }), staleTime: 15_000 });
+  const [k, setK] = useState<CardKey | "money" | "contact" | null>(peek.section ?? null);
+  const navigate = useNavigate();
+  return (
+    <div className="grid gap-4 pt-6">
+      <SheetTitle className="sr-only">Job</SheetTitle>
+      <SheetDescription className="sr-only">The job's next step and the card this Needs me row is about.</SheetDescription>
+      {error ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">This job couldn't load here. <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Try again</button> or <Link to="/admin/jobs/$jobId" params={{ jobId: peek.jobId }} className="font-semibold underline">open the full job</Link>.</div>
+        : !data ? <p role="status" className="text-sub">Loading the job…</p> : (
+        <>
+          <JobHeader h={data.header} more={<Link to="/admin/jobs/$jobId" params={{ jobId: peek.jobId }} {...(peek.section ? { hash: `stage-${peek.section}` } : {})} className={btn("secondary")}>Open the full job</Link>} />
+          <NextPanel next={data.next} onGo={(c) => setK(c)} />
+          {k === "money" ? <MoneyCard jobId={peek.jobId} />
+            : k === "contact" ? <ContactHistory jobId={peek.jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => void navigate({ to: "/admin/jobs/$jobId", params: { jobId: peek.jobId }, hash: "stage-contact" })} />
+            : k ? <StageWorkspace jobId={peek.jobId} k={k} page={data} onGo={(c) => setK(c)} /> : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Desktop (lg+): the open card's rows in O1's columns — job · surname · suburb and why · age · action. */
-function DeskRow({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => void }) {
+function DeskRow({ row, now, onDone, onPeek }: { row: NeedsRow; now: number; onDone: () => void; onPeek: (p: Peek) => void }) {
   const email = row.kind === "email_change" || row.kind === "email_unmatched";
   return (
     <li className="grid grid-cols-[80px_minmax(0,130px)_minmax(0,1fr)_44px_auto] items-center gap-x-4 border-b border-line px-4 py-3 last:border-b-0" data-kind={row.kind}>
-      {row.jobNumber ? <span className="text-[13px] font-bold text-ink">{row.jobNumber}{row.isTest ? <span className="ml-1 rounded bg-warning-soft px-1 text-[10px] font-bold">TEST</span> : null}</span> : <span className="text-[11px] font-bold uppercase tracking-wide text-sub">Unmatched</span>}
+      {row.jobNumber && row.jobId && !email ? <Link to="/admin/jobs/$jobId" params={{ jobId: row.jobId }} className="text-[13px] font-bold text-ink underline-offset-2 hover:underline">{row.jobNumber}{row.isTest ? <span className="ml-1 rounded bg-warning-soft px-1 text-[10px] font-bold">TEST</span> : null}</Link> : row.jobNumber ? <span className="text-[13px] font-bold text-ink">{row.jobNumber}{row.isTest ? <span className="ml-1 rounded bg-warning-soft px-1 text-[10px] font-bold">TEST</span> : null}</span> : <span className="text-[11px] font-bold uppercase tracking-wide text-sub">Unmatched</span>}
       <span className="truncate font-semibold text-ink">{row.surname}</span>
       <span className="min-w-0 break-words text-sm text-ink">{row.suburb ? <span className="text-sub">{row.suburb} · </span> : null}{row.line}</span>
       <span className="text-right text-xs text-sub">{ageLabel(row.since, now)}</span>
       <span>
         {email ? <EmailActions row={row} onDone={onDone} />
           : row.jobId && row.button.to === "job"
-            ? <Link to="/admin/jobs/$jobId" params={{ jobId: row.jobId }} {...(row.button.section ? { hash: `stage-${row.button.section}` } : {})} className={btn("primary")}>{row.button.label}</Link>
+            ? <button type="button" className={btn("primary")} onClick={() => onPeek({ jobId: row.jobId!, ...(row.button.to === "job" && row.button.section ? { section: row.button.section } : {}) })}>{row.button.label}</button>
             : null}
       </span>
     </li>
@@ -121,7 +223,7 @@ function DeskRow({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () 
 }
 
 /** A card of one kind: count, name, oldest age; tap to open its rows (one card open at a time). */
-function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard; now: number; open: boolean; selected: boolean; onToggle: () => void; onDone: (key: string) => void }) {
+function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard; now: number; open: boolean; selected: boolean; onToggle: () => void; onDone: (keys: string[]) => void }) {
   const urgent = URGENT.includes(card.id);
   return (
     <div className={cn("overflow-hidden rounded-[14px] border bg-paper", selected ? "border-line lg:border-hiv-blue lg:ring-1 lg:ring-hiv-blue" : "border-line")} data-card={card.id}>
@@ -130,7 +232,10 @@ function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard
         <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">{card.title}</span><span className="text-xs text-sub">oldest {ageLabel(card.oldestSince, now)}</span></span>
         <span aria-hidden className="text-lg text-sub">{open ? <><span className="lg:hidden">▾</span><span className="hidden lg:inline">›</span></> : "›"}</span>
       </button>
-      {open && <ul className="border-t border-line lg:hidden">{card.rows.map((r) => <Row key={r.key} row={r} now={now} onDone={() => onDone(r.key)} />)}</ul>}
+      {open && <div className="border-t border-line lg:hidden">
+        {card.id === "emails" && <BulkMatch rows={bulkMatchable(card.rows)} onDone={onDone} />}
+        <ul>{card.rows.map((r) => <Row key={r.key} row={r} now={now} onDone={() => onDone([r.key])} />)}</ul>
+      </div>}
     </div>
   );
 }
@@ -186,8 +291,9 @@ function NeedsMe() {
     refetchInterval: (q) => (q.state.data?.refreshing ? 5_000 : 120_000),
   });
   useEffect(() => { setDone(new Set()); }, [data?.computedAt]);
-  const refresh = (key?: string) => {
-    if (key) setDone((d) => new Set(d).add(key));
+  const [peek, setPeek] = useState<Peek | null>(null);
+  const refresh = (keys: string[] = []) => {
+    if (keys.length) setDone((d) => new Set([...d, ...keys]));
     markOfficeChanged(); // decision 383: Jobs › Active and Enquiries work themselves out fresh on their next read
     void load({ data: { includeTest, refresh: true } }).then((fresh) => qc.setQueryData(["needs-me-v2", includeTest], fresh)).catch(() => undefined);
   };
@@ -230,7 +336,7 @@ function NeedsMe() {
                   const id = `${g.key}:${c.id}`;
                   // Phone: an accordion (tap again to close). Desktop: a list that picks what the right-hand panel shows.
                   const pick = () => setOpenCard(window.matchMedia("(min-width: 1024px)").matches || openCard !== id ? id : null);
-                  return <Card key={id} card={c} now={data.now} open={openCard === id} selected={shown?.id === id} onToggle={pick} onDone={(key) => refresh(key)} />;
+                  return <Card key={id} card={c} now={data.now} open={openCard === id} selected={shown?.id === id} onToggle={pick} onDone={refresh} />;
                 })}
               </section>
             );
@@ -241,12 +347,14 @@ function NeedsMe() {
           {shown ? (
             <div className="overflow-hidden rounded-[14px] border border-line bg-paper">
               <h2 className="border-b border-line px-4 py-3 font-display text-lg font-bold text-ink">{shown.card.title} · {shown.card.rows.length}</h2>
-              <ul>{shown.card.rows.map((r) => <DeskRow key={r.key} row={r} now={data.now} onDone={() => refresh(r.key)} />)}</ul>
+              {shown.card.id === "emails" && <BulkMatch rows={bulkMatchable(shown.card.rows)} onDone={refresh} />}
+              <ul>{shown.card.rows.map((r) => <DeskRow key={r.key} row={r} now={data.now} onDone={() => refresh([r.key])} onPeek={setPeek} />)}</ul>
             </div>
           ) : <p className="rounded-[14px] border border-line bg-paper px-4 py-6 text-sm text-sub">Nothing needs you right now.</p>}
         </section>
         </div>
       )}
+      <JobPeek peek={peek} onClose={() => { setPeek(null); refresh(); }} />
     </AppShell>
   );
 }
