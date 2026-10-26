@@ -98,7 +98,7 @@ export function finishAiReply(raw: string): string {
   // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
   t = t.replace(/^((?:hi|hey|hello|g'day)\b[^\n!,.]{0,40}[!,])[ \t]*\n?(?=\S)/i, "$1\n\n");
   // Each link on its own line so it can show as a button.
-  t = t.replace(/[ \t]*(https?:\/\/[^\s<>"]+?)([.,!?;:)]?)(?=\s|$)/g, "\n$1\n$2").replace(/\n([.,!?;:)])/g, "$1").replace(/:\n(https?:)/g, ":\n$1");
+  t = t.replace(/[ \t]*\(?(https?:\/\/[^\s<>"]*[^\s<>".,!?;:)])[.,!?;:)]*/g, "\n\n$1\n\n");
   t = t.split("\n").map((l) => l.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return `${t}\n\n${AI_SIGN_OFF}`;
 }
