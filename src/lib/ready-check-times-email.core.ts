@@ -73,23 +73,33 @@ export function readyCheckEstimateText(e: ReadyCheckEstimate): string[] {
 
 const DISPLAY = "Outfit, Figtree, Arial, Helvetica, sans-serif";
 const FREE_READY_CHECK = { title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." };
+/** O11/O12 pictures: the "What's included" list in Jo's exact words. */
+const O12_INCLUDED = (rebate: number) => [
+  FREE_READY_CHECK,
+  { title: "Licensed electrician safety check", detail: "Required before any insulation goes in. They check wiring, downlights and cables so your ceiling is safe." },
+  { title: "Premium R5.0 ceiling batts", detail: "Approved for the VEU program and made to Australian Standard AS/NZS 4859.1." },
+  { title: "Fitted by an EEC-certified installer", detail: "Certified Insulation Installer (CII) through the Energy Efficiency Council, installing to Australian Standard AS 3999." },
+  { title: "We handle the rebate", detail: `As a VEU Accredited Person (${K.AP_NUMBER}), we do all the government paperwork. The ${K.whole(rebate)} comes straight off your price.` },
+];
+const O12_NOT_INCLUDED_TITLE = "Not included, only if needed";
+const O12_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
 /** Jo's approved pictures O11/O12 (27 Oct 2026): rebate | price side by side in one box, note underneath; included list starts with the free Ready Check. */
 export function mjO12Estimate(e: ReadyCheckEstimate): string {
-  const inc = [FREE_READY_CHECK, ...INCLUDED(e.rebate)];
+  const inc = O12_INCLUDED(e.rebate);
   const cell = (label: string, value: string, color: string, divider: boolean) => `<td width="50%" align="center" valign="top" style="padding:16px 8px 6px;${divider ? "border-right:1px solid #DCE2F2;" : ""}"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">${esc(label)}</div><div style="font-family:${DISPLAY};font-size:30px;line-height:38px;font-weight:800;color:${color};">${esc(value)}</div></td>`;
   return [
     `<mj-section><mj-column mj-class="panel"><mj-table padding="4px 12px 0"><tr>${cell("VEU rebate", K.whole(e.rebate), "#057D40", true)}${cell("You pay about", K.whole(e.price), "#3C51C4", false)}</tr></mj-table><mj-text mj-class="small center" padding="8px 16px 18px">${esc(estimateNote(e))}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What's included in ${esc(K.whole(e.price))}</mj-text><mj-table padding="0 18px 6px">${inc.map((t, n) => tickRow(esc(t.title), esc(t.detail), n === inc.length - 1)).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text><mj-table padding="0 18px 6px">${NOT_INCLUDED.map(([b, rest]) => plusRow(`<strong>${esc(b)}</strong>${esc(rest)}`)).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(CLOSING)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">${esc(O12_NOT_INCLUDED_TITLE)}</mj-text><mj-table padding="0 18px 6px">${NOT_INCLUDED.map(([b, rest]) => plusRow(`<strong>${esc(b)}</strong>${esc(rest)}`)).join("")}</mj-table></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(O12_CLOSING)}</mj-text></mj-column></mj-section>`,
   ].join("");
 }
 export function o12EstimateText(e: ReadyCheckEstimate): string[] {
   return [
     `VEU rebate: ${K.whole(e.rebate)} | You pay about: ${K.whole(e.price)}`, estimateNote(e), "",
-    `WHAT'S INCLUDED IN ${K.whole(e.price)}`, ...[FREE_READY_CHECK, ...INCLUDED(e.rebate)].map((t) => `✓ ${t.title}: ${t.detail}`), "",
-    "NOT INCLUDED – ONLY IF NEEDED", ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
-    CLOSING,
+    `WHAT'S INCLUDED IN ${K.whole(e.price)}`, ...O12_INCLUDED(e.rebate).map((t) => `✓ ${t.title}: ${t.detail}`), "",
+    O12_NOT_INCLUDED_TITLE.toUpperCase(), ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
+    O12_CLOSING,
   ];
 }
 
@@ -103,7 +113,7 @@ export function renderReadyCheckTimesEmail(i: ReadyCheckTimesInput) {
   const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
   const n = slots.length;
   const preview = `A certified installer${where} has offered ${n} time${n === 1 ? "" : "s"}. Tap one and it's booked.`;
-  const at = "The installer measures your ceiling, checks your existing insulation and access, and confirms your exact price. It's free. No payment, no obligation.";
+  const at = "The installer measures your ceiling, checks your existing insulation and access, and confirms your exact price. It's free, with no payment and no obligation.";
   const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
