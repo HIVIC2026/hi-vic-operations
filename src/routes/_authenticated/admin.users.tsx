@@ -5,6 +5,7 @@ import { useAction, useMe, type AppRole } from "@/hooks/use-me";
 import { useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { downloadDadTestLogin } from "@/lib/dad-test-login.functions";
+import { downloadTestRigorLogins } from "@/lib/testrigor-test-login.functions";
 import { setUserBusiness, setUserRole } from "@/lib/portal.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -23,8 +24,9 @@ const ROLES: AppRole[] = ["admin", "electrician", "installer", "owner"];
 function Users() {
   const { data: me } = useMe();
   const downloadDad = useServerFn(downloadDadTestLogin);
+  const downloadTestRigor = useServerFn(downloadTestRigorLogins);
   const downloadLock = useRef(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"dad" | "testrigor" | null>(null);
   const [downloadError, setDownloadError] = useState(false);
   const [privateFile, setPrivateFile] = useState<File | null>(null);
   const savePrivateFile = async (file: File) => {
@@ -37,17 +39,17 @@ function Users() {
     anchor.href = url; anchor.download = file.name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
-  const prepareDownload = async () => {
+  const prepareDownload = async (which: "dad" | "testrigor") => {
     if (downloadLock.current) return;
-    downloadLock.current = true; setDownloading(true); setDownloadError(false);
+    downloadLock.current = true; setDownloading(which); setDownloadError(false); setPrivateFile(null);
     try {
-      const result = await downloadDad({ data: {} });
+      const result = await (which === "dad" ? downloadDad : downloadTestRigor)({ data: {} });
       const file = new File([result.content], result.filename, { type: result.mimeType });
       setPrivateFile(file);
       // Desktop download; touch users save through a second, synchronous share-sheet gesture.
       if (!window.matchMedia("(pointer: coarse)").matches) await savePrivateFile(file);
     } catch { setDownloadError(true); }
-    finally { downloadLock.current = false; setDownloading(false); }
+    finally { downloadLock.current = false; setDownloading(null); }
   };
   const setRole = useAction(setUserRole);
   const setBiz = useAction(setUserBusiness);
@@ -62,7 +64,8 @@ function Users() {
     <AppShell wide>
       <h1 className="mb-1 mt-1 font-display text-3xl font-extrabold">Users & access</h1>
       {me?.roles.includes("admin") && <div id="test-login" className="my-3 flex flex-wrap items-center gap-2">
-        <Button variant="outline" disabled={downloading} onClick={() => void prepareDownload()}><Download className="h-4 w-4" />{downloading ? "Preparing private file…" : "Prepare Deep’s TEST login (private file)"}</Button>
+        <Button variant="outline" disabled={downloading !== null} onClick={() => void prepareDownload("dad")}><Download className="h-4 w-4" />{downloading === "dad" ? "Preparing private file…" : "Prepare Deep’s TEST login (private file)"}</Button>
+        <Button variant="outline" disabled={downloading !== null} onClick={() => void prepareDownload("testrigor")}><Download className="h-4 w-4" />{downloading === "testrigor" ? "Preparing private file…" : "Prepare testRigor TEST logins (private file)"}</Button>
         {privateFile && <Button variant="outline" onClick={() => void savePrivateFile(privateFile)}><Download className="h-4 w-4" />Save private login file</Button>}
         {downloadError && <p role="alert" className="text-sm text-danger">TEST login download was blocked or could not be verified. No account details were changed.</p>}
       </div>}

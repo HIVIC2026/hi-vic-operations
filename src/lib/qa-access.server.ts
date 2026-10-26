@@ -98,6 +98,28 @@ async function tradeIdentity(admin: Admin, userId: string, businessId: string, r
   return identity;
 }
 
+/** Read-only: the account has no owner access and can reach only qa_test work through its own TEST business. */
+async function requireTestOnlyScope(admin: Admin, userId: string, businessId: string, label: string, sameOrigin: boolean) {
+  const complete = <T extends { data: unknown; error: { message: string } | null; count: number | null }>(result: T) => {
+    const rows = checked(result, "Could not verify complete TEST access scope") as { id?: string; job_id?: string; source?: string; originating_installer_business_id?: string | null; business_id?: string | null }[] | null;
+    if (!rows || result.count === null || result.count !== rows.length) throw new WorkflowError("The complete TEST access scope could not be verified.");
+    return rows;
+  };
+  const owners = complete(await admin.from("owners").select("id", { count: "exact" }).eq("user_id", userId));
+  if (owners.length) throw new WorkflowError(`${label} has owner access. Nothing was issued.`);
+  const assignments = complete(await admin.from("job_assignments").select("job_id, business_id", { count: "exact" }).eq("active", true)
+    .or(`user_id.eq.${userId},business_id.eq.${businessId}`));
+  if (assignments.some(row => row.business_id !== businessId)) throw new WorkflowError(`${label} has another business assignment.`);
+  const owned = complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).eq("originating_installer_business_id", businessId));
+  const jobIds = [...new Set(assignments.map(row => row.job_id).filter((id): id is string => typeof id === "string"))];
+  if (assignments.some(row => !row.job_id)) throw new WorkflowError("The TEST assignment scope is unreadable.");
+  const assigned = jobIds.length ? complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).in("id", jobIds)) : [];
+  if (assigned.length !== jobIds.length || owned.some(row => row.source !== "qa_test") ||
+    assigned.some(row => row.source !== "qa_test" || (sameOrigin && row.originating_installer_business_id !== businessId))) {
+    throw new WorkflowError(`${label} can reach non-TEST or other-business work. Nothing was issued.`);
+  }
+}
+
 /** Read-only, exact preflight for the dedicated handover. Never prepares or repairs access. */
 export async function validateDadTestIdentity(admin: Admin) {
   const identity = await qaIdentity(admin, DAD_TEST_USER_ID, DAD_TEST_EMAIL);
@@ -105,24 +127,26 @@ export async function validateDadTestIdentity(admin: Admin) {
   await rolesFor(admin, DAD_TEST_USER_ID, "installer");
   await qaBusiness(admin, DAD_TEST_BUSINESS_ID, "installer");
   await membership(admin, DAD_TEST_USER_ID, DAD_TEST_BUSINESS_ID, "business_admin");
-  const complete = <T extends { data: unknown; error: { message: string } | null; count: number | null }>(result: T) => {
-    const rows = checked(result, "Could not verify complete TEST access scope") as { id?: string; job_id?: string; source?: string; originating_installer_business_id?: string | null; business_id?: string | null }[] | null;
-    if (!rows || result.count === null || result.count !== rows.length) throw new WorkflowError("The complete TEST access scope could not be verified.");
-    return rows;
-  };
-  const owners = complete(await admin.from("owners").select("id", { count: "exact" }).eq("user_id", DAD_TEST_USER_ID));
-  if (owners.length) throw new WorkflowError("The dedicated TEST identity has owner access. Nothing was issued.");
-  const assignments = complete(await admin.from("job_assignments").select("job_id, business_id", { count: "exact" }).eq("active", true)
-    .or(`user_id.eq.${DAD_TEST_USER_ID},business_id.eq.${DAD_TEST_BUSINESS_ID}`));
-  if (assignments.some(row => row.business_id !== DAD_TEST_BUSINESS_ID)) throw new WorkflowError("The dedicated TEST identity has another business assignment.");
-  const owned = complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).eq("originating_installer_business_id", DAD_TEST_BUSINESS_ID));
-  const jobIds = [...new Set(assignments.map(row => row.job_id).filter((id): id is string => typeof id === "string"))];
-  if (assignments.some(row => !row.job_id)) throw new WorkflowError("The TEST assignment scope is unreadable.");
-  const assigned = jobIds.length ? complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).in("id", jobIds)) : [];
-  if (assigned.length !== jobIds.length || [...owned, ...assigned].some(row => row.source !== "qa_test" || row.originating_installer_business_id !== DAD_TEST_BUSINESS_ID)) {
-    throw new WorkflowError("The dedicated TEST account can reach non-TEST or other-business work. Nothing was issued.");
-  }
+  await requireTestOnlyScope(admin, DAD_TEST_USER_ID, DAD_TEST_BUSINESS_ID, "The dedicated TEST identity", true);
   return identity;
+}
+
+/** Read-only, exact preflight for the testRigor handover (decision 403): the fixed installer and electrician TEST personas only.
+ * Each must be qa_test in Auth, on the reserved TEST domain, with one trade role, an approved marked TEST business, one active
+ * admin membership and qa_test-only reach. Never prepares, repairs or changes access. */
+export async function validateTestRigorIdentities(admin: Admin) {
+  const verified: { installer?: { userId: string; email: string }; electrician?: { userId: string; email: string } } = {};
+  for (const { persona, email } of [{ persona: "installer" as const, email: INSTALLER_EMAIL }, { persona: "electrician" as const, email: ELECTRICIAN_EMAIL }]) {
+    const found = await findQaIdentity(admin, email);
+    const businessId = found?.profile?.business_id;
+    if (!found || !businessId) throw new WorkflowError("A testRigor TEST account is missing. Nothing was issued.");
+    const identity = await tradeIdentity(admin, found.userId, businessId, persona, "business_admin");
+    if (identity.email !== safeEmail(email)) throw new WorkflowError("The TEST profile and sign-in identity do not match.");
+    await requireTestOnlyScope(admin, identity.userId, businessId, `The testRigor TEST ${persona}`, false);
+    verified[persona] = { userId: identity.userId, email: identity.email };
+  }
+  if (!verified.installer || !verified.electrician) throw new WorkflowError("A testRigor TEST account is missing. Nothing was issued.");
+  return { installer: verified.installer, electrician: verified.electrician };
 }
 
 async function ownerIsolation(admin: Admin, ownerId: string | null, userId?: string | null) {
