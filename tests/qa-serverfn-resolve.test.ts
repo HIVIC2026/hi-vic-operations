@@ -21,6 +21,18 @@ describe("QA server-function ID resolver", () => {
     const r = await resolveServerFns("http://t", [{ file: F, name: "getPipeline" }, { file: F, name: "listByStatus" }], async (u) => pages[u] ? res(200, pages[u]!) : res(404, ""));
     expect(r.mode).toBe("build"); expect(r.ids[`${F}#getPipeline`]).toBe(c); expect(r.missing).toEqual([`${F}#listByStatus`]);
   });
+  test("build target: the minifier's backtick quotes count too (live build, 26 Oct 2026)", async () => {
+    const c = buildCandidate({ file: F, name: "deleteJob" });
+    const pages: Record<string, string> = { "http://t/": `<script type="module" src="/assets/main.js"></script>`, "http://t/assets/main.js": "hc(`" + c + "`)" };
+    const r = await resolveServerFns("http://t", [{ file: F, name: "deleteJob" }], async (u) => pages[u] ? res(200, pages[u]!) : res(404, ""));
+    expect(r.mode).toBe("build"); expect(r.ids[`${F}#deleteJob`]).toBe(c); expect(r.missing).toEqual([]);
+  });
+  test("build target: a hash merely inside a longer string is not accepted", async () => {
+    const c = buildCandidate({ file: F, name: "deleteJob" });
+    const pages: Record<string, string> = { "http://t/": `<script type="module" src="/assets/main.js"></script>`, "http://t/assets/main.js": "x(`pre" + c + "`)" };
+    const r = await resolveServerFns("http://t", [{ file: F, name: "deleteJob" }], async (u) => pages[u] ? res(200, pages[u]!) : res(404, ""));
+    expect(r.missing).toEqual([`${F}#deleteJob`]);
+  });
   test("nothing served: unresolved (diagnostic), no IDs invented", async () => {
     const r = await resolveServerFns("http://t", [{ file: F, name: "getPipeline" }], async () => res(404, ""));
     expect(r.mode).toBe("unresolved"); expect(r.ids).toEqual({}); expect(r.missing.length).toBe(1);
