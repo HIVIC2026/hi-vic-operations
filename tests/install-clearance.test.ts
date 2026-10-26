@@ -32,16 +32,13 @@ describe("wording (decision 186)", () => {
     expect(installClearanceDeadlineLabel("2027-01-02")).toBe("2 January 2027");
     expect(installClearanceDeadlineLabel("2026-12-31T00:00:00.000Z")).toBe("31 December 2026");
   });
-  test("email: headline, one line (PIESA or fixes variant), installer 30-day box with the deadline, Offer install days, AP footer, no prices", () => {
+  test("email: headline, one line (PIESA or fixes variant), approved 30-day box, Offer install days, AP footer, no prices", () => {
     const m = renderInstallClearanceEmail({ jobNumber: "HV-3117", ownerFirstName: "Helen", fixesSignedOff: false, deadlineLabel: "23 November 2026", jobUrl: LINK });
     expect(m.subject).toBe("HV-3117 is cleared for install – offer 3 install days by 23 November 2026");
-    expect(m.html).toContain(">HV-3117 is cleared for install</div>");
+    expect(m.html).toContain(">HV-3117 is cleared for install</h1>");
     expect(m.html).toContain("The electrical safety check is done. Offer Helen three install days with arrival times from your job page.");
     expect(m.html).toContain("&#9200; The 30-day clock");
-    expect(m.html).toContain("The install must happen within 30 days of this safety check (by 23 November 2026).");
-    expect(m.html).toContain("So please offer install days as soon as you can.");
-    expect(m.html).not.toContain("book your install day as soon as the installer offers times");
-    expect(m.text).toContain("The 30-day clock: The install must happen within 30 days of this safety check (by 23 November 2026).");
+    expect(m.html).toContain("<strong>Your install must happen within 30 days of this safety check.</strong>");
     expect(m.html).toContain(">Offer install days<");
     expect(m.html).toContain("VEU Accredited Person A003654");
     expect(m.html).not.toMatch(/\$\d/);

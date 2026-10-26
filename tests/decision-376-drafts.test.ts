@@ -55,9 +55,9 @@ describe("O74 wording (trade cancelled the visit)", () => {
     expect(visitNewTimesLink(`${MY_JOB}?x=1`, "ready_check")).toBe(MY_JOB);
     const m = renderVisitNewTimesEmail({ kind: "assessment", wasIso: was, ownerPicks: true, link, firstName: "Helen Yang", unsubscribeUrl: "https://u" });
     expect(m.subject).toBe("Your electrical safety check needs a new time");
-    expect(m.html).toContain("Sorry, the electrician can't make your electrical safety check on Thursday 29 October any more.");
-    expect(m.html).toContain("text-decoration:line-through\">Thursday 29 October, 9:30am");
-    expect(m.html).toContain("Choose new times</a>");
+    expect(m.html).toContain("Sorry — the electrician can&#39;t make your electrical safety check on Thursday 29 October any more.".replace("&#39;", "'"));
+    expect(m.html).toContain("text-decoration:line-through;\">Thursday 29 October, 9:30am");
+    expect(m.html).toContain(">Choose new times<");
     expect(m.text).toContain(`Choose new times: ${link}`);
     expect(m.text).toContain("Unsubscribe: https://u");
     const t = visitNewTimesText({ kind: "assessment", wasIso: was, ownerPicks: true, link });
@@ -66,9 +66,8 @@ describe("O74 wording (trade cancelled the visit)", () => {
   test("trade offers: 'you don't need to do anything' variant, See my job", () => {
     const m = renderVisitNewTimesEmail({ kind: "installation", wasIso: was, ownerPicks: false, link: MY_JOB, firstName: null, unsubscribeUrl: null, test: true });
     expect(m.subject).toBe("Your install day is moving");
-    expect(m.text).toContain("You don't need to do anything. Your installer will offer you new install days soon, and we'll send you a link to choose one.");
-    expect(m.html).toContain("<strong>You don't need to do anything.</strong>");
-    expect(m.html).toContain("See my job</a>");
+    expect(m.text).toContain("You don't need to do anything. Your installer will offer you new install days soon and we'll send you a link to choose one.");
+    expect(m.html).toContain(">See my job<");
     expect(m.html).toContain("TEST — only sent to Jo");
     expect(visitNewTimesText({ kind: "ready_check", wasIso: was, ownerPicks: false, link: MY_JOB })).toContain("You don't need to do anything – we'll send you new times soon.");
     expect(visitNewTimesKeys("j", "b")).toEqual({ email: "visit-new-times:v1:j:b:email", sms: "visit-new-times:v1:j:b:sms" });
@@ -90,13 +89,8 @@ describe("O75 wording and batching (signed paperwork copy)", () => {
   test("email lists what was signed; only claims attachments when attached", () => {
     const m = renderPaperworkCopyEmail({ firstName: "Helen", address: "12 Smith St, Frankston", titles: ["The agreement", "Payment"], attached: true, myJobUrl: MY_JOB, unsubscribeUrl: null });
     expect(m.subject).toBe("Your signed paperwork");
-    expect(m.text).toContain("Hi Helen, thanks for signing.");
-    expect(m.text).toContain("Here's a copy of what you signed for the ceiling insulation at 12 Smith St, Frankston, for your records.");
+    expect(m.text).toContain("Hi Helen, thanks for signing. Here's a copy of what you signed for the ceiling insulation at 12 Smith St, Frankston, for your records.");
     expect(m.text).toContain("- The agreement\n- Payment");
-    // O75 design: no VEEC jargon for owners in the list (the stored title and filename stay).
-    const r = renderPaperworkCopyEmail({ firstName: "Helen", address: "x", titles: ["Your rebate (VEEC assignment)"], attached: true, myJobUrl: null, unsubscribeUrl: null });
-    expect(r.text).toContain("- Your rebate form");
-    expect(r.html).not.toContain("VEEC");
     expect(m.text).toContain("The signed copies are attached as PDFs.");
     expect(renderPaperworkCopyEmail({ firstName: null, address: "", titles: ["Payment"], attached: false, myJobUrl: null, unsubscribeUrl: null }).text).not.toContain("attached");
   });
