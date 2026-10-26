@@ -8,6 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { getOfficeJobPage } from "@/lib/office-screens.functions";
+import { AiReplyDrafts } from "@/components/portal/AiReplyDrafts";
 import { parseJobSection } from "@/lib/job-section.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
 import { ContactHistory, FileList, JobHeader, JobMoreMenu, LogNoteDialog, MoneyCard, NextPanel, StageCards, StageWorkspace } from "@/components/portal/office-job";
@@ -56,6 +57,7 @@ function JobPageRoute() {
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />
+      <AiReplyDrafts jobId={jobId} />
       <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} />
       <FileList jobId={jobId} />
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />

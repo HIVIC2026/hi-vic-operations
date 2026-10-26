@@ -182,7 +182,7 @@ describe("copier wiring", () => {
   });
   test("Needs me: the reply-needed row reuses the email row (Done / Ignore) and Done changes nothing on the job", async () => {
     const { CHANGE_LINE, emailRow } = await import("../src/lib/office-needs.core");
-    expect(CHANGE_LINE.reply).toBe("Owner emailed — reply needed (draft in Outlook)");
+    expect(CHANGE_LINE.reply).toBe("Owner emailed — reply needed (AI draft on the job)");
     const row = emailRow({ type: "change", eventId: "e1", jobId: "j1", jobNumber: "HV-1", surname: "Yang", suburb: null, line: CHANGE_LINE.reply, at: "2026-10-25T00:00:00Z", intent: REPLY_NEEDED_INTENT });
     expect(row.button?.label).toBe("Done");
     const office = read("src/lib/email-office.server.ts");
@@ -316,9 +316,11 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
     await run({ id: "m2" });
     expect(calls.owner.length).toBe(2);
   });
-  test("TEST job → test-send only (even while the wording is unapproved), never the real sender", async () => {
+  test("TEST job → test-send only once approved, never the real sender", async () => {
     reset();
-    const r = await run({ from: "jo@test.test" }, ["job-test"], null);
+    expect((await run({ from: "jo@test.test", id: "mt0" }, ["job-test"], null)).status).toBe("held"); // Jo 26 Oct: unapproved = draft, TEST too
+    calls.testEmail = []; db.workflow_events = db.workflow_events!.filter((e) => e["details"]?.message_id !== "mt0");
+    const r = await run({ from: "jo@test.test" }, ["job-test"], { approved: true, archive: false });
     expect(r.status).toBe("sent");
     expect(calls.testEmail).toEqual([`owner_email_auto_reply:${autoReplyKey("m1")}:jo@test.test:Re: Spot`]);
     expect(calls.claimsAtSend).toEqual([1]);

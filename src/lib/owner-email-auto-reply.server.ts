@@ -98,7 +98,7 @@ export async function raiseReplyNeededRow(jobId: string, m: MailMessage, reason:
   if ((dup ?? []).length) return true;
   const phrase = (m.subject ?? "").trim().slice(0, 80) || reason;
   const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: EMAIL_CHANGE_REQUEST_EVENT, internal: true,
-    summary: `Owner emailed — reply needed (${reason}); check the reply draft in Outlook and send it, then tap Done`,
+    summary: `Owner emailed — reply needed (${reason}); check the AI reply draft on the job and send it, then tap Done`,
     details: { message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, from: m.from, subject: m.subject, received_at: m.at,
       intent: REPLY_NEEDED_INTENT, phrase, reason, label: "Owner emailed — reply needed", decision: 386 } });
   if (error) throw new Error(error.message);
@@ -137,6 +137,8 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     if (decision.kind === "draft") return draft("draft", decision.reason);
 
     const testJob = job.source === "qa_test";
+    // Jo 26 Oct 2026: nothing goes by itself — TEST jobs included — until Jo approves; the AI draft waits on the job.
+    if (!approved) return draft("held", "the automatic reply wording is waiting for Jo's approval");
     const commsEnabled = testJob || !approved ? null : await (await import("./comms.server")).customerCommsEnabled().catch(() => false);
     const mode = autoReplyMode({ testJob, approved, commsEnabled });
     if (mode.mode === "held") return draft("held", mode.reason); // nothing claimed, nothing sent
