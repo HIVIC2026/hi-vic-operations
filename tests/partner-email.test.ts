@@ -24,7 +24,7 @@ describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () =
   });
   test("all partner emails share the approved kit shell (embedded logo, AP/ABN footer, no unsubscribe link)", () => {
     for (const m of [w("installer"), declineEmail({ contactName: "Sam", test: false }), changesEmail({ contactName: "Sam", message: "Fix ABN", link: "https://x.test", test: false }), renderApplicationReceivedEmail({ contactName: "Sam", businessName: "Reinsulate" })]) {
-      expect(m.html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+      expect(m.html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria"`);
       expect(m.html).toContain(FOOTER_TEXT);
       expect(m.html).not.toContain(">Unsubscribe</a>");
       expect(m.html).toContain("Arial,Helvetica,sans-serif");

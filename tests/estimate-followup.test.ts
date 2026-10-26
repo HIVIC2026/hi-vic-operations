@@ -104,7 +104,7 @@ const render = (step: EstimateFollowupStep, patch: Record<string, unknown> = {})
 describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot button)", () => {
   const shell = (html: string, text: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+    expect(html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria"`);
     expect(html).toContain("max-width:540px;background:#FBFCFA;border:1px solid #E4E9F5;border-radius:22px;");
     expect(html).toContain("ABN 44 671 613 979");
     expect(text).toContain(FOOTER_TEXT);

@@ -149,7 +149,7 @@ describe("E. T1–T7 use the approved email kit shell", () => {
   const brandChecks = (html: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
     // The approved design: embedded logo PNG, the 540px card, one AP/ABN footer, no campaign art and no badge.
-    expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116"`);
+    expect(html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116"`);
     expect(html).toContain("max-width:540px;background:#FBFCFA");
     expect(html).toContain(FOOTER_TEXT);
     expect(html).not.toContain("/api/public/email-art");
