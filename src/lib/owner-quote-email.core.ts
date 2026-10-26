@@ -116,8 +116,8 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: K.KIT.GREEN });
   const next = `<strong>Next:</strong> accept and pay ${safety ? `${K.esc(safety)} ` : ""}→ electrician safety check → book your install day.`;
   const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
-  const phone = cleanName(i.officePhone);
-  const questions = phone ? `Questions? Reply to this email or call us on ${phone}.` : "Questions? Just reply to this email.";
+  // Jo 26 Oct: no HIV phone number and no "call us" in owner emails — owners reply by email only.
+  const questions = "Questions? Just reply to this email.";
   const closing = [validity, NOT_FOR_YOU, questions].filter(Boolean).join(" ");
   const body = [
     K.greeting(hi),

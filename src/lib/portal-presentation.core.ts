@@ -80,11 +80,11 @@ export function evidenceSourceLabel(source: string | null | undefined): string {
 export function supplementalEligibilityLabel(input: {
   eligibility_review_required?: boolean | null;
   eligibility_outcome?: string | null;
-}, authoritativeLabel: string): "Review required" | "Ineligible" | "Needs onsite confirmation" | "Likely eligible" | null {
+}, authoritativeLabel: string): "Review required" | "Does Not Appear Eligible" | "Needs Onsite Confirmation" | "Likely Eligible" | null {
   if (input.eligibility_review_required) return authoritativeLabel === "Review required" ? null : "Review required";
-  const label = input.eligibility_outcome === "does_not_appear_eligible" ? "Ineligible"
-    : input.eligibility_outcome === "needs_onsite_confirmation" ? "Needs onsite confirmation"
-      : input.eligibility_outcome === "likely_eligible" ? "Likely eligible" : null;
+  const label = input.eligibility_outcome === "does_not_appear_eligible" ? "Does Not Appear Eligible"
+    : input.eligibility_outcome === "needs_onsite_confirmation" ? "Needs Onsite Confirmation"
+      : input.eligibility_outcome === "likely_eligible" ? "Likely Eligible" : null;
   return label === authoritativeLabel ? null : label;
 }
 

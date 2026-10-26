@@ -103,7 +103,7 @@ export const SITUATION: Record<string, { tag: string; next?: string }> = {
   "ended.on_hold": { tag: "On hold", next: "Sort out hold" },
 };
 
-export const ELIGIBILITY_WORDS = { likely_eligible: "Likely eligible", needs_onsite_confirmation: "Check onsite", does_not_appear_eligible: "Not eligible", review: "Needs review" } as const;
+export const ELIGIBILITY_WORDS = { likely_eligible: "Likely Eligible", needs_onsite_confirmation: "Needs Onsite Confirmation", does_not_appear_eligible: "Does Not Appear Eligible", review: "Needs review" } as const;
 export const MISMATCH_WORDS = { tag: "Stage mismatch", next: "Check job records" } as const;
 
 /** Display words for the operations classifier's internal process keys (keys themselves stay unchanged). */

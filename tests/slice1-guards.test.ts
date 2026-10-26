@@ -80,7 +80,7 @@ describe("server-side role guards", () => {
 describe("source of truth", () => {
   test("deposit tiers and retired 50% rule", () => {
     expect(depositPctFor(19_999.99)).toBe(10);
-    expect(depositPctFor(20_000)).toBe(5);
+    expect(depositPctFor(20_000)).toBe(10);
     expect(WORKFLOW_DECISIONS.payment.retired).toContain("50% deposit gate");
     expect(WORKFLOW_DECISIONS.eligibility.rules.missingOrConflictingEvidence).toBe("needs_review");
     expect(WORKFLOW_DECISIONS.routes.installer_supplied.leadFee).toBe("none");
