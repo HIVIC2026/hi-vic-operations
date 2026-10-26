@@ -1,4 +1,4 @@
-// Decision 137 (Jo 24 Oct 2026): every email renderer produces the approved design in docs/templates/{owner,installer,invoices}/*.html.
+// Decision 137 (Jo 24 Oct 2026): every email with a design picture (docs/designs/messages.json) produces Jo's design in docs/templates/{owner,installer,electrician,invoices}/*.html — not the 27 Oct 2026 MJML refresh, which Jo did not approve.
 // Each renderer is rendered with that file's sample data and checked for its headline, amounts, button label, the
 // 30-day box where applicable, the shared kit shell, and the absence of retired wording. Pure: no I/O, nothing sent.
 import { describe, expect, test } from "bun:test";
@@ -41,7 +41,7 @@ const REINSULATE = { name: "Reinsulate", phone: "0400 000 000" };
 const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /50 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
 const shell = (html: string, text: string, unsubscribe: boolean) => {
   expect(html.startsWith("<!doctype html")).toBe(true);
-  expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+  expect(html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria"`);
   expect(html).toContain("max-width:540px;background:#FBFCFA;border:1px solid #E4E9F5;border-radius:22px;");
   expect(html.match(/VEU Accredited Person A003654/g)?.length).toBeGreaterThanOrEqual(1);
   expect(html).toContain("ABN 44 671 613 979");

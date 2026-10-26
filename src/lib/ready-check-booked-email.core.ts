@@ -1,9 +1,8 @@
 // Jo 24 Oct 2026 (decisions 80–81): on our leads the owner gets "You're booked" for the free Ready Check, and an updated
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
-// Design: docs/templates/mjml/owner_O12.mjml (MJML email refresh, 27 Oct 2026 — not approved by Jo) — blue date/time box with address
-// and installer name + phone; "Before they arrive"; Change time line; See my job; rebate and price boxes; included / not included.
-// Jo 26 Oct 2026: O12 only uses its own mint booking box (green time) and ONE rebate|price box, matching docs/designs/O12.jpg;
-// the shared mjBookingBox / mjReadyCheckEstimate stay unchanged for the other emails.
+// Design: Jo's picture docs/designs/O12.jpg and docs/templates/owner/O12-ready-check-booked.html — mint booking box (day navy,
+// time green, address and installer name + phone); "Before they arrive"; Change time line; See my job; ONE rebate|price box;
+// included (Free Ready Check first) / not included. mjBookingBox / mjBeforeRows below are kept only for the safety check emails.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
