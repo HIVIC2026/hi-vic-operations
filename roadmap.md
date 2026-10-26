@@ -544,3 +544,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] AI email replies on each job (Jo 26 Oct): drafts on job, auto-send off, unmatched on Enquiries
 - [ ] Turn on AI auto-send for simple replies — waits for Jo to see samples and say "send"
+## 26 Oct (Jo) — 10:24 QA release fixes
+- [x] Office write journey updated to redesigned screens (More ▾ menu gating, Settings › Deleted restore, Enquiry › Eligibility › Change result); office-only retest 27 passed
+- [x] save-spot + existing-insulation-send tests passing (tests updated to current approved wording; follow-up re-send guard restored)
+- [x] Installer add-a-job addresses tagged per run; HV-3265/HV-3266 (qa_test) soft-deleted
+- [x] 9 "failed/uncertain" emails = sent emails with "Accepted" in the error box (fixed earlier today); report only
+- [ ] Job page More ▾ "Delete (test jobs only)" is a permanent delete (not restorable) — awaiting Jo's choice
