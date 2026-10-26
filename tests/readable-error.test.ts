@@ -25,4 +25,12 @@ describe("readableError", () => {
     expect(readableError(new Error('{"code":"PGRST116","message":"0 rows"}'), "Try again.")).toBe("Try again.");
     expect(readableError(new Error("[object Object]"), "Try again.")).toBe("Try again.");
   });
+  test("the /notice/ link page's live errors (26 Oct 2026)", () => {
+    // What a cut-off /notice/ link showed: zod's regex issue for a token with characters that don't belong.
+    const regexIssue = `[\n  {\n    "validation": "regex",\n    "code": "invalid_string",\n    "message": "Invalid",\n    "path": [\n      "token"\n    ]\n  }\n]`;
+    expect(readableError(new Error(regexIssue), "We couldn't open this notice.")).toBe("We couldn't open this notice.");
+    // The server's own wording for a whole-but-unknown link stays as written.
+    const plain = "This link isn't valid any more. Ask your business owner or the office to send a new one.";
+    expect(readableError(new Error(plain), "x")).toBe(plain);
+  });
 });
