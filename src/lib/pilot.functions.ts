@@ -96,6 +96,8 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
       ...(data.status === "approved" ? { approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true, xero_contact_status: business.xero_contact_id ? "synced" : "ready" } : {}),
     }).eq("id", data.businessId);
     // Decision 303: an approved REC is linked to every installer who named that electrician (best-effort; needs an active PIESA rate too).
+    // Decision 402: approving the business approves its pending people whose certification is office-verified. Never fails the approval.
+    if (data.status === "approved") await import("./worker-approval.server").then((m) => m.autoApproveVerifiedPeople(data.businessId, context.userId)).catch((e) => console.error("Decision 402 auto-approval skipped", (e as Error).message));
     if (data.status === "approved") await (await import("./rec-auto-link.server")).autoLinkApprovedRec(data.businessId, context.userId).catch((e) => console.error("REC auto-link skipped", (e as Error).message));
     return { ok: true };
   });
