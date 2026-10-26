@@ -76,11 +76,12 @@ describe("wording (approved route)", () => {
     expect(changeReplySubject("Install day")).toBe("Re: Install day");
     expect(changeReplySubject("RE: Install day")).toBe("RE: Install day");
     expect(changeReplySubject(null)).toBe("Re: Your email");
+    // MJML refresh (docs/templates/mjml/owner_change-reply.mjml): the approved words in short sentences, link on its own line.
     expect(changeReplyText({ firstName: "Jane", visit: "install", link: `${LINK}?screen=book`, cancelNote: CANCEL_NOTE_REPLY })).toBe(
-      `Hi Jane, no problem. You can change your install day here and your installer will be told straight away: ${LINK}?screen=book. If you'd rather cancel, you can do that on the same page, or reply to this email and we'll sort it out with you. — Home Insulation Victoria`);
+      `Hi Jane,\n\nNo problem\n\nYou can change your install day on your job page. Your installer will be told straight away.\nChange my install day: ${LINK}?screen=book\n\nIf you'd rather cancel, you can do that on the same page. Or reply to this email and we'll sort it out with you.\n\n— Home Insulation Victoria`);
     expect(changeReplyText({ firstName: null, visit: "piesa", link: LINK, cancelNote: "" })).toBe(
-      `Hi there, no problem. You can change your electrical safety check here and your electrician will be told straight away: ${LINK}. If you'd rather cancel, you can do that on the same page. — Home Insulation Victoria`);
-    expect(changeReplyText({ firstName: "Sam", visit: "ready_check", link: LINK, cancelNote: "" })).toContain("change your Ready Check visit here and your installer will be told");
+      `Hi there,\n\nNo problem\n\nYou can change your electrical safety check on your job page. Your electrician will be told straight away.\nChange my electrical safety check: ${LINK}\n\nIf you'd rather cancel, you can do that on the same page.\n\n— Home Insulation Victoria`);
+    expect(changeReplyText({ firstName: "Sam", visit: "ready_check", link: LINK, cancelNote: "" })).toContain("change your Ready Check visit on your job page. Your installer will be told");
   });
   test("first name: owner on file first, then the From name; never an address", () => {
     expect(changeReplyFirstName("jane smith", "Someone Else")).toBe("Jane");

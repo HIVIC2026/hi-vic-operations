@@ -16,7 +16,8 @@ import { jobNext } from "../src/lib/installer-screens.core";
 import { buildNeedsRows, needsCandidates } from "../src/lib/office-needs.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { P6, OWNER_PAGE_FOOTER } from "../src/lib/owner-pages.core";
-import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
+import { FOOTER_TEXT } from "../src/lib/email-kit.core";
+import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
 import { O71_FILES, O71_SAMPLE } from "../scripts/render-decision-296-drafts";
 
 const REC = "11111111-1111-1111-1111-111111111111";
@@ -164,8 +165,8 @@ describe("wording (DRAFT until Jo approves)", () => {
     const m = renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder: false, unsubscribeUrl: "https://u/x" });
     expect(m.subject).toBe("Helen, please confirm your electrical safety check");
     expect(m.html.startsWith("<!doctype html")).toBe(true);
-    expect(m.html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
-    for (const s of ["<strong>24 October 2026</strong>", "Sam Spark (Spark Electrical Pty Ltd)", `<strong>${OUTCOME_LABEL.all_clear}</strong>`, `<strong>${CEILING_ENTRY_WARNING}</strong>`, ">Confirm my safety check<", `href="${O71_SAMPLE.confirmUrl}"`, "Unsubscribe"]) expect(m.html).toContain(s);
+    expect(m.html).toContain(MAIL_LOGO_URL); expect(m.html).not.toContain("data:image");
+    for (const s of ["<strong>24 October 2026</strong>", "Sam Spark (Spark Electrical Pty Ltd)", `>${OUTCOME_LABEL.all_clear}<`, `<strong>${CEILING_ENTRY_WARNING}</strong>`, ">Confirm my safety check<", `href="${O71_SAMPLE.confirmUrl}"`, "Unsubscribe"]) expect(m.html).toContain(s);
     expect(m.html).not.toMatch(/\bHI ?VIC!?(?![a-z_])/); expect(m.html).not.toMatch(/\$/);
     expect(m.text).toContain(FOOTER_TEXT); expect(m.text).toContain(`Confirm my safety check: ${O71_SAMPLE.confirmUrl}`); expect(m.text).toContain("Unsubscribe: https://u/x");
     const r = renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder: true, test: true });
