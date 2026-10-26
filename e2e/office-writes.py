@@ -66,7 +66,7 @@ async def run(p, w):
             await pg.goto(job_url + "#stage-enquiry", wait_until="networkidle"); await pg.wait_for_timeout(2000)
             card = pg.locator("[data-eligibility-card]")
             if not await card.count():
-                await pg.get_by_role("button", name=re.compile(r"^Enquiry")).first.click(); await pg.wait_for_timeout(2000)
+                await pg.locator("#stage-enquiry").get_by_role("button", name="Open ›").click(); await pg.wait_for_timeout(2500)
             await card.get_by_role("button", name="Change result").click(); await pg.wait_for_timeout(1500)
             return card
         async def classify(label_re, reason):
@@ -88,7 +88,8 @@ async def run(p, w):
 
 async def main():
     async with async_playwright() as p:
-        for w in (1280, 390):
+        # One viewport per call: the runner soft-deletes the job before each call (the UI restore undoes it).
+        for w in ([int(sys.argv[2])] if len(sys.argv) > 2 else [1280, 390]):
             await run(p, w)
     json.dump(res, open(f"{OUT}/.browser.json", "w"))
 
