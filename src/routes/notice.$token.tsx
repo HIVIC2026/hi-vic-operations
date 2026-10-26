@@ -9,6 +9,9 @@ import { acknowledgeCollectionNoticeLink, getCollectionNoticeLink } from "@/lib/
 import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
 import { NoticeBody, NoticeTickRow } from "@/components/portal/esc-notice-page";
 import { P5 } from "@/lib/owner-pages.core";
+import { readableError } from "@/lib/readable-error.core";
+
+const NOTICE_LINK_PROBLEM = "We couldn't open this notice. Check you have the whole link from the text, or ask your business owner or the office to send a new one.";
 
 // Decision 130: each installer person's own secure link (no login) to read the ESC notice verbatim and acknowledge it.
 export const Route = createFileRoute("/notice/$token")({
@@ -43,7 +46,7 @@ function NoticePage() {
         <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto" />
         <h1 className="mt-4 font-display text-[22px] font-semibold leading-tight">{P5.title}</h1>
         <p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.sub}</p>
-        {q.error && <p role="alert" className="mt-4 rounded-[12px] border border-line bg-paper p-4 text-sm">{(q.error as Error).message}</p>}
+        {q.error && <p role="alert" className="mt-4 rounded-[12px] border border-line bg-paper p-4 text-sm">{readableError(q.error, NOTICE_LINK_PROBLEM)}</p>}
         {!q.error && !d && <p className="mt-4 text-sm">Loading…</p>}
         {d && <>
           <p className="mt-4 text-sm leading-relaxed">Hi {d.name.split(/\s+/)[0]}, before Home Insulation Victoria can register you as a VEU installer for {d.business}, the Essential Services Commission requires you to be given this notice. Please read it and tick below.</p>
@@ -59,7 +62,7 @@ function NoticePage() {
               <Button className="mt-[18px] h-12 w-full" disabled={!ticked || name.trim().length < 2 || busy} onClick={async () => {
                 setBusy(true); setErr(null);
                 try { const r = await ack({ data: { token, ticked, typedName: name } }); setDone(r.at); setDoneNote(r.email.status === "sent" ? ". A copy has been emailed to you" : ""); }
-                catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+                catch (e) { setErr(readableError(e, "Your acknowledgement wasn't saved. Check your connection and try again.")); } finally { setBusy(false); }
               }}>{busy ? P5.saving : P5.button}</Button>
               {err && <p role="alert" className="mt-2 text-sm font-bold text-rose">{err}</p>}
             </>}
