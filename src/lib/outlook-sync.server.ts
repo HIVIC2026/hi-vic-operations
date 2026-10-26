@@ -444,8 +444,9 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
 
 /** Decision 337 already SENT the owner their change link for this message (then no AI draft is needed). */
 async function changeReplied(jobId: string, messageId: string): Promise<boolean> {
-  const { data } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "email_change_replied").contains("details", { message_id: messageId }).limit(5);
-  return ((data ?? []) as { details: { status?: string } | null }[]).some((r) => !r.details?.status || /^sent|delivery uncertain/.test(r.details.status));
+  const { data } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["email_change_replied", "email_change_reply_held"]).contains("details", { message_id: messageId }).limit(5);
+  const t = ((data ?? []) as { event_type: string }[]).map((r) => r.event_type);
+  return t.includes("email_change_replied") && !t.includes("email_change_reply_held");
 }
 
 /** Decision 386: ONE automatic reply to a matched owner's standard question, before any decision-244 draft. Returns
