@@ -129,7 +129,7 @@ export function checkList(itemsHtml: string[], size = 15, pad = "10px"): string 
 }
 
 /** "Your existing insulation" card (O2): may stay $0 · removal $15/m² up to X. */
-export function existingInsulationCard(i: { areaM2: number; ratePerM2: number; upTo: number; note?: string }): string {
+export function existingInsulationCard(i: { areaM2: number; ratePerM2: number; upTo: number; note?: string | undefined }): string {
   const row = (icon: string, title: string, detail: string, amount: string, color: string, top: boolean) => {
     const bt = top ? `border-top:1px solid ${KIT.LINE};` : "";
     return `<tr><td valign="top" style="padding:12px 10px 12px 0;width:20px;${bt}">${icon}</td><td valign="top" style="padding:12px 0;${bt}"><div style="font-size:15px;font-weight:bold;color:${KIT.NAVY};">${esc(title)}</div><div style="font-size:13px;color:${KIT.SUB};line-height:1.45;margin-top:2px;">${detail}</div></td><td valign="top" align="right" style="padding:12px 0 12px 10px;white-space:nowrap;${bt}"><div style="font-size:17px;font-weight:bold;color:${color};">${esc(amount)}</div></td></tr>`;
