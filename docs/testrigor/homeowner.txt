@@ -1,0 +1,379 @@
+// HOMEOWNER test cases. Homeowners don't sign in: they use the public calculator and their secure My job link.
+// One case = the "### " title line, then its steps down to the next "### ".
+//   Title  -> testRigor "Test case description" (leave out the ###).
+//   Steps  -> testRigor "Custom steps".
+// Tags:
+//   [read-only]              looks only. Safe to run any time, in any order.
+//   [CHANGES THE TEST JOB]   moves the TEST job on. Run in the order shown, after the read-only ones.
+//   [ONE-WAY - run last]     can't be undone from the screen.
+// "// Needs:" says what state the TEST job must be in first. If it isn't, the case fails at its first check. That's expected.
+// Calculator: on the staff address portal.homeinsulationvictoria.com.au the bare "/" opens staff sign-in (decision 381),
+// so the calculator cases use "/calculator" there. The customer address estimate.homeinsulationvictoria.com.au serves
+// the same calculator at "/". Both are checked below.
+// The calculator's "Register my interest" form is only checked for its error messages. It is never sent from here,
+// because a sent form makes a REAL enquiry on the live portal.
+// Owner link cases use stored value "ownerJobLink": the TEST job's link, ending /my-job/<code>. Never paste it in a file.
+// Rules used: open test job as owner, owner code check (see rules.txt).
+
+
+// ============================== CALCULATOR (read-only) ==============================
+
+### H-01 · Calculator opens   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+check that page contains "Free estimate · no obligation"
+check that page contains "How much could you save on ceiling insulation?"
+check that page contains "Three quick answers — your estimate and VEU discount appear instantly."
+check that page contains "Where is the property?"
+check that page contains "How big is your ceiling?"
+check that page contains "Any insulation already up there?"
+
+### H-02 · Customer address shows the same calculator at /   [read-only]
+open url "https://estimate.homeinsulationvictoria.com.au/"
+check that page contains "How much could you save on ceiling insulation?"
+check that page contains "Where is the property?"
+
+### H-03 · Staff address / opens sign-in, not the calculator   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/"
+check that url contains "/auth"
+check that page contains "Welcome back."
+check that page does not contain "How big is your ceiling?"
+
+### H-04 · Calculator gives an estimate from three answers   [read-only]
+// "34 Watsons Road, Bundoora" is the calculator's own example address. Nothing is saved.
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+check that page contains "Your savings will show here."
+enter "34 Watsons Road, Bundoora" into "e.g. 34 Watsons Road, Bundoora"
+click "Bundoora VIC"
+click "150 m²"
+click "Not sure"
+check that page contains "Your estimated VEU rebate"
+check that page contains "Your estimated cost after rebate"
+check that page contains "Estimate only. Eligibility and final pricing are confirmed before you agree to anything."
+check that page contains "Register my interest"
+check that page contains "What this includes"
+check that page contains "What could change this price?"
+
+### H-05 · Calculator: change an answer and start again   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+enter "34 Watsons Road, Bundoora" into "e.g. 34 Watsons Road, Bundoora"
+click "Bundoora VIC"
+click "200 m²"
+click "None"
+check that page contains "Existing insulation"
+click "Change" to the right of "Ceiling"
+click "100 m²"
+check that page contains "100 m²"
+click "Start again"
+check that page contains "Your savings will show here."
+
+### H-06 · Calculator: own ceiling size out of range   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+enter "34 Watsons Road, Bundoora" into "e.g. 34 Watsons Road, Bundoora"
+click "Bundoora VIC"
+enter "5" into "Or type your own size"
+check that page contains "Please enter an area between"
+
+### H-07 · Register my interest: name is required (nothing sent)   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+enter "34 Watsons Road, Bundoora" into "e.g. 34 Watsons Road, Bundoora"
+click "Bundoora VIC"
+click "150 m²"
+click "Not sure"
+click "Register my interest"
+check that page contains "Full name"
+check that page contains "Mobile"
+check that page contains "Free to register. No obligation to proceed."
+scroll down until page contains "We'll contact you about your estimate."
+click the 2nd "Register my interest"
+check that page contains "Please enter your name so we know who to ask for."
+
+### H-08 · Register my interest: email and consent are checked (nothing sent)   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+enter "34 Watsons Road, Bundoora" into "e.g. 34 Watsons Road, Bundoora"
+click "Bundoora VIC"
+click "150 m²"
+click "Not sure"
+click "Register my interest"
+enter "Test Owner Rigor" into "Jane Doe"
+enter "not-an-email" into "jane@example.com"
+click the 2nd "Register my interest"
+check that page contains "Please enter a valid email address."
+enter "qa.owner.rigor@hivic-test.example" into "jane@example.com"
+enter "0400000000" into "0400 000 000"
+click the 2nd "Register my interest"
+// The consent box is left unticked on purpose, so nothing is sent.
+check that page contains "Please tick the box so we can contact you."
+
+### H-09 · Privacy policy from the calculator   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/calculator"
+scroll down until page contains "Privacy policy"
+click "Privacy policy"
+check that page contains "What we collect"
+check that page contains "Access and correction"
+check that page contains "Complaints"
+click "Back to the calculator"
+check that page contains "How big is your ceiling?"
+
+
+// ============================== BAD LINKS (read-only) ==============================
+
+### H-10 · A wrong My job link is refused   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/my-job/not-a-real-link"
+check that page contains "This link isn't working"
+check that page contains "It may have expired."
+
+### H-11 · Wrong estimate and spot links are refused   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/estimate/not-a-real-link"
+check that page contains "Estimate unavailable"
+open url "https://portal.homeinsulationvictoria.com.au/my-estimate/not-a-real-link"
+check that page contains "This estimate link is not available."
+open url "https://portal.homeinsulationvictoria.com.au/save-spot"
+check that page contains "This link isn't available"
+
+### H-12 · Signed-out owner area sends you to sign in   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/owner"
+check that url contains "/auth"
+check that page contains "Welcome back."
+
+
+// ============================== MY JOB LINK (read-only) ==============================
+
+### H-20 · My job opens from the secure link   [read-only]
+open test job as owner
+check that page contains "At a glance"
+check that page contains "Your progress"
+
+### H-21 · Spot saved: progress and numbers   [read-only]
+// Needs: TEST job with the spot saved, not yet released.
+open test job as owner
+check that page contains "Spot saved"
+check that page contains "Your numbers"
+check that page contains "Your rebate"
+check that page contains "You pay about"
+check that page contains "Remove my enquiry"
+
+### H-22 · Paperwork card while waiting   [read-only]
+// Needs: TEST job with the spot saved, paperwork not done.
+open test job as owner
+check that page contains "Get your paperwork out of the way"
+check that page contains "Do it now"
+
+### H-23 · Save my spot screen opens   [read-only]
+// Needs: TEST job before the spot is saved.
+open test job as owner
+click "Save my spot"
+check that page contains "See my estimate and save my spot"
+click "‹ Back to my job"
+check that page contains "Your progress"
+
+### H-24 · Ready Check times from the installer show   [read-only]
+// Needs: the TEST installer sent 3 Ready Check times (installer case I-40).
+open test job as owner
+check that page contains "Choose your Ready Check time"
+check that page contains "Your installer can come at these times. Tap one to book it."
+check that page contains "None of these suit – suggest other days"
+
+### H-25 · Quote screen shows every part   [read-only]
+// Needs: TEST job with the quote sent to the owner.
+open test job as owner
+click "See my quote"
+check that page contains "here's your quote"
+check that page contains "Your VEU rebate"
+check that page contains "Your price"
+check that page contains "What you're paying for"
+check that page contains "You pay"
+check that page contains "Two quick things, then sign"
+check that page contains "I accept this quote and the Customer Agreement"
+check that page contains "I've read my consumer rights and the payment terms"
+check that page contains "Sign and pay"
+check that page contains "Not for me"
+
+### H-26 · Quote: Sign button stays locked until all ticks and name   [read-only]
+// Needs: as H-25.
+open test job as owner
+click "See my quote"
+click "Sign and pay"
+check that page contains "Tick all three and type your name to sign"
+
+### H-27 · Quote: Not for me can be backed out of   [read-only]
+// Needs: as H-25.
+open test job as owner
+click "See my quote"
+click "Not for me"
+check that page contains "No problem. Can you tell us why? (optional)"
+check that page contains "The price"
+check that page contains "Not the right time"
+check that page contains "I've changed my mind"
+check that page contains "Something else"
+click "Go back"
+check that page contains "Sign and pay"
+
+### H-28 · Cancel my job can be backed out of   [read-only]
+// Needs: TEST job before the PIESA is booked.
+open test job as owner
+scroll down until page contains "Cancel my job"
+click "Cancel my job"
+check that page contains "Cancel your job?"
+check that page contains "No charge."
+click "Keep my job"
+check that page contains "Cancel my job"
+
+### H-29 · Booking screen shows the safety check or install times   [read-only]
+// Needs: TEST job with times waiting for the owner ("Pick times" on My job).
+open test job as owner
+click "Pick times"
+check that page contains "Your progress"
+check that page contains "Tap one to book it."
+
+### H-30 · Review screen opens with stars   [read-only]
+// Needs: TEST job with the install done. Stored value ownerReviewLink = ownerJobLink with ?screen=review on the end.
+open url stored value "ownerReviewLink"
+check that page contains "How did we go?"
+check that page contains "Tap a star."
+check that page contains "Back to my job"
+
+### H-31 · Electrical fixes screen   [read-only]
+// Needs: the safety check found fixes and the office sent the fixes quote.
+open test job as owner
+check that page contains "Your safety check found something to fix first"
+check that page contains "Total (inc GST)"
+check that page contains "About electrical fixes"
+// Approving the fixes means paying in full by card (Stripe), which is not tested yet.
+
+### H-32 · ESC consent page shows before the install is booked   [read-only]
+// Needs: install day chosen on the TEST job.
+open test job as owner
+check that page contains "STEP 1 OF 2 · BOOK YOUR INSTALL"
+check that page contains "Section 1: Information to be shared"
+check that page contains "Section 2: Declaration by owner"
+check that page contains "Tick all four and type your name to sign"
+check that page contains "Sign and continue to deposit"
+
+
+// ============================== CHANGES THE TEST JOB ==============================
+// Run in this order. Each one needs the step before it on the TEST job.
+
+### H-40 · It's your turn: confirm the free Ready Check   [CHANGES THE TEST JOB]
+// Needs: the office pressed Release on the TEST job (office case O-58).
+// Stored value ownerTurnLink = ownerJobLink with ?screen=turn on the end.
+open url stored value "ownerTurnLink"
+check that page contains "It's your turn!"
+check that page contains "I'm no longer interested"
+click "Yes, I'd still like my free Ready Check"
+check that page contains "Thanks — confirmed."
+
+### H-41 · Book one of the installer's Ready Check times   [CHANGES THE TEST JOB]
+// Needs: installer case I-40 done.
+open test job as owner
+check that page contains "Choose your Ready Check time"
+click the 1st button below "Your installer can come at these times. Tap one to book it."
+check that page contains "Change time"
+
+### H-42 · Change the booked Ready Check time, then keep it   [read-only]
+// Needs: H-41 done.
+open test job as owner
+click "Change time"
+check that page contains "This cancels the booked time."
+click "Keep it"
+check that page contains "Change time"
+
+### H-43 · Say yes to the quote and sign   [CHANGES THE TEST JOB]
+// Needs: quote sent on the TEST job. Stored value ownerFullName = the TEST owner's name exactly as on the job.
+// The 6-digit code is shown on the page for TEST jobs; nothing is sent.
+open test job as owner
+click "See my quote"
+click "I accept this quote and the Customer Agreement"
+click "I've read my consumer rights and the payment terms"
+enter stored value "ownerFullName" into "Your full name"
+click "I'm 18 or over, and I own this home or I'm authorised to sign for the owner"
+enter stored value "ownerFullName" into "Type here"
+click "Sign and pay"
+owner code check
+check that page contains "You said yes. Thanks!"
+// Paying by card opens Stripe. Stripe is NOT tested until test keys are added.
+// For TEST jobs, the office records a TEST payment instead (office case O-61).
+
+### H-44 · Decline the quote   [ONE-WAY - run last]
+// Needs: a SECOND TEST job with a quote sent (use it instead of the main TEST job).
+open test job as owner
+click "See my quote"
+click "Not for me"
+click "The price"
+enter "TEST only - please ignore" into "Anything else you'd like to tell us"
+click "Decline this quote"
+check that page contains "Thanks for letting us know this quote isn't for you."
+
+### H-45 · Pick a safety check (PIESA) time   [CHANGES THE TEST JOB]
+// Needs: the TEST electrician sent 3 times (electrician case E-40).
+open test job as owner
+click "Pick times"
+check that page contains "Choose your Pre Insulation Electrical Safety Assessment (PIESA) time"
+click the 1st button below "Your electrician can come at these times. Tap one to book it."
+check that page contains "Change time"
+
+### H-46 · Suggest other days for the safety check   [CHANGES THE TEST JOB]
+// Needs: as H-45, before a time is picked. Use instead of H-45 to test the other path.
+open test job as owner
+click "Pick times"
+click "None of these suit – suggest other days"
+check that page contains "Pick 3 to 5 times across at least 3 days."
+
+### H-47 · Confirm the electrical safety check (PIESA)   [CHANGES THE TEST JOB]
+// Needs: PIESA completed by the electrician on the TEST job.
+open test job as owner
+check that page contains "Your electrical safety check — please confirm"
+enter stored value "ownerFullName" into "Type here"
+click "Confirm my safety check"
+owner code check
+check that page contains "Electrical safety check: Confirmed ✓"
+
+### H-49 · Choose an install day   [CHANGES THE TEST JOB]
+// Needs: the TEST installer offered 3 install days (installer case I-49).
+open test job as owner
+click "Pick times"
+check that page contains "Choose your install day"
+click the 1st button below "Your installer can come at these times. Tap one to book it."
+check that page contains "Change day"
+
+### H-50 · Sign the ESC consent to book the install   [CHANGES THE TEST JOB]
+// Needs: install day chosen on the TEST job. The next step (the 10% deposit) is a card payment: not tested yet.
+open test job as owner
+check that page contains "STEP 1 OF 2 · BOOK YOUR INSTALL"
+click "I am the owner of the property listed above"
+click "the details listed above are complete and accurate"
+click "sending the information set out in section 1"
+click "I consent to the commission sharing"
+enter stored value "ownerFullName" into "Type here"
+click "Sign and continue to deposit"
+owner code check
+check that page does not contain "Tick all four and type your name to sign"
+
+### H-51 · Sign the rebate form after the install   [ONE-WAY - run last]
+// Needs: install done and the installer and office have signed their parts.
+open test job as owner
+check that page contains "Sign your rebate form"
+click "I have read and make every declaration above"
+enter stored value "ownerFullName" into "Type here"
+click "Sign my rebate form"
+owner code check
+check that page contains "Rebate form: Signed ✓"
+
+### H-52 · Leave a star rating   [CHANGES THE TEST JOB]
+// Needs: install done. Uses stored value ownerReviewLink (see H-30).
+open url stored value "ownerReviewLink"
+click "5 stars"
+check that page contains "Thank you!"
+
+### H-53 · No longer interested at release   [ONE-WAY - run last]
+// Needs: a SECOND TEST job released by the office. Closes that TEST spot for good.
+open url stored value "ownerTurnLink"
+click "I'm no longer interested"
+check that page contains "We've closed your spot and won't contact you about it again."
+
+### H-54 · Cancel my job   [ONE-WAY - run last]
+// Needs: a SECOND TEST job before its PIESA is booked. Cancels it for good.
+open test job as owner
+scroll down until page contains "Cancel my job"
+click "Cancel my job"
+click "Yes, cancel my job"
+check that page contains "Your job is cancelled."
