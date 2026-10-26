@@ -47,10 +47,8 @@ import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
 import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
-import { electricianInviteEmail } from "./job-electrician.core";
-import { MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT } from "./mitti-invite.core";
-import { officeEmailCopy } from "./office-email.core";
-import { simpleEmail } from "./simple-email.core";
+import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
+import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
@@ -76,7 +74,7 @@ import { SWMS_HAZARDS, SWMS_PREPARED_FOR, SWMS_SIGN_STATEMENT } from "./swms.cor
 import { PRODUCT_WARRANTIES, warrantyTermText } from "./product-warranty.core";
 import { VEU_FACTSHEET_PATH, VEU_FACTSHEET_TITLE } from "./veu-factsheet.core";
 import { buildInvoicePayload } from "./xero.core";
-import { TRADE_INVITE_DRAFT } from "./trade-access.core";
+import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
 import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
@@ -178,10 +176,7 @@ const email = (m: { subject: string; html: string }): TemplatePreview => ({ kind
 const text = (body: string | null): TemplatePreview => ({ kind: "text", body: brandSmsBody(body ?? "") });
 const texts = (variants: { label: string; body: string | null }[]): TemplatePreview => ({ kind: "texts", variants: variants.map((v) => ({ label: v.label, body: brandSmsBody(v.body ?? "") })) });
 /** Partner/applicant emails that the office sender lays out itself (no html passed): exactly what sendOfficeEmail builds. */
-const officeLaidOut = (contactName: string | null, subject: string, message: string) => {
-  const c = officeEmailCopy({ contactName, subject, message });
-  return { subject: c.subject, html: simpleEmail(c.heading, c.lines, undefined, { testLabel: false }).html };
-};
+const officeLaidOut = (contactName: string | null, subject: string, message: string) => officeEmailLayout({ contactName, subject, message });
 const jo = (input: Parameters<typeof renderJoOutcomeEmail>[0]) => {
   const m = renderJoOutcomeEmail(input);
   if (!m) throw new Error("No Jo template for this sample");
@@ -313,7 +308,7 @@ const OWNER: TemplateEntry[] = [
     render: () => texts([{ label: "Request", body: piesaOwnerConfirmRequestText(JOB) }, { label: "Reminder (days 1 and 3)", body: piesaOwnerConfirmReminderText(JOB) }]) }),
   ENTRY({ id: "owner:O28", section: "owner", step: "safety_check", kind: "email", code: "O28", name: "Your safety check copy (PIESA)", when: "The signed PIESA is filed (at least 24 hours before the install)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-delivery.core.ts", fn: "renderPiesaCopyEmail", sender: "src/lib/piesa-delivery.server.ts" }, design: "docs/templates/owner/O28-piesa-copy.html",
-    render: () => email(renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: `${JOB}?doc=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
+    render: () => email(renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: JOB, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
   ENTRY({ id: "owner:install-window", section: "owner", step: "safety_check", kind: "email", code: "", name: "Days left to book your install (30-day window)", when: "20 and 10 days left in the 30 days after the safety check, while no install day is booked", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 167", gate: { kind: "email" },
     source: { builder: "src/lib/thirty-day-rule.core.ts", fn: "ownerInstallWindowEmail", sender: "src/lib/thirty-day-rule.server.ts" },
     render: () => email(ownerInstallWindowEmail({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: JOB, firstName: "Helen", installerName: "Sample Insulation Co" })) }),
@@ -339,7 +334,7 @@ const OWNER: TemplateEntry[] = [
     render: () => email(renderInstallDaysEmail({ firstName: "Helen", installerName: "Sample Insulation Co", days: ["Wednesday 11 November at 7:30am", "Thursday 12 November at 12:30pm", "Monday 16 November at 7:30am"], myJobUrl: JOB, balanceIncGst: 1851, installBy: "4 December" })) }),
   ENTRY({ id: "owner:O35", section: "owner", step: "install", kind: "email", code: "O35", name: "Your install is booked", when: "Consent signed and the install deposit received", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 98", gate: { kind: "email" },
     source: { builder: "src/lib/install-booked-email.core.ts", fn: "renderInstallBookedEmail", sender: "src/lib/install-booked-email.server.ts" }, design: "docs/templates/owner/O35-install-booked.html",
-    render: () => email(renderInstallBookedEmail({ firstName: "Helen", when: "Wednesday 11 November at 7:30am", address: SHORT_ADDRESS, installerName: "Sample Insulation Co", installerPhone: "0400 000 000", removal: true, myJobUrl: JOB, consentSigned: true, payment: { depositPaid: 185.1, cardLast4: null, balanceDue: 1665.9, payInFullUrl: `${JOB}?pay=full` } })) }),
+    render: () => email(renderInstallBookedEmail({ firstName: "Helen", when: "Wednesday 11 November at 7:30am", address: SHORT_ADDRESS, installerName: "Sample Insulation Co", installerPhone: "0400 000 000", removal: true, myJobUrl: JOB, consentSigned: true, payment: { depositPaid: 185.1, cardLast4: null, balanceDue: 1665.9 } })) }),
   ENTRY({ id: "owner:O63", section: "owner", step: "install", kind: "email", code: "O63", name: "Your signed consent form", when: "The AP signs the ESC owner's consent (executed PDF attached)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 170", gate: { kind: "email" },
     source: { builder: "src/lib/consent-copy-email.core.ts", fn: "renderConsentCopyEmail", sender: "src/lib/consent-copy-email.server.ts" }, design: "docs/templates/owner/O63-consent-copy.html",
     render: () => email(renderConsentCopyEmail({ firstName: "Helen", installationDays: ["2026-11-11"], address: ADDRESS, templateVersion: ESC_CONSENT_TEMPLATE_VERSION, formText: consentSample(), sha256: "0".repeat(64), myJobUrl: JOB, attached: true })) }),
@@ -364,7 +359,7 @@ const OWNER: TemplateEntry[] = [
   // Rebate
   ENTRY({ id: "owner:O44", section: "owner", step: "rebate", kind: "email", code: "O44", name: "All done! Sign your rebate form", when: "Install complete (day 0 of the rebate form asks)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 169", gate: { kind: "email" },
     source: { builder: "src/lib/completion-emails.core.ts", fn: "renderInstallCompleteEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/owner/O44-install-complete.html",
-    render: () => email(renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=assignment` })) }),
+    render: () => email(renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=done` })) }),
   ENTRY({ id: "owner:sms-veec_sign_request", section: "owner", step: "rebate", kind: "text", code: "", name: "Sign your rebate form (text)", when: "Install complete", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 166", gate: { kind: "text", smsType: "veec_sign_request" },
     source: { builder: "src/lib/veec-assignment-form.core.ts", fn: "veecSignRequestText", sender: "src/lib/veec-reminders.server.ts" },
     render: () => text(veecSignRequestText(1850, `${JOB}?screen=done`)) }),
@@ -470,8 +465,8 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/installer-texts.core.ts", fn: "teamMemberInviteText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(teamMemberInviteText({ business: "Sample Insulation Co", link: `${BASE}/join/TEST` })) }),
   ENTRY({ id: "installer:mitti-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "You've been invited to Mitti", when: "The portal creates the trade's Mitti user", who: "Installer or electrician", approvalNote: "Jo 25 Oct 2026, decision 331", gate: { kind: "email" },
-    source: { builder: "src/lib/mitti-invite.core.ts", fn: "MITTI_INVITE_MESSAGE", sender: "src/lib/mitti-invite.server.ts" },
-    render: () => email(officeLaidOut("Sam Sample", MITTI_INVITE_SUBJECT, MITTI_INVITE_MESSAGE)) }),
+    source: { builder: "src/lib/mitti-invite.core.ts", fn: "renderMittiInviteEmail", sender: "src/lib/mitti-invite.server.ts" },
+    render: () => email(renderMittiInviteEmail({ name: "Sam Sample" })) }),
   ENTRY({ id: "installer:sms-mitti_invite", section: "installer", step: "enquiry", kind: "text", code: "", name: "You've been invited to Mitti (text)", when: "With the Mitti invite email", who: "Installer or electrician", approvalNote: "Jo 25 Oct 2026, decision 331", gate: { kind: "text", smsType: "mitti_invite" },
     source: { builder: "src/lib/mitti-invite.core.ts", fn: "MITTI_INVITE_MESSAGE", sender: "src/lib/mitti-invite.server.ts" },
     render: () => text(MITTI_INVITE_MESSAGE) }),
@@ -568,7 +563,7 @@ const INSTALLER: TemplateEntry[] = [
 const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:invite", section: "electrician", step: "enquiry", kind: "email", code: "", name: "An installer invited you", when: "An installer names a new electrician who isn't on the portal yet", who: "Electrician", approvalNote: "Electrician invite wording (job-electrician.core)", gate: { kind: "email" },
     source: { builder: "src/lib/job-electrician.core.ts", fn: "electricianInviteEmail", sender: "src/lib/job-electrician-invite.server.ts" },
-    render: () => { const m = electricianInviteEmail({ electricianName: "Sam Spark", installerName: "Sample Insulation Co", link: `${BASE}/electrician-onboarding?invite=TEST` }); return email(officeLaidOut("Sam Spark", m.subject, m.message)); } }),
+    render: () => email(electricianInviteLayout({ electricianName: "Sam Spark", installerName: "Sample Insulation Co", link: `${BASE}/electrician-onboarding?invite=TEST` })) }),
   ENTRY({ id: "electrician:E13", section: "electrician", step: "enquiry", kind: "email", code: "E13", name: "Welcome aboard — set your password", when: "Office approves the electrician's application", who: "Electrician", approvalNote: "Jo 24 Oct 2026, decision 107", gate: { kind: "email" },
     source: { builder: "src/lib/partner-email.core.ts", fn: "partnerWelcomeEmail", sender: "src/lib/partner-activation.functions.ts" }, design: "docs/templates/electrician/E13-welcome-email.html",
     render: () => email(partnerWelcomeEmail({ firstName: "Sam", businessName: "Spark Electrical", trade: "electrician", email: "sam@example.com", link: `${BASE}/reset-password?token_hash=TEST&type=recovery&next=%2Ffield%2Fwelcome`, test: false })) }),
@@ -707,8 +702,8 @@ const INVOICES: TemplateEntry[] = [
 
 const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:trade-invite", section: "waiting", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Would go when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approval: "waiting", approvalNote: "TRADE_INVITE_EMAIL_APPROVED = false (trade-access.core.ts)", gate: { kind: "code_off", flag: "TRADE_INVITE_EMAIL_APPROVED" },
-    source: { builder: "src/lib/trade-access.core.ts", fn: "TRADE_INVITE_DRAFT", sender: "src/lib/trade-access.functions.ts" },
-    render: () => email({ subject: TRADE_INVITE_DRAFT.subject, html: simpleEmail("Hi Sam,", [fillTemplate(TRADE_INVITE_DRAFT.body, { first_name: "Sam", business: "Sample Insulation Co", sign_in_url: `${BASE}/auth` })], { label: TRADE_INVITE_DRAFT.button, url: `${BASE}/reset-password?token_hash=TEST` }, { testLabel: false }).html }) }),
+    source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
+    render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST`, signInUrl: `${BASE}/auth` })) }),
   // Decision 386: one automatic reply per standard owner question (sent only once Jo approves the wording).
   ...ANSWER_TYPES.map((answer) => ENTRY({ id: `waiting:${ANSWER_CODES[answer].code}`, section: "waiting", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
     when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approval: "waiting", approvalNote: "OWNER_EMAIL_AUTO_REPLY_APPROVED = false (decision 386)", gate: { kind: "code_off", flag: "OWNER_EMAIL_AUTO_REPLY_APPROVED" },

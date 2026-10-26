@@ -4,6 +4,7 @@
 // other days; the amber "⏰ The 30-day clock" box; "At your safety check". The booked email mirrors the Ready Check
 // "You're booked" email (decision 81) with the electrician's name/phone, the switchboard line and the 30-day box.
 // Sent through approved-owner-emails.server.ts; SAFETY_CHECK_EMAILS_APPROVED is on (decision 94), real delivery behind customer_comms_enabled. Pure.
+import { myJobScreen } from "./mail-mjml.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { mjTimeButtons, splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
@@ -32,19 +33,20 @@ export function renderSafetyCheckTimesEmail(i: SafetyCheckTimesInput) {
   const subject = "Pick a time for your electrical safety check";
   const headline = `${first}, pick a time for your electrical safety check`;
   const intro = `${el}, a licensed electrician, has offered these times. Tap the one that suits you and it's booked.`;
-  const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
+  const pick = myJobScreen(i.myJobUrl, "book");
+  const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
   const paid = i.paid && i.paid > 0 ? i.paid : null;
   const n = slots.length;
   const preview = `${el} has offered ${n} time${n === 1 ? "" : "s"}. Tap one and it's booked${paid ? " – it's already paid for" : ""}.`;
   const at = `The electrician checks your switchboard, ceiling wiring and downlights are safe to insulate over.${paid ? ` It's already paid for (${K.cents(paid)}).` : ""} If anything needs fixing, we'll send you a separate quote first. Nothing is done without your OK.`;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    mjTimeButtons(slots, i.myJobUrl),
+    mjTimeButtons(slots, pick),
     mjThirtyDayClock(thirtyDayClockHtml()),
     `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">At your safety check</mj-text><mj-text padding="0 12px 0">${esc(at)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a time: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "AT YOUR SAFETY CHECK", at], { testLabel: i.test === true });
+  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a time: ${pick}`, `None suit? Suggest other days: ${pick}`, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "AT YOUR SAFETY CHECK", at], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

@@ -4,6 +4,7 @@
 // day (text + email). The existing single office alert at 10 days (`shouldFlagTenDaysLeft`) is unchanged.
 // Everything here is DRAFT wording until Jo approves it: THIRTY_DAY_REMINDER_APPROVED stays false (no real email) and
 // the two SMS types are wordingApproved:false (no real text). TEST jobs go through the test sender only.
+import { myJobScreen } from "./mail-mjml.core";
 import { INSTALL_WINDOW_DAYS, installDaysLeft } from "./install-days.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
@@ -79,13 +80,13 @@ export function ownerInstallWindowEmail(f: ReminderFacts): { subject: string; ht
   const ruleText = rule.filter(Boolean).join(" ");
   const questions = "Questions? Just reply to this email.";
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(f.link)}">Pick my install day</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(myJobScreen(f.link, "book"))}">Pick my install day</mj-button></mj-column></mj-section>`,
     mjThirtyDayClock(`<strong>${esc(rule[0])}</strong>${rule[1] ? ` ${esc(rule[1])}` : ""}`),
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const preview = `Your insulation must be installed by ${by}. Pick your install day – it takes a minute.`;
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
-  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, `Pick my install day: ${f.link}`, "", ruleText, "", questions], { testLabel: f.test === true });
+  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, `Pick my install day: ${myJobScreen(f.link, "book")}`, "", ruleText, "", questions], { testLabel: f.test === true });
   return { subject, html, text };
 }
 

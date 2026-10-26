@@ -113,7 +113,8 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
   const benefits = i.trade === "installer"
     ? ["Jobs sent to you, plus add your own customers", "Your price, never marked up. We only add our $349 AP fee", "Quotes, electrician, compliance and rebate paperwork handled by us"]
     : ["PIESAs sent to you near where you work", "Your agreed rate, paid 7 days after approval", "Bookings, compliance and rebate paperwork handled by us"];
-  const guide = { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL };
+  // Link check (Jo 27 Oct 2026): the guide page is the installer guide and only installers can open it, so electricians get no guide box.
+  const guide = i.trade === "installer" || i.guideUrl ? { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL } : null;
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
   // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, shown as two paragraphs in the yellow box.
   const pay = NO_FORM_NO_PAY.body.indexOf(". ");
@@ -122,14 +123,14 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     sec([txt(esc(hi), 'mj-class="hi"'), txt(esc(headline), 'mj-class="h1" css-class="email-heading" padding="4px 12px 10px"'), txt(esc(intro))].join("")),
     sec(`<mj-table padding="18px 18px 6px">${benefits.map((b, n) => tick(esc(b), n === benefits.length - 1 ? 12 : 14)).join("")}</mj-table>`, "panel-card"),
     sec(['<mj-text padding="8px 0 0"></mj-text>', `<mj-button href="${esc(i.link)}">Set your password</mj-button>`, txt(esc(signIn), 'mj-class="small center" padding="0 12px 18px"')].join("")),
-    sec([txt(esc(guide.title), 'mj-class="h2" padding="18px 18px 6px"'), txt(`${esc(guide.body)}<br /><a href="${esc(guide.href)}" style="${LINK}">Read the guide &rarr;</a>`, 'padding="0 18px 18px"')].join(""), "panel"),
+    guide ? sec([txt(esc(guide.title), 'mj-class="h2" padding="18px 18px 6px"'), txt(`${esc(guide.body)}<br /><a href="${esc(guide.href)}" style="${LINK}">Read the guide &rarr;</a>`, 'padding="0 18px 18px"')].join(""), "panel") : "",
     sec([txt(esc(NO_FORM_NO_PAY.headline), 'mj-class="h2" padding="18px 18px 6px"'), ...payParas.map((p, n) => txt(esc(p), `padding="0 18px ${n === payParas.length - 1 ? 18 : 10}px"`))].join(""), "panel-amber"),
     sec(txt("Questions? Just reply to this email.", 'mj-class="small" padding="14px 12px 0"')),
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     hi, "", headline, "", intro, ...benefits.map((b) => `✓ ${b}`), "",
-    `Set your password: ${i.link}`, signIn, "", `${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, "", `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.",
+    `Set your password: ${i.link}`, signIn, "", ...(guide ? [`${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, ""] : []), `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

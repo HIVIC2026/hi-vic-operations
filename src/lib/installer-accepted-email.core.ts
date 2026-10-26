@@ -16,7 +16,8 @@ const intro = (hi: string, headline: string, lead: string) => `<mj-section><mj-c
 
 export function renderInstallerAcceptedEmail(i: InstallerAcceptedInput) {
   const owner = i.ownerName?.trim() || "The owner";
-  const first = owner.split(/\s+/)[0] ?? owner;
+  // No name on file: "The owner has declined the quote", never "The has declined".
+  const first = i.ownerName?.trim() ? owner.split(/\s+/)[0] ?? owner : owner;
   const where = i.address?.trim() || "the property";
   const you = K.cleanName(i.installerFirstName);
   const subject = `Owner accepted – ${i.jobNumber}${i.address?.trim() ? `, ${i.address.trim()}` : ""}`;
@@ -48,7 +49,8 @@ export type InstallerDeclinedInput = InstallerAcceptedInput & { reasonLabel?: st
 /** Decision 92/136: "{OwnerFirst} declined the quote for {address} ({HV}). Reason: … Nothing more to do. The job is closed." */
 export function renderInstallerDeclinedEmail(i: InstallerDeclinedInput) {
   const owner = i.ownerName?.trim() || "The owner";
-  const first = owner.split(/\s+/)[0] ?? owner;
+  // No name on file: "The owner has declined the quote", never "The has declined".
+  const first = i.ownerName?.trim() ? owner.split(/\s+/)[0] ?? owner : owner;
   const where = i.address?.trim() || "the property";
   const you = K.cleanName(i.installerFirstName);
   const subject = `Owner declined – ${i.jobNumber}${i.address?.trim() ? `, ${i.address.trim()}` : ""}`;

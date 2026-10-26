@@ -45,3 +45,10 @@ export const plusRow = (html: string) =>
   `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;">${html}</td></tr>`;
 export const numRow = (n: number, html: string) =>
   `<tr><td width="34" valign="top" style="padding:1px 0 12px;"><span class="num">${n}</span></td><td style="padding:0 0 12px;">${html}</td></tr>`;
+
+/** Adds `screen=<name>` to a My job link so a button lands on the right screen (link check, Jo 27 Oct 2026).
+ *  Links that already pick a screen, or aren't URLs, are left alone. */
+export function myJobScreen(url: string, screen: "book" | "quote" | "fixes" | "done" | "turn" | "review"): string {
+  if (!/^https?:\/\//.test(url) || /[?&]screen=/.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}screen=${screen}`;
+}

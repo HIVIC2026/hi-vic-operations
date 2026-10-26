@@ -6,6 +6,7 @@
 // deposit still holds, Change day, See my job. Neither has a live sender yet (the consent + Stripe deposit steps are
 // being built): both go through approved-owner-emails.server.ts; INSTALL_DAYS_EMAIL_APPROVED is on (decisions 96/135) and
 // real delivery still needs customer_comms_enabled. Pure.
+import { myJobScreen } from "./mail-mjml.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
@@ -32,7 +33,8 @@ export function renderInstallDaysEmail(i: InstallDaysEmailInput) {
   const subject = `${first}, pick your install day`;
   const headline = subject;
   const intro = `Your safety check is all clear. ${installer} has offered these days for your insulation install. Tap the one that suits you.`;
-  const slots = i.days.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
+  const pick = myJobScreen(i.myJobUrl, "book");
+  const slots = i.days.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
   const deposit = i.balanceIncGst != null && i.balanceIncGst > 0 ? Math.round(i.balanceIncGst * 10) / 100 : null;
   const rest = deposit != null ? i.balanceIncGst! - deposit : null;
   const lock1 = `When you tap a day, you'll sign your install consent (the VEU program needs it)${deposit != null ? ` and pay a 10% deposit of ${K.cents(deposit)}` : " and pay a 10% deposit"}. That locks in your day. We hold it for 48 hours while you do this.`;
@@ -41,12 +43,12 @@ export function renderInstallDaysEmail(i: InstallDaysEmailInput) {
   const preview = `Your safety check is all clear. ${installer} has offered ${slots.length === 3 ? "three days" : "these days"} – tap the one that suits you.`;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="eyebrow" padding="18px 18px 4px">Days on offer</mj-text>${slots.length ? `<mj-table padding="0 18px 8px" font-size="16px">${slots.map((s, n) => dayRow(s, n === 0)).join("")}</mj-table>` : ""}<mj-text mj-class="small" padding="0 18px 16px">None suit? <a href="${esc(i.myJobUrl)}" style="color:#3C51C4;font-weight:700;">Suggest other days</a></mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="eyebrow" padding="18px 18px 4px">Days on offer</mj-text>${slots.length ? `<mj-table padding="0 18px 8px" font-size="16px">${slots.map((s, n) => dayRow(s, n === 0)).join("")}</mj-table>` : ""}<mj-text mj-class="small" padding="0 18px 16px">None suit? <a href="${esc(pick)}" style="color:#3C51C4;font-weight:700;">Suggest other days</a></mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Lock in your day</mj-text><mj-text>${esc(lock1)}</mj-text><mj-text>${esc(lock2)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-amber"><mj-text padding="18px 18px 16px">${byHtml}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a day: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "", "LOCK IN YOUR DAY", lock1, lock2, "", K.stripTags(byHtml)], { testLabel: i.test === true });
+  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a day: ${pick}`, `None suit? Suggest other days: ${pick}`, "", "LOCK IN YOUR DAY", lock1, lock2, "", K.stripTags(byHtml)], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
