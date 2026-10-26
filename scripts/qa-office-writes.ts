@@ -3,7 +3,7 @@
 // 1. Denied: TEST installer / REC / owner call deleteJob, restoreJob, setEligibility directly -> refused, DB unchanged.
 // 2. Count/list parity on the deployed office reads with includeTest=true (getPipeline + listByStatus):
 //    job counted + listed before, absent while deleted, back after restore; every phase pipeline count == list total.
-// 3. Browser (office, 1280 + 390): Delete job -> Deleted jobs page -> Restore -> reload; eligibility changes persist.
+// 3. Browser (office, 1280 + 390): More ▾ → Delete (test jobs only) → Settings › Deleted → Restore ›; Enquiry → Eligibility → Change result persists.
 // 4. DB readback: audit events with office actor + reason; owner answers unchanged; 3 protected real jobs untouched.
 // Safety: snapshot is written to disk BEFORE any change; restore runs in finally, on SIGINT/SIGTERM and on the
 // internal deadline; a leftover snapshot is only recovered when the job still carries this harness's "QA " marks.
