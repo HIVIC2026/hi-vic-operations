@@ -192,7 +192,11 @@ try {
   else {
     const storageKey = `sb-${new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
     const manifest = `${OUT}/.manifest.json`;
-    writeFileSync(manifest, JSON.stringify({ base: BASE, outDir: OUT, storageKey, session: sessions["office"], jobId: job.id, jobNumber: JOB }));
+    // The job page's More ▾ Delete is permanent, so the browser never confirms it on the fixture: soft-delete through the
+    // deployed deleteJob endpoint first, then the browser checks the banner, Settings › Deleted and restores through the UI.
+    const d2 = await callFn(fnId(OFFICE_FN, "deleteJob"), tok, { jobId: job.id, reason: "QA browser journey: soft delete before UI restore" });
+    const softDeleted = isOkWrite(d2) && !!(await readJob("id", job.id)).deleted_at;
+    writeFileSync(manifest, JSON.stringify({ base: BASE, outDir: OUT, storageKey, session: sessions["office"], jobId: job.id, jobNumber: JOB, softDeleted }));
     rmSync(`${OUT}/.browser.json`, { force: true });
     const py = spawnSync("python3", ["e2e/office-writes.py", manifest], { encoding: "utf8", timeout: Math.max(60_000, left() - 30_000) });
     writeFileSync(manifest, "{}");
