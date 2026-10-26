@@ -12,7 +12,6 @@
  * presentation now follow the approved designs through the shared `email-kit.core.ts`. T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.
  */
-import { renderJoOutcomeEmail as renderDontKnowUnchanged } from "./jo-outcome-email-dont-know.core";
 import {
   ctasForTemplate,
   INSULATION_QUESTIONS_CTA_LABEL,
@@ -237,8 +236,6 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const reviewed = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known";
   // The questions / received-media emails to an owner whose answer is "don't know" never say "You told us there's some insulation".
   const dontKnow = !reviewed && input.insulation === "unknown" && (variant === "questions" || variant === "received" || (variant === "some" && input.declaredUnknown === true && input.declaredExisting === true));
-  // O2-dont-know has no design picture: it stays exactly as it is today.
-  if (variant === "some" && dontKnow) return renderDontKnowUnchanged(input);
   return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject, dontKnow));
 }
 
@@ -289,6 +286,9 @@ const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's sa
 const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
 const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
 const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. We check all of this at your free Ready Check and tell you the exact price before you agree to anything.";
+/** O2 "don't know" (decision 392) wording, word-for-word as docs/templates/owner/O2-save-my-spot-dont-know.html. */
+const DK_SAVE = "Thousands of Victorians have registered, and spots are released in the order they were saved. Saving your spot is free, with no obligation. We'll be in touch when your spot is released.";
+const DK_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll know the exact price before you agree to anything.";
 const O1_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
 export const QUESTIONS = [
   { title: "What type is it?", detail: "Loose fill or batts" },
@@ -302,6 +302,8 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const rebate = K.whole(f.veuRebate), price = K.whole(f.customerTotal), full = K.whole(f.totalBeforeRebate);
   const headline = some ? `${first}, you may qualify for ${rebate} off ceiling insulation` : `${first}, you could save ${rebate} on ceiling insulation`;
   const basis = !dontKnow && some && !f.areaEstimated ? `Based on what you told us: ${K.m2(f.ceilingAreaM2)} ceiling with some existing insulation.` : basisLine(f, dontKnow ? "unknown" : some);
+  const dk = variant === "some" && dontKnow;
+  const save = dk ? DK_SAVE : some ? O2_SAVE : O1_SAVE, closing = dk ? DK_CLOSING : some ? O2_CLOSING : O1_CLOSING;
   const intro = dontKnow ? O2_DONT_KNOW_INTRO : some ? O2_INTRO : O1_INTRO;
   const calc = input.links.calculatorUrl ? { href: input.links.calculatorUrl, label: "Try a different ceiling size" } : null;
   const removal = removalCard(f);
@@ -310,15 +312,15 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     ? `${K.sectionTitle("Save your spot: answer 3 quick questions", "22px 0 6px")}${K.p(O2Q_SAVE, "0 0 10px")}${K.questionList(QUESTIONS)}${K.button(answerUrl, INSULATION_QUESTIONS_CTA_LABEL)}${K.small(O2Q_PHOTOS, "8px 0 0", { center: true })}`
     : variant === "received"
       ? `${K.sectionTitle("Thanks for your photos or video", "22px 0 6px")}${K.p(RECEIVED_ACK, "0 0 4px")}${K.button(answerUrl, "Add more photos or video")}${K.small(RECEIVED_SAFETY, "8px 0 0", { center: true })}`
-      : `${K.sectionTitle("Save your spot, it's free", "22px 0 6px")}${K.p(some ? O2_SAVE : O1_SAVE, "0 0 4px")}${K.button(saveUrl, "Save my free spot")}`;
+      : `${K.sectionTitle("Save your spot, it's free", "22px 0 6px")}${K.p(save, "0 0 4px")}${K.button(saveUrl, "Save my free spot")}`;
   const body = [
     K.h1(headline),
     K.p(intro),
     K.priceBox({ rebateLabel: some ? "Your potential VEU rebate" : "Your estimated VEU rebate", rebate: f.veuRebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price, fullPrice: full, basis, calculator: calc }),
-    some ? K.existingInsulationCard({ areaM2: f.ceilingAreaM2, ratePerM2: removal.ratePerM2, upTo: removal.upTo, note: O2_PRICE_NOTE }) : "",
+    some ? K.existingInsulationCard({ areaM2: f.ceilingAreaM2, ratePerM2: removal.ratePerM2, upTo: removal.upTo, note: dk ? undefined : O2_PRICE_NOTE }) : "",
     action,
     K.spacer(8),
-    K.includedAndNotIncluded({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing: some ? O2_CLOSING : O1_CLOSING, seeEstimate: input.links.reviewResultUrl || null, freeReadyCheck: true }),
+    K.includedAndNotIncluded({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing, seeEstimate: input.links.reviewResultUrl || null, freeReadyCheck: !dk }),
   ].join("\n");
   const html = K.emailShell({ body, previewText: subject, unsubscribe: "slot" });
   const plainText = K.plainText([
@@ -329,14 +331,14 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     `${some ? "Your cost if eligible" : "You pay after the rebate"}: ${price} incl. GST (full price before rebate ${full})`,
     basis,
     calc ? `Try a different ceiling size: ${calc.href}` : null, "",
-    ...(some ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${removal.ratePerM2}/m², only the areas that need it. Up to ${K.whole(removal.upTo)} for your ${K.m2(f.ceilingAreaM2)} ceiling.`, O2_PRICE_NOTE, ""] : []),
+    ...(some ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${removal.ratePerM2}/m², only the areas that need it. Up to ${K.whole(removal.upTo)} for your ${K.m2(f.ceilingAreaM2)} ceiling.`, (dk ? "Prices incl. GST. You'll know the exact cost before you agree to anything." : O2_PRICE_NOTE), ""] : []),
     ...(variant === "questions"
       ? ["SAVE YOUR SPOT: ANSWER 3 QUICK QUESTIONS", O2Q_SAVE, ...QUESTIONS.map((q, n) => `${n + 1}. ${q.title} (${q.detail})`), `${INSULATION_QUESTIONS_CTA_LABEL}: ${answerUrl}`, O2Q_PHOTOS]
       : variant === "received"
         ? ["THANKS FOR YOUR PHOTOS OR VIDEO", RECEIVED_ACK, `Add more photos or video: ${answerUrl}`, RECEIVED_SAFETY]
-        : ["SAVE YOUR SPOT, IT'S FREE", some ? O2_SAVE : O1_SAVE, `Save my free spot: ${saveUrl}`]),
+        : ["SAVE YOUR SPOT, IT'S FREE", save, `Save my free spot: ${saveUrl}`]),
     "",
-    ...K.includedAndNotIncludedText({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing: some ? O2_CLOSING : O1_CLOSING, freeReadyCheck: true }),
+    ...K.includedAndNotIncludedText({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some, closing, freeReadyCheck: !dk }),
     input.links.reviewResultUrl ? `See your full estimate: ${input.links.reviewResultUrl}` : null,
     "", `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
