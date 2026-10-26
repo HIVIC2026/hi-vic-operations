@@ -77,7 +77,7 @@ const fmtInstall = (iso: string | null) => {
 };
 
 export type PiesaCopyEmailInput = {
-  recipient: PiesaCopyRecipient; firstName: string | null; address: string | null; jobNumber: string; signatureDate: string | null; installStart: string | null; link: string; test?: boolean;
+  recipient: PiesaCopyRecipient; firstName: string | null; address: string | null; jobNumber: string; signatureDate: string | null; installStart: string | null; link: string | null; test?: boolean;
   /** Electrician business + licence/REC numbers, when known. */
   electrician?: { name: string | null; licence?: string | null; rec?: string | null } | null;
   /** Repairs: null/undefined = none recorded; a CES number means repairs were completed. */
@@ -113,7 +113,7 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
     K.h1(headline, 8),
     K.p(intro),
     K.resultCard({ label: "Safety check result", headline: repaired ? "Safe to insulate (after repairs) ✓" : "Safe to insulate ✓", rows, kv: true }),
-    K.button(i.link, "View your safety check (PDF)"),
+    ...(i.link ? [K.button(i.link, "View your safety check (PDF)")] : []),
     K.p(after, "16px 0 0", true),
     K.small(owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email."),
   ].join("\n");
@@ -121,7 +121,7 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const text = K.plainText([
     headline, "", intro, "",
     "SAFETY CHECK RESULT", repaired ? "Safe to insulate (after repairs)" : "Safe to insulate", ...rows.map((r) => `${r.k}: ${r.v}`), "",
-    `View your safety check (PDF): ${i.link}`, "", K.stripTags(after), "", owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.",
+    ...(i.link ? [`View your safety check (PDF): ${i.link}`] : []), "", K.stripTags(after), "", owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }
