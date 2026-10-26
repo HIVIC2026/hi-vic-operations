@@ -26,7 +26,7 @@ export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance";
 export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
-  safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
+  safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) fee",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
   balance: "Balance (install day)",
