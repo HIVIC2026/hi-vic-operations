@@ -101,17 +101,36 @@ function Row({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => v
   );
 }
 
+/** Desktop (lg+): the open card's rows in O1's columns — job · surname · suburb and why · age · action. */
+function DeskRow({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => void }) {
+  const email = row.kind === "email_change" || row.kind === "email_unmatched";
+  return (
+    <li className="grid grid-cols-[80px_minmax(0,130px)_minmax(0,1fr)_44px_auto] items-center gap-x-4 border-b border-line px-4 py-3 last:border-b-0" data-kind={row.kind}>
+      {row.jobNumber ? <span className="text-[13px] font-bold text-ink">{row.jobNumber}{row.isTest ? <span className="ml-1 rounded bg-warning-soft px-1 text-[10px] font-bold">TEST</span> : null}</span> : <span className="text-[11px] font-bold uppercase tracking-wide text-sub">Unmatched</span>}
+      <span className="truncate font-semibold text-ink">{row.surname}</span>
+      <span className="min-w-0 break-words text-sm text-ink">{row.suburb ? <span className="text-sub">{row.suburb} · </span> : null}{row.line}</span>
+      <span className="text-right text-xs text-sub">{ageLabel(row.since, now)}</span>
+      <span>
+        {email ? <EmailActions row={row} onDone={onDone} />
+          : row.jobId && row.button.to === "job"
+            ? <Link to="/admin/jobs/$jobId" params={{ jobId: row.jobId }} {...(row.button.section ? { hash: `stage-${row.button.section}` } : {})} className={btn("primary")}>{row.button.label}</Link>
+            : null}
+      </span>
+    </li>
+  );
+}
+
 /** A card of one kind: count, name, oldest age; tap to open its rows (one card open at a time). */
-function Card({ card, now, open, onToggle, onDone }: { card: NeedsCard; now: number; open: boolean; onToggle: () => void; onDone: (key: string) => void }) {
+function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard; now: number; open: boolean; selected: boolean; onToggle: () => void; onDone: (key: string) => void }) {
   const urgent = URGENT.includes(card.id);
   return (
-    <div className="overflow-hidden rounded-[14px] border border-line bg-paper" data-card={card.id}>
+    <div className={cn("overflow-hidden rounded-[14px] border bg-paper", selected ? "border-line lg:border-hiv-blue lg:ring-1 lg:ring-hiv-blue" : "border-line")} data-card={card.id}>
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-hiv-blue">
         <span className={cn("grid h-7 min-w-8 shrink-0 place-items-center rounded-full px-2 text-sm font-bold", urgent ? "bg-pink text-rose" : "bg-mist text-hiv-blue")}>{card.rows.length}</span>
         <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">{card.title}</span><span className="text-xs text-sub">oldest {ageLabel(card.oldestSince, now)}</span></span>
-        <span aria-hidden className="text-lg text-sub">{open ? "▾" : "›"}</span>
+        <span aria-hidden className="text-lg text-sub">{open ? <><span className="lg:hidden">▾</span><span className="hidden lg:inline">›</span></> : "›"}</span>
       </button>
-      {open && <ul className="border-t border-line">{card.rows.map((r) => <Row key={r.key} row={r} now={now} onDone={() => onDone(r.key)} />)}</ul>}
+      {open && <ul className="border-t border-line lg:hidden">{card.rows.map((r) => <Row key={r.key} row={r} now={now} onDone={() => onDone(r.key)} />)}</ul>}
     </div>
   );
 }
@@ -176,6 +195,9 @@ function NeedsMe() {
   const groups = data ? NEEDS_GROUPS.map((g) => ({ ...g, ...foldChooseInstaller(data.groups[g.key].filter((r) => !done.has(r.key))) })) : [];
   const todayCount = groups.find((g) => g.key === "today")?.rows.length ?? 0;
   const waiting = groups.reduce((n, g) => n + g.chooseInstaller.length, 0);
+  // Desktop's right-hand panel: the picked card, else the most urgent one (first card of the first group that has one).
+  const allCards = groups.flatMap((g) => needsCards(g.rows).map((card) => ({ id: `${g.key}:${card.id}`, card })));
+  const shown = allCards.find((c) => c.id === openCard) ?? allCards[0] ?? null;
   return (
     <AppShell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
@@ -188,7 +210,8 @@ function NeedsMe() {
       {error ? (
         <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>
       ) : isPending || !data ? <p role="status" className="text-sub">Checking every job…</p> : (
-        <>
+        <div className="lg:grid lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div>
           {groups.map((g) => {
             const { rows, chooseInstaller } = g;
             const total = rows.length + chooseInstaller.length;
@@ -205,13 +228,24 @@ function NeedsMe() {
                 {total === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}.</p> : null}
                 {needsCards(rows).map((c) => {
                   const id = `${g.key}:${c.id}`;
-                  return <Card key={id} card={c} now={data.now} open={openCard === id} onToggle={() => setOpenCard(openCard === id ? null : id)} onDone={(key) => refresh(key)} />;
+                  // Phone: an accordion (tap again to close). Desktop: a list that picks what the right-hand panel shows.
+                  const pick = () => setOpenCard(window.matchMedia("(min-width: 1024px)").matches || openCard !== id ? id : null);
+                  return <Card key={id} card={c} now={data.now} open={openCard === id} selected={shown?.id === id} onToggle={pick} onDone={(key) => refresh(key)} />;
                 })}
               </section>
             );
           })}
           <PartnerSystemFold rows={data.system} />
-        </>
+        </div>
+        <section aria-label={shown ? shown.card.title : "Needs me"} className="hidden lg:sticky lg:top-24 lg:block">
+          {shown ? (
+            <div className="overflow-hidden rounded-[14px] border border-line bg-paper">
+              <h2 className="border-b border-line px-4 py-3 font-display text-lg font-bold text-ink">{shown.card.title} · {shown.card.rows.length}</h2>
+              <ul>{shown.card.rows.map((r) => <DeskRow key={r.key} row={r} now={data.now} onDone={() => refresh(r.key)} />)}</ul>
+            </div>
+          ) : <p className="rounded-[14px] border border-line bg-paper px-4 py-6 text-sm text-sub">Nothing needs you right now.</p>}
+        </section>
+        </div>
       )}
     </AppShell>
   );
