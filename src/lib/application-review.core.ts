@@ -3,7 +3,7 @@
 // (decision 137) they render in the approved kit shell; since 26 Oct 2026 in the MJML designs (docs/templates/mjml/
 // installer_changes, installer_decline, installer_I53). "We've got your application" (decision 136) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
 
-import { partnerEmailLayout } from "./partner-email.core";
+import { partnerEmailLayout } from "./partner-email-current.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 export const APPLICATION_REVIEW_WORDING_APPROVED = true as const;
