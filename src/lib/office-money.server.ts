@@ -26,11 +26,11 @@ async function inJobs<T>(table: string, cols: string, jobIds: string[], extra?: 
   return out;
 }
 
-type JobRow = { id: string; job_number: string; stage: string | null; source: string | null; channel: string | null; electrician_choice: string | null; installation_completed_at: string | null; deleted_at: string | null; owners: { full_name: string | null } | null };
+type JobRow = { id: string; job_number: string; stage: string | null; source: string | null; channel: string | null; electrician_choice: string | null; originating_installer_business_id: string | null; installation_completed_at: string | null; deleted_at: string | null; owners: { full_name: string | null } | null };
 async function liveJobs(ids: string[]): Promise<Map<string, JobRow>> {
   const out = new Map<string, JobRow>();
   for (const part of chunks(ids)) {
-    const { data, error } = await db.from("jobs").select("id, job_number, stage, source, channel, electrician_choice, installation_completed_at, deleted_at, owners(full_name)").in("id", part);
+    const { data, error } = await db.from("jobs").select("id, job_number, stage, source, channel, electrician_choice, originating_installer_business_id, installation_completed_at, deleted_at, owners(full_name)").in("id", part);
     if (error) throw new Error(`Could not read jobs: ${error.message}`);
     for (const j of (data ?? []) as JobRow[]) if (j.source !== "qa_test" && !j.deleted_at) out.set(j.id, j);
   }
@@ -78,6 +78,8 @@ export async function moneyMargins(now = new Date()) {
   const piesaRate = new Map<string, number>();
   for (const r of (rates ?? []) as { business_id: string; rate_inc_gst: number }[]) if (!piesaRate.has(r.business_id)) piesaRate.set(r.business_id, Number(r.rate_inc_gst) / (1 + gstRate));
   const fallbackPiesa = num(pricing.data?.piesa_rec_cost_ex_gst);
+  // Jo 26 Oct 2026: on Reinsulate's jobs with their own electrician we pay Reinsulate the flat safety check price.
+  const installerPaid = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(ids.map((id) => jobs.get(id)!));
   const rows: MarginRow[] = ids.map((id) => {
     const j = jobs.get(id)!;
     const qs = ((quotes ?? []) as { id: string; job_id: string; kind: string; subtotal_inc_gst: number; veec_discount_inc_gst: number; veec_count: number | null }[]).filter((q) => q.job_id === id);
@@ -92,7 +94,8 @@ export async function moneyMargins(now = new Date()) {
     // instead, the owner's quoted price stands and we pay ours their rate. The quoted usual rate is only the fallback.
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
-    const piesaCostEx = ownerDirect ? 0 : (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : usualPiesaEx ?? fallbackPiesa);
+    const paidToInstaller = installerPaid.get(id);
+    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate) : (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : usualPiesaEx ?? fallbackPiesa);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
@@ -137,6 +140,8 @@ export async function moneyPayouts() {
   const elecIds = [...new Set(asg.filter((a) => a.role === "electrician").map((a) => a.business_id))];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
   const piesaEx = (businessId: string) => { const r = ((rates ?? []) as { business_id: string; rate_inc_gst: number }[]).find((x) => x.business_id === businessId); return r ? Math.round((Number(r.rate_inc_gst) / gst) * 100) / 100 : num(pricing?.piesa_rec_cost_ex_gst); };
+  // Jo 26 Oct 2026: the safety check on Reinsulate's own-electrician jobs is paid to Reinsulate, at the flat price.
+  const installerPaid = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(ids.map((id) => jobs.get(id)!));
   const lines: PayoutLine[] = [];
   for (const id of ids) {
     const j = jobs.get(id)!;
@@ -160,9 +165,12 @@ export async function moneyPayouts() {
     const elec = asg.find((a) => a.job_id === id && a.role === "electrician");
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
     const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
+    const paidToInstaller = installerPaid.get(id);
+    if (paidToInstaller && (atFinal || visited("assessment")))
+      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidFor("assessment") });
     if (elec && !ownerDirect) {
       // dueAt for electrician lines is set below from the decision-355 rule.
-      if (atFinal || visited("assessment")) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
+      if (!paidToInstaller && (atFinal || visited("assessment"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
       if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }

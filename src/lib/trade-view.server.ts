@@ -403,11 +403,20 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
   // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
   // the job's PIESA (A3) Mitti form is Complete (`assessments.mitti_completed`, the same fact the payout gate reads).
-  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
-  const confirmedSafety = [...new Set((books ?? []).filter((b) => b.status === "confirmed" && b.kind === "assessment").map((b) => b.job_id))];
+  const sel = "job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb))";
+  const { data: ownBooks } = await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
+  // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
+  const { installerPaysOwnElectricians } = await import("./installer-paid-electricians.core");
+  const { data: theirChecks } = kind === "installer" && installerPaysOwnElectricians(bizId)
+    ? await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false })
+    : { data: [] };
+  const books = [...(ownBooks ?? []), ...(theirChecks ?? [])];
+  const confirmedSafety = [...new Set(books.filter((b) => b.status === "confirmed" && b.kind === "assessment").map((b) => b.job_id))];
   const { data: doneSafety } = confirmedSafety.length ? await admin.from("assessments").select("job_id").in("job_id", confirmedSafety).eq("mitti_completed", true) : { data: [] as { job_id: string }[] };
   const safetyDone = new Set((doneSafety ?? []).map((a) => a.job_id));
-  const done = (books ?? []).filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
+  const done = books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
+  const checkJobs = [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
+  const payees = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(checkJobs);
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
   const seenSafety = new Set<string>();
   const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));
@@ -453,7 +462,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
   const gate = await payoutGateFacts(ids);
   // Decision 355: electricians — 7 days after the form is 100% complete AND the owner paid that step (later of the two).
-  const ep = kind === "electrician" ? await import("./electrician-pay.server") : null;
+  const ep = kind === "electrician" || rows.some((r) => r.kind === "assessment") ? await import("./electrician-pay.server") : null;
   const ownerPaid = ep ? await ep.ownerElectricalStepsPaidAt(ids) : null;
   const { ownerPaidInFullAt } = await import("./trade-view.core");
   const paidInFull = (jobId: string) => ownerPaidInFullAt((invs ?? []).filter((x) => x.job_id === jobId));
@@ -462,7 +471,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
-    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
+    const payee = b.kind === "assessment" ? payees.get(b.job_id) ?? null : null;
+    const amount = payee ? payee.piesaIncGst : Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf = gate.get(b.job_id);
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
     const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf, ownerPaid?.get(b.job_id)) : null;
@@ -476,10 +486,14 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const jj = b.jobs as { channel?: string | null; electrician_choice?: string | null };
     // A kind-less payout event is the job/installer payout; only an explicit electrical-kind event proves an HIV electrical payment.
     const explicitPaid = pe && (pe.details as { kind?: string })?.kind === b.kind ? pe.created_at : null;
-    const billing = b.kind === "assessment" || b.kind === "rectification"
+    // The installer's own electrician is paid by the installer: that row belongs on the installer's Money, not theirs.
+    const billing = payee ? (payee.businessId === bizId ? "hivic" as const : "installer_paid" as const)
+      : b.kind === "assessment" || b.kind === "rectification"
       ? electricalBillingSource({ channel: jj.channel ?? null, choice: jj.electrician_choice ?? null, committedLineOnAcceptedQuote: committed(b.job_id, b.kind), hivPaidAt: explicitPaid })
       : "hivic" as const;
-    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
+    const biz = b.businesses as { name: string | null; trading_name: string | null } | null;
+    const what = payee && payee.businessId === bizId ? `Safety check by ${biz?.trading_name || biz?.name || "your electrician"}` : VISIT[b.kind] ?? "Job";
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what, kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
   });
 }
 
@@ -496,6 +510,8 @@ export async function tradeMoney(userId: string) {
   // Owner-direct electrical work is invoiced to the owner by the electrician: never an HIV payout, never in our totals.
   const rows = all.filter((r) => r.billing === "hivic");
   const ownerDirect = all.filter((r) => r.billing === "owner_direct").map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, surname: r.surname, suburb: r.suburb, what: r.what, doneAt: r.doneAt }));
+  // Jo 26 Oct 2026: safety checks done for an installer that pays its own electricians — paid by that installer, not us.
+  const paidByInstaller = all.filter((r) => r.billing === "installer_paid").map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, surname: r.surname, suburb: r.suburb, what: r.what, doneAt: r.doneAt }));
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const coming = rows.filter((r) => r.state.kind === "coming");
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
@@ -504,7 +520,7 @@ export async function tradeMoney(userId: string) {
   // Only the last 3 digits of the saved account: enough to recognise it, never the full number.
   const { data: bank } = await admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle();
   const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect };
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller };
 }
 
 /**
