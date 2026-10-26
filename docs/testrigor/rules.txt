@@ -1,0 +1,128 @@
+// testRigor reusable rules for the Home Insulation Victoria portal.
+// How to add one: testRigor > Reusable Rules > Add Rule.
+//   - Rule name = the text after "### RULE:" (copy it exactly, lower case).
+//   - Steps = every line under it, down to the next "### RULE:".
+// Lines starting with // are notes. You can paste them or leave them out.
+// Every label below is copied from the portal source (SignInCard.tsx, TradeShell.tsx, office.tsx, admin.test-centre.tsx).
+// Passwords and links live ONLY in testRigor stored values. Never type them here.
+
+
+### RULE: open sign in
+// The staff address opens sign-in at /auth. The bare address on this host also redirects to /auth (decision 381).
+open url "https://portal.homeinsulationvictoria.com.au/auth"
+check that page contains "Staff & trade portal"
+check that page contains "Welcome back."
+
+
+### RULE: sign in as installer
+open sign in
+enter stored value "installerEmail" into "Email"
+enter stored value "installerPassword" into "Password"
+click "Sign in"
+// Installers land on My work (/field).
+check that page contains "My work"
+check that page contains "Coming up"
+check that url contains "/field"
+
+
+### RULE: sign in as electrician
+open sign in
+enter stored value "electricianEmail" into "Email"
+enter stored value "electricianPassword" into "Password"
+click "Sign in"
+// Electricians also land on My work (/field), with the four count tiles.
+check that page contains "My work"
+check that page contains "Moving automatically"
+check that url contains "/field"
+
+
+### RULE: sign in as office
+open sign in
+enter stored value "officeEmail" into "Email"
+enter stored value "officePassword" into "Password"
+click "Sign in"
+// The office home is Needs me (/admin/needs-me).
+check that page contains "Needs me"
+check that page contains "Enquiries"
+check that url contains "/admin/needs-me"
+
+
+### RULE: sign out of trade
+// Installers and electricians: the initials circle, top right, has the label "Account menu".
+click "Account menu"
+click "Sign out"
+check that page contains "Welcome back."
+
+
+### RULE: sign out of office
+// The office initials button is labelled "Signed in as <name>". testRigor matches the start of the label.
+click "Signed in as"
+click "Sign out"
+check that page contains "Welcome back."
+check that url contains "/auth"
+
+
+### RULE: open test job as office
+// Opens the TEST job (stored value testJobNumber, e.g. HV-1234) from the Test Centre list of TEST journeys.
+open url "https://portal.homeinsulationvictoria.com.au/admin/test-centre"
+check that page contains "Test Centre"
+scroll down until page contains stored value "testJobNumber"
+click "Open journey" below stored value "testJobNumber"
+check that page contains stored value "testJobNumber"
+check that page contains "‹ Jobs"
+
+
+### RULE: open test job as installer
+// From My work. The job row shows "HV-xxxx · <source>". Signed in as installer first.
+open url "https://portal.homeinsulationvictoria.com.au/field"
+check that page contains "Coming up"
+scroll down until page contains stored value "testJobNumber"
+click stored value "testJobNumber"
+check that url contains "/field/"
+
+
+### RULE: open test job as electrician
+// From My work > Your jobs. The row shows "HV-xxxx · <owner>". Signed in as electrician first.
+open url "https://portal.homeinsulationvictoria.com.au/field"
+check that page contains "Moving automatically"
+scroll down until page contains stored value "testJobNumber"
+click stored value "testJobNumber"
+check that url contains "/field/"
+check that page contains "History and documents"
+
+
+### RULE: open test job as owner
+// The owner's secure My job link for the TEST job (stored value ownerJobLink). No sign-in needed.
+open url stored value "ownerJobLink"
+check that page contains "Your progress"
+check that page contains stored value "testJobNumber"
+
+
+### RULE: owner code check
+// Signing on the owner link asks for a 6-digit code. On a TEST job nothing is sent:
+// the page shows "TEST job, nothing is sent. Your code: 123456". We copy that code.
+check that page contains "Let's check it's you"
+click "Email me a code"
+check that page contains "TEST job, nothing is sent."
+extract value by regex "[0-9]{6}" from "Your code:" and save it as "ownerCode"
+enter stored value "ownerCode" into "Enter code"
+click "Check my code"
+check that page does not contain "Let's check it's you"
+
+
+### RULE: open test role tab
+// Office only. Opens a one-time TEST sign-in for this TEST job in a second tab, with no password.
+// Use it when a TEST installer or electrician password is not set yet.
+// Before calling: click "Open as installer boss" (or "Open as electrician" / "Open as owner" / "Open as worker").
+check that page contains "Open TEST"
+click "Open TEST"
+switch to tab "2"
+check that page does not contain "Welcome back."
+
+
+### RULE: open test roles dialog
+// Office only. Opens "TEST roles and time" for the TEST job in the Test Centre.
+open url "https://portal.homeinsulationvictoria.com.au/admin/test-centre"
+scroll down until page contains stored value "testJobNumber"
+click "Test roles" below stored value "testJobNumber"
+check that page contains "TEST roles and time"
