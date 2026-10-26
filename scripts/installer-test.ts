@@ -426,7 +426,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("quoted price kept exactly ($2511.00)", Number(byName("Owner 1")?.extracted["price_inc_gst"]) === 2511, String(byName("Owner 1")?.extracted["price_inc_gst"]));
     c("site check Yes + quote = Visited/quoted", byName("Owner 1")?.import_stage === "quoted", byName("Owner 1")?.import_stage);
     c("site check No = Not visited", byName("Owner 2")?.import_stage === "not_visited", byName("Owner 2")?.import_stage);
-    c("blank site check with a quote = Visited (Jo, 7 Oct 5:45pm)", ["visited", "quoted"].includes(String(byName("Owner 3")?.import_stage)) === !!byName("Owner 3")?.extracted["price_inc_gst"], `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
+    c("blank site check, even with a quote = Not visited, installer is asked (decision 404)", byName("Owner 3")?.import_stage === "not_visited", `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
     await confirm(u.batchId);
     const again = await confirm(u.batchId).then(() => "ok", (e) => (e as Error).message);
     const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
@@ -455,7 +455,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
     c("photos with no customer show 'Customer details needed'", u.rows.length > 0 && u.rows.every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
     c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
-    c("photos mean Visited (Jo, 7 Oct 5:45pm)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
+    c("photos alone never mean Visited, installer is asked (decision 404)", u.rows.every((r) => r.import_stage !== "visited" && r.import_stage !== "quoted"), u.rows.map((r) => r.import_stage).join(", "));
   });
   await step(steps, "C6", "C6 Messy file with missing columns", async (c) => {
     const u = await upload("messy.csv");
