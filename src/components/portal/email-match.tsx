@@ -1,12 +1,14 @@
 // Email row actions shared by Needs me and the Inbox (moved from the Needs me screen, Jo 26 Oct 2026).
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { OfficeSearch } from "@/components/portal/office";
 import { btnClass } from "@/components/portal/kit";
 import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/email-office.functions";
 import type { NeedsRow } from "@/lib/office-needs.core";
+import { INBOX_QUERY_KEY } from "@/hooks/use-inbox";
 
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 
@@ -16,12 +18,13 @@ export function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => voi
   const ignore = useServerFn(ignoreEmailChange);
   const match = useServerFn(matchOutlookEmail);
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     // Plain words only: a server error's text can be raw JSON (design review 26 Oct); the detail goes to the console.
-    try { await fn(); toast.success(ok); onDone(); } catch (e) { console.error("Needs me email action failed", e); toast.error("That didn't save. Try again, or open the job."); } finally { setBusy(false); }
+    try { await fn(); toast.success(ok); onDone(); void qc.invalidateQueries({ queryKey: INBOX_QUERY_KEY }); } catch (e) { console.error("Needs me email action failed", e); toast.error("That didn't save. Try again, or open the job."); } finally { setBusy(false); }
   };
   if (row.kind === "email_change") return (
     <div className="grid grid-cols-2 gap-2 md:flex">
@@ -52,6 +55,7 @@ export function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => voi
  */
 export function BulkMatch({ rows, onDone, className }: { rows: NeedsRow[]; onDone: (keys: string[]) => void; className?: string }) {
   const match = useServerFn(matchOutlookEmail);
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [off, setOff] = useState<Set<string>>(() => new Set());
   const [progress, setProgress] = useState<number | null>(null);
@@ -70,6 +74,7 @@ export function BulkMatch({ rows, onDone, className }: { rows: NeedsRow[]; onDon
     else toast.success(`Matched ${ok.length} email${ok.length === 1 ? "" : "s"}`);
     setProgress(null); setOpen(false); setOff(new Set());
     onDone(ok);
+    void qc.invalidateQueries({ queryKey: INBOX_QUERY_KEY }); // the top bar's Inbox count
   };
   return (
     <div className={className ?? "grid gap-2 border-b border-line bg-mist px-4 py-3"} data-why="Jo 26 Oct: match all confident best guesses after a review">

@@ -72,3 +72,12 @@ export function categoryCounts(cats: EnquiryCategory[]): CategoryCounts {
 
 /** Categories whose enquiries the office can close in one go (they move to Jobs › Closed, history kept). */
 export const CLOSABLE: Partial<Record<EnquiryCategory, string>> = { quiet: "No response", opted_out: "Owner opted out" };
+
+export const WROTE_WITHIN_DAYS = 14;
+/** "Wrote to us": the owner's latest email (matched to the job) is from the last 14 days and nothing went from us
+ *  since. Returns when they wrote, or null. A marker on the row, not a group: it can sit in any category. */
+export function ownerWrote(f: { inboundAt: string | null; lastOutboundAt: string | null }, now: number): string | null {
+  const i = t(f.inboundAt), o = t(f.lastOutboundAt);
+  if (!Number.isFinite(i) || now - i > WROTE_WITHIN_DAYS * DAY) return null;
+  return Number.isFinite(o) && o > i ? null : f.inboundAt;
+}

@@ -9,7 +9,7 @@ import { jobsStage, surnameOf, waitingOnLine, type JobsStage } from "./office-jo
 import { tidyEnquiryDetails, type DetailsProblem } from "./name-address-tidy.core";
 import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters } from "./enquiry-columns.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
-import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
+import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -83,6 +83,8 @@ export type EnquiryListRow = {
   insulation: InsulationChip; size: SizeChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip; createdAt: string; areaM2: number | null;
   estimateDollars: number | null; estimateKind: "quote" | "website" | null;
   category: EnquiryCategory;
+  /** The owner emailed us and we haven't written since (last 14 days): the "Wrote to us" marker. */
+  ownerWroteAt: string | null;
 };
 
 /** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
@@ -139,7 +141,7 @@ export async function loadEnquiriesList(p: EnquiryListParams) {
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
     const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, answeredQuestions: answeredSet.has(id), optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet: r["needs_first_response"] === true }, now);
     return {
-      category,
+      category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
       estimateDollars: est.dollars, estimateKind: est.kind,
       told: [areaM2 ? `~${Math.round(areaM2)} m²` : "No size", ins === "no" ? "no insulation" : ins === "some" ? "some insulation" : "not sure"].join(" · "),

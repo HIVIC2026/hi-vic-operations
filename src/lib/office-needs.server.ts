@@ -55,7 +55,6 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
   const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
   const { openEmailItems } = await import("./email-office.server");
-  const { CHANGE_LINE } = await import("./office-needs.core");
 
   // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
   // one row each until the fact is recorded. Started alongside wave 1 (rare events, then their closing events by job id).
@@ -286,13 +285,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     askJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), suburb: (r["properties"] as { suburb?: string } | null)?.suburb ?? null, source: s(r["source"]) });
   const wantJob = (id: string | null) => !opts.onlyIds || (id != null && idSet.has(id));
   const emails: EmailRowInput[] = [];
-  for (const c of items.changes as unknown as { eventId: string; jobId: string; at: string; intent?: string; phrase?: string }[]) {
-    const j = askJobs.get(c.jobId);
-    if (!wantJob(c.jobId) || (!opts.includeTest && j?.source === "qa_test")) continue;
-    const line = CHANGE_LINE[(c.intent ?? "other") as keyof typeof CHANGE_LINE] ?? CHANGE_LINE.other;
-    emails.push({ type: "change", eventId: c.eventId, jobId: c.jobId, jobNumber: j?.jobNumber ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null, line: `${line}${c.phrase ? ` · “${c.phrase}”` : ""}`, at: c.at, intent: c.intent ?? null });
-  }
-  // Jo 26 Oct 2026: unmatched emails live in the office Inbox (/admin/inbox, email-unmatched-rows.server) — not listed here.
+  // Jo 26 Oct 2026: owner requests from email (cancel, can't make the day, …) and unmatched emails both live in the
+  // office Inbox (/admin/inbox, email-unmatched-rows.server) — not listed here.
   for (const u of [] as ({ eventId: string; at: string; from?: string | null; subject?: string | null } & Record<string, unknown>)[]) {
     const g = guessOf(u);
     if (!wantJob(g?.job_id ?? null)) continue;

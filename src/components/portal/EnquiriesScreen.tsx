@@ -4,8 +4,9 @@
 // not-eligible leads are closed (Jobs › Closed): the screen links there. Emails live in the Inbox, not here. Inside a
 // group the rows sort hottest first (the rank is never shown, 283); on a computer the columns Job · Owner · Address ·
 // Size (m²) · Insulation · Estimate ($) · Last heard sort AND filter from their headings (286); one search box (285).
-// A row opens the job beside the list (the Needs me side panel). Gone quiet and Opted out can be closed in one go
-// (they move to Jobs › Closed with the reason; history kept, reopen any time). New enquiry (phone), Actions ▾ Cancel / Remove.
+// A row opens the job beside the list (the Needs me side panel); "Wrote to us" marks an owner email we haven't
+// answered. Gone quiet and Opted out can be closed in one go (they move to Jobs › Closed with the reason; history
+// kept, reopen any time). New enquiry (phone), Actions ▾ Cancel / Remove.
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +30,8 @@ import { CLOSABLE, ENQUIRY_CATEGORIES, type CategoryCounts, type EnquiryCategory
 import { INSTALLER_WAITING_PATH } from "@/lib/installer-waiting-columns.core";
 import { ActionsMenu, ColumnHead, Pager, ReasonDialog, heardLabel, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { JobPeek, type Peek } from "@/components/portal/job-peek";
-import { btnClass } from "@/components/portal/kit";
+import { Pill, btnClass } from "@/components/portal/kit";
+import { ageLabel } from "@/lib/office-needs.core";
 
 const INSULATION_WORDS: Record<InsulationChip, string> = { no: "no insulation", some: "some insulation", not_sure: "insulation not sure" };
 const CATEGORY_DOT: Record<EnquiryCategory, string> = { offered: "bg-hiv-blue", details_asked: "bg-hiv-blue/50", details_answered: "bg-hiv-green", not_sent: "bg-rose", opted_out: "border-2 border-sub/50 bg-transparent", quiet: "border-2 border-sub/50 bg-transparent" };
@@ -194,6 +196,8 @@ export function EnquiriesScreen() {
                 <ul>
                   {d.rows.map((r) => {
                     const open = () => setPeek({ jobId: r.id });
+                    // The owner emailed and we haven't written since: the email is on the job (open it to reply).
+                    const wrote = r.ownerWroteAt ? <Pill tone="green" className="shrink-0">Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill> : null;
                     const sel = (
                       <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--hiv-blue)] lg:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
                     );
@@ -203,7 +207,7 @@ export function EnquiriesScreen() {
                         <div className="flex gap-3 px-4 py-3 lg:hidden">
                           {sel}
                           <button type="button" onClick={open} className="grid min-w-0 flex-1 gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">
-                            <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] text-ink">{r.ownerName || r.jobNumber}</strong><span className="ml-auto shrink-0 font-bold text-ink">{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span></span>
+                            <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] text-ink">{r.ownerName || r.jobNumber}</strong>{wrote}<span className="ml-auto shrink-0 font-bold text-ink">{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span></span>
                             <span className="truncate text-[13px] text-sub">{[r.suburb || r.address, r.areaM2 ? sizeLabel(r.areaM2) : null, INSULATION_WORDS[r.insulation]].filter(Boolean).join(" · ")}</span>
                             <span className="flex items-center gap-1.5 text-xs text-sub"><span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", CATEGORY_DOT[r.category])} /><span className="truncate">{r.jobNumber} · {r.waitingOn}</span></span>
                           </button>
@@ -213,7 +217,7 @@ export function EnquiriesScreen() {
                         <div className={cn("hidden items-center gap-x-3 px-4 py-2.5 text-[13px] hover:bg-mist/50 lg:grid", cols)}>
                           {sel}
                           <span className="font-semibold">{r.jobNumber}</span>
-                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="truncate text-xs text-sub">{r.waitingOn}</span></span>
+                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
                           <span className={cn("truncate", r.problems.length > 0 && "text-sub")} title={r.problems.length ? "Suburb / postcode looked up automatically" : undefined}>{r.address || "—"}</span>
                           <span>{sizeLabel(r.areaM2)}</span>
                           <span>{INSULATION_LABEL[r.insulation]}</span>

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { categoryCounts, enquiryCategory, inView } from "../src/lib/enquiry-categories.core";
+import { categoryCounts, enquiryCategory, inView, ownerWrote } from "../src/lib/enquiry-categories.core";
 
 const NOW = Date.parse("2026-10-26T00:00:00Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -40,4 +40,18 @@ test("Jo 26 Oct: emails live in the Inbox, not on Enquiries", () => {
   expect(screen).not.toMatch(/EmailsToMatch|emails-to-match/);
   expect(readFileSync("src/routes/_authenticated/admin.inbox.tsx", "utf8")).toMatch(/InboxScreen/);
   expect(readFileSync("src/components/portal/office.tsx", "utf8")).toMatch(/InboxButton/);
+});
+
+test("Wrote to us: the owner emailed in the last 14 days and we haven't written since", () => {
+  expect(ownerWrote({ inboundAt: ago(2), lastOutboundAt: ago(5) }, NOW)).toBe(ago(2));
+  expect(ownerWrote({ inboundAt: ago(2), lastOutboundAt: null }, NOW)).toBe(ago(2));
+  expect(ownerWrote({ inboundAt: ago(2), lastOutboundAt: ago(1) }, NOW)).toBeNull();
+  expect(ownerWrote({ inboundAt: ago(20), lastOutboundAt: null }, NOW)).toBeNull();
+  expect(ownerWrote({ inboundAt: null, lastOutboundAt: ago(1) }, NOW)).toBeNull();
+});
+
+test("Jo 26 Oct: owner requests from email live in the Inbox, not on Needs me", () => {
+  const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
+  expect(needs).not.toMatch(/type: "change"/);
+  expect(readFileSync("src/lib/email-unmatched-rows.server.ts", "utf8")).toMatch(/type: "change"/);
 });
