@@ -11,9 +11,9 @@ export const Route = createFileRoute("/portal")({
   ssr: false,
   head: () => ({ meta: [
     { title: "Staff & trade sign-in – Home Insulation Victoria" },
-    { name: "description", content: "Sign in to the Home Insulation Victoria portal for office staff, installers, electricians and owners." },
+    { name: "description", content: "Sign in to the Home Insulation Victoria portal for office staff, installers and electricians." },
     { property: "og:title", content: "Staff & trade sign-in – Home Insulation Victoria" },
-    { property: "og:description", content: "Sign in to the Home Insulation Victoria portal for office staff, installers, electricians and owners." },
+    { property: "og:description", content: "Sign in to the Home Insulation Victoria portal for office staff, installers and electricians." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" },
   ] }),
   component: Portal,
