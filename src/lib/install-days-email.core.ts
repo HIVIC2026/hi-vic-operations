@@ -7,6 +7,7 @@
 // being built): both go through approved-owner-emails.server.ts; INSTALL_DAYS_EMAIL_APPROVED is on (decisions 96/135) and
 // real delivery still needs customer_comms_enabled. Pure.
 import * as K from "./email-kit.core";
+import { myJobScreen } from "./mail-mjml.core";
 import { splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 
 /** Jo 24 Oct 2026, decisions 96 (O33 pick your install day) and 135 (O42 install day changed): approved. Delivery still behind customer_comms_enabled. */
@@ -26,13 +27,14 @@ export function renderInstallDaysEmail(i: InstallDaysEmailInput) {
   const subject = `${first}, pick your install day`;
   const headline = subject;
   const intro = `Your safety check is all clear. ${installer} has offered these days for your insulation install. Tap the one that suits you.`;
-  const slots = i.days.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
+  const pick = myJobScreen(i.myJobUrl, "book"); // link fix: day buttons open the booking screen
+  const slots = i.days.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
   const deposit = i.balanceIncGst != null && i.balanceIncGst > 0 ? Math.round(i.balanceIncGst * 10) / 100 : null;
   const rest = deposit != null ? i.balanceIncGst! - deposit : null;
   const lockHtml = `When you tap a day, you'll sign your install consent (the VEU program needs it)${deposit != null ? ` and pay a 10% deposit of <strong>${K.esc(K.cents(deposit))}</strong>` : " and pay a 10% deposit"}. That locks in your day (we hold it for 48 hours while you do this). The rest${rest != null ? `, <strong>${K.esc(K.cents(rest))}</strong>,` : ""} is due on install day, or you can pay in full now.${i.installBy ? ` Your install must happen by <strong>${K.esc(i.installBy)}</strong>, 30 days after your safety check.` : " Your install must happen within 30 days of your safety check."}`;
-  const body = [K.h1(headline), K.p(intro), K.tapTimeButtons(slots, { href: i.myJobUrl }), K.sectionTitle("Lock in your day"), K.p(lockHtml, "0 0 16px", true)].join("\n");
+  const body = [K.h1(headline), K.p(intro), K.tapTimeButtons(slots, { href: pick }), K.sectionTitle("Lock in your day"), K.p(lockHtml, "0 0 16px", true)].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a day: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "", "LOCK IN YOUR DAY", K.stripTags(lockHtml)], { testLabel: i.test === true });
+  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a day: ${pick}`, `None suit? Suggest other days: ${pick}`, "", "LOCK IN YOUR DAY", K.stripTags(lockHtml)], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
