@@ -495,7 +495,7 @@ click "Revoke" to the right of "testRigor launch QA run"
 check that page contains "Link revoked"
 
 ### O-65 · Cancel the TEST job   [ONE-WAY - run last]
-// Needs: a SECOND TEST job you no longer need. Stops reminders and releases its installer.
+// Needs: a spare TEST job; testJobNumber pointed at it (README, "Run last"). Stops reminders and releases its installer.
 sign in as office
 open test job as office
 click "More ▾"
@@ -516,7 +516,7 @@ click "Reopen"
 check that page contains "Reopened"
 
 ### O-67 · Archive a TEST journey   [ONE-WAY - run last]
-// Needs: a TEST journey you no longer need. Its TEST access is revoked; history is kept.
+// Needs: the TEST journey in testJobNumber is finished with. Its TEST access is revoked; history is kept. Run this last of all.
 sign in as office
 click "More"
 click "Test Centre"

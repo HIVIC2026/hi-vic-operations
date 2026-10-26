@@ -102,6 +102,7 @@ check that page contains stored value "testJobNumber"
 // Signing on the owner link asks for a 6-digit code. On a TEST job nothing is sent:
 // the page shows "TEST job, nothing is sent. Your code: 123456". We copy that code.
 check that page contains "Let's check it's you"
+// If the TEST owner has no email on file, the page only offers "Text me a code": change this step to that.
 click "Email me a code"
 check that page contains "TEST job, nothing is sent."
 extract value by regex "[0-9]{6}" from "Your code:" and save it as "ownerCode"
@@ -126,3 +127,29 @@ open url "https://portal.homeinsulationvictoria.com.au/admin/test-centre"
 scroll down until page contains stored value "testJobNumber"
 click "Test roles" below stored value "testJobNumber"
 check that page contains "TEST roles and time"
+
+
+// ---------------------------------------------------------------------------------------------
+// NO-PASSWORD VERSIONS. Use these if a TEST trade account has no password you know.
+// In testRigor, open the rule "sign in as installer" (or "sign in as electrician") and replace
+// its steps with the steps below. Every test case then works unchanged.
+// They sign in as office, then open a one-time TEST sign-in for the TEST job in a second tab.
+// Needs: the TEST installer / electrician assigned to the TEST job (stored value testJobNumber).
+// ---------------------------------------------------------------------------------------------
+
+### RULE: sign in as installer (no password)
+sign in as office
+open test roles dialog
+click "Open as installer boss"
+open test role tab
+check that page contains "My work"
+check that page contains "Coming up"
+
+
+### RULE: sign in as electrician (no password)
+sign in as office
+open test roles dialog
+click "Open as electrician"
+open test role tab
+check that page contains "My work"
+check that page contains "Moving automatically"

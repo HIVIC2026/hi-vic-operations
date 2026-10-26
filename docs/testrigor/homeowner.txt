@@ -294,7 +294,7 @@ check that page contains "You said yes. Thanks!"
 // For TEST jobs, the office records a TEST payment instead (office case O-61).
 
 ### H-44 · Decline the quote   [ONE-WAY - run last]
-// Needs: a SECOND TEST job with a quote sent (use it instead of the main TEST job).
+// Needs: a spare TEST job with a quote sent. First point ownerJobLink and testJobNumber at the spare job (README, "Run last").
 open test job as owner
 click "See my quote"
 click "Not for me"
@@ -365,13 +365,13 @@ click "5 stars"
 check that page contains "Thank you!"
 
 ### H-53 · No longer interested at release   [ONE-WAY - run last]
-// Needs: a SECOND TEST job released by the office. Closes that TEST spot for good.
+// Needs: a spare TEST job released by the office; ownerTurnLink pointed at it (README, "Run last"). Closes that TEST spot for good.
 open url stored value "ownerTurnLink"
 click "I'm no longer interested"
 check that page contains "We've closed your spot and won't contact you about it again."
 
 ### H-54 · Cancel my job   [ONE-WAY - run last]
-// Needs: a SECOND TEST job before its PIESA is booked. Cancels it for good.
+// Needs: a spare TEST job before its PIESA is booked; ownerJobLink pointed at it (README, "Run last"). Cancels it for good.
 open test job as owner
 scroll down until page contains "Cancel my job"
 click "Cancel my job"
