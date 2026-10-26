@@ -83,7 +83,8 @@ async function ownJob(ctx: JourneyCtx) {
 }
 async function safeCleanup(ctx: JourneyCtx) {
   if (!(await ownJob(ctx))) { ctx.jobId = null; }
-  await safeCleanup(ctx);
+  console.log(`… archiving TEST job ${ctx.jobNumber}`);
+  await cleanupJourney(ctx).catch(() => undefined);
 }
 
 /** Steps 1..n of the default run (same code) on a fresh TEST job. */
