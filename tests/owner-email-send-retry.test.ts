@@ -89,6 +89,13 @@ describe("R04: guarded owner sender reservation outcomes", () => {
     expect(await send(true)).toBe("sent");
     expect(calls).toEqual([KEY]);
   });
+  test("a sent email keeps no error text; a failed one keeps the reason", async () => {
+    expect(await send()).toBe("sent");
+    expect(sends[0]).toMatchObject({ status: "sent", error: null, provider_message_id: "re_1" });
+    sends = []; outcome = "rejected";
+    expect(await send()).toMatch(/^failed: /);
+    expect(sends[0]).toMatchObject({ status: "failed", error: "Email service error 422: bad" });
+  });
   test("no reservation = null in the email log", async () => {
     expect(await guardedOwnerEmailStatus(KEY)).toBeNull();
   });

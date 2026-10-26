@@ -35,7 +35,7 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
   const { resendSend } = await import("./hot-leads-send.server");
   const d = await resendSend(p.to, mail.subject, mail.html, mail.text, p.key, unsubscribe, mail.attachments).catch(() => null);
   const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
-  await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
+  await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: status === "sent" ? null : d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
   return status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
 }
 
