@@ -221,10 +221,11 @@ export function noticeLinkEmail(i: { firstName: string | null; businessName: str
     subject: `${i.reminder ? "Reminder: " : ""}One quick step: the ESC privacy notice`,
     heading: `One quick step, ${i.firstName?.trim() || "there"}`,
     blocks: [
+      { kind: "preview", text: "It takes a minute and you don't need to sign in." },
       { kind: "p", text: "Before we can register you as a VEU installer, the Essential Services Commission requires us to give you their privacy notice." },
       { kind: "p", text: "Read it and tick. It takes a minute and you don't need to sign in." },
       { kind: "button", label: "Read and tick the notice", url: i.url },
-      { kind: "p", text: `Until it's done, you can't be put on a job for ${i.businessName}.` },
+      { kind: "box", text: `Until it's done, you can't be put on a job for ${i.businessName}.` },
     ],
   };
 }
@@ -249,7 +250,8 @@ export function noticeSendPlan(history: readonly { attempt: number; at: string }
   return null;
 }
 
-/** Emailed copy of the notice on acknowledgement (decision 170 wording; rendered by partnerEmailLayout like I60/I54; sent only when
+/** Emailed copy of the notice on acknowledgement (decision 170 wording; rendered by partnerEmailLayout like I60/I54, design
+ *  docs/templates/mjml/installer_I62.mjml: the notice in its own card; sent only when
  *  `COLLECTION_NOTICE_EMAIL_APPROVED`, or to TEST partners via the test sender). The notice itself is verbatim. */
 export const COLLECTION_NOTICE_COPY_SUBJECT = "Your copy of the ESC privacy collection notice";
 export function collectionNoticeEmail(i: { firstName: string | null; acknowledgedAt: string }): { subject: string; heading: string; blocks: PartnerBlock[] } {
@@ -263,11 +265,11 @@ export function collectionNoticeEmail(i: { firstName: string | null; acknowledge
     if (last && last.kind === "list") last.items.push(text); else notice.push({ kind: "list", items: [text] });
   }
   const blocks: PartnerBlock[] = [
-    { kind: "p", text: `Hi ${i.firstName?.trim() || "there"},` },
+    { kind: "preview", text: `The notice you acknowledged on ${when}, for your records.` },
+    { kind: "hi", text: `Hi ${i.firstName?.trim() || "there"},` },
     { kind: "p", text: `Here is your copy of the Essential Services Commission's ${COLLECTION_NOTICE_TITLE}, which you acknowledged on ${when}. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.` },
-    { kind: "sign", lines: [COLLECTION_NOTICE_TITLE, COLLECTION_NOTICE_VERSION_LINE] },
-    ...notice,
-    { kind: "p", text: "Just reply to this email if you have any questions." },
+    { kind: "card", title: COLLECTION_NOTICE_TITLE, subtitle: COLLECTION_NOTICE_VERSION_LINE, blocks: notice },
+    { kind: "small", text: "Just reply to this email if you have any questions." },
   ];
   return { subject: COLLECTION_NOTICE_COPY_SUBJECT, heading: COLLECTION_NOTICE_COPY_SUBJECT, blocks };
 }

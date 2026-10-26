@@ -12,7 +12,7 @@ import {
 } from "../src/lib/jo-outcome-email.core";
 import { joAreaBasis } from "../src/lib/jo-area-basis.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
-import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
+import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
 
 const RECIPIENT = {
   firstName: "Alex",
@@ -148,10 +148,12 @@ describe("D. property-research area is never described as owner-provided", () =>
 describe("E. T1–T7 use the approved email kit shell", () => {
   const brandChecks = (html: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    // The approved design: embedded logo PNG, the 540px card, one AP/ABN footer, no campaign art and no badge.
-    expect(html).toContain(`<img src="${LOGO_DATA_URI}" width="116"`);
-    expect(html).toContain("max-width:540px;background:#FBFCFA");
-    expect(html).toContain(FOOTER_TEXT);
+    // The approved MJML design (Jo 27 Oct 2026): hosted logo (no data: image), the 600px white card, one AP/ABN footer, no campaign art and no badge.
+    expect(html).toContain(`src="${MAIL_LOGO_URL}"`);
+    expect(html).not.toContain("data:image");
+    expect(html).toContain('class="card"');
+    expect(html).toContain("max-width:600px");
+    expect(html).toContain("Home Insulation Victoria · VEU Accredited Person A003654<br />DC Construction Solutions Pty Ltd · ABN 44 671 613 979");
     expect(html).not.toContain("/api/public/email-art");
     expect(html).not.toContain('class="lx-badge"');
   };
@@ -187,14 +189,14 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
     expect(m.subject).toBe("Alex, you could save $2,600 on ceiling insulation");
     for (const t of [
       "Alex, you could save $2,600 on ceiling insulation",
-      "To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.",
-      "Your estimated VEU rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price before rebate", "$4,500",
-      "Try a different ceiling size", "Save your spot, it's free",
+      "To get it you need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.",
+      "Your estimated rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price", "$4,500",
+      "Try a different ceiling size", "Save your spot – it's free",
       // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
-      "Thousands of Victorians have registered, and spots are released in the order they were saved. Saving your spot is free, with no obligation. We'll be in touch when your spot is released.",
+      "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
       "Save my free spot", "What's included in $1,900", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
-      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included, only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
-      "You'll know the exact price before you agree to anything.", "See your full estimate",
+      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
+      "You'll see your exact price before you agree to anything.", "See your full estimate",
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");
     expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
@@ -205,7 +207,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
   test("O2 some insulation (T3/T4): 'may qualify', potential rebate, the existing-insulation card and the R2.0 line", () => {
     const m = render({ outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible", ceilingSizeKnown: true, figures: { ...figures(137, false), removalUpTo: 2055 } });
     for (const t of [
-      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential VEU rebate", "Your cost if eligible",
+      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential rebate", "Your cost if eligible",
       "Your existing insulation", "it may be able to stay.", "If it can stay", "New batts go straight over the top", ">$0<", "If some needs removing", "Up to $2,055 for your 137 m² ceiling.", "$15/m²",
       "only if it can't stay ($15 per m², see above)", // decision 388: no "where they'll also check" Ready Check line
       "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know.",
@@ -263,10 +265,10 @@ describe("H. T1–T6 use the approved layout pieces", () => {
     test(`${c.outcome}/${c.insulation}: green rebate pill, big blue price, four ticked items (decision 388: no Ready Check row), four + items, green button`, () => {
       const m = render({ ...c, ceilingSizeKnown: true, figures: { ...figures(210, false), piesaFee: 349, apFee: 349 } });
       expect(m.html).toContain("border:2px solid #07BF61"); // green rebate pill
-      expect(m.html).toContain("font-size:42px;font-weight:bold;color:#3C51C4"); // big price
+      expect(m.html).toContain("font-size:40px;font-weight:800;line-height:46px;text-align:center;color:#3C51C4"); // big price
       expect((m.html.match(/&#10003;<\/span>/g) ?? []).length).toBe(4 + (c.insulation === "none" ? 0 : 1)); // included ticks (decision 388: Ready Check row removed) (+ "If it can stay")
       expect((m.html.match(/>\+<\/span>/g) ?? []).length).toBe(4 + (c.insulation === "none" ? 0 : 1)); // not-included rows (+ "If some needs removing")
-      expect(m.html).toContain('bgcolor="#07BF61"'); // the one approved button
+      expect(m.html.match(/bgcolor="#057D40"/g)?.length).toBe(1); // the one approved (darker green) button
       expect(m.html).not.toContain("#FDF2F6"); // no pink action card any more
     });
   }

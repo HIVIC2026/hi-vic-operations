@@ -1,0 +1,84 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Choose a time for your free Ready Check</mj-title>
+    <mj-preview>A certified installer near Glen Waverley has offered 3 times. Tap one and it's booked.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, pick a time for your free Ready Check</mj-text>
+          <mj-text>Good news: a certified installer near Glen Waverley is ready for you. Tap the time that suits you and it's booked.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-table padding="4px 12px 4px">
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Tuesday 28 October</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">8:00am &rsaquo;</a></td></tr></table></td></tr>
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Wednesday 29 October</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">12:30pm &rsaquo;</a></td></tr></table></td></tr>
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Friday 31 October</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">7:30am &rsaquo;</a></td></tr></table></td></tr>
+          </mj-table>
+          <mj-text mj-class="small center" font-size="14px" padding="0 12px 18px">None suit? <a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;">Suggest other days</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="6px 12px 6px">At your Ready Check</mj-text>
+          <mj-text>The installer measures your ceiling, checks your existing insulation and access, and confirms your exact price. It's free. No payment, no obligation.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text>
+          <mj-text mj-class="big-green" padding="0 12px 18px">You save $1,610</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay about</mj-text>
+          <mj-text mj-class="big-blue">$2,188</mj-text>
+          <mj-text mj-class="small center" padding="4px 16px 18px">Estimate incl. GST for 137 m². Confirmed at your free Ready Check.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">What's included in $2,188</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Licensed electrician safety check</strong><br /><span class="muted">Needed before any insulation goes in. They check your wiring, downlights and cables are safe.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Premium R5.0 ceiling batts</strong><br /><span class="muted">VEU-approved and made to Australian Standard AS/NZS 4859.1.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Fitted by an EEC-certified installer</strong><br /><span class="muted">A Certified Insulation Installer (CII) through the Energy Efficiency Council, working to Australian Standard AS 3999.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;"><strong>We handle the rebate</strong><br /><span class="muted">As a VEU Accredited Person (A003654), we do the government paperwork. The $1,610 comes straight off your price.</span></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Removing old insulation</strong>, if any needs to come out</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Ceiling access fee</strong>, if your ceiling is hard to get into</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Electrical fixes</strong>, if the safety check finds any</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>A bigger ceiling</strong> than you told us</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">You'll know your exact price before you agree to anything.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

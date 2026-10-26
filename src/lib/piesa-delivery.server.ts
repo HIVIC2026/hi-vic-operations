@@ -72,14 +72,19 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   const test = job.source === "qa_test" || isTestPartner(biz as never);
   const p = job.properties as { address_line: string | null; suburb: string | null } | null;
   const address = [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null;
-  const ownerLink = link && linkUsable(link) ? `${CUSTOMER_BASE}/my-job/${link.token}` : CUSTOMER_BASE;
+  const ownerLink = link && linkUsable(link) ? `${CUSTOMER_BASE}/my-job/${link.token}` : null;
+  // The signed PIESA itself goes as the attached PDF (link check, Jo 27 Oct 2026): neither My job nor the installer's job page shows it.
+  if (!plan.send.length) return out;
+  const officialPdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
+  if (!officialPdf || officialPdf.copyId !== copyId) return { ...out, hold: "signed PIESA PDF not ready — next tick" };
+  const attachments = [(await import("./official-piesa-pdf.server")).pdfAttachment(officialPdf)];
   for (const recipient of plan.send) {
     const to = recipient === "owner" ? owner!.email!.trim() : installerEmail!;
     const name = recipient === "owner" ? owner?.full_name : prof?.full_name;
     const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy!.signatureDate, installStart: bk!.scheduled_start, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
     const key = piesaCopyKey(copyId!, recipient);
     if (test) {
-      const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text);
+      const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text, { attachments });
       if (r.status === "sent") { await recordDelivery({ jobId, recipient, piesaRecordId: rec!.id, signedCopyId: copyId!, recipientUserId: recipient === "installer" ? asg?.user_id ?? null : null, to, detail: `TEST ${r.detail}` }); out.sent.push(recipient); }
       else out.held[recipient] = `TEST email ${r.status}: ${r.detail}`;
       continue;
@@ -95,10 +100,10 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
     if (recipient === "owner") {
       const { assertCustomerDeliveryAllowed } = await import("./comms.server");
       try { await assertCustomerDeliveryAllowed(jobId, "Signed PIESA copy email"); } catch (e) { out.held[recipient] = `held: ${(e as Error).message}`; continue; }
-      detail = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: "piesa_copy", key, build: () => mail });
+      detail = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: "piesa_copy", key, build: () => ({ ...mail, attachments }) });
       status = detail === "sent" ? "sent" : "failed";
     } else {
-      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to, contactName: prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: "piesa_copy", record: { businessId: asg?.business_id ?? null }, html: mail.html, text: mail.text });
+      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to, contactName: prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: "piesa_copy", record: { businessId: asg?.business_id ?? null }, html: mail.html, text: mail.text, attachments });
       status = r.status; detail = r.detail;
     }
     if (status === "sent") { await recordDelivery({ jobId, recipient, piesaRecordId: rec!.id, signedCopyId: copyId!, recipientUserId: recipient === "installer" ? asg?.user_id ?? null : null, to, detail }); out.sent.push(recipient); }

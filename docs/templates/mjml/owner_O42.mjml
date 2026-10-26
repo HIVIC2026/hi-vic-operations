@@ -1,0 +1,40 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your install has moved to Thursday 12 November at 7:30am</mj-title>
+    <mj-preview>Sample Insulation Co needed to move it. Everything else stays the same.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, your install day has changed</mj-text>
+          <mj-text>Sample Insulation Co needed to move your install. Here's the new day and time. Everything else stays the same, and your deposit still holds your booking.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">New install day</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 12px 2px">Thursday 12 November</mj-text>
+          <mj-text mj-class="center" font-weight="700" padding="0 12px 6px">Arriving 7:30am</mj-text>
+          <mj-text mj-class="small center" padding="0 16px 8px">Was <span class="strike">Wednesday 11 November, 7:30am</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">824 High Street Road, Glen Waverley<br />Installer: Sample Insulation Co · 0400 000 000</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="16px 12px 14px">Doesn't suit? Tap Change day on your job page and Sample Insulation Co will offer other days.</mj-text>
+          <mj-text>Remember, the power will be off while they work. The "On the day" checklist from your booking email still applies.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
+          <mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

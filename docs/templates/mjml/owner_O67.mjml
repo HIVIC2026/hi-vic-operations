@@ -1,0 +1,51 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, still thinking about your ceiling insulation?</mj-title>
+    <mj-preview>Nothing is locked in until you've seen your exact price and agreed to it.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, still thinking about your ceiling insulation?</mj-text>
+          <mj-text>It's been a week since we sent your estimate, so here it is again. The $1,610 rebate comes straight off the price. Nothing is locked in until you've seen your exact price and agreed to it.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated rebate</mj-text>
+          <mj-text mj-class="big-green" padding="0 12px 18px">You save $1,610</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay after the rebate</mj-text>
+          <mj-text mj-class="big-blue">$2,188</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">$3,798</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">Based on what you told us: 137 m² ceiling, no existing insulation.<br /><a href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/calculator" style="color:#3C51C4;font-weight:700;">Try a different ceiling size</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Save your spot – it's free</mj-text>
+          <mj-text>Save your spot to keep your place in line. Spots are released in the order they were saved, and we'll be in touch when yours is released. No payment, no obligation.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/campaign">Save my free spot</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="4px 12px 0">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

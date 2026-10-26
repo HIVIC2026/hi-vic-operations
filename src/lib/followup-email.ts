@@ -1,32 +1,35 @@
 /** Pure Step 3 unopened three-day follow-up renderer. No data access or delivery.
- * Uses the approved outcome-email theme (V2_THEME) so reminders match the likely/onsite/ineligible emails. */
-import { escape, V2_THEME, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
+ * MJML refresh (Jo 27 Oct 2026): docs/templates/mjml/owner_estimate-unopened.mjml, through `mjEmail` like the other emails. */
+import { PRIVACY_URL, pixelTag, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
 import type { ActiveFollowupKind } from "./engagement.core";
+import * as K from "./email-kit.core";
+import { mjEmail } from "./mail-mjml.core";
 
 export type FollowupEmailInput = { kind: ActiveFollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const REASSURE = "No payment required. No obligation to proceed with installation.";
-const HELPER = "Your secure estimate link is personal to your property.";
+const HELPER = "Your secure estimate link is personal to your property. No payment needed. No obligation to go ahead with installation.";
 const DEMAND = "Thousands of Victorians have registered. Spots are released in the order they were saved."; // decision 388
+const CONTACT_URL = "https://homeinsulationvictoria.com.au/contact";
+const REASON = "You're getting this because you asked for a ceiling insulation estimate.";
+const REFER = "Know someone else thinking about ceiling insulation? They can check their own eligibility.";
 
-type Copy = { subject: string; preview: string; badge: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };
+type Copy = { subject: string; preview: string; eyebrow: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };
 const COPY: Record<ActiveFollowupKind, Copy> = {
   estimate_unopened_3d: {
     subject: "Just checking you received your Home Insulation Victoria estimate",
-    preview: "Your preliminary ceiling insulation estimate is ready whenever you are.",
-    badge: "Your estimate",
-    heading: "Just checking you received your estimate",
-    intro: "We prepared a preliminary ceiling insulation estimate for your home a few days ago, including your estimated VEU rebate and what’s included.",
+    preview: "Your estimate is saved and ready whenever you are. No payment, no obligation.",
+    eyebrow: "Your preliminary estimate",
+    heading: "Just checking you got your estimate",
+    intro: "A few days ago we sent a preliminary ceiling insulation estimate for your home. It includes your estimated VEU rebate and what's included.",
     listTitle: "What your estimate shows",
     ticks: ["Your estimated VEU rebate", "Your estimated cost, including GST", "What the quote includes", "Your next step: save your spot (free, no obligation)"],
     actionTitle: "Take a look when it suits you",
-    actionBody: "Your estimate is saved and ready. Open it any time to review the details.",
+    actionBody: "Your estimate is saved and ready. Open it any time to see the details.",
     cta: "View my estimate →",
   },
 };
 
-const { F, FH, colors: C } = V2_THEME;
-const tick = (t: string) => `<tr><td valign="top" width="24" style="width:24px;padding:0 0 9px;font-family:Arial,Helvetica,sans-serif;color:${C.GREEN};font-size:16px;line-height:20px;font-weight:800;">✓</td><td valign="top" style="padding:0 0 9px;${F}color:${C.INK};font-size:14px;line-height:20px;font-weight:700;">${escape(t)}</td></tr>`;
+const LINK = "color:#3C51C4;font-weight:700;";
 
 export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const c = COPY[input.kind];
@@ -36,20 +39,23 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const target = validTrackingUrl(input.trackingClickUrl, "click") ?? (c.hash ? `${base}${c.hash}` : link.toString());
   const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
   const referral = validReferralUrl(input.referralUrl);
-  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
-  const hero = `<p style="margin:0 0 8px;${F}color:${C.TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Your preliminary estimate</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${FH}color:${C.INK};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">${escape(c.heading)}</h1><p class="lx-body" style="margin:0;${F}color:${C.INK};font-size:15px;line-height:1.6;">${escape(c.intro)}</p>`;
-  const list = `<table data-followup-list="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.MIST}" style="width:100%;border-collapse:separate;background-color:${C.MIST};border-radius:18px;"><tr><td class="lx-result-pad" style="padding:20px 20px 12px;${F}"><p style="margin:0 0 12px;${FH}color:${C.INK};font-size:17px;line-height:1.3;font-weight:800;">${escape(c.listTitle)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${c.ticks.map(tick).join("")}</table>${c.listNote ? `<p style="margin:4px 0 8px;padding-top:10px;border-top:1px solid ${C.LINE};${F}color:${C.INK};font-size:12.5px;line-height:1.5;">${escape(c.listNote)}</p>` : ""}</td></tr></table>`;
-  const action = `<table data-followup-action="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.BLUSH}" style="width:100%;border-collapse:separate;background-color:${C.BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 10px;${FH}color:${C.INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(c.actionTitle)}</h2><p class="lx-body" style="margin:0 0 14px;${F}color:${C.INK};font-size:14px;line-height:1.55;">${escape(c.actionBody)}</p>${c.demand ? `<p style="margin:0 0 12px;${F}color:${C.TEXT_GREEN};font-size:14px;line-height:1.45;font-weight:800;">${DEMAND}</p>` : ""}${V2_THEME.button(target, escape(c.cta))}<p style="margin:10px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;">${HELPER}</p><p style="margin:6px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;font-weight:700;">${REASSURE}</p></td></tr></table>`;
-  const refer = referral ? `<p data-followup-referral="true" style="margin:0;${F}color:${C.INK};font-size:13.5px;line-height:1.55;text-align:center;">Know someone else thinking about ceiling insulation? They can check their own eligibility. <a href="${escape(referral)}" style="color:${C.BLUE};font-weight:800;text-decoration:underline;white-space:nowrap;">Refer&nbsp;a&nbsp;friend&nbsp;→</a></p>` : "";
-  const reason = "You’re receiving this because you requested a ceiling insulation estimate.";
-  const html = V2_THEME.shell(`${row(V2_THEME.header(c.badge), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(list, "0 28px 18px")}${row(action, "0 28px 18px")}${refer ? row(refer, "4px 36px 24px") : ""}${V2_THEME.footerRow(V2_THEME.footer(null, referral, reason))}`, c.preview, pixel);
-  const plainText = [
-    c.heading, "", c.intro, "",
+  const ticks = c.ticks.map((t, n) => { const pad = n === c.ticks.length - 1 ? 12 : 14; return `<tr><td width="34" valign="top" style="padding:2px 0 ${pad}px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 ${pad}px;">${K.esc(t)}</td></tr>`; }).join("");
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="eyebrow" padding="18px 12px 6px">${K.esc(c.eyebrow)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(c.heading)}</mj-text><mj-text>${K.esc(c.intro)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 10px">${K.esc(c.listTitle)}</mj-text><mj-table padding="0 18px 6px">${ticks}</mj-table>${c.listNote ? `<mj-text mj-class="small" padding="0 18px 14px">${K.esc(c.listNote)}</mj-text>` : ""}</mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">${K.esc(c.actionTitle)}</mj-text><mj-text>${K.esc(c.actionBody)}</mj-text>${c.demand ? `<mj-text font-weight="700" color="#057D40">${K.esc(DEMAND)}</mj-text>` : ""}<mj-button href="${K.esc(target)}">${K.esc(c.cta).replace(/ →$/, " &rarr;")}</mj-button><mj-text mj-class="small" padding="0 12px 0">${K.esc(HELPER)}</mj-text></mj-column></mj-section>`,
+    referral ? `<mj-section><mj-column><mj-text mj-class="center" font-size="14px" line-height="22px" padding="14px 12px 0">${K.esc(REFER)} <a href="${K.esc(referral)}" style="${LINK}">Refer a friend &rarr;</a></mj-text></mj-column></mj-section>` : "",
+    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${K.esc(REASON)} <a href="${CONTACT_URL}" style="${LINK}">Contact us</a> · <a href="${K.esc(PRIVACY_URL)}" style="${LINK}">Privacy</a></mj-text></mj-column></mj-section>`,
+  ].join("\n");
+  const compiled = mjEmail({ subject: c.subject, preview: c.preview, body, unsubscribe: "slot" });
+  const html = pixel ? compiled.replace("</body>", `${pixelTag(pixel)}</body>`) : compiled;
+  const plainText = K.plainText([
+    c.eyebrow.toUpperCase(), c.heading, "", c.intro, "",
     c.listTitle.toUpperCase(), ...c.ticks.map((t) => `✓ ${t}`), ...(c.listNote ? [c.listNote] : []), "",
     c.actionTitle.toUpperCase(), c.actionBody, ...(c.demand ? [DEMAND] : []),
-    `${c.cta.replace(/ →$/, "")}: ${target}`, HELPER, REASSURE,
-    ...(referral ? ["", "Know someone else thinking about ceiling insulation? They can check their own eligibility.", `Refer a friend: ${referral}`] : []), "",
-    ...V2_THEME.footerPlain(null, referral, reason),
-  ].join("\n");
+    `${c.cta.replace(/ →$/, "")}: ${target}`, HELPER,
+    ...(referral ? ["", REFER, `Refer a friend: ${referral}`] : []), "",
+    REASON, `Contact us: ${CONTACT_URL} · Privacy: ${PRIVACY_URL}`,
+  ]);
   return { subject: c.subject, previewText: c.preview, html, plainText };
 }

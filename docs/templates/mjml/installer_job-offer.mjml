@@ -1,0 +1,32 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>New Ready Check job near Glen Waverley</mj-title>
+    <mj-preview>About 137 m². Offer the owner 3 times within 24 hours to take it.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">New Ready Check job near Glen Waverley</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Ceiling size</mj-text>
+          <mj-text mj-class="big-blue" padding="0 12px 18px">about 137 m²</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="14px 12px 14px">To take it, offer the owner 3 times within 24 hours.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/offer/TEST">See the offer</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

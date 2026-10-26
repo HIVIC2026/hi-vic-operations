@@ -1,0 +1,36 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, only 10 days left on your safety check</mj-title>
+    <mj-preview>Your insulation must be installed by Friday 4 December. Pick your install day – it takes a minute.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, only 10 days left on your safety check</mj-text>
+          <mj-text>Your electrical safety check is valid for 30 days, so your insulation must be installed by <strong>Friday 4 December</strong>. There are 10 days left and no day is agreed yet.</mj-text>
+          <mj-text>Please go to your job page and tap one of the days Sample Insulation Co has offered, or suggest days that suit you. It only takes a minute.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">Pick my install day</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px"><strong>If the window passes, a repeat safety check is needed before the install can go ahead.</strong> It is charged to whoever caused the delay (the owner or the installer).</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,46 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Pick a time for your electrical safety check</mj-title>
+    <mj-preview>Spark Electrical has offered 3 times. Tap one and it's booked – it's already paid for.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, pick a time for your electrical safety check</mj-text>
+          <mj-text>Spark Electrical, a licensed electrician, has offered these times. Tap the one that suits you and it's booked.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-table padding="4px 12px 4px">
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Thursday 5 November</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">8:00am &rsaquo;</a></td></tr></table></td></tr>
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Friday 6 November</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">12:30pm &rsaquo;</a></td></tr></table></td></tr>
+            <tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #3C51C4;border-radius:14px;border-collapse:separate;"><tr><td style="padding:14px 16px;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#22376B;font-weight:700;text-decoration:none;font-size:16px;">Monday 9 November</a></td><td align="right" style="padding:14px 16px;white-space:nowrap;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;text-decoration:none;font-size:16px;">7:30am &rsaquo;</a></td></tr></table></td></tr>
+          </mj-table>
+          <mj-text mj-class="small center" font-size="14px" padding="0 12px 18px">None suit? <a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" style="color:#3C51C4;font-weight:700;">Suggest other days</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px"><strong>Your install must happen within 30 days of this safety check.</strong> After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical fixes quickly.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">At your safety check</mj-text>
+          <mj-text padding="0 12px 0">The electrician checks your switchboard, ceiling wiring and downlights are safe to insulate over. It's already paid for ($349.00). If anything needs fixing, we'll send you a separate quote first. Nothing is done without your OK.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

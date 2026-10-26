@@ -1,0 +1,42 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, your install day was released</mj-title>
+    <mj-preview>Pay your $185.10 deposit and your installer will offer new days.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Helen,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your install day was released</mj-text>
+          <mj-text>We didn't receive your install deposit in time, so Wednesday 11 November has been released. Your installer will offer new days once it's paid.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="h2" padding="18px 18px 8px">Pay your $185.10 deposit by bank transfer or PayID</mj-text>
+          <mj-table padding="0 18px 14px">
+            <tr><td style="padding:8px 0;color:#5A6785;white-space:nowrap;">Account name</td><td align="right" style="padding:8px 0 8px 12px;"><strong>Home Insulation Victoria</strong></td></tr>
+            <tr><td style="padding:8px 0;border-top:1px solid #E4E9F5;color:#5A6785;white-space:nowrap;">BSB</td><td align="right" style="padding:8px 0 8px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;"><strong>082-902</strong></td></tr>
+            <tr><td style="padding:8px 0;border-top:1px solid #E4E9F5;color:#5A6785;white-space:nowrap;">Account</td><td align="right" style="padding:8px 0 8px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;"><strong>777966349</strong></td></tr>
+            <tr><td style="padding:8px 0;border-top:1px solid #E4E9F5;color:#5A6785;white-space:nowrap;">Reference</td><td align="right" style="padding:8px 0 8px 12px;border-top:1px solid #E4E9F5;"><strong>Home Insulation Victoria <span style="white-space:nowrap;">HV-TEST</span></strong></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="16px 12px 14px">Once it lands, your installer offers you new days on your job page.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
+          <mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

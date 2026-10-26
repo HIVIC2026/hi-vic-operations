@@ -1,0 +1,39 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>HV-TEST: safety check booked for Thursday 5 November</mj-title>
+    <mj-preview>A heads-up so you can plan your install days. Please don't book the install yet.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">HV-TEST: safety check booked</mj-text>
+          <mj-text>The electrical safety check for Helen at 824 High Street Road, Glen Waverley is booked. This is a heads-up so you can plan your install days.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#3C51C4" padding="0 12px 4px">Thursday 5 November</mj-text>
+          <mj-text mj-class="center" font-weight="700" padding="0 12px 18px">Arriving 8am</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text padding="18px 18px 10px"><strong>Please don't book the install yet.</strong> Once the safety check is passed (and any electrical fixes are done) we'll email and text you to offer the owner 3 install days.</mj-text>
+          <mj-text padding="0 18px 18px">The install has to start within 30 days of the safety check, so it helps to pencil in a few days now.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="8px 0 0"></mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB">See the job</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,35 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>HV-TEST: 10 days left in the 30-day install window</mj-title>
+    <mj-preview>The PIESA on HV-TEST is valid until Friday 4 December and no install day is agreed yet.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">HV-TEST: 10 days left in the 30-day install window</mj-text>
+          <mj-text>The PIESA on job HV-TEST (Glen Waverley) is valid until Friday 4 December. 10 days left and no install day is agreed.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Valid until</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#8A5200" padding="0 12px 4px">Friday 4 December</mj-text>
+          <mj-text mj-class="center" font-weight="700" padding="0 12px 18px">10 days left</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="14px 12px 14px">Please offer days, or take one of the owner's suggested days, on the job screen now.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB">Open the job</mj-button>
+          <mj-text mj-class="small">If the window lapses, a repeat PIESA is needed. Under the partner agreement it's charged to whoever caused the delay — the owner or the installer.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

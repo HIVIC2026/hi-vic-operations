@@ -1,0 +1,24 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Set up your Home Insulation Victoria sign-in</mj-title>
+    <mj-preview>Set your password, then sign in to see your jobs.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Set up your sign-in</mj-text>
+          <mj-text>Sample Insulation Co is approved to work with Home Insulation Victoria. Tap the button to set your password.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/reset-password?token_hash=TEST">Set my password</mj-button>
+          <mj-text mj-class="small" padding="0 12px 6px">After that, sign in at <a href="https://estimate.homeinsulationvictoria.com.au/auth" style="color:#3C51C4;font-weight:700;">estimate.homeinsulationvictoria.com.au/auth</a> with this email to see your jobs.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>
