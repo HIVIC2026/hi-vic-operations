@@ -407,7 +407,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const loc = must(locR, "Could not read the rebate area"), rs = must(rsR, "Could not read the price settings");
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  // Current recorded payer: own electrician = no HIV PIESA line; undecided = no automatic quote (office quotes later).
+  // Current recorded payer: own electrician (price not known here, Jo 26 Oct) or undecided = no automatic quote (office quotes later).
   const { piesaChargeIncGst } = await import("./installer-led.core");
   const piesa = piesaChargeIncGst(job?.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null);
   if (!loc || veecValue == null || apFee == null || piesa == null) return false; // office quotes manually
@@ -432,7 +432,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const { data: q, error } = existing ? { data: existing, error: null } : await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, discount_note: [piesa === 0 ? (await import("./installer-quote.server")).OWN_REC_QUOTE_NOTE : null, discountNotes(rules).join(" ")].filter(Boolean).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
+    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
     partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
   }).select("id").single();
   if (error || !q) throw new BulkImportError(error?.message ?? "Quote could not be saved.");
@@ -454,7 +454,7 @@ export async function bulkQuotePlan(jobId: string, e: BulkExtracted, actorId: st
   const loc = must(locR, "Could not read the rebate area"), rs = must(rsR, "Could not read the price settings");
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  // Current recorded payer: own electrician = no HIV PIESA line; undecided = no automatic quote (office quotes later).
+  // Current recorded payer: own electrician (price not known here, Jo 26 Oct) or undecided = no automatic quote (office quotes later).
   const { piesaChargeIncGst } = await import("./installer-led.core");
   const piesa = piesaChargeIncGst(job?.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null);
   if (!loc || veecValue == null || apFee == null || piesa == null) return null; // office quotes manually
@@ -475,7 +475,7 @@ export async function bulkQuotePlan(jobId: string, e: BulkExtracted, actorId: st
   return { header: {
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, discount_note: [piesa === 0 ? (await import("./installer-quote.server")).OWN_REC_QUOTE_NOTE : null, discountNotes(rules).join(" ")].filter(Boolean).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
+    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
     partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
   }, lines };
 }

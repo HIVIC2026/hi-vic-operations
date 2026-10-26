@@ -8,21 +8,23 @@ export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_o
 /**
  * Owner PIESA charge on Home Insulation Victoria's quote. HIV-arranged electrician (hivic_matched / hivic_organise /
  * installer_own_hivic_books) = standard settings price. Installer's OWN electrician (installer_own / preferred /
- * nominated) invoices the owner directly (Jo, 9 Oct 2026 — provisional arrangement pending regulator confirmation):
- * HIV's PIESA fee is EXCLUDED (0, no line), never a blocker. Undecided = null (quote held).
+ * nominated): Jo 26 Oct 2026 — every safety check is billed through us, never by the electrician to the owner, so
+ * their agreed price goes on our quote (from the Ready Check); until it is known this is null (quote held).
+ * Undecided = null (quote held).
  */
 export function piesaChargeIncGst(choice: ElectricianChoice | string | null, standardPiesaIncGst: number | null): number | null {
-  if (isDirectBilledElectrician(choice)) return 0;
   if (!(standardPiesaIncGst != null && standardPiesaIncGst > 0)) return null;
   if (choice === "hivic_matched" || choice === "hivic_organise" || choice === "installer_own_hivic_books") return standardPiesaIncGst;
   return null;
 }
-export const isDirectBilledElectrician = (choice: string | null | undefined) => choice === "installer_own" || choice === "preferred" || choice === "nominated";
+/** Jo 26 Oct 2026: retired. No electrician bills the owner directly any more (the 9 Oct provisional arrangement was
+ *  never used on a live job); kept so callers read one rule. */
+export const isDirectBilledElectrician = (_choice: string | null | undefined) => false;
 
 /**
  * Who bills an electrical service (PIESA or rectification) on a job. Pure; shared by trade Money, office payout and profit.
  * History is never reinterpreted: a recorded HIV payout, or an accepted HIV quote that carries the electrical line, stays
- * HIV-payable. Otherwise only installer-supplied jobs with the installer's OWN electrician are owner-direct.
+ * HIV-payable. Jo 26 Oct 2026: nothing is owner-direct any more (see isDirectBilledElectrician).
  */
 export type ElectricalBilling = "hivic" | "owner_direct";
 export function electricalBillingSource(f: { channel: string | null; choice: string | null; committedLineOnAcceptedQuote: boolean | null; hivPaidAt: string | null }): ElectricalBilling {

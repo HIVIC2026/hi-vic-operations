@@ -5,11 +5,10 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst, isDirectBilledElectrician } from "./installer-led.core";
+import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
-export const OWN_REC_QUOTE_NOTE = "Your electrician's Pre Insulation Electrical Safety Assessment (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
 type SigLine = { code: string | null; line_total_inc_gst: number | string | null; description?: string | null; quantity?: number | string | null; unit?: string | null; unit_price_inc_gst?: number | string | null; explanation?: string | null; is_other?: boolean | null };
 /** Full scope fingerprint: equal amounts with changed inclusions/description/explanation are a DIFFERENT quote. */
 export const quoteLineSignature = (lines: SigLine[], discountNote?: string | null) =>
@@ -86,7 +85,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
-    // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
+    // CURRENT recorded payer: HIV = standard; own electrician (billed through us, Jo 26 Oct) or undecided = held until the Ready Check gives the price.
     separateLines: intakePrice?.separateLines ?? [],
     piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
@@ -98,7 +97,6 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;
-  if (!mittiElectrician && isDirectBilledElectrician(job.electrician_choice)) draft.discountNote = [OWN_REC_QUOTE_NOTE, draft.discountNote].filter(Boolean).join(" ");
   // Jo 23 Oct: insulation product on the owner quote; incomplete product holds the quote.
   if (mittiProduct) {
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");

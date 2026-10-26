@@ -352,12 +352,12 @@ export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Ad
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
   { value: "hivic", label: "Home Insulation Victoria arranges — $349 including GST", body: "We arrange an approved electrician. The $349 PIESA fee is on the owner’s quote." },
-  { value: "own", label: "I’ll use my own electrician", body: "Your electrician invoices the owner directly at the price agreed with them. Our $349 PIESA fee is not charged. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
+  { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Their safety check price goes on the owner’s quote instead of our $349, the owner pays us, and we pay the electrician. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
   { value: "undecided", label: "To be arranged", body: "You can save now. The owner quote waits until the electrician and their cost are known." },
 ];
 export const FEE_AWARENESS_HIV_REC = "The owner has been advised of the $349 PIESA fee and $349 AP management fee, both including GST.";
-export const FEE_AWARENESS_OWN_REC = "The owner has been advised of the $349 AP management fee including GST and that their electrician invoices them separately at the agreed price.";
-export const FEE_AWARENESS_VERSION = "installer-fee-awareness-2026-10-09";
+export const FEE_AWARENESS_OWN_REC = "The owner has been advised of the $349 AP management fee and my electrician's safety check (PIESA) fee, both including GST and both on the Home Insulation Victoria quote.";
+export const FEE_AWARENESS_VERSION = "installer-fee-awareness-2026-10-26";
 export const feeAwarenessText = (p: ElectricianPayer | null): string | null => (p === "hivic" ? FEE_AWARENESS_HIV_REC : p === "own" ? FEE_AWARENESS_OWN_REC : null);
 /** jobs.electrician_choice -> payer. HIV organise/matched/books = HIV; preferred/nominated/own = direct own REC. */
 export function payerFromChoice(choice: string | null | undefined): ElectricianPayer {
@@ -437,7 +437,8 @@ export function electricalLineBlocker(codes: (string | null)[], payer: Electrici
   if (payer === "undecided") return "Electrician arrangement not decided yet — this quote can't go to the owner";
   const has = codes.includes("PIESA");
   if (payer === "hivic" && !has) return "This quote has no PIESA line but Home Insulation Victoria is arranging the electrician — prepare a fresh quote first";
-  if (payer === "own" && has) return "This quote charges a PIESA but the owner's own electrician invoices them directly — prepare a fresh quote first";
+  // Jo 26 Oct 2026: the installer's own electrician is billed through us too, so their quote needs the PIESA line.
+  if (payer === "own" && !has) return "This quote has no electrical safety check (PIESA) line for the installer's electrician — prepare a fresh quote first";
   return null;
 }
 

@@ -6,7 +6,7 @@ describe("installer Add job — Jo 9 Oct 2026 rules", () => {
   it("exact wording", () => {
     expect(INSTALLER_CONTACT_PERMISSION).toBe("The owner has given permission for Home Insulation Victoria to contact them to check eligibility and discuss this job.");
     expect(FEE_AWARENESS_HIV_REC).toBe("The owner has been advised of the $349 PIESA fee and $349 AP management fee, both including GST.");
-    expect(FEE_AWARENESS_OWN_REC).toBe("The owner has been advised of the $349 AP management fee including GST and that their electrician invoices them separately at the agreed price.");
+    expect(FEE_AWARENESS_OWN_REC).toBe("The owner has been advised of the $349 AP management fee and my electrician's safety check (PIESA) fee, both including GST and both on the Home Insulation Victoria quote.");
     expect(feeAwarenessText("undecided")).toBeNull();
   });
   it("No (not measured/quoted) saves without area, insulation or quote", () => {
@@ -18,12 +18,12 @@ describe("installer Add job — Jo 9 Oct 2026 rules", () => {
     expect(p).toContain("Choose the existing insulation");
     expect(p).toContain("Upload your quote or enter the quote amount inc GST");
   });
-  it("own electrician: no $349 PIESA line on our quote and no PIESA blocker", () => {
-    expect(piesaChargeIncGst("preferred", 349)).toBe(0);
-    const o = installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: 0, rectificationIncGst: 0, apFeeIncGst: 349, veecDiscountIncGst: 0 });
-    expect(o.total).toBe(3349); expect(o.blockers).toEqual([]);
-    const d = buildInstallerQuoteDraft({ price: { price: { totalIncGst: 3000, included: ["Supply"], otherDescription: null }, issues: [] } as never, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: 0, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
-    expect(d.lines.map((l) => l.code)).toEqual(["INSTALLER_PRICE", "AP_FEE"]);
+  it("own electrician (Jo 26 Oct): billed through us — no $0 PIESA; the quote waits for their price", () => {
+    expect(piesaChargeIncGst("preferred", 349)).toBeNull();
+    const o = installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: null, rectificationIncGst: 0, apFeeIncGst: 349, veecDiscountIncGst: 0 });
+    expect(o.blockers).toContain("PIESA price not agreed for the chosen electrician.");
+    const d = buildInstallerQuoteDraft({ price: { price: { totalIncGst: 3000, included: ["Supply"], otherDescription: null }, issues: [] } as never, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: 220, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
+    expect(d.lines.map((l) => l.code)).toEqual(["INSTALLER_PRICE", "PIESA", "AP_FEE"]);
   });
   it("HIV electrician keeps the $349 PIESA line", () => {
     const d = buildInstallerQuoteDraft({ price: { price: { totalIncGst: 3000, included: ["Supply"], otherDescription: null }, issues: [] } as never, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });

@@ -61,8 +61,8 @@ describe("Jo's three Mitti electrician options", () => {
     expect(mittiQuoteElectricalBlocker(d.lines, r, { ...r })).toBeNull();
     expect(mittiQuoteElectricalBlocker(d.lines.map((l) => l.code === "AP_FEE" ? { ...l, line_total_inc_gst: 348 } : l), r, r)).not.toBeNull();
   });
-  test("legacy own electrician still direct-billed outside new Mitti pathway", () => {
-    expect(piesaChargeIncGst("installer_own", 349)).toBe(0);
+  test("own electrician is never direct-billed (Jo 26 Oct): no $0 PIESA outside the Mitti pathway", () => {
+    expect(piesaChargeIncGst("installer_own", 349)).toBeNull();
     expect(piesaChargeIncGst("hivic_organise", 349)).toBe(349);
   });
 });
