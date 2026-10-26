@@ -73,7 +73,7 @@ function Money() {
           <p className="mt-1 text-sm text-sub">Your pay, {business}. Amounts include GST.</p>
         </div>
 
-        {!data.rows.length && !(data.ownerDirect ?? []).length ? (
+        {!data.rows.length && !(data.paidByInstaller ?? []).length ? (
           <section className="rounded-[18px] bg-mist p-4 text-center" data-money-empty><h2 className="text-[17px] font-semibold">No completed jobs yet.</h2><p className="mt-1 text-sm text-sub">Your pay for each install appears here once the install is done.</p></section>
         ) : (
           <>
@@ -94,10 +94,10 @@ function Money() {
           </>
         )}
 
-        {(data.ownerDirect ?? []).length > 0 && (
-          <Group title="Invoice the owner directly">
-            <Note>The installer's customer chose you as their own electrician. You invoice and collect payment from the owner at your agreed price — Home Insulation Victoria doesn't pay this work and hasn't recorded the owner's payment.</Note>
-            {data.ownerDirect.map((r) => <div key={r.jobId + r.what} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-[15px]"><span><span className="block font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="block text-[13px] text-sub">{r.what}</span></span><span className="text-[13px] text-sub">Owner payment: not recorded</span></div>)}
+        {(data.paidByInstaller ?? []).length > 0 && (
+          <Group title="Paid by your installer">
+            <Note>You did these safety checks for an installer that pays its own electricians. Home Insulation Victoria pays the installer, and the installer pays you at the rate you agreed with them.</Note>
+            {data.paidByInstaller.map((r) => <div key={r.jobId + r.what} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-[15px]"><span><span className="block font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="block text-[13px] text-sub">{r.what}</span></span><span className="text-[13px] text-sub">Paid by your installer</span></div>)}
           </Group>
         )}
 

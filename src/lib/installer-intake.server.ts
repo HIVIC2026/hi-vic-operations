@@ -229,7 +229,7 @@ export async function recordOfficeFeeAwareness(jobId: string, actorId: string, n
   const payer = st.electricianPayer;
   const wording = feeAwarenessText(payer);
   if (!wording || payer === "undecided") throw new WorkflowError("Record who arranges the electrician first — the owner's fees depend on it.");
-  await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Office recorded that the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Office recorded that the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "office", source: "office_job_page", payer, wording, version: FEE_AWARENESS_VERSION, note: note.trim(), confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
+  await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Office recorded that the owner was advised of the $349 AP management fee and their electrician's safety check fee, both on our quote" : "Office recorded that the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "office", source: "office_job_page", payer, wording, version: FEE_AWARENESS_VERSION, note: note.trim(), confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
 }
 
 /** Office "Prepare owner quote" from the intake facts. Always a held draft; dedups on identical figures. */
@@ -401,7 +401,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   if (p.feeAwareness) {
     const { FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
     const payer = pc.nextPayer;
-    await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
+    await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and their electrician's safety check fee, both on our quote" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
     feeRecorded = true;
   }
   if (removalChanged && nextRemoval) await logEvent(jobId, actorId, "installer_quote_removal_declared", removalSummary(nextRemoval), { removal_quote: nextRemoval, source: "installer_edit", verified: false }, { internal: true });

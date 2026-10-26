@@ -221,7 +221,7 @@ describe("decision 303 — only onboarded electricians", () => {
 
   test("source guards: pipeline records the hold, only the tick sends the invite, approval/rate activation trigger the auto-link", () => {
     const pipe = read("src/lib/usual-electrician.server.ts");
-    expect(pipe).toContain("onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates })");
+    expect(pipe).toContain("onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null })");
     expect(pipe).toContain("ELECTRICIAN_ONBOARDING_NEEDED_EVENT");
     expect(pipe).not.toMatch(/sendElectricianInvite|office-email\.server|rec-onboarding-invite\.server/);
     expect(read("src/lib/installer-quote.server.ts")).toContain("electrician_not_onboarded: notOnboarded");

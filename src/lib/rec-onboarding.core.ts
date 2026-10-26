@@ -85,6 +85,8 @@ export type RecData = {
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
   gst_registered?: boolean | null; assessment_rate?: number | null; installation_attendance_rate?: number | null;
+  /** Jo 26 Oct 2026: invited by an installer that pays its own electricians (set by the server from the invite, never typed). */
+  paid_by_installer?: boolean | null; paid_by_installer_name?: string | null;
   rectification_rates?: Partial<Record<(typeof RECT_ITEMS)[number]["key"], number | null>>;
   custom_rectification_rates?: CustomRectificationRate[];
   coes_fee_choice?: "included" | "separate" | ""; coes_fee?: number | null;
@@ -352,6 +354,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
     case "assessment_pricing":
       if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
+      if (d.paid_by_installer === true) break; // the installer pays them for safety checks and attendance (Jo 26 Oct 2026)
       if (!pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
       if (!pos(d.installation_attendance_rate)) e.push("Enter your installation-day attendance rate.");
       break;
