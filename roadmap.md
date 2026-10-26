@@ -537,3 +537,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Deep jobs next steps + Ready Check basics drafting (preview)
 - [ ] HV-1538 make Deep's lead + Active — blocked: permanent job-source lock, needs Jo's decision
 - 23 Oct: Tap answers get Save my spot, photos to office review first; Spots saved 8 ranks (preview; sending OFF pending Jo wording + go; answer saving pending migration 0222)
+
+- [x] AI email replies on each job (Jo 26 Oct): drafts on job, auto-send off, unmatched on Enquiries
+- [ ] Turn on AI auto-send for simple replies — waits for Jo to see samples and say "send"
