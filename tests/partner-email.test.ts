@@ -13,7 +13,13 @@ describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () =
     expect(i.html).toContain("Acme Insulation can now take VEU ceiling insulation jobs through Home Insulation Victoria.");
     expect(i.text).toContain("✓ Jobs sent to you, plus add your own customers");
     expect(i.text).toContain("✓ Your price, never marked up. We only add our $349 AP fee");
-    expect(e.text).toContain("✓ PIESAs sent to you near where you work");
+    // E13 (electrician) follows its own picture: docs/templates/electrician/E13-welcome-email.html.
+    expect(e.html).toContain("Welcome aboard, Sam");
+    expect(e.text).toContain("Acme Insulation is approved as a Home Insulation Victoria partner.");
+    expect(e.text).toContain("Tap the button to set your password and sign in to your online portal. The link works once and expires in 24 hours.");
+    expect(e.text).toContain("Your sign-in email is sam@acme.test.");
+    expect(e.html).toContain(">Set my password<");
+    expect(e.html).not.toContain("New to how we work?");
     expect(i.text).toContain("Set your password: https://x.test/l");
     expect(i.text).toContain("You'll sign in with sam@acme.test. The link works once and lasts 24 hours.");
     expect(i.html).toContain("New to how we work?");
@@ -23,7 +29,7 @@ describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () =
     expect(i.html).not.toContain("TEST — only sent to Jo");
   });
   test("all partner emails share the approved kit shell (embedded logo, AP/ABN footer, no unsubscribe link)", () => {
-    for (const m of [w("installer"), declineEmail({ contactName: "Sam", test: false }), changesEmail({ contactName: "Sam", message: "Fix ABN", link: "https://x.test", test: false }), renderApplicationReceivedEmail({ contactName: "Sam", businessName: "Reinsulate" })]) {
+    for (const m of [w("installer"), w("electrician"), renderApplicationReceivedEmail({ contactName: "Sam", businessName: "Reinsulate" })]) {
       expect(m.html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria"`);
       expect(m.html).toContain(FOOTER_TEXT);
       expect(m.html).not.toContain(">Unsubscribe</a>");

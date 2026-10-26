@@ -66,8 +66,9 @@ describe("O74 wording (trade cancelled the visit)", () => {
   test("trade offers: 'you don't need to do anything' variant, See my job", () => {
     const m = renderVisitNewTimesEmail({ kind: "installation", wasIso: was, ownerPicks: false, link: MY_JOB, firstName: null, unsubscribeUrl: null, test: true });
     expect(m.subject).toBe("Your install day is moving");
-    expect(m.text).toContain("You don't need to do anything. Your installer will offer you new install days soon and we'll send you a link to choose one.");
-    expect(m.html).toContain(">See my job<");
+    expect(m.text).toContain("You don't need to do anything. Your installer will offer you new install days soon, and we'll send you a link to choose one.");
+    // O74b has no design picture, so it keeps today's look (left unchanged on 27 Oct 2026).
+    expect(m.html).toContain("<strong>You don't need to do anything.</strong>");
     expect(m.html).toContain("TEST — only sent to Jo");
     expect(visitNewTimesText({ kind: "ready_check", wasIso: was, ownerPicks: false, link: MY_JOB })).toContain("You don't need to do anything – we'll send you new times soon.");
     expect(visitNewTimesKeys("j", "b")).toEqual({ email: "visit-new-times:v1:j:b:email", sms: "visit-new-times:v1:j:b:sms" });
