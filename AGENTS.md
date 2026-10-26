@@ -23,3 +23,4 @@
 - QA scripts resolve server-function IDs from the target's served dev transform or served compiled client (`scripts/qa-serverfn-resolve.ts`); unresolved = diagnostic failure, never a permission result. Office bulk lookups by job id are batched. Why: guessed IDs gave 500s and one all-ids URL stalled Office reads for minutes.
 
 - Detailed application/domain rules live in `src/AGENTS.md`; read it before changing source or scripts that exercise these flows, then read narrower directory guidance. Why: keep cross-project guidance small without losing operational safeguards.
+- RLS policies call per-user helpers as sub-selects (`(SELECT is_admin())`, `(SELECT auth.uid())`, `(SELECT has_role((SELECT auth.uid()), ...))`); new policies follow the same form (applied 26 Oct 2026, `docs/pending-migrations/rls-initplan-speed.sql`). Why: evaluated once per query instead of once per row, same rows.
