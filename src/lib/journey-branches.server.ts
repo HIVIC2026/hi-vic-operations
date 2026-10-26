@@ -66,7 +66,7 @@ class Recorder {
  *  and an address match links onto that older job instead of making a new one). */
 async function freshCtx(): Promise<JourneyCtx> {
   for (let i = 0; i < 40; i++) {
-    const ctx = await freshCtx();
+    const ctx = await newJourneyCtx();
     const num = ctx.runId.slice(0, 2).replace(/\D/g, "") || "7";
     const { count } = await admin.from("properties").select("id", { count: "exact", head: true }).ilike("address_line", `${num} Journey Test Street`);
     if (!count) return ctx;
