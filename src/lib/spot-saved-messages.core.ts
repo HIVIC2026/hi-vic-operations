@@ -41,6 +41,15 @@ export function renderSpotSavedSms(i: SpotSavedInput) {
   return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. ${SPOT_REGISTERED} ${SPOT_ORDER} ${SPOT_IN_TOUCH} Your job: ${i.myJobUrl} – Home Insulation Victoria`;
 }
 
+// Jo 27 Oct 2026: O10 email wording word-for-word as docs/templates/owner/O10-spot-saved.html (the text message is unchanged).
+const O10_INTRO = "Demand is high and installer capacity is limited, so we book homes in the order spots were saved. You've locked in your place, so there's nothing more you need to do right now.";
+const O10_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
+const o10Steps = (suburb: string | null): K.Step[] => [
+  { title: "An installer offers you times", detail: `When a certified installer is free near ${suburb?.trim() || "you"}, we'll text and email you their times for your free Ready Check.` },
+  { title: "Tap the time that suits you", detail: "Or suggest other days. No phone tag." },
+  { title: "Free Ready Check, then your exact price", detail: "They measure your ceiling and check your insulation. You get your final quote. No payment, no obligation." },
+];
+
 export function renderSpotSavedEmail(i: SpotSavedInput) {
   const rebate = wholeDollars(i.rebate);
   const name = i.firstName?.trim() || null;
@@ -49,24 +58,21 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const removal = i.removal && i.removal.kind !== "excluded" ? i.removal : null;
   const smartMove = `Smart move${name ? `, ${name}` : ""}. Your spot is saved.`;
   const rebateLine = `Your ${rebate} rebate is waiting.`;
-  const steps: K.Step[] = [
-    { title: "Your place is kept", detail: SPOT_FREE },
-    { title: "We'll be in touch", detail: spotSavedTeamText(i.suburb) },
-  ];
-  const estNote = est ? `Estimate incl. GST for ${K.m2(est.areaM2)}. ${SPOT_PRICE_NOTE}` : null;
+  const steps = o10Steps(i.suburb);
+  const estNote = est ? `Estimate incl. GST for ${K.m2(est.areaM2)}. Confirmed at your free Ready Check.` : null;
   // Decision 70: the Save my spot cards, plus the existing-insulation card when the saved estimate carries removal.
   const some = !!removal;
   const removalCard = est && removal ? K.existingInsulationCard({ areaM2: est.areaM2, ratePerM2: removal.kind === "included" && removal.areaM2 > 0 ? Math.round(removal.amount / removal.areaM2) : 15, upTo: removal.kind === "included" ? Math.round(15 * est.areaM2) : Math.round(15 * est.areaM2) }) : "";
   const body = [
     K.h1(smartMove, 6),
     K.greenLead(rebateLine),
-    K.p(SPOT_SAVED_BATCH_TEXT),
+    K.p(O10_INTRO),
     est ? K.twoFigureBox({ rebate: i.rebate, price: est.customer, note: estNote! }) : "",
     K.sectionTitle("What happens next", "24px 0 12px"),
     K.numberedSteps(steps),
     K.button(i.myJobUrl, "See my job", "6px 0 4px"),
     K.spacer(8),
-    est ? K.includedAndNotIncluded({ price: est.customer, rebate: i.rebate, someInsulation: some }) : K.small(SPOT_SAVED_NOT_INCLUDED, "10px 0 0"),
+    est ? K.includedAndNotIncluded({ price: est.customer, rebate: i.rebate, someInsulation: some, closing: O10_CLOSING, freeReadyCheck: true }) : K.small(SPOT_SAVED_NOT_INCLUDED, "10px 0 0"),
     removalCard,
     removal?.kind === "unknown" ? K.small(REMOVAL_BUDGET_EMAIL_NOTE, "10px 0 0") : "",
     removal?.kind === "included" ? K.small(`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; the scope and price are confirmed before you agree to anything.)`, "10px 0 0") : "",
@@ -74,11 +80,11 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   ].join("\n");
   const html = K.emailShell({ body, previewText: rebateLine, unsubscribe: i.optOutUrl });
   const text = K.plainText([
-    smartMove, rebateLine, "", SPOT_SAVED_BATCH_TEXT, "",
+    smartMove, rebateLine, "", O10_INTRO, "",
     ...(est ? [`VEU rebate: ${rebate}`, `You pay about: ${K.whole(est.customer)}`, estNote!, ""] : []),
     "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",
     `See my job: ${i.myJobUrl}`, "",
-    ...(est ? [...K.includedAndNotIncludedText({ price: est.customer, rebate: i.rebate, someInsulation: some }), ""] : []),
+    ...(est ? [...K.includedAndNotIncludedText({ price: est.customer, rebate: i.rebate, someInsulation: some, closing: O10_CLOSING, freeReadyCheck: true }), ""] : []),
     SPOT_SAVED_NOT_INCLUDED,
     ...(removal ? ["", ...(removal.kind === "included" ? [`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; the scope and price are confirmed before you agree to anything.)`] : []), removalNote(removal), EXISTING_PRELIMINARY, ...(removal.kind === "unknown" ? [REMOVAL_BUDGET_EMAIL_NOTE] : [])] : []),
     ...(est ? [`Try a different size: ${est.calculatorUrl}`] : []),

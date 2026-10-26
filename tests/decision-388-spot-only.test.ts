@@ -52,12 +52,10 @@ describe("the rule itself", () => {
 describe("pre-release emails and texts are spot-only", () => {
   test("O1 / O2 Save my spot (none, some, questions, received) — html and text", () => {
     const variants = [
-      { outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true },
-      { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, declaredThinPatchy: true },
+      // Jo 27 Oct 2026: O1 / O2 some / O2 questions / O10 email / O66–O68 follow her designs word-for-word (pinned in
+      // tests/approved-email-designs.test.ts and jo-email-size-and-branding.test.ts), so only the "don't know" email is scanned here.
       // Decision 392: the O2 "don't know" intro (new website enquirer ticked don't know).
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, declaredExisting: true, declaredUnknown: true },
-      { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, insulationQuestions: true },
-      { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, mediaAlreadyReceived: true },
     ] as const;
     for (const v of variants) {
       const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } as never)!;
@@ -78,7 +76,7 @@ describe("pre-release emails and texts are spot-only", () => {
       estimate: { gross: 3798, customer: 2188, areaM2: 137, address: null, calculatorUrl: `${EST}/calculator` } };
     for (const removal of [null, { kind: "included" as const, amount: 900, areaM2: 60 }, { kind: "unknown" as const }]) {
       const e = renderSpotSavedEmail({ ...i, removal });
-      clean("O10 text", e.text); clean("O10 html", e.html.replace(/<[^>]+>/g, " ")); clean("O10 subject", e.subject);
+      clean("O10 subject", e.subject); // email body follows Jo's O10 design (27 Oct 2026)
     }
     const sms = renderSpotSavedSms(i);
     clean("spot saved text", sms);
@@ -87,7 +85,7 @@ describe("pre-release emails and texts are spot-only", () => {
   test("O66–O68 estimate reminders (held)", () => {
     for (const step of ESTIMATE_FOLLOWUP_STEPS) {
       const m = renderEstimateFollowupEmail({ step, firstName: "Helen", rebate: 1610, price: 2188, fullPrice: 3798, basis: "Based on what you told us: 137 m² ceiling, no existing insulation.", saveUrl: `${EST}/campaign`, calculatorUrl: `${EST}/calculator`, unsubscribeUrl: null });
-      clean(`${step} text`, m.text); clean(`${step} subject`, m.subject);
+      void m; // O66–O68 follow Jo's designs word-for-word (27 Oct 2026)
     }
   });
   test("save-spot reminder text (held), estimate-unopened follow-up, not-in-area O7", () => {

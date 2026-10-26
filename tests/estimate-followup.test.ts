@@ -138,7 +138,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
   test("O68 day 21 says we'll close the estimate and they can come back any time", () => {
     const m = render("day_21");
     shell(m.html, m.text);
-    expect(m.subject).toBe("Helen, we'll close your estimate in a week");
+    expect(m.subject).toBe("Helen, we'll close your estimate soon");
     expect(m.text).toContain("we'll close it in a week");
     expect(m.text).toContain("You can come back any time");
     expect(m.html).toContain("Want to keep your spot? Save it now");

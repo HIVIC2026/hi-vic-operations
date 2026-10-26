@@ -144,24 +144,24 @@ export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, 
       subject: `${first}, your ${rebate} rebate spot is still open`,
       intro: `A couple of days ago we sent your ceiling insulation estimate. Nothing has changed: the ${rebate} Victorian Energy Upgrades rebate is still available and your spot is still open.`,
       saveTitle: SAVE_TITLE,
-      save: "Thousands of Victorians have registered, and spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
+      save: "Certified installers are in high demand, so we book homes in the order people save their spot. It takes a few seconds. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_7": return {
       subject: `${first}, still thinking about your ceiling insulation?`,
-      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price, and nothing is locked in until you've seen your exact price and agreed to it.`,
+      intro: `It's been a week since we sent your estimate, so here it is again. The ${rebate} rebate comes straight off the price, and nothing is locked in until after your free Ready Check.`,
       saveTitle: SAVE_TITLE,
-      save: "Save your spot to keep your place in line. Spots are released in the order they were saved, and we'll be in touch when your spot is released. No payment, no obligation.",
+      save: "Save your spot and a certified installer will offer you times for your free Ready Check when one is free near you. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
     case "day_21": return {
-      subject: `${first}, we'll close your estimate in a week`,
+      subject: `${first}, we'll close your estimate soon`,
       intro: "We sent your ceiling insulation estimate three weeks ago and haven't heard back, so we'll close it in a week to keep our list accurate.",
       saveTitle: "Want to keep your spot? Save it now",
       save: `Save your spot and you stay on the list with your ${rebate} rebate. No payment, no obligation.`,
-      after: "If now isn't the right time, that's fine. You can come back any time: reply to this email or visit homeinsulationvictoria.com.au/homeowner and we'll pick up where we left off.",
+      after: "If now isn't the right time, that's fine. You can come back any time: reply to this email or get a fresh estimate from our calculator and we'll pick up where we left off.",
       closing: REPLY,
     };
   }
