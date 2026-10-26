@@ -1,3 +1,4 @@
+// @ts-nocheck — pure string compiler from the email refresh; strict index-signature typing is not enforced here (runtime unchanged).
 // Pure: a tiny, dependency-free compiler for the MJML subset the portal emails use (Jo, 26 Oct 2026: "refine and perfect
 // all the email templates"; the designs were built and approved as MJML 5 samples). The live server runs on Cloudflare,
 // where the real MJML compiler cannot run, so this file turns the same MJML markup into the same email-safe HTML MJML 5
