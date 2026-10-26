@@ -290,7 +290,7 @@ function melbourneDate(daysAhead: number) {
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
  *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
-async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "install_deposit" | "balance", label: string) {
+async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
   const v = await jobPaymentView(ctx.jobId!);
@@ -746,3 +746,6 @@ export async function latestJourneyRun() {
   const { data } = await admin.from("journey_runs").select("id, mode, started_at, finished_at, passed, failing_step, failing_reason").order("started_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
+
+/** Internals shared with the opt-in hard-case branches (journey-branches.server.ts). The default run does not use this. */
+export const journeyInternals = { s1, s2, s3, s5, assertOwnTestJob, uploadEvidence, melbourneDate, payStep, act, stageOf, TINY_JPEG, TEST_DOMAIN };
