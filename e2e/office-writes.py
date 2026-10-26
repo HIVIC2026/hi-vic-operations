@@ -77,6 +77,10 @@ async def run(p, w):
             await card.get_by_placeholder("Note (optional)").fill("QA check only")
             await card.get_by_role("button", name="Save outcome").click(); await pg.wait_for_timeout(3000)
             card = await open_change()
+            try:
+                await card.get_by_text("Current", exact=True).wait_for(timeout=20000)
+            except Exception:
+                pass
             t = await card.inner_text()
             return re.search(r"Current\s+" + label_re.pattern.strip("^$"), t, re.I) is not None, t
         ok1, _ = await classify(re.compile(r"^(Does not appear eligible|Not eligible)$", re.I), f"QA retest {tag}: classification check")
