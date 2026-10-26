@@ -30,6 +30,8 @@ export type NeedsRow = {
   line: string; since: string; button: NeedsButton; secondary?: NeedsButton; eventId?: string; isTest?: boolean;
   /** Email change rows: the backend intent (cancel · reschedule · contact_change · attachment). */
   intent?: string;
+  /** Unmatched email rows: why the best guess was picked (outlook-guess.core reasons, e.g. "mentions HV-3117"). */
+  guessWhy?: string[];
 };
 
 /** Facts per job (any may be absent). Times are ISO strings. */
@@ -151,11 +153,11 @@ export const CHANGE_LINE = {
 
 export type EmailRowInput =
   | { type: "change"; eventId: string; jobId: string; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string; intent?: string | null }
-  | { type: "unmatched"; eventId: string; guessJobId: string | null; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string };
+  | { type: "unmatched"; eventId: string; guessJobId: string | null; jobNumber: string | null; surname: string; suburb: string | null; line: string; at: string; guessWhy?: string[] };
 
 export function emailRow(e: EmailRowInput): NeedsRow {
   if (e.type === "change") return { key: `email:${e.eventId}`, group: "today", kind: "email_change", eventId: e.eventId, ...(e.intent ? { intent: e.intent } : {}), jobId: e.jobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: e.intent === "reply" ? "Done" : "Apply", to: "act", act: "apply" }, secondary: { label: "Ignore", to: "act", act: "ignore" } };
-  return { key: `email:${e.eventId}`, group: "today", kind: "email_unmatched", eventId: e.eventId, jobId: e.guessJobId, jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Match", to: "act", act: "match" }, secondary: { label: "Not a customer", to: "act", act: "not_customer" } };
+  return { key: `email:${e.eventId}`, group: "today", kind: "email_unmatched", eventId: e.eventId, jobId: e.guessJobId, ...(e.guessWhy?.length ? { guessWhy: e.guessWhy } : {}), jobNumber: e.jobNumber, surname: e.surname, suburb: e.suburb, line: e.line, since: e.at, button: { label: "Match", to: "act", act: "match" }, secondary: { label: "Not a customer", to: "act", act: "not_customer" } };
 }
 
 const GROUP_ORDER: Record<NeedsGroup, number> = { today: 0, week: 1, watch: 2 };

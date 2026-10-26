@@ -61,3 +61,16 @@ export function needsHeadline(today: number, waitingForInstaller: number): strin
   const head = today === 0 ? "Nothing needs you today" : `${today} need${today === 1 ? "s" : ""} you today`;
   return waitingForInstaller > 0 ? `${head} · ${waitingForInstaller} spot${waitingForInstaller === 1 ? "" : "s"} waiting for an installer` : head;
 }
+
+/**
+ * "Match all best guesses" (Jo 26 Oct 2026): an unmatched email whose best guess rests on something specific — the HV
+ * number, the street address or the owner's full name (outlook-guess.core) — is offered for one-tap matching in a review
+ * list the office can untick. A surname, postcode or suburb alone is never enough. Each match still goes through the
+ * same audited matchOutlookEmail as the row's own button.
+ */
+export function confidentGuess(row: Pick<NeedsRow, "kind" | "jobId" | "guessWhy">): boolean {
+  if (row.kind !== "email_unmatched" || !row.jobId) return false;
+  return (row.guessWhy ?? []).some((w) => /^(mentions |address |owner name )/.test(w));
+}
+
+export const bulkMatchable = (rows: NeedsRow[]): NeedsRow[] => rows.filter(confidentGuess);

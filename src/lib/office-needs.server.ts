@@ -296,7 +296,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const g = guessOf(u);
     if (!wantJob(g?.job_id ?? null)) continue;
     const j = g ? askJobs.get(g.job_id) : undefined;
-    emails.push({ type: "unmatched", eventId: u.eventId, guessJobId: g?.job_id ?? null, jobNumber: j?.jobNumber ?? g?.job_number ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null,
+    emails.push({ type: "unmatched", eventId: u.eventId, guessJobId: g?.job_id ?? null, guessWhy: g?.why ?? [], jobNumber: j?.jobNumber ?? g?.job_number ?? null, surname: j?.surname ?? "", suburb: j?.suburb ?? null,
       line: `Email from ${u.from ?? "an unknown sender"}${u.subject ? ` · “${String(u.subject).slice(0, 60)}”` : ""}${g ? ` · best guess ${g.job_number}${g.why?.length ? ` (${g.why[0]})` : ""}` : " · no guess"}`, at: u.at });
   }
 
