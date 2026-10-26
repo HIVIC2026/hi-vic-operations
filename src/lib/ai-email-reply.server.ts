@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
-  aiDraftKey, aiReplyProblems, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
+  aiDraftKey, aiReplyHtmlBody, aiReplyProblems, aiReplyText, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -112,12 +112,11 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (!to) throw new Error("This owner has no email address.");
   const K = await import("./email-kit.core");
   const subject = String(ev.details["subject"] ?? replySubject(null));
-  const paras = body.trim().split(/\n{2,}/);
   const key = `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
   const build = (unsubscribe: string | null, test = false) => ({
     subject,
-    html: K.emailShell({ body: paras.map((t, i) => K.p(K.esc(t).replace(/\n/g, "<br>").replace(/(https?:\/\/[^\s<]+)/g, (u) => K.link(u, u)), i === paras.length - 1 ? "0" : "0 0 16px", true)).join("\n"), previewText: null, testLabel: test, unsubscribe }),
-    text: K.plainText([body.trim()], { testLabel: test, unsubscribe }),
+    html: K.emailShell({ body: aiReplyHtmlBody(body, K), previewText: null, testLabel: test, unsubscribe }),
+    text: K.plainText(aiReplyText(body), { testLabel: test, unsubscribe }),
   });
   let status: string;
   if (job.source === "qa_test") {
