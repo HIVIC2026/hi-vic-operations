@@ -107,27 +107,41 @@ export function renderReadyCheckTimesEmail(i: ReadyCheckTimesInput) {
   const subject = "Choose a time for your free Ready Check";
   const first = K.cleanName(i.firstName) ?? "there";
   const headline = `${first}, pick a time for your free Ready Check`;
-  const suburb = i.suburb?.trim() || null;
-  const where = suburb ? ` near ${suburb}` : "";
+  const where = i.suburb?.trim() ? ` near ${i.suburb.trim()}` : "";
   const intro = `Good news: a certified installer${where} is ready for you. Tap the time that suits you and it's booked.`;
   const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
-  const n = slots.length;
-  const preview = `A certified installer${where} has offered ${n} time${n === 1 ? "" : "s"}. Tap one and it's booked.`;
   const at = "The installer measures your ceiling, checks your existing insulation and access, and confirms your exact price. It's free, with no payment and no obligation.";
   const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    mjTimeButtons(slots, i.myJobUrl),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="6px 12px 6px">At your Ready Check</mj-text><mj-text>${esc(at)}</mj-text></mj-column></mj-section>`,
-    est ? mjO12Estimate(est) : "",
-  ].join("");
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+    K.h1(headline),
+    K.p(intro),
+    K.tapTimeButtons(slots, { href: i.myJobUrl }),
+    K.sectionTitle("At your Ready Check"),
+    K.p(at),
+    est ? o11o12EstimateHtml(est) : "",
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([
     headline, "", intro, "",
     ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`),
     `Pick a time: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "",
     "AT YOUR READY CHECK", at,
-    ...(est ? ["", ...o12EstimateText(est)] : []),
+    ...(est ? ["", ...o11o12EstimateText(est)] : []),
   ], { testLabel: i.test === true });
   return { subject, html, text };
+}
+
+/** O11 / O12 "What's included" + "Not included" cards, exactly as in docs/templates/owner/O11-ready-check-times.html and
+ *  O12-ready-check-booked.html (Free Ready Check first, then the four usual items). Used only by O11 and O12. */
+export function o11o12IncludedItems(rebate: number): K.TickItem[] {
+  return [{ title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." }, ...K.includedItems(rebate)];
+}
+export const O11_O12_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
+export function o11o12EstimateHtml(est: { rebate: number; price: number; areaM2: number }): string {
+  return `${K.twoFigureBox({ rebate: est.rebate, price: est.price, note: `Estimate incl. GST for ${K.m2(est.areaM2)}. Confirmed at your free Ready Check.` })}\n${K.spacer(8)}\n${K.includedCard(`What's included in ${K.whole(est.price)}`, o11o12IncludedItems(est.rebate))}${K.notIncludedCard("Not included, only if needed", K.notIncludedItems(false))}<p style="font-size:13px;line-height:1.5;margin:10px 0 0;color:${K.KIT.SUB};">${K.esc(O11_O12_CLOSING)}</p>`;
+}
+export function o11o12EstimateText(est: { rebate: number; price: number; areaM2: number }): string[] {
+  const inc = o11o12IncludedItems(est.rebate).map((t) => typeof t === "string" ? `✓ ${t}` : `✓ ${t.title}: ${t.detail ?? ""}`.trim());
+  return [`VEU rebate: ${K.whole(est.rebate)} · You pay about: ${K.whole(est.price)} (estimate incl. GST for ${K.m2(est.areaM2)}, confirmed at your free Ready Check)`, "",
+    `WHAT'S INCLUDED IN ${K.whole(est.price)}`, ...inc, "", "NOT INCLUDED, ONLY IF NEEDED", ...K.notIncludedItems(false).map((h) => `+ ${K.stripTags(h)}`), "", O11_O12_CLOSING];
 }
