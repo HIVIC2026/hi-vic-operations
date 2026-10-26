@@ -51,6 +51,8 @@ const shell = (html: string, text: string, unsubscribe: boolean) => {
   expect(html).not.toMatch(/<script|\son[a-z]+=/i);
   for (const re of RETIRED) { expect(html).not.toMatch(re); expect(text).not.toMatch(re); }
 };
+/** Jo's design file, with the embedded logo swapped for the hosted logo (email clients block embedded images; look unchanged). */
+const design = (path: string) => readFileSync(path, "utf8").split(LOGO_DATA_URI).join("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
 const has = (s: string, parts: string[]) => { for (const p of parts) expect(s).toContain(p); };
 
 describe("approved owner email designs", () => {
@@ -230,7 +232,7 @@ describe("approved owner email designs", () => {
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Your signed consent form");
     has(m.html, ["Your signed consent form", "Hi Helen, here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. It's also on your job page.", ">See my job<", `href="${JOB}"`, "The signed form is attached as a PDF.", "Your signed form", "First Name: Helen", "AP representative: Jo Carter (Director)", "Record reference e6458b32666a"]);
-    expect(m.html).toBe(readFileSync("docs/templates/owner/O63-consent-copy.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/owner/O63-consent-copy.html"));
     expect(CONSENT_COPY_EMAIL_APPROVED).toBe(true);
   });
   test("O64 Deposit released", () => {
@@ -238,7 +240,7 @@ describe("approved owner email designs", () => {
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Helen, your install day was released");
     has(m.html, ["Helen, your install day was released", "Hi Helen, we didn't receive your install deposit in time, so Tuesday 11 November has been released. Your installer will offer new days once it's paid.", "Pay your $185.10 deposit by bank transfer or PayID", "Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: Home Insulation Victoria HV-3117", ">See my job<"]);
-    expect(m.html).toBe(readFileSync("docs/templates/owner/O64-deposit-released.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/owner/O64-deposit-released.html"));
     expect(PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED).toBe(true);
   });
   // Decision 291 (Jo 25 Oct 2026): the samples in docs/templates/owner and installer are written by scripts/render-decision-291-samples.ts from this data.
@@ -249,7 +251,7 @@ describe("approved owner email designs", () => {
     has(m.html, [">Job cancelled</h1>", ">Hi Helen,</p>", "We've cancelled your ceiling insulation job at 824 High Street Road, Glen Waverley VIC 3150, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.", "If this was a mistake or you'd like to pick it up again later, reply to this email.", ">Home Insulation Victoria</p>"]);
     expect(m.html).not.toMatch(/\$\d|href=/);
     has(m.text, ["Hi Helen,", "reply to this email.", "Home Insulation Victoria"]); expect(m.html + m.text).not.toMatch(/call us|03 9000/);
-    expect(m.html).toBe(readFileSync("docs/templates/owner/O69-job-cancelled.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/owner/O69-job-cancelled.html"));
     // No office number on file: the reply line only (nothing invented).
     expect(renderOwnerCancelledEmail({ firstName: null, jobNumber: "HV-3117", address: null, officePhone: null }).html).toContain("If this was a mistake or you'd like to pick it up again later, reply to this email.</p>");
     expect(renderOwnerCancelledEmail({ firstName: null, jobNumber: "HV-3117", address: null, officePhone: null }).html).toContain(">Hi there,</p>");
@@ -291,7 +293,7 @@ describe("approved installer email designs", () => {
     shell(m.html, m.text, false);
     has(m.html, ["Your copy of the ESC privacy collection notice", "Hi Sam,", "which you acknowledged on 24 October 2026 at 12:00 pm", "VEU Scheme Participant Privacy Collection Notice<br>Version 1.0 – 1 October 2026", "Just reply to this email if you have any questions."]);
     for (const p of COLLECTION_NOTICE_PARAGRAPHS) if (p.kind === "p" || p.kind === "li" || p.kind === "li2") expect(m.text).toContain(p.text);
-    expect(m.html).toBe(readFileSync("docs/templates/installer/I62-notice-copy.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/installer/I62-notice-copy.html"));
     expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(true);
   });
   test("I65 Cleared for install (decision 186): headline, one line, 30-day box, Offer install days; matches the approved file line for line", () => {
@@ -300,8 +302,8 @@ describe("approved installer email designs", () => {
     expect(m.subject).toBe("HV-3117 is cleared for install – offer 3 install days by 23 November 2026");
     has(m.html, [">HV-3117 is cleared for install</h1>", "The electrical safety check is done. Offer Helen three install days with arrival times from your job page.", "&#9200; The 30-day clock", "<strong>Your install must happen within 30 days of this safety check.</strong>", ">Offer install days<", `href="${job.jobUrl}"`]);
     expect(m.html).not.toMatch(/\$\d/);
-    expect(m.html).toBe(readFileSync("docs/templates/installer/I65-install-clearance.html", "utf8"));
-    const lines = readFileSync("docs/templates/installer/I65-install-clearance.html", "utf8").split("\n");
+    expect(m.html).toBe(design("docs/templates/installer/I65-install-clearance.html"));
+    const lines = design("docs/templates/installer/I65-install-clearance.html").split("\n");
     m.html.split("\n").forEach((l, n) => expect(l).toBe(lines[n]));
     has(m.text, ["HV-3117 is cleared for install", "The 30-day clock: your install must happen within 30 days of this safety check.", `Offer install days: ${job.jobUrl}`]);
     const fixed = renderInstallClearanceEmail({ jobNumber: "HV-3117", ownerFirstName: null, fixesSignedOff: true, deadlineLabel: "23 November 2026", jobUrl: job.jobUrl });
@@ -315,7 +317,7 @@ describe("approved installer email designs", () => {
     has(m.html, [">HV-3117 cancelled</h1>", "HIV: HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.", ">Questions: 03 9000 0000.</p>"]);
     expect(m.html).not.toMatch(/\$\d|href=|Helen/);
     expect(m.text).toContain("HIV: HV-3117 at 824 High Street Road, Glen Waverley has been cancelled. Nothing more to do on it — it's gone from your list.\n\nQuestions: 03 9000 0000.");
-    expect(m.html).toBe(readFileSync("docs/templates/installer/I70-job-cancelled.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/installer/I70-job-cancelled.html"));
     expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain("HIV: HV-3117 at the property has been cancelled.");
     expect(renderInstallerCancelledEmail({ jobNumber: "HV-3117", place: null, officePhone: null }).html).toContain(">Questions: reply to this email.</p>");
     expect(CANCEL_NOTICE_EMAILS_APPROVED).toBe(true);
@@ -327,7 +329,7 @@ describe("approved installer email designs", () => {
     expect(m.subject).toBe("Re: Ceiling insulation quote");
     has(m.html, [">Hi Sam,</p>", "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "If you have any questions, just reply to this email.", ">— Home Insulation Victoria</p>"]);
     expect(m.html).not.toMatch(/\$\d/);
-    expect(m.html).toBe(readFileSync("docs/templates/owner/O70-new-sender-calculator.html", "utf8"));
+    expect(m.html).toBe(design("docs/templates/owner/O70-new-sender-calculator.html"));
     expect(NEW_SENDER_REPLY_APPROVED).toBe(true);
   });
 });
