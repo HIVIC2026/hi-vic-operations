@@ -181,21 +181,20 @@ describe("owner page and wording", () => {
     ]);
     expect(spotReleasePageLink("https://x/my-job/t")).toBe("https://x/my-job/t?screen=turn");
   });
-  test("O77 (MJML refresh 27 Oct): the Confirm line, then the Confirm button, then What happens next; reminder variant", () => {
+  test("O77: Jo's line, then What happens next, then the Confirm button; reminder variant", () => {
     const m = renderSpotReleasedEmail({ firstName: "Helen Sample", confirmUrl: "https://x/my-job/t?screen=turn", unsubscribeUrl: "https://x/u", reminder: false });
     expect(m.subject).toBe(SPOT_RELEASED_SUBJECT);
-    const iLine = m.html.indexOf("Press Confirm to tell us you'd still like your free Ready Check.");
-    const iNext = m.html.indexOf(">What happens next<"), iBtn = m.html.indexOf(">Confirm<");
+    const iLine = m.html.indexOf("It&#39;s your turn! Press here") >= 0 ? m.html.indexOf("It&#39;s your turn! Press here") : m.html.indexOf("It's your turn! Press here");
+    const iNext = m.html.indexOf("What happens next:"), iBtn = m.html.indexOf(">Confirm<");
     expect(iLine).toBeGreaterThan(0);
-    expect(iBtn).toBeGreaterThan(iLine);
-    expect(iNext).toBeGreaterThan(iBtn);
-    expect(m.html).toContain(`href="https://x/my-job/t?screen=turn"`);
+    expect(iNext).toBeGreaterThan(iLine);
+    expect(iBtn).toBeGreaterThan(iNext);
     for (const s of WHAT_HAPPENS_NEXT.steps) expect(m.text).toContain(s);
     expect(m.text).toContain(`${CONFIRM_BUTTON}: https://x/my-job/t?screen=turn`);
-    expect(m.html).toContain("Hi Helen, it's your turn!");
+    expect(m.html).toContain("Hi Helen,");
     const r = renderSpotReleasedEmail({ firstName: null, confirmUrl: "u", unsubscribeUrl: null, reminder: true });
     expect(r.subject).toMatch(/^Just checking — it's your turn/);
-    expect(r.text).toContain("Hi, just checking — it's your turn!");
+    expect(r.text).toContain("Just checking — it's your turn!");
   });
   test("SMS type: owner, quiet hours, window freshness, approved", () => {
     expect(SMS_MESSAGE_TYPES.spot_released).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });

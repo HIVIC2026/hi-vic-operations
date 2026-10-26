@@ -10,8 +10,8 @@ describe("application send back / decline emails (DRAFT)", () => {
   test("send-back email carries the office message and the update button", () => {
     const m = changesEmail({ contactName: "Deep Singh", message: "Please check your batts removal rate.", link: "https://estimate.homeinsulationvictoria.com.au/installer-onboarding?resume=abc" });
     expect(m.subject).toBe("Your Home Insulation Victoria application – a quick change needed");
-    expect(m.text).toContain("Hi Deep, thanks for applying.");
-    expect(m.text).toContain("Before we can approve your application, please check this:\n\nPlease check your batts removal rate.");
+    expect(m.text).toContain("Hi Deep, thanks for applying to work with Home Insulation Victoria.");
+    expect(m.text).toContain("we need you to check the following: Please check your batts removal rate.");
     expect(m.text).toContain("Update my application: https://estimate.homeinsulationvictoria.com.au/installer-onboarding?resume=abc");
   });
   test("decline email: reason included when given, cleanly left out when blank", () => {

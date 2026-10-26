@@ -494,11 +494,11 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   });
   await step(steps, "C11", "C11 Add one job: price exact, site check, attached to installer, nothing sent", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
-    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 ${tag} One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
     c("draft created", !!imp.id);
     const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measurement_method: "Tape measure on site", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: `9 ${tag} One Job Rd`, suburb: "Fraser Rise", postcode: "3336", measurement_method: "Tape measure on site", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measurement_method: "Tape measure on site", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));
@@ -517,7 +517,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const path = `partners/${BIZ}/imports/${crypto.randomUUID()}-ceiling-1.jpg`;
     const up = await admin.storage.from("job-files").upload(path, readFileSync(`${fixtures}/ceiling-1.jpg`), { contentType: "image/jpeg" });
     c("photo uploaded privately", !up.error, up.error?.message);
-    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Photo, 14 ${tag} Photo St, Fraser Rise VIC 3336, 0412 999 014, qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, csvRow: 0, files: [] });
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Photo, 14 Photo St, Fraser Rise VIC 3336, 0412 999 014, qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, csvRow: 0, files: [] });
     const added = await pi.addImportFilesFor(ownerId, imp.id, [{ path, name: "ceiling-1.jpg", type: "image/jpeg" }]);
     c("photo attached to the draft", added.files.length === 1);
     const { visitedFromEvidence } = await import("../src/lib/job-electrician.core");
@@ -530,7 +530,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const inv = await (await import("../src/lib/job-electrician-invite.server")).sendElectricianInvite({ actorId: ownerId, nominationId: nom!.id, installerBusinessId: BIZ, inviteToken: "testtoken_".padEnd(40, "x"), to: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, name: `TEST ${tag} Sparky`, dryRun: true });
     c("invite for a TEST business goes only to Jo's test inbox", inv.to === "jolowexo@hotmail.com", inv.to);
     c("invite links to the electrician application", "message" in inv && String(inv.message).includes("/electrician-onboarding?invite="));
-    const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: `14 ${tag} Photo St`, suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
+    const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: "14 Photo St", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
     const noConsent = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: false }, electrician: { mode: "mine", nomination_id: nom!.id } }).then(() => "accepted", (e) => (e as Error).message);
     c("job can't be added without the owner consent tick", noConsent !== "accepted" && /permission to contact/.test(noConsent), noConsent);
     const noPick = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true }, electrician: { mode: "mine" } }).then(() => "accepted", (e) => (e as Error).message);

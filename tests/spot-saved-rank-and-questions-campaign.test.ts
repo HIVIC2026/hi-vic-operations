@@ -26,7 +26,7 @@ test('email shows price, removal up-to line and the one questions button',()=>{
  expect(m.html).toContain('$1,800');
  expect(m.html).toContain('$2,349');
  expect(m.html).not.toContain('Save my spot →');
- expect(m.subject).toBe('Sam, you may qualify for $1,200 off ceiling insulation'); // MJML refresh: subject matches the heading
+ expect(m.subject).toBe('Sam, you could save $1,200 on ceiling insulation');
  // Decision 392: a "don't know" owner is never told "You told us there's some insulation".
  expect(m.html).toContain("You weren't sure if there's insulation in your ceiling.");
  expect(m.html).not.toContain("You told us there's some insulation");

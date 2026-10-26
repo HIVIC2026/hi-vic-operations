@@ -21,7 +21,7 @@ test("day and time, installer with phone, what to do, link", () => {
   expect(m.html).toContain(">Tuesday 27 October<");
   expect(m.html).toContain(">Arriving 7:30am<");
   expect(m.html).toContain("Your power will be off");
-  expect(m.html).toContain("Use Change day on your job page");
+  expect(m.html).toContain("<strong>Change day</strong>");
 });
 
 test("removal jobs warn about dust", () => {

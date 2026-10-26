@@ -3,7 +3,7 @@
 // 1. Denied: TEST installer / REC / owner call deleteJob, restoreJob, setEligibility directly -> refused, DB unchanged.
 // 2. Count/list parity on the deployed office reads with includeTest=true (getPipeline + listByStatus):
 //    job counted + listed before, absent while deleted, back after restore; every phase pipeline count == list total.
-// 3. Browser (office, 1280 + 390): More ▾ → Delete (test jobs only) → Settings › Deleted → Restore ›; Enquiry → Eligibility → Change result persists.
+// 3. Browser (office, 1280 + 390): Delete job -> Deleted jobs page -> Restore -> reload; eligibility changes persist.
 // 4. DB readback: audit events with office actor + reason; owner answers unchanged; 3 protected real jobs untouched.
 // Safety: snapshot is written to disk BEFORE any change; restore runs in finally, on SIGINT/SIGTERM and on the
 // internal deadline; a leftover snapshot is only recovered when the job still carries this harness's "QA " marks.
@@ -192,26 +192,13 @@ try {
   else {
     const storageKey = `sb-${new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
     const manifest = `${OUT}/.manifest.json`;
-    // The job page's More ▾ Delete is permanent, so the browser never confirms it on the fixture: soft-delete through the
-    // deployed deleteJob endpoint before EACH viewport, then the browser checks the banner, Settings › Deleted and restores
-    // through the UI.
-    const br: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];
-    let log = "";
-    for (const width of [1280, 390]) {
-      if (left() < 90_000) { add({ area: "office writes", route_or_action: `browser journey (${width})`, persona: "office", status: "not_run", detail: "budget too low", steps: "" }); continue; }
-      const cur = await readJob("id", job.id);
-      const d2 = cur.deleted_at ? null : await callFn(fnId(OFFICE_FN, "deleteJob"), tok, { jobId: job.id, reason: "QA browser journey: soft delete before UI restore" });
-      const softDeleted = !!(await readJob("id", job.id)).deleted_at && (d2 === null || isOkWrite(d2));
-      writeFileSync(manifest, JSON.stringify({ base: BASE, outDir: OUT, storageKey, session: sessions["office"], jobId: job.id, jobNumber: JOB, softDeleted }));
-      rmSync(`${OUT}/.browser.json`, { force: true });
-      const py = spawnSync("python3", ["e2e/office-writes.py", manifest, String(width)], { encoding: "utf8", timeout: Math.max(60_000, left() - 30_000) });
-      writeFileSync(manifest, "{}");
-      log += `${py.stdout}\n${py.stderr}\n`;
-      const part: typeof br = existsSync(`${OUT}/.browser.json`) ? JSON.parse(readFileSync(`${OUT}/.browser.json`, "utf8")) : [];
-      if (!part.length) add({ area: "office writes", route_or_action: `browser journey (${width})`, persona: "office", status: "failed", detail: `${py.error ? `timeout/error: ${py.error.message}` : `exit ${py.status}`}: ${(py.stderr || "no results").slice(-300)}`, steps: "python3 e2e/office-writes.py" });
-      br.push(...part);
-    }
-    writeFileSync(`${OUT}/browser.log`, log);
+    writeFileSync(manifest, JSON.stringify({ base: BASE, outDir: OUT, storageKey, session: sessions["office"], jobId: job.id, jobNumber: JOB }));
+    rmSync(`${OUT}/.browser.json`, { force: true });
+    const py = spawnSync("python3", ["e2e/office-writes.py", manifest], { encoding: "utf8", timeout: Math.max(60_000, left() - 30_000) });
+    writeFileSync(manifest, "{}");
+    writeFileSync(`${OUT}/browser.log`, `${py.stdout}\n${py.stderr}`);
+    const br: { step: string; ok: boolean; detail: string; shots: string[] }[] = existsSync(`${OUT}/.browser.json`) ? JSON.parse(readFileSync(`${OUT}/.browser.json`, "utf8")) : [];
+    if (!br.length) add({ area: "office writes", route_or_action: "browser journey", persona: "office", status: "failed", detail: `${py.error ? `timeout/error: ${py.error.message}` : `exit ${py.status}`}: ${(py.stderr || "no results").slice(-300)}`, steps: "python3 e2e/office-writes.py" });
     for (const b of br) add({ area: "office writes", route_or_action: b.step, persona: "office", status: b.ok ? "passed" : "failed", detail: b.detail, steps: `TEST office on ${BASE}`, screenshots: b.shots });
   }
 

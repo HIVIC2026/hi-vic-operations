@@ -16,7 +16,6 @@ export const AP_NUMBER = "A003654";
 export const ENTITY_LINE = "DC Construction Solutions Pty Ltd";
 export const ABN_LINE = "ABN 44 671 613 979";
 export const FOOTER_TEXT = `Home Insulation Victoria · VEU Accredited Person ${AP_NUMBER} · ${ENTITY_LINE} · ${ABN_LINE}`;
-/** Embedded logo (kept for screens that preview it). Emails use the hosted logo: Gmail and Outlook block `data:` images. */
 export const LOGO_DATA_URI = `data:image/png;base64,${LOGO_PNG}`;
 
 /** A file sent with an email (Resend `attachments`): base64 content, a filename the owner will see, and its media type. */
@@ -54,7 +53,7 @@ export function emailShell(i: ShellInput): string {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:${KIT.NAVY};">
 ${i.previewText ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(i.previewText)}</div>\n` : ""}${TABLE}><tr><td align="center" style="padding:20px 10px;">
 ${TABLE} style="max-width:540px;background:${KIT.CARD};border:1px solid ${KIT.LINE};border-radius:22px;"><tr><td style="padding:26px 22px;">
-<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria" style="display:block;">
+<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria" style="display:block;">
 ${i.testLabel ? `<div style="display:inline-block;margin-top:10px;background:#FDF2F6;color:${KIT.NAVY};font-size:11px;font-weight:bold;padding:3px 8px;border-radius:999px;">TEST — only sent to Jo</div>\n` : ""}${i.body}
 <p style="font-size:11px;line-height:1.5;margin:22px 0 0;color:${KIT.SUB};">${esc(FOOTER_TEXT)}${unsub}</p>
 </td></tr></table></td></tr></table></body></html>`;

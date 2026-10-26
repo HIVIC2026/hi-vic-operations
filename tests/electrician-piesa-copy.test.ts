@@ -47,11 +47,10 @@ describe("wording (decision 317, verbatim)", () => {
   test("first official PIESA", () => {
     const m = renderElectricianPiesaEmail({ address: "12 Smith St, Preston", jobNumber: "HV-2001", version: "initial" });
     expect(m.subject).toBe("Your safety check for 12 Smith St, Preston (HV-2001)");
-    expect(m.text).toContain("Here's the official Pre Insulation Electrical Safety Assessment (PIESA) for 12 Smith St, Preston, as filed for this job.\n\nKeep it with your records.");
-    expect(m.html).toContain(">Your safety check for <span style=\"white-space:nowrap;\">HV-2001</span><");
+    expect(m.text).toContain("Here's the official Pre-Insulation Electrical Safety Assessment for 12 Smith St, Preston, as filed for this job. Keep it with your records.");
     expect(m.text).not.toContain("This version includes");
     expect(m.html).toContain("Home Insulation Victoria");
-    expect(m.html).not.toMatch(/<a [^>]*href="http/); // no links in the body (the shared head's font links aside)
+    expect(m.html).not.toMatch(/href="http/);
     expect(m.html).not.toMatch(/\$\d/);
   });
   test("post-fixes version adds the fixes sentence", () => {

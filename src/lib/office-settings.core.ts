@@ -15,19 +15,21 @@ export type SwitchDef =
   | { key: string; label: string; what: string; why: string; kind: "code"; value: boolean; where: string };
 
 /** The ONLY workflow_settings columns the Settings page may write. Anything else is refused server-side. */
-export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled"] as const;
+export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled", "ai_email_auto_send_enabled"] as const;
 export type OfficeSwitchColumn = (typeof OFFICE_SWITCH_COLUMNS)[number];
 /** Columns that need a pending migration before they exist (fail closed: shown "waiting for the database change"). */
 export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>> = {
   auto_installer_offers: "docs/pending-migrations/auto-offer-switches.sql",
   auto_electrician_offers: "docs/pending-migrations/auto-offer-switches.sql",
   esc_registry_robot_enabled: "docs/pending-migrations/esc-registry-robot-switch.sql",
+  ai_email_auto_send_enabled: "docs/pending-migrations/ai-email-auto-send-switch.sql",
 };
 
 export const SWITCHES: SwitchDef[] = [
   { key: "auto_quote_send", label: "Auto quote send", what: "Ready Check quotes go to the owner when the Mitti form is Complete and every check passes", why: "Jo 24 Oct (A1/A2 auto quote); AUTO_QUOTE_SEND_ENABLED", kind: "code", value: AUTO_QUOTE_SEND_ENABLED, where: "auto-quote-send.core.ts AUTO_QUOTE_SEND_ENABLED" },
   { key: "auto_installer_offers", label: "Automatic installer offers", what: "Offer goes to one installer covering the postcode (fewest active jobs, then nearest); 24h each; after 2 misses → Needs me", why: "decision 246", kind: "column", column: "auto_installer_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_installer_offers },
   { key: "auto_electrician_offers", label: "Automatic electrician offers", what: "Nearest approved electrician covering the postcode (our leads); installer's own customers use the electrician chosen at Add a job; same 24h rule", why: "decisions 246/374", kind: "column", column: "auto_electrician_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_electrician_offers },
+  { key: "ai_email_auto_send", label: "AI email replies · send automatically", what: "Simple AI replies (job status, thanks, resend a link or form, booking questions) go to the owner by themselves. Everything else stays a draft on the job for Jo. Never after 8pm; never the same email twice; also needs Customer emails and texts on", why: "Jo 26 Oct: turned on by Jo after she approves sample replies", kind: "column", column: "ai_email_auto_send_enabled", pendingMigration: PENDING_SWITCH_COLUMNS.ai_email_auto_send_enabled },
   { key: "customer_comms", label: "Customer emails and texts", what: "The master switch for every owner email and text (each text type also needs its own switch below)", why: "decisions 159, 154", kind: "column", column: "customer_comms_enabled" },
   { key: "spot_saved", label: "Spot saved confirmation · text", what: "Text when a spot is saved", why: "decision 159; spot-saved-send rule", kind: "sms", smsType: "spot_saved" },
   { key: "spot_saved_email", label: "Spot saved confirmation · email", what: "Email when a spot is saved", why: "decision 159; spot-saved-send rule", kind: "sms", smsType: "spot_saved_email" },

@@ -4,7 +4,6 @@
 // Sending: electrician-piesa-copy.server.ts. PDF bytes: official-piesa-pdf.server.ts (shared with the /field download).
 // The owner/installer O28 copy (piesa-delivery.*) is a separate path and is not changed by this.
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
 import { OFFICIAL_TEMPLATES, type SignedSnapshot, type Value } from "./official-forms.core";
 
 /** Approved by Jo 25 Oct 2026 (decision 317). Real sends still pause with the partner-email master switch. */
@@ -59,17 +58,15 @@ export function electricianPiesaPlan(f: ElectricianPiesaFacts): ElectricianPiesa
 
 export type ElectricianPiesaEmailInput = { address: string | null; jobNumber: string; version: ElectricianPiesaVersion; test?: boolean };
 
-/** Decision 317 wording (MJML refresh, Jo 26 Oct 2026: docs/templates/mjml/electrician_piesa-copy.mjml — a heading and the
- *  standard PIESA name). The PDF is attached; no links, prices or other parties' details. */
+/** Decision 317 wording, verbatim. The PDF is attached; no links, prices or other parties' details. */
 export function renderElectricianPiesaEmail(i: ElectricianPiesaEmailInput) {
   const where = i.address?.trim() || "the property";
   const subject = `Your safety check for ${where} (${i.jobNumber})`;
-  const lead = `Here's the official Pre Insulation Electrical Safety Assessment (PIESA) for ${where}, as filed for this job.`;
-  const keep = "Keep it with your records.";
+  const lead = `Here's the official Pre-Insulation Electrical Safety Assessment for ${where}, as filed for this job. Keep it with your records.`;
   const fixes = i.version === "after_fixes" ? "This version includes your electrical fixes and Certificate of Electrical Safety." : null;
-  const body = `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">Your safety check for <span style="white-space:nowrap;">${esc(i.jobNumber)}</span></mj-text><mj-text>${esc(lead)}</mj-text>${fixes ? `<mj-text>${esc(fixes)}</mj-text>` : ""}<mj-text>${esc(keep)}</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject, preview: "The official PIESA as filed for this job. Keep it with your records.", body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([`Your safety check for ${i.jobNumber}`, "", lead, ...(fixes ? ["", fixes] : []), "", keep], { testLabel: i.test === true });
+  const body = [K.p(lead, "20px 0 16px"), ...(fixes ? [K.p(fixes)] : [])].join("\n");
+  const html = K.emailShell({ body, previewText: lead, testLabel: i.test === true, unsubscribe: null });
+  const text = K.plainText([lead, ...(fixes ? ["", fixes] : [])], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

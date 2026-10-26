@@ -29,16 +29,12 @@ beforeEach(()=>{
   Object.assign(data.customer_estimate_links as Record<string, unknown>, {status:"active",expires_at:new Date(Date.now()+86_400_000).toISOString()});
   Object.assign(data.jobs as Record<string, unknown>, {estimated_area_m2:150,estimated_area_unknown:false});
 });
-// P1-S77 + decision 67 (Jo 24 Oct): the reviewed below-R2 follow-up renders the approved "some insulation" Save my spot
-// (docs/templates/owner/O2-save-my-spot-some-insulation.html) — "you may qualify for $X off" heading and the
-// "Your existing insulation" card with the $15/m² removal line. No separate follow-up copy.
-test("office below-R2 preview renders the approved some-insulation Save my spot despite original media",async()=>{
+// P1-S77: the existing-insulation follow-up IS Jo's Template 3/4 (below R2, reviewed) — no separate follow-up copy.
+test("office below-R2 preview renders Jo's T3/T4 despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
   expect(r.preview?.subject).toBe("TEST, your insulation looks eligible—save your spot");
-  expect(r.preview?.plainText).toContain("TEST, you may qualify for $3,198 off ceiling insulation");
-  expect(r.preview?.plainText).toContain("YOUR EXISTING INSULATION\nGood news: it may be able to stay.");
-  expect(r.preview?.plainText).toContain("+ If some needs removing: $15/m², only the areas that need it. Up to $2,250 for your 150 m² ceiling.");
-  expect(r.preview?.html).toContain("Save my free spot");
+  expect(r.preview?.plainText).toContain("Please budget $15 per m² including GST for the areas that need removal only.");
+  expect(r.preview?.html).toContain("Save my spot →");
   expect(r.preview?.html).not.toContain(REMOVAL_BUDGET_EMAIL_NOTE);
   expect(originalMediaReads).toBe(0);expect(writes).toBe(0);
 });

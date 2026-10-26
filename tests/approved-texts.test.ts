@@ -119,12 +119,11 @@ describe("trade messages", () => {
   test("E1 electrician offer email: approved wording, own rate only, no owner details", () => {
     const m = renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 200, areaM2: 120, ownerTimesOpen: true, offerUrl: "https://x/o" })!;
     expect(m.subject).toBe("New job in Glen Waverley — $200");
-    expect(m.text).toContain("Pre Insulation Electrical Safety Assessment (PIESA). About 120 m² of ceiling.\nThe owner has offered three times.");
-    expect(m.text).toContain("Your rate: $200\n\nThe first trade to accept gets the job.");
-    expect(m.html).toContain(">$200<");
+    expect(m.text).toContain("Pre Insulation Electrical Safety Assessment (PIESA) — your rate $200.");
+    expect(m.text).toContain("About 120 m² of ceiling. The owner has offered three times. The first trade to accept gets the job.");
     expect(m.text).toContain("See the job: https://x/o");
     expect(m.text).not.toContain("TEST");
-    expect(renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 200, areaM2: null, ownerTimesOpen: false, offerUrl: "https://x/o" })!.text).toContain("Pre Insulation Electrical Safety Assessment (PIESA).\n\nYour rate: $200\n\nThe first trade to accept gets the job.");
+    expect(renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 200, areaM2: null, ownerTimesOpen: false, offerUrl: "https://x/o" })!.text).toContain("your rate $200.\nThe first trade to accept gets the job.");
     expect(renderElectricianOfferEmail({ suburb: null, rate: 200, areaM2: 120, ownerTimesOpen: true, offerUrl: "https://x/o" })).toBeNull();
   });
   test("I24: the stored decline reason splits back into label + the owner's words", () => {

@@ -19,7 +19,6 @@
 // Wording is a DRAFT (O76a–O76j in docs/templates/drafts/) behind OWNER_EMAIL_AUTO_REPLY_APPROVED = false: real owners
 // get nothing automatic until Jo approves it (their email gets the draft + Needs me row instead); TEST jobs → test-send.
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
 import { classifyEmailIntents, type EmailIntent } from "./email-intent.core";
 import { classifyIntent, latestReplyText } from "./outlook-correspondence.core";
 import { firstNameOf, isEnquiryStage, slotText, type Slot } from "./email-reply.core";
@@ -36,8 +35,8 @@ export const EMAIL_AUTO_REPLY_FILED_EVENT = "email_auto_reply_filed";
 export const OWNER_EMAIL_AUTO_REPLY_PURPOSE = "owner_email_auto_reply";
 /** The Needs me row reuses the decision-245 email row (`email_change_request`) with this intent: "reply needed". */
 export const REPLY_NEEDED_INTENT = "reply";
-export const SIGN_OFF = "Cheers, the Home Insulation Victoria team";
-export const LONG_LIST = "Thousands of Victorians have registered. Spots are released in the order they were saved.";
+export const SIGN_OFF = "The Home Insulation Victoria team";
+export const LONG_LIST = "Thousands of Victorians have registered, and spots are released in the order they were saved.";
 
 /** Idempotency: one automatic reply per Outlook message, ever. */
 export function autoReplyKey(providerMessageId: string): string {
@@ -269,7 +268,7 @@ export function autoReplyMode(i: { testJob: boolean; approved: boolean; commsEna
   return { mode: "live" };
 }
 
-// ---------------------------------------------------------------- wording (DRAFT, O76a–O76j; design docs/templates/mjml/waiting_O76*.mjml)
+// ---------------------------------------------------------------- wording (DRAFT, O76a–O76j)
 
 /** The quote screen of the owner's own My job link. */
 export function quoteScreenLink(myJobLink: string): string {
@@ -278,49 +277,60 @@ export function quoteScreenLink(myJobLink: string): string {
 
 export type AnswerParagraphs = { greeting: string; lines: string[]; linkLine: string; signOff: string };
 
-/** The approved MJML design per answer (docs/templates/mjml/waiting_O76a–j.mjml): heading, body lines, one button. */
-type AnswerDesign = { heading: string; body: string[]; bold: string | null; button: string; href: string; preview: string | null };
-
-function answerDesign(answer: AnswerType, f: AnswerFacts): AnswerDesign {
+export function answerParagraphs(answer: AnswerType, f: AnswerFacts): AnswerParagraphs {
+  const greeting = `Hi ${f.firstName ?? "there"},`;
   const v = f.visit ?? null;
-  const when = v ? slotText(v.slot) : null;
   // Decision 388: before release, never an installer, times or a Ready Check — only that we'll be in touch.
-  const waitingNext = `${LONG_LIST} We'll be in touch when yours is released.`;
-  const pickTimes = "Your installer has offered some times. Just pick the one that suits you.";
-  const d = (heading: string, body: string[], button: string, preview: string | null, href = f.link, bold: string | null = null): AnswerDesign => ({ heading, body, bold, button, href, preview });
+  const waitingNext = "We'll be in touch when your spot is released.";
+  let lines: string[];
+  let linkLine: string;
   switch (answer) {
     case "save_spot":
-      return d("It only takes a few seconds", ["Answer three quick questions about your ceiling (just tap, no typing), then press Save my spot.", `${LONG_LIST} No payment, no obligation.`], "Answer & save my spot", "Three quick taps, then one button. No payment needed.");
+      lines = ["Saving your spot takes a few seconds: answer three quick questions about your ceiling (just tap, no typing) and press Save my spot.", `${LONG_LIST} No payment, no obligation.`];
+      linkLine = `Save your spot here: ${f.link}`;
+      break;
     case "answers_save_spot":
-      return d("One more tap to save your spot", ["Thanks, we've got your answers. Now just press Save my spot.", `${LONG_LIST} No payment, no obligation.`], "Save my spot", "Thanks for answering. Your spot isn't saved until you press the button.");
+      lines = ["Thanks, we've got your answers. There's one more tap: press Save my spot.", `${LONG_LIST} No payment, no obligation.`];
+      linkLine = `Save your spot here: ${f.link}`;
+      break;
     case "spot_saved":
-      return d("Yes, your spot is saved", ["There's nothing more you need to do right now.", waitingNext], "See where you're up to", "There's nothing more you need to do right now.");
+      lines = ["Yes, your spot is saved, so there's nothing more you need to do right now.", `${LONG_LIST} ${waitingNext}`];
+      linkLine = `You can see where you're up to here: ${f.link}`;
+      break;
     case "answers_received":
-      return d("Thanks, your spot is saved", ["We've got your answers.", waitingNext], "See where you're up to", "We've got your answers and there's nothing more to do right now.");
+      lines = ["Thanks, we've got your answers and your spot is saved.", `${LONG_LIST} ${waitingNext}`];
+      linkLine = `You can see where you're up to here: ${f.link}`;
+      break;
     case "visit_booked":
-      return v && when
-        ? d(`Your ${VISIT_WORDS[v.kind]} is booked`, [`It's on ${when}.`], "See the details", `It's on ${when}.`, f.link, when)
-        : d("Your visit is booked", [], "See the details", null);
+      lines = [v ? `Your ${VISIT_WORDS[v.kind]} is booked for ${slotText(v.slot)}.` : "Your visit is booked."];
+      linkLine = `You can see the details here: ${f.link}`;
+      break;
     case "pick_times":
-      return d("Pick a time for your free Ready Check", [pickTimes], "Pick your time", "Your installer has offered some times. Pick the one that suits you.");
+      lines = ["Your installer has offered times for your free Ready Check, so just pick the one that suits you."];
+      linkLine = `Pick your time here: ${f.link}`;
+      break;
     case "quote_ready":
-      return d("Your quote is ready", ["You can read it and accept it on your page."], "See your quote", "You can read it and accept it on your page.", quoteScreenLink(f.link));
+      lines = ["Your quote is ready, and you can read it and accept it on your page."];
+      linkLine = `See your quote here: ${quoteScreenLink(f.link)}`;
+      break;
     case "quote_preparing":
-      return d("Your quote is being prepared", ["Your Ready Check is done. We'll email you as soon as your quote is ready."], "See where you're up to", "Your Ready Check is done. We'll email you when your quote is ready.");
+      lines = ["Your Ready Check is done and your quote is being prepared.", "We'll email you as soon as it's ready."];
+      linkLine = `You can see where you're up to here: ${f.link}`;
+      break;
     case "quote_after_ready_check":
-      // Only after release (times offered or a Ready Check booked); waiting owners get the spot-saved answer.
-      return when
-        ? d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", `Your Ready Check is booked for ${when}.`], "See where you're up to", `Your Ready Check is booked for ${when}.`, f.link, when)
-        : d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", pickTimes], "See where you're up to", "Your installer has offered some times. Pick the one that suits you.");
+      lines = [
+        "Your quote comes after your free Ready Check, once the installer has measured your ceiling.",
+        // Only after release (times offered or a Ready Check booked); waiting owners get the spot-saved answer.
+        v ? `Your Ready Check is booked for ${slotText(v.slot)}.` : "Your installer has offered times for your free Ready Check, so just pick the one that suits you.",
+      ];
+      linkLine = `You can see where you're up to here: ${f.link}`;
+      break;
     case "how_to_pay":
-      return d("How to pay", ["Everything you need is on your page, including the amount and the ways to pay."], "See what's due and how to pay", "The amount and the ways to pay are on your page.");
+      lines = ["Everything you need to pay, including the amount and the ways to pay, is on your page."];
+      linkLine = `See what's due and how to pay here: ${f.link}`;
+      break;
   }
-}
-
-/** Plain-text parts in the order of the email: greeting, heading + lines, the button's link, the team sign-off. */
-export function answerParagraphs(answer: AnswerType, f: AnswerFacts): AnswerParagraphs {
-  const d = answerDesign(answer, f);
-  return { greeting: `Hi ${f.firstName ?? "there"},`, lines: [d.heading, ...d.body], linkLine: `${d.button}: ${d.href}`, signOff: SIGN_OFF };
+  return { greeting, lines, linkLine, signOff: SIGN_OFF };
 }
 
 /** The reply as one plain-text body (also what the tests and the Templates page read). */
@@ -331,15 +341,20 @@ export function answerText(answer: AnswerType, f: AnswerFacts): string {
 
 export type OwnerAutoReplyEmail = { subject: string; html: string; text: string };
 
-/** One short quick-reply email per answer (approved MJML design): greeting, heading, 1–2 lines, one button, sign-off. Subject "Re: {theirs}". */
+/** One short kit email per answer: greeting, 1–2 lines, the one link inline, the team sign-off. Subject "Re: {theirs}". */
 export function renderOwnerAutoReplyEmail(i: { answer: AnswerType; facts: AnswerFacts; theirSubject: string | null; unsubscribe?: string | null; test?: boolean }): OwnerAutoReplyEmail {
-  const d = answerDesign(i.answer, i.facts);
-  const subject = newSenderReplySubject(i.theirSubject);
-  const line = (l: string) => (d.bold && l.includes(d.bold) ? l.split(d.bold).map(esc).join(`<strong>${esc(d.bold)}</strong>`) : esc(l));
-  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(`Hi ${i.facts.firstName ?? "there"},`)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(d.heading)}</mj-text>${d.body.map((l) => `<mj-text>${line(l)}</mj-text>`).join("")}<mj-button href="${esc(d.href)}">${esc(d.button)}</mj-button><mj-text padding="0 12px 6px">Cheers,<br />the Home Insulation Victoria team</mj-text></mj-column></mj-section>`;
+  const p = answerParagraphs(i.answer, i.facts);
+  const href = p.linkLine.slice(p.linkLine.lastIndexOf(" ") + 1);
+  const label = p.linkLine.slice(0, p.linkLine.length - href.length);
+  const body = [
+    K.greeting(p.greeting),
+    ...p.lines.map((l) => K.p(l)),
+    K.p(`${K.esc(label)}${K.link(href, href)}`, "0 0 16px", true),
+    K.p(p.signOff, "0"),
+  ].join("\n");
   return {
-    subject,
-    html: mjEmail({ subject, preview: d.preview, body, unsubscribe: i.unsubscribe ?? null, testLabel: i.test === true }),
+    subject: newSenderReplySubject(i.theirSubject),
+    html: K.emailShell({ body, previewText: null, testLabel: i.test === true, unsubscribe: i.unsubscribe ?? null }),
     text: K.plainText([answerText(i.answer, i.facts)], { testLabel: i.test === true, unsubscribe: i.unsubscribe ?? null }),
   };
 }

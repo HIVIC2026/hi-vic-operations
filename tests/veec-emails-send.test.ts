@@ -141,7 +141,7 @@ describe("reminders (days 1/3/7): O61 + the approved reminder text", () => {
     expect(guarded.map((g) => [g.purpose, g.key, g.to])).toEqual([["veec_sign_reminder_1", `veec-sign:v1:${J}:reminder_1`, "helen@example.com"]]);
     const mail = guarded[0]!.mail;
     expect(mail.subject).toBe("Helen, your rebate form still needs your signature");
-    for (const s of ["We can't claim your $1,850 Victorian Energy Upgrades rebate", `href="${LINK}"`, "Sign your rebate form</a>", 'href="https://estimate.homeinsulationvictoria.com.au/u/x" style="color:#5A6785">Unsubscribe</a>']) expect(mail.html).toContain(s);
+    for (const s of ["We can't claim your <strong>$1,850</strong> Victorian Energy Upgrades rebate", `href="${LINK}"`, ">Sign your rebate form</a>", 'href="https://estimate.homeinsulationvictoria.com.au/u/x" style="color:#3C51C4;">Unsubscribe</a>']) expect(mail.html).toContain(s);
     expect(mail.html).not.toContain("All done");
     expect(sms).toEqual([{ type: "veec_sign_reminder", idempotencyKey: `veec-sign:v1:${J}:reminder_1`, to: "0400111222", body: expect.stringContaining("still needs your signature"), jobId: J }]);
     expect(await sendVeecSignStep(J, "reminder_1")).toBe("already handled");
@@ -179,7 +179,7 @@ describe("signed copy (O62) with the executed PDF attached", () => {
     expect(guarded.map((g) => [g.purpose, g.key, g.to])).toEqual([["veec_assignment_copy", `veec-copy:v1:${ASG}`, "helen@example.com"]]);
     const mail = guarded[0]!.mail;
     expect(mail.subject).toBe("Here's your signed rebate form, Helen");
-    for (const s of ["Your copy of the rebate form for HV-3117 is attached and also on your job page", "<strong>Signed on 21 November 2026</strong>", `href="${LINK}"`, "See my job</a>", "veu@esc.vic.gov.au"]) expect(mail.html).toContain(s);
+    for (const s of ["for <strong>HV-3117</strong> is attached and also on your job page", "Signed on 21 November 2026.", `href="${LINK}"`, ">See my job</a>", "veu@esc.vic.gov.au"]) expect(mail.html).toContain(s);
     expect(mail.attachments).toEqual([{ filename: "VEEC-assignment-form-HV-3117.pdf", content: b64, contentType: "application/pdf" }]);
     const a = tables["customer_assignments"]![0]!;
     expect(typeof a["copy_sent_at"]).toBe("string");

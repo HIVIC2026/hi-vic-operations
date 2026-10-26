@@ -36,8 +36,7 @@ describe("ESC collection notice text (v1.0, 1 Oct 2026)", () => {
     expect(COLLECTION_NOTICE_SEND_APPROVED).toBe(true);
     const m = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });
     expect(m.subject).toBe("Your copy of the ESC privacy collection notice");
-    const flat = (bs: typeof m.blocks): string[] => bs.flatMap((b) => (b.kind === "p" ? [b.text] : b.kind === "list" ? b.items : b.kind === "card" ? flat(b.blocks) : []));
-    expect(flat(m.blocks).join("\n")).toContain(COLLECTION_NOTICE_PARAGRAPHS[2]!.text);
+    expect(m.blocks.flatMap((b) => (b.kind === "p" ? [b.text] : b.kind === "list" ? b.items : [])).join("\n")).toContain(COLLECTION_NOTICE_PARAGRAPHS[2]!.text);
     const l = noticeLinkEmail({ firstName: "Sam", businessName: "Biz", url: "https://x/notice/t", reminder: true });
     expect(l.subject).toContain("Reminder");
     expect(l.blocks.some((b) => b.kind === "button" && b.url === "https://x/notice/t")).toBe(true);

@@ -7,7 +7,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
-  AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
+  AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiAutoSendAllowed,
   aiDraftKey, aiReplyHtmlBody, aiReplyProblems, aiReplyText, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
@@ -28,7 +28,7 @@ async function aiText(input: string): Promise<string> {
   return (await result.text).trim();
 }
 
-export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string }): Promise<"drafted" | "already" | "skipped"> {
+export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string }): Promise<"drafted" | "sent" | "already" | "skipped"> {
   if (!AI_EMAIL_DRAFTS_ENABLED || p.message.direction !== "inbound") return "skipped";
   const m = p.message;
   try {
@@ -62,16 +62,27 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       email: { from: m.from, subject: m.subject, body: m.body },
     });
     const body = finishAiReply(await aiText(input));
-    const { error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
+    const { data: inserted, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
       summary: `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
-        body, kind: p.kind, reason: p.reason, idempotency_key: aiDraftKey(m.providerMessageId) } });
-    if (error) throw new Error(error.message);
+        body, kind: p.kind, reason: p.reason, idempotency_key: aiDraftKey(m.providerMessageId) } }).select("id").single();
+    if (error || !inserted) throw new Error(error?.message ?? "draft not saved");
+    // Jo 26 Oct: simple replies go by themselves only when Jo's Settings switch is on (fail closed) and not after 8pm.
+    if (aiAutoSendAllowed({ switchOn: await autoSendSwitchOn(), kind: p.kind, nowIso: new Date().toISOString() })) {
+      try { await sendAiDraft(inserted.id, body, null); return "sent"; }
+      catch (e) { console.error("AI reply auto-send held as draft", e instanceof Error ? e.message : e); }
+    }
     return "drafted";
   } catch (e) {
     console.error("AI reply draft skipped", e instanceof Error ? e.message : e);
     return "skipped";
   }
+}
+
+/** Jo's Settings switch; a missing column, row or read error = off. */
+export async function autoSendSwitchOn(): Promise<boolean> {
+  const { data, error } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  return !error && (data as Record<string, unknown> | null)?.["ai_email_auto_send_enabled"] === true;
 }
 
 export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null };
@@ -99,7 +110,7 @@ async function openDraft(eventId: string) {
   return ev as { id: string; job_id: string; details: Record<string, unknown> };
 }
 
-export async function sendAiDraft(eventId: string, body: string, actorId: string, now = new Date()): Promise<{ status: string }> {
+export async function sendAiDraft(eventId: string, body: string, actorId: string | null, now = new Date()): Promise<{ status: string }> {
   const quiet = aiSendQuietReason(now.toISOString());
   if (quiet) throw new Error(quiet);
   const problems = aiReplyProblems(body);
@@ -131,7 +142,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const sent = status === "sent" || status.startsWith("delivery uncertain");
   if (!sent) throw new Error(`Not sent — ${status}`);
   await loose.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
-    summary: `Email reply sent to the owner (approved by office)`, details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
+    summary: actorId ? "Email reply sent to the owner (approved by office)" : "Simple email reply sent to the owner automatically (auto-send switch on)", details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
   await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "resend", subject, body: body.trim(), recipients: [to] as never,
     delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: eventId }).then(({ error }) => { if (error) console.error("AI reply not added to history", error.message); });
   return { status };

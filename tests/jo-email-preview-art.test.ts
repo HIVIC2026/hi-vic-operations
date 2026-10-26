@@ -10,7 +10,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
-import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
+import { LOGO_DATA_URI } from "../src/lib/email-kit.core";
 
 const RECIPIENT = { firstName: "Alex", propertyAddress: "12 Sample St, Melbourne VIC 3000", enquiryReference: "HV-0000" };
 const LINKS = {
@@ -28,8 +28,7 @@ const imgSources = (html: string) => Array.from(html.matchAll(/<img[^>]+src="([^
 describe("A. the approved emails show only the embedded logo (no customer token in any image)", () => {
   test("T2 shows only the embedded logo", () => {
     const send = withUnsubscribe(renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, recipient: RECIPIENT, figures: figures(210, false), links: LINKS })!, UNSUB);
-    expect(imgSources(send.html)).toEqual([MAIL_LOGO_URL]);
-    expect(send.html).not.toContain("data:image");
+    expect(imgSources(send.html)).toEqual([LOGO_DATA_URI]);
     expect(send.html).not.toContain("/api/public/email-art");
   });
 
@@ -40,8 +39,7 @@ describe("A. the approved emails show only the embedded logo (no customer token 
         reason: "Built after 2010.", links: LINKS,
       })!, UNSUB,
     );
-    expect(imgSources(m.html)).toEqual([MAIL_LOGO_URL]);
-    expect(m.html).not.toContain("data:image");
+    expect(imgSources(m.html)).toEqual([LOGO_DATA_URI]);
     expect(m.html).not.toContain("/api/public/email-art");
   });
 });

@@ -119,7 +119,7 @@ describe("nothing live is missing from the page", () => {
   });
   test("every email builder in src/lib is on the page or explicitly not listed (with a reason)", () => {
     // Helpers whose name ends in "Email" but that build no message.
-    const NOT_BUILDERS = new Set(["normaliseEmail", "normaliseLoginEmail", "validBusinessEmail", "cleanOwnerEmail", "isHumanOwnerEmail", "guessJobsForEmail", "simpleEmail", "mjEmail"]);
+    const NOT_BUILDERS = new Set(["normaliseEmail", "normaliseLoginEmail", "validBusinessEmail", "cleanOwnerEmail", "isHumanOwnerEmail", "guessJobsForEmail", "simpleEmail"]);
     const found: string[] = [];
     for (const f of readdirSync("src/lib").filter((x) => /\.tsx?$/.test(x) && !/\.(server|functions)\.tsx?$/.test(x))) {
       for (const m of read(`src/lib/${f}`).matchAll(/export (?:async )?(?:function|const) ([A-Za-z]\w*Email)\b/g)) found.push(m[1]!);

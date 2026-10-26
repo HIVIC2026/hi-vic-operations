@@ -2,11 +2,10 @@
 // pack went out is sent to the owner on its own once it is added, so the owner holds it and the AP auto-signature
 // (decision 271) can proceed. ONE email per job (O73 "Your insulation warranty", PDF attached), key
 // `warranty-followup:v1:{job}`, then `warranty_copy_provided` is recorded with via "warranty_followup".
-// Wording APPROVED by Jo 25 Oct 2026, decision 375 (design docs/templates/mjml/owner_O73.mjml):
+// Wording APPROVED by Jo 25 Oct 2026, decision 375 (docs/templates/owner/O73-warranty-followup.html, rendered by scripts/render-decision-363-drafts.ts):
 // WARRANTY_FOLLOWUP_APPROVED stays false until Jo approves it — real owners get nothing and nothing is recorded while it is
 // false; TEST (qa_test) jobs use test-send. PURE: rules, key and the renderer. No I/O.
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
 import { deliveryFromEvents, retryWaitBlocker, unknownSendOpen, type DeliveryState, type SendEvent, type SendEventNames } from "./send-outcome.core";
 
 export const WARRANTY_FOLLOWUP_APPROVED = true as boolean; // Jo approved O73 as drafted, 25 Oct 2026 (decision 375)
@@ -77,8 +76,7 @@ export function warrantyFollowupBlocker(f: WarrantyFollowupFacts): string | null
 
 export type WarrantyFollowupEmailInput = { firstName: string | null; products: string[]; unsubscribeUrl: string | null; test?: boolean };
 
-/** O73 wording (decision 375; design docs/templates/mjml/owner_O73.mjml): subject "Your insulation warranty", two plain
- *  sentences, a short "Any questions?" line, the PDF attached. */
+/** O73 DRAFT wording (not approved): subject "Your insulation warranty", three plain sentences, the PDF attached. */
 export function warrantyFollowupCopy(products: string[]): { subject: string; lines: string[] } {
   const named = products.length ? `the ${products.join(" and ")} insulation` : "the insulation";
   return {
@@ -86,7 +84,7 @@ export function warrantyFollowupCopy(products: string[]): { subject: string; lin
     lines: [
       `Attached is the manufacturer's warranty for ${named} we installed in your ceiling.`,
       "We couldn't include it with your earlier email, so please keep this copy with your other job papers.",
-      "Any questions? Just reply to this email.",
+      "If you have any questions, just reply to this email.",
     ],
   };
 }
@@ -94,11 +92,7 @@ export function warrantyFollowupCopy(products: string[]): { subject: string; lin
 export function renderWarrantyFollowupEmail(i: WarrantyFollowupEmailInput): { subject: string; html: string; text: string } {
   const first = K.cleanName(i.firstName) ?? "there";
   const c = warrantyFollowupCopy(i.products);
-  const preview = `The manufacturer's warranty for your ${i.products.length ? `${i.products.join(" and ")} ` : ""}insulation is attached.`;
-  const main = c.lines.slice(0, -1);
-  const last = c.lines[c.lines.length - 1]!;
-  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(`Hi ${first},`)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(c.subject)}</mj-text>${main.map((l) => `<mj-text>${esc(l)}</mj-text>`).join("")}<mj-text mj-class="small" padding="4px 12px 0">${esc(last)}</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject: c.subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([`Hi ${first},`, "", c.subject, "", c.lines.join("\n\n")], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const html = K.emailShell({ body: [K.h1(c.subject, 8), K.greeting(`Hi ${first},`), ...c.lines.map((l, n) => K.p(l, n === c.lines.length - 1 ? "0 0 4px" : "0 0 14px"))].join("\n"), previewText: null, testLabel: i.test === true, unsubscribe: i.unsubscribeUrl });
+  const text = K.plainText([c.subject, "", `Hi ${first},`, "", c.lines.join("\n\n")], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: c.subject, html, text };
 }

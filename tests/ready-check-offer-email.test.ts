@@ -5,19 +5,14 @@ import { readyCheckOfferText } from "../src/lib/ready-check-times.core";
 
 describe("our-lead job offer email alongside the offer text (Jo 24 Oct 2026, decision 106)", () => {
   test("switched on for real partners (decision 154); delivery still goes through the guarded office partner sender", () => { expect(READY_CHECK_OFFER_EMAIL_APPROVED).toBe(true); });
-  test("subject names the suburb; body has the same facts as the text (ceiling size in a box) plus the offer button; no owner details or prices", () => {
+  test("subject names the suburb; body is the same wording as the text plus the offer link; no owner details or prices", () => {
     const url = "https://estimate.homeinsulationvictoria.com.au/field/offer/abc";
     const m = renderReadyCheckOfferEmail({ installerFirstName: "Deep", suburb: "Carlton", offerUrl: url, areaM2: 140 });
     expect(m.subject).toBe("New Ready Check job near Carlton");
     expect(readyCheckOfferSubject(null)).toBe("New Ready Check job near you");
     expect(m.text).toContain("Hi Deep,");
-    expect(readyCheckOfferText("Carlton", url, 140)).toContain("(about 140 m²)");
-    expect(m.text).toContain("New Ready Check job near Carlton");
-    expect(m.text).toContain("Ceiling size: about 140 m²");
-    expect(m.html).toContain(">about 140 m²<");
-    expect(m.text).toContain("To take it, offer the owner 3 times within 24 hours.");
-    expect(m.text).toContain(`See the offer: ${url}`);
-    expect(renderReadyCheckOfferEmail({ installerFirstName: null, suburb: null, offerUrl: url }).html).not.toContain("Ceiling size");
+    expect(m.text).toContain(readyCheckOfferText("Carlton", url, 140));
+    expect(m.text).toContain("(about 140 m²)");
     expect(m.html).toContain("See the offer");
     expect(m.html).toContain(url);
     expect(m.text).not.toMatch(/\$\d/);

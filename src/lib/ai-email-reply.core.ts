@@ -1,8 +1,9 @@
 // AI email replies on each job (Jo 26 Oct 2026). Pure rules only — no I/O.
 // - The AI writes every reply fresh from the job's details, current stage and full email history.
 // - Simple emails (where's my job up to, thanks/got it, resend a link, booking time questions) and everything else are
-//   SAVED AS A DRAFT ON THE JOB. Nothing sends by itself until Jo has seen samples and says "send"
-//   (AI_EMAIL_AUTO_SEND_ENABLED stays false). Jo approves and sends each draft from the job page.
+//   SAVED AS A DRAFT ON THE JOB. Nothing sends by itself until Jo has approved samples and turns on the Settings ›
+//   Switches "AI email replies · send automatically" switch (workflow_settings.ai_email_auto_send_enabled, OFF by
+//   default, fail-closed). Even then only SIMPLE replies go by themselves, never after 8pm; the rest stay drafts.
 // - Tone: friendly, relaxed, short; answer first then next step; "rebate", never VEEC/scheme jargon; never "call us",
 //   never a phone number; sign-off "Cheers, the Home Insulation Victoria team" (AI replies only).
 // - Booking change asks get the owner's own My job link on the right screen for the visit (PIESA → electrician,
@@ -16,8 +17,14 @@ export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";
 export const AI_EMAIL_REPLY_PURPOSE = "owner_email_ai_reply";
 /** Master switch for writing AI drafts on jobs. */
 export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
-/** Jo 26 Oct: OFF until Jo has seen sample replies and says "send". With it off simple replies are drafts too. */
-export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
+/** Jo 26 Oct: the auto-send switch lives on Settings › Switches (Jo turns it on after approving samples). */
+export const AI_EMAIL_AUTO_SEND_COLUMN = "ai_email_auto_send_enabled";
+
+/** Whether a fresh AI draft goes to the owner by itself. Only simple replies, only with Jo's switch on (unknown = off),
+ *  never in Melbourne quiet hours (then it stays a draft for the morning). Every other send guard still applies. */
+export function aiAutoSendAllowed(x: { switchOn: boolean | null; kind: AiReplyKind; nowIso: string }): boolean {
+  return x.switchOn === true && x.kind === "simple" && aiSendQuietReason(x.nowIso) === null;
+}
 export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
 
 export type AiReplyKind = "simple" | "other";

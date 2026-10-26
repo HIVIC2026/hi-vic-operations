@@ -11,8 +11,6 @@
 //    Until then the portal links found users and records "invite needed" / "deactivate by hand" for the office.
 //  - TEST people (@hivic.test etc. or a TEST partner) are skipped: Mitti rejects synthetic emails and TEST forms go to the
 //    test assignee.
-import { mjEmail, esc } from "./mail-mjml.core";
-import { plainText } from "./email-kit.core";
 
 /** Default when the env switch is not set. */
 export const MITTI_AUTO_INVITE_ENABLED = false as boolean;
@@ -76,25 +74,6 @@ export function splitName(full: string | null | undefined, email: string): { fir
 export const MITTI_INVITE_MESSAGE = "You've been invited to Mitti, the app you'll use for Home Insulation Victoria job forms. Check your email from Mitti, set your password, and download the Mitti app.";
 export const MITTI_INVITE_SUBJECT = "You've been invited to Mitti";
 export const mittiInviteMessageKey = (workerId: string) => `mitti-invite-message:v1:${workerId}`;
-
-/** The invite as an email (MJML design docs/templates/mjml/installer_mitti-invite.mjml, Jo 26 Oct 2026): the same words as
- *  MITTI_INVITE_MESSAGE, with the three steps as a numbered list. Sent by mitti-invite.server when there is no mobile. */
-export function renderMittiInviteEmail(i: { name: string | null; test?: boolean }) {
-  const first = i.name?.trim().split(/\s+/)[0];
-  const hi = first ? `Hi ${first},` : "Hello,";
-  const lead = "Mitti is the app you'll use for Home Insulation Victoria job forms.";
-  const steps = ["Check your email from Mitti", "Set your password", "Download the Mitti app"];
-  const reply = "Just reply to this email if you have any questions.";
-  const row = (t: string, n: number) => { const pad = n === steps.length - 1 ? 12 : 14; return `<tr><td width="32" valign="top" style="padding:2px 0 ${pad}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${pad}px;">${esc(t)}</td></tr>`; };
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(MITTI_INVITE_SUBJECT)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">To get started</mj-text><mj-table padding="0 18px 6px">${steps.map(row).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(reply)}</mj-text></mj-column></mj-section>`,
-  ].join("");
-  const html = mjEmail({ subject: MITTI_INVITE_SUBJECT, preview: "Look for the email from Mitti to set your password.", body, unsubscribe: null, testLabel: i.test === true });
-  const text = plainText([hi, "", MITTI_INVITE_SUBJECT, "", lead, "", "TO GET STARTED", ...steps.map((t, n) => `${n + 1}. ${t}`), "", reply], { testLabel: i.test === true });
-  return { subject: MITTI_INVITE_SUBJECT, html, text };
-}
 
 /** Decision 188/331: template access is through the HIV trades group (share the templates with that group once in Mitti). */
 export const MITTI_TEMPLATE_ACCESS_NOTE = `Template access comes from the ${MITTI_TRADES_GROUP} group: share the A1–A5 templates with that group once in Mitti.`;

@@ -1,6 +1,7 @@
 // Sends Jo's own one-off office email to an applicant or partner, and records it on that record.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { OFFICE_REPLY_TO, officeEmailBlocker, officeEmailCopy, officeEmailLayout, type OfficeRecipient } from "./office-email.core";
+import { OFFICE_REPLY_TO, officeEmailBlocker, officeEmailCopy, type OfficeRecipient } from "./office-email.core";
+import { simpleEmail } from "./simple-email.core";
 import type { SendResult } from "./test-send.server";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
@@ -16,7 +17,7 @@ export async function sendOfficeEmail(p: { actorId: string | null; recipient: Of
   const to = p.to.trim().toLowerCase();
   let mail = p.html && p.text ? { html: p.html, text: p.text } : null;
   const c = officeEmailCopy({ contactName: p.contactName, subject: p.subject, message: p.message });
-  if (!mail) mail = officeEmailLayout({ contactName: p.contactName, subject: p.subject, message: p.message, test: false });
+  if (!mail) mail = simpleEmail(c.heading, c.lines, undefined, { testLabel: false });
   let r: SendResult;
   if (blocked) r = { channel: "email", to, status: "blocked", detail: blocked };
   else {

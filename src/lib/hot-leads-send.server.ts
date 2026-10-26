@@ -202,8 +202,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
-  // Follow-ups and more-photos requests are never re-sent, even after a recorded failure: the office checks the record first.
-  if ((followup || morePhotos) && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
+  if ((followup || morePhotos) && mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   if (mode === "send") {
     // STEP 17: Office already sent this email by hand (recorded "Sent manually") – the portal never sends it again.

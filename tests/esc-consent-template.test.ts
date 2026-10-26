@@ -133,11 +133,8 @@ describe("executed copy to the owner (ESC recommends providing a copy)", () => {
     expect(CONSENT_COPY_EMAIL_APPROVED).toBe(true);
     const mail = renderConsentCopyEmail({ firstName: "Mary", installationDays: ["2026-11-11"], address: facts.premises_address, templateVersion: esc, formText: "Section 1: Information to be shared\nFirst Name: Mary Anne", sha256: "abc", myJobUrl: null, test: true });
     expect(mail.subject).toBe("Your signed consent form");
-    expect(mail.text).toContain("Hi Mary,");
-    expect(mail.text).toContain(`Here's your copy of the owner's consent form you signed for the ceiling insulation at ${facts.premises_address}. It's also on your job page.`);
-    // O63 design: the form's "First Name" label shows as "First name" like the other labels; the answer is kept.
-    expect(mail.text).toContain("First name: Mary Anne");
-    expect(mail.html).toContain("<strong>Mary Anne</strong>");
+    expect(mail.text).toContain(`Hi Mary, here's your copy of the owner's consent form you signed for the ceiling insulation at ${facts.premises_address}. It's also on your job page.`);
+    expect(mail.text).toContain("First Name: Mary Anne");
     expect(mail.html).toContain("TEST — only sent to Jo");
     expect(mail.html).not.toContain("See my job");
     expect(renderConsentCopyEmail({ firstName: "Mary", installationDays: [], address: facts.premises_address, templateVersion: esc, formText: "x", sha256: "abc", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/t" }).html).toContain(">See my job<");

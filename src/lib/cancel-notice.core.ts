@@ -1,10 +1,9 @@
 // Decision 291 (Jo, 25 Oct 2026): cancelling a job with "tell the owner" / "tell the installer" ticked SENDS the owner
 // email O69 "Job cancelled" and the installer email I70 "Job cancelled" (both EMAIL, no text) — wording approved
-// verbatim; designs docs/templates/mjml/owner_O69.mjml and installer_I70.mjml. Pure: wording, keys and
+// verbatim; designs docs/templates/owner/O69-job-cancelled.html and I70-job-cancelled.html. Pure: wording, keys and
 // event names only. Delivery lives in cancel-notice.server.ts (TEST → test-send; real owner → sendGuardedOwnerEmail
 // behind customer_comms_enabled + consent/opt-out; real installer → the partner office-email path). No prices anywhere.
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
 
 /** Jo 25 Oct 2026 (decision 291): O69 + I70 wording approved. */
 export const CANCEL_NOTICE_EMAILS_APPROVED = true as boolean;
@@ -48,9 +47,14 @@ export function renderOwnerCancelledEmail(i: OwnerCancelledEmailInput): { subjec
   const p1 = `We've cancelled your ceiling insulation job at ${where}, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.`;
   // Jo 26 Oct: no HIV phone number and no "call us" in owner emails.
   const p2 = "If this was a mistake or you'd like to pick it up again later, reply to this email.";
-  const preview = "Nothing further will happen on it. If this was a mistake, just reply.";
-  const body = `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">Job cancelled</mj-text><mj-text padding="0 12px 10px">${esc(`Hi ${first},`)}</mj-text><mj-text>${esc(p1)}</mj-text><mj-text>${esc(p2)}</mj-text><mj-text padding="0 12px 0">Home Insulation Victoria</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+  const body = [
+    K.h1("Job cancelled"),
+    K.p(`Hi ${first},`, "0 0 12px"),
+    K.p(p1),
+    K.p(p2),
+    K.p("Home Insulation Victoria", "0"),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: p1, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([`Hi ${first},`, "", p1, "", p2, "", "Home Insulation Victoria"], { testLabel: i.test === true });
   return { subject, html, text };
 }
@@ -68,12 +72,14 @@ export function renderInstallerCancelledEmail(i: InstallerCancelledEmailInput): 
   const where = i.place?.trim() || "the property";
   const phone = i.officePhone?.trim() || null;
   const subject = `${i.jobNumber} cancelled – ${where}`;
-  // MJML refresh fix (docs/templates/mjml/notes/installer_I70.json): no "HIV:" text-message prefix; the brand is in the header.
-  const line = `${i.jobNumber} at ${where} has been cancelled. Nothing more to do on it — it's gone from your list.`;
+  const line = `HIV: ${i.jobNumber} at ${where} has been cancelled. Nothing more to do on it — it's gone from your list.`;
   const questions = phone ? `Questions: ${phone}.` : "Questions: reply to this email.";
-  const preview = "Nothing more to do on it. It's gone from your list.";
-  const body = `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(`${i.jobNumber} cancelled`)}</mj-text><mj-text>${esc(line)}</mj-text><mj-text mj-class="small">${esc(questions)}</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+  const body = [
+    K.h1(`${i.jobNumber} cancelled`),
+    K.p(line),
+    K.p(questions, "0"),
+  ].join("\n");
+  const html = K.emailShell({ body, previewText: line, testLabel: i.test === true, unsubscribe: null });
   const text = K.plainText([line, "", questions], { testLabel: i.test === true });
   return { subject, html, text };
 }

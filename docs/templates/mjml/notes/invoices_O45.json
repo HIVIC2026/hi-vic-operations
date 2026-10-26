@@ -1,1 +1,0 @@
-{"id": "invoices_O45", "subject": "Helen, your install is done. Here's your final invoice", "subject_changed": false, "changes": ["Fixed: line 'Accredited Provider fee' now 'Accredited Person fee'", "Balance due shown big at the top", "Invoice lines in a clean table, every line and amount kept to the cent", "Bank details in their own box with the amount"]}
