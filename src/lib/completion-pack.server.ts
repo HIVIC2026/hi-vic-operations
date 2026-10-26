@@ -106,8 +106,8 @@ export async function sendCompletionPack(jobId: string, actorId: string | null =
   if (copies.missing.length) await logEvent(jobId, actorId, "product_warranty_missing", `Completion pack: no warranty document on file for ${missingProducts.join(", ")} — sent without it; the AP signature holds until a copy is given and recorded`, { missing: copies.missing, products: decision.products }, { internal: true });
 
   const { emailOwnerCompletionPack } = await import("./approved-owner-emails.server");
-  const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
-  const downloads = { certificateUrl: null, invoiceUrl: null, warrantiesUrl: link ? `${link}?screen=done` : null, signedFormsUrl: link ? `${link}?screen=done` : null };
+  // Link check (Jo 27 Oct 2026): My job doesn't list documents, so no row links there; warranties are attached, forms were emailed when signed.
+  const downloads = { certificateUrl: null, invoiceUrl: null, warrantiesUrl: null, signedFormsUrl: null };
   const coes = await coesAttachmentsFor(jobId);
   const test = job.source === "qa_test";
   const { classifyProviderStatus } = await import("./save-spot-delivery.core");

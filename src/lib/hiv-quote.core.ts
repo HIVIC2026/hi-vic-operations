@@ -7,6 +7,11 @@ export const HIV_PRICING_RULE = "hiv_fixed_owner_price_v1";
 const r2 = (n: number) => Math.round(n * 100) / 100;
 import { productQuoteDescription, type ProductRValue, type InsulationProduct } from "./insulation-product.core";
 
+/** Jo's rule: we are the "Accredited Person", never "Accredited Provider" (27 Oct 2026: quote, My job and invoice too). */
+export const AP_FEE_DESCRIPTION = "Accredited Person fee (Home Insulation Victoria)";
+/** Older quotes still store the old fee name; shown and invoiced with the current one (amounts never change). */
+export const currentFeeWording = (s: string) => s.replace(/Accredited Provider/g, "Accredited Person");
+
 /** Jo 22 Oct 2026: owner R6.0/R7.0 prices inc GST per m². R5.0 stays the office-set owner price ($30). */
 export const OWNER_HIGHER_R_INC_PER_M2: Record<Exclude<ProductRValue, "R5.0">, number> = { "R6.0": 32, "R7.0": 33 };
 export const R_VALUE_CODE: Record<ProductRValue, string> = { "R5.0": "R5_BATTS", "R6.0": "R6_BATTS", "R7.0": "R7_BATTS" };
@@ -83,7 +88,7 @@ export function priceHivQuote(i: HivQuoteInput) {
   const accessFeeEx = accessFee ? Number(i.installerDifficultAccessExGst) : 0;
   if (accessFee) add(DIFFICULT_ACCESS_CODE, DIFFICULT_ACCESS_DESCRIPTION, 1, "flat", accessFee);
   add("PIESA", "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", 1, "flat", i.piesaIncGst);
-  add("AP_FEE", "Accredited Provider fee (Home Insulation Victoria)", 1, "flat", i.apFeeIncGst);
+  add("AP_FEE", AP_FEE_DESCRIPTION, 1, "flat", i.apFeeIncGst);
 
   const r5MarkupInc = r2((ownerR5 - instR5Inc) * i.areaM2);
   const removalMarkupInc = r2((i.ownerRemovalIncPerM2 - instRemInc) * i.removalM2);

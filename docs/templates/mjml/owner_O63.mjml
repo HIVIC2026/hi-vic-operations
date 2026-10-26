@@ -12,7 +12,7 @@
         <mj-column>
           <mj-text mj-class="hi">Hi Helen,</mj-text>
           <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your signed consent form</mj-text>
-          <mj-text>Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF, and it's also on your job page.</mj-text>
+          <mj-text>Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF.</mj-text>
           <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
         </mj-column>
       </mj-section>

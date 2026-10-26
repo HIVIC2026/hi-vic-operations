@@ -42,8 +42,8 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
     { title: "Book your install day", detail: `${installer} offers you 3 days. Your install is done within 30 days of the safety check.` },
   ];
   const closing = i.factsheetAttached
-    ? "Your signed acceptance and receipt are attached, with the Victorian Energy Upgrades consumer factsheet, and always on your job page. Questions? Just reply to this email."
-    : "Your signed acceptance and receipt are attached, and always on your job page. Questions? Just reply to this email.";
+    ? "Your signed acceptance and receipt are attached, with the Victorian Energy Upgrades consumer factsheet. Please keep this email. Questions? Just reply to this email."
+    : "Your signed acceptance and receipt are attached. Please keep this email. Questions? Just reply to this email.";
   const stepRows = steps.map((s, n) => { const last = n === steps.length - 1; return `<tr><td width="36" valign="top" style="padding:2px 0 ${last ? 12 : 14}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${last ? 12 : 14}px;"><strong>${esc(s.title)}</strong>${s.detail ? `<br /><span class="muted">${esc(s.detail)}</span>` : ""}</td></tr>`; }).join("");
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,

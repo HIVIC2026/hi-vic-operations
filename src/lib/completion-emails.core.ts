@@ -6,6 +6,7 @@
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
 // through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 are approved too
 // (COMPLETION_EMAILS_APPROVED, decisions 133/103/105) and go through the same guarded sender. Pure.
+import { currentFeeWording } from "./hiv-quote.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { AP_DETAILS } from "./veec-assignment-form.core";
@@ -102,7 +103,7 @@ export type FinalInvoiceInput = {
 };
 
 /** Jo's rule: "Accredited Person", never "Accredited Provider" (the O45 design fixes the AP fee line's wording; the amount is unchanged). */
-const apWording = (s: string) => s.replace(/Accredited Provider/g, "Accredited Person");
+const apWording = currentFeeWording;
 
 /** payments.core bankDetailLines → label/value rows for the design's bank table; null when a line isn't one of those
  *  shapes (e.g. "Bank details: … to be confirmed"), so the lines are shown as they are. */
@@ -195,7 +196,7 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     { title: "Certificate of Completion", detail: "Product, R-value, area, installer, date and rebate", href: i.downloads.certificateUrl },
     { title: "Tax invoice", detail: "Paid in full", href: i.downloads.invoiceUrl },
     { title: "Your warranties", detail: warrantyDetail, href: i.downloads.warrantiesUrl },
-    { title: "Signed forms", detail: "Acceptance, install consent, rebate form, safety check", href: i.downloads.signedFormsUrl },
+    { title: "Signed forms", detail: "Acceptance, install consent, rebate form, safety check. Each was emailed to you when it was signed", href: i.downloads.signedFormsUrl },
     ...(i.attachedCoes ? [{ title: "Certificate of Electrical Safety", detail: "From your electrician's fixes visit, attached to this email", href: null as string | null }] : []),
   ];
   const ins = i.installer?.name?.trim() || "your installer";
@@ -209,12 +210,12 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     "If a tradie works in your ceiling, ask them to put the insulation back as they found it.",
     "Adding new downlights later? Make sure they're IC-rated. That means they're safe to cover with insulation.",
   ];
-  const closing = "Thanks for choosing Home Insulation Victoria. Your pack is always on your job page too.";
+  const closing = "Thanks for choosing Home Insulation Victoria.";
   const installed = i.installed ? `Installed: ${insulationLineWithCodes(i.installed)}` : null;
   const codes = i.installed?.escModelCodes.length ? `ESC model ${i.installed.escModelCodes.join(", ")}` : null;
   const dlHtml = downloads.map((d, n) => {
     const top = n === 0 ? "" : BT;
-    return `<tr><td valign="top" style="padding:12px 0;${top}"><strong>&#128196; ${esc(d.title)}</strong><br /><span class="muted">${esc(d.detail)}</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;${top}">${d.href ? `<a href="${esc(d.href)}" style="color:#3C51C4;font-weight:700;">Download</a>` : `<span class="muted">On your job page</span>`}</td></tr>`;
+    return `<tr><td valign="top" style="padding:12px 0;${top}"><strong>&#128196; ${esc(d.title)}</strong><br /><span class="muted">${esc(d.detail)}</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;${top}">${d.href ? `<a href="${esc(d.href)}" style="color:#3C51C4;font-weight:700;">Download</a>` : ""}</td></tr>`;
   }).join("");
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
@@ -225,7 +226,7 @@ export function renderCompletionPackEmail(i: CompletionPackInput) {
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([subject, "", intro, ...(installed ? [installed] : []), "", "YOUR DOCUMENTS", ...downloads.map((d) => `${d.title} (${d.detail})${d.href ? `: ${d.href}` : " — on your job page"}`), "", "SOMETHING NOT RIGHT?", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", "LOOKING AFTER YOUR INSULATION", ...care.map((c) => `✓ ${c}`), "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, ...(installed ? [installed] : []), "", "YOUR DOCUMENTS", ...downloads.map((d) => `${d.title} (${d.detail})${d.href ? `: ${d.href}` : ""}`), "", "SOMETHING NOT RIGHT?", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", "LOOKING AFTER YOUR INSULATION", ...care.map((c) => `✓ ${c}`), "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

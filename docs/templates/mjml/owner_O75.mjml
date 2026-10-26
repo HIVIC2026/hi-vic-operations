@@ -29,7 +29,7 @@
 
       <mj-section>
         <mj-column>
-          <mj-text padding="16px 12px 14px">The signed copies are attached as PDFs. They're also on your job page.</mj-text>
+          <mj-text padding="16px 12px 14px">The signed copies are attached as PDFs.</mj-text>
           <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
           <mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text>
         </mj-column>

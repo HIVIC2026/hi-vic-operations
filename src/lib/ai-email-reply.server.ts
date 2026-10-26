@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
-  aiDraftKey, aiReplyHtmlBody, aiReplyProblems, aiReplyText, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
+  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -115,7 +115,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const key = `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
   const build = (unsubscribe: string | null, test = false) => ({
     subject,
-    html: K.emailShell({ body: aiReplyHtmlBody(body, K), previewText: null, testLabel: test, unsubscribe }),
+    html: aiReplyEmailHtml(body, { subject, unsubscribe, test }),
     text: K.plainText(aiReplyText(body), { testLabel: test, unsubscribe }),
   });
   let status: string;
