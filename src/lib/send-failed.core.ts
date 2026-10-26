@@ -56,6 +56,27 @@ export function daysAgoLabel(iso: string, now: number): string {
   return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 }
 
+/** Twilio error codes the office meets, in plain words (Twilio's own descriptions, shortened). */
+const TWILIO_PLAIN: Record<string, string> = {
+  "21211": "not a valid phone number", "21614": "not a mobile number", "21408": "can't text that country", "21610": "the owner replied STOP",
+  "30003": "phone off or out of range", "30004": "number blocked from receiving texts", "30005": "number doesn't exist", "30006": "landline or can't receive texts",
+  "30007": "blocked by the phone company as spam", "30008": "phone company error",
+};
+
+/**
+ * A provider's error in words the office can act on (design review 26 Oct: raw `Twilio 400: {"code":21614,…}` reached
+ * Needs me). Known Twilio codes become a phrase; anything else loses its JSON so only readable words remain.
+ */
+export function plainSendError(raw: string | null | undefined): string {
+  const v = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "";
+  const code = v.match(/"code"\s*:\s*(\d{5})/)?.[1] ?? v.match(/\bTwilio(?: error)?\s*(\d{5})\b/i)?.[1];
+  if (code && TWILIO_PLAIN[code]) return TWILIO_PLAIN[code];
+  const message = v.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+  if (message) return message.replace(/\\"/g, '"');
+  return v.replace(/\{.*$/, "").replace(/[\s:—-]+$/, "").trim() || "provider error";
+}
+
 const trim = (s: string | null | undefined, n = 120) => { const v = (s ?? "").replace(/\s+/g, " ").trim(); return v.length > n ? `${v.slice(0, n - 1)}…` : v; };
 
 /**
@@ -68,12 +89,12 @@ export function sendFailedRows(i: { now: number; emails: FailedEmailSend[]; sms:
   const failures: F[] = [];
   for (const e of i.emails) {
     if (!(FAILED_EMAIL_STATUSES as readonly string[]).includes(e.status) || Date.parse(e.created_at) < since) continue;
-    const why = trim(e.error);
+    const why = trim(plainSendError(e.error));
     failures.push({ jobId: e.job_id, at: e.created_at, line: `Email failed: ${sendLabel(e.purpose, "email")}, ${daysAgoLabel(e.created_at, i.now)}${why ? ` — ${why}` : ""}` });
   }
   for (const s of i.sms) {
     if (!s.job_id || !(FAILED_SMS_STATUSES as readonly string[]).includes(s.status) || Date.parse(s.created_at) < since) continue;
-    const why = trim(s.detail);
+    const why = trim(plainSendError(s.detail));
     failures.push({ jobId: s.job_id, at: s.created_at, line: `Text ${s.status === "undelivered" ? "not delivered" : "failed"}: ${sendLabel(s.message_type, "sms")}, ${daysAgoLabel(s.created_at, i.now)}${why ? ` — ${why}` : ""}` });
   }
   failures.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
