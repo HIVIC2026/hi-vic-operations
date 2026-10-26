@@ -94,9 +94,10 @@ describe("decision 372: the Final check list", () => {
   });
 
   test("wiring: Approve stays the one human action and the server refuses unless every check passes; no auto-approve", () => {
-    const fn = readFileSync(new URL("../src/lib/ap-queue.functions.ts", import.meta.url), "utf8");
+    const fn = readFileSync(new URL("../src/lib/ap-approve.server.ts", import.meta.url), "utf8");
+    expect(readFileSync(new URL("../src/lib/ap-queue.functions.ts", import.meta.url), "utf8")).toContain('(await import("./ap-approve.server")).approveApJobAs(');
     expect(fn).toMatch(/if \(!fc\.ready\) throw new WorkflowError/);
-    expect(fn.indexOf("fc.ready")).toBeLessThan(fn.indexOf('transition(data.jobId, "ready_for_veec"'));
+    expect(fn.indexOf("fc.ready")).toBeLessThan(fn.indexOf('transition(jobId, "ready_for_veec"'));
     const server = readFileSync(new URL("../src/lib/final-check.server.ts", import.meta.url), "utf8");
     expect(server).not.toMatch(/transition\(|logEvent\(|\.insert\(|\.update\(/);
     const ui = readFileSync(new URL("../src/components/portal/final-check.tsx", import.meta.url), "utf8");

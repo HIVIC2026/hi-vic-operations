@@ -69,7 +69,9 @@ describe("wording (decision 186)", () => {
   });
   test("wired at the two places clearance is established and in the 15-minute tick; the server never talks to a provider itself", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
-    const complete = pf.slice(pf.indexOf("export const completeAssessment"), pf.indexOf("export const recordPiesa"));
+    // Complete PIESA: the office/electrician handler checks the caller, then runs the one body in piesa-complete.server.
+    expect(pf.slice(pf.indexOf("export const completeAssessment"), pf.indexOf("export const recordPiesa"))).toContain('(await import("./piesa-complete.server")).completePiesaAssessment(data, context.userId)');
+    const complete = readFileSync("src/lib/piesa-complete.server.ts", "utf8");
     const record = pf.slice(pf.indexOf("export const recordPiesa"), pf.indexOf("export const generateInstallerQuotes"));
     for (const s of [complete, record]) {
       const write = s.indexOf('from("piesa_records").insert(');
