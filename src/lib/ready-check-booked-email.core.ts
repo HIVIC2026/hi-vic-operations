@@ -2,10 +2,12 @@
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
 // Design: docs/templates/mjml/owner_O12.mjml (MJML email refresh, Jo 27 Oct 2026) — blue date/time box with address
 // and installer name + phone; "Before they arrive"; Change time line; See my job; rebate and price boxes; included / not included.
+// Jo 26 Oct 2026: O12 only uses its own mint booking box (green time) and ONE rebate|price box, matching docs/designs/O12.jpg;
+// the shared mjBookingBox / mjReadyCheckEstimate stay unchanged for the other emails.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
-import { esc, mjEmail } from "./mail-mjml.core";
-import { mjReadyCheckEstimate, readyCheckEstimateText, splitDayTime } from "./ready-check-times-email.core";
+import { esc, mjEmail, plusRow, tickRow } from "./mail-mjml.core";
+import { CLOSING, INCLUDED, NOT_INCLUDED, estimateNote, splitDayTime, type ReadyCheckEstimate } from "./ready-check-times-email.core";
 
 /** Jo 24 Oct 2026, decision 81 (O12 "You're booked"): approved. Delivery still behind customer_comms_enabled. */
 export const READY_CHECK_BOOKED_EMAIL_APPROVED = true as boolean;
@@ -29,6 +31,32 @@ export function mjBookingBox(i: { label: string; day: string; time: string; line
 /** "Before they arrive" tick rows (HTML with <strong>, already safe). */
 export const mjBeforeRows = (rows: string[]) => rows.map((b) => `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">${b}</td></tr>`).join("");
 
+const FREE_READY_CHECK = { title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." };
+/** O12 only: mint booking box with green border, navy day, green time. */
+function mjO12BookingBox(i: { label: string; day: string; time: string; lines: string[] }): string {
+  const lines = i.lines.map(esc).join("<br />");
+  return `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow" padding="18px 18px 6px">${esc(i.label)}</mj-text><mj-text font-family="${DISPLAY}" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">${esc(i.day)}</mj-text>${i.time ? `<mj-text font-family="${DISPLAY}" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px ${lines ? 10 : 18}px">${esc(i.time)}</mj-text>` : ""}${lines ? `<mj-text font-size="15px" line-height="22px" padding="0 18px 18px">${lines}</mj-text>` : ""}</mj-column></mj-section>`;
+}
+/** O12 only: rebate | price side by side in one box, note underneath; included list starts with the free Ready Check. */
+function mjO12Estimate(e: ReadyCheckEstimate): string {
+  const inc = [FREE_READY_CHECK, ...INCLUDED(e.rebate)];
+  const cell = (label: string, value: string, color: string, divider: boolean) => `<td width="50%" align="center" valign="top" style="padding:16px 8px 6px;${divider ? "border-right:1px solid #DCE2F2;" : ""}"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">${esc(label)}</div><div style="font-family:${DISPLAY};font-size:30px;line-height:38px;font-weight:800;color:${color};">${esc(value)}</div></td>`;
+  return [
+    `<mj-section><mj-column mj-class="panel"><mj-table padding="4px 12px 0"><tr>${cell("VEU rebate", K.whole(e.rebate), "#057D40", true)}${cell("You pay about", K.whole(e.price), "#3C51C4", false)}</tr></mj-table><mj-text mj-class="small center" padding="8px 16px 18px">${esc(estimateNote(e))}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What's included in ${esc(K.whole(e.price))}</mj-text><mj-table padding="0 18px 6px">${inc.map((t, n) => tickRow(esc(t.title), esc(t.detail), n === inc.length - 1)).join("")}</mj-table></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text><mj-table padding="0 18px 6px">${NOT_INCLUDED.map(([b, rest]) => plusRow(`<strong>${esc(b)}</strong>${esc(rest)}`)).join("")}</mj-table></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(CLOSING)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+}
+function o12EstimateText(e: ReadyCheckEstimate): string[] {
+  return [
+    `VEU rebate: ${K.whole(e.rebate)} | You pay about: ${K.whole(e.price)}`, estimateNote(e), "",
+    `WHAT'S INCLUDED IN ${K.whole(e.price)}`, ...[FREE_READY_CHECK, ...INCLUDED(e.rebate)].map((t) => `✓ ${t.title}: ${t.detail}`), "",
+    "NOT INCLUDED – ONLY IF NEEDED", ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
+    CLOSING,
+  ];
+}
+
 export function renderReadyCheckBookedEmail(i: ReadyCheckBookedInput) {
   const subject = i.changed ? `Your Ready Check time has changed – ${i.when}` : `You're booked: free Ready Check – ${i.when}`;
   const first = K.cleanName(i.firstName) ?? "there";
@@ -49,16 +77,16 @@ export function renderReadyCheckBookedEmail(i: ReadyCheckBookedInput) {
   const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
-    mjBookingBox({ label: i.changed ? "Your new Ready Check time" : "Your Ready Check", day, time, lines }),
+    mjO12BookingBox({ label: i.changed ? "Your new Ready Check time" : "Your Ready Check", day, time, lines }),
     `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table><mj-text>${change}</mj-text><mj-button href="${esc(i.myJobUrl)}">See my job</mj-button></mj-column></mj-section>`,
-    est ? mjReadyCheckEstimate(est) : "",
+    est ? mjO12Estimate(est) : "",
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     headline, "", lead, `When: ${i.when}`, ...lines, "",
     "BEFORE THEY ARRIVE", ...before.map((b) => `✓ ${K.stripTags(b)}`), "",
     K.stripTags(change), `See my job: ${i.myJobUrl}`,
-    ...(est ? ["", ...readyCheckEstimateText(est)] : []),
+    ...(est ? ["", ...o12EstimateText(est)] : []),
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

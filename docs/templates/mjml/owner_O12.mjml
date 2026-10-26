@@ -16,10 +16,10 @@
       </mj-section>
 
       <mj-section>
-        <mj-column mj-class="panel">
+        <mj-column mj-class="panel-mint">
           <mj-text mj-class="eyebrow" padding="18px 18px 6px">Your Ready Check</mj-text>
           <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">Wednesday 28 October</mj-text>
-          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#3C51C4" padding="0 18px 10px">8:00am</mj-text>
+          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px 10px">8:00am</mj-text>
           <mj-text font-size="15px" line-height="22px" padding="0 18px 18px">824 High Street Road, Glen Waverley<br />Installer: Sample Insulation Co · 0400 000 000</mj-text>
         </mj-column>
       </mj-section>
@@ -38,17 +38,11 @@
       </mj-section>
 
       <mj-section>
-        <mj-column mj-class="panel-mint">
-          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text>
-          <mj-text mj-class="big-green" padding="0 12px 18px">You save $1,610</mj-text>
-        </mj-column>
-      </mj-section>
-
-      <mj-section>
         <mj-column mj-class="panel">
-          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay about</mj-text>
-          <mj-text mj-class="big-blue">$2,188</mj-text>
-          <mj-text mj-class="small center" padding="4px 16px 18px">Estimate incl. GST for 137 m². Confirmed at your free Ready Check.</mj-text>
+          <mj-table padding="4px 12px 0">
+            <tr><td width="50%" align="center" valign="top" style="padding:16px 8px 6px;border-right:1px solid #DCE2F2;"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">VEU rebate</div><div style="font-family:Outfit, Figtree, Arial, Helvetica, sans-serif;font-size:30px;line-height:38px;font-weight:800;color:#057D40;">$1,610</div></td><td width="50%" align="center" valign="top" style="padding:16px 8px 6px;"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">You pay about</div><div style="font-family:Outfit, Figtree, Arial, Helvetica, sans-serif;font-size:30px;line-height:38px;font-weight:800;color:#3C51C4;">$2,188</div></td></tr>
+          </mj-table>
+          <mj-text mj-class="small center" padding="8px 16px 18px">Estimate incl. GST for 137 m². Confirmed at your free Ready Check.</mj-text>
         </mj-column>
       </mj-section>
 
@@ -56,6 +50,7 @@
         <mj-column mj-class="panel-card">
           <mj-text mj-class="h2" padding="18px 18px 10px">What's included in $2,188</mj-text>
           <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Free Ready Check</strong><br /><span class="muted">An installer visits to measure your ceiling and confirm the price.</span></td></tr>
             <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Licensed electrician safety check</strong><br /><span class="muted">Needed before any insulation goes in. They check your wiring, downlights and cables are safe.</span></td></tr>
             <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Premium R5.0 ceiling batts</strong><br /><span class="muted">VEU-approved and made to Australian Standard AS/NZS 4859.1.</span></td></tr>
             <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Fitted by an EEC-certified installer</strong><br /><span class="muted">A Certified Insulation Installer (CII) through the Energy Efficiency Council, working to Australian Standard AS 3999.</span></td></tr>
