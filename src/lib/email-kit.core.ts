@@ -129,7 +129,7 @@ export function checkList(itemsHtml: string[], size = 15, pad = "10px"): string 
 }
 
 /** "Your existing insulation" card (O2): may stay $0 · removal $15/m² up to X. */
-export function existingInsulationCard(i: { areaM2: number; ratePerM2: number; upTo: number }): string {
+export function existingInsulationCard(i: { areaM2: number; ratePerM2: number; upTo: number; note?: string }): string {
   const row = (icon: string, title: string, detail: string, amount: string, color: string, top: boolean) => {
     const bt = top ? `border-top:1px solid ${KIT.LINE};` : "";
     return `<tr><td valign="top" style="padding:12px 10px 12px 0;width:20px;${bt}">${icon}</td><td valign="top" style="padding:12px 0;${bt}"><div style="font-size:15px;font-weight:bold;color:${KIT.NAVY};">${esc(title)}</div><div style="font-size:13px;color:${KIT.SUB};line-height:1.45;margin-top:2px;">${detail}</div></td><td valign="top" align="right" style="padding:12px 0 12px 10px;white-space:nowrap;${bt}"><div style="font-size:17px;font-weight:bold;color:${color};">${esc(amount)}</div></td></tr>`;
@@ -141,7 +141,7 @@ ${TABLE} style="margin-top:4px;">
 ${row(TICK, "If it can stay", "New batts go straight over the top", "$0", KIT.GREEN, false)}
 ${row(PLUS, "If some needs removing", `Only the areas that need it.<br>Up to ${esc(whole(i.upTo))} for your ${esc(m2(i.areaM2))} ceiling.`, `$${i.ratePerM2}/m²`, KIT.BLUE, true)}
 </table>
-<div style="font-size:13px;color:${KIT.SUB};line-height:1.5;padding:10px 0 10px;border-top:1px solid ${KIT.LINE};">Prices incl. GST. You'll know the exact cost before you agree to anything.</div>
+<div style="font-size:13px;color:${KIT.SUB};line-height:1.5;padding:10px 0 10px;border-top:1px solid ${KIT.LINE};">${esc(i.note ?? "Prices incl. GST. You'll know the exact cost before you agree to anything.")}</div>
 </td></tr></table>`;
 }
 
@@ -293,15 +293,17 @@ export function notIncludedItems(someInsulation = false): string[] {
   ];
 }
 /** Decision 388: the line under the two cards (no Ready Check, no measuring, no quote timing). */
+/** First "What's included" row in Jo's O1/O2/O10 designs (opt-in via `freeReadyCheck`). */
+export const FREE_READY_CHECK_ITEM: TickItem = { title: "Free Ready Check", detail: "An installer visits to measure your ceiling and confirm the price." };
 export const INCLUDED_CLOSING = "You'll know the exact price before you agree to anything.";
 /** Both cards + the closing line. `seeEstimate` adds the "See your full estimate" link. */
-export function includedAndNotIncluded(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string; seeEstimate?: string | null }): string {
+export function includedAndNotIncluded(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string; seeEstimate?: string | null; freeReadyCheck?: boolean }): string {
   const closing = i.closing ?? INCLUDED_CLOSING;
-  return `${includedCard(`What's included in ${whole(i.price)}`, includedItems(i.rebate))}${notIncludedCard("Not included, only if needed", notIncludedItems(i.someInsulation))}<p style="font-size:13px;line-height:1.5;margin:10px 0 0;color:${KIT.SUB};">${esc(closing)}${i.seeEstimate ? ` ${link(i.seeEstimate, "See your full estimate")}` : ""}</p>`;
+  return `${includedCard(`What's included in ${whole(i.price)}`, i.freeReadyCheck ? [FREE_READY_CHECK_ITEM, ...includedItems(i.rebate)] : includedItems(i.rebate))}${notIncludedCard("Not included, only if needed", notIncludedItems(i.someInsulation))}<p style="font-size:13px;line-height:1.5;margin:10px 0 0;color:${KIT.SUB};">${esc(closing)}${i.seeEstimate ? ` ${link(i.seeEstimate, "See your full estimate")}` : ""}</p>`;
 }
 /** Plain-text twin of the two cards. */
-export function includedAndNotIncludedText(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string }): string[] {
-  const inc = includedItems(i.rebate).map((t) => typeof t === "string" ? `✓ ${t}` : `✓ ${t.title}: ${t.detail ?? ""}`.trim());
+export function includedAndNotIncludedText(i: { price: number; rebate: number; someInsulation?: boolean; closing?: string; freeReadyCheck?: boolean }): string[] {
+  const inc = (i.freeReadyCheck ? [FREE_READY_CHECK_ITEM, ...includedItems(i.rebate)] : includedItems(i.rebate)).map((t) => typeof t === "string" ? `✓ ${t}` : `✓ ${t.title}: ${t.detail ?? ""}`.trim());
   const not = notIncludedItems(i.someInsulation).map((h) => `+ ${stripTags(h)}`);
   return [`WHAT'S INCLUDED IN ${whole(i.price)}`, ...inc, "", "NOT INCLUDED, ONLY IF NEEDED", ...not, "", i.closing ?? INCLUDED_CLOSING];
 }
