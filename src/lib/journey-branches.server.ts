@@ -94,7 +94,7 @@ async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx
   for (const [key, fn] of fns) {
     console.log(`… setup ${key}`);
     const r: StepResult = { key: key as StepResult["key"], label: `${ctx.jobNumber ?? "new job"} setup ${key}`, passed: false, checks: [] };
-    try { await fn(ctx, r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); out.push(r); return { ok: false, out }; }
+    try { await fn(ctx, r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); console.log(`  setup ${key} failed: ${r.error}`); out.push(r); return { ok: false, out }; }
     r.label = `${ctx.jobNumber} setup ${key}`;
     if (key === "s1_calculator" && !(await ownJob(ctx))) { r.passed = false; r.error = `step 1 linked onto an older job ${ctx.jobNumber}; stopped without touching it`; out.push(r); ctx.jobId = null; return { ok: false, out }; }
     out.push(r);
