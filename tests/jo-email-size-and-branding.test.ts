@@ -101,7 +101,7 @@ describe("C. real customer data is preserved, never replaced with the sample or 
   });
   test("a non-typical assumed size keeps its own figure and stays labelled assumed", () => {
     expect(basisLine({ ...figures(160, true) }, false)).toBe("Based on a typical 160 m² ceiling (an estimate, not your actual size), no existing insulation.");
-    expect(basisLine({ ...figures(137, false) }, true)).toBe("Based on what you told us: 137 m² ceiling with some existing insulation.");
+    expect(basisLine({ ...figures(137, false) }, true)).toBe("Based on what you told us: 137 m² ceiling, with some existing insulation.");
   });
 });
 
