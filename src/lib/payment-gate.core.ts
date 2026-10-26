@@ -228,4 +228,4 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 export const paymentOptionSummary = (safetyCheckIncGst: number) => `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.`;
 export const PAYMENT_OPTION_SUMMARY =
   "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.";
-export const PAYMENT_DECISION_STATUS = WORKFLOW_DECISIONS.payment.deposit.status;
+export const PAYMENT_DECISION_STATUS = "decided_2026_10_26_flat_10_pct" as const;

@@ -54,7 +54,7 @@ export async function autoDecideEligibility(jobId: string, opts: { initialProces
   if (j.eligibility_decision_source === "system" && prev?.signature === sig && prev.ruleset_version === d.ruleset_version && (j.eligibility_outcome ?? null) === d.outcome) return d;
   const now = new Date().toISOString();
   const audit = { ...gate1Audit(d, facts, now), signature: sig, sources: ["properties", "properties.enrichment (owner answers)", "jobs.life_support_status", "workflow_settings"] };
-  const reason = d.failed.length ? `Auto-fail: ${d.failed.join("; ")}` : d.review.length ? `Review required: ${d.review.join("; ")}` : d.onsite.length ? `Needs onsite confirmation: ${d.onsite.join("; ")}` : `Auto-pass: ${d.passed.join("; ")}`;
+  const reason = d.failed.length ? `Auto-fail: ${d.failed.join("; ")}` : d.review.length ? `Review required: ${d.review.join("; ")}` : d.onsite.length ? `Needs Onsite Confirmation: ${d.onsite.join("; ")}` : `Auto-pass: ${d.passed.join("; ")}`;
   await admin.from("jobs").update({
     eligibility_outcome: d.outcome, eligibility_reason: reason.slice(0, 2000), eligibility_set_by: null, eligibility_set_at: now,
     eligibility_decision_source: "system", eligibility_decision_rules: audit as unknown as Json,
@@ -89,7 +89,7 @@ export async function refreshStaleSystemGate1(jobId: string): Promise<"refreshed
   if (j.stage === "on_hold" || d.reviewRequired || !(same || upgrade)) return "needs_office";
   const now = new Date().toISOString();
   const audit = { ...gate1Audit(d, facts, now), signature: gate1Signature(d), sources: ["properties", "properties.enrichment (owner answers)", "jobs.life_support_status", "workflow_settings"], refreshed_from_ruleset: prev?.ruleset_version ?? null };
-  const reason = d.onsite.length ? `Needs onsite confirmation: ${d.onsite.join("; ")}` : `Auto-pass: ${d.passed.join("; ")}`;
+  const reason = d.onsite.length ? `Needs Onsite Confirmation: ${d.onsite.join("; ")}` : `Auto-pass: ${d.passed.join("; ")}`;
   await admin.from("jobs").update({
     eligibility_outcome: d.outcome, eligibility_reason: reason.slice(0, 2000), eligibility_set_at: now,
     eligibility_decision_rules: audit as unknown as Json, eligibility_flags: d.flags as unknown as Json,

@@ -45,7 +45,8 @@ export function renderOwnerCancelledEmail(i: OwnerCancelledEmailInput): { subjec
   const phone = i.officePhone?.trim() || null;
   const subject = `Your ceiling insulation job ${i.jobNumber} has been cancelled`;
   const p1 = `We've cancelled your ceiling insulation job at ${where}, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.`;
-  const p2 = phone ? `If this was a mistake or you'd like to pick it up again later, reply to this email or call us on ${phone}.` : "If this was a mistake or you'd like to pick it up again later, reply to this email.";
+  // Jo 26 Oct: no HIV phone number and no "call us" in owner emails.
+  const p2 = "If this was a mistake or you'd like to pick it up again later, reply to this email.";
   const body = [
     K.h1("Job cancelled"),
     K.p(`Hi ${first},`, "0 0 12px"),

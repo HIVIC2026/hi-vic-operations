@@ -37,7 +37,7 @@ describe("phase 3 presentation mapping", () => {
     a.channel = "installer_sourced"; a.originatingInstaller = "TEST supplying business"; a.mediaCount = 2;
     a.facts.campaign = { spotSavedAt: "2026-09-01T00:00:00Z", optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-09-01T00:00:00Z" };
     const data = buildOperationsPreview([a,b], [], now);
-    for (const flag of ["spot", "media"]) expect(filterOperations(data.rows, { category: "leads", flag, source: "installer_sourced", eligibility: "Likely eligible / no insulation", q: "supplying" }).map(r => r.id)).toEqual([a.id]);
+    for (const flag of ["spot", "media"]) expect(filterOperations(data.rows, { category: "leads", flag, source: "installer_sourced", eligibility: "Likely Eligible / no insulation", q: "supplying" }).map(r => r.id)).toEqual([a.id]);
     expect(data.rows[0]?.process).toBe("Insulation review");
     expect(data.rows[0]?.tasks.every(t => !t.dueAt && !t.overdue)).toBe(true);
   });

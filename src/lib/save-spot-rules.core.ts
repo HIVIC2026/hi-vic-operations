@@ -28,9 +28,9 @@ export type FilterCategory = (typeof FILTER_CATEGORIES)[number];
 export const ELIGIBILITY_OUTCOMES = ["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"] as const;
 export type EligibilityOutcomeValue = (typeof ELIGIBILITY_OUTCOMES)[number];
 export const ELIGIBILITY_LABEL: Record<EligibilityOutcomeValue, string> = {
-  likely_eligible: "Likely eligible",
-  needs_onsite_confirmation: "Needs onsite confirmation",
-  does_not_appear_eligible: "Does not appear eligible",
+  likely_eligible: "Likely Eligible",
+  needs_onsite_confirmation: "Needs Onsite Confirmation",
+  does_not_appear_eligible: "Does Not Appear Eligible",
 };
 
 /** The canonical owner answer normalisation (eligibility.core normaliseInsulation): none | present | unknown. */

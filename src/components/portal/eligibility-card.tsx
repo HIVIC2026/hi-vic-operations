@@ -15,7 +15,7 @@ const CHECKS: [string, string][] = [
 ];
 const TONE: Record<CheckMark, "good" | "bad" | "warn"> = { pass: "good", fail: "bad", confirm: "warn" };
 const OVERALL: Record<string, [string, "good" | "bad" | "warn"]> = {
-  likely_eligible: ["Likely eligible", "good"], needs_onsite_confirmation: ["Needs onsite confirmation", "warn"], does_not_appear_eligible: ["Does not appear eligible", "bad"],
+  likely_eligible: ["Likely Eligible", "good"], needs_onsite_confirmation: ["Needs Onsite Confirmation", "warn"], does_not_appear_eligible: ["Does Not Appear Eligible", "bad"],
 };
 
 export function EligibilityCard({ jobId, override, verifiedControls }: { jobId: string; override: ReactNode; verifiedControls: ReactNode }) {

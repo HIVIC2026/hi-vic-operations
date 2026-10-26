@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 26 Oct 10:48 three approved fixes
+- [x] Removed "call us"/office phone from owner quote + cancelled emails and an owner error message.
+- [x] Eligibility labels now "Likely Eligible" / "Needs Onsite Confirmation" / "Does Not Appear Eligible"; Gate 1 logic untouched.
+- [x] 5% deposit tier removed; flat 10% on install price only.
 ## Jo 25 Oct 09:28 read-only counts
 - [x] Read-only counts complete: all 1,331 leads paged; 256 send decisions / 254 unique real owners; 0 real tomorrow daily-text recipients; booking switch alone sends 0 while auto-installer offers remain OFF. GET/HEAD guard blocked writes/providers; temporary script deleted.
 - [ ] Finish the interrupted Outlook archive action after fresh checks; last read batch was cancelled before execution and no messages have been moved.
