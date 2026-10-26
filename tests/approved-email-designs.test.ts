@@ -201,7 +201,7 @@ describe("approved owner email designs", () => {
     const m = renderVeecCopyEmail({ firstName: "Helen", jobNumber: "HV-3117", signedAt: "2026-11-21T03:00:00.000Z", myJobUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB });
     shell(m.html, m.text, true);
     expect(visLines(m.html)).toEqual(designLines("owner_O62", [["HV-TEST", "HV-3117"]]));
-    has(m.html, [">Here's your signed rebate form, Helen</div>", "for HV-3117 is attached and also on your job page", "<strong>Signed on 21 November 2026</strong>", ">See my job</a>", `href="${JOB}?screen=done"`, "veu@esc.vic.gov.au"]);
+    has(m.html, [">Here's your signed rebate form, Helen</div>", "for HV-3117 is attached", "<strong>Signed on 21 November 2026</strong>", ">See my job</a>", `href="${JOB}?screen=done"`, "veu@esc.vic.gov.au"]);
     expect(m.subject).toBe("Here's your signed rebate form, Helen");
     has(m.text, ["HV-3117", "Signed on 21 November 2026.", `See my job: ${JOB}?screen=done`]);
     expect(VEEC_COPY_EMAIL_APPROVED).toBe(true);
@@ -249,7 +249,7 @@ describe("approved owner email designs", () => {
     const m = renderConsentCopyEmail({ firstName: "Helen", installationDays: ["2026-11-11"], address: "824 High Street Road, Glen Waverley VIC 3150", templateVersion: "esc-2026-10-v1", formText: form, sha256: "e6458b32666a01a5a3d06718cf0ee33b601077761c6f14f77d20bee5d7753151", myJobUrl: JOB, attached: true });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Your signed consent form");
-    has(m.html, [">Hi Helen,</div>", ">Your signed consent form</div>", "Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF, and it's also on your job page.", ">See my job</a>", `href="${JOB}"`, "Your signed form", "Record reference e6458b32666a"]);
+    has(m.html, [">Hi Helen,</div>", ">Your signed consent form</div>", "Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF.", ">See my job</a>", `href="${JOB}"`, "Your signed form", "Record reference e6458b32666a"]);
     // The signed form's own lines, as signed (label | value rows).
     has(vis(m.html), ["Section 1: Information to be shared", "First name | Helen", "Last Name | Yang", "Address of premises | 824 High Street Road, Glen Waverley VIC 3150", "Installation day(s) | Tuesday 11 November 2026", "Section 2: Owner declarations", "☑ I consent to the Accredited Person sharing this information with the Essential Services Commission", "☑ I have read and understood this form", "Owner signature | Helen Yang | Date | 24 October 2026", "AP representative | Jo Carter (Director)", "Form esc-2026-10-v1 · Record reference e6458b32666a"]);
     has(m.text, ["Hi Helen,", "First name: Helen", "Owner signature: Helen Yang  Date: 24 October 2026", "AP representative: Jo Carter (Director)  Date: 24 October 2026", `See my job: ${JOB}`]);

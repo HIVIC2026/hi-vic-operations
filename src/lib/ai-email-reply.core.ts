@@ -7,6 +7,7 @@
 //   never a phone number; sign-off "Cheers, the Home Insulation Victoria team" (AI replies only).
 // - Booking change asks get the owner's own My job link on the right screen for the visit (PIESA → electrician,
 //   install → installer), via email-change-reply.core `changeVisitLink`.
+import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
 
@@ -112,26 +113,26 @@ export function aiLinkLabel(url: string): string {
 }
 
 /**
- * The AI reply's email body in the current customer-email look (email-kit: same card, logo, blue buttons and footer as
- * the approved Save my spot email): greeting line, short paragraphs, each link as a blue button, sign-off on its own lines.
+ * The AI reply as an email in the refreshed look (Jo 27 Oct 2026: same frame and layout as the O76 automatic replies):
+ * greeting line, short paragraphs, each link as a green button, sign-off on its own lines.
  */
-export function aiReplyHtmlBody(body: string, k: { greeting: (t: string) => string; p: (t: string, m?: string, html?: boolean) => string; esc: (s: string) => string; button: (href: string, label: string, margin?: string) => string; link: (href: string, text: string) => string }): string {
+export function aiReplyEmailHtml(body: string, o: { subject: string; unsubscribe: string | null; test?: boolean }): string {
   const URL_RE = /https?:\/\/[^\s<>"]+/g;
   const paras = body.replace(/\r/g, "").trim().split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
   const out: string[] = [];
   paras.forEach((para, i) => {
-    if (i === 0 && /^(hi|hey|hello|g'day)\b[^\n]{0,40}[!,]$/i.test(para)) { out.push(k.greeting(para).replace("margin:20px 0 4px", "margin:20px 0 12px")); return; }
+    if (i === 0 && /^(hi|hey|hello|g'day)\b[^\n]{0,40}[!,]$/i.test(para)) { out.push(`<mj-text mj-class="hi" padding="18px 12px 12px">${esc(para)}</mj-text>`); return; }
     if (para === AI_SIGN_OFF || /^cheers,/i.test(para) && i === paras.length - 1) {
       const [a, ...rest] = para.split(/,\s*/);
-      out.push(k.p(`${k.esc(`${a},`)}<br>${k.esc(rest.join(", "))}`, "20px 0 0", true));
+      out.push(`<mj-text padding="8px 12px 0">${esc(`${a},`)}<br />${esc(rest.join(", "))}</mj-text>`);
       return;
     }
     const urls = para.match(URL_RE) ?? [];
     const text = para.replace(URL_RE, "").split("\n").map((l) => l.trim()).filter((l) => l && !/^[.,!?;:)]+$/.test(l)).join("\n");
-    if (text) out.push(k.p(k.esc(text).replace(/\n/g, "<br>"), urls.length ? "0 0 4px" : "0 0 14px", true));
-    for (const u of urls) out.push(k.button(u, aiLinkLabel(u), "10px 0 18px"));
+    if (text) out.push(`<mj-text${urls.length ? ' padding="0 12px 4px"' : ""}>${esc(text).replace(/\n/g, "<br />")}</mj-text>`);
+    for (const u of urls) out.push(`<mj-button href="${esc(u)}" padding="10px 12px 18px">${esc(aiLinkLabel(u))}</mj-button>`);
   });
-  return out.join("\n");
+  return mjEmail({ subject: o.subject, body: `<mj-section><mj-column>${out.join("")}</mj-column></mj-section>`, unsubscribe: o.unsubscribe, testLabel: o.test === true });
 }
 
 /** Plain-text version: same paragraphs, each link on its own line with its label. */

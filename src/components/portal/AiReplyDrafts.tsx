@@ -5,8 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { discardAiReplyDraft, getAiReplyDrafts, sendAiReplyDraft } from "@/lib/ai-email-reply.functions";
 import { btnClass } from "@/components/portal/kit";
-import { aiReplyHtmlBody } from "@/lib/ai-email-reply.core";
-import * as K from "@/lib/email-kit.core";
+import { aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -28,7 +27,7 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
       <textarea aria-label="Reply text" value={body} onChange={(e) => setBody(e.target.value)} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
       <details className="text-sm">
         <summary className="cursor-pointer font-semibold text-hiv-blue">How the owner will see it</summary>
-        <iframe title="Email preview" sandbox="" srcDoc={K.emailShell({ body: aiReplyHtmlBody(body, K), previewText: null, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
+        <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
       </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
         <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>

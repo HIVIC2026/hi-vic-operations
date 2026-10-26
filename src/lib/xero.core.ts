@@ -1,5 +1,7 @@
 // Pure Xero logic (no database). Every Xero call goes through the injected `XeroCall`,
 // so tests can mock it and never hit the live Xero API.
+import { currentFeeWording } from "./hiv-quote.core";
+
 export type XeroCall = (path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => Promise<any>;
 
 export const TRACKING_CATEGORY = "Business Unit"; // never fall back to the legacy "Projects" category
@@ -115,8 +117,8 @@ export function buildInvoicePayload(a: {
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
     const head = `${ref}${n === 0 ? address : ""}`;
     return exact
-      ? { Description: `${head} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
-      : { Description: `${head} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
+      ? { Description: `${head} – ${currentFeeWording(i.description)}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
+      : { Description: `${head} – ${currentFeeWording(i.description)} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
   });
   if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: VEEC_INCENTIVE_ACCOUNT_CODE, TaxType: VEEC_INCENTIVE_TAX_TYPE, Tracking });
   const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);

@@ -11,7 +11,7 @@
       <mj-section>
         <mj-column>
           <mj-text mj-class="h1" css-class="email-heading">Here's your signed rebate form, Helen</mj-text>
-          <mj-text>Thanks for signing. Your copy of the rebate form for HV-TEST is attached and also on your job page. Keep it with your home records.</mj-text>
+          <mj-text>Thanks for signing. Your copy of the rebate form for HV-TEST is attached. Keep it with your home records.</mj-text>
         </mj-column>
       </mj-section>
 

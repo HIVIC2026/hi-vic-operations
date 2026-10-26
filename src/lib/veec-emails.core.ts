@@ -38,7 +38,7 @@ export const melbourneLongDate = (iso: string) => new Date(iso).toLocaleDateStri
 export function renderVeecCopyEmail(i: VeecCopyEmailInput) {
   const first = K.cleanName(i.firstName) ?? "there";
   const subject = `Here's your signed rebate form, ${first}`;
-  const copy = `Thanks for signing. Your copy of the rebate form for ${i.jobNumber} is attached and also on your job page. Keep it with your home records.`;
+  const copy = `Thanks for signing. Your copy of the rebate form for ${i.jobNumber} is attached. Keep it with your home records.`;
   const signed = `Signed on ${melbourneLongDate(i.signedAt)}`;
   const escLine = "Questions about the rebate scheme? The Essential Services Commission is at veu@esc.vic.gov.au.";
   const label = "See my job";

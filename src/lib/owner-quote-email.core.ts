@@ -6,6 +6,7 @@
 // Reminder emails (decisions 88/89/134, docs/templates/mjml/owner_O19.mjml): rebate + price boxes + button with a reminder line, no breakdown.
 // Approved (decisions 89/134): QUOTE_REMINDER_EMAIL_APPROVED is on; the sender is approved-owner-emails.server.ts behind customer_comms_enabled.
 // Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
+import { currentFeeWording } from "./hiv-quote.core";
 import { aud } from "./workflow";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
@@ -75,7 +76,7 @@ export const INSULATION_BENEFIT = "Ceiling insulation is the best barrier agains
 const NOT_INCLUDED = "Not included: electrical fixes, only if the safety check finds any. They're quoted separately, and nothing is done without your OK.";
 const NOT_FOR_YOU = "Not ready, or not for you? You can tell us on the same page.";
 /** Rule (Jo): "Accredited Person", never "Accredited Provider" — older quote lines still carry the old fee name. */
-const lineTitle = (d: string) => d.replace(/Accredited Provider/g, "Accredited Person");
+const lineTitle = (d: string) => currentFeeWording(d);
 
 /** Shared figures: rebate, full price, headline and the approved rebate + price boxes (MJML). */
 function quoteFigures(i: OwnerQuoteEmailInput) {

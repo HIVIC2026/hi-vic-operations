@@ -181,7 +181,7 @@ describe("full detailed invoice payload", () => {
     const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-3117", dueDate: "2026-11-11", total: 1251, items: it.items, veecIncentive: 1850, tracking, installationAddress: "824 High Street Road, Glen Waverley VIC 3150" }).Invoices[0]!;
     expect(inv.LineItems.map((l) => l.Description)).toEqual([
       "Home Insulation Victoria HV-3117 – Installation address: 824 High Street Road, Glen Waverley VIC 3150 – Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m²",
-      "Home Insulation Victoria HV-3117 – Accredited Provider fee (Home Insulation Victoria)",
+      "Home Insulation Victoria HV-3117 – Accredited Person fee (Home Insulation Victoria)",
       "Home Insulation Victoria HV-3117 – VEEC incentive",
     ]);
     expect(inv.LineItems[0]).toMatchObject({ Quantity: 137.6, UnitAmount: 20 });

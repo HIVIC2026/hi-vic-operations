@@ -179,7 +179,7 @@ describe("signed copy (O62) with the executed PDF attached", () => {
     expect(guarded.map((g) => [g.purpose, g.key, g.to])).toEqual([["veec_assignment_copy", `veec-copy:v1:${ASG}`, "helen@example.com"]]);
     const mail = guarded[0]!.mail;
     expect(mail.subject).toBe("Here's your signed rebate form, Helen");
-    for (const s of ["Your copy of the rebate form for HV-3117 is attached and also on your job page", "<strong>Signed on 21 November 2026</strong>", `href="${LINK}"`, "See my job</a>", "veu@esc.vic.gov.au"]) expect(mail.html).toContain(s);
+    for (const s of ["Your copy of the rebate form for HV-3117 is attached", "<strong>Signed on 21 November 2026</strong>", `href="${LINK}"`, "See my job</a>", "veu@esc.vic.gov.au"]) expect(mail.html).toContain(s);
     expect(mail.attachments).toEqual([{ filename: "VEEC-assignment-form-HV-3117.pdf", content: b64, contentType: "application/pdf" }]);
     const a = tables["customer_assignments"]![0]!;
     expect(typeof a["copy_sent_at"]).toBe("string");

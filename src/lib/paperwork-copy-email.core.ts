@@ -53,8 +53,8 @@ export function renderPaperworkCopyEmail(i: PaperworkCopyEmailInput) {
   const address = i.address.trim();
   const hi = `Hi ${first}, thanks for signing.`;
   const lead = `Here's a copy of what you signed for the ceiling insulation${address ? ` at ${address}` : ""}, for your records.`;
-  const where = i.attached ? "The signed copies are attached as PDFs. They're also on your job page." : "The signed copies are on your job page.";
-  const preview = i.attached ? "Thanks for signing. Your copies are attached as PDFs for your records." : "Thanks for signing. Your copies are on your job page.";
+  const where = i.attached ? "The signed copies are attached as PDFs." : "Just reply to this email if you'd like PDF copies.";
+  const preview = i.attached ? "Thanks for signing. Your copies are attached as PDFs for your records." : "Thanks for signing. Just reply if you'd like PDF copies.";
   const titles = i.titles.map(paperworkCopyTitle);
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(PAPERWORK_COPY_SUBJECT)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,

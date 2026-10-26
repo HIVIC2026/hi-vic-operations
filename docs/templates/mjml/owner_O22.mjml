@@ -35,7 +35,7 @@
             <tr><td width="36" valign="top" style="padding:2px 0 12px;"><span class="num">3</span></td><td style="padding:0 0 12px;"><strong>Book your install day</strong><br /><span class="muted">Sample Insulation Co offers you 3 days. Your install is done within 30 days of the safety check.</span></td></tr>
           </mj-table>
           <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
-          <mj-text mj-class="small" padding="0 12px 0">Your signed acceptance and receipt are attached, and always on your job page. Questions? Just reply to this email.</mj-text>
+          <mj-text mj-class="small" padding="0 12px 0">Your signed acceptance and receipt are attached. Please keep this email. Questions? Just reply to this email.</mj-text>
         </mj-column>
       </mj-section>
 

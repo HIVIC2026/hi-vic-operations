@@ -30,15 +30,17 @@ describe("AI email replies — Jo 26 Oct rules", () => {
 });
 
 describe("AI reply layout (Jo 26 Oct)", () => {
-  const K = require("../src/lib/email-kit.core");
-  const { aiReplyHtmlBody } = require("../src/lib/ai-email-reply.core");
+  const { aiReplyEmailHtml } = require("../src/lib/ai-email-reply.core");
+  const { MAIL_LOGO_URL } = require("../src/lib/mail-mjml.core");
+  const render = (b: string) => aiReplyEmailHtml(b, { subject: "Re: Ready Check", unsubscribe: null });
   const out = finishAiReply(`Hi Sarah! Good news — your Ready Check's done. You can change the time here: ${MY}?screen=book.`);
   test("greeting gets its own line", () => expect(out.startsWith("Hi Sarah!\n\nGood news")).toBe(true));
   test("links sit on their own line", () => expect(out).toContain(`here:\n\n${MY}?screen=book\n\n`));
   test("links become a button, not a raw URL in the sentence", () => {
-    const html = aiReplyHtmlBody(out, K);
+    const html = render(out);
     expect(html).toContain("Change my booking time");
     expect(html).toContain(`href="${MY}?screen=book"`);
   });
-  test("sign-off on its own lines", () => expect(aiReplyHtmlBody(out, K)).toContain("Cheers,<br>the Home Insulation Victoria team"));
+  test("sign-off on its own lines", () => expect(render(out)).toContain("Cheers,<br />the Home Insulation Victoria team"));
+  test("refreshed look: hosted logo, no embedded image", () => { const h = render(out); expect(h).toContain(MAIL_LOGO_URL); expect(h).not.toContain("data:image"); });
 });

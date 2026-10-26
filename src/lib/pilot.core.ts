@@ -426,7 +426,7 @@ export function revisionBlocker(version: number, reason: string | null | undefin
 export function cobrandSnapshot(p: { partnerName: string; partnerLogoUrl?: string | null | undefined; partnerAbn?: string | null | undefined; relationshipOwner: "hivic" | "installer" }) {
   return {
     installation_partner: { name: p.partnerName, logo_url: p.partnerLogoUrl ?? null, abn: p.partnerAbn ?? null },
-    accredited_provider: { name: AP_ENTITY, role: "Accredited Provider (VEU Activity 48)" },
+    accredited_provider: { name: AP_ENTITY, role: "Accredited Person (VEU Activity 48)" },
     customer_contact: p.relationshipOwner === "installer" ? p.partnerName : "Home Insulation Victoria",
   };
 }

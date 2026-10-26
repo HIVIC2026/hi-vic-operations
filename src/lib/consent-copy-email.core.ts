@@ -75,7 +75,7 @@ export function renderConsentCopyEmail(i: ConsentCopyInput) {
   const headline = CONSENT_COPY_SUBJECT;
   const address = i.address.trim();
   const hi = `Hi ${first},`;
-  const body = `Here's your copy of the owner's consent form you signed for the ceiling insulation at ${address}. ${i.attached ? "The signed form is attached as a PDF, and it's also on your job page." : "It's also on your job page."}`;
+  const body = `Here's your copy of the owner's consent form you signed for the ceiling insulation at ${address}. ${i.attached ? "The signed form is attached as a PDF." : "The full form is below. Just reply if you'd like a PDF copy."}`;
   const preview = `Your copy of the owner's consent form for ${address.replace(/\s+VIC\s+\d{4}$/i, "")}.${i.attached ? " The PDF is attached." : ""}`;
   const formLines = i.formText.split("\n").map((l) => l.trimEnd());
   const blocks = formBlocks(formLines);

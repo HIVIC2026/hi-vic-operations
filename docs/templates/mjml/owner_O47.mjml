@@ -25,10 +25,10 @@
       <mj-section>
         <mj-column mj-class="panel-card">
           <mj-table padding="6px 18px 6px">
-            <tr><td valign="top" style="padding:12px 0;"><strong>&#128196; Certificate of Completion</strong><br /><span class="muted">Product, R-value, area, installer, date and rebate</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;"><span class="muted">On your job page</span></td></tr>
-            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Tax invoice</strong><br /><span class="muted">Paid in full</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"><span class="muted">On your job page</span></td></tr>
-            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Your warranties</strong><br /><span class="muted">1-year installer workmanship · 5-year product warranty</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=done" style="color:#3C51C4;font-weight:700;">Download</a></td></tr>
-            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Signed forms</strong><br /><span class="muted">Acceptance, install consent, rebate form, safety check</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"><a href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=done" style="color:#3C51C4;font-weight:700;">Download</a></td></tr>
+            <tr><td valign="top" style="padding:12px 0;"><strong>&#128196; Certificate of Completion</strong><br /><span class="muted">Product, R-value, area, installer, date and rebate</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;"></td></tr>
+            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Tax invoice</strong><br /><span class="muted">Paid in full</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"></td></tr>
+            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Your warranties</strong><br /><span class="muted">1-year installer workmanship · 5-year product warranty</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"></td></tr>
+            <tr><td valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><strong>&#128196; Signed forms</strong><br /><span class="muted">Acceptance, install consent, rebate form, safety check. Each was emailed to you when it was signed</span></td><td align="right" valign="top" style="padding:12px 0 12px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"></td></tr>
           </mj-table>
         </mj-column>
       </mj-section>
@@ -57,7 +57,7 @@
 
       <mj-section>
         <mj-column>
-          <mj-text mj-class="small" padding="14px 12px 0">Thanks for choosing Home Insulation Victoria. Your pack is always on your job page too.</mj-text>
+          <mj-text mj-class="small" padding="14px 12px 0">Thanks for choosing Home Insulation Victoria.</mj-text>
         </mj-column>
       </mj-section>
 
