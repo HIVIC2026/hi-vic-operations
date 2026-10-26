@@ -1,4 +1,4 @@
-// The partner email layout as it is today, used only by the office "send back for changes" and "decline" application emails, which have no design picture and stay unchanged (Jo 27 Oct 2026).
+// The partner email layout as it is today, used only by the office "send back for changes" and "decline" application emails, which have no design picture and stay unchanged.
 // One look for every partner email (welcome, send back, decline, application received, ESC notice): the MJML email
 // refresh (Jo 26 Oct 2026; designs docs/templates/mjml/installer_I54.mjml, electrician_E13.mjml, installer_I60.mjml,
 // installer_I62.mjml). Pure. The logo is the hosted PNG `mjEmail` puts in the header (same file as CUSTOMER_BRAND.logoUrl).
