@@ -3,7 +3,7 @@
 import { expect, test } from "bun:test";
 import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 
-const intro = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Government's Energy Upgrades (VEU) rebate.";
+const intro = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Energy Upgrades (VEU) rebate.";
 const retention = "it may be able to stay.";
 const removal = "If some needs removing";
 

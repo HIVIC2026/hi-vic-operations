@@ -301,7 +301,7 @@ describe("assumed-size indicative email disclosure (owner-approved OPTION A)", (
     const body = `${mail.html}\n${mail.plainText}`;
     expect(body).toContain(`Based on a typical ${DEFAULT_ESTIMATED_AREA_M2} m² ceiling (an estimate, not your actual size)`); // (1)+(2)
     expect(body).not.toMatch(/Ready Check/);                            // (3) decision 388: spot-only before release
-    expect(body).toMatch(/know the exact price before you agree to anything/i); // (4)
+    expect(body).toMatch(/see your exact price before you agree to anything/i); // (4)
     expect(mail.subject).toBe("Sam, you could save $1,482 on ceiling insulation");
   });
 });
