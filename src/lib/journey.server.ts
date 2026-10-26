@@ -441,8 +441,12 @@ const s7: StepFn = async (ctx, r) => {
   if ((await stageOf(ctx)) !== "installation_scheduling") await act(r, "install scheduling opens after the PIESA pass", () => transition(ctx.jobId!, "installation_scheduling", ctx.actorId, "TEST journey: install scheduling"));
   // Decision 296: the owner confirms the safety check on their secure link before an install day can be booked.
   await act(r, "owner confirms the safety check (PIESA) on the secure link", () => import("./piesa-owner-confirm.server").then((m) => m.signOwnerPiesaConfirmation({ jobId: ctx.jobId!, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" })));
-  const days: string[] = []; for (let d = 3; d < 20 && days.length < 3; d++) { const x = melbourneDate(d); const wd = new Date(`${x}T12:00:00Z`).getUTCDay(); if (wd > 0 && wd < 6) days.push(x); }
+  // The installer's own allowed days (business days, 24h+ ahead, inside the PIESA window); the earliest three, so the booked
+  // day sits inside the ESC notice window (24 hours to 5 days before the start) whatever weekday the run starts on.
   const idays = await import("./install-days.server");
+  const { installStartAt } = await import("./install-days.core");
+  const days = (await idays.installerInstallDayState(ctx.jobId!, ctx.installer.id)).days.filter((d) => installStartAt(d, "08:00").getTime() > Date.now() + 25 * 3_600_000).slice(0, 3);
+  check(r, "installer has 3 install days to offer", days.length === 3, days.join(", "));
   await act(r, "installer offers 3 install days (within 30 days of the PIESA)", () => idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))));
   const st = await idays.ownerInstallDayState(ctx.jobId!);
   check(r, "owner sees the installer's 3 days", st.turn === "owner_to_answer" && st.open.length === 3, st.turn);
