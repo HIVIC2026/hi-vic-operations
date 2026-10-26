@@ -5,7 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TradePublicShell, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
 import { getSwmsLinkView, signSwmsByLink } from "@/lib/swms-link.functions";
+import { readableError } from "@/lib/readable-error.core";
 import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT, swmsDate, swmsDateTime } from "@/lib/swms.core";
+
+const SP_LINK_PROBLEM = "We couldn't open this safety plan. Check you have the whole link from the text, or ask your business owner to send it again.";
 
 export const Route = createFileRoute("/sp/$token")({
   ssr: false,
@@ -28,7 +31,7 @@ function SafetyPlanLink() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const d = q.data;
-  if (q.error) return <TradePublicShell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-swms-link-invalid><h1 className="font-display text-2xl font-bold">This safety plan link is unavailable.</h1><p className="mt-1 text-sm">{(q.error as Error).message}</p></section></TradePublicShell>;
+  if (q.error) return <TradePublicShell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-swms-link-invalid><h1 className="font-display text-2xl font-bold">This safety plan link is unavailable.</h1><p className="mt-1 text-sm">{readableError(q.error, SP_LINK_PROBLEM)}</p></section></TradePublicShell>;
   if (!d) return <TradePublicShell><p className="text-sm text-sub">Loading your safety plan…</p></TradePublicShell>;
   return (
     <TradePublicShell>
@@ -52,7 +55,7 @@ function SafetyPlanLink() {
           <label className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5" checked={ok} onChange={(e) => setOk(e.target.checked)} aria-label="I have read the safety plan" /><span>I am {d.signer.name}. {SWMS_SIGN_STATEMENT}.</span></label>
           <input className={inputCls} placeholder={`Type ${d.signer.name}'s full name to sign`} aria-label="Your full name" value={typed} onChange={(e) => setTyped(e.target.value)} />
           <button type="button" className={greenBtn} disabled={busy || !ok || typed.trim().length < 2}
-            onClick={async () => { setBusy(true); setErr(null); try { await signSwmsByLink({ data: { token, typedName: typed } }); await q.refetch(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>Sign the safety plan</button>
+            onClick={async () => { setBusy(true); setErr(null); try { await signSwmsByLink({ data: { token, typedName: typed } }); await q.refetch(); } catch (e) { setErr(readableError(e, "Your signature wasn't saved. Check your connection and try again.")); } finally { setBusy(false); } }}>Sign the safety plan</button>
           {err && <p role="alert" className="rounded-[18px] bg-owner-house-pink p-4 font-semibold">{err}</p>}
         </section>
       )}

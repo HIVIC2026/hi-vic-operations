@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TradePublicShell, card, greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
 import { acceptRateOffer, declineRateOffer, loadRateOffer } from "@/lib/rate-offer.functions";
+import { readableError } from "@/lib/readable-error.core";
 
 export const Route = createFileRoute("/rate-offer/$token")({
   ssr: false,
@@ -26,12 +27,12 @@ function RateOfferPage() {
   const [proposed, setProposed] = useState<Record<string, string>>({}); const [message, setMessage] = useState("");
   const [err, setErr] = useState<string | null>(null); const [busy, setBusy] = useState(false);
   const o = q.data;
-  const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await fn(); await q.refetch(); setMode("view"); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
+  const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await fn(); await q.refetch(); setMode("view"); } catch (e) { setErr(readableError(e, "That didn't go through. Check your answers and connection, then try again.")); } finally { setBusy(false); } };
   return (
     <TradePublicShell>
       <h1 className="font-display text-[26px] font-bold leading-tight">Review our rate offer</h1>
       {q.isLoading && <p className="text-sm">Loading…</p>}
-      {q.error && <p role="alert" className={card}>{(q.error as Error).message}</p>}
+      {q.error && <p role="alert" className={card}>{readableError(q.error, "We couldn't open this rate offer. Check you have the whole link from the email, or ask our office for a new link.")}</p>}
       {o && <>
         <div className="flex flex-wrap items-center gap-2"><p className="text-sm text-sub">{o.partner}</p><span className="rounded-[18px] bg-mist px-2.5 py-0.5 text-[11px] font-semibold text-hiv-blue">All prices inc GST</span></div>
         <p>Thanks for your application, {o.partner}. Here are the rates you proposed next to our offer. All figures include GST.</p>
