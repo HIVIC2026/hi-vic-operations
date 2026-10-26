@@ -544,3 +544,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] AI email replies on each job (Jo 26 Oct): drafts on job, auto-send off, unmatched on Enquiries
 - [ ] Turn on AI auto-send for simple replies — waits for Jo to see samples and say "send"
+- [x] AI replies auto-send switch (Settings › Switches, simple replies only, off by default) — practice database proven
+- [ ] Put the switch's database change live — awaiting Jo's go-ahead
