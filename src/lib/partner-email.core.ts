@@ -38,6 +38,19 @@ export function partnerEmailLayout(i: { subject: string; heading?: string | null
 export function partnerWelcomeEmail(i: { firstName: string | null; businessName: string; trade: "installer" | "electrician"; email: string; link: string; guideUrl?: string | null; test?: boolean }) {
   const subject = "You're approved — welcome to Home Insulation Victoria";
   const first = K.cleanName(i.firstName);
+  if (i.trade === "electrician") {
+    // E13 picture (docs/templates/electrician/E13-welcome-email.html): "Welcome aboard, {First}", approved line, set-password
+    // line, sign-in email, "Set my password". Decision 318's pay rule (Jo 25 Oct 2026) stays underneath.
+    const h = `Welcome aboard${first ? `, ${first}` : ""}`;
+    const l1 = `${i.businessName} is approved as a Home Insulation Victoria partner.`;
+    const l2 = "Tap the button to set your password and sign in to your online portal. The link works once and expires in 24 hours.";
+    const l3 = `Your sign-in email is ${i.email}.`;
+    const eBody = [K.h1(h, 12), K.p(l1, "0 0 12px"), K.p(l2, "0 0 12px"), K.p(l3, "0 0 12px"), K.button(i.link, "Set my password", "6px 0 4px"),
+      K.mistBox(NO_FORM_NO_PAY.headline, K.p(NO_FORM_NO_PAY.body, "0"), { marginTop: 14 })].join("\n");
+    const eHtml = K.emailShell({ body: eBody, previewText: l1, testLabel: i.test === true, unsubscribe: null });
+    const eText = K.plainText([h, "", l1, "", l2, "", l3, "", `Set my password: ${i.link}`, "", `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`], { testLabel: i.test === true });
+    return { subject, html: eHtml, text: eText };
+  }
   const headline = `Welcome aboard${first ? `, ${first}` : ""}. You're approved!`;
   const intro = i.trade === "installer"
     ? `${i.businessName} can now take VEU ceiling insulation jobs through Home Insulation Victoria. Here's what that gets you:`
