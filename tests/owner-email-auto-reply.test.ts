@@ -182,7 +182,7 @@ describe("copier wiring", () => {
   });
   test("Needs me: the reply-needed row reuses the email row (Done / Ignore) and Done changes nothing on the job", async () => {
     const { CHANGE_LINE, emailRow } = await import("../src/lib/office-needs.core");
-    expect(CHANGE_LINE.reply).toBe("Owner emailed — reply needed (draft in Outlook)");
+    expect(CHANGE_LINE.reply).toBe("Owner emailed — reply needed (AI draft on the job)");
     const row = emailRow({ type: "change", eventId: "e1", jobId: "j1", jobNumber: "HV-1", surname: "Yang", suburb: null, line: CHANGE_LINE.reply, at: "2026-10-25T00:00:00Z", intent: REPLY_NEEDED_INTENT });
     expect(row.button?.label).toBe("Done");
     const office = read("src/lib/email-office.server.ts");
