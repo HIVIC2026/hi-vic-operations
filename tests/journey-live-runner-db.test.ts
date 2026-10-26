@@ -47,10 +47,17 @@ await j.db.exec(`create function journey_invoice_status_mirror() returns trigger
   return new; end $$;
 create trigger journey_invoice_status_mirror after insert or update on public.invoices for each row execute function journey_invoice_status_mirror();`);
 // The live database seeds every new job's evidence checklist, compliance checks and VEEC row (migration 0000 trigger).
-await j.db.exec("create trigger jobs_seed_requirements after insert on public.jobs for each row execute function public.seed_job_requirements();");
-// The live database refuses approving an installer whose CII is not office-verified (pending migration 0082 guard).
-const guard0082 = /CREATE FUNCTION public\.guard_installer_worker_certified\(\)[\s\S]*?FOR EACH ROW EXECUTE FUNCTION public\.guard_installer_worker_certified\(\);/.exec(readFileSync(new URL("../docs/pending-migrations/0082_installer_sign_activation.sql", import.meta.url), "utf8"))![0];
-await j.db.exec(`DROP TRIGGER IF EXISTS partner_workers_installer_certified ON public.partner_workers; DROP FUNCTION IF EXISTS public.guard_installer_worker_certified() CASCADE; ${guard0082}`);
+// Every trigger the live database runs on public tables (functions + trigger definitions read back from live on
+// 26 Oct 2026), so a live guard (e.g. 0082 worker_cert:unverified) stops this test exactly as it stops the live run.
+const live = JSON.parse(readFileSync(new URL("./fixtures/live-triggers-2026-10-26.json", import.meta.url), "utf8")) as { functions: string[]; triggers: string[] };
+const liveSkipped: string[] = [];
+// Live, supabaseAdmin connects AS service_role (current_setting('role')); here the service role is auth.role()'s default.
+for (const f of live.functions.map((x) => x.replaceAll("current_setting('role',true)", "auth.role()"))) { try { await j.db.exec(f); } catch (e) { liveSkipped.push(`fn ${/FUNCTION (\S+?)\(/.exec(f)?.[1]}: ${(e as Error).message}`); } }
+for (const t of live.triggers) {
+  const m = /^CREATE (?:CONSTRAINT )?TRIGGER (\S+) .*? ON (\S+) /.exec(t);
+  try { await j.db.exec(`DROP TRIGGER IF EXISTS ${m![1]} ON ${m![2]}; ${t}`); } catch (e) { liveSkipped.push(`trigger ${m?.[1]}: ${(e as Error).message}`); }
+}
+if (liveSkipped.length) console.warn("live triggers not loadable on PGlite:\n" + liveSkipped.join("\n"));
 const { admin: baseAdmin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
