@@ -51,7 +51,7 @@ export function renderInstallClearanceEmail(i: InstallClearanceEmailInput) {
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(line)}</mj-text><mj-button href="${esc(i.jobUrl)}">Offer install days</mj-button></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text><mj-text padding="0 18px 10px">${esc(clock)}</mj-text><mj-text padding="0 18px 18px">${esc(soon)}</mj-text></mj-column></mj-section>`,
   ].join("");
-  const html = mjEmail({ subject, preview: line, body, unsubscribe: null, testLabel: i.test === true });
+  const html = mjEmail({ subject, preview: `Offer ${owner} three install days with arrival times from your job page.`, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([headline, "", line, "", `Offer install days: ${i.jobUrl}`, "", `The 30-day clock: ${clock} ${soon}`], { testLabel: i.test === true });
   return { subject, html, text };
 }

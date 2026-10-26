@@ -54,7 +54,7 @@ export function changesEmail(i: { contactName?: string | null; message: string; 
   const { html, text } = partnerEmailLayout({ subject, heading: "A quick change needed", preview: "One thing to check, then update your application and sign again.", blocks: [
     { kind: "hi", text: `Hi ${name ?? "there"}, thanks for applying.` },
     { kind: "p", text: "Before we can approve your application, please check this:" },
-    { kind: "box", text: sentence(clean(i.message)) },
+    { kind: "box", text: clean(i.message) },
     { kind: "p", text: "Then use the button below to update your application and sign again." },
     { kind: "button", label: "Update my application", url: i.link },
   ], test: i.test !== false });
