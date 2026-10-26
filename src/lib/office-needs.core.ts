@@ -147,7 +147,7 @@ export const CHANGE_LINE = {
   contact_change: "Owner asks to change contact details",
   attachment: "Owner sent a photo or document",
   /** Decision 386: an owner email that was not answered automatically — reply from the Outlook draft, then Done. */
-  reply: "Owner emailed — reply needed (draft in Outlook)",
+  reply: "Owner emailed — reply needed (AI draft on the job)",
   other: "Owner asks for a change",
 } as const;
 
