@@ -554,3 +554,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 ## Email looks back to Jo's approved pictures (Jo 27 Oct) — one at a time, Jo checks each
 - [x] O12 You're booked
 - [ ] O11 Pick a time (next) — then every other email that has a picture in docs/designs
+- [ ] URGENT (Jo 27 Oct 21:45): stop all automatic emails until templates fixed
