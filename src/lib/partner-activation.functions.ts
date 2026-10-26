@@ -79,6 +79,9 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     // TEST partners keep their fake 12-digit ABN so a real business with the typed ABN is never matched to them.
     if (isTest) profile.business.abn = (plan as { abn: string | null }).abn;
     await applyPartnerProfile(admin, r.business_id, profile, context.userId);
+    // Decision 402 (Jo 26 Oct 2026): every pending person on the business whose certification is office-verified is approved in
+    // this same action (rules: worker-auto-approve.core). Never fails the activation; problems are logged.
+    await import("./worker-approval.server").then((m) => m.autoApproveVerifiedPeople(r.business_id, context.userId)).catch((e) => console.error("Decision 402 auto-approval skipped", (e as Error).message));
     if (isTest) {
       const d = application as { primary_contact_name?: string };
       const { sendTestWelcome } = await import("./test-approval.server");
