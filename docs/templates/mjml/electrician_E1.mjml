@@ -1,0 +1,32 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>New job in Glen Waverley — $220</mj-title>
+    <mj-preview>About 137 m² of ceiling. The first trade to accept gets the job.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">New job in Glen Waverley</mj-text>
+          <mj-text>Pre Insulation Electrical Safety Assessment (PIESA). About 137 m² of ceiling.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your rate</mj-text>
+          <mj-text mj-class="big-blue" padding="0 12px 18px">$220</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="14px 12px 14px" font-weight="700">The first trade to accept gets the job.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/offer/TEST">See the job</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

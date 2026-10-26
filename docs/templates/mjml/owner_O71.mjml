@@ -1,0 +1,48 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, please confirm your electrical safety check</mj-title>
+    <mj-preview>Spark Electrical gave your home the all clear on 5 November 2026. Confirming takes about a minute.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, please confirm your electrical safety check</mj-text>
+          <mj-text>Sam Spark (Spark Electrical Pty Ltd) did the electrical safety check (PIESA) at your home on <strong>5 November 2026</strong>.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Result</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="22px" line-height="28px" font-weight="800" color="#057D40" padding="0 16px 18px">All clear — your ceiling is safe to insulate</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="18px 12px 14px">The government form needs you to confirm the check was done. Tap the button, tick and type your name. About a minute.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">Confirm my safety check</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text font-size="15px" line-height="23px" padding="18px 18px 10px">Please don't let anyone into the ceiling before the install. <strong>Anyone going into the ceiling before installation may cancel this assessment.</strong></mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px">Your install must be done within 30 days of this safety check. After 30 days it expires and a new safety check is needed.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">Something look wrong? Reply to this email before confirming.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

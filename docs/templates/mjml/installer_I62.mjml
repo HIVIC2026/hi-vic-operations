@@ -1,0 +1,51 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your copy of the ESC privacy collection notice</mj-title>
+    <mj-preview>The notice you acknowledged on 24 October 2026 at 12:00 pm, for your records.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your copy of the ESC privacy collection notice</mj-text>
+          <mj-text>Here is your copy of the Essential Services Commission's VEU Scheme Participant Privacy Collection Notice, which you acknowledged on 24 October 2026 at 12:00 pm. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 2px">VEU Scheme Participant Privacy Collection Notice</mj-text>
+          <mj-text mj-class="small" padding="0 18px 12px">Version 1.0 – 1 October 2026</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 12px">The Essential Services Commission (commission) collects personal information about scheme participants (installers). We usually collect this information from the accredited person for whom you undertake activities, including through the VEEC assignment form. The information may include your name, date of birth, company, contact details, licence and certification details and evidence of training. We collect this information to:</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">assess whether scheme participants and accredited persons have undertaken prescribed activities in accordance with Victorian Energy Upgrades (VEU) program requirements, including applicable training and competency requirements for scheme participants</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">assess whether Victorian Energy Efficiency Certificates (VEECs) created for prescribed activities are eligible for registration</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">perform our functions under the Victorian Energy Efficiency Target Act 2007 (VEET Act) and the Essential Services Commission Act 2001 including accreditations, compliance monitoring, enforcement, and reporting.</td></tr>
+          </mj-table>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 12px">The commission may use and disclose a scheme participant’s personal information:</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">with the Energy Efficiency Council and other certification or training bodies to verify your certification and training</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">for the purpose of performing the commission’s functions or exercising powers under the VEET Act</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">with other persons or organisations for the purpose of those persons or organisations performing their functions and powers, including:</td></tr>
+            <tr><td width="32" valign="top" style="padding:0 0 10px;"></td><td style="padding:0 0 10px;">– government departments, including the Department of Energy, Environment and Climate Action;</td></tr>
+            <tr><td width="32" valign="top" style="padding:0 0 10px;"></td><td style="padding:0 0 10px;">– Energy Safe Victoria, WorkSafe Victoria and other State, Territory or Commonwealth regulators</td></tr>
+            <tr><td width="32" valign="top" style="padding:0 0 10px;"></td><td style="padding:0 0 10px;">– persons administering other energy efficiency schemes;</td></tr>
+            <tr><td width="32" valign="top" style="padding:0 0 12px;"></td><td style="padding:0 0 12px;">– State, Territory or Commonwealth police.</td></tr>
+          </mj-table>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 12px">The commission handles personal information in accordance with the Privacy and Data Protection Act 2014 and our privacy and confidential information policy.</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 12px">If you do not provide this information, you may not be able to undertake prescribed activities, or parts of activities, for an accredited person and VEECs for the prescribed activity may not be eligible for registration.</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px">If you have any questions about how your personal information will be handled or would like to access or correct your personal information, you can contact the commission on (03) 9032 1300 or <a href="mailto:privacy@esc.vic.gov.au" style="color:#3C51C4;font-weight:700;">privacy@esc.vic.gov.au</a>.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">Just reply to this email if you have any questions.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

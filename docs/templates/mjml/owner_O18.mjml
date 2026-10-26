@@ -1,0 +1,67 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, your quote is ready – save $1,850 on ceiling insulation</mj-title>
+    <mj-preview>You pay $2,200.00 after the rebate. Your price is held until 7 November 2026.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Helen, your quote is ready.</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">You save $1,850 on ceiling insulation</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text>
+          <mj-text mj-class="big-green">You save $1,850</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text>
+          <mj-text mj-class="big-blue">$2,200.00</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price before rebate <span class="strike">$4,050.00</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">824 High Street Road, Glen Waverley VIC 3150<br />Measured at your Ready Check</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=quote" padding="14px 12px 14px">View and accept your quote</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td valign="top" style="padding:0 12px 12px 0;"><strong>Bradford Gold R5.0 ceiling batts, supplied and installed</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">137.6 m² × $20.00 per m². VEU-approved (AS/NZS 4859.1), installed by Sample Insulation Co, EEC-certified (AS 3999)</span></td><td align="right" valign="top" style="padding:0 0 12px;white-space:nowrap;">$2,752.00</td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Old insulation removed and taken away</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">40 m² × $15.00 per m²</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$600.00</td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Electrical safety check (PIESA)</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">By a licensed electrician, before any insulation goes in</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$349.00</td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Accredited Person fee</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">Home Insulation Victoria (VEU A003654): your quote, compliance checks, paperwork and rebate claim</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$349.00</td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Full price</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">incl. GST</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;"><strong>$4,050.00</strong></td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong style="color:#057D40;">VEU rebate</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">Taken off upfront, nothing to claim</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;color:#057D40;"><strong>−$1,850.00</strong></td></tr>
+            <tr><td valign="middle" style="border-top:2px solid #22376B;padding:12px 12px 12px 0;font-size:18px;"><strong>You pay</strong></td><td align="right" valign="middle" style="border-top:2px solid #22376B;padding:12px 0;white-space:nowrap;font-size:18px;color:#3C51C4;"><strong>$2,200.00</strong></td></tr>
+          </mj-table>
+          <mj-text mj-class="small" padding="0 18px 18px">Not included: electrical fixes, only if the safety check finds any. They're quoted separately, and nothing is done without your OK.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="18px 12px 14px"><strong>Next:</strong> accept and pay $349.00 &rarr; electrician safety check &rarr; book your install day.</mj-text>
+          <mj-text mj-class="small" padding="0 12px 0">Your price is held until 7 November 2026. Not ready, or not for you? You can tell us on the same page. Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,50 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>You're booked: electrical safety check – Thursday 5 November at 8:00am</mj-title>
+    <mj-preview>Spark Electrical will come to 824 High Street Road, Glen Waverley. Here's how to get ready.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">You're booked, Helen</mj-text>
+          <mj-text>Your electrical safety check is confirmed.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow" padding="18px 18px 6px">Your electrical safety check</mj-text>
+          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">Thursday 5 November</mj-text>
+          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#3C51C4" padding="0 18px 10px">8:00am</mj-text>
+          <mj-text font-size="15px" line-height="22px" padding="0 18px 18px">824 High Street Road, Glen Waverley<br />Electrician: Spark Electrical · 0400 111 222</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px"><strong>Your install must happen within 30 days of this safety check.</strong> After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical fixes quickly.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text>
+          <mj-table padding="0 12px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">Make sure the electrician can reach your <strong>switchboard</strong> and your <strong>ceiling hatch</strong> (clear anything underneath it).</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">If you have <strong>pets</strong>, keep them away from the work area.</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">Have a think about any <strong>questions</strong> you'd like to ask.</td></tr>
+          </mj-table>
+          <mj-text>Need a different time? Tap <strong>Change time</strong> on your job page and the electrician will offer new times. Or call or text Spark Electrical on 0400 111 222.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" padding="6px 12px 0">See my job</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

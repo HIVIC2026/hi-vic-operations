@@ -1,0 +1,45 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, your quote is waiting</mj-title>
+    <mj-preview>Your $1,850 rebate is ready to go, and your price is held until 7 November.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, your quote is waiting</mj-text>
+          <mj-text>Just checking you saw it. Your $1,850 rebate is ready to go, and your price is held until 7 November. Any questions? Reply to this email and we'll help.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text>
+          <mj-text mj-class="big-green">You save $1,850</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text>
+          <mj-text mj-class="big-blue">$2,200.00</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price before rebate <span class="strike">$4,050.00</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">824 High Street Road, Glen Waverley VIC 3150<br />Measured at your Ready Check</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=quote" padding="14px 12px 14px">View and accept your quote</mj-button>
+          <mj-text mj-class="small" padding="0 12px 0">Not ready, or not for you? You can tell us on the same page.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,51 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Signed electrical safety check (PIESA) – HV-TEST</mj-title>
+    <mj-preview>All clear: safe to insulate. Tick Part 8(a) of your PIISA on install day.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Electrical safety check for HV-TEST: all clear</mj-text>
+          <mj-text>Here's the signed copy of the pre-installation electrical safety assessment (PIESA) for 824 High Street Road, Glen Waverley (HV-TEST). The owner has been sent the same copy.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check result</mj-text>
+          <mj-text mj-class="big-green" padding="0 12px 18px" font-size="30px" line-height="36px">Safe to insulate &#10003;</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-table padding="8px 18px 8px">
+            <tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;" class="muted">Checked on</td><td align="right" valign="top" style="padding:10px 0;font-weight:700;">Thursday 5 November 2026</td></tr>
+            <tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;border-top:1px solid #E4E9F5;" class="muted">Electrician</td><td align="right" valign="top" style="padding:10px 0;border-top:1px solid #E4E9F5;font-weight:700;">Spark Electrical · Lic. 12345 · REC 67890</td></tr>
+            <tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;border-top:1px solid #E4E9F5;" class="muted">Repairs needed</td><td align="right" valign="top" style="padding:10px 0;border-top:1px solid #E4E9F5;font-weight:700;">None</td></tr>
+            <tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;border-top:1px solid #E4E9F5;" class="muted">Install</td><td align="right" valign="top" style="padding:10px 0;border-top:1px solid #E4E9F5;font-weight:700;">Wednesday 11 November, arriving 7:30am</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="h2" padding="18px 18px 6px">On install day</mj-text>
+          <mj-text padding="0 18px 18px">Tick Part 8(a) of the installer safety assessment (PIISA): "I have received a completed copy of the pre-installation electrical safety assessment for the premises".</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="8px 0 0"></mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB">View your safety check (PDF)</mj-button>
+          <mj-text mj-class="small">Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.</mj-text>
+          <mj-text mj-class="small" padding="0 12px 0">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,55 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>All done, Helen. Enjoy a warmer home!</mj-title>
+    <mj-preview>One last thing: sign your rebate form. It takes a minute.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">All done, Helen. Enjoy a warmer home!</mj-text>
+          <mj-text>Sample Insulation Co finished installing your ceiling insulation today. You should notice the difference straight away: warmer winters, cooler summers and lower heating and cooling bills.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-table padding="8px 18px 8px">
+            <tr><td style="padding:10px 0;color:#5A6785;">Installed</td><td align="right" style="padding:10px 0 10px 12px;"><strong>137.6 m² Bradford Gold R5.0</strong></td></tr>
+            <tr><td style="padding:10px 0;border-top:1px solid #E4E9F5;color:#5A6785;">Your VEU rebate</td><td align="right" style="padding:10px 0 10px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;color:#057D40;"><strong>$1,850 off</strong></td></tr>
+            <tr><td style="padding:10px 0;border-top:1px solid #E4E9F5;color:#5A6785;">Balance</td><td align="right" style="padding:10px 0 10px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;"><strong>Paid in full &#10003;</strong></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">One last thing: sign your rebate form</mj-text>
+          <mj-text>It confirms what was installed. It also assigns the rebate you've already had off your price to us, so we can claim it. It takes a minute, and you'll get a copy straight away.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=assignment">Sign your rebate form</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">What you'll get from us</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="34" valign="top" style="padding:1px 0 14px;"><span class="num">1</span></td><td style="padding:0 0 14px;"><strong>Your completion pack</strong><br /><span class="muted">Tax invoice, Certificate of Completion, your installer's 1-year workmanship warranty, the 5-year product warranty, care tips and every signed form, in one place.</span></td></tr>
+            <tr><td width="34" valign="top" style="padding:1px 0 12px;"><span class="num">2</span></td><td style="padding:0 0 12px;"><strong>A copy of your signed rebate form</strong><br /><span class="muted">Emailed to you as soon as you sign.</span></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">Something not right? Contact Sample Insulation Co first on 0400 000 000. Not sorted? Reply to this email and we'll help.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,44 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your ceiling insulation eligibility result</mj-title>
+    <mj-preview>Based on what you told us, your home doesn't qualify right now. Here's why, and what to do if something's wrong.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, your ceiling insulation result</mj-text>
+          <mj-text>Thanks for checking with us. Based on what you told us, your home doesn't qualify for the VEU ceiling insulation rebate at the moment. We'd rather tell you now than waste your time.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="h2" padding="18px 18px 2px">Why</mj-text>
+          <mj-text padding="0 18px 16px">From the photos and details you sent us, the insulation already in your ceiling appears to be R2.0 or above.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Something doesn't look right?</mj-text>
+          <mj-text>If any of your details were wrong, like your ceiling size or the insulation you have, check your result and let us know. We'll take another look.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST">Review my result</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 2px">Know someone thinking about insulation?</mj-text>
+          <mj-text padding="0 18px 6px">They can check their own eligibility in about a minute.</mj-text>
+          <mj-text padding="0 18px 16px"><a href="https://estimate.homeinsulationvictoria.com.au/" style="color:#3C51C4;font-weight:700;">Send to a friend &rarr;</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

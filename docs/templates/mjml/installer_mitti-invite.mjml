@@ -1,0 +1,36 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>You've been invited to Mitti</mj-title>
+    <mj-preview>Look for the email from Mitti to set your password.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">You've been invited to Mitti</mj-text>
+          <mj-text>Mitti is the app you'll use for Home Insulation Victoria job forms.</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">To get started</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="num">1</span></td><td style="padding:0 0 14px;">Check your email from Mitti</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="num">2</span></td><td style="padding:0 0 14px;">Set your password</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="num">3</span></td><td style="padding:0 0 12px;">Download the Mitti app</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">Just reply to this email if you have any questions.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>
