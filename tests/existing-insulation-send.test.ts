@@ -34,10 +34,11 @@ beforeEach(()=>{
 // "Your existing insulation" card with the $15/m² removal line. No separate follow-up copy.
 test("office below-R2 preview renders the approved some-insulation Save my spot despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
+  expect(r.preview?.subject).toBe("TEST, your insulation looks eligible—save your spot");
   expect(r.preview?.plainText).toContain("TEST, you may qualify for $3,198 off ceiling insulation");
   expect(r.preview?.plainText).toContain("YOUR EXISTING INSULATION\nGood news: it may be able to stay.");
   expect(r.preview?.plainText).toContain("+ If some needs removing: $15/m², only the areas that need it. Up to $2,250 for your 150 m² ceiling.");
-  expect(r.preview?.html).toContain("Save my spot →");
+  expect(r.preview?.html).toContain("Save my free spot");
   expect(r.preview?.html).not.toContain(REMOVAL_BUDGET_EMAIL_NOTE);
   expect(originalMediaReads).toBe(0);expect(writes).toBe(0);
 });
