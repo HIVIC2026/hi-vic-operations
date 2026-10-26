@@ -148,7 +148,7 @@ describe("D. property-research area is never described as owner-provided", () =>
 describe("E. T1–T7 use the approved email kit shell", () => {
   const brandChecks = (html: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    // The approved MJML design (Jo 27 Oct 2026): hosted logo (no data: image), the 600px white card, one AP/ABN footer, no campaign art and no badge.
+    // The MJML frame (27 Oct 2026 refresh, not approved by Jo): hosted logo (no data: image), the 600px white card, one AP/ABN footer, no campaign art and no badge.
     expect(html).toContain(`src="${MAIL_LOGO_URL}"`);
     expect(html).not.toContain("data:image");
     expect(html).toContain('class="card"');

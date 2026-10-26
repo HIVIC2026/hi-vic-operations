@@ -1,4 +1,4 @@
-// Kept as it is today: "Your visit is moving" (O74b) has no design picture, so it is left unchanged (Jo 27 Oct 2026). Called only from visit-new-times.core.ts.
+// Kept as it is today: "Your visit is moving" (O74b) has no design picture, so it is left unchanged. Called only from visit-new-times.core.ts.
 // Decision 376 (Jo 25 Oct 2026; wording APPROVED by Jo in decision 384): when the TRADE cancels a booked Ready Check, safety check or
 // install day (visit-events.server `tradeCancelVisit` → `reopen`, which records `visit_times_reopened`), the owner is told
 // ONCE — email O74 + text — with their own secure My job link on the right screen. Two variants, read from what My job

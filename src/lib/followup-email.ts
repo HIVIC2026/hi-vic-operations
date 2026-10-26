@@ -1,5 +1,5 @@
 /** Pure Step 3 unopened three-day follow-up renderer. No data access or delivery.
- * MJML refresh (Jo 27 Oct 2026): docs/templates/mjml/owner_estimate-unopened.mjml, through `mjEmail` like the other emails. */
+ * MJML refresh (27 Oct 2026, not approved by Jo): docs/templates/mjml/owner_estimate-unopened.mjml, through `mjEmail` like the other emails. */
 import { PRIVACY_URL, pixelTag, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
 import type { ActiveFollowupKind } from "./engagement.core";
 import * as K from "./email-kit.core";

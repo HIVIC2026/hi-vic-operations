@@ -1,5 +1,5 @@
 // Jo 24 Oct 2026 (decisions 52–53, 77): when the installer offers Ready Check times, the owner gets a link to pick one.
-// Design: docs/templates/mjml/owner_O11.mjml (MJML email refresh, Jo 27 Oct 2026) — "{First}, pick a time for your
+// Design: docs/templates/mjml/owner_O11.mjml (MJML email refresh, 27 Oct 2026 — not approved by Jo) — "{First}, pick a time for your
 // free Ready Check"; the offered times as tap buttons; "None suit? Suggest other days"; "At your Ready Check"; rebate
 // and price boxes; included / not included. READY_CHECK_TIMES_EMAIL_APPROVED is on (decision 77); real delivery
 // still needs customer_comms_enabled through the guarded owner-email path. Pure.
@@ -83,7 +83,7 @@ const O12_INCLUDED = (rebate: number) => [
 ];
 const O12_NOT_INCLUDED_TITLE = "Not included, only if needed";
 const O12_CLOSING = "We check these at your free Ready Check and tell you the exact price before you agree to anything.";
-/** Jo's approved pictures O11/O12 (27 Oct 2026): rebate | price side by side in one box, note underneath; included list starts with the free Ready Check. */
+/** Jo's design pictures O11/O12 (docs/designs): rebate | price side by side in one box, note underneath; included list starts with the free Ready Check. */
 export function mjO12Estimate(e: ReadyCheckEstimate): string {
   const inc = O12_INCLUDED(e.rebate);
   const cell = (label: string, value: string, color: string, divider: boolean) => `<td width="50%" align="center" valign="top" style="padding:16px 8px 6px;${divider ? "border-right:1px solid #DCE2F2;" : ""}"><div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#22376B;">${esc(label)}</div><div style="font-family:${DISPLAY};font-size:30px;line-height:38px;font-weight:800;color:${color};">${esc(value)}</div></td>`;

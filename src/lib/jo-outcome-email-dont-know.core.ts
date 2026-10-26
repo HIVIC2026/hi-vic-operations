@@ -1,4 +1,4 @@
-// Kept as it is today: the "don't know" Save my spot email (O2-dont-know) has no design picture, so it is left unchanged (Jo 27 Oct 2026). Called only from jo-outcome-email.core.ts.
+// Kept as it is today: the "don't know" Save my spot email (O2-dont-know) has no design picture, so it is left unchanged. Called only from jo-outcome-email.core.ts.
 /**
  * The real owner first-message renderers (Jo, 24 Oct 2026, decisions 66–69 and 73; applied under decision 137).
  *
@@ -10,7 +10,7 @@
  *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/owner/O2-save-my-spot-questions.html
  *   T7 (ineligible)                                     → Not eligible          docs/templates/owner/O6-not-eligible.html
  * Template ids, CTA sets, link binding and fail-closed rules are unchanged; the body follows the approved MJML designs
- * (docs/templates/mjml/owner_O1, owner_O2-*, owner_O6; Jo 27 Oct 2026) through `mjEmail` (mail-mjml.core.ts). T8 (the office Ready Check
+ * (docs/templates/mjml/owner_O1, owner_O2-*, owner_O6; 27 Oct 2026 refresh, not approved by Jo) through `mjEmail` (mail-mjml.core.ts). T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.
  */
 import {
@@ -356,7 +356,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const some = variant !== "none";
   const rebate = K.whole(f.veuRebate), price = K.whole(f.customerTotal);
   const headline = some ? `${first}, you may qualify for ${rebate} off ceiling insulation` : `${first}, you could save ${rebate} on ceiling insulation`;
-  // MJML refresh (Jo 27 Oct 2026): a "some insulation" email whose subject said "you could save" now matches its "may qualify" heading.
+  // MJML refresh (27 Oct 2026, not approved by Jo): a "some insulation" email whose subject said "you could save" now matches its "may qualify" heading.
   const subject = some && rawSubject === subjectForTemplate("eligible_no_insulation_size_known", first, f.veuRebate) ? headline : rawSubject;
   const preview = variant === "questions" ? "Answer 3 quick questions about your insulation and your spot is saved straight away."
     : variant === "received" ? subject
