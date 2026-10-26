@@ -41,7 +41,7 @@ In the suite, open **Test Data** (stored values) and add these. Type the names e
 | Name | What to put in it |
 | --- | --- |
 | `installerEmail` | `qa.installer.alpha@hivic-test.example` (or Deep's TEST installer, see below) |
-| `installerPassword` | Its password |
+| `installerPassword` | The password you choose (see **Passwords** below) |
 | `electricianEmail` | `qa.rec.delta@hivic-test.example` |
 | `electricianPassword` | Its password |
 | `officeEmail` | `admin@hivic.test` |
@@ -64,16 +64,29 @@ Optional ones (some cases use them):
 ### Passwords
 
 The TEST email addresses are not real inboxes. So **"Forgot password?" and "Email me a sign-in link" can't reach them.**
+Instead, the portal gives you a private file with one-time links where you choose the passwords yourself (decision 403).
 
-- **Office (`admin@hivic.test`)**: use the password you already have for it.
-  If you don't have one, ask the developer to set one for you once.
-- **Deep's TEST installer** (`installer-qa-dad-20261021@hivic-test.example`): you can set this one yourself.
-  Office > More > Settings > Users & access > **Prepare Deep's TEST login (private file)**.
-  Open the file, open the **Set your password** link, type a **New password** twice, press **Save password & continue**.
-  You can use this account as `installerEmail`.
-- **`qa.installer.alpha` and `qa.rec.delta`**: their passwords were made up by the computer and nobody knows them.
-  Either ask the developer to set one once, **or** skip passwords: use the "no password" rules at the bottom of
-  `rules.txt` (step 4). They sign in as office, then open a one-time TEST sign-in from the Test Centre.
+1. Sign in to the portal as office.
+2. Office > More > Settings > **Users & access**.
+3. Press **Prepare testRigor TEST logins (private file)**.
+   On a computer, the file `testRigor-TEST-logins.txt` downloads. On a phone or tablet, press **Save private login file**.
+   If you see "TEST login download was blocked or could not be verified", nothing was made. Tell the developer.
+4. Open the file. It has a section for the TEST installer and one for the TEST electrician.
+5. For each one: open its **Set your password** link, type a **New password** twice, press **Save password & continue**.
+   Each link works **once** and lasts **24 hours**.
+6. In testRigor > Test Data, put in the values the file names:
+   `installerEmail` / `installerPassword`, `electricianEmail` / `electricianPassword`. The passwords are the ones you just chose.
+7. **Office (`admin@hivic.test`)**: the file has no link for it, because it is a full office account, not a TEST-only one.
+   Put `admin@hivic.test` in `officeEmail` and the office password you already have in `officePassword`.
+8. Delete the file when you're done. Lost a password or a link ran out? Press the button again for a fresh file.
+
+**Deep's TEST installer** (`installer-qa-dad-20261021@hivic-test.example`) has its own button on the same page:
+**Prepare Deep's TEST login (private file)**. You can use that account as `installerEmail` instead.
+
+#### Fallback: no passwords for the trade accounts
+
+If the button is blocked, skip the trade passwords: use the "no password" rules at the bottom of
+`rules.txt` (step 4). They sign in as office, then open a one-time TEST sign-in from the Test Centre.
 
 ### The TEST job and its owner link
 
