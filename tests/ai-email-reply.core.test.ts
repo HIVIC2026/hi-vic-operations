@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { AI_EMAIL_AUTO_SEND_ENABLED, AI_SIGN_OFF, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
+import { AI_SIGN_OFF, aiAutoSendAllowed, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
 
 const MY = "https://estimate.homeinsulationvictoria.com.au/my-job/TOK";
 describe("AI email replies — Jo 26 Oct rules", () => {
-  test("auto-send stays off until Jo says send", () => expect(AI_EMAIL_AUTO_SEND_ENABLED).toBe(false));
+  test("auto-send: switch off or unknown = draft", () => {
+    expect(aiAutoSendAllowed({ switchOn: false, kind: "simple", nowIso: "2026-10-27T01:00:00Z" })).toBe(false);
+    expect(aiAutoSendAllowed({ switchOn: null, kind: "simple", nowIso: "2026-10-27T01:00:00Z" })).toBe(false);
+  });
+  test("auto-send: switch on sends simple replies only", () => {
+    expect(aiAutoSendAllowed({ switchOn: true, kind: "simple", nowIso: "2026-10-27T01:00:00Z" })).toBe(true); // 12pm Melbourne
+    expect(aiAutoSendAllowed({ switchOn: true, kind: "other", nowIso: "2026-10-27T01:00:00Z" })).toBe(false);
+  });
+  test("auto-send: never after 8pm Melbourne", () => expect(aiAutoSendAllowed({ switchOn: true, kind: "simple", nowIso: "2026-10-27T10:00:00Z" })).toBe(false)); // 9pm
   test("sign-off is added exactly once", () => {
     const out = finishAiReply("Hi Sarah!\nAll good.\n\nCheers,\nThe Home Insulation Victoria team");
     expect(out.endsWith(AI_SIGN_OFF)).toBe(true);
