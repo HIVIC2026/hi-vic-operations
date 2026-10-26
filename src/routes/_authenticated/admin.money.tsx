@@ -16,7 +16,7 @@ import { useAction } from "@/hooks/use-me";
 import { markPayoutPaid } from "@/lib/office.functions";
 import { getMoneyInvoices, getMoneyMargins, getMoneyPayouts, getMoneyVeecs, saveVeecSpotPrice } from "@/lib/office-money.functions";
 import { getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
-import { INSTALL_DEPOSIT_RATE, PROVISIONAL_HOLD_HOURS } from "@/lib/payments.core";
+import { INSTALL_DEPOSIT_RATE } from "@/lib/payments.core";
 
 type Tab = "overview" | "payouts" | "invoices" | "veecs" | "prices";
 const TAB_KEYS: Tab[] = ["overview", "payouts", "invoices", "veecs", "prices"];
@@ -249,8 +249,8 @@ function Prices() {
           <td className="text-xs">v{c.version}{lastChange ? ` · ${fmtDay(lastChange.created_at)}` : ""}</td>
           <td><Btn tone="secondary" onClick={() => setEdit((e) => !e)}>{edit ? "Close" : "Edit"}</Btn></td>
         </tr>
-        <tr data-why="decisions 139/140: $349 at acceptance, card or bank"><td className="font-semibold">Safety check</td><td>${c.piesa} at acceptance · card or bank transfer · no card fee is ever shown</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
-        <tr data-why="decision 141: 10% deposit, provisional 48h"><td className="font-semibold">Install deposit</td><td>{Math.round(INSTALL_DEPOSIT_RATE * 100)}% of (quote total − ${c.piesa}) · bank transfer / PayID · provisional {PROVISIONAL_HOLD_HOURS} hours</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
+        <tr data-why="decisions 139/140: $349 at acceptance, card or bank"><td className="font-semibold">PIESA fee</td><td>${c.piesa} inc GST after acceptance · unlocks the PIESA booking only · card or bank transfer · no card fee is ever shown</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
+        <tr data-why="Jo 26 Oct: 10% deposit paid before the install is booked"><td className="font-semibold">Install deposit</td><td>{Math.round(INSTALL_DEPOSIT_RATE * 100)}% of the install price (not the PIESA fee or fixes) · bank transfer / PayID · paid before the install is booked · balance on install day</td><td className="text-xs">26 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="decision 142: electrician price + $100 inc GST"><td className="font-semibold">Electrical fixes</td><td>Electrician's price + $100 inc GST spread across lines · paid in full at approval</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="decision 107/AP fee: owner only may change"><td className="font-semibold">AP fee on installer jobs</td><td>${c.apFee} · the installer's own price is never marked up</td><td className="text-xs">v{c.version}</td><td>{q.data?.canChangeApFee ? <Btn tone="secondary" onClick={() => setEdit(true)}>Edit</Btn> : <Pill>Jo only</Pill>}</td></tr>
         <tr data-why="decision 157: electrician rate card lives under Partners › Rates"><td className="font-semibold">Electrician rates</td><td>PIESA and fixes by item · per approved REC</td><td /><td><Link to="/admin/partners" search={{ tab: "rates" }} className="text-sm font-semibold text-hiv-blue hover:underline">Partners › Rates ›</Link></td></tr>

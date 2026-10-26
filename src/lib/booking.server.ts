@@ -59,6 +59,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
   if (kind === "rectification") { const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (fb) throw new WorkflowError(`Blocked: ${fb}`); }
+  // Jo 26 Oct 2026: the install is booked only after the 10% install deposit is paid (the PIESA fee never unlocks it).
+  if (kind === "installation") { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError(`Blocked: ${db}`); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) throw new WorkflowError(del); }
   // Guard BEFORE writing: a booking must never exist when the job cannot enter the booked stage (e.g. Gate A not signed).
   // The only booking-dependent Ready Check blocker is excluded here because the booking is what we are about to write.
