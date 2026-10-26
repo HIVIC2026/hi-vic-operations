@@ -227,7 +227,9 @@ describe("completion gates apply the evidence rule", () => {
   });
   test("completeAssessment, stageEntryBlockers(piesa_complete) and advanceAfterPiesa all read the stored snapshot rule", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
-    const ca = pf.slice(pf.indexOf("export const completeAssessment"), pf.indexOf("export const recordPiesa"));
+    // The handler checks the caller, then runs the one Complete PIESA body (piesa-complete.server).
+    expect(pf.slice(pf.indexOf("export const completeAssessment"), pf.indexOf("export const recordPiesa"))).toContain('(await import("./piesa-complete.server")).completePiesaAssessment(data, context.userId)');
+    const ca = readFileSync("src/lib/piesa-complete.server.ts", "utf8");
     expect(ca).toContain("piesaEvidenceBlockersFromSnapshot(a.mitti_raw_snapshot");
     expect(ca.indexOf("piesaEvidenceBlockersFromSnapshot")).toBeLessThan(ca.indexOf('from("assessments").update({ status: "complete"'));
     const wf = readFileSync("src/lib/workflow.server.ts", "utf8");

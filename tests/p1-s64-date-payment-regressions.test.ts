@@ -82,7 +82,8 @@ describe("S64 manual PIESA form is wired into the electrician portal", () => {
 
   test("the server stage gate still allows completion from piesa_scheduled", () => {
     const src = srcText("../src/lib/portal.functions.ts");
-    const fn = src.split("export const completeAssessment")[1]!.split("export const recordPiesa")[0]!;
+    // The handler checks the caller, then runs the one Complete PIESA body (piesa-complete.server, shared with the TEST journey).
+    const fn = src.split("export const completeAssessment")[1]!.split("export const recordPiesa")[0]! + srcText("../src/lib/piesa-complete.server.ts");
     expect(fn).toContain('if (stage !== "assessment_booked" && stage !== "piesa_scheduled")');
     expect(fn).toContain('await transition(data.jobId, "piesa_complete"');
     expect(fn).toContain('external_mitti_id: a.external_mitti_id');
@@ -92,7 +93,7 @@ describe("S64 manual PIESA form is wired into the electrician portal", () => {
 
   test("authorisation and the evidence gate are untouched", () => {
     const src = srcText("../src/lib/portal.functions.ts");
-    const fn = fnBody(src, "export const completeAssessment");
+    const fn = fnBody(src, "export const completeAssessment") + srcText("../src/lib/piesa-complete.server.ts");
     expect(fn).toContain('await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"])');
     expect(fn).toContain("Upload evidence first:");
     expect(fn).toContain('e.category === "piesa_signoff"');
@@ -114,7 +115,7 @@ describe("PIESA assessment date cannot be in the future", () => {
   test("every assessment write path enforces it", () => {
     const src = srcText("../src/lib/portal.functions.ts");
     const save = fnBody(src, "export const saveAssessment");
-    const complete = fnBody(src, "export const completeAssessment");
+    const complete = fnBody(src, "export const completeAssessment") + srcText("../src/lib/piesa-complete.server.ts");
     const record = fnBody(src, "export const recordPiesa");
 
     expect(save).toContain("piesaDateBlockers(data.patch.assessed_on)");

@@ -34,8 +34,11 @@ describe("wiring (static)", () => {
     expect(fn).not.toMatch(/jobIds|z\.array/);
   });
   test("approval checks the stage and writes its own record", () => {
-    expect(fn).toContain('!== "ap_review"');
-    expect(fn).toContain('"ap_approved"');
+    // The office handler checks the caller, then runs the one approval body (ap-approve.server, shared with the TEST journey runner).
+    expect(fn).toMatch(/await requireAdmin\(context\.supabase\);\s*return \(await import\("\.\/ap-approve\.server"\)\)\.approveApJobAs\(data\.jobId, context\.userId, data\.note\)/);
+    const body = readFileSync(new URL("../src/lib/ap-approve.server.ts", import.meta.url), "utf8");
+    expect(body).toContain('!== "ap_review"');
+    expect(body).toContain('"ap_approved"');
   });
   test("nothing on the timer approves AP review", () => {
     const tick = readFileSync(new URL("../src/routes/api/public/hooks/allocation-tick.ts", import.meta.url), "utf8");

@@ -19,8 +19,10 @@ async function alreadyLogged(jobId: string, eventType: string, details: Record<s
   return !!count;
 }
 
-/** Writes both delivery records for one accepted email. The PIISA panel reads official_form_deliveries; readyToInstall reads piesa_deliveries. */
-async function recordDelivery(p: { jobId: string; recipient: PiesaCopyRecipient; piesaRecordId: string; signedCopyId: string; recipientUserId: string | null; to: string; detail: string }) {
+/** Writes both delivery records for one accepted email. The PIISA panel reads official_form_deliveries; readyToInstall reads piesa_deliveries.
+ *  Exported for the live full-journey runner only, which records a TEST copy the TEST sender could not deliver (TEST
+ *  addresses are never on the send allowlist) as a simulated email on its own qa_test job. */
+export async function recordDelivery(p: { jobId: string; recipient: PiesaCopyRecipient; piesaRecordId: string; signedCopyId: string; recipientUserId: string | null; to: string; detail: string }) {
   const at = new Date().toISOString();
   const { error: e1 } = await admin.from("piesa_deliveries").insert({ job_id: p.jobId, piesa_record_id: p.piesaRecordId, recipient: p.recipient, delivered_at: at, method: "email", document_id: null, notes: `Signed PIESA copy ${p.signedCopyId} emailed automatically to ${p.to} (${p.detail})`, recorded_by: null });
   if (e1) throw new Error(`PIESA delivery could not be recorded: ${e1.message}`);
