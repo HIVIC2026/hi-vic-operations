@@ -1,7 +1,7 @@
 // "Send failed" rows for Needs me: failed customer email sends / texts in the last 7 days → one plain row per job.
 // Pure: nothing read, nothing resent. Run: bun test tests/send-failed.test.ts
 import { describe, expect, test } from "bun:test";
-import { SEND_FAILED_WINDOW_DAYS, daysAgoLabel, sendFailedRows, sendLabel } from "../src/lib/send-failed.core";
+import { SEND_FAILED_WINDOW_DAYS, daysAgoLabel, plainSendError, sendFailedRows, sendLabel } from "../src/lib/send-failed.core";
 
 const NOW = Date.parse("2026-10-24T06:00:00Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -41,7 +41,7 @@ describe("send failed classifier", () => {
     expect(rows[1]!.count).toBe(3);
     expect(rows[1]!.latestAt).toBe(ago(1));
     expect(rows[1]!.text).toBe(
-      "Text not delivered: Spot saved text, yesterday — Twilio 30003: unreachable handset · Email failed: Save my spot email, 2 days ago — Resend 422: invalid `to` address · Text failed: Save my spot reminder text, 3 days ago — Twilio 400: bad number",
+      "Text not delivered: Spot saved text, yesterday — phone off or out of range · Email failed: Save my spot email, 2 days ago — Resend 422: invalid `to` address · Text failed: Save my spot reminder text, 3 days ago — Twilio 400: bad number",
     );
   });
   test("more than three failures on one job are summarised; long reasons are trimmed", () => {
@@ -60,5 +60,25 @@ describe("send failed classifier", () => {
     expect(daysAgoLabel(ago(0), NOW)).toBe("today");
     expect(daysAgoLabel(ago(1), NOW)).toBe("yesterday");
     expect(daysAgoLabel(ago(4.5), NOW)).toBe("4 days ago");
+  });
+});
+
+describe("provider errors in plain words (design review 26 Oct)", () => {
+  test("known Twilio codes become a phrase, from the JSON body or the code after Twilio", () => {
+    expect(plainSendError(`Twilio 400: {"code":21614,"message":"'To' number: +6144484XXXX, is not a valid mobile number","more_info":"https://www.twilio.com/docs/errors/21614"}`)).toBe("not a mobile number");
+    expect(plainSendError("Twilio error 30003")).toBe("phone off or out of range");
+    expect(plainSendError("Twilio 30007: filtered")).toBe("blocked by the phone company as spam");
+  });
+  test("other JSON errors keep only their message; plain text passes through; nothing never prints", () => {
+    expect(plainSendError(`Resend 422: {"name":"validation_error","message":"Invalid \`to\` field."}`)).toBe("Invalid `to` field.");
+    expect(plainSendError(`Twilio 400: {"code":99999}`)).toBe("Twilio 400");
+    expect(plainSendError("Resend 422: invalid `to` address")).toBe("Resend 422: invalid `to` address");
+    expect(plainSendError(null)).toBe("");
+  });
+  test("a Needs me row never shows raw JSON", () => {
+    const now = Date.parse("2026-10-26T00:00:00Z");
+    const [row] = sendFailedRows({ now, emails: [], sms: [{ job_id: "j", message_type: "spot_saved", status: "failed", created_at: new Date(now - 3 * 86_400_000).toISOString(), detail: `Twilio 400: {"code":21614,"message":"x"}` }] });
+    expect(row!.text).toBe("Text failed: Spot saved text, 3 days ago — not a mobile number");
+    expect(row!.text).not.toContain("{");
   });
 });
