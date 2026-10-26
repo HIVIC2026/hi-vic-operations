@@ -33,11 +33,12 @@ export function renderSafetyCheckTimesEmail(i: SafetyCheckTimesInput) {
   const subject = "Pick a time for your electrical safety check";
   const headline = `${first}, pick a time for your electrical safety check`;
   const intro = `${el}, a licensed electrician, has offered these times. Tap the one that suits you and it's booked.`;
-  const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
+  const pick = myJobScreen(i.myJobUrl, "book"); // link fix: time buttons open the booking screen
+  const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
   const at = `The electrician checks your switchboard, ceiling wiring and downlights are safe to insulate over.${i.paid && i.paid > 0 ? ` It's already paid for (${K.cents(i.paid)}).` : ""} If anything needs fixing, we'll send you a separate quote first. Nothing is done without your OK.`;
-  const body = [K.h1(headline), K.p(intro), K.tapTimeButtons(slots, { href: i.myJobUrl }), K.thirtyDayClockBox({ kind: "safety_check" }), K.sectionTitle("At your safety check"), K.p(at)].join("\n");
+  const body = [K.h1(headline), K.p(intro), K.tapTimeButtons(slots, { href: pick }), K.thirtyDayClockBox({ kind: "safety_check" }), K.sectionTitle("At your safety check"), K.p(at)].join("\n");
   const html = K.emailShell({ body, previewText: intro, testLabel: i.test === true, unsubscribe: null });
-  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a time: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "AT YOUR SAFETY CHECK", at], { testLabel: i.test === true });
+  const text = K.plainText([headline, "", intro, "", ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`), `Pick a time: ${pick}`, `None suit? Suggest other days: ${pick}`, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "AT YOUR SAFETY CHECK", at], { testLabel: i.test === true });
   return { subject, html, text };
 }
 
