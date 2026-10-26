@@ -63,7 +63,8 @@ async def run(p, w):
         rec(f"restore job ({tag})", rdis and gone and "This job is deleted" not in await body(), f"empty reason blocked={rdis}; gone from Deleted after reload={gone}", [s2, await snap("5-job-restored")])
         # --- classification: Enquiry stage workspace → "Eligibility" card → "Change result" ---
         async def open_change():
-            await pg.goto(job_url + "#stage-enquiry", wait_until="networkidle"); await pg.wait_for_timeout(2000)
+            # Full reload each time (a same-URL hash navigation would keep the old, already-open state).
+            await pg.goto(job_url, wait_until="networkidle"); await pg.reload(wait_until="networkidle"); await pg.wait_for_timeout(2000)
             card = pg.locator("[data-eligibility-card]")
             if not await card.count():
                 await pg.locator("#stage-enquiry").get_by_role("button", name="Open ›").click(); await pg.wait_for_timeout(2500)
