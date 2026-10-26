@@ -248,7 +248,7 @@ describe("approved owner email designs", () => {
     expect(m.subject).toBe("Your ceiling insulation job HV-3117 has been cancelled");
     has(m.html, [">Job cancelled</h1>", ">Hi Helen,</p>", "We've cancelled your ceiling insulation job at 824 High Street Road, Glen Waverley VIC 3150, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.", "If this was a mistake or you'd like to pick it up again later, reply to this email.", ">Home Insulation Victoria</p>"]);
     expect(m.html).not.toMatch(/\$\d|href=/);
-    has(m.text, ["Hi Helen,", "call us on 03 9000 0000.", "Home Insulation Victoria"]);
+    has(m.text, ["Hi Helen,", "reply to this email.", "Home Insulation Victoria"]); expect(m.html + m.text).not.toMatch(/call us|03 9000/);
     expect(m.html).toBe(readFileSync("docs/templates/owner/O69-job-cancelled.html", "utf8"));
     // No office number on file: the reply line only (nothing invented).
     expect(renderOwnerCancelledEmail({ firstName: null, jobNumber: "HV-3117", address: null, officePhone: null }).html).toContain("If this was a mistake or you'd like to pick it up again later, reply to this email.</p>");
