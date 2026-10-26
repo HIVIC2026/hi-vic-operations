@@ -20,6 +20,8 @@ The rules are the yardstick; the code is what's on trial.
 - `docs/STATUS.md`: what is built versus pending. A rule marked pending is **blocked (not built)**, not failed.
 - `src/AGENTS.md` before reading any flow code.
 
+The enquiry stage is fully automatic (Jo, 26 Oct 2026): a website enquiry gets its automatic response and an offer to save a spot, and enquiry statuses are things like offered a spot, spot saved, opted out. The office never phones enquirers and never asks them questions; the old "insulation details" / three-questions step is retired. Any screen, email or task that phones or questions an enquirer is a failed scenario, even where older text in the rules still describes it.
+
 Done when you can state, for every one of the 29 steps, who acts, what state the job must be in first, and what must exist afterwards.
 
 ## 2. Build the workflow map

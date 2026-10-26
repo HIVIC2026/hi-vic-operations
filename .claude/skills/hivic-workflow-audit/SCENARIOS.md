@@ -6,7 +6,7 @@ Starting catalogue for step 2 of the audit. **Covered by** names the tool that p
 
 | ID | Scenario | Expected outcome | Covered by |
 | --- | --- | --- | --- |
-| J1 | Website enquiry arrives | One job in Enquiries, automatic response sent once, offered a chance to save a spot | journey `s1_calculator`/`s2_owner_links`; webhook signature rules (portal-qa probes) |
+| J1 | Website enquiry arrives | One job in Enquiries, automatic response sent once, offered a chance to save a spot; no call task and no questions asked | journey `s1_calculator`/`s2_owner_links`; webhook signature rules (portal-qa probes) |
 | J2 | Owner saves a spot, office releases it | Spot saved, release step recorded, installer offered | journey `s3_office_offer` |
 | J3 | Ready Check booked and done | Time confirmed by both sides (sharing contacts alone never books), Mitti Ready Check on the right job | journey `s4_ready_check`; `readyCheckBookingOutcome` |
 | J4 | Eligibility and quote | Verified eligible; confirmed quote from current rates; held only for the reasons in the rules | journey `s4_ready_check`; quote rule tests |
