@@ -18,10 +18,10 @@ describe("AI email replies — Jo 26 Oct rules", () => {
     expect(aiReplyProblems("ring us on 03 9123 4567")).toHaveLength(2);
   });
   test("change link: PIESA and install open the booking screen, Ready Check the job home", () => {
-    expect(bookingChangeLink(MY, "piesa_booked")?.link).toBe(`${MY}?screen=book`);
-    expect(bookingChangeLink(MY, "piesa_booked")?.visit).toBe("piesa");
+    expect(bookingChangeLink(MY, "piesa_scheduled")?.link).toBe(`${MY}?screen=book`);
+    expect(bookingChangeLink(MY, "piesa_scheduled")?.visit).toBe("piesa");
     expect(bookingChangeLink(MY, "installation_booked")?.visit).toBe("install");
-    expect(bookingChangeLink(null, "piesa_booked")).toBeNull();
+    expect(bookingChangeLink(null, "piesa_scheduled")).toBeNull();
   });
   test("no owner emails after 8pm Melbourne", () => {
     expect(aiSendQuietReason("2026-10-26T10:30:00Z")).not.toBeNull(); // 9:30pm AEDT
