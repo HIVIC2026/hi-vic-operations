@@ -51,6 +51,7 @@ class Recorder {
   async run(n: string, name: string, fn: () => Promise<{ ok: boolean; detail: string; ids?: Record<string, string | null> }>, needs: string[] = []) {
     const blockedBy = needs.filter((x) => this.checks.find((c) => c.n === x)?.status !== "passed");
     if (blockedBy.length) { this.checks.push({ n, name, status: "blocked", detail: `blocked: check ${blockedBy.join(", ")} did not pass`, ids: {} }); return false; }
+    console.log(`… ${n} ${name}`);
     try {
       const r = await fn();
       this.checks.push({ n, name, status: r.ok ? "passed" : "failed", detail: r.detail, ids: r.ids ?? {} });
@@ -91,6 +92,7 @@ async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx
   if (upTo === 5) { fns.push(["s4_ready_check", ready!]); fns.push(["s5_owner_accept", J.s5]); }
   const out: StepResult[] = [];
   for (const [key, fn] of fns) {
+    console.log(`… setup ${key}`);
     const r: StepResult = { key: key as StepResult["key"], label: `${ctx.jobNumber ?? "new job"} setup ${key}`, passed: false, checks: [] };
     try { await fn(ctx, r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); out.push(r); return { ok: false, out }; }
     r.label = `${ctx.jobNumber} setup ${key}`;
