@@ -24,13 +24,11 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
   test("gate OFF still blocks", () => {
     expect(evaluatePaymentGate({ ...base, enabled: false, invoice: inv(3728) }).cleared).toBe(false);
   });
-  test("halves always add up, odd cents", () => {
+  test("PIESA fee + balance add up, odd cents (no halves — Jo 26 Oct)", () => {
     for (const t of [3728, 3728.01, 1000.03, 349, 200]) {
-      const b = balanceSplit(t, 349);
-      expect(Math.round((b.fee + b.firstHalf + b.secondHalf) * 100)).toBe(Math.round(t * 100));
-      expect(b.secondHalf - b.firstHalf).toBeLessThanOrEqual(0.011);
+      const b = splitForOption(t, 349);
+      expect(Math.round((b.deposit + b.balance) * 100)).toBe(Math.round(t * 100));
     }
-    expect(balanceSplit(3728, 349)).toEqual({ total: 3728, fee: 349, balance: 3379, firstHalf: 1689.5, secondHalf: 1689.5 });
   });
   test("refund outcomes", () => {
     expect(refundOutcome({ paidCents: 34900, safetyFeeCents: 34900, checkDone: false, checkNeverHappening: true, canProceed: false })).toEqual({ outcome: "refund_all", refundCents: 34900 });
