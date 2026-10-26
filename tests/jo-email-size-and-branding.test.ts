@@ -101,7 +101,7 @@ describe("C. real customer data is preserved, never replaced with the sample or 
   });
   test("a non-typical assumed size keeps its own figure and stays labelled assumed", () => {
     expect(basisLine({ ...figures(160, true) }, false)).toBe("Based on a typical 160 m² ceiling (an estimate, not your actual size), no existing insulation.");
-    expect(basisLine({ ...figures(137, false) }, true)).toBe("Based on what you told us: 137 m² ceiling, with some existing insulation.");
+    expect(basisLine({ ...figures(137, false) }, true)).toBe("Based on what you told us: 137 m² ceiling with some existing insulation.");
   });
 });
 
@@ -190,13 +190,12 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "To claim it, you need a certified installer, a licensed electrician and an accredited provider. We bring them all together and organise the whole job for you.",
       "Your estimated VEU rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price before rebate", "$4,500",
       "Try a different ceiling size", "Save your spot, it's free",
-      // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
-      "Thousands of Victorians have registered, and spots are released in the order they were saved. Saving your spot is free, with no obligation. We'll be in touch when your spot is released.",
+      // Jo 27 Oct 2026: word-for-word as docs/templates/owner/O1-save-my-spot.html.
+      "Certified installers are in high demand, so we book homes in the order people save their spot. When one is free near you, they'll offer you times for your free Ready Check. No payment, no obligation.", "Free Ready Check", "An installer visits to measure your ceiling and confirm the price.",
       "Save my free spot", "What's included in $1,900", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
       "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included, only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
-      "You'll know the exact price before you agree to anything.", "See your full estimate",
+      "We check these at your free Ready Check and tell you the exact price before you agree to anything.", "See your full estimate",
     ]) expect(m.html).toContain(t);
-    expect(m.html).not.toContain("Ready Check");
     expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
     expect(m.html).toContain(`href="${LINKS.calculatorUrl}"`);
     expect(m.html).not.toContain("may qualify");
@@ -210,7 +209,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "only if it can't stay ($15 per m², see above)", // decision 388: no "where they'll also check" Ready Check line
       "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know.",
     ]) expect(m.html).toContain(t);
-    expect(m.html).toContain("Based on what you told us: 137 m² ceiling, with some existing insulation.");
+    expect(m.html).toContain("Based on what you told us: 137 m² ceiling with some existing insulation.");
   });
   test("O2 questions (T5/T6): three tap questions and the Answer & save my spot button to the owner's questions link", () => {
     const m = render({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, figures: figures(210, false) });
@@ -260,11 +259,11 @@ describe("H. T1–T6 use the approved layout pieces", () => {
     { outcome: "needs_onsite_confirmation", insulation: "unknown" },
   ] as const;
   for (const c of cases) {
-    test(`${c.outcome}/${c.insulation}: green rebate pill, big blue price, four ticked items (decision 388: no Ready Check row), four + items, green button`, () => {
+    test(`${c.outcome}/${c.insulation}: green rebate pill, big blue price, five ticked items (Free Ready Check first, as Jo's design), four + items, green button`, () => {
       const m = render({ ...c, ceilingSizeKnown: true, figures: { ...figures(210, false), piesaFee: 349, apFee: 349 } });
       expect(m.html).toContain("border:2px solid #07BF61"); // green rebate pill
       expect(m.html).toContain("font-size:42px;font-weight:bold;color:#3C51C4"); // big price
-      expect((m.html.match(/&#10003;<\/span>/g) ?? []).length).toBe(4 + (c.insulation === "none" ? 0 : 1)); // included ticks (decision 388: Ready Check row removed) (+ "If it can stay")
+      expect((m.html.match(/&#10003;<\/span>/g) ?? []).length).toBe(5 + (c.insulation === "none" ? 0 : 1)); // included ticks (Jo 27 Oct: Free Ready Check row, as her design) (+ "If it can stay")
       expect((m.html.match(/>\+<\/span>/g) ?? []).length).toBe(4 + (c.insulation === "none" ? 0 : 1)); // not-included rows (+ "If some needs removing")
       expect(m.html).toContain('bgcolor="#07BF61"'); // the one approved button
       expect(m.html).not.toContain("#FDF2F6"); // no pink action card any more
