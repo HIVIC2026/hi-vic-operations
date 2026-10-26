@@ -87,7 +87,7 @@ export async function resolveServerFns(base: string, specs: FnSpec[], fetcher: F
   // 2) build: accept the sha256 candidate only when it is present in THIS target's served compiled client code.
   const bodies = await servedClientJs(base, fetcher);
   if (!bodies.length) return { mode: "unresolved", ids: {}, missing: specs.map(fnKey), target: base, buildIdentity: null, conflicts: [], detail: "no served dev transform and no compiled client JavaScript reachable" };
-  for (const s of specs) { const c = buildCandidate(s); if (bodies.some((b) => b.includes(`"${c}"`) || b.includes(`'${c}'`))) ids[fnKey(s)] = c; }
+  for (const s of specs) { const c = buildCandidate(s); if (bodies.some((b) => b.includes(`"${c}"`) || b.includes(`'${c}'`) || b.includes(`\`${c}\``))) ids[fnKey(s)] = c; } // the live minifier quotes with backticks
   const missing = specs.filter((s) => !ids[fnKey(s)]).map(fnKey);
   return finalize({ mode: missing.length === specs.length ? "unresolved" : "build", ids, missing, target: base, buildIdentity: `build:${sha(bodies)}`, detail: missing.length ? `compiled client does not contain the build IDs for ${missing.join(", ")} (custom/deduplicated IDs are not guessed)` : "build IDs confirmed in served compiled client" }, specs);
 }
