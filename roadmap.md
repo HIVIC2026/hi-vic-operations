@@ -550,3 +550,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Installer add-a-job addresses tagged per run; HV-3265/HV-3266 (qa_test) soft-deleted
 - [x] 9 "failed/uncertain" emails = sent emails with "Accepted" in the error box (fixed earlier today); report only
 - [ ] Job page More ▾ "Delete (test jobs only)" is a permanent delete (not restorable) — awaiting Jo's choice
+
+## Email looks back to Jo's approved pictures (Jo 27 Oct) — one at a time, Jo checks each
+- [x] O12 You're booked
+- [ ] O11 Pick a time (next) — then every other email that has a picture in docs/designs
