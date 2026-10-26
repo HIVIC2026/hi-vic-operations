@@ -181,7 +181,8 @@ describe("A2 step 3 — the installer offers 3 Ready Check times; the owner pick
     const tvf = await import("../src/lib/trade-view.functions");
     const rct = await import("../src/lib/ready-check-times.core");
     const days = rct.allowedReadyCheckDays().slice(0, 3);
-    const picks = days.map((day) => ({ day, time: "10:00" }));
+    // Each time 24h+ ahead (installerTimesBlockers): 10:00 where still allowed, else that day's first allowed time (the test can run at any hour).
+    const picks = days.map((day) => { const ok = rct.allowedReadyCheckTimes(day); return { day, time: ok.includes("10:00") ? "10:00" : ok[0]! }; });
     // Another installer business cannot answer this offer.
     await expect(tvf.offerTradeReadyCheckTimes({ data: { offerId: offer!.id, picks }, context: { userId: OTHER, supabase: asUser(OTHER), claims: {} } })).rejects.toThrow();
     await tvf.offerTradeReadyCheckTimes({ data: { offerId: offer!.id, picks }, context: instCtx });

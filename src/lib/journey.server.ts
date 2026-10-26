@@ -459,7 +459,6 @@ const s7: StepFn = async (ctx, r) => {
   {
     const cs = await import("./consent.server");
     const rec = await import("./job-records.server");
-    const now = new Date().toISOString();
     await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
     // Decision 370: the AP part normally signs itself right after the owner; the office path runs only if it was held.
     if ((await cs.currentConsent(ctx.jobId!))?.status === "awaiting_ap") await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
@@ -482,7 +481,6 @@ const s7: StepFn = async (ctx, r) => {
       (r.simulated ??= []).push(`Signed PIESA copy email to the TEST ${to} (held by the TEST sender; recorded as delivered for this TEST job)`);
       await act(r, `signed PIESA copy recorded as delivered to the ${to} (simulated email)`, () => recordTestPiesaCopy(ctx, to, pd.recordDelivery));
     }
-    void now;
     await act(r, "office records pre-install consumer documents given", () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key: "pre_install_consumer_docs", occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
   }
   await ownerSignGates(ctx, r, ["C"]); // owner confirms receipt of the safety check copy (real secure-link path)
