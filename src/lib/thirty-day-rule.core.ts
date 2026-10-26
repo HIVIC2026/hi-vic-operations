@@ -6,6 +6,8 @@
 // the two SMS types are wordingApproved:false (no real text). TEST jobs go through the test sender only.
 import { INSTALL_WINDOW_DAYS, installDaysLeft } from "./install-days.core";
 import * as K from "./email-kit.core";
+import { esc, mjEmail } from "./mail-mjml.core";
+import { mjThirtyDayClock } from "./safety-check-emails.core";
 
 /** Jo must approve the wording below before this turns on. */
 export const THIRTY_DAY_REMINDER_APPROVED = true as boolean; // Jo 24 Oct 2026 (decision 167): texts and emails approved.
@@ -61,37 +63,52 @@ export function installerInstallWindowText(f: ReminderFacts): string {
   return `${job}: only ${dayWord(f.daysLeft)} left (last day ${by}). If the window lapses the repeat PIESA is charged to whoever caused the delay. Agree a day now: ${f.link} Reply STOP to opt out.`;
 }
 
-/** Owner email (DRAFT). */
+/** Owner email. Design: docs/templates/mjml/owner_install-window.mjml (MJML email refresh, Jo 27 Oct 2026). */
 export function ownerInstallWindowEmail(f: ReminderFacts): { subject: string; html: string; text: string } {
   const first = K.cleanName(f.firstName) ?? "there";
   const by = longDate(f.deadline);
   const installer = f.installerName?.trim() || "your installer";
   const subject = f.step === "reminder_20" ? `${first}, ${dayWord(f.daysLeft)} left to book your install` : `${first}, only ${dayWord(f.daysLeft)} left on your safety check`;
-  const intro = `Your electrical safety check is valid for ${INSTALL_WINDOW_DAYS} days, so your insulation must be installed by ${by}. There ${f.daysLeft === 1 ? "is" : "are"} ${dayWord(f.daysLeft)} left and no day is agreed yet.`;
+  const introStart = `Your electrical safety check is valid for ${INSTALL_WINDOW_DAYS} days, so your insulation must be installed by`;
+  const introEnd = `There ${f.daysLeft === 1 ? "is" : "are"} ${dayWord(f.daysLeft)} left and no day is agreed yet.`;
   const ask = `Please go to your job page and tap one of the days ${installer} has offered, or suggest days that suit you. It only takes a minute.`;
-  const rule = f.step === "reminder_20"
-    ? "If no day is agreed in time, the safety check runs out and a new one is needed before the install can go ahead."
-    : "If the window passes, a repeat safety check is needed before the install can go ahead, and it is charged to whoever caused the delay (the owner or the installer).";
-  const body = [K.h1(subject, 8), K.p(intro), K.p(ask), K.button(f.link, "Pick my install day"), K.note(rule), K.small("Questions? Just reply to this email.")].join("\n");
-  const html = K.emailShell({ body, previewText: intro, testLabel: f.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", ask, `Pick my install day: ${f.link}`, "", rule, "", "Questions? Just reply to this email."], { testLabel: f.test === true });
+  // [bold part, rest] of the 30-day rule line.
+  const rule: [string, string] = f.step === "reminder_20"
+    ? ["If no day is agreed in time, the safety check runs out and a new one is needed before the install can go ahead.", ""]
+    : ["If the window passes, a repeat safety check is needed before the install can go ahead.", "It is charged to whoever caused the delay (the owner or the installer)."];
+  const ruleText = rule.filter(Boolean).join(" ");
+  const questions = "Questions? Just reply to this email.";
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(f.link)}">Pick my install day</mj-button></mj-column></mj-section>`,
+    mjThirtyDayClock(`<strong>${esc(rule[0])}</strong>${rule[1] ? ` ${esc(rule[1])}` : ""}`),
+    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const preview = `Your insulation must be installed by ${by}. Pick your install day – it takes a minute.`;
+  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
+  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, `Pick my install day: ${f.link}`, "", ruleText, "", questions], { testLabel: f.test === true });
   return { subject, html, text };
 }
 
-/** Installer email (DRAFT). Job number and suburb only — no owner contact details. */
+/** Installer email. Job number and suburb only — no owner contact details. Design: docs/templates/mjml/installer_install-window.mjml. */
 export function installerInstallWindowEmail(f: ReminderFacts): { subject: string; html: string; text: string } {
   const first = K.cleanName(f.firstName) ?? "there";
   const by = longDate(f.deadline);
   const job = `${f.jobNumber ? `job ${f.jobNumber}` : "this job"}${f.ownerSuburb ? ` (${f.ownerSuburb})` : ""}`;
   const subject = `${f.jobNumber ?? "Job"}: ${dayWord(f.daysLeft)} left in the 30-day install window`;
-  const intro = `Hi ${first}, the PIESA on ${job} is valid until ${by}. ${dayWord(f.daysLeft)} left and no install day is agreed.`;
-  const ask = "Please offer days or take one of the owner's suggested days on the job screen now.";
+  const hi = `Hi ${first},`;
+  const intro = `The PIESA on ${job} is valid until ${by}. ${dayWord(f.daysLeft)} left and no install day is agreed.`;
+  const ask = "Please offer days, or take one of the owner's suggested days, on the job screen now.";
   const rule = f.step === "reminder_20"
-    ? "If the window lapses a repeat PIESA is needed before the install can start."
-    : "If the window lapses a repeat PIESA is needed, and under the partner agreement it is charged to whoever caused the delay — the owner or the installer.";
-  const body = [K.h1(subject, 8), K.p(intro), K.p(ask), K.button(f.link, "Open the job"), K.note(rule)].join("\n");
-  const html = K.emailShell({ body, previewText: intro, testLabel: f.test === true, unsubscribe: null });
-  const text = K.plainText([subject, "", intro, "", ask, `Open the job: ${f.link}`, "", rule], { testLabel: f.test === true });
+    ? "If the window lapses, a repeat PIESA is needed before the install can start."
+    : "If the window lapses, a repeat PIESA is needed. Under the partner agreement it's charged to whoever caused the delay — the owner or the installer.";
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(subject)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Valid until</mj-text><mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#8A5200" padding="0 12px 4px">${esc(by)}</mj-text><mj-text mj-class="center" font-weight="700" padding="0 12px 18px">${esc(dayWord(f.daysLeft))} left</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="14px 12px 14px">${esc(ask)}</mj-text><mj-button href="${esc(f.link)}">Open the job</mj-button><mj-text mj-class="small">${esc(rule)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const preview = `The PIESA on ${f.jobNumber ?? "this job"} is valid until ${by} and no install day is agreed yet.`;
+  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
+  const text = K.plainText([hi, subject, "", intro, "", ask, `Open the job: ${f.link}`, "", rule], { testLabel: f.test === true });
   return { subject, html, text };
 }
 

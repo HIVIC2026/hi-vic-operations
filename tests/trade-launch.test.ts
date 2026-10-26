@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { evaluatePaymentGate } from "../src/lib/payment-gate.core";
 import { tradeTask } from "../src/lib/trade-work.core";
 import { addCustomerProblems, areaTotal, type A1Area } from "../src/lib/add-customer.core";
-import { grantedRole, memberRoleFor, TRADE_INVITE_EMAIL_APPROVED, tradeAccessBlocker } from "../src/lib/trade-access.core";
+import { grantedRole, memberRoleFor, renderTradeInviteEmail, TRADE_INVITE_EMAIL_APPROVED, tradeAccessBlocker } from "../src/lib/trade-access.core";
 
 const quote = { id: "q1", customer_total_inc_gst: 5000 };
 const base = { enabled: false, route: "hiv_lead" as const, currentQuote: quote, invoice: null, plan: null, overrideCount: 0 };
@@ -73,6 +73,17 @@ describe("Trade sign-in", () => {
     expect(tradeAccessBlocker(w, false)).not.toBeNull();
     expect(memberRoleFor("Boss@Biz.com", "boss@biz.com")).toBe("business_admin");
     expect(grantedRole("electrician")).toBe("electrician");
+  });
+  test("invite email (approved design): greeting once, set-password button, sign-in link, no unsubscribe", () => {
+    const m = renderTradeInviteEmail({ firstName: "Sam", business: "Sample <Co>", setPasswordUrl: "https://x/reset-password?token_hash=T", signInUrl: "https://x/auth" });
+    expect(m.subject).toBe("Set up your Home Insulation Victoria sign-in");
+    expect(m.html.match(/Hi Sam,/g)?.length).toBe(1);
+    expect(m.html).toContain('href="https://x/reset-password?token_hash=T"');
+    expect(m.html).toContain('href="https://x/auth"');
+    expect(m.html).toContain("Sample &lt;Co&gt;");
+    expect(m.html).not.toMatch(/unsubscribe/i);
+    expect(m.text).toContain("Set my password: https://x/reset-password?token_hash=T");
+    expect(m.text).toContain("After that, sign in at https://x/auth with this email to see your jobs.");
   });
   test("sign-in page offers reset and email link, without the Operations label", () => {
     const a = readFileSync("src/components/portal/SignInCard.tsx", "utf8");
