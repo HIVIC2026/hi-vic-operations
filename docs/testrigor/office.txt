@@ -1,0 +1,525 @@
+// OFFICE test cases (TEST office account admin@hivic.test).
+// One case = the "### " title line, then its steps down to the next "### ".
+//   Title  -> testRigor "Test case description" (leave out the ###).
+//   Steps  -> testRigor "Custom steps".
+// Tags:
+//   [read-only]              looks only. Safe to run any time, in any order.
+//   [CHANGES THE TEST JOB]   moves the TEST job on. Run in the order shown, after the read-only ones.
+//   [CREATES TEST DATA]      adds a new TEST record.
+//   [ONE-WAY - run last]     can't be undone from the screen.
+// The office account sees REAL customers too. These cases only ever change the TEST job (stored value testJobNumber)
+// or records marked TEST. Never point a state-changing case at a real job.
+// Never automate: Settings > Switches, Communications > "Cancel these", Money > "Mark paid", Partners approvals of
+// real applicants, "Publish new prices". They change live behaviour or real money. See coverage.md.
+// Rules used: open sign in, sign in as office, sign out of office, open test job as office, open test roles dialog,
+// open test role tab (see rules.txt).
+
+
+// ============================== SIGN-IN PAGE (read-only) ==============================
+
+### O-01 · Sign-in page shows every option   [read-only]
+open sign in
+check that page contains "Your jobs, next steps and business records."
+check that page contains "Email"
+check that page contains "Password"
+check that page contains "Sign in"
+check that page contains "Forgot password?"
+check that page contains "Email me a sign-in link"
+check that page contains "Continue with Google"
+check that page contains "For the office, installers, electricians and owners."
+
+### O-02 · Sign-in checks the email before sending anything   [read-only]
+open sign in
+click "Sign in"
+check that page contains "Type your email address."
+enter "no-at-sign.example" into "Email"
+click "Sign in"
+check that page contains "Your email is missing the @ sign."
+enter stored value "officeEmail" into "Email"
+click "Sign in"
+check that page contains "Type your password, or use"
+
+### O-03 · Wrong password is refused   [read-only]
+// Run once only: repeated wrong passwords trigger "Too many tries".
+open sign in
+enter stored value "officeEmail" into "Email"
+enter "wrong-password-for-test" into "Password"
+click "Sign in"
+check that page contains "That email and password don't match."
+
+### O-04 · Signed out: office pages send you to sign in   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/admin/needs-me"
+check that url contains "/auth"
+check that page contains "Welcome back."
+open url "https://portal.homeinsulationvictoria.com.au/admin/test-centre"
+check that url contains "/auth"
+
+
+// ============================== OFFICE SCREENS (read-only) ==============================
+
+### O-10 · Office lands on Needs me   [read-only]
+sign in as office
+check that page contains "Needs me"
+check that page does not contain "Try again"
+
+### O-11 · Top menu has the five headings and More   [read-only]
+sign in as office
+check that page contains "Needs me"
+check that page contains "Enquiries"
+check that page contains "Jobs"
+check that page contains "Partners"
+check that page contains "Money"
+check that page contains "More"
+
+### O-12 · More menu   [read-only]
+sign in as office
+click "More"
+check that page contains "Communications"
+check that page contains "Templates"
+check that page contains "Settings"
+check that page contains "Test Centre"
+
+### O-13 · Enquiries list and search   [read-only]
+sign in as office
+click "Enquiries"
+check that url contains "/admin/enquiries"
+check that page contains "Enquiries"
+enter stored value "testJobNumber" into "Search owner name, address or job number"
+check that page does not contain "Try again"
+
+### O-14 · New phone enquiry form opens (not saved)   [read-only]
+// The form makes a REAL enquiry if saved, so this case only opens it. TEST jobs come from the Test Centre instead.
+sign in as office
+click "Enquiries"
+click "New enquiry (phone)"
+check that page contains "Name"
+check that page contains "Occupancy"
+check that page contains "Ceiling area m²"
+check that page contains "Life support"
+check that page contains "Create enquiry"
+open url "https://portal.homeinsulationvictoria.com.au/admin/needs-me"
+check that page contains "Needs me"
+
+### O-15 · Jobs > Active shows the six stages   [read-only]
+sign in as office
+click "Jobs"
+check that url contains "/admin/jobs/active"
+check that page contains "Choose installer"
+check that page contains "Ready Check"
+check that page contains "Quote"
+check that page contains "PIESA"
+check that page contains "Install"
+check that page contains "Final check"
+check that page contains "Choose installer list"
+
+### O-16 · Jobs > Active filter by one stage   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/jobs/active?stage=quote"
+check that page contains "Quote"
+check that page does not contain "Try again"
+
+### O-17 · Jobs > Closed shows the four piles   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/jobs/closed"
+check that page contains "Completed"
+check that page contains "Cancelled"
+check that page contains "Ineligible"
+check that page contains "Removed / test"
+
+### O-18 · Choose installer list   [read-only]
+sign in as office
+click "Jobs"
+click "Choose installer list"
+check that url contains "/admin/jobs/choose-installer"
+check that page contains "Choose installer"
+check that page contains "Waiting since"
+enter stored value "testJobNumber" into "Search owner, suburb, postcode or job number"
+check that page does not contain "Try again"
+
+### O-19 · TEST job page opens with its six stage cards   [read-only]
+sign in as office
+open test job as office
+check that page contains "TEST"
+check that page contains "Enquiry"
+check that page contains "Ready Check"
+check that page contains "Quote"
+check that page contains "PIESA"
+check that page contains "Install"
+check that page contains "Final check"
+check that page contains "Log a call or note"
+check that page contains "More ▾"
+
+### O-20 · TEST job: Enquiry card and the owner link button   [read-only]
+// The link itself is not revealed here, so it never lands in test results.
+sign in as office
+open test job as office
+click "Enquiry"
+check that page contains "Owner said"
+check that page contains "Eligibility"
+check that page contains "Secure customer estimate link"
+check that page contains "Show link (admin only)"
+
+### O-21 · TEST job: Ready Check card shows Choose installer   [read-only]
+sign in as office
+open test job as office
+click "Ready Check"
+check that page contains "Choose installer"
+
+### O-22 · TEST job: Quote card   [read-only]
+sign in as office
+open test job as office
+click "Quote"
+check that page contains "Sent"
+check that page contains "Amount"
+
+### O-23 · TEST job: PIESA card   [read-only]
+sign in as office
+open test job as office
+click "PIESA"
+check that page contains "Electrician"
+check that page contains "Offer"
+
+### O-24 · TEST job: More menu items   [read-only]
+sign in as office
+open test job as office
+click "More ▾"
+check that page contains "Mark as test"
+check that page contains "Cancel job…"
+check that page contains "Delete (test jobs only)"
+check that page contains "Set a visit time by hand…"
+
+### O-25 · TEST job: Log a call or note opens and closes   [read-only]
+sign in as office
+open test job as office
+click "Log a call or note"
+check that page contains "Goes into Contact history as recorded by the office, not sent by the portal."
+check that page contains "Now waiting for"
+click "Close"
+check that page contains "Log a call or note"
+
+### O-26 · TEST job: Money section   [read-only]
+sign in as office
+open test job as office
+scroll down until page contains "Margin · office only"
+check that page contains "Xero invoice (office view)"
+
+### O-27 · Partners tabs   [read-only]
+sign in as office
+click "Partners"
+check that page contains "Who we work with."
+check that page contains "Applications"
+check that page contains "Approved"
+check that page contains "People"
+check that page contains "Rates"
+check that page contains "Coverage"
+
+### O-28 · Partner business file for the TEST installer   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/partners?tab=approved"
+click "TEST Alpha Insulation"
+check that page contains "‹ Partners · Approved"
+check that page contains "Agreement"
+check that page contains "Insurance & licences"
+check that page contains "Usual electrician"
+check that page contains "Jobs"
+check that page contains "Coverage"
+check that page contains "Rates"
+check that page contains "Bank details"
+
+### O-29 · Partner applications list   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/partners"
+click "Applications"
+check that page contains "Waiting"
+check that page contains "Test applications"
+
+### O-30 · Money tabs   [read-only]
+sign in as office
+click "Money"
+check that page contains "What we earn and owe."
+check that page contains "Owners owe"
+check that page contains "We owe trades"
+check that page contains "Overview"
+check that page contains "Payouts"
+check that page contains "Invoices"
+check that page contains "VEECs"
+check that page contains "Prices"
+
+### O-31 · Money > Prices (look only)   [read-only]
+sign in as office
+click "Money"
+click "Prices"
+check that page contains "Owner prices and the fixed payment rules"
+check that page contains "Publish new prices"
+
+### O-32 · Communications tabs   [read-only]
+sign in as office
+click "More"
+click "Communications"
+check that page contains "What went out, what failed, what is held."
+check that page contains "Held & queued"
+check that page contains "Sent"
+check that page contains "Failed"
+check that page contains "Outlook"
+
+### O-33 · Templates sections   [read-only]
+sign in as office
+click "More"
+click "Templates"
+check that page contains "Viewing never sends, saves or connects anything."
+check that page contains "Owner"
+check that page contains "Installer"
+check that page contains "Electrician"
+check that page contains "Mitti forms"
+check that page contains "VEU / compliance"
+check that page contains "Invoices"
+
+### O-34 · Settings tabs   [read-only]
+sign in as office
+click "More"
+click "Settings"
+check that page contains "Wording, forms, connections and switches."
+check that page contains "Switches"
+check that page contains "Automatic rules"
+check that page contains "Mitti forms"
+check that page contains "ESC fields"
+check that page contains "Xero"
+check that page contains "Users & access"
+check that page contains "Deleted"
+
+### O-35 · Users & access   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/users"
+check that page contains "Users & access"
+check that page contains "TEST login (private file)"
+check that page contains "Check all trades in Mitti"
+
+### O-36 · Test Centre   [read-only]
+sign in as office
+click "More"
+click "Test Centre"
+check that page contains "Launch testing"
+check that page contains "Safe testing is active."
+check that page contains "Create dummy journey"
+check that page contains "Jo as a fake tradie"
+check that page contains "Test trade accounts"
+check that page contains "Onboarding staff links"
+check that page contains "Onboarding sign-up limits"
+check that page contains stored value "testJobNumber"
+
+### O-37 · Test Centre: TEST roles dialog   [read-only]
+sign in as office
+open test roles dialog
+check that page contains "Open as owner"
+check that page contains "Open as installer boss"
+check that page contains "Open as electrician"
+check that page contains "Open as worker"
+check that page contains "Simulate a deadline on this TEST job"
+
+### O-38 · Pages outside the menu still open   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/interests"
+check that page contains "Registered interest"
+open url "https://portal.homeinsulationvictoria.com.au/admin/ap-queue"
+check that page contains "AP approval queue"
+open url "https://portal.homeinsulationvictoria.com.au/admin/electrician-rates"
+check that page contains "Electrician rates"
+open url "https://portal.homeinsulationvictoria.com.au/admin/save-my-spot-rules"
+check that page contains "Automatic sending rules"
+open url "https://portal.homeinsulationvictoria.com.au/admin/save-spot-reminder-blast"
+check that page contains "3 questions reminder (one-off)"
+
+### O-39 · Old office links land on the new pages   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/admin/today"
+check that url contains "/admin/needs-me"
+open url "https://portal.homeinsulationvictoria.com.au/admin/board"
+check that url contains "/admin/jobs/active"
+open url "https://portal.homeinsulationvictoria.com.au/admin/workers"
+check that url contains "/admin/partners"
+open url "https://portal.homeinsulationvictoria.com.au/admin/pricing"
+check that url contains "/admin/money"
+open url "https://portal.homeinsulationvictoria.com.au/admin/deleted"
+check that url contains "/admin/settings"
+
+### O-40 · Office can look at the owner area   [read-only]
+sign in as office
+open url "https://portal.homeinsulationvictoria.com.au/owner"
+check that page contains "My insulation jobs"
+
+### O-41 · Sign out   [read-only]
+sign in as office
+sign out of office
+open url "https://portal.homeinsulationvictoria.com.au/admin/needs-me"
+check that url contains "/auth"
+
+
+// ============================== CHANGES TEST DATA ==============================
+// Run after the read-only cases, in this order. They follow one TEST job through the office steps.
+
+### O-50 · Create a dummy TEST journey   [CREATES TEST DATA]
+// Made-up details only. The job is marked TEST and stays out of live automation.
+// Afterwards, save its job number (HV-...) as stored value testJobNumber if you want to use this one.
+sign in as office
+click "More"
+click "Test Centre"
+click "Create dummy journey"
+check that page contains "Create isolated dummy journey"
+enter "Test Owner Rigor" into "Owner name"
+enter "qa.owner.rigor@hivic-test.example" into "Test email"
+enter "0400000000" into "Phone"
+enter "34 Watsons Road" into "Street address"
+enter "Bundoora" into "Suburb"
+enter "3083" into "Postcode"
+enter "150" into "Estimated ceiling area m²"
+click "Create test journey"
+check that page contains "Test Owner Rigor"
+
+### O-51 · Prepare missing TEST associations   [CHANGES THE TEST JOB]
+sign in as office
+open test roles dialog
+click "Prepare missing TEST associations"
+check that page does not contain "Could not prepare"
+
+### O-52 · Log a call or note on the TEST job   [CHANGES THE TEST JOB]
+sign in as office
+open test job as office
+click "Log a call or note"
+enter "TEST note from testRigor - please ignore" into "What was said"
+click "Save"
+check that page contains "Logged"
+
+### O-53 · Put the TEST job on hold, then resume   [CHANGES THE TEST JOB]
+sign in as office
+open test job as office
+click "More ▾"
+click "Put on hold"
+click "Owner asked us to wait"
+enter "TEST hold from testRigor" into "Note"
+// The menu has closed, so this is the dialog's own button.
+click "Put on hold"
+check that page contains "On hold"
+click "More ▾"
+click "Resume"
+check that page contains "Resumed"
+
+### O-54 · Simulate a TEST deadline   [CHANGES THE TEST JOB]
+sign in as office
+open test roles dialog
+click "No reply 24h"
+check that page contains "TEST time condition is ready"
+
+### O-55 · Open the TEST owner in a second tab (no password)   [read-only]
+// Needs: the TEST job has a TEST owner sign-in.
+sign in as office
+open test roles dialog
+click "Open as owner"
+open test role tab
+check that page contains "What's next:"
+check that page contains stored value "testJobNumber"
+
+### O-56 · Open the TEST installer in a second tab (no password)   [read-only]
+// Needs: a TEST installer assigned to the TEST job.
+sign in as office
+open test roles dialog
+click "Open as installer boss"
+open test role tab
+check that page contains "My work"
+
+### O-57 · Open the TEST electrician in a second tab (no password)   [read-only]
+// Needs: a TEST electrician assigned to the TEST job.
+sign in as office
+open test roles dialog
+click "Open as electrician"
+open test role tab
+check that page contains "Moving automatically"
+
+### O-58 · Release the TEST job to the TEST installer   [CHANGES THE TEST JOB]
+// Needs: TEST job with the spot saved, waiting for an installer. TEST jobs can only go to TEST partners.
+// The owner then gets "It's your turn" (homeowner case H-40). Messages are held by the TEST send rules.
+sign in as office
+open test job as office
+click "Ready Check"
+check that page contains "Choose installer"
+click "Release" to the right of "TEST Alpha Insulation"
+check that page contains "The installer is offered the job only once the owner confirms."
+
+### O-59 · Send the TEST installer a new job + offer (Jo as a fake tradie)   [CREATES TEST DATA]
+// Texts and emails from this panel go only to Jo's own phone and email.
+sign in as office
+click "More"
+click "Test Centre"
+click "2. New TEST job + offer"
+check that page contains "Latest TEST job:"
+
+### O-60 · Send the TEST electrician the safety check offer   [CHANGES THE TEST JOB]
+// Needs: TEST job at PIESA with the quote accepted.
+sign in as office
+open test job as office
+click "PIESA"
+check that page contains "Choose electrician"
+click "Send offer" to the right of "TEST Delta Electrical"
+check that page contains "Offer sent to"
+
+### O-61 · Record a TEST payment (no money, no Xero)   [CHANGES THE TEST JOB]
+// Stands in for Stripe until test keys are added.
+sign in as office
+open test roles dialog
+click "Simulate payment (TEST only)"
+check that page contains "TEST payment recorded. No money and no Xero."
+
+### O-62 · Simulate the PIESA window expiring   [ONE-WAY - run last]
+// Needs: TEST job with a passed PIESA. Forces "new PIESA needed" on the TEST job.
+sign in as office
+open test roles dialog
+click "PIESA expired"
+check that page contains "TEST time condition is ready"
+
+### O-63 · Create a TEST onboarding link   [CREATES TEST DATA]
+// The link is shown once. It starts an application marked as a test.
+sign in as office
+click "More"
+click "Test Centre"
+scroll down until page contains "Onboarding staff links"
+enter "testRigor launch QA run" into "e.g. Launch QA run"
+click "Create one-use link"
+check that page contains "Copy this now — it won't be shown again."
+
+### O-64 · Revoke the TEST onboarding link   [CHANGES THE TEST JOB]
+// Needs: O-63 run first.
+sign in as office
+click "More"
+click "Test Centre"
+scroll down until page contains "testRigor launch QA run"
+click "Revoke" to the right of "testRigor launch QA run"
+check that page contains "Link revoked"
+
+### O-65 · Cancel the TEST job   [ONE-WAY - run last]
+// Needs: a spare TEST job; testJobNumber pointed at it (README, "Run last"). Stops reminders and releases its installer.
+sign in as office
+open test job as office
+click "More ▾"
+click "Cancel job…"
+check that page contains "Stops every reminder and text, releases the install day and installer, keeps the history."
+click "Owner changed mind"
+click "Cancel job"
+check that page contains "Job cancelled"
+
+### O-66 · Reopen the cancelled TEST job   [ONE-WAY - run last]
+// Needs: O-65 run first.
+sign in as office
+open test job as office
+click "More ▾"
+click "Reopen…"
+enter "TEST reopen from testRigor" into "Reason (required, kept in the history)"
+click "Reopen"
+check that page contains "Reopened"
+
+### O-67 · Archive a TEST journey   [ONE-WAY - run last]
+// Needs: the TEST journey in testJobNumber is finished with. Its TEST access is revoked; history is kept. Run this last of all.
+sign in as office
+click "More"
+click "Test Centre"
+scroll down until page contains stored value "testJobNumber"
+click "Archive" below stored value "testJobNumber"
+check that page does not contain stored value "testJobNumber"

@@ -1,0 +1,434 @@
+// ELECTRICIAN test cases (TEST electrician business owner, e.g. qa.rec.delta@hivic-test.example).
+// One case = the "### " title line, then its steps down to the next "### ".
+//   Title  -> testRigor "Test case description" (leave out the ###).
+//   Steps  -> testRigor "Custom steps".
+// Tags:
+//   [read-only]                 looks only. Safe to run any time, in any order.
+//   [CHANGES THE TEST JOB]      moves the TEST job on. Run in the order shown, after the read-only ones.
+//   [CHANGES THE TEST BUSINESS] changes the TEST electrician business records.
+//   [ONE-WAY - run last]        can't be undone from the screen.
+// "// Needs:" says what state the TEST job must be in first. If it isn't, the case fails at its first check. That's expected.
+// Words that change (suburbs, dates, amounts) use part of the text only. testRigor matches part of a label.
+// Day tiles and time menus change every day. Those steps pick "the 1st / 2nd / 3rd" one. If testRigor marks one red,
+// open the step in its editor and pick the tile it offers.
+// Rules used: sign in as electrician, sign out of trade, open test job as electrician (see rules.txt).
+
+
+// ============================== READ-ONLY ==============================
+
+### E-01 · My work opens with the four count tiles   [read-only]
+sign in as electrician
+check that page contains "Hello"
+check that page contains "Offers"
+check that page contains "Needs me"
+check that page contains "Moving automatically"
+check that page contains "Coming up"
+
+### E-02 · Electrician menu has no Add a job tab   [read-only]
+sign in as electrician
+check that page contains "My work"
+check that page contains "Money"
+check that page contains "My business"
+check that page does not contain "Add a job"
+
+### E-03 · Account menu shows my email   [read-only]
+sign in as electrician
+click "Account menu"
+check that page contains stored value "electricianEmail"
+check that page contains "Sign out"
+
+### E-04 · Your jobs filters   [read-only]
+// Needs: at least one job for this TEST electrician.
+sign in as electrician
+scroll down until page contains "Your jobs"
+click "Moving automatically ("
+check that page contains "Your jobs"
+click "Needs chasing"
+check that page contains "Your jobs"
+click "All"
+check that page contains stored value "testJobNumber"
+
+### E-05 · Safety check offer opens   [read-only]
+// Needs: an open PIESA offer for this TEST electrician (office case O-60).
+sign in as electrician
+check that page contains "new job offer"
+click "View offer"
+check that page contains "New job"
+check that page contains "Pre Insulation Electrical Safety Assessment (PIESA) in"
+check that page contains "your rate for this job"
+check that page contains "Paid only when the Mitti form is complete with every geotagged photo."
+check that page contains "To take this job"
+check that page contains "Not for me"
+
+### E-06 · TEST job page opens   [read-only]
+// Needs: the TEST job assigned to this electrician.
+sign in as electrician
+open test job as electrician
+check that page contains "My work"
+check that page contains "Where it's up to"
+check that page contains "Contact details for this visit"
+
+### E-07 · History and documents fold-out   [read-only]
+sign in as electrician
+open test job as electrician
+click "History and documents"
+check that page contains "What's happened"
+check that page contains "Staff job links"
+
+### E-08 · Safety check document row   [read-only]
+// Needs: TEST job with a PIESA document.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Documents"
+check that page contains "Safety check (PIESA)"
+
+### E-09 · Safety check times card   [read-only]
+// Needs: TEST job where you accepted the PIESA and the owner hasn't booked yet.
+sign in as electrician
+open test job as electrician
+check that page contains "Safety check times"
+
+### E-10 · Visit changes card   [read-only]
+// Needs: a booked PIESA or fixes visit on the TEST job.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Visit changes and no-shows"
+check that page contains "You can change or cancel up to 24 hours before."
+
+### E-11 · Cancel visit can be backed out of   [read-only]
+// Needs: a booked visit more than 24 hours away.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Visit changes and no-shows"
+click "Cancel visit"
+check that page contains "Cancelling a booked visit counts against your reliability."
+click "Keep my booking"
+check that page contains "Visit changes and no-shows"
+
+### E-12 · Start of the install day: Can't make it can be backed out of   [read-only]
+// Needs: TEST job with an install day booked that needs the electrician at the start.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Start of the install day"
+click "Can't make it"
+check that page contains "Why can't you make it?"
+click "Back"
+check that page contains "Start of the install day"
+
+### E-13 · Money page   [read-only]
+sign in as electrician
+click "Money"
+check that page contains "Your pay,"
+check that page contains "How pay works"
+check that page contains "Your visits"
+check that page contains "Paid to"
+
+### E-14 · My business page   [read-only]
+sign in as electrician
+click "My business"
+check that page contains "Approved partner"
+check that page contains "Taking new jobs"
+check that page contains "Business file"
+check that page contains "Business details"
+check that page contains "Your rates"
+check that page contains "Bank details"
+check that page contains "Insurance and licences"
+check that page contains "Your agreement"
+check that page contains "How it works"
+check that page does not contain "ESC privacy notice"
+check that page does not contain "My usual electrician"
+
+### E-15 · Business details page   [read-only]
+sign in as electrician
+click "My business"
+click "Business details"
+check that page contains "Ask us to change something"
+
+### E-16 · Your rates page   [read-only]
+sign in as electrician
+click "My business"
+click "Your rates"
+check that page contains "Request a rate change"
+
+### E-17 · Bank details page   [read-only]
+sign in as electrician
+click "My business"
+click "Bank details"
+check that url contains "/field/business/bank"
+
+### E-18 · Insurance and licences page   [read-only]
+sign in as electrician
+click "My business"
+click "Insurance and licences"
+check that page contains "Upload a renewed certificate"
+
+### E-19 · Your agreement page   [read-only]
+sign in as electrician
+click "My business"
+click "Your agreement"
+check that url contains "/field/business/agreement"
+
+### E-20 · Usual electrician page is installer-only   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/field/business/electrician"
+check that page contains "Only installer businesses nominate a usual electrician."
+
+### E-21 · Team page   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/field/business/team"
+check that page contains "Team"
+
+### E-22 · Guide page opens from My business   [read-only]
+sign in as electrician
+click "My business"
+click "How it works"
+check that page contains "How every job works"
+
+### E-23 · Permission: electrician can't add jobs   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/partner/import"
+check that url does not contain "/partner/import"
+check that page contains "Moving automatically"
+
+### E-24 · Permission: electrician can't open the office   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/admin/needs-me"
+check that url does not contain "/admin"
+check that page does not contain "Enquiries"
+open url "https://portal.homeinsulationvictoria.com.au/admin/money"
+check that url does not contain "/admin"
+
+### E-25 · Permission: electrician can't open the owner area   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/owner"
+check that page does not contain "My insulation jobs"
+check that page contains "My work"
+
+### E-26 · Permission: a job that isn't yours is refused   [read-only]
+sign in as electrician
+open url "https://portal.homeinsulationvictoria.com.au/field/00000000-0000-0000-0000-000000000000"
+check that page contains "isn't available to you"
+
+### E-27 · Sign out from the account menu   [read-only]
+sign in as electrician
+sign out of trade
+open url "https://portal.homeinsulationvictoria.com.au/field"
+check that page contains "Welcome back."
+
+
+// ============================== CHANGES TEST DATA ==============================
+// Run these after the read-only cases. Order follows the job: offer, booking, visit, PIESA, fixes, install day.
+
+### E-40 · Accept a safety check offer by sending 3 times   [CHANGES THE TEST JOB]
+// Needs: an open PIESA offer on the TEST job.
+sign in as electrician
+click "View offer"
+check that page contains "Offer the owner 3 times"
+// Day tiles change every day: pick the first three shown.
+click the 1st button below "three different days in the next 3 weeks"
+click the 2nd button below "three different days in the next 3 weeks"
+click the 3rd button below "three different days in the next 3 weeks"
+check that page contains "Arrival time for each day"
+select "10am" from the 1st "Arrival time"
+select "10am" from the 2nd "Arrival time"
+select "10am" from the 3rd "Arrival time"
+click "Accept this job"
+check that page contains "Job accepted · times sent"
+click "Open the job page"
+check that page contains "Where it's up to"
+
+### E-41 · Pick one of the owner's times on an offer   [CHANGES THE TEST JOB]
+// Needs: an open offer that lists the owner's times ("Pick one of the owner's times").
+sign in as electrician
+click "View offer"
+check that page contains "Pick one of the owner's times"
+click the 1st button below "Tap a time and it's booked."
+check that page contains "Job accepted"
+check that page contains "Add to calendar"
+check that page contains "The owner has been told the time."
+
+### E-42 · Suggest another time on an offer   [CHANGES THE TEST JOB]
+// Needs: an open offer with "Suggest another time" showing.
+sign in as electrician
+click "View offer"
+click "Suggest another time"
+enter "TEST: Thursday morning" into "e.g. Thursday morning"
+click "Send to the office"
+check that page contains "Thanks, we've got it."
+
+### E-43 · Decline a safety check offer   [ONE-WAY - run last]
+// Needs: a SECOND open offer you are happy to lose.
+sign in as electrician
+click "View offer"
+click "Not for me"
+check that page contains "Offer declined"
+
+### E-44 · Send the owner 3 safety check times from the job page   [CHANGES THE TEST JOB]
+// Needs: TEST job card "Safety check times" asking you to offer times.
+sign in as electrician
+open test job as electrician
+check that page contains "Offer the owner 3 times within 24 hours"
+click the 1st button below "Offer the owner 3 times within 24 hours"
+click the 2nd button below "Offer the owner 3 times within 24 hours"
+click the 3rd button below "Offer the owner 3 times within 24 hours"
+select "10am" from the 1st "Arrival time"
+select "10am" from the 2nd "Arrival time"
+select "10am" from the 3rd "Arrival time"
+click "Send these times to the owner"
+check that page contains "The owner picks one or suggests other days."
+
+### E-45 · Book one of the owner's suggested days   [CHANGES THE TEST JOB]
+// Needs: the TEST owner suggested other days for the safety check.
+sign in as electrician
+open test job as electrician
+check that page contains "The owner suggested these days."
+select "10am" from the 1st "Arrival time"
+click the 1st "Book"
+check that page does not contain "The owner suggested these days."
+
+### E-46 · Ask the office to send the owner a reminder   [CHANGES THE TEST JOB]
+// Needs: TEST job waiting on the owner. Any owner message is held by the TEST send rules.
+sign in as electrician
+open test job as electrician
+click "Ask Home Insulation Victoria to send a reminder"
+check that page contains "Asked. Home Insulation Victoria will follow up with the owner."
+
+### E-47 · Record arrival at the visit   [CHANGES THE TEST JOB]
+// Needs: a booked visit starting within 2 hours.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Visit changes and no-shows"
+click "I've arrived"
+check that page contains "Arrival recorded"
+
+### E-48 · Upload a TEST evidence file   [CHANGES THE TEST JOB]
+// Needs: TEST job at the PIESA visit. The portal asks the browser for its location and refuses files without it.
+// Allow location in testRigor's browser settings, and use a dummy PDF (optional stored value dummyPdfUrl).
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Evidence"
+enter stored value "dummyPdfUrl" into "Add photo / video / PDF"
+check that page contains "Upload confirmed. Evidence still requires review."
+
+### E-49 · Add an Other electrical fixes item   [CHANGES THE TEST JOB]
+// Needs: TEST job at the PIESA visit, PIESA not completed.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Electrical fixes items"
+enter "TEST item from testRigor" into "Description"
+enter "1" into "Qty"
+enter "10" into "Price inc GST"
+enter "TEST only - please ignore" into "Why is this needed?"
+click "Add item"
+check that page contains "Item added"
+check that page contains "TEST item from testRigor"
+
+### E-50 · Remove the Other item again   [CHANGES THE TEST JOB]
+// Needs: E-49 run first.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "TEST item from testRigor"
+click "Remove" to the right of "TEST item from testRigor"
+check that page does not contain "TEST item from testRigor"
+
+### E-51 · Manual PIESA entry form shows (no Mitti form linked)   [read-only]
+// Needs: TEST job at the PIESA visit with no Mitti form linked.
+sign in as electrician
+open test job as electrician
+check that page contains "Electrical assessment · manual entry"
+check that page contains "Switchboard condition"
+check that page contains "RCDs present"
+check that page contains "No electrical fixes required"
+check that page contains "PIESA outcome"
+check that page contains "Assessment date"
+check that page contains "Complete PIESA"
+
+### E-52 · Send electrical fixes times   [CHANGES THE TEST JOB]
+// Needs: TEST job whose safety check found fixes, card "Electrical fixes times" showing.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Electrical fixes times"
+check that page contains "Pick 3 to 5 times you can do the work and how long it will take."
+enter "2" into "Estimated hours for the electrical fixes work"
+click the 1st "8–10am"
+click the 2nd "8–10am"
+click the 3rd "8–10am"
+click "Send my fixes times"
+check that page contains "Fixes times sent"
+
+### E-53 · Complete the PIESA   [ONE-WAY - run last]
+// Needs: TEST job at the PIESA visit with every result entered. This locks the PIESA.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Complete PIESA"
+click "Complete PIESA"
+check that page contains "PIESA complete"
+
+### E-54 · Record the PIESA sign-off after electrical fixes   [ONE-WAY - run last]
+// Needs: TEST job with fixes booked and done.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Electrical fixes complete – record PIESA sign-off"
+click "I confirm Section C of the completed PIESA has been completed and signed"
+click "Pass"
+check that page contains "PIESA recorded"
+
+### E-55 · Confirm I'll be there at the start of the install day   [CHANGES THE TEST JOB]
+// Needs: TEST job with an install day booked that needs the electrician.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Start of the install day"
+click "I'll be there"
+check that page contains "Thanks"
+
+### E-56 · Can't make the install day   [CHANGES THE TEST JOB]
+// Needs: as E-55. The booked day is released and the installer offers new days.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Start of the install day"
+click "Can't make it"
+enter "TEST only - please ignore" into "Say why"
+click "Send"
+check that page contains "the installer has been told"
+
+### E-57 · Owner not home at the visit   [CHANGES THE TEST JOB]
+// Needs: a visit that has started.
+sign in as electrician
+open test job as electrician
+scroll down until page contains "Visit changes and no-shows"
+click "Owner not home"
+check that page contains "Visit changes and no-shows"
+
+### E-58 · Switch Taking new jobs off and on   [CHANGES THE TEST BUSINESS]
+sign in as electrician
+click "My business"
+click "Taking new jobs"
+check that page contains "Paused · no new offers until you switch back on"
+click "Taking new jobs"
+check that page does not contain "Paused · no new offers until you switch back on"
+
+### E-59 · Ask the office to change a business detail   [CHANGES THE TEST BUSINESS]
+sign in as electrician
+click "My business"
+click "Business details"
+enter "TEST request from testRigor - please ignore" into "Ask us to change something"
+click "Send to the office"
+check that page contains "Sent to the office"
+
+### E-60 · Request a rate change   [CHANGES THE TEST BUSINESS]
+sign in as electrician
+click "My business"
+click "Your rates"
+enter "TEST request from testRigor - please ignore" into "Request a rate change"
+click "Send to the office"
+check that page contains "Sent to the office"
+
+### E-61 · Upload a TEST insurance certificate   [CHANGES THE TEST BUSINESS]
+// Use a dummy PDF only (optional stored value dummyPdfUrl). The office then checks it.
+sign in as electrician
+click "My business"
+click "Insurance and licences"
+click "Upload a renewed certificate"
+enter stored value "dummyPdfUrl" into "Certificate (PDF or photo)"
+click "Upload"
+check that page contains "Uploaded. The office will check it."
