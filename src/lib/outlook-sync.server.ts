@@ -449,6 +449,16 @@ async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string 
   try {
     const r = await (await import("./owner-email-auto-reply.server")).autoReplyToOwner({ jobIds, message: m, mailbox });
     if (r.status === "sent" && counts) bump(counts, "ownerAutoReplies");
+    // Jo 26 Oct: anything not sent gets ONE fresh AI reply draft saved on the job for Jo to approve and send.
+    // Simple = standard questions and thanks; a change/cancel ask is left to decision 337 unless it didn't reply.
+    if (r.status !== "sent" && r.status !== "already" && r.detail !== "sender is not the owner on file" && r.detail !== "not a matched inbound email" && r.detail !== "too old for an automatic reply" && r.detail !== "job not found" && !/partner or staff/.test(r.detail)) {
+      const changeAsk = r.status === "skip" && /245\/337/.test(r.detail);
+      const replied337 = changeAsk ? await changeReplied(jobIds[0]!, m.providerMessageId) : false;
+      if (!replied337) {
+        const kind = r.status === "none" || changeAsk || /approval|comms are switched off/.test(r.detail) ? "simple" : "other";
+        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail });
+      }
+    }
     return r.suppressDraft;
   } catch (e) {
     console.error("owner auto reply skipped", e instanceof Error ? e.message : e);
