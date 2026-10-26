@@ -57,8 +57,11 @@ export async function xeroConnectionStatus() {
 }
 
 async function modeForInvoice(invoiceId: string): Promise<XeroMode> {
-  const { data } = await admin.from("invoices").select("jobs(source)").eq("id", invoiceId).maybeSingle();
-  return (data?.jobs as { source: string | null } | null)?.source === "qa_test" ? "test" : "live";
+  // Fails closed: a failed or empty job-source read never routes to the real books.
+  const { data, error } = await admin.from("invoices").select("jobs(source)").eq("id", invoiceId).maybeSingle();
+  const job = data?.jobs as { source: string | null } | null | undefined;
+  if (error || !job) throw new Error(`Xero: could not read this invoice's job (${error?.message ?? "not found"}) – nothing sent to Xero.`);
+  return job.source === "qa_test" ? "test" : "live";
 }
 
 /** TEST only: record a payment against a qa_test invoice in the Xero Demo Company, then read paid status back. */
