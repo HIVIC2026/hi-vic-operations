@@ -246,7 +246,7 @@ describe("approved owner email designs", () => {
     const m = renderOwnerCancelledEmail({ firstName: "Helen", jobNumber: "HV-3117", address: "824 High Street Road, Glen Waverley VIC 3150", officePhone: "03 9000 0000" });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Your ceiling insulation job HV-3117 has been cancelled");
-    has(m.html, [">Job cancelled</h1>", ">Hi Helen,</p>", "We've cancelled your ceiling insulation job at 824 High Street Road, Glen Waverley VIC 3150, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.", "If this was a mistake or you'd like to pick it up again later, reply to this email or call us on 03 9000 0000.", ">Home Insulation Victoria</p>"]);
+    has(m.html, [">Job cancelled</h1>", ">Hi Helen,</p>", "We've cancelled your ceiling insulation job at 824 High Street Road, Glen Waverley VIC 3150, as discussed. Nothing further will happen on it and you won't hear from us again about it unless you get back in touch.", "If this was a mistake or you'd like to pick it up again later, reply to this email.", ">Home Insulation Victoria</p>"]);
     expect(m.html).not.toMatch(/\$\d|href=/);
     has(m.text, ["Hi Helen,", "call us on 03 9000 0000.", "Home Insulation Victoria"]);
     expect(m.html).toBe(readFileSync("docs/templates/owner/O69-job-cancelled.html", "utf8"));

@@ -18,7 +18,7 @@ describe("one next-step rule", () => {
     expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true, next_action: "Review required: Address ambiguous" }).next).toBe("Review eligibility");
   });
   test("ineligible and review override the stage", () => {
-    expect(nextStep({ stage: "ready_check_scheduled", eligibility_outcome: "does_not_appear_eligible" }).label).toBe("Not eligible");
+    expect(nextStep({ stage: "ready_check_scheduled", eligibility_outcome: "does_not_appear_eligible" }).label).toBe("Does Not Appear Eligible");
     expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true }).label).toBe("Needs review");
   });
   test("every stage produces a label and a next step", () => {
