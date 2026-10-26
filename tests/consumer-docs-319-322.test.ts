@@ -32,7 +32,7 @@ describe("decision 320: VEU consumer factsheet", () => {
   });
   test("O22 names the factsheet only when it is attached (approved wording unchanged otherwise)", () => {
     const base = { firstName: "Sam", rebate: 500, totalIncGst: 2000, payment: null, installerName: "Ace", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/x" };
-    expect(renderYoureInEmail(base).text).toContain("Your signed acceptance and receipt are attached. Please keep this email.");
+    expect(renderYoureInEmail(base).text).toContain("Your signed acceptance and receipt are attached, and always on your job page.");
     expect(renderYoureInEmail(base).text).not.toContain("factsheet");
     expect(renderYoureInEmail({ ...base, factsheetAttached: true }).text).toContain("Victorian Energy Upgrades consumer factsheet");
   });
