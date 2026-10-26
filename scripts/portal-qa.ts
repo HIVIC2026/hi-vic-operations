@@ -190,7 +190,8 @@ try {
       catch (e) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: (e as Error).message, steps: "magic-link session", environment: ENV_DB }); }
     }
     if (personaAllowed("owner") && !READ_ONLY) {
-      const { data: owners } = await admin.from("owners").select("id,user_id,email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).limit(50);
+      // Newest first: older TEST owners (archived journeys) used to fill the first 50 and hide the kept one (26 Oct: 75 TEST owners).
+      const { data: owners } = await admin.from("owners").select("id,user_id,email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).order("created_at", { ascending: false }).limit(50);
       for (const o of owners ?? []) {
         const { data: j } = await admin.from("jobs").select("id").eq("owner_id", o.id).eq("source", "qa_test").is("qa_archived_at" as never, null).limit(1).maybeSingle();
         if (j && o.email && TEST_EMAIL.test(o.email)) { try { sessions["owner"] = await sessionFor(o.email); ownerJob = j.id; break; } catch { /* next */ } }

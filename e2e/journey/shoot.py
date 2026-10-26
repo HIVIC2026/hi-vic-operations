@@ -79,7 +79,7 @@ async def main(manifest_path):
                     await page.wait_for_function('''() => {
                         const body = document.body;
                         if (!body || !body.innerText.trim()) return false;
-                        const busy = [...body.querySelectorAll('[role="status"]')].some(e => e.getClientRects().length && /loading|checking|please wait/i.test(e.textContent));
+                        const busy = [...body.querySelectorAll('[role="status"]')].some(e => e.getClientRects().length && /loading|checking|please wait|opening|signing you in|saving|uploading/i.test(e.textContent));
                         return !busy && !!body.querySelector('h1,h2,main,input');
                     }''', timeout=15000)
                     if s.get('readinessSelector'):
