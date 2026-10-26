@@ -1,4 +1,4 @@
-// Office write-action QA on ONE dedicated qa_test job (default HV-2111), with a persistent snapshot + guaranteed restore.
+// Office write-action QA on ONE dedicated qa_test job (default HV-3274), with a persistent snapshot + guaranteed restore.
 //   bun scripts/qa-office-writes.ts --base <url> --out <dir> [--budget 420] [--inject-failure]
 // 1. Denied: TEST installer / REC / owner call deleteJob, restoreJob, setEligibility directly -> refused, DB unchanged.
 // 2. Count/list parity on the deployed office reads with includeTest=true (getPipeline + listByStatus):
@@ -16,7 +16,7 @@ import { decodeFnResponse, asPipeline, asJobList, isOkWrite, isAdminDenial, desc
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1]! : d; };
-const BASE = arg("--base", "http://localhost:8080"), OUT = arg("--out", "/tmp/qa-office-writes"), JOB = arg("--job", "HV-2111");
+const BASE = arg("--base", "http://localhost:8080"), OUT = arg("--out", "/tmp/qa-office-writes"), JOB = arg("--job", "HV-3274");
 const BUDGET_MS = Number(arg("--budget", "420")) * 1000, INJECT = process.argv.includes("--inject-failure");
 const PERSONAS = new Set(arg("--personas", "installer,rec,owner").split(",").map((x) => x.trim()));
 const DEADLINE = Date.now() + BUDGET_MS;
