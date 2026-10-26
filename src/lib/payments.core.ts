@@ -445,7 +445,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 /** The "How you can pay" summary on the quote / acceptance page. */
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
-    `${aud(plan.safetyCheckCents)} PIESA fee now, for the Pre Insulation Electrical Safety Assessment (PIESA) (card or bank transfer, no fee)`,
+    `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,

@@ -57,7 +57,7 @@ describe("payment methods (decisions 140/141: never a card fee; card only for $3
     expect(paymentLine("safety_check", null)).toBe(PAY_LINE_SAFETY_CHECK);
     expect(paymentLine("install_deposit", "INV-0042")).toBe("Bank transfer or PayID, reference INV-0042");
     expect(paymentLine("balance", null)).toBe("Bank transfer or PayID");
-    expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("$365.10 (10%)");
+    expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("$365.10 deposit (10% of the install price)");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("48 hours");
   });
   test("bank details are never invented: unconfigured → 'to be confirmed'; configured → BSB/account/PayID + reference", () => {
