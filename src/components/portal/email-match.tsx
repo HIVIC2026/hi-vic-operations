@@ -1,4 +1,4 @@
-// Email row actions shared by Needs me and Enquiries (moved from the Needs me screen, Jo 26 Oct 2026).
+// Email row actions shared by Needs me and the Inbox (moved from the Needs me screen, Jo 26 Oct 2026).
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,7 +50,7 @@ export function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => voi
  * confidentGuess) in one review list, all ticked; the office unticks any that look wrong and presses Match. Each match
  * is the same audited matchOutlookEmail the row's own button uses, one after another; a failure stays on the list.
  */
-export function BulkMatch({ rows, onDone }: { rows: NeedsRow[]; onDone: (keys: string[]) => void }) {
+export function BulkMatch({ rows, onDone, className }: { rows: NeedsRow[]; onDone: (keys: string[]) => void; className?: string }) {
   const match = useServerFn(matchOutlookEmail);
   const [open, setOpen] = useState(false);
   const [off, setOff] = useState<Set<string>>(() => new Set());
@@ -72,7 +72,7 @@ export function BulkMatch({ rows, onDone }: { rows: NeedsRow[]; onDone: (keys: s
     onDone(ok);
   };
   return (
-    <div className="grid gap-2 border-b border-line bg-mist px-4 py-3" data-why="Jo 26 Oct: match all confident best guesses after a review">
+    <div className={className ?? "grid gap-2 border-b border-line bg-mist px-4 py-3"} data-why="Jo 26 Oct: match all confident best guesses after a review">
       {!open ? (
         <>
           <span className="text-sm text-ink">{rows.length} {rows.length === 1 ? "has" : "have"} a confident best guess (job number, address or the owner's full name in the email).</span>

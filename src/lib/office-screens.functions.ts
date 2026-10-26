@@ -61,6 +61,8 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
     search: z.string().max(120).default(""),
     sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("asc"), page: z.number().int().min(1).max(10_000).default(1),
     filters: columnFilters, refresh: z.boolean().default(false),
+    // Jo 26 Oct 2026: the category shown (enquiry-categories.core); wantIds = every id in it (Gone quiet › Close them).
+    view: z.enum(["active", "all", "replied", "new", "waiting", "failed", "quiet"]).optional(), wantIds: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);

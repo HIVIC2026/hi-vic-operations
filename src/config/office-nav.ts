@@ -5,7 +5,7 @@
 // (/admin/workers redirects to /admin/partners?tab=people).
 import type { LinkProps } from "@tanstack/react-router";
 
-export type OfficeSection = "needs" | "enquiries" | "jobs" | "partners" | "money" | "more";
+export type OfficeSection = "needs" | "enquiries" | "jobs" | "partners" | "money" | "inbox" | "more";
 export type OfficeTab = {
   label: string;
   to: NonNullable<LinkProps["to"]>;
@@ -35,6 +35,8 @@ export function sectionFor(pathname: string, search: Record<string, unknown> = {
   const p = pathname.replace(/\/$/, "") || "/";
   void search;
   if (p === "/admin") return "needs";
+  // The Inbox (Jo 26 Oct 2026) is the envelope button beside the initials, not a sixth heading.
+  if (p === "/admin/inbox") return "inbox";
   if (NEEDS_PATHS.includes(p)) return "needs";
   if (p === "/admin/jobs" || p.startsWith("/admin/jobs/") || JOB_PATHS.includes(p)) return "jobs";
   if (ENQUIRY_PATHS.includes(p)) return "enquiries";

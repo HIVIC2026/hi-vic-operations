@@ -4,10 +4,11 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut, Search } from "lucide-react";
+import { ChevronDown, Inbox, LogOut, Search } from "lucide-react";
 import { searchOffice } from "@/lib/office.functions";
 import { MORE_SECTIONS, OFFICE_HEADINGS, OFFICE_HOME, sectionFor } from "@/config/office-nav";
 import { cn } from "@/lib/utils";
+import { useInboxEmails } from "@/hooks/use-inbox";
 import { MenuPanel } from "@/components/portal/kit";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
@@ -92,6 +93,19 @@ function Initials({ name, onSignOut }: { name: string; onSignOut: () => void }) 
   );
 }
 
+/** The office Inbox (Jo 26 Oct 2026): emails waiting for a home, with the count. A failed count shows no number. */
+function InboxButton({ active }: { active: boolean }) {
+  const { data } = useInboxEmails();
+  const n = data?.length ?? 0;
+  return (
+    <Link to="/admin/inbox" aria-current={active ? "page" : undefined} aria-label={n ? `Inbox, ${n} email${n === 1 ? "" : "s"} to sort` : "Inbox"} className={cn("relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-[10px] px-2.5 text-sm font-semibold", active ? "bg-ink text-white" : "bg-mist text-ink hover:bg-mist/70")}>
+      <Inbox className="h-5 w-5" aria-hidden />
+      <span className="hidden md:inline">Inbox</span>
+      {n > 0 && <span aria-hidden className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose px-1 text-[11px] font-bold text-white md:static md:h-[22px]">{n}</span>}
+    </Link>
+  );
+}
+
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
@@ -112,6 +126,7 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
           </nav>
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <div className="hidden w-64 lg:block"><OfficeSearch /></div>
+            <InboxButton active={section === "inbox"} />
             <div className="md:hidden"><MoreMenu active={section === "more"} /></div>
             <Initials name={name} onSignOut={onSignOut} />
           </div>

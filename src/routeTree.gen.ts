@@ -49,6 +49,7 @@ import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminDeletedRouteImport } from './routes/_authenticated/admin.deleted'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
+import { Route as AuthenticatedAdminInboxRouteImport } from './routes/_authenticated/admin.inbox'
 import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
 import { Route as AuthenticatedAdminHotLeadsRouteImport } from './routes/_authenticated/admin.hot-leads'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
@@ -345,6 +346,11 @@ const AuthenticatedAdminEnquiriesRoute =
     path: '/enquiries',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminInboxRoute = AuthenticatedAdminInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminEnquiryGroupsRoute =
   AuthenticatedAdminEnquiryGroupsRouteImport.update({
     id: '/enquiry-groups',
@@ -873,6 +879,7 @@ export interface FileRoutesByFullPath {
   '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/inbox': typeof AuthenticatedAdminInboxRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -996,6 +1003,7 @@ export interface FileRoutesByTo {
   '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/inbox': typeof AuthenticatedAdminInboxRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -1125,6 +1133,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/_authenticated/admin/inbox': typeof AuthenticatedAdminInboxRoute
   '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/_authenticated/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -1254,6 +1263,7 @@ export interface FileRouteTypes {
     | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiries'
+    | '/admin/inbox'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
     | '/admin/interests'
@@ -1377,6 +1387,7 @@ export interface FileRouteTypes {
     | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiries'
+    | '/admin/inbox'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
     | '/admin/interests'
@@ -1505,6 +1516,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/deleted'
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/enquiries'
+    | '/_authenticated/admin/inbox'
     | '/_authenticated/admin/enquiry-groups'
     | '/_authenticated/admin/hot-leads'
     | '/_authenticated/admin/interests'
@@ -1926,6 +1938,13 @@ declare module '@tanstack/react-router' {
       path: '/enquiries'
       fullPath: '/admin/enquiries'
       preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/inbox': {
+      id: '/_authenticated/admin/inbox'
+      path: '/inbox'
+      fullPath: '/admin/inbox'
+      preLoaderRoute: typeof AuthenticatedAdminInboxRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/enquiry-groups': {
@@ -2565,6 +2584,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDeletedRoute: typeof AuthenticatedAdminDeletedRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
+  AuthenticatedAdminInboxRoute: typeof AuthenticatedAdminInboxRoute
   AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
   AuthenticatedAdminHotLeadsRoute: typeof AuthenticatedAdminHotLeadsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
@@ -2610,6 +2630,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
+  AuthenticatedAdminInboxRoute: AuthenticatedAdminInboxRoute,
   AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
   AuthenticatedAdminHotLeadsRoute: AuthenticatedAdminHotLeadsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,

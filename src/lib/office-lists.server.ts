@@ -9,6 +9,7 @@ import { jobsStage, surnameOf, waitingOnLine, type JobsStage } from "./office-jo
 import { tidyEnquiryDetails, type DetailsProblem } from "./name-address-tidy.core";
 import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters } from "./enquiry-columns.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
+import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -73,12 +74,15 @@ async function coveredFn() {
 }
 
 /** Decisions 285/286: one search box (owner name, address, job number) + column headings that sort AND filter; no chip panel. */
-export type EnquiryListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ColumnFilters; includeTest?: boolean };
+/** `view`: one category, "active" (default: all but Gone quiet) or "all" (enquiry-categories.core, Jo 26 Oct 2026).
+ *  `wantIds`: also return every id in the view (Gone quiet › Close them). */
+export type EnquiryListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ColumnFilters; includeTest?: boolean; view?: EnquiryView | undefined; wantIds?: boolean | undefined };
 export type EnquiryListRow = {
   id: string; jobNumber: string; ownerName: string; street: string; suburb: string; postcode: string; address: string; phone: string | null; email: string | null;
   told: string; websiteSaid: string; problems: DetailsProblem[]; lastHeardAt: string | null; lastHeardChannel: string | null; waitingOn: string;
   insulation: InsulationChip; size: SizeChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip; createdAt: string; areaM2: number | null;
   estimateDollars: number | null; estimateKind: "quote" | "website" | null;
+  category: EnquiryCategory;
 };
 
 /** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
@@ -99,13 +103,21 @@ export async function loadEnquiriesList(p: EnquiryListParams) {
   const index = await all("enquiries", (a, b) => admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone")
     .eq("office_bucket", "enquiry").in("source", ["base44", "portal", "email"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
   const ids = index.map((r) => String(r["id"]));
-  const [jobs, heard, answered, covered, estimateOf] = await Promise.all([
+  const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
-    byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
+    byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id, created_at").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
     coveredFn(),
     estimateMap(ids),
+    // Where the lead is up to (enquiry-categories.core): owner emails matched to the job, and opt-outs (the same two
+    // sources the estimate follow-up reads). Same wave as the reads above.
+    byIds("owner emails", ids, (c, f, t) => admin.from("job_communications").select("job_id, received_at").in("job_id", c).eq("direction", "inbound").not("received_at", "is", null).range(f, t)),
+    byIds("opt-outs", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id").in("job_id", c).not("opted_out_at", "is", null).range(f, t)),
+    byIds("email opt-outs", ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id").in("job_id", c).not("opted_out_at", "is", null).range(f, t)),
   ]);
+  const optedOut = new Set([...campaignOpt, ...emailOpt].map((r) => String(r["job_id"])));
+  const latest = (rows: Row[], at: string) => { const m = new Map<string, string>(); for (const r of rows) { const k = String(r["job_id"]), a = s(r[at]); if (a && (!m.get(k) || m.get(k)! < a)) m.set(k, a); } return m; };
+  const answeredAt = latest(answered, "created_at"), inboundAt = latest(inbound, "received_at");
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
   const jobById = new Map(jobs.map((j) => [String(j["id"]), j]));
@@ -122,29 +134,36 @@ export async function loadEnquiriesList(p: EnquiryListParams) {
     const sends = (heard.sends.get(id) ?? []).sort((a, b) => a.at.localeCompare(b.at));
     const ins = insulationChip(declared);
     const est = estimateOf(id);
+    const latestFailed = r["latest_attempt_status"] === "failed" && r["needs_first_response"] === true;
+    const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
+    const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, answeredQuestions: answeredSet.has(id), optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet: r["needs_first_response"] === true }, now);
     return {
+      category,
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
       estimateDollars: est.dollars, estimateKind: est.kind,
       told: [areaM2 ? `~${Math.round(areaM2)} m²` : "No size", ins === "no" ? "no insulation" : ins === "some" ? "some insulation" : "not sure"].join(" · "),
       websiteSaid: [s(r["owner_name"]), [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(" ")].filter(Boolean).join(" · "),
       problems: tidy.problems, lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null,
-      waitingOn: waitingOnLine({ enquiryStatus: s(r["enquiry_status"]), needsFirstResponse: r["needs_first_response"] === true, latestSend: sends.at(-1) ?? null, reminders: sends.filter((x) => REMINDER.test(x.purpose)).length, answeredQuestions: answeredSet.has(id), latestFailed: r["latest_attempt_status"] === "failed" && r["needs_first_response"] === true }),
+      waitingOn: waitingOnLine({ enquiryStatus: s(r["enquiry_status"]), needsFirstResponse: r["needs_first_response"] === true, latestSend: sends.at(-1) ?? null, reminders: sends.filter((x) => REMINDER.test(x.purpose)).length, answeredQuestions: answeredSet.has(id), latestFailed }),
       insulation: ins, size: sizeChip(areaM2), region: regionChip(tidy.postcode || prop?.postcode), source: sourceChip({ source: s(r["source"]), channel: s(r["channel"]) }), heard: lastHeardChip(last?.at ?? null, now),
       createdAt: String(r["created_at"]), areaM2, covered: covered(tidy.postcode || prop?.postcode || null, tidy.suburb || null),
     };
   });
   // Decision 281: one list. `open` = every enquiry; `incompleteAddresses` = still waiting on the automatic lookup.
-  const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length };
+  const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length, byCategory: categoryCounts(rows.map((r) => r.category)) };
+  const view = p.view ?? "active";
   const ranked = rankByPriority(rows.map((r) => ({ ...r, insulation: r.insulation, lastHeardAt: r.lastHeardAt })), now);
   const q = p.search.trim().toLowerCase();
-  const filtered = ranked.filter((r) => matchesColumnFilters(r, p.filters ?? {}) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));
+  const filtered = ranked.filter((r) => inView(r.category, view) && matchesColumnFilters(r, p.filters ?? {}) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));
   // Decision 286 columns: Job · Owner · Address · Size · Insulation · Estimate · Last heard (older keys kept for bookmarks).
   const SORTS: Record<string, keyof (typeof filtered)[number]> = { priority: "priority", job: "jobNumber", owner: "ownerName", address: "street", street: "street", suburb: "suburb", postcode: "postcode", size: "areaM2", insulation: "insulation", estimate: "estimateDollars", heard: "lastHeardAt", waiting: "waitingOn", told: "areaM2", created: "createdAt" };
   const key = SORTS[p.sort] ?? "priority";
-  const sorted = sortRows(filtered, key, key === "priority" && !p.sort ? "asc" : p.dir);
+  // Opening order: by category (replied first), hottest first inside each (decision 283's rank, never shown).
+  const sorted = p.sort ? sortRows(filtered, key, p.dir) : [...sortRows(filtered, "priority", "asc")].sort((a, b) => CATEGORY_RANK[a.category] - CATEGORY_RANK[b.category]);
   const page = pageOf(sorted, p.page);
   // Decision 283: the priority rank sorts the list hottest first but is never shown, so it does not leave the server.
-  return { ...page, counts, rows: page.rows.map(({ score: _s, priority: _n, covered: _c, ...r }) => r as EnquiryListRow) };
+  return { ...page, counts, view, ...(p.wantIds ? { ids: sorted.map((r) => r.id) } : {}), rows: page.rows.map(({ score: _s, priority: _n, covered: _c, ...r }) => r as EnquiryListRow) };
 }
 
 export type JobsListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ChipFilters; includeTest?: boolean };
