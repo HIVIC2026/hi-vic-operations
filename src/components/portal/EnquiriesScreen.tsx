@@ -122,7 +122,7 @@ export function EnquiriesScreen() {
             {ENQUIRY_COLUMNS.map((c) => <ColumnHead key={c.key} col={c} sort={sort.k} dir={sort.d} value={filters[c.key]} onSort={(k, dd) => { setSort({ k, d: dd }); setPage(1); }} onFilter={onFilter} />)}
             <span />
           </div>
-          {!d ? <p className="p-6 text-center text-sm text-sub">Loading enquiries…</p> : d.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">{search || active.length ? "No enquiry matches that search." : "No open enquiries."}</p> : (
+          {!d ? <p role="status" className="p-6 text-center text-sm text-sub">Loading enquiries…</p> : d.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">{search || active.length ? "No enquiry matches that search." : "No open enquiries."}</p> : (
             <ul>
               {d.rows.map((r) => (
                 <li key={r.id}>

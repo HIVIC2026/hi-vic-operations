@@ -146,7 +146,7 @@ function NeedsMe() {
       </div>
       {error ? (
         <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. {(error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>
-      ) : isPending || !data ? <p className="text-sub">Checking every job…</p> : (
+      ) : isPending || !data ? <p role="status" className="text-sub">Checking every job…</p> : (
         <>
           {NEEDS_GROUPS.map((g) => {
             // Decision 378: "Spot saved · waiting for an installer" rows fold into ONE link to Jobs › Choose installer.
