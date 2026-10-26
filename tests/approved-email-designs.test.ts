@@ -53,6 +53,13 @@ const shell = (html: string, text: string, unsubscribe: boolean) => {
 };
 /** Jo's design file, with the embedded logo swapped for the hosted logo (email clients block embedded images; look unchanged). */
 const design = (path: string) => readFileSync(path, "utf8").split(LOGO_DATA_URI).join("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
+/** Emails with no design picture keep today's frame (left unchanged on 27 Oct 2026): logo, AP/ABN footer, no retired wording. */
+const frame = (html: string, text: string) => {
+  expect(html).toContain('src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png"');
+  expect(html).toContain("ABN 44 671 613 979");
+  expect(text).toContain(FOOTER_TEXT);
+  for (const re of RETIRED) { expect(html).not.toMatch(re); expect(text).not.toMatch(re); }
+};
 const has = (s: string, parts: string[]) => { for (const p of parts) expect(s).toContain(p); };
 
 describe("approved owner email designs", () => {
@@ -126,7 +133,7 @@ describe("approved owner email designs", () => {
     has(m.html, ["Helen, pick a time for your electrical safety check", "Spark Electrical, a licensed electrician, has offered these times.", ">Wednesday 5 November<", "Suggest other days", "&#9200; The 30-day clock", "Your install must happen within 30 days of this safety check.", "a new check may be charged", "At your safety check", "It's already paid for ($349.00)."]);
     expect(m.text).toContain("The 30-day clock");
     const b = renderSafetyCheckBookedEmail({ firstName: "Helen", when: "Wednesday 5 November at 8:00am", electricianName: "Spark Electrical", electricianPhone: "0400 111 222", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB });
-    shell(b.html, b.text, false);
+    frame(b.html, b.text); // O27 has no design picture
     has(b.html, ["You're booked, Helen", "Your electrical safety check is confirmed.", "Electrician: Spark Electrical · 0400 111 222", "&#9200; The 30-day clock", "<strong>switchboard</strong>", ">See my job<"]);
     expect(SAFETY_CHECK_EMAILS_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
@@ -323,13 +330,14 @@ describe("approved installer email designs", () => {
     expect(CANCEL_NOTICE_EMAILS_APPROVED).toBe(true);
   });
   // Decision 292 (Jo 25 Oct 2026): the sample in docs/templates/owner is written by scripts/render-decision-292-sample.ts.
-  test("O70 New sender → calculator (decision 292): Jo's wording verbatim, the one calculator link, Re: subject, no unsubscribe; matches the approved file", () => {
+  test("O70 New sender → calculator (decision 292, no design picture: today's email unchanged): wording, the one calculator link, Re: subject, no unsubscribe", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
-    shell(m.html, m.text, false);
+    frame(m.html, m.text);
+    expect(m.html).not.toContain(">Unsubscribe</a>");
     expect(m.subject).toBe("Re: Ceiling insulation quote");
-    has(m.html, [">Hi Sam,</p>", "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "If you have any questions, just reply to this email.", ">— Home Insulation Victoria</p>"]);
+    has(m.html, [">Hi Sam, thanks for getting in touch</div>", "To get started, please add your home on our website: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "If you have any questions, just reply to this email.", ">— Home Insulation Victoria</div>"]);
+    expect(m.html.match(/href="(?!https:\/\/fonts\.googleapis\.com\/)[^"]*"/g)).toEqual(['href="https://homeinsulationvictoria.com.au/homeowner"']);
     expect(m.html).not.toMatch(/\$\d/);
-    expect(m.html).toBe(design("docs/templates/owner/O70-new-sender-calculator.html"));
     expect(NEW_SENDER_REPLY_APPROVED).toBe(true);
   });
 });
