@@ -53,7 +53,7 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
     expect(body).toContain("By a licensed electrician, before any insulation goes in");
     expect(body).toContain("2A Chatfield Street, Kingsville VIC 3012");
     expect(body).toContain("Your price is held until 6 November 2026.");
-    expect(body).toContain("call us on 03 9000 0000");
+    expect(body).not.toContain("call us"); expect(body).not.toContain("03 9000 0000");
     expect(body).toContain("Next:");
     expect(body).toContain("accept and pay $349.00");
     expect(body).toContain("VEU Accredited Person A003654");

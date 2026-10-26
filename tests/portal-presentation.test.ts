@@ -38,7 +38,7 @@ describe("staff portal presentation helpers", () => {
   test("status precedence keeps terminal review flags and suppresses duplicate outcomes", () => {
     expect(supplementalEligibilityLabel({ eligibility_review_required: true, eligibility_outcome: "likely_eligible" }, "Review required")).toBeNull();
     expect(supplementalEligibilityLabel({ eligibility_review_required: true, eligibility_outcome: "likely_eligible" }, "On hold")).toBe("Review required");
-    expect(supplementalEligibilityLabel({ eligibility_outcome: "does_not_appear_eligible" }, "Ineligible")).toBeNull();
+    expect(supplementalEligibilityLabel({ eligibility_outcome: "does_not_appear_eligible" }, "Does Not Appear Eligible")).toBeNull();
   });
 
   test("exact targets stay on real controls (the old job fold-outs and list row were replaced by the O2/O3 screens)", () => {

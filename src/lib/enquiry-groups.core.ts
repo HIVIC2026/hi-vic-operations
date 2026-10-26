@@ -12,8 +12,8 @@ export type AreaSource = "measured" | "estimated" | "declared" | "assumed" | "no
 
 export const GROUP_ORDER: EnquiryGroup[] = ["likely_size", "likely_no_size", "insulation_check", "other"];
 export const GROUP_LABEL: Record<EnquiryGroup, string> = {
-  likely_size: "Likely eligible – size provided",
-  likely_no_size: "Likely eligible – size needed",
+  likely_size: "Likely Eligible – size provided",
+  likely_no_size: "Likely Eligible – size needed",
   insulation_check: "Existing insulation – check needed",
   other: "Other enquiries",
 };
