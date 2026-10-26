@@ -10,7 +10,6 @@ import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { mjTimeButtons, splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 import { mjBeforeRows, mjBookingBox } from "./ready-check-booked-email.core";
-import { splitDayTime, type ReadyCheckTimeSlot } from "./ready-check-times-email.core";
 /** Jo 24 Oct 2026, decision 94 (O26 safety check times + the mirrored booked email): approved. Delivery still behind customer_comms_enabled. */
 export const SAFETY_CHECK_EMAILS_APPROVED = true as boolean;
 

@@ -1,10 +1,11 @@
 // Pure rules + emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
 // Both wordings APPROVED by Jo 8 Oct 2026 7:44am: real sends go to the partner's real address. Since 24 Oct 2026
-// (decision 137) they render in the approved kit shell. "We've got your application" (decision 136,
-// docs/templates/installer/I53-application-received.html) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
+// (decision 137) they render in the approved kit shell; since 26 Oct 2026 in the MJML designs (docs/templates/mjml/
+// installer_changes, installer_decline, installer_I53). "We've got your application" (decision 136) is approved too (APPLICATION_RECEIVED_EMAIL_APPROVED); no automatic sender yet.
+
 import { partnerEmailLayout } from "./partner-email.core";
 import * as K from "./email-kit.core";
-
+import { mjEmail, esc } from "./mail-mjml.core";
 export const APPLICATION_REVIEW_WORDING_APPROVED = true as const;
 /** Jo 24 Oct 2026, decision 136 (I53 "We've got your application"): approved. */
 export const APPLICATION_RECEIVED_EMAIL_APPROVED = true as boolean;
@@ -43,12 +44,13 @@ export function reviewInputError(decision: ReviewDecision, message: string | nul
 export function changesEmail(i: { contactName?: string | null; message: string; link: string; test?: boolean }) {
   const name = first(i.contactName);
   const subject = "Your Home Insulation Victoria application – a quick change needed";
-  const lines = [
-    `Hi ${name ?? "there"}, thanks for applying to work with Home Insulation Victoria.`,
-    `Before we can approve your application, we need you to check the following: ${sentence(clean(i.message))}`,
-    "Please use the button below to update your application and sign again.",
-  ];
-  const { html, text } = partnerEmailLayout({ subject, heading: "A quick change needed", blocks: [...lines.map((t) => ({ kind: "p" as const, text: t })), { kind: "button", label: "Update my application", url: i.link }], test: i.test !== false });
+  const { html, text } = partnerEmailLayout({ subject, heading: "A quick change needed", preview: "One thing to check, then update your application and sign again.", blocks: [
+    { kind: "hi", text: `Hi ${name ?? "there"}, thanks for applying.` },
+    { kind: "p", text: "Before we can approve your application, please check this:" },
+    { kind: "box", text: clean(i.message) },
+    { kind: "p", text: "Then use the button below to update your application and sign again." },
+    { kind: "button", label: "Update my application", url: i.link },
+  ], test: i.test !== false });
   return { subject, html, text };
 }
 
@@ -57,11 +59,11 @@ export function declineEmail(i: { contactName?: string | null; reason?: string |
   const reason = clean(i.reason);
   const subject = "Your Home Insulation Victoria application";
   const lines = [
-    `Hi ${name ?? "there"}, thank you for applying to work with Home Insulation Victoria.`,
+    "Thank you for applying to work with Home Insulation Victoria.",
     `Unfortunately we're unable to approve your application at this time.${reason ? ` ${sentence(reason)}` : ""}`,
     "If your circumstances change, you're welcome to apply again.",
   ];
-  const { html, text } = partnerEmailLayout({ subject, heading: "Your application", blocks: [...lines.map((t) => ({ kind: "p" as const, text: t })), { kind: "sign", lines: ["Kind regards,", "Jo", "Home Insulation Victoria"] }], test: i.test !== false });
+  const { html, text } = partnerEmailLayout({ subject, heading: "Your application", preview: "An update on your application to work with Home Insulation Victoria.", blocks: [{ kind: "hi", text: `Hi ${name ?? "there"},` }, ...lines.map((t) => ({ kind: "p" as const, text: t })), { kind: "sign", lines: ["Kind regards,", "Jo", "Home Insulation Victoria"] }], test: i.test !== false });
   return { subject, html, text };
 }
 

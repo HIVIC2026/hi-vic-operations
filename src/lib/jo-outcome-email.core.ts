@@ -12,6 +12,7 @@
  * presentation now follow the approved designs through the shared `email-kit.core.ts`. T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.
  */
+import { renderJoOutcomeEmail as renderDontKnowUnchanged } from "./jo-outcome-email-dont-know.core";
 import {
   ctasForTemplate,
   INSULATION_QUESTIONS_CTA_LABEL,
@@ -236,6 +237,8 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const reviewed = id === "eligible_below_r2_reviewed_size_unknown" || id === "eligible_below_r2_reviewed_size_known";
   // The questions / received-media emails to an owner whose answer is "don't know" never say "You told us there's some insulation".
   const dontKnow = !reviewed && input.insulation === "unknown" && (variant === "questions" || variant === "received" || (variant === "some" && input.declaredUnknown === true && input.declaredExisting === true));
+  // O2-dont-know has no design picture: it stays exactly as it is today.
+  if (variant === "some" && dontKnow) return renderDontKnowUnchanged(input);
   return finish(id, ctas, input, renderSaveMySpot(input, input.figures, variant, rendered.subject, dontKnow));
 }
 

@@ -7,6 +7,7 @@
 // an electrical fixes visit goes to the office (reopenPlan). Replaces the F13 record-only point. Approved (decision 384):
 // real owners go through the guarded senders; customer_comms_enabled + the `visit_new_times` text switch still gate
 // delivery. PURE: wording, keys, links.
+import { renderVisitNewTimesEmail as renderMovingUnchanged } from "./visit-new-times-moving.core";
 import * as K from "./email-kit.core";
 import { changeVisitLink, type ChangeVisit } from "./email-change-reply.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
@@ -75,6 +76,8 @@ export function visitNewTimesCopy(f: Pick<VisitNewTimesFacts, "kind" | "wasIso" 
 }
 
 export function renderVisitNewTimesEmail(i: VisitNewTimesEmailInput) {
+  // O74b has no design picture: it stays exactly as it is today.
+  if (!i.ownerPicks) return renderMovingUnchanged(i);
   const first = K.cleanName(i.firstName) ?? "there";
   const c = visitNewTimesCopy(i);
   const hi = `Hi ${first},`;
