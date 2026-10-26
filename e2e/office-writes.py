@@ -24,26 +24,26 @@ async def run(p, w):
     async def body():
         return await pg.inner_text("body")
     try:
-        # --- delete: More ▾ → "Delete (test jobs only)" → dialog with "Reason" + "Delete" (office redesign, JobMoreMenu) ---
+        # --- delete menu: More ▾ → "Delete (test jobs only)" → dialog "Reason" + "Delete". Gating only: the menu's Delete
+        # is a PERMANENT delete (bulkJobAction), so it is never confirmed on the QA fixture. The runner soft-deletes the
+        # job through the deployed deleteJob endpoint before this journey starts (manifest softDeleted=true).
         await pg.goto(job_url, wait_until="networkidle"); await pg.wait_for_timeout(1500)
-        await pg.get_by_role("button", name="More ▾").first.click()
-        await pg.get_by_role("menuitem", name="Delete (test jobs only)").click()
-        dlg = pg.get_by_role("dialog")
-        confirm = dlg.get_by_role("button", name="Delete", exact=True)
-        reason_box = dlg.get_by_label("Reason")
-        empty_disabled = await confirm.is_disabled()
-        await reason_box.fill("ab")
-        short_disabled = await confirm.is_disabled()
-        await reason_box.fill(f"QA retest {tag}: delete check on TEST job")
-        await confirm.click()
-        try:
-            await pg.wait_for_url(re.compile(r"/admin/jobs/active"), timeout=10000)
-        except Exception:
-            pass
-        landed = "/admin/jobs/active" in pg.url
-        await pg.goto(job_url, wait_until="networkidle"); await pg.wait_for_timeout(2000)
         t = await body()
-        rec(f"delete job ({tag})", empty_disabled and short_disabled and landed and "This job is deleted" in t, f"empty/2-char reason blocked={empty_disabled}/{short_disabled}; went to Jobs active={landed}; deleted banner on job={'This job is deleted' in t}", [await snap("1-deleted")])
+        banner = "This job is deleted" in t
+        menu_ok = False; empty_disabled = short_disabled = False
+        await pg.get_by_role("button", name="More ▾").first.click(); await pg.wait_for_timeout(500)
+        item = pg.get_by_role("menuitem", name="Delete (test jobs only)")
+        if await item.count():
+            await item.click()
+            dlg = pg.get_by_role("dialog")
+            confirm = dlg.get_by_role("button", name="Delete", exact=True)
+            reason_box = dlg.get_by_label("Reason")
+            empty_disabled = await confirm.is_disabled()
+            await reason_box.fill("ab")
+            short_disabled = await confirm.is_disabled()
+            menu_ok = True
+            await dlg.get_by_role("button", name="Close", exact=True).first.click()
+        rec(f"delete job ({tag})", m.get("softDeleted") and banner and menu_ok and empty_disabled and short_disabled, f"deleted banner on job={banner}; menu item shown={menu_ok}; empty/2-char reason blocked={empty_disabled}/{short_disabled}; permanent Delete not confirmed", [await snap("1-deleted")])
         # --- Settings › Deleted lists it (old /admin/deleted only redirects here) ---
         deleted_url = BASE + "/admin/settings?tab=deleted"
         await pg.goto(deleted_url, wait_until="networkidle"); await pg.wait_for_timeout(2000)
