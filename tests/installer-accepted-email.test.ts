@@ -8,13 +8,15 @@ test("wording Jo approved, install days installer-first (to confirm in template 
   expect(m.subject).toBe("Owner accepted – HV-3117, 824 High Street Road, Glen Waverley");
   // Decision 91 design (I23): "Good news, Deep. Helen accepted!", three next steps, Open the job.
   expect(m.text).toContain("Hi Deep,");
+  expect(m.text).toContain("Good news, Deep. Helen accepted!");
+  expect(m.html).toContain(">Good news, Deep.<");
+  expect(m.html).toContain(">Helen accepted!<");
   for (const b of [m.html, m.text]) {
-    expect(b).toContain("Good news, Deep. Helen accepted!");
     expect(b).toContain("has paid for the electrical safety check");
     expect(b).toContain("Offer Helen 3 install days");
     expect(b.replace(/&#39;|&#x27;/g, "'")).toContain("Helen picks one and it's booked, or suggests other days, until you agree.");
     expect(b).not.toContain("sort it out");
-    expect(b).toContain("Install within 30 days");
+    expect(b).toContain("Install within 30 days of the safety check");
   }
   expect(m.text).toContain("Helen Yang has accepted the quote for 824 High Street Road, Glen Waverley (HV-3117)");
   expect(m.html).toContain(">Open the job<");

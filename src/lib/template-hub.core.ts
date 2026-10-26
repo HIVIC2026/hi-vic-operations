@@ -701,12 +701,12 @@ const INVOICES: TemplateEntry[] = [
 /* ---------------------------------------------------------------- WAITING FOR JO */
 
 const WAITING: TemplateEntry[] = [
-  ENTRY({ id: "waiting:trade-invite", section: "waiting", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Would go when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approval: "waiting", approvalNote: "TRADE_INVITE_EMAIL_APPROVED = false (trade-access.core.ts)", gate: { kind: "code_off", flag: "TRADE_INVITE_EMAIL_APPROVED" },
+  ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST`, signInUrl: `${BASE}/auth` })) }),
-  // Decision 386: one automatic reply per standard owner question (sent only once Jo approves the wording).
-  ...ANSWER_TYPES.map((answer) => ENTRY({ id: `waiting:${ANSWER_CODES[answer].code}`, section: "waiting", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
-    when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approval: "waiting", approvalNote: "OWNER_EMAIL_AUTO_REPLY_APPROVED = false (decision 386)", gate: { kind: "code_off", flag: "OWNER_EMAIL_AUTO_REPLY_APPROVED" },
+  // Decision 386: one automatic reply per standard owner question (wording approved by Jo 27 Oct 2026, decision 406).
+  ...ANSWER_TYPES.map((answer) => ENTRY({ id: `owner:${ANSWER_CODES[answer].code}`, section: "owner", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
+    when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite); decision 386", gate: { kind: "email" },
     source: { builder: "src/lib/owner-email-auto-reply.core.ts", fn: "renderOwnerAutoReplyEmail", sender: "src/lib/owner-email-auto-reply.server.ts" }, design: `docs/templates/drafts/${ANSWER_CODES[answer].file}`,
     render: () => email(renderOwnerAutoReplyEmail({ answer, facts: ANSWER_SAMPLES[answer].facts, theirSubject: ANSWER_SAMPLES[answer].theirSubject })) })),
 ];

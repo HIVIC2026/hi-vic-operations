@@ -21,7 +21,7 @@ describe("Templates navigation", () => {
   });
   test("sections are who-gets-it (Jo's choice) with drafts kept apart; old ?cat= bookmarks fall back to Owner", () => {
     expect(TEMPLATE_SECTIONS.map((s) => s.key)).toEqual(["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "waiting"]);
-    for (const s of TEMPLATE_SECTIONS) expect(entriesFor(s.key).length).toBeGreaterThan(0);
+    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" is empty since decision 406 (its tab hides when empty)
     expect(parseTemplateSearch({ cat: "email" })).toEqual({ cat: "owner" });
     expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A5" })).toEqual({ cat: "mitti", t: "mitti:A5" });
     expect(selectTemplate("mitti", "owner:O18").section).toBe("mitti");

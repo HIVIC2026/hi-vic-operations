@@ -8,7 +8,7 @@ describe("service-area customer update", () => {
     expect(mail.subject).toContain("Sale 3850");
     // Decision 74 design (O7): "{First}, we're not in {Suburb} just yet", what happens now, no payment or obligation.
     expect(mail.plainText).toContain("Jo, we're not in Sale just yet");
-    expect(mail.plainText).toContain("an approved installer with verified coverage for Sale 3850 yet");
+    expect(mail.plainText).toContain("we don't yet have an approved installer with verified coverage for Sale 3850.");
     expect(mail.plainText).toContain("No payment, no obligation.");
     expect(mail.plainText).toContain("We keep your details on file.");
     expect(mail.plainText).not.toContain("Ready Check");

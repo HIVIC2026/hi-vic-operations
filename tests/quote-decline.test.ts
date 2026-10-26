@@ -25,7 +25,7 @@ describe("decline wording and rules", () => {
   });
   test("the quote email tells owners they can say no on the same page", () => {
     const m = renderOwnerQuoteEmail({ firstName: "Helen", address: null, totalIncGst: 2148, rebateIncGst: 1850, lines: [], quoteUrl: "https://x.example/q", validUntil: null, officePhone: null, unsubscribeUrl: null });
-    expect(m.text).toContain("Not ready, or not for you? You can let us know on the same page.");
+    expect(m.text).toContain("Not ready, or not for you? You can tell us on the same page.");
   });
 });
 

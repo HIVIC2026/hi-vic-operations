@@ -15,8 +15,8 @@ describe("spot saved confirmations", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
     // Decision 70 design (O10): logo card, smart-move headline, green rebate line, steps, See my job, AP footer; decision 388 spot-only wording.
-    // Jo 27 Oct 2026: email word-for-word as docs/templates/owner/O10-spot-saved.html (the text stays spot-only).
-    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting.", "we book homes in the order spots were saved.", "Tap the time that suits you", "What happens next", "An installer offers you times", ">See my job<", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe", "#07BF61"]) expect(e.html).toContain(t);
+    expect(e.html + e.text).not.toContain("Ready Check");
+    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting", "Spots are released in the order they were saved.", "When your spot is released, we'll tell you your next step.", "What happens next", "Your place is kept", ">See my job<", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe", 'bgcolor="#057D40"']) expect(e.html).toContain(t);
     expect(e.html).not.toContain("/api/public/email-art/");
     expect(e.html).not.toContain("Heads up");
     expect(/call us|phone number|1300|04\d{2}/i.test(e.html + e.text)).toBe(false); // "No phone tag." is approved wording (decision 70)

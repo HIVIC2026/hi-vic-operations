@@ -2,8 +2,8 @@
 import { mjEmail, esc } from "./mail-mjml.core";
 import { plainText } from "./email-kit.core";
 
-/** Jo must approve the invite email wording before any invite email is sent. Flip only on her go. */
-export const TRADE_INVITE_EMAIL_APPROVED = false;
+/** Jo approved the invite email wording on 27 Oct 2026 (decision 406, the whole email refresh suite). */
+export const TRADE_INVITE_EMAIL_APPROVED: boolean = true;
 
 /** Draft wording for Jo's approval (shown in the office; the email itself uses the sign-in email template).
  *  Design: docs/templates/mjml/waiting_trade-invite.mjml (greeting once, short heading, sign-in line under the button). */

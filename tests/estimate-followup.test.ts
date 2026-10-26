@@ -8,7 +8,8 @@ import {
   ESTIMATE_FOLLOWUP_SCHEDULE, STOP, decideEstimateFollowup, estimateFollowupCopy, estimateFollowupKey, estimateFollowupPurpose, estimateFollowupStop,
   renderEstimateFollowupEmail, type EstimateFollowupFacts, type EstimateFollowupStep,
 } from "../src/lib/estimate-followup.core";
-import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
+import { FOOTER_TEXT } from "../src/lib/email-kit.core";
+import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
 
 const EMAILED = "2026-10-01T00:00:00.000Z";
 const day = (n: number, extraMs = 0) => new Date(Date.parse(EMAILED) + n * 86_400_000 + extraMs).toISOString();
@@ -104,8 +105,9 @@ const render = (step: EstimateFollowupStep, patch: Record<string, unknown> = {})
 describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot button)", () => {
   const shell = (html: string, text: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    expect(html).toContain(`<img src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" width="116" alt="Home Insulation Victoria"`);
-    expect(html).toContain("max-width:540px;background:#FBFCFA;border:1px solid #E4E9F5;border-radius:22px;");
+    expect(html).toContain(`alt="Home Insulation Victoria" src="${MAIL_LOGO_URL}"`);
+    expect(html).not.toContain("data:image");
+    expect(html).toContain('class="card"');
     expect(html).toContain("ABN 44 671 613 979");
     expect(text).toContain(FOOTER_TEXT);
     expect(html).not.toMatch(/display:\s*flex/);
@@ -114,7 +116,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
     // the O1 price box and the O1 button
     expect(html).toContain("You save $1,610");
     expect(html).toContain(">$2,188<");
-    expect(html).toContain('text-decoration:line-through;">$3,798');
+    expect(html).toContain('class="strike" style="text-decoration:line-through">$3,798');
     expect(html).toContain("Based on what you told us: 137 m² ceiling, no existing insulation.");
     expect(html).toContain("Try a different ceiling size");
     expect(html).toContain("Save my free spot");
@@ -126,7 +128,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
     const m = render("day_2");
     shell(m.html, m.text);
     expect(m.subject).toBe("Helen, your $1,610 rebate spot is still open");
-    expect(m.html).toContain("Save your spot, it's free");
+    expect(m.html).toContain("Save your spot – it's free");
     expect(m.text).toContain("A couple of days ago we sent your ceiling insulation estimate.");
   });
   test("O67 day 7", () => {
@@ -138,14 +140,15 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
   test("O68 day 21 says we'll close the estimate and they can come back any time", () => {
     const m = render("day_21");
     shell(m.html, m.text);
-    expect(m.subject).toBe("Helen, we'll close your estimate soon");
+    expect(m.subject).toBe("Helen, we'll close your estimate in a week");
     expect(m.text).toContain("we'll close it in a week");
     expect(m.text).toContain("You can come back any time");
     expect(m.html).toContain("Want to keep your spot? Save it now");
+    expect(m.html).toContain('href="https://homeinsulationvictoria.com.au/homeowner"');
   });
   test("some-insulation owners get the O2 price labels; unknown names fall back to 'there'", () => {
     const m = render("day_2", { someInsulation: true, firstName: null });
-    expect(m.html).toContain("Your potential VEU rebate");
+    expect(m.html).toContain("Your potential rebate");
     expect(m.html).toContain("Your cost if eligible");
     expect(m.subject).toBe("there, your $1,610 rebate spot is still open");
   });
