@@ -1,0 +1,594 @@
+// INSTALLER test cases (TEST installer business owner, e.g. qa.installer.alpha@hivic-test.example).
+// One case = the "### " title line, then its steps down to the next "### ".
+//   Title  -> testRigor "Test case description" (leave out the ###).
+//   Steps  -> testRigor "Custom steps".
+// Tags:
+//   [read-only]               looks only. Safe to run any time, in any order.
+//   [CHANGES THE TEST JOB]    moves the TEST job on. Run in the order shown, after the read-only ones.
+//   [CHANGES THE TEST BUSINESS] changes the TEST installer business records.
+//   [CREATES TEST DATA]       adds a new TEST record.
+//   [ONE-WAY - run last]      can't be undone from the screen.
+// "// Needs:" says what state the TEST job must be in first. If it isn't, the case fails at its first check. That's expected.
+// Words that change (names, dates, amounts) use part of the text only. testRigor matches part of a label.
+// Day tiles and time menus change every day. Those steps pick "the 1st / 2nd / 3rd" one. If testRigor marks one red,
+// open the step in its editor and pick the tile it offers.
+// Rules used: sign in as installer, sign out of trade, open test job as installer (see rules.txt).
+
+
+// ============================== READ-ONLY ==============================
+
+### I-01 · My work opens after sign-in   [read-only]
+sign in as installer
+check that page contains "Hello"
+check that page contains "Coming up"
+check that page contains "Action needed"
+check that page contains "In progress"
+check that page contains "Done"
+
+### I-02 · Business owner sees all four menu tabs   [read-only]
+sign in as installer
+check that page contains "My work"
+check that page contains "Add a job"
+check that page contains "Money"
+check that page contains "My business"
+
+### I-03 · Account menu shows my email   [read-only]
+sign in as installer
+click "Account menu"
+check that page contains stored value "installerEmail"
+check that page contains "Sign out"
+
+### I-04 · Job offer panel opens the offer   [read-only]
+// Needs: an open Ready Check offer for this TEST installer (office: Choose installer > Release, or Test Centre "2. New TEST job + offer").
+sign in as installer
+check that page contains "new job offer"
+click "View offer"
+check that page contains "Ready Check in"
+check that page contains "Offer the owner 3 Ready Check times"
+check that page contains "What happens next"
+check that page contains "Paid only when the Mitti form is complete with every geotagged photo."
+check that page contains "This offer is only for you and stays open 24 hours."
+check that page contains "Not for me"
+
+### I-05 · More offers list opens and folds   [read-only]
+// Needs: two or more open offers.
+sign in as installer
+click "More offers"
+check that page contains "Job offers ·"
+check that page contains "Each offer is only for you and stays open 24 hours."
+click "Hide the other offers"
+check that page contains "Action needed"
+
+### I-06 · Not for me can be backed out of   [read-only]
+// Needs: an open Ready Check offer.
+sign in as installer
+click "View offer"
+click "Not for me"
+check that page contains "Not for me?"
+check that page contains "The offer goes back to the office to pick another installer."
+click "Keep the offer"
+check that page contains "Offer the owner 3 Ready Check times"
+
+### I-07 · TEST job page opens   [read-only]
+// Needs: the TEST job assigned to this installer.
+sign in as installer
+open test job as installer
+check that page contains stored value "testJobNumber"
+check that page contains "‹ My work"
+check that page contains "Who's doing this"
+check that page contains "More · staff job links"
+
+### I-08 · TEST job page shows Call, Text and Directions   [read-only]
+// Needs: the owner's contact details released to you (after you accept).
+sign in as installer
+open test job as installer
+check that page contains "Call"
+check that page contains "Text"
+check that page contains "Directions"
+
+### I-09 · Staff job links fold-out opens   [read-only]
+sign in as installer
+open test job as installer
+click "More · staff job links"
+check that page contains "Staff job links"
+
+### I-10 · Ready Check group shows the Mitti form   [read-only]
+// Needs: TEST job at Ready Check. Mitti itself is a separate app and is not tested here.
+sign in as installer
+open test job as installer
+check that page contains "Ready Check"
+check that page contains "Mitti form"
+
+### I-11 · Quote group shows on the job   [read-only]
+// Needs: TEST job with a quote prepared.
+sign in as installer
+open test job as installer
+check that page contains "Quote"
+check that page contains "Status"
+check that page contains "This is exactly what the owner will see. All prices include GST."
+
+### I-12 · Safety plan (SWMS) shows on the job   [read-only]
+// Needs: TEST job with an install crew chosen.
+sign in as installer
+open test job as installer
+scroll down until page contains "Safety plan"
+check that page contains "Everyone on the crew reads this and signs before install day."
+check that page contains "High-risk work on this job"
+check that page contains "Hazards and the controls you use"
+
+### I-13 · Today's job page opens   [read-only]
+// Needs: TEST job with an install day booked.
+sign in as installer
+open test job as installer
+click "Today's job"
+check that url contains "/field/day/"
+check that page contains "The job"
+check that page contains "Couldn't get in?"
+
+### I-14 · Add a job page shows every field   [read-only]
+sign in as installer
+click "Add a job"
+check that page contains "Just the owner's details. Everything else goes in the Ready Check form in Mitti."
+check that page contains "Owner's full name"
+check that page contains "Address"
+check that page contains "Mobile"
+check that page contains "Email"
+check that page contains "The owner has given Home Insulation Victoria permission to contact them."
+check that page contains "Electrical safety check"
+check that page contains "Home Insulation Victoria's electrician"
+check that page contains "Ready Check visit (optional)"
+check that page contains "Add job"
+
+### I-15 · Add a job refuses an empty form   [read-only]
+// Nothing is saved when the form is empty.
+sign in as installer
+click "Add a job"
+click "Add job"
+check that page contains "Enter the owner's first and last name."
+check that page does not contain "Job added"
+
+### I-16 · Money page   [read-only]
+sign in as installer
+click "Money"
+check that page contains "Your pay,"
+check that page contains "Amounts include GST."
+check that page contains "How pay works"
+check that page contains "Paid to"
+check that page contains "No complete form, no payment"
+
+### I-17 · Money: all paid jobs and the month filter   [read-only]
+// Needs: at least one paid TEST job.
+sign in as installer
+click "Money"
+click "All paid jobs"
+check that page contains "‹ Money"
+check that page contains "All"
+check that page contains "Download statement"
+
+### I-18 · My business page   [read-only]
+sign in as installer
+click "My business"
+check that page contains "Approved partner"
+check that page contains "Taking new jobs"
+check that page contains "Team"
+check that page contains "Add a team member"
+check that page contains "Business file"
+check that page contains "My usual electrician"
+check that page contains "Business details"
+check that page contains "Your rates"
+check that page contains "Bank details"
+check that page contains "Insurance and licences"
+check that page contains "Your agreement"
+check that page contains "ESC privacy notice"
+check that page contains "How it works"
+
+### I-19 · My usual electrician page   [read-only]
+sign in as installer
+click "My business"
+click "My usual electrician"
+check that page contains "Electrician name"
+check that page contains "Electrician licence number"
+check that page contains "Electrician email"
+check that page contains "Save electrician"
+
+### I-20 · Business details page   [read-only]
+sign in as installer
+click "My business"
+click "Business details"
+check that page contains "Ask us to change something"
+
+### I-21 · Your rates page   [read-only]
+sign in as installer
+click "My business"
+click "Your rates"
+check that page contains "Request a rate change"
+
+### I-22 · Bank details page   [read-only]
+sign in as installer
+click "My business"
+click "Bank details"
+check that url contains "/field/business/bank"
+check that page contains "Bank details"
+
+### I-23 · Insurance and licences page   [read-only]
+sign in as installer
+click "My business"
+click "Insurance and licences"
+check that page contains "Upload a renewed certificate"
+
+### I-24 · Your agreement page   [read-only]
+sign in as installer
+click "My business"
+click "Your agreement"
+check that url contains "/field/business/agreement"
+check that page contains "Your agreement"
+
+### I-25 · ESC privacy notice page   [read-only]
+sign in as installer
+click "My business"
+click "ESC privacy notice"
+check that page contains "Privacy notice for your installers"
+check that page contains "Your installers"
+
+### I-26 · Team page   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/field/business/team"
+check that page contains "Team"
+check that page contains "Everyone listed here can be given a Ready Check."
+check that page contains "Add a team member"
+
+### I-27 · Staff page (Add a team member from My business)   [read-only]
+sign in as installer
+click "My business"
+click "Add a team member"
+check that url contains "/partner/workers"
+check that page contains "Your staff"
+
+### I-28 · Installer guide   [read-only]
+sign in as installer
+click "My business"
+click "How it works"
+check that page contains "Installer guide"
+check that page contains "How every job works"
+check that page contains "Get the job"
+check that page contains "Install days"
+check that page contains "Getting every job paid"
+click "Back to My work"
+check that page contains "Coming up"
+
+### I-29 · Welcome page   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/field/welcome"
+check that page contains "You're approved"
+check that page contains "How every job works"
+click "Go to my work"
+check that page contains "Coming up"
+
+### I-30 · Old links still land on the right page   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/partner"
+check that page contains "Coming up"
+open url "https://portal.homeinsulationvictoria.com.au/partner/add"
+check that page contains "Add a job"
+open url "https://portal.homeinsulationvictoria.com.au/partner/payments"
+check that page contains "How pay works"
+open url "https://portal.homeinsulationvictoria.com.au/partner/profile"
+check that page contains "Taking new jobs"
+open url "https://portal.homeinsulationvictoria.com.au/field/setup"
+check that page contains "You're approved"
+
+### I-31 · Permission: installer can't open the office   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/admin/needs-me"
+check that url does not contain "/admin"
+check that page contains "My work"
+check that page does not contain "Enquiries"
+
+### I-32 · Permission: installer can't open the Test Centre or Users   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/admin/test-centre"
+check that page does not contain "Create dummy journey"
+open url "https://portal.homeinsulationvictoria.com.au/admin/users"
+check that page does not contain "Users & access"
+check that url does not contain "/admin"
+
+### I-33 · Permission: bulk upload is switched off   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/partner/bulk-import"
+check that url does not contain "/partner/bulk-import"
+check that page contains "My work"
+
+### I-34 · Permission: installer can't open the owner area   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/owner"
+check that page does not contain "My insulation jobs"
+check that page contains "My work"
+
+### I-35 · Permission: a job that isn't yours is refused   [read-only]
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/field/00000000-0000-0000-0000-000000000000"
+check that page contains "isn't available to you"
+click "Back to My work"
+check that page contains "Coming up"
+
+### I-36 · Signed out: My work sends you to sign in   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/field"
+check that page contains "Welcome back."
+check that url contains "/auth"
+
+### I-37 · Bad staff and safety plan links are refused   [read-only]
+open url "https://portal.homeinsulationvictoria.com.au/w/not-a-real-link"
+check that page contains "This job link is unavailable."
+open url "https://portal.homeinsulationvictoria.com.au/sp/not-a-real-link"
+check that page contains "This safety plan link is unavailable."
+open url "https://portal.homeinsulationvictoria.com.au/join/not-a-real-link"
+check that page contains "Invite link problem"
+
+### I-38 · Sign out from the account menu   [read-only]
+sign in as installer
+sign out of trade
+open url "https://portal.homeinsulationvictoria.com.au/field"
+check that page contains "Welcome back."
+
+### I-39 · Sign out from My business   [read-only]
+sign in as installer
+click "My business"
+scroll down until page contains "Sign out"
+click "Sign out"
+check that page contains "Welcome back."
+
+
+// ============================== CHANGES TEST DATA ==============================
+// Run these after the read-only cases. Order matters within the job flow (I-40 to I-56).
+
+### I-40 · Accept a Ready Check offer by sending 3 times   [CHANGES THE TEST JOB]
+// Needs: an open Ready Check offer on the TEST job.
+sign in as installer
+click "View offer"
+check that page contains "Offer the owner 3 Ready Check times"
+// Day tiles change every day: pick the first three shown.
+click the 1st button below "Three different days in the next 3 weeks"
+click the 2nd button below "Three different days in the next 3 weeks"
+click the 3rd button below "Three different days in the next 3 weeks"
+check that page contains "Arrival time for each day"
+select "10am" from the 1st "Arrival time"
+select "10am" from the 2nd "Arrival time"
+select "10am" from the 3rd "Arrival time"
+click "Accept this job"
+check that page contains "What happens next"
+check that page contains "Back to My work"
+
+### I-41 · Offer is declined with Not for me   [ONE-WAY - run last]
+// Needs: a SECOND open offer you are happy to lose. It goes back to the office and won't come back to you.
+sign in as installer
+click "View offer"
+click "Not for me"
+click "Yes, not for me"
+check that page contains "Offer declined"
+check that page contains "It goes back to the office."
+
+### I-42 · Book one of the owner's suggested Ready Check days   [CHANGES THE TEST JOB]
+// Needs: the TEST owner suggested other days (owner case H-24).
+sign in as installer
+open test job as installer
+select "10am" from the 1st "Arrival time"
+click the 1st "Book"
+check that page contains "Ready Check"
+
+### I-43 · None of the owner's days work: the offer form opens   [read-only]
+// Needs: the TEST owner suggested other days. Opens the form only; nothing is sent.
+sign in as installer
+open test job as installer
+click "None of these work – offer 3 other times"
+check that page contains "Send these times to"
+
+### I-44 · Change a booked Ready Check time, then keep it   [read-only]
+// Needs: a booked Ready Check on the TEST job.
+sign in as installer
+open test job as installer
+click "Change time"
+check that page contains "Choose the new day and the time you'll arrive."
+click "Keep the booked time"
+check that page contains "Change time"
+
+### I-45 · Add a job (creates a TEST job)   [CREATES TEST DATA]
+// TEST installer jobs are marked TEST automatically. Use made-up owner details only.
+sign in as installer
+click "Add a job"
+enter "Test Owner Rigor" into "Owner's full name"
+// The address must be picked from the list. "34 Watsons Road, Bundoora" is the portal's own example address.
+enter "34 Watsons Road, Bundoora" into "Address"
+click "Bundoora VIC" below "Address"
+check that page contains "✓ Address found"
+enter "0400000000" into "Mobile"
+enter "qa.owner.rigor@hivic-test.example" into "Email"
+click "The owner has given Home Insulation Victoria permission to contact them."
+click "Home Insulation Victoria's electrician"
+click "Add job"
+check that page contains "Job added"
+check that page contains "What we do now"
+check that page contains "Go to the job"
+check that page contains "Add another job"
+
+### I-46 · Add a job with a Ready Check visit time   [CREATES TEST DATA]
+sign in as installer
+click "Add a job"
+enter "Test Owner Rigor Two" into "Owner's full name"
+enter "36 Watsons Road, Bundoora" into "Address"
+click "Bundoora VIC" below "Address"
+enter "0400000001" into "Mobile"
+enter "qa.owner.rigor2@hivic-test.example" into "Email"
+click "The owner has given Home Insulation Victoria permission to contact them."
+select the 2nd option from "Visit day"
+select "10am" from "Arrival time"
+click "Add job"
+check that page contains "Job added"
+click "Go to the job"
+check that url contains "/field/"
+
+### I-47 · Enter your price on your own job   [CHANGES THE TEST JOB]
+// Needs: a TEST job you added yourself (I-45).
+sign in as installer
+open test job as installer
+scroll down until page contains "Your price"
+click "Change your price"
+enter "2400" into "Your price to the owner (inc GST)"
+click "Save price"
+check that page contains "Price"
+check that page contains "Includes"
+
+### I-48 · Save a Ready Check time on your own job   [CHANGES THE TEST JOB]
+// Needs: a TEST job you added yourself, Ready Check not booked yet.
+sign in as installer
+open test job as installer
+check that page contains "Ready Check day and time (optional)"
+select "10am" from "Arrival time"
+click "Save Ready Check time"
+check that page contains "Ready Check time saved"
+
+### I-49 · Offer the owner 3 install days   [CHANGES THE TEST JOB]
+// Needs: TEST job cleared after the safety check, waiting for install days.
+sign in as installer
+open test job as installer
+check that page contains "3 install days"
+// Day tiles change every day: pick the first three shown.
+click the 1st button below "3 install days"
+click the 2nd button below "3 install days"
+click the 3rd button below "3 install days"
+check that page contains "Arrival time for each day"
+select "10am" from the 1st "Arrival time"
+select "10am" from the 2nd "Arrival time"
+select "10am" from the 3rd "Arrival time"
+click "Send these days to"
+check that page contains "Days sent to"
+
+### I-50 · Choose who does the install   [CHANGES THE TEST JOB]
+// Needs: TEST job with an install day booked and a team listed.
+sign in as installer
+open test job as installer
+scroll down until page contains "Who's doing this"
+click "Choose" below "Who's doing this"
+check that page contains "The Mitti form and the 6:30am text go to the person you choose."
+
+### I-51 · Add a note to the safety plan   [CHANGES THE TEST JOB]
+// Needs: TEST job where the safety plan shows.
+sign in as installer
+open test job as installer
+scroll down until page contains "Anything specific to this house (optional)"
+enter "TEST note: tight access near the hot water unit" into "E.g. tight access near the hot water unit"
+click "Save note"
+check that page contains "Saved"
+
+### I-52 · Sign the safety plan (SWMS)   [CHANGES THE TEST JOB]
+// Needs: TEST job where your name is on the safety plan crew. Store your name as installerFullName (optional stored value).
+sign in as installer
+open test job as installer
+scroll down until page contains "Safety plan"
+click "Sign" below "Hazards and the controls you use"
+click "I am"
+enter stored value "installerFullName" into "full name to sign"
+click "Sign the safety plan"
+check that page contains "Signed"
+
+### I-53 · Check my install form now   [read-only]
+// Needs: TEST job with the install day booked. This only reads the form status.
+sign in as installer
+open test job as installer
+click "Check my form now"
+check that page does not contain "Checking your form…"
+
+### I-54 · Couldn't get in on the day   [CHANGES THE TEST JOB]
+// Needs: TEST job with today's visit. The owner message is held by the TEST send rules.
+sign in as installer
+open test job as installer
+click "Today's job"
+click "Couldn't get in?"
+check that page contains "Pick what happened."
+click "No one home"
+check that page contains "Thanks"
+
+### I-55 · Record that the install is finished   [ONE-WAY - run last]
+// Needs: TEST job on install day, Mitti install form Complete.
+sign in as installer
+open test job as installer
+click "The install is finished"
+check that page contains "Confirm the install is finished on site?"
+click "Yes, it's finished"
+check that page contains "Install recorded"
+
+### I-56 · Sign your part of the rebate form   [ONE-WAY - run last]
+// Needs: install recorded on the TEST job (I-55).
+sign in as installer
+open test job as installer
+check that page contains "Sign your part of the rebate form"
+enter stored value "installerFullName" into "Type your full name to sign"
+click "Sign as lead installer"
+check that page contains "Signed"
+
+### I-57 · Switch Taking new jobs off and on   [CHANGES THE TEST BUSINESS]
+sign in as installer
+click "My business"
+click "Taking new jobs"
+check that page contains "Paused · no new offers until you switch back on"
+click "Taking new jobs"
+check that page does not contain "Paused · no new offers until you switch back on"
+
+### I-58 · Save my usual electrician (TEST electrician)   [CHANGES THE TEST BUSINESS]
+// Uses the TEST electrician, who is already signed up, so no onboarding email goes out.
+sign in as installer
+click "My business"
+click "My usual electrician"
+enter "TEST Delta Electrical" into "Electrician name"
+enter "TEST000" into "Electrician licence number"
+enter stored value "electricianEmail" into "Electrician email"
+click "Save electrician"
+check that page contains "Usual electrician saved"
+
+### I-59 · Ask the office to change a business detail   [CHANGES THE TEST BUSINESS]
+sign in as installer
+click "My business"
+click "Business details"
+enter "TEST request from testRigor - please ignore" into "Ask us to change something"
+click "Send to the office"
+check that page contains "Sent to the office"
+
+### I-60 · Request a rate change   [CHANGES THE TEST BUSINESS]
+sign in as installer
+click "My business"
+click "Your rates"
+enter "TEST request from testRigor - please ignore" into "Request a rate change"
+click "Send to the office"
+check that page contains "Sent to the office"
+
+### I-61 · Save TEST bank details   [CHANGES THE TEST BUSINESS]
+// Made-up numbers only. The office checks them before any payment.
+sign in as installer
+click "My business"
+click "Bank details"
+click "bank details"
+enter "TEST Alpha Insulation" into "Account name"
+enter "000000" into "BSB"
+enter "12345678" into "Account number"
+click "Save bank details"
+check that page contains "Bank details saved."
+
+### I-62 · Acknowledge the ESC privacy notice   [CHANGES THE TEST BUSINESS]
+// Needs: your own row not yet acknowledged.
+sign in as installer
+click "My business"
+click "ESC privacy notice"
+click the 1st checkbox below "Your installers"
+click "Save acknowledgements"
+check that page contains "Acknowledged"
+
+### I-63 · Create a team member invite link   [CREATES TEST DATA]
+// No mobile entered, so no text is sent. The link shows once.
+sign in as installer
+open url "https://portal.homeinsulationvictoria.com.au/field/business/team"
+click "Add a team member"
+enter "Test Crew Rigor" into "Full name"
+enter "qa.crew.rigor@hivic-test.example" into "Email"
+click "Create the invite link"
+check that page contains "Invite link for Test Crew Rigor"
+click "Add another"
+check that page contains "Add a team member"
