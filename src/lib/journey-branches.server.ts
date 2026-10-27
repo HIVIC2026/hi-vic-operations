@@ -766,29 +766,41 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
   try {
     const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
-    const { data: rel } = await admin.from("contact_releases").select("id, visit_kind, released_at").eq("job_id", ctx.jobId!).is("revoked_at", null);
-    const { data: offers } = await admin.from("partner_offers").select("id, kind, status, offered_at").eq("job_id", ctx.jobId!);
-    if (!(rel ?? []).length) { BLOCKED_REASON = `no contact release on the job after the installer accepted (offers: ${JSON.stringify(offers)}) — the 24h/48h clock has nothing to run from`; return; }
-    const al = await import("./allocation.core");
-    const moveTo = async (h: number) => { await J.assertOwnTestJob(ctx); await admin.from("contact_releases").update({ released_at: new Date(Date.now() - h * 3_600_000).toISOString() }).eq("job_id", ctx.jobId!).is("revoked_at", null); };
-    await moveTo(25);
-    const st25 = al.coordinationState({ releasedAt: new Date(Date.now() - 25 * 3_600_000).toISOString(), firstProposalAt: null, confirmedAt: null });
+    const offerId = ctx.notes["rc_offer_id"] as string;
+    const ago = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+    // (a) 24h: the installer has not answered the Ready Check offer (no times offered) — move this offer's clock 25h back.
+    await J.assertOwnTestJob(ctx);
+    const { data: o0 } = await admin.from("partner_offers").select("offered_at, expires_at, status").eq("id", offerId).eq("job_id", ctx.jobId!).single();
+    await admin.from("partner_offers").update({ offered_at: ago(25), ...(o0?.expires_at ? { expires_at: ago(1) } : {}) }).eq("id", offerId).eq("job_id", ctx.jobId!);
     const sig25 = await officeSignals(ctx.jobId!);
-    const at25 = await shoot("p6-25h", [{ who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, officePages(ctx)[1]!]);
-    await moveTo(49);
+    const at25 = await shoot("p6-24h-no-times", [{ who: "installer-offer", email: INST, path: `/field/offer/${offerId}` }, ownerPage(ctx), ...officePages(ctx)]);
+    const { count: props25 } = await admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
+    // Put the offer back as it was, then the installer offers 3 times (the fix for (a)).
+    await admin.from("partner_offers").update({ offered_at: o0?.offered_at, expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
+    const tv = await import("./trade-view.server");
+    const rct = await import("./ready-check-times.core");
+    const days = rct.allowedReadyCheckDays().slice(0, 3);
+    let offered = "offered";
+    try { await tv.tradeOfferReadyCheckTimes(offerId, ctx.installer.id, days.map((day) => { const ok = rct.allowedReadyCheckTimes(day); return { day, time: ok.includes("10:00") ? "10:00" : ok[0]! }; })); } catch (e) { offered = `refused: ${(e as Error).message.slice(0, 200)}`; }
+    // (b) 48h: times offered but the owner has not taken one — move those proposals 49h back.
+    await admin.from("appointment_proposals").update({ created_at: ago(49) } as never).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
     const sig49 = await officeSignals(ctx.jobId!);
-    const at49 = await shoot("p6-49h", [{ who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ownerPage(ctx), ...officePages(ctx)]);
-    const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never);
-    answer("stops", (rcBooked ?? 0) === 0, `25h state=${st25.state} (reminder sweep NOT RUN: it runs across all jobs and texts electricians); Ready Check bookings=${rcBooked}`);
-    answer("reason", sees(at49[0], /offer|times|pick|owner/i), `installer page asks for times=${sees(at49[0], /offer|times|pick/i)}`);
-    const n25 = jobMentions(at25[1], ctx.jobNumber), n49 = jobMentions(at49[3], ctx.jobNumber);
-    answer("office_once", (sig25.exceptions.length + sig25.needsMe === 0) && (sig49.exceptions.length === 1 || sig49.needsMe === 1), `at 25h: Needs me=${sig25.needsMe}, exceptions=${sig25.exceptions.join(",") || "none"}, page ${n25}×; at 49h: Needs me=${sig49.needsMe}, exceptions=${sig49.exceptions.join(",") || "none"}, page ${n49}×`);
-    // Fix: installer offers 3 times and the owner takes one (booked).
+    const at49 = await shoot("p6-48h-not-booked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]);
+    const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
+    answer("stops", (props25 ?? 0) === 0 && (rcBooked ?? 0) === 0, `24h: times offered=${props25}; installer then ${offered}; 48h: Ready Check bookings=${rcBooked} (the all-jobs reminder sweep was NOT RUN: it would touch real jobs)`);
+    answer("reason", sees(at25[0], /offer|times|accept|decline|expired|closed/i) && sees(at49[0], /pick|choose|time|Ready Check/i), `installer offer page at 24h: "${at25[0]?.text.slice(0, 160) ?? "-"}"; owner page at 48h asks to pick a time=${sees(at49[0], /pick|choose/i)}`);
+    answer("office_once", sig25.needsMe + sig25.exceptions.length === 1 && sig49.needsMe + sig49.exceptions.length === 1, `24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}), exceptions=${sig25.exceptions.join(",") || "none"}; 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}), exceptions=${sig49.exceptions.join(",") || "none"}`);
+    // Fix for (b): the owner takes one of the times → booked.
     let fix = "booked";
-    try { await readyCheckBookOnly(ctx); } catch (e) { fix = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    try {
+      const { data: p } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed").order("starts_at").limit(1).single();
+      const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
+      await (await import("./ready-check-times.server")).ownerTakeReadyCheckTime(ctx.jobId!, p!.id, (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId);
+    } catch (e) { fix = `failed: ${(e as Error).message.slice(0, 200)}`; }
     const sigF = await officeSignals(ctx.jobId!);
+    const { count: booked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
     await shoot("p6-booked", [ownerPage(ctx)]);
-    answer("carries_on", fix === "booked" && sigF.exceptions.length === 0, `${fix}; exceptions after booking=${sigF.exceptions.join(",") || "none"}; Needs me=${sigF.needsMe}`);
+    answer("carries_on", fix === "booked" && (booked ?? 0) === 1 && sigF.needsMe + sigF.exceptions.length === 0, `${fix}; Ready Check bookings=${booked}; office rows after=${sigF.needsMe + sigF.exceptions.length}`);
   } finally { await finish(ctx, jobs); }
 }
 async function readyCheckBookOnly(ctx: JourneyCtx) {
