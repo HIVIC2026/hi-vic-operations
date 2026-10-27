@@ -19,8 +19,8 @@ Starting catalogue for step 2 of the audit. **Covered by** names the tool that p
 
 | ID | Scenario | Expected outcome | Covered by |
 | --- | --- | --- | --- |
-| D1 | Ready Check shows not eligible / needs review | Verified value recorded; no confirmed quote; owner told once | **gap** |
-| D2 | PIESA needs fixes | Fixes quote auto-sent only when A3 complete and all checks pass, else held with reason; A4 form; Section C before install unlocks | `bun run journey -- --branch piesa-fixes` (quote sends simulated while customer messages are off). 27 Oct: blocked, Xero Demo Company not connected |
+| D1 | Ready Check shows not eligible / needs review | Verified value recorded; no confirmed quote; owner told once (or one held/blocked row with the reason) | `bun run journey -- --branch not-eligible`. 27 Oct 03:08: all 6 checks pass |
+| D2 | PIESA needs fixes | Fixes quote auto-sent only when A3 complete and all checks pass, else held with reason; A4 form; Section C before install unlocks | `bun run journey -- --branch piesa-fixes` (invoices in Xero Demo Company only; Mitti simulated, real Mitti refused). 27 Oct 03:09: all 8 checks pass |
 | D3 | Missing or wrong Mitti evidence (draft, wrong job, wrong version, duplicate) | Hard stop in Needs me; job state does not move | Mitti rule tests (partial); **gap** end to end |
 | D4 | Card payment fails or is reversed | No stage change; owner can retry; Xero total goes down on reversal | Stripe/Xero rule tests (partial); **gap** end to end |
 | D5 | 30-day window lapses | 20- and 10-day reminders; repeat PIESA charged to whoever caused it | thirty-day rule tests (partial); **gap** end to end |
