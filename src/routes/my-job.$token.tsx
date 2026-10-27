@@ -120,8 +120,27 @@ function Hero({ v, level, size = "lg", headline }: { v: View; level: number; siz
   );
 }
 
+/** Jo 28 Oct (decision 158, OFFICE CHOOSES): lapsed window → "arranging the next step", then the new safety check + Accept. */
+function RepeatPiesaCard({ token }: { token: string }) {
+  const loadRepeat = useServerFn(ownerRepeatPiesaFn);
+  const acceptRepeat = useServerFn(ownerAcceptRepeatPiesaFn);
+  const { data: repeat, refetch } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!repeat) return null;
+  return <section data-testid="repeat-piesa" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
+    <p className="font-display text-lg font-extrabold">{repeat.title}</p>
+    <p className="mt-2">{repeat.body}</p>
+    {repeat.price && <p className="mt-2 font-bold">{repeat.price}</p>}
+    {err && <p className="mt-2 font-bold text-destructive">{err}</p>}
+    {repeat.button && <button type="button" className={`${signBtn} mt-3`} disabled={busy} onClick={async () => { setErr(""); setBusy(true); try { await acceptRepeat({ data: { token } }); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>{busy ? "Saving…" : repeat.button}</button>}
+  </section>;
+}
+
 function Home({ v, token }: { v: View; token: string }) {
   const a = v.action;
+  const loadRepeat = useServerFn(ownerRepeatPiesaFn);
+  const { data: repeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
+  if (repeat) return <><RepeatPiesaCard token={token} /><Hero v={v} level={v.hero.level} headline={v.hero.headline} /></>;
   return <>
     {/* Approved P3 (decision 128): when the ESC consent is waiting, it is the page; everything else follows below. */}
     {v.consent && <ConsentCard v={v} token={token} />}
@@ -379,21 +398,8 @@ function BookPickers({ token }: { token: string }) {
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   // Jo 28 Oct (decision 158): a lapsed 30-day window replaces the booking pickers with the repeat safety check card.
   const loadRepeat = useServerFn(ownerRepeatPiesaFn);
-  const acceptRepeat = useServerFn(ownerAcceptRepeatPiesaFn);
-  const { data: repeat, refetch: refetchRepeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
-  const [session, setSession] = useSession();
-  const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
-  const [understands, setUnderstands] = useState(false);
-  const [days, setDays] = useState<string[]>([]);
-  const [suggesting, setSuggesting] = useState(false);
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (repeat) return <section data-testid="repeat-piesa" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
-    <p className="font-display text-lg font-extrabold">{repeat.title}</p>
-    <p className="mt-2">{repeat.body}</p>
-    {repeat.price && <p className="mt-2 font-bold">{repeat.price}</p>}
-    {err && <p className="mt-2 font-bold text-destructive">{err}</p>}
-    {repeat.button && <button className={`${signBtn} mt-3`} disabled={busy} onClick={async () => { setErr(""); setBusy(true); try { await acceptRepeat({ data: { token } }); await refetchRepeat(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>{repeat.button}</button>}
-  </section>;
+  const { data: repeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
+  if (repeat) return <RepeatPiesaCard token={token} />;
   if (!data) return null;
   const installMove = data.install.turn === "owner_to_answer";
   // Decision 333: the electrician offers the safety check times; the owner taps one or suggests days (old jobs keep the old picker).
