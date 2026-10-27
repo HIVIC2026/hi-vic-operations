@@ -5,6 +5,9 @@ let on = false;
 let outcome = "not_eligible";
 let deliveries = 0;
 let final = true;
+let reason = "Existing insulation is R3.0";
+let renderedReason: string | null = null;
+let consent = true;
 function from(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
   let op = "read", value: Row = {}, ignore = false;
@@ -32,13 +35,13 @@ function from(table: string) {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
 mock.module("../src/lib/verified-eligibility.server", () => ({
-  currentVerification: async () => ({ outcome, reason: "Existing insulation is R3.0", ready_check_ref: "RC", ready_check_version: 1, recorded_by: "office" }),
+  currentVerification: async () => ({ outcome, reason, ready_check_ref: "RC", ready_check_version: 1, recorded_by: "office" }),
   gatherEvidence: async () => ({ readyCheck: { ref: "RC", version: 1, final } }),
 }));
-mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => on, assertCustomerDeliveryAllowed: async () => { if (!on) throw new Error("Customer messages are off"); } }));
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => on, assertCustomerDeliveryAllowed: async () => { if (!on) throw new Error("Customer messages are off"); if (!consent) throw new Error("No contact consent"); } }));
 mock.module("../src/lib/followups.server", () => ({
   INELIGIBLE_PURPOSE: "preliminary_ineligible", ineligibleKey: (id: string) => `preliminary_ineligible:${id}`,
-  renderPreliminaryIneligibleMail: async (_id: string, reason: string | null) => ({ subject: "Not eligible", html: reason ?? "fallback", plainText: reason ?? "fallback" }),
+  renderPreliminaryIneligibleMail: async (_id: string, value: string | null) => { renderedReason = value; return { subject: "Not eligible", html: value ?? "fallback", plainText: value ?? "fallback" }; },
 }));
 mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: Row) => {
   const ex = tables.customer_email_sends.find(r => r.idempotency_key === p.key);
@@ -52,6 +55,7 @@ beforeEach(() => {
   Object.keys(tables).forEach(k => delete tables[k]);
   tables.jobs = [{ id: "job", stage: "ready_check_complete", source: "website", owners: { email: "owner@example.test" } }];
   tables.customer_email_sends = []; on = false; outcome = "not_eligible"; deliveries = 0; final = true;
+  reason = "Existing insulation is R3.0"; renderedReason = null; consent = true;
 });
 test("switch OFF records exactly one held email without sending", async () => {
   await sendVerifiedIneligibleEmail("job"); await sendVerifiedIneligibleEmail("job");
@@ -72,6 +76,12 @@ test("held decision changed to needs_review never sends later", async () => {
 });
 test("non-final Ready Check never prepares an email", async () => {
   final = false; on = true; await sendVerifiedIneligibleEmail("job"); expect(deliveries).toBe(0); expect(tables.customer_email_sends).toHaveLength(0);
+});
+test("currency in the reason is not disclosed", async () => {
+  on = true; reason = "Existing insulation is R3.0; price $349"; await sendVerifiedIneligibleEmail("job"); expect(renderedReason).toBeNull(); expect(deliveries).toBe(1);
+});
+test("no contact consent holds the email without sending", async () => {
+  on = true; consent = false; await sendVerifiedIneligibleEmail("job"); expect(deliveries).toBe(0); expect(tables.customer_email_sends[0].error).toBe("held: No contact consent");
 });
 for (const status of ["sent", "sending", "delivered_unrecorded"]) test(`${status} T7 is never resent`, async () => {
   on = true; tables.customer_email_sends.push({ idempotency_key: "preliminary_ineligible:job", status });
