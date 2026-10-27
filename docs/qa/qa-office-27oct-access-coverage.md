@@ -6,7 +6,7 @@
 - Job page, job Money card and recorded call/note entrypoints now use that capability. Route remains admin-only until all other paths are converted.
 - Practice SQL proves TEST-only reads for jobs, owners, properties, businesses and 17 job/quote child tables. Shared real owner/property/business links refuse the graph. Writes remain quarantined.
 - Foundation identity check now uses Auth's verified email, not a mutable profile email.
-- Focused checks: 52 passed (44 core/practice + 8 server). This is NOT complete office-area or live RLS proof.
+- Focused security checks: 59 passed (44 core/practice + 8 server + 7 entrypoint checks). Existing office-header/consent regressions: 20 passed. Preview build OK. This is NOT complete office-area or live RLS proof.
 
 ## Uncovered — A remains incomplete
 - Needs me: saved global snapshots, partner/system folds, Mitti pickups and sync-problem readers.
