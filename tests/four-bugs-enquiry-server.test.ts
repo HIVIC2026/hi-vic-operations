@@ -14,3 +14,17 @@ test("fresh server closure check excludes internal notes and trade mail as repli
   await db.exec("delete from customer_email_sends");
   expect(await enquiryCloseBlocker("lead")).toContain("no confirmed first reply");
 });
+test("the recheck guards only the Close-all sweep — the manual Actions Cancel still works", async () => {
+  const { readFileSync } = await import("node:fs");
+  const fn = readFileSync("src/lib/office-screens.functions.ts", "utf8");
+  const at = fn.indexOf("export const bulkCancelOfficeJobs");
+  const body = fn.slice(at, at + 1200);
+  expect(body).toContain("closeAll: z.boolean().optional()");
+  expect(body).toContain("if (data.closeAll) {");
+  expect(body).toContain("enquiryCloseBlocker(jobId)");
+  // The Close-all dialog asks for the recheck; the manual Cancel dialog does not.
+  const screen = readFileSync("src/components/portal/EnquiriesScreen.tsx", "utf8");
+  expect(screen).toContain("closeAll: true");
+  const cancelDialog = screen.slice(screen.indexOf('dialog === "cancel"'), screen.indexOf('dialog === "remove"'));
+  expect(cancelDialog).not.toContain("closeAll");
+});
