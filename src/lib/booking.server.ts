@@ -2,6 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, commercialBlocker, paymentGate, getStage, logEvent, piesaStatus, transition } from "./workflow.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
+import { installEndAt } from "./install-days.core";
 import { setInstallDueDate } from "./invoice-dates.server";
 import { autoAdvanceJob } from "./autoadvance.server";
 
