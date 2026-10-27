@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Existing-form Mitti pulls and completed Ready Check retries live in the dedicated authenticated Mitti pull callback, separate from allocation; activate its production schedule together with that deployment. Why: slow allocation must not starve form reads or leave a deployment gap.
 - Campaign spot saves use one database transaction for response, save event and queue stage; secure next visits repair only recorded saves, without delivery. Why: interrupted requests and replays must not strand saved spots or send repair messages.
 - Verified post-Ready-Check ineligible notifications share the existing T7 per-job email key and guarded sender; only durable held records retry after revalidating the current final verification. Why: no duplicate messages, no Gate 1 mutation or historical backlog release.
 - Document early recovery owns module error/rejection events; the router handles preload/route catches and cache-busts reloads; both use the pure page-recovery stale-export classifier. Why: competing refresh handlers or missed named lazy exports can leave stale tabs blank.

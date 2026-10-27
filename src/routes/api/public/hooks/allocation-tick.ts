@@ -379,13 +379,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
         }
         try {
-          // Jo 24 Oct: retry held completed Ready Checks and watch sent ones for form edits (switched off with the auto send).
-          const { sweepCompletedMittiReadyChecks } = await import("@/lib/mitti-complete.server");
-          (out as Record<string, unknown>)['mittiCompleted'] = await timed("sweepCompletedMittiReadyChecks", () => sweepCompletedMittiReadyChecks());
-        } catch (e) {
-          console.error("allocation tick: completed Ready Check sweep failed", (e as Error).message);
-        }
-        try {
           // Runs BEFORE the automatic forms (Jo 24 Oct): a form the installer started himself is linked first, so a
           // job never gets a second, blank form. Stage 4: Mitti-first auto-pickup. OFF by default (workflow_settings.mitti_pickup_auto_enabled);
           // when ON, clean forms create installer-sourced jobs and link themselves — nothing is sent.
@@ -415,15 +408,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: install day form check failed", (e as Error).message);
           (out as Record<string, unknown>)['installDayForms'] = "failed";
-        }
-        try {
-          // Data only: same sync as the manual button. Never completes gates, moves stages or sends quotes.
-          const { syncPendingMitti } = await import("@/lib/mitti.server");
-          const r = await timed("syncPendingMitti", () => syncPendingMitti(null));
-          (out as Record<string, unknown>)['mitti'] = { checked: r.length, failed: r.filter((x) => !x.ok).length };
-        } catch (e) {
-          console.error("allocation tick: mitti sync failed", (e as Error).message);
-          (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
         }
         try {
           // T6 Outbox executor worker entry point (leased claiming, same executor as the external-actions cron hook).
