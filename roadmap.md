@@ -1,10 +1,11 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 14:04 simulated Bravo invitation and remaining QA
-- [ ] Invite only TEST Bravo through the existing portal Mitti access path; prove check M refuses real Mitti.
-- [ ] Rerun browser journey at 390px; report all unreached steps, TEST emails, archive own job and restore TEST trades.
-- [ ] Investigate 13 identity-reuse failures before Phase 3; fix only demonstrated bugs with regression tests.
-- [ ] Run eight Phase 3 paths on separate TEST jobs with stop/reason/office-once/recovery evidence; fix demonstrated bugs.
-- [ ] If possible triage automatic enquiry email and journey A1/A2 failures; record unresolved groups honestly.
+- [x] TEST Bravo linked with existing verifyMittiMember/setMittiInvited office helpers; sim_ identity read back, check M zero real Mitti calls. No create-user API/email; persistent simulator already models TEST membership.
+- [x] Two browser runs at 390px; final HV-3438:12 pass/0 fail/8 blocked/1 runner error. Actual prestart ticks and Start reach form handoff. Both HV-3437/HV-3438 archived; Bravo/Delta offer flags false restored.
+- [x] Identity suite 13 failures investigated: 11 stale harness-load failures plus absent-field expectation and contradictory-field bypass. Fixed active job-field conflicts, ambiguous search IDs, worker/profile/history binding, conditional writes and fail-closed membership reads; 70 identity/invite/guard checks pass separately.
+- [ ] Complete main simulated Mitti form-answer/Complete interaction and later browser actions; BLOCKED by runner implementation, not credentials or a portal finding.
+- [ ] Eight Phase 3 phone paths NOT_RUN: no separate adverse fixtures/browser steps assembled. 95 relevant isolated rule checks pass; no stop/reason/office-once/recovery phone claim.
+- [x] Triaged email21 and A1/A2 36: stale route decisions392/416/417/419 and mismatched simulator fixture. A2 authenticated fixture corrected (10→8 failures); remaining fixture conversion not done. Isolated suite7259 pass/226 fail/36 skip after final two-file reruns; single-process suite polluted (6084/914/91 errors), not comparable.
 ## Jo 27 Oct 10:46 TEST Bravo and browser rerun
 - [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
 - [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
