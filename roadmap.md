@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:26 stale tests
+- [x] Correct only the three stale test expectations: current MJML templates/folders, retired A3 question and Owner name in the updated-form test; 37 tests pass in three isolated files. No product changes, sends, switches or publication.
 ## Jo 27 Oct 07:23 decision 316
 - [x] Align guides, record Jo’s reconfirmation and correct piesa-fixes check 2.7 to use the official PIESA date; portal deadline code unchanged.
 ## Jo 27 Oct 07:09 HV-3385 review fixes
