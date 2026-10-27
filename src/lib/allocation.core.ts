@@ -50,6 +50,8 @@ export type RecCandidate = {
   is_active: boolean; onboarding_status: string; accepting_new_jobs: boolean | null; receives_hivic_leads: boolean | null;
   coverage_verified: boolean; covers_postcode: boolean; exact_postcode: boolean;
   has_valid_licence: boolean; approved_workers: number;
+  /** Plain reason when has_valid_licence is false (e.g. which document expired). */
+  licence_blocker?: string | null;
   weekly_capacity: number | null; open_jobs: number; recent_offers_30d: number;
   acceptance_rate: number | null; // 0..1 over recent offers, null = no history
   preferred?: boolean;
@@ -73,7 +75,7 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (c.accepting_new_jobs === false) return "Partner is not accepting new jobs.";
   if (c.receives_hivic_leads === false) return "Partner does not receive Home Insulation Victoria jobs.";
   if (!c.coverage_verified || !c.covers_postcode) return "Partner does not have verified coverage for this area.";
-  if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
+  if (!c.has_valid_licence) return c.licence_blocker || "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
   return null;
