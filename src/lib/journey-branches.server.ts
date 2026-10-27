@@ -453,15 +453,14 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: stage === "installation_scheduling" && told === 1 && !!want && got === want, detail: `stage=${stage}; installer clearance notices=${told}; Section C ${sc}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
-    await rec.run("2.8", "electrician pay due 7 days after the later of the complete form and the owner's payment", async () => {
+    await rec.run("2.8", "electrician pay due 7 days after the complete, approved Mitti form (not the owner's payment)", async () => {
       const { payoutGateFacts } = await import("./trade-payout-gate.server");
-      const ep = await import("./electrician-pay.server");
-      const [facts, paid] = await Promise.all([payoutGateFacts([ctx.jobId!]), ep.ownerElectricalStepsPaidAt([ctx.jobId!])]);
-      const t = ep.electricianPayTiming("rectification" as never, facts.get(ctx.jobId!), paid.get(ctx.jobId!));
-      const later = [t.formCompleteAt, t.ownerPaidAt].filter(Boolean).sort().at(-1) ?? null;
-      const want = later ? new Date(Date.parse(later) + 7 * 86_400_000).toISOString().slice(0, 10) : null;
+      const ep = await import("./electrician-pay.core");
+      const facts = await payoutGateFacts([ctx.jobId!]);
+      const t = ep.electricianPayTiming("rectification" as never, facts.get(ctx.jobId!));
+      const want = t.formCompleteAt ? new Date(Date.parse(t.formCompleteAt) + 7 * 86_400_000).toISOString().slice(0, 10) : null;
       const got = t.dueAt ? String(t.dueAt).slice(0, 10) : null;
-      return { ok: !!t.formCompleteAt && !!t.ownerPaidAt && got === want, detail: `form complete ${t.formCompleteAt ?? "none"}; owner paid ${t.ownerPaidAt ?? "none"}; due ${got ?? "none"}; expected ${want ?? "-"}${t.waiting.length ? `; waiting: ${t.waiting.join("; ")}` : ""}` };
+      return { ok: !!t.formCompleteAt && got === want, detail: `form complete ${t.formCompleteAt ?? "none"}; due ${got ?? "none"}; expected ${want ?? "-"}` };
     }, ["2.6"]);
   } finally {
     await cleanupJourney(ctx).catch(() => undefined);

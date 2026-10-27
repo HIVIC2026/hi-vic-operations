@@ -13,7 +13,7 @@ Starting catalogue for step 2 of the audit. **Covered by** names the tool that p
 | J5 | Owner accepts and pays the safety check | Quote version approved and paid before any PIESA request | journey `s5_owner_accept`; payment-gate tests |
 | J6 | PIESA booked, done, owner confirms | Electrician offered 3 times; installer told; A3 Mitti form made; owner confirms by link | journey `s6_electrician` |
 | J7 | Install booked inside 30 days, done, final Mitti | Installer offers days in the window; 10% to book; final evidence on the right job | journey `s7_install` |
-| J8 | Final check and payouts | One Final check screen, Approve only when all pass, by a person; trade paid 7 days after the later of complete form and owner payment | journey `s8_ap_payout`; installer B6 |
+| J8 | Final check and payouts | One Final check screen, Approve only when all pass, by a person; installers paid 7 days after AP approval (own customers: and the owner's payment in full); electricians within 7 days of a complete, approved Mitti form, never waiting for the owner | journey `s8_ap_payout`; installer B6 |
 
 ## Difficult cases
 

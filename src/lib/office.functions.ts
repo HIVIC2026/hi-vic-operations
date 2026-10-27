@@ -107,11 +107,9 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
     // Decision 318: no payment until the matching Mitti form is Complete and its evidence checks pass (fails closed).
     const { payoutBlockersFor } = await import("./trade-payout-gate.server");
     const held = await payoutBlockersFor(data.jobId, data.kind ?? "installation");
-    // Decision 355: an electrician payout also waits for the owner to have paid that step (safety check / fixes).
-    if (data.kind === "assessment" || data.kind === "rectification") {
-      const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
-      held.push(...electricianPayTiming(data.kind, undefined, (await ownerElectricalStepsPaidAt([data.jobId])).get(data.jobId)).waiting);
-    } else {
+    // Decision 355 (Jo 27 Oct 2026): an electrician payout needs only the complete, approved Mitti form above — it never
+    // waits for the owner to pay.
+    if (data.kind !== "assessment" && data.kind !== "rectification") {
       // Review R09 / audit F19: installer pay — the SAME rule the Payouts tab shows (AP approval; for installer-supplied
       // A1 jobs also the owner's payment in full), enforced here so a direct call can't mark a held payout paid.
       const { installerPayHeldReasonsFor } = await import("./installer-pay-timing.server");
