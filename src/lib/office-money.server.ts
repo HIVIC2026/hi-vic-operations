@@ -112,12 +112,12 @@ export async function moneyMargins(now = new Date()) {
 }
 
 /** Payouts (decisions 30/109/355): what we owe each installer (once the job is through Final check) and each electrician
- *  (7 days after their form is complete and the owner paid that step). Mark paid = existing markPayoutPaid. */
+ *  (within 7 days of the office approving their completed Mitti form; never waits for the owner). Mark paid = existing markPayoutPaid. */
 export async function moneyPayouts() {
   const { data: js, error } = await db.from("jobs").select("id").in("stage", ["ready_for_veec", "complete"]).neq("source", "qa_test").is("deleted_at", null).limit(2000);
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
-  // Decision 355: electrician pay falls due long before Final check (7 days after the form is complete AND the owner paid
-  // that step), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
+  // Decision 355: electrician pay falls due long before Final check (within 7 days of the office approving the completed form
+  // — it never waits for the owner), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
   const { data: eb, error: ebe } = await db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed").limit(4000);
   if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
   const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
@@ -175,15 +175,14 @@ export async function moneyPayouts() {
     }
   }
   // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.
-  // Decision 355: an electrician payout is due 7 days after its form is complete AND the owner paid that step.
+  // Decision 410: an electrician payout is due 7 days after the office approves its completed form.
   const elecJobs = [...new Set(lines.filter((l) => l.kind !== "installation").map((l) => l.jobId))];
   const unpaidJobs = [...new Set(lines.filter((l) => !l.paidAt).map((l) => l.jobId))];
   const facts = await payoutGateFacts([...new Set([...unpaidJobs, ...elecJobs])]);
-  const { ownerElectricalStepsPaidAt, electricianPayTiming } = await import("./electrician-pay.server");
-  const ownerPaid = await ownerElectricalStepsPaidAt(elecJobs);
+  const { electricianPayTiming } = await import("./electrician-pay.core");
   for (const l of lines) {
-    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId), ownerPaid.get(l.jobId));
-    if (t) l.dueAt = t.dueAt;
+    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId));
+    if (t) { l.dueAt = t.dueAt; if (t.approvable) l.approvable = true; }
     if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
   }
   const g = groupPayouts(lines);

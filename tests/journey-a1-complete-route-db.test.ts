@@ -756,5 +756,12 @@ describe("A1 step 13 — completion documents, the final balance and the trades'
     const eRows = (elecMoney as { rows?: { kind: string; amount: number | null; state: { kind: string } }[] }).rows ?? [];
     expect(eRows.map((r) => r.kind).sort()).toEqual(["assessment", "rectification"]);
     for (const r of eRows) expect(r.amount, r.kind).toBeGreaterThan(0);
+    // Decision 410 (Jo 27 Oct 2026): complete forms wait for the office's Approve, never for the owner's payment.
+    for (const r of eRows) expect(r.state.kind, r.kind).toBe("checking");
+    const fa = await import("../src/lib/electrician-form-approval.server");
+    for (const k of ["assessment", "rectification"] as const) expect((await fa.recordElectricianFormApproval(JOB, k, null)).already).toBe(false);
+    expect((await fa.recordElectricianFormApproval(JOB, "assessment", null)).already).toBe(true);
+    const after = ((await tv.tradeMoney(ELEC)) as { rows?: { kind: string; state: { kind: string } }[] }).rows ?? [];
+    expect(after.map((r) => [r.kind, r.state.kind]).sort()).toEqual([["assessment", "coming"], ["rectification", "coming"]]);
   });
 });

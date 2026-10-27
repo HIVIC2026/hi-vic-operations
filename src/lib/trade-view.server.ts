@@ -397,7 +397,7 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 }
 
 /** Money rows: own pay only. Paid = office marked paid; Coming = installers 7 days after AP approval (decisions 30/109/344),
- *  electricians 7 days after the form is complete AND the owner paid that step (decision 355); else Being checked. */
+ *  electricians within 7 days of the office approving the completed Mitti form (decision 410; never waits for the owner); else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
@@ -461,9 +461,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { payoutGateFacts } = await import("./trade-payout-gate.server");
   const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
   const gate = await payoutGateFacts(ids);
-  // Decision 355: electricians — 7 days after the form is 100% complete AND the owner paid that step (later of the two).
-  const ep = kind === "electrician" || rows.some((r) => r.kind === "assessment") ? await import("./electrician-pay.server") : null;
-  const ownerPaid = ep ? await ep.ownerElectricalStepsPaidAt(ids) : null;
+  // Decision 410 (Jo 27 Oct 2026): electricians — within 7 days of the office approving the completed Mitti form.
+  const ep = kind === "electrician" || rows.some((r) => r.kind === "assessment") ? await import("./electrician-pay.core") : null;
   const { ownerPaidInFullAt } = await import("./trade-view.core");
   const paidInFull = (jobId: string) => ownerPaidInFullAt((invs ?? []).filter((x) => x.job_id === jobId));
   return rows.map((b) => {
@@ -475,9 +474,9 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const amount = payee ? payee.piesaIncGst : Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf = gate.get(b.job_id);
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
-    const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf, ownerPaid?.get(b.job_id)) : null;
+    const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf) : null;
     const timed: PayState = et
-      ? electricianPayState({ paidAt: pe?.created_at ?? null, formCompleteAt: et.formCompleteAt, ownerPaidAt: et.ownerPaidAt })
+      ? electricianPayState({ paidAt: pe?.created_at ?? null, approvedAt: et.approvedAt })
       : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).

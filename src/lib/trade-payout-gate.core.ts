@@ -18,7 +18,9 @@ export type PayoutKind = "assessment" | "rectification" | "installation";
 export type PiesaFormFacts = { mittiForm: boolean; completed: boolean; evidence: string[]; completedAt?: string | null };
 export type FixesFormFacts = { sameVisitOnPiesa: boolean; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null; completedAt?: string | null };
 export type InstallFormFacts = { formCompleted: boolean; evidence: string[] };
-export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null };
+/** Decision 410 (Jo 27 Oct 2026): when someone in the office pressed Approve on the electrician's form (A3 / A4). */
+export type ElectricianFormApprovals = { assessment: string | null; rectification: string | null };
+export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null; electricianApprovedAt?: ElectricianFormApprovals };
 
 export const PAYOUT_FORM_NOT_COMPLETE: Record<PayoutKind, string> = {
   assessment: "Mitti safety check form (A3) not marked Complete",

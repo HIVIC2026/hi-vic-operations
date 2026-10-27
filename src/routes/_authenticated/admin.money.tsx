@@ -13,7 +13,7 @@ import { OfficeTabs, OfficeTable, Loading, LoadError, TabCaption, dollars, fmtDa
 import { LogCallDialog } from "@/components/portal/office-actions";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { useAction } from "@/hooks/use-me";
-import { markPayoutPaid } from "@/lib/office.functions";
+import { approveElectricianForm, markPayoutPaid } from "@/lib/office.functions";
 import { getMoneyInvoices, getMoneyMargins, getMoneyPayouts, getMoneyVeecs, saveVeecSpotPrice } from "@/lib/office-money.functions";
 import { getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
 import { INSTALL_DEPOSIT_RATE } from "@/lib/payments.core";
@@ -106,6 +106,7 @@ function Overview({ payouts, invoices, veecs }: { payouts: Q<PayoutsData>; invoi
 
 function Payouts({ q }: { q: Q<PayoutsData> }) {
   const mark = useServerFn(markPayoutPaid);
+  const approve = useServerFn(approveElectricianForm);
   const qc = useQueryClient();
   const reason = useReasonDialog();
   const [busy, setBusy] = useState<string | null>(null);
@@ -121,10 +122,21 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't mark paid"); }
     finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
   };
+  // Decision 410: someone in the office approves the electrician's completed Mitti form; pay is due 7 days later.
+  const approveForm = async (h: PayoutsData["held"][number]) => {
+    if (h.kind === "installation") return;
+    const key = `approve:${h.jobId}:${h.kind}`;
+    setBusy(key);
+    try {
+      await approve({ data: { jobId: h.jobId, kind: h.kind } });
+      toast.success(`${h.jobNumber} form approved · ${h.business} paid within 7 days`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't approve the form"); }
+    finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
+  };
   const forText = (g: PayoutsData["due"][number]) => g.trade === "installer" ? `${g.jobs.length} install${g.jobs.length === 1 ? "" : "s"} complete · installer pay` : `${g.jobs.filter((j) => j.kind === "assessment").length} PIESAs · ${g.jobs.filter((j) => j.kind === "rectification").length} fixes at cost`;
   return (
     <section data-why="decisions 30/109 Mark paid">
-      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318: no complete form, no payment)</TabCaption>
+      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318: no complete form, no payment) · electricians: press Approve on their completed form, pay is due 7 days later (decision 410; never waits for the owner)</TabCaption>
       <OfficeTable why="decisions 30/109" isEmpty={!q.data.due.length && !q.data.held.length && !q.data.paid.length} empty="No payouts yet." head={["Business", "Jobs", "For", "Amount", "Due", ""]}>
         {q.data.due.map((g) => (
           <tr key={g.key}>
@@ -143,7 +155,9 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
             <td className="text-xs text-sub">{h.kind === "installation" ? "Install · installer pay" : h.kind === "assessment" ? "PIESA" : "Fixes at cost"}<span className="mt-1 block text-rose">{h.reasons.map((r) => <span key={r} className="block">{r}</span>)}</span></td>
             <td className="font-semibold">{h.amountEx == null ? "to confirm" : `${dollars(h.amountEx)} ex GST`}</td>
             <td>{fmtDay(h.dueAt)}</td>
-            <td><Pill tone="rose">Held</Pill></td>
+            <td>{h.approvable && h.kind !== "installation"
+              ? <Btn tone="secondary" data-approve-electrician-form disabled={busy === `approve:${h.jobId}:${h.kind}`} onClick={() => void approveForm(h)}>{busy === `approve:${h.jobId}:${h.kind}` ? "Saving…" : "Approve form"}</Btn>
+              : <Pill tone="rose">Held</Pill>}</td>
           </tr>
         ))}
         {q.data.paid.map((g) => (
