@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 const rows: { table: string; row: Record<string, unknown> }[] = [];
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { from: (table: string) => {
-  const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: table === 'jobs' ? { source: 'qa_test' } : null, error: null }), insert: async (row: Record<string, unknown>) => { rows.push({ table, row }); return { error: null }; } };
+  const q = { select: () => q, eq: () => q, limit: () => q, maybeSingle: async () => ({ data: table === 'jobs' ? { source: 'qa_test' } : null, error: null }), insert: async (row: Record<string, unknown>) => { rows.push({ table, row }); return { error: null }; } };
   return q;
 } } }));
 let providerCalls = 0;
