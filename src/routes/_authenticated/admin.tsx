@@ -6,13 +6,13 @@ import { qaOfficeRouteAllowed, TEST_OFFICE_UNAVAILABLE } from "@/lib/qa-office-p
 export const Route = createFileRoute("/_authenticated/admin")({
   beforeLoad: async ({ context, location }) => {
     const access = await loadAccess(userIdOf(context));
-    if (access.admin) return;
+    if (access.admin) return { qaOffice: false };
     if (access.qaOffice) {
       if (!qaOfficeRouteAllowed(location.pathname, location.searchStr)) throw new Error(TEST_OFFICE_UNAVAILABLE);
-      return;
+      return { qaOffice: true };
     }
     throw redirect({ to: "/home" });
   },
-  errorComponent: ({ error }) => <p role="alert">{error.message}</p>,
+  errorComponent: ({ error }) => <p role="alert">{error instanceof Error ? error.message : TEST_OFFICE_UNAVAILABLE}</p>,
   component: () => <Outlet />,
 });

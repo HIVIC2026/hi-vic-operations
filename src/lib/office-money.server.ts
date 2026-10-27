@@ -27,12 +27,12 @@ async function inJobs<T>(table: string, cols: string, jobIds: string[], extra?: 
 }
 
 type JobRow = { id: string; job_number: string; stage: string | null; source: string | null; channel: string | null; electrician_choice: string | null; originating_installer_business_id: string | null; installation_completed_at: string | null; deleted_at: string | null; owners: { full_name: string | null } | null };
-async function liveJobs(ids: string[]): Promise<Map<string, JobRow>> {
+async function liveJobs(ids: string[], testJobIds?: string[]): Promise<Map<string, JobRow>> {
   const out = new Map<string, JobRow>();
   for (const part of chunks(ids)) {
     const { data, error } = await db.from("jobs").select("id, job_number, stage, source, channel, electrician_choice, originating_installer_business_id, installation_completed_at, deleted_at, owners(full_name)").in("id", part);
     if (error) throw new Error(`Could not read jobs: ${error.message}`);
-    for (const j of (data ?? []) as JobRow[]) if (j.source !== "qa_test" && !j.deleted_at) out.set(j.id, j);
+    for (const j of (data ?? []) as JobRow[]) if (!j.deleted_at && (testJobIds ? j.source === "qa_test" && testJobIds.includes(j.id) : j.source !== "qa_test")) out.set(j.id, j);
   }
   return out;
 }
@@ -113,16 +113,21 @@ export async function moneyMargins(now = new Date()) {
 
 /** Payouts (decisions 30/109/355): what we owe each installer (once the job is through Final check) and each electrician
  *  (within 7 days of the office approving their completed Mitti form; never waits for the owner). Mark paid = existing markPayoutPaid. */
-export async function moneyPayouts() {
-  const { data: js, error } = await db.from("jobs").select("id").in("stage", ["ready_for_veec", "complete"]).neq("source", "qa_test").is("deleted_at", null).limit(2000);
+export async function moneyPayouts(testJobIds?: string[]) {
+  const scope = testJobIds?.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"];
+  let jobsQuery = db.from("jobs").select("id").in("stage", ["ready_for_veec", "complete"]).is("deleted_at", null);
+  jobsQuery = testJobIds ? jobsQuery.eq("source", "qa_test").in("id", scope) : jobsQuery.neq("source", "qa_test");
+  const { data: js, error } = await jobsQuery.limit(2000);
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
   // Decision 355: electrician pay falls due long before Final check (within 7 days of the office approving the completed form
   // — it never waits for the owner), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
-  const { data: eb, error: ebe } = await db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed").limit(4000);
+  let visitsQuery = db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed");
+  if (testJobIds) visitsQuery = visitsQuery.in("job_id", scope);
+  const { data: eb, error: ebe } = await visitsQuery.limit(4000);
   if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
   const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
   const elecVisits = (eb ?? []) as { job_id: string; kind: string }[];
-  const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])]);
+  const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])], testJobIds);
   const ids = [...jobs.keys()];
   const [asg, quotes, paidEv, apEv, invs] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string; businesses: { name: string; trading_name: string | null } | null }>("job_assignments", "job_id, business_id, role, businesses(name, trading_name)", ids, (q) => q.eq("active", true)),

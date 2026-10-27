@@ -55,10 +55,10 @@ async function lastHeardMap(ids: string[]) {
 }
 
 /** Approved installers' coverage (same partner facts as Partners › Coverage) → is this postcode covered? */
-async function coveredFn() {
+async function coveredFn(testOnly = false) {
   const [{ data: businesses, error: be }, { data: credentials, error: ce }] = await Promise.all([
-    admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas"),
-    admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
+    (() => { const q = admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas"); return testOnly ? q.ilike("email", "%@hivic-test.example").like("onboarding_notes", "%[TEST PARTNER]%") : q; })(),
+    testOnly ? Promise.resolve({ data: [], error: null }) : admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
   ]);
   if (be || ce) throw new Error(`Coverage could not be loaded: ${(be ?? ce)!.message}`);
   const { tradeCoverage } = await import("./coverage.core");
@@ -106,7 +106,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
     byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
-    coveredFn(),
+    coveredFn(!!testJobIds),
     estimateMap(ids),
   ]);
   const { declaredExtras } = await import("./enquiry.core");

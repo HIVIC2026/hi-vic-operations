@@ -12,7 +12,7 @@ import { Btn, PageHeader, Pill, StatTile, fieldInput } from "@/components/portal
 import { OfficeTabs, OfficeTable, Loading, LoadError, TabCaption, dollars, fmtDay, type OfficeTabDef } from "@/components/portal/office-tabs";
 import { LogCallDialog } from "@/components/portal/office-actions";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { approveElectricianForm, markPayoutPaid } from "@/lib/office.functions";
 import { getMoneyInvoices, getMoneyMargins, getMoneyPayouts, getMoneyVeecs, saveVeecSpotPrice } from "@/lib/office-money.functions";
 import { getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
@@ -29,14 +29,16 @@ export const Route = createFileRoute("/_authenticated/admin/money")({
 });
 
 function Money() {
+  const { data: me } = useMe();
+  const testOffice = me?.roles.includes("qa_office") ?? false;
   const { tab = "overview" } = Route.useSearch();
   const navigate = Route.useNavigate();
   const loadPay = useServerFn(getMoneyPayouts);
   const loadInv = useServerFn(getMoneyInvoices);
   const loadVeec = useServerFn(getMoneyVeecs);
   const payouts = useQuery({ queryKey: ["money-payouts"], queryFn: () => loadPay(), staleTime: 30_000 });
-  const invoices = useQuery({ queryKey: ["money-invoices"], queryFn: () => loadInv(), staleTime: 30_000 });
-  const veecs = useQuery({ queryKey: ["money-veecs"], queryFn: () => loadVeec(), staleTime: 30_000 });
+  const invoices = useQuery({ queryKey: ["money-invoices"], queryFn: () => loadInv(), staleTime: 30_000, enabled: !!me && !testOffice });
+  const veecs = useQuery({ queryKey: ["money-veecs"], queryFn: () => loadVeec(), staleTime: 30_000, enabled: !!me && !testOffice });
   const tabs: OfficeTabDef<Tab>[] = [
     { key: "overview", label: "Overview", count: new Date().toLocaleDateString("en-AU", { month: "short", timeZone: "Australia/Melbourne" }), why: "audit §6 Overview; decision 230 margin per job" },
     { key: "payouts", label: "Payouts", count: payouts.data?.due.length ?? null, why: "decisions 30/109 Mark paid" },
@@ -47,7 +49,7 @@ function Money() {
   return (
     <AppShell wide>
       <PageHeader title="Money" sub="What we earn and owe." />
-      <OfficeTabs label="Money" tabs={tabs} value={tab} onChange={(t) => void navigate({ search: t === "overview" ? {} : { tab: t } })} />
+      <OfficeTabs label="Money" tabs={testOffice ? tabs.filter(t => t.key === "payouts") : tabs} value={tab} onChange={(t) => void navigate({ search: t === "overview" ? {} : { tab: t } })} />
       {tab === "overview" && <Overview payouts={payouts} invoices={invoices} veecs={veecs} />}
       {tab === "payouts" && <Payouts q={payouts} />}
       {tab === "invoices" && <Invoices q={invoices} />}
