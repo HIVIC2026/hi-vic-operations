@@ -217,3 +217,56 @@ describe("held draft hold reason", () => {
     expect(heldDraftHoldReason(["A", "B"])).toBe("A · B · Waiting for office review before sending");
   });
 });
+
+// Review fix (27 Oct 2026): test gaps on the held path.
+describe("held path gaps", () => {
+  test("the dedupe run refreshes the hold reason on the identical draft", async () => {
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_dedupe");
+    const [d] = (await quotes()).filter((q) => q.status === "draft");
+    const expected = d!.release_hold_reason;
+    await db.query("update quotes set release_hold_reason='stale reason' where id=$1", [d!.id]);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_dedupe");
+    const drafts = (await quotes()).filter((q) => q.status === "draft");
+    expect(drafts.map((q) => q.id)).toEqual([d!.id]);
+    expect(drafts[0]!.release_hold_reason).toBe(expected);
+    expect(drafts[0]!.release_hold_reason).toContain("confirm insulation product");
+    expect(await events("installer_quote_drafted")).toHaveLength(1);
+  });
+  test("the not-known run writes installer_quote_held with the not-onboarded details", async () => {
+    await notOnboardedElectrician();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    const { rows } = await db.query<{ summary: string; details: { audit_id: string; blockers: string[]; electrician_not_onboarded?: { name: string; licence: string } } }>("select summary, details from workflow_events where job_id=$1 and event_type='installer_quote_held'", [JOB]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.summary).toContain("Electrician not onboarded");
+    expect(rows[0]!.details.audit_id).toBe("audit_3129");
+    expect(rows[0]!.details.blockers.some((b) => b.startsWith("Electrician not onboarded"))).toBe(true);
+    expect(rows[0]!.details.electrician_not_onboarded).toMatchObject({ name: "TEST Sparky", licence: "TEST-LIC-3129" });
+  });
+  for (const [label, choice] of [["undecided payer", null], ["own electrician with no price", "installer_own"]] as const) {
+    test(`${label} → old draft withdrawn, no new draft`, async () => {
+      await db.query("update jobs set electrician_choice=$2 where id=$1", [JOB, choice]);
+      const old = await oldDraft();
+      const draft = await draftInstallerQuoteFromReadyCheck(JOB, U, [], `intake:${JOB}`, { totalIncGst: 2500, includes: "Ceiling insulation - supply & install", areaM2: 120 });
+      expect(draft?.ready).toBe(false);
+      const all = await quotes();
+      expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+      expect(all.filter((q) => q.status === "draft")).toEqual([]);
+      expect(await events("installer_quote_drafted")).toHaveLength(0);
+    });
+  }
+  test("accepted quote with reconfirmation open stays untouched in the not-known branch", async () => {
+    await notOnboardedElectrician();
+    const accepted = await oldDraft("accepted", "2026-10-23T01:00:00Z");
+    await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_quote_reconfirmation_required','{}')", [JOB]);
+    await setCardPrice(2500);
+    const draft = await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_reconfirm");
+    expect(draft?.ready).toBe(false);
+    const all = await quotes();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id: accepted, status: "accepted", release_hold_reason: "Waiting for office review before sending" });
+    expect(await installerLine(accepted)).toBe(4201.25);
+    expect(await events("installer_quote_drafted")).toHaveLength(0);
+  });
+});
