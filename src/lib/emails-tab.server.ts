@@ -48,7 +48,7 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const [drafts, inbound, owners, replied] = await Promise.all([
     many<{ id: string; job_id: string | null; event_type: string; details: Det }>(ids, (part) => loose.from("workflow_events").select("id, job_id, event_type, details").in("event_type", [AI_EMAIL_DRAFT_EVENT, NO_JOB_DRAFT_EVENT]).in("details->>message_id", part).order("created_at", { ascending: false })),
     many<{ provider_message_id: string | null; body: string | null }>(ids, (part) => admin.from("job_communications").select("provider_message_id, body").eq("channel", "email").eq("direction", "inbound").in("provider_message_id", part)),
-    many<{ id: string; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, owners(full_name)").in("id", part)),
+    many<{ id: string; stage: string; deleted_at: string | null; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, stage, deleted_at, owners(full_name)").in("id", part)),
     many<{ details: { from?: string; mode?: string } | null }>(senders, (part) => loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).in("details->>from", part)),
   ]);
   // Review fix 6: resolutions are looked up for exactly these drafts, not the newest N across all jobs.
@@ -72,7 +72,8 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const ownerNameByJob = new Map<string, string | null>();
   for (const r of owners) ownerNameByJob.set(r.id, r.owners?.full_name ?? null);
   const autoRepliedSenders = new Set(replied.filter((r) => r.details?.mode !== "test").map((r) => (r.details?.from ?? "").toLowerCase()));
-  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders });
+  const openJobIds = new Set(owners.filter((r) => !r.deleted_at && r.stage !== "cancelled" && r.stage !== "complete").map((r) => r.id));
+  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, openJobIds });
 }
 
 async function eventOf(id: string, type: string) {

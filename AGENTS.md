@@ -35,3 +35,4 @@
 
 - Detailed application/domain rules live in `src/AGENTS.md`; read it before changing source or scripts that exercise these flows, then read narrower directory guidance. Why: keep cross-project guidance small without losing operational safeguards.
 - RLS policies call per-user helpers as sub-selects (`(SELECT is_admin())`, `(SELECT auth.uid())`, `(SELECT has_role((SELECT auth.uid()), ...))`); new policies follow the same form (applied 26 Oct 2026, `docs/pending-migrations/rls-initplan-speed.sql`). Why: evaluated once per query instead of once per row, same rows.
+- Clear owner decline emails auto-close only unbooked, unpaid enquiry jobs through `cancelJobFully` (`email-decline-close.server.ts`, gate `declineAutoClose`), with no reply; anything else keeps the Apply card. Why: booked/paid cancels release trades and need the office.

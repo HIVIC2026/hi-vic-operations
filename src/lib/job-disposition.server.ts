@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import type { Stage } from "./workflow";
 
-export async function applyHoldOrCancel(jobId: string, action: "hold" | "cancel", reason: string, actorId: string, details: Record<string, unknown> = {}) {
+export async function applyHoldOrCancel(jobId: string, action: "hold" | "cancel", reason: string, actorId: string | null, details: Record<string, unknown> = {}) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
   const { data: job } = await admin.from("jobs").select("stage, prior_stage").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Not found");

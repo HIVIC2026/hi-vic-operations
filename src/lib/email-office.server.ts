@@ -81,7 +81,7 @@ async function fileAttachments(jobId: string, messageId: string, actorId: string
 }
 
 /** Apply a suggested change (decision 245) through the existing guarded paths only. */
-export async function applyEmailChange(eventId: string, actorId: string) {
+export async function applyEmailChange(eventId: string, actorId: string, opts: { close?: boolean | undefined } = {}) {
   const ev = await eventById(eventId);
   if (!ev || ev.event_type !== EMAIL_CHANGE_REQUEST_EVENT || !ev.job_id) throw new WorkflowError("That change request was not found.");
   if (await resolutionOf([EMAIL_CHANGE_APPLIED_EVENT, EMAIL_CHANGE_IGNORED_EVENT], "request_event_id", ev.id)) throw new WorkflowError("That change request has already been dealt with.");
@@ -116,11 +116,30 @@ export async function applyEmailChange(eventId: string, actorId: string) {
       outcome = "files_added";
       break;
     }
-    case "reply":
+    case "reply": {
       // Decision 386: an owner email that was not answered automatically. Done = the office replied (from the Outlook
-      // draft or by hand); nothing on the job changes.
+      // draft or by hand); nothing on the job changes. Jo 27 Oct 2026: if they said they're not going ahead and the job
+      // is still open, Done is refused — the office picks "Close job" (decision 227 cancel) or "Keep open" (Ignore).
+      const { data: job } = await admin.from("jobs").select("stage, deleted_at").eq("id", jobId).maybeSingle();
+      const open = !!job && !job.deleted_at && job.stage !== "cancelled" && job.stage !== "complete";
+      let body: string | null = null;
+      if (open && d.message_id) {
+        const { data: row } = await admin.from("job_communications").select("body").eq("job_id", jobId).eq("provider_message_id", d.message_id).eq("direction", "inbound").limit(1).maybeSingle();
+        body = row?.body ?? null;
+      }
+      const { readsAsDecline } = await import("./emails-tab.core");
+      const decline = open && readsAsDecline(body ?? d.phrase ?? null);
+      if (opts.close) {
+        if (!open) throw new WorkflowError("The job is already closed.");
+        const { cancelJobFully } = await import("./office-actions.server");
+        await cancelJobFully(jobId, `Owner said by email they're not going ahead — ${why}`.slice(0, 480), actorId, { note: `email change request ${ev.id}` });
+        outcome = "cancelled";
+        break;
+      }
+      if (decline) throw new WorkflowError("Still open — Close job or Keep open");
       outcome = "office_replied";
       break;
+    }
     case "reschedule":
       // Never move a booking from an email: the office rearranges it on the job (Needs me row only). Apply = "dealt with".
       outcome = "office_rearranges_booking";
