@@ -77,7 +77,7 @@ export async function ownerReadyCheckWindowState(jobId: string) {
 /** Business-level facts behind the Ready Check offer rule — documents (H3 / decision 371) and Full-certified installers
  *  (decision 153, PIISA, collection notice). Shared by `installerCandidatesFor` and the Choose installer list's
  *  "Installer ✓" so the two can never disagree (HV-1509). Read-only. */
-export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ credentialsOk: (b: { id: string }) => boolean; fullCertified: (businessId: string) => number }> {
+export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ credentialsOk: (b: { id: string }) => boolean; fullCertified: (businessId: string) => number; installerGap: (businessId: string) => string | null; credentialsGap: (b: { id: string }) => string | null }> {
   const ids = bizs.map((b) => b.id);
   const inIds = ids.length ? ids : NONE;
   const [{ data: creds }, { data: workers }] = await Promise.all([
@@ -91,9 +91,10 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   const { workerOfferBlocker } = await import("./worker-compliance.core");
   const noticeAck = await (await import("./esc-collection-notice.server")).noticeAckMap((workers ?? []) as never);
   const wk = (workers ?? []).filter((x) => !workerOfferBlocker({ ...x, collection_notice_acknowledged: noticeAck.get(x.id) ?? null } as never, melbourneYmd(new Date())));
-  const emails = wk.map((x) => x.email.trim().toLowerCase());
-  const { data: certs } = wk.length
-    ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(`worker_id.in.(${wk.map((x) => x.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false })
+  const all = workers ?? [];
+  const emails = all.map((x) => x.email.trim().toLowerCase());
+  const { data: certs } = all.length
+    ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(`worker_id.in.(${all.map((x) => x.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false })
     : { data: [] as { id: string; worker_id: string | null; worker_email: string; status: string; recorded_at: string }[] };
   const certIds = (certs ?? []).map((c) => c.id);
   const { data: levels } = certIds.length
@@ -106,6 +107,14 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
     const l = (levels ?? []).find((r) => r.certification_id === c.id);
     return fullCurrentCert({ status: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null }, today);
   };
+  const certOf = (x: { id: string; email: string }) => {
+    const c = (certs ?? []).find((r) => r.worker_id === x.id || r.worker_email.trim().toLowerCase() === x.email.trim().toLowerCase());
+    if (!c) return null;
+    const l = (levels ?? []).find((r) => r.certification_id === c.id);
+    return { status: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null };
+  };
+  const { installerGapReason } = await import("./readycheck-booking.core");
+  const { piisaState } = await import("./worker-compliance.core");
   const credsOf = (id: string) => (creds ?? []).filter((x) => x.business_id === id);
   const docs = (id: string) => credsOf(id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   return {
@@ -113,6 +122,14 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
       && !publicLiabilityBlocker(latestExpiry(docs(b.id), "public_liability_insurance"), today)
       && !expiredBusinessDocsBlocker(docs(b.id), today, ["public_liability_insurance", "installer_certification"]),
     fullCertified: (businessId) => wk.filter((x) => x.business_id === businessId && fullWorker(x)).length,
+    installerGap: (businessId) => installerGapReason(all.filter((x) => x.business_id === businessId).map((x) => ({
+      noticeAcknowledged: noticeAck.get(x.id) ?? null,
+      piisaBlocked: !!x.piisa_status && piisaState(x as never) !== "verified",
+      cert: certOf(x),
+    })), today),
+    credentialsGap: (b) => partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
+      ?? publicLiabilityBlocker(latestExpiry(docs(b.id), "public_liability_insurance"), today)
+      ?? expiredBusinessDocsBlocker(docs(b.id), today, ["public_liability_insurance", "installer_certification"]) ?? null,
   };
 }
 
@@ -159,6 +176,7 @@ export async function installerCandidatesFor(jobId: string) {
       // Decision 371: so does a lapsed business installer certificate (latest stored date per document).
       credentialsOk: facts.credentialsOk(b),
       fullCertifiedInstallers: facts.fullCertified(b.id),
+      installerGap: facts.installerGap(b.id), credentialsGap: facts.credentialsGap(b),
       freeMeasureUps: b.free_measureups_for_hivic_quote_leads ?? null,
       weekly_capacity: null, open_jobs: 0, recent_offers_30d: mine.length,
       acceptance_rate: acceptanceWithCancellations(answered.filter((o) => o.status === "accepted").length, answered.length, rel.get(b.id)?.trade_cancellations ?? 0),

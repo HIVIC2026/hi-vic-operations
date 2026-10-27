@@ -77,16 +77,25 @@ const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
 const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
 type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
-const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
+const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("offered_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
 let offer: string | undefined;
+const noticeAcked = async () => {
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, email, trade_role").eq("email", installerEmail).is("removed_at", null);
+  if (!w?.length) return false;
+  const m = await (await import("../src/lib/esc-collection-notice.server")).noticeAckMap(w as never);
+  return w.every((x) => m.get(x.id) === true);
+};
 const STEPS: Step[] = [
   { step: "Save my spot", person: "homeowner", path: () => `/estimate/${ctx!.token}/campaign`, wait: "Save my spot", button: "Save my spot", severity: "Stop launch", next: "spot",
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
+  // Decision 130 (Jo 27 Oct): the installer accepts the ESC privacy notice themself, on their phone, through the real page.
+  { step: "Installer accepts the ESC privacy notice (My business → ESC privacy notice)", person: "installer owner", path: () => "/field", wait: "My business", button: "My business|ESC privacy notice|tick:|Save acknowledgements", severity: "Stop launch", next: "acknowledg",
+    expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
   { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
     expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
-  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
+  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
@@ -115,8 +124,12 @@ async def main():
             await page.goto("http://localhost:8080/auth", wait_until="domcontentloaded")
             await page.evaluate("([k,v]) => window.localStorage.setItem(k,v)", [cfg["key"], cfg["session"]])
         await page.goto("http://localhost:8080" + cfg["path"], wait_until="domcontentloaded")
-        try: await page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I)).first.wait_for(state="visible", timeout=25000); res["loaded"] = True
-        except Exception: res["loaded"] = False
+        # Loaded = the text is VISIBLE somewhere (a hidden desktop copy of the same words must not count as missing).
+        res["loaded"] = False
+        for _ in range(50):
+            ws = page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I))
+            if any([await x.is_visible() for x in await ws.all()]): res["loaded"] = True; break
+            await page.wait_for_timeout(500)
         await page.wait_for_timeout(800)
         s1 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-before.png"; await page.screenshot(path=str(out / s1)); res["shots"] = [s1]
         res["url"] = urlsplit(page.url).path
@@ -126,6 +139,13 @@ async def main():
         res["clicked"] = None
         async def find(name, scope):
             # Find a control the way a person would: its visible label, inside the card/row/item that shows the scope text, whatever the layout.
+            if name.startswith("tick:"):
+                # A person taps their own tick row (the checkbox is visually hidden inside its label).
+                lab = page.locator("label").filter(has=page.get_by_role("checkbox"))
+                try: await lab.first.wait_for(state="visible", timeout=20000)
+                except Exception: pass
+                ls = [x for x in await lab.all() if await x.is_visible()]
+                return (ls[0] if ls else None), "role"
             rx = re.compile(re.escape(name), re.I)
             loc = page.get_by_role("button", name=rx).or_(page.get_by_role("link", name=rx))
             try: await loc.first.wait_for(state="visible", timeout=35000)
@@ -150,7 +170,10 @@ async def main():
                 cands = [z[1] for z in scored]
             return (cands[0] if cands else None), how
         res["runner_notes"] = []
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
+        if re.search(r"Let's check it's you", text, re.I):
+            # The owner must enter a 6-digit code from their phone/email. Asking for one sends a message, so the runner stops here.
+            res["clicked"] = False; res["runner_error"] = "owner code check shown (Text me a code / Email me a code); the runner can't receive a code without sending a message, so it stopped"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error")]):
             scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
@@ -164,10 +187,10 @@ async def main():
                         values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
                         if values: await select.select_option(values[0])
             el, how = await find(name, scope)
-            label = name + (f" (in {scope})" if scope else "")
+            label = (name if name != "tick:" else "own acknowledgement tick") + (f" (in {scope})" if scope else "")
             if el is None:
                 body = await page.inner_text("body")
-                if re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
+                if name != "tick:" and re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
                 else: res["clicked"] = False; res["missing"] = label
                 break
             if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
@@ -215,6 +238,7 @@ if (!ctx?.jobId || !safe) {
   let broken = false; let n = 1;
   for (const s of STEPS) {
     const path = s.path();
+    if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
     if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
