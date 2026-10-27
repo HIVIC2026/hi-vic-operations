@@ -746,3 +746,6 @@ export async function latestJourneyRun() {
   const { data } = await admin.from("journey_runs").select("id, mode, started_at, finished_at, passed, failing_step, failing_reason").order("started_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
+
+/** Test-only access for the opt-in hard-case branches (journey-branches.server.ts). Same functions, no behaviour change. */
+export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, melbourneDate, TINY_JPEG, payStep };
