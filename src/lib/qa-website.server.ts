@@ -16,6 +16,8 @@ export async function recordQaWebsiteEnquiry(value: NormalisedInterest) {
     base44_answers: { insulation_declared: value.insulationDeclared },
   };
   const result = await upsertEnquiry(input, "qa_test", null);
-  await recordContactConsent(result.job_id, (await (await import("@/integrations/supabase/client.server")).supabaseAdmin.from("jobs").select("owner_id").eq("id", result.job_id).single()).data?.owner_id ?? "", input);
+  const { data: job, error } = await (await import("@/integrations/supabase/client.server")).supabaseAdmin.from("jobs").select("owner_id").eq("id", result.job_id).single();
+  if (error || !job?.owner_id) throw new Error("TEST enquiry owner could not be verified");
+  await recordContactConsent(result.job_id, job.owner_id, input);
   return result;
 }

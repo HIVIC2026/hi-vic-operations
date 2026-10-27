@@ -51,7 +51,10 @@ export async function simulatedJobMitti(jobId: string): Promise<MittiCall> {
     const audit = (last?.details as unknown as { snapshot?: SimAudit } | null)?.snapshot;
     if (le || !audit) throw new Error("SAFETY STOP: no saved simulated Mitti form for this qa_test job; real form untouched");
     if (method === "GET" && !suffix) return audit;
-    if ((suffix === "/share" || suffix === "/owner") && (method === "PUT" || method === "POST")) return {};
+    if ((suffix === "/share" || suffix === "/owner") && (method === "PUT" || method === "POST")) {
+      await admin.from("workflow_events").insert({ job_id: jobId, event_type: "qa_mitti_assignment", summary: "TEST simulated Mitti assignment; real Mitti untouched", details: { audit_id: id, operation: suffix, body } as never });
+      return {};
+    }
     if (method === "PUT" && !suffix) {
       const b = body as { items?: SimAudit["items"]; header_items?: SimAudit["items"]; completed?: boolean };
       for (const item of b.items ?? []) { const existing = audit.items.find(x => x.item_id === item.item_id); if (existing) Object.assign(existing, item); else audit.items.push(item); }
