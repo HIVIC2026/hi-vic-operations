@@ -8,8 +8,9 @@ mock.module("../src/lib/workflow.server", () => ({ WorkflowError: Error, logEven
 mock.module("../src/lib/qa-office-access.server", () => ({ requireOfficeIdentity: async () => role, officeTestBusinessIds: async () => [business], officeTestJobIds: async () => [testJob], requireOfficeJob: async (_sb: unknown, jobId: string) => { if (role === "qa_office" && jobId !== testJob) throw new Error("Only TEST jobs"); return role; }, requireOfficeBusiness: async (_sb: unknown, id: string) => { if (role === "qa_office" && id !== business) throw new Error("Only TEST businesses"); } }));
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => { effects++; throw new Error("domain reached"); } } }));
 mock.module("../src/lib/ap-approve.server", () => ({ approveApJobAs: async () => { effects++; return { ok: true }; } }));
+mock.module("../src/lib/final-check.server", () => ({ finalCheckScreen: async () => { effects++; return { ok: true }; } }));
 mock.module("../src/lib/electrician-form-approval.server", () => ({ recordElectricianFormApproval: async () => { effects++; return { ok: true }; } }));
-mock.module("../src/lib/spot-release.server", () => ({ releaseSpot: async () => { effects++; return { mode: "released", installer: "TEST" }; } }));
+mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStateFor: async () => { effects++; return { state: "none" }; }, releaseSpot: async () => { effects++; return { mode: "released", installer: "TEST" }; } }));
 const office = await import("../src/lib/office.functions");
 const ap = await import("../src/lib/ap-queue.functions");
 const release = await import("../src/lib/spot-release.functions");
