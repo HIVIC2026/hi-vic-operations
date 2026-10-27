@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -39,6 +39,7 @@ export type NeedsFacts = {
   jobId: string; jobNumber: string; surname: string; suburb: string | null; isTest?: boolean;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
+  bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
   /** Decision 389: Jo released the spot, the owner didn't confirm in 5 days → ONE row (release to someone else or leave). */
   releaseLapsed?: { at: string; name: string | null } | null;
   /** Spot saved, no installer chosen yet (decision 239). */
@@ -115,6 +116,11 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
+  if (f.bookingOverdue) {
+    const v = f.bookingOverdue.visit;
+    const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Fixes" : "PIESA";
+    add({ rank: 21, group: "today", kind: "booking_overdue", line: `${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
+  }
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
     const soon = due == null || due - now <= 48 * HOUR;
