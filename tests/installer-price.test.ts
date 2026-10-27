@@ -4,8 +4,9 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, READY_CHECK_MISSING, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, readyCheckPriceLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
+import type { ReadyCheckFacts } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
@@ -105,6 +106,23 @@ describe("decision 290 (corrected): the access flag on the price card = the Read
   test("old forms: the 22–24 Oct wording still reads; a legacy fee answer is never part of the flag", () => {
     expect(accessFlagFromEntries([{ label: "How easy is the ceiling access?", value: "Difficult" }, { label: "Please explain", value: "Low pitch" }, { label: "Is there a difficult access charge?", value: "Yes" }, { label: "Difficult access fee ($ inc GST)", value: "250" }]))
       .toEqual({ rating: "Difficult", issues: ["Low pitch"] });
+  });
+});
+
+describe("Jo 27 Oct 2026: the Ready Check facts above the price box — install m², removal m², access", () => {
+  const f = (o: Partial<ReadyCheckFacts>): ReadyCheckFacts => ({ measuredM2: null, removalRequired: null, removalM2: null, access: { rating: null, issues: [] }, ...o });
+  test("the current measurement's figures read as plain lines; the access row always carries the rating and the notes", () => {
+    expect(readyCheckPriceLines(f({ measuredM2: 75, removalRequired: true, removalM2: 75, access: { rating: "Difficult", issues: ["Tight manhole in the hallway", "Exposed wiring over the kitchen"] } })))
+      .toEqual({ install: "75 m²", removal: "75 m²", access: "Difficult · Tight manhole in the hallway; Exposed wiring over the kitchen" });
+    expect(readyCheckPriceLines(f({ measuredM2: 12.5, access: { rating: "Easy", issues: [] } })))
+      .toEqual({ install: "12.5 m²", removal: READY_CHECK_MISSING, access: "Easy" });
+  });
+  test("no removal needed → 'None'; a fact not on the Ready Check yet says so, never a guess", () => {
+    expect(readyCheckPriceLines(f({ measuredM2: 60, removalRequired: false, removalM2: null })).removal).toBe("None");
+    expect(readyCheckPriceLines(f({ measuredM2: 60, removalRequired: true, removalM2: 0 })).removal).toBe("None");
+    expect(readyCheckPriceLines(f({ measuredM2: 60, removalRequired: true, removalM2: null })).removal).toBe(READY_CHECK_MISSING);
+    expect(readyCheckPriceLines(f({}))).toEqual({ install: READY_CHECK_MISSING, removal: READY_CHECK_MISSING, access: READY_CHECK_MISSING });
+    expect(READY_CHECK_MISSING).toBe("Not on the Ready Check yet");
   });
 });
 
