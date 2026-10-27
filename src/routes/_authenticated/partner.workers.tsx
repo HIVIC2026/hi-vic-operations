@@ -6,7 +6,8 @@ import { ArrowLeft } from "lucide-react";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { Button } from "@/components/trade/trade-ui";
 import { WorkerForm, WorkerRemoveButton, WorkerStatus } from "@/components/portal/workers";
-import { listMyWorkers } from "@/lib/worker-links.functions";
+import { listMyWorkers, setWorkerRole } from "@/lib/worker-links.functions";
+import { workerRoleLabel } from "@/lib/worker-role.core";
 import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
 import { WorkerInvites } from "@/components/portal/worker-invites";
 import { workerListQueryKey } from "@/lib/worker-invite.core";
@@ -44,6 +45,8 @@ function Workers() {
               <div className="font-semibold">{w.full_legal_name} <span className="font-normal text-sub">· {w.trade_role === "electrician" ? `Electrician · licence ${w.licence_number}` : "Installer"}</span></div>
               <div className="text-sub">{w.mobile} · {w.email}</div>
               {w.trade_role === "installer" && (() => { const s = eecState(w as never); return s !== "not_applicable" && <div className={s === "verified" ? "text-xs font-bold text-estimate-green" : s === "awaiting_check" ? "text-xs text-sub" : "text-xs font-bold text-danger"}>{EEC_TEAM_LABEL[s]}</div>; })()}
+              {w.trade_role === "installer" && <div className={`text-xs font-bold ${w.worker_role ? "text-sub" : "text-danger"}`}>{workerRoleLabel(w.trade_role, w.worker_role)}{w.mitti_status ? ` · Mitti: ${w.mitti_status}` : ""}</div>}
+              {!sample && data.canManage && w.trade_role === "installer" && <RolePicker id={w.id} role={w.worker_role ?? null} onDone={refetch} />}
               {w.approval_status === "rejected" && w.rejection_reason && <div className="text-xs text-danger">Reason: {w.rejection_reason}</div>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -83,5 +86,23 @@ function CertLinkButton({ workerId, name }: { workerId: string; name: string }) 
       }}>{busy ? "Creating…" : "Create certificate link"}</Button>
       {err && <span role="alert" className="text-xs text-danger">{err}</span>}
     </span>
+  );
+}
+
+/** Decision 411: the business owner sets Lead installer or Crew. */
+function RolePicker({ id, role, onDone }: { id: string; role: string | null; onDone: () => void }) {
+  const save = useServerFn(setWorkerRole);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2">
+      {(["lead", "crew"] as const).map((r) => (
+        <Button key={r} size="sm" variant={role === r ? "default" : "outline"} className="h-10" disabled={busy || role === r} onClick={async () => {
+          setBusy(true); setErr("");
+          try { await save({ data: { id, role: r } }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+        }}>{r === "lead" ? "Lead installer" : "Crew"}</Button>
+      ))}
+      {err && <span role="alert" className="text-xs text-danger">{err}</span>}
+    </div>
   );
 }
