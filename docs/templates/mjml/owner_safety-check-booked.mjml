@@ -18,8 +18,8 @@
       <mj-section>
         <mj-column mj-class="panel">
           <mj-text mj-class="eyebrow" padding="18px 18px 6px">Your electrical safety check</mj-text>
-          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">Thursday 5 November</mj-text>
-          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#3C51C4" padding="0 18px 10px">8:00am</mj-text>
+          <mj-text font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 18px 2px">Thursday 5 November</mj-text>
+          <mj-text font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#3C51C4" padding="0 18px 10px">8:00am</mj-text>
           <mj-text font-size="15px" line-height="22px" padding="0 18px 18px">824 High Street Road, Glen Waverley<br />Electrician: Spark Electrical · 0400 111 222</mj-text>
         </mj-column>
       </mj-section>

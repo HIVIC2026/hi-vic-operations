@@ -40,7 +40,7 @@ export function renderInstallerPlanningEmail(i: InstallerPlanningFacts & { owner
   const clock = "The install has to start within 30 days of the safety check, so it helps to pencil in a few days now.";
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check</mj-text><mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#3C51C4" padding="0 12px 4px">${esc(day)}</mj-text><mj-text mj-class="center" font-weight="700" padding="0 12px 18px">Arriving ${esc(time)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check</mj-text><mj-text mj-class="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#3C51C4" padding="0 12px 4px">${esc(day)}</mj-text><mj-text mj-class="center" font-weight="700" padding="0 12px 18px">Arriving ${esc(time)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-amber"><mj-text padding="18px 18px 10px"><strong>${esc(waitHead)}</strong> ${esc(waitRest)}</mj-text><mj-text padding="0 18px 18px">${esc(clock)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text padding="8px 0 0"></mj-text><mj-button href="${esc(i.link)}">See the job</mj-button></mj-column></mj-section>`,
   ].join("");

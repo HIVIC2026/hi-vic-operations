@@ -16,7 +16,7 @@
       <mj-section>
         <mj-column mj-class="panel">
           <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check</mj-text>
-          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#3C51C4" padding="0 12px 4px">Thursday 5 November</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="26px" line-height="32px" font-weight="800" color="#3C51C4" padding="0 12px 4px">Thursday 5 November</mj-text>
           <mj-text mj-class="center" font-weight="700" padding="0 12px 18px">Arriving 8am</mj-text>
         </mj-column>
       </mj-section>

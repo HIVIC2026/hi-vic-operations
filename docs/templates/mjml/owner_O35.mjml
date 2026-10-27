@@ -18,7 +18,7 @@
       <mj-section>
         <mj-column mj-class="panel">
           <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your install</mj-text>
-          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 12px 2px">Wednesday 11 November</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 12px 2px">Wednesday 11 November</mj-text>
           <mj-text mj-class="center" font-weight="700" padding="0 12px 8px">Arriving 7:30am</mj-text>
           <mj-text mj-class="small center" padding="0 16px 18px">824 High Street Road, Glen Waverley<br />Installer: Sample Insulation Co · 0400 000 000</mj-text>
         </mj-column>

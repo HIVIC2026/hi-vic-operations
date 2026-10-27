@@ -18,7 +18,7 @@
       <mj-section>
         <mj-column mj-class="panel-mint">
           <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Result</mj-text>
-          <mj-text mj-class="center" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="22px" line-height="28px" font-weight="800" color="#057D40" padding="0 16px 18px">All clear — your ceiling is safe to insulate</mj-text>
+          <mj-text mj-class="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="22px" line-height="28px" font-weight="800" color="#057D40" padding="0 16px 18px">All clear — your ceiling is safe to insulate</mj-text>
         </mj-column>
       </mj-section>
 

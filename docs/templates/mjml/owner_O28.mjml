@@ -18,7 +18,7 @@
       <mj-section>
         <mj-column mj-class="panel-mint">
           <mj-text mj-class="eyebrow" padding="18px 18px 4px">Safety check result</mj-text>
-          <mj-text font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px 10px">Safe to insulate &#10003;</mj-text>
+          <mj-text font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px 10px">Safe to insulate &#10003;</mj-text>
           <mj-table padding="0 18px 8px" font-size="14px" line-height="20px">
             <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Checked on</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>Thursday 5 November 2026</strong></td></tr>
             <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Electrician</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>Spark Electrical · Lic. 12345 · REC 67890</strong></td></tr>
