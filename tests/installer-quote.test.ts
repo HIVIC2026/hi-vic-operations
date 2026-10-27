@@ -77,3 +77,19 @@ describe("installer line wording shows what was ticked", () => {
     expect(d.lines[0]!.explanation).toBe("Ceiling insulation - supply & install\nRemoval of existing insulation\nOther: Whirlybird");
   });
 });
+
+// Review fix (27 Oct 2026): older labels show the current option wording on the owner quote line; validation still uses
+// the canonical key.
+describe("old included labels show the current wording", () => {
+  for (const old of ["R5.0 Ceiling insulation - supply & install", "R5.0 supply and install", "r5.0 supply and install"]) {
+    test(`'${old}' → 'Ceiling insulation - supply & install'`, () => {
+      const price = quotedPriceFromEntries(e(old, "3000"), false);
+      expect(price.ok).toBe(true);
+      expect(price.price?.included).toEqual(["R5.0 supply and install"]);
+      expect(price.price?.shown).toEqual(["Ceiling insulation - supply & install"]);
+      const line = buildInstallerQuoteDraft({ ...base, price }).lines[0]!;
+      expect(line.description).toBe("Insulation works by your installer — includes: Ceiling insulation - supply & install");
+      expect(line.explanation).toBe("Ceiling insulation - supply & install");
+    });
+  }
+});

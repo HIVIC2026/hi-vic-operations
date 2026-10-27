@@ -382,6 +382,13 @@ export function readyCheckVariant(channel: string | null | undefined): "ready_ch
   return channel === "installer_sourced" ? "ready_check_priced" : "ready_check";
 }
 
+/** Review fix (27 Oct 2026): older aliases ("R5.0 Ceiling insulation - supply & install", a raw "R5.0 supply and install")
+ *  show as the CURRENT option label; any other item shows as the current option when one matches, else as ticked. */
+function shownIncludedLabel(canonical: string, raw: string | null | undefined): string {
+  if (canonical === "R5.0 supply and install") return INCLUDED_OPTIONS[0];
+  return INCLUDED_OPTIONS.find((o) => o.toLowerCase() === canonical.toLowerCase()) ?? (raw ?? "").trim();
+}
+
 export type QuotedPrice = {
   /** Canonical keys for the checks ("R5.0 supply and install" etc.). */
   included: string[];
@@ -415,7 +422,7 @@ export function validateQuotedPrice(input: {
     const key = (PRICE_ALIASES[v] ?? v).toLowerCase();
     const m = ([...PRICE_ITEMS, ...LEGACY_PRICE_ITEMS] as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
-    else if (!included.includes(m)) { included.push(m); shown.push((raw ?? "").trim()); }
+    else if (!included.includes(m)) { included.push(m); shown.push(shownIncludedLabel(m, raw)); }
   }
   if (!included.includes("R5.0 supply and install")) issues.push("'R5.0 supply and install' must be ticked as included.");
   const removal = included.includes("Removal of existing insulation");
