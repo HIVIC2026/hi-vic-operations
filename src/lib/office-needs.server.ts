@@ -273,6 +273,19 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const elig = await all("eligibility reviews", (a, b) => { const q = (admin as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: unknown) => { eq: (k: string, v: unknown) => { in: (c: string, v: string[]) => never; range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> } } } } }).from("eligibility_verifications").select("*").eq("is_current", true).eq("outcome", "needs_review"); return (opts.onlyIds ? (q as unknown as { in: (c: string, v: string[]) => typeof q }).in("job_id", opts.onlyIds) : q).range(a, b); });
     for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
   } catch { unavailable.push("eligibility reviews"); }
+  // Hard stop: a reversed owner payment with nothing paid since → one Money row until a new payment is recorded.
+  try {
+    const { openPaymentReversal } = await import("./office-needs.core");
+    const rev = await all("payment reversals", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "owner_payment_reversed").range(a, b));
+    const revIds = [...new Set(rev.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    if (revIds.length) {
+      const pe = await byIds("payment history", revIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["owner_payment_recorded", "owner_payment_reversed"]).range(a, b));
+      for (const id of revIds) {
+        const open = openPaymentReversal(pe.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), amount_cents: Number((e["details"] as { amount_cents?: number } | null)?.amount_cents ?? 0) })));
+        const x = f(id); if (x && open) x.paymentReversed = open;
+      }
+    }
+  } catch { unavailable.push("payment reversals"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };

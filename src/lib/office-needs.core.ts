@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -62,6 +62,8 @@ export type NeedsFacts = {
   fixesTimesMissing?: { at: string } | null;
   /** Hard stop (missing/conflicting eligibility evidence): the current verified-eligibility result is "needs review". */
   eligibilityReview?: { at: string; reason: string | null } | null;
+  /** Hard stop (payment mismatch): an owner payment was reversed (deleted/voided in Xero, or refunded) and no payment came in since. */
+  paymentReversed?: { at: string; text: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
@@ -122,6 +124,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const soon = closes - now <= 48 * HOUR;
     add({ rank: soon ? 35 : 115, group: soon ? "today" : "week", kind: "esc_window", line: `ESC notice window closes ${fmtWhen(f.escWindow.closesAt)}`, since: f.escWindow.opensAt ?? f.escWindow.closesAt, button: { label: "Open Registry block", to: "job", section: "install" } });
   }
+  if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
@@ -198,4 +201,13 @@ export type SystemRow = { key: string; tag: string; who: string; line: string; s
 export function eligibilityReviewLine(reason: string | null): string {
   const r = (reason ?? "").trim();
   return `Eligibility needs review${r ? ` · ${r.length > 120 ? `${r.slice(0, 117)}…` : r}` : " · Ready Check answers missing or conflicting"}`;
+}
+
+/** Phase 3 path 3 (27 Oct): the newest reversal still open = no owner payment recorded after it. */
+export function openPaymentReversal(events: { event_type: string; created_at: string; amount_cents?: number | null }[]): { at: string; text: string } | null {
+  const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const last = sorted.at(-1);
+  if (!last || last.event_type !== "owner_payment_reversed") return null;
+  const amt = Number(last.amount_cents ?? 0);
+  return { at: last.created_at, text: `${amt > 0 ? `$${(amt / 100).toFixed(2)} ` : ""}no longer counted · ask the owner to pay again` };
 }
