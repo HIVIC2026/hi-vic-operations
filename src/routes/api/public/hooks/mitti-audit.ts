@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { mittiNoticeAuditId, mittiNoticeTokenOk } from "@/lib/mitti-webhook.core";
+import { mittiNoticeAuditId, mittiNoticeBodyKeys, mittiNoticeTokenOk } from "@/lib/mitti-webhook.core";
 
 // Mitti "form changed" notice. Caller is verified by the secret token in the URL (?t=). The body is only used to find the
 // audit id; the portal re-reads the form itself. Once the token is good this always answers 200 at once so Mitti never retries;
@@ -12,7 +12,10 @@ export const Route = createFileRoute("/api/public/hooks/mitti-audit")({
         // Answer Mitti first; the sync runs after the response. An unreadable (aborted) body gets 200 and runs nothing.
         let auditId: string | null = null;
         try {
-          auditId = mittiNoticeAuditId(await request.text());
+          const raw = await request.text();
+          auditId = mittiNoticeAuditId(raw);
+          // Key names only, never values: tells us Mitti's real body shape from the first live notice.
+          if (!auditId) console.warn("mitti notice: no audit id", mittiNoticeBodyKeys(raw));
         } catch {
           return Response.json({ ok: true });
         }

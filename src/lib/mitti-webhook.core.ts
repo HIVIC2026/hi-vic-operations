@@ -36,3 +36,15 @@ export function mittiNoticeAuditId(raw: string): string | null {
     auditIdOf(event && typeof event === "object" ? (event as Record<string, unknown>).data : undefined)
   );
 }
+
+/** Shape of a notice with no audit id, for one log line: top-level JSON key names only (never values), "not json"
+ * when the body isn't JSON, and no keys for an array or scalar. Lets us learn Mitti's real body shape safely. */
+export function mittiNoticeBodyKeys(raw: string): string[] | "not json" {
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return "not json";
+  }
+  return body !== null && typeof body === "object" && !Array.isArray(body) ? Object.keys(body) : [];
+}

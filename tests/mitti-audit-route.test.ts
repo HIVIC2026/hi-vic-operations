@@ -45,10 +45,31 @@ describe("mitti-audit route", () => {
     expect((await call("?t=secret-token", good)).status).toBe(403);
     expect(handlerCalls).toEqual([]);
   });
-  test("good ?t, body without audit id → 200, handler not called", async () => {
-    const r = await call("?t=secret-token", JSON.stringify({ event: "audit.updated" }));
+  test("good ?t, body without audit id → 200, handler not called, warns with the key names only", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    const r = await call("?t=secret-token", JSON.stringify({ event: "audit.updated", payload: { id: "aud_secret_value" }, owner_email: "helen@example.com" }));
     expect(r.status).toBe(200);
     expect(handlerCalls).toEqual([]);
+    expect(tasks).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("mitti notice: no audit id", ["event", "payload", "owner_email"]);
+    const logged = JSON.stringify(warn.mock.calls);
+    for (const value of ["audit.updated", "aud_secret_value", "helen@example.com"]) expect(logged).not.toContain(value);
+    warn.mockRestore();
+  });
+  test("good ?t, body not JSON → 200, warns 'not json'", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    expect((await call("?t=secret-token", "audit_id=aud_123&owner=Helen")).status).toBe(200);
+    expect(warn).toHaveBeenCalledWith("mitti notice: no audit id", "not json");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("Helen");
+    expect(handlerCalls).toEqual([]);
+    warn.mockRestore();
+  });
+  test("bad token never logs the body shape", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    await call("?t=nope", JSON.stringify({ event: "audit.updated" }));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
   test("good ?t, valid body → 200 before the handler runs, then the handler is called once with the id", async () => {
     const r = await call("?t=secret-token", good);
