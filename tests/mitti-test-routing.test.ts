@@ -82,3 +82,11 @@ test("practice database: simulator table applies, rejects non-sim ids", async ()
   const rls = await db.query<{ relrowsecurity: boolean }>("SELECT relrowsecurity FROM pg_class WHERE relname='mitti_sim_audits'");
   expect(rls.rows[0]!.relrowsecurity).toBe(true);
 });
+
+test("fixes-day TEST flow: template read goes to the simulator, never the network", async () => {
+  const call = await ms.mittiCallFor(ms.realMittiCall, "jo@actpropertyinspections.com.au");
+  await call("GET", "/templates/v1/templates/template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  expect(calls.length).toBe(0);
+  const src = readFileSync("src/lib/fixes-day.server.ts", "utf8");
+  expect(src).toContain("call ?? await mittiCallFor(realMittiCall, email)");
+});
