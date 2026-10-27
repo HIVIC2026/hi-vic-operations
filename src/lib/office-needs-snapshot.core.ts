@@ -38,8 +38,9 @@ function emptyFilter(f: unknown): boolean {
     || (typeof v === "object" && !Array.isArray(v) && Object.values(v as Record<string, unknown>).every((x) => x == null)));
 }
 
-type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined };
+type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined; view?: string | undefined; wantIds?: boolean | undefined };
 /** The one view that has a saved copy: what the screen shows when it opens. */
 export function isDefaultListView(p: ListView): boolean {
-  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters);
+  // Enquiries: the opening category is "In play" (enquiry-categories.core); a list of every id is never cached.
+  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters) && (!p.view || p.view === "active") && !p.wantIds;
 }

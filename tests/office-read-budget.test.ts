@@ -53,8 +53,10 @@ describe("office read budgets (synthetic, counts only)", () => {
     const { loadEnquiriesList } = await import("@/lib/office-lists.server");
     const t = Date.now(); await loadEnquiriesList({ search: "", sort: "", dir: "asc", page: 1, filters: {} }); const s = report("enquiries", Date.now() - t);
     expect(s.writes).toEqual([]);
-    // Every read feeds the hottest-first order over all enquiries, so the live read stays at 38 requests in 2 waves.
-    expect(s.requests).toBeLessThanOrEqual(40);
+    // Every read feeds the hottest-first order and the groups over all enquiries. Jo 26 Oct 2026: the groups add owner
+    // emails and the two opt-out tables in the SAME wave (38 → 53 requests, still 2 waves; the opening view is the
+    // saved copy, one request, below).
+    expect(s.requests).toBeLessThanOrEqual(55);
     expect(s.waves).toBeLessThanOrEqual(2);
   }, 120_000);
   test("decision 383: opening Jobs › Active / Enquiries from a fresh saved copy = one request, no writes", async () => {
