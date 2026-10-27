@@ -88,7 +88,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
       const w = await sendTestWelcome({ businessId: r.business_id, name: d.primary_contact_name ?? app.signer_name ?? null, role: type === "installer" ? "installer" : "electrician", actorId: context.userId, appId: app.id });
       return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome: `TEST welcome email ${w.status === "sent" ? "sent" : `not sent (${w.detail})`} to ${w.to}` };
     }
-    // Real partners: the approval message is queued for the office, never sent here (until Jo approves wording and turns sending on).
+    // Real partners: queued, then sent once below through the guarded office sender (blocked → stays queued).
     await queueApprovalMessage(admin, r.business_id);
     // Jo 27 Oct 2026: the welcome email sends as part of approval, through the normal guarded sender, once per business.
     const welcome = await sendWelcomeOnApproval(context.supabase, context.userId, app.id, r.business_id, (application as { business_email?: string }).business_email ?? null)
