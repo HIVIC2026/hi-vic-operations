@@ -123,7 +123,7 @@ async def main():
         res["clicked"] = None
         for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
             rx = re.compile(re.escape(name), re.I); btn = page.get_by_role("button", name=rx)
-            try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=15000)
+            try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=35000)
             except Exception: pass
             btn = btn.or_(page.get_by_role("link", name=rx))
             if not await btn.count(): res["clicked"] = False; res["missing"] = name; break

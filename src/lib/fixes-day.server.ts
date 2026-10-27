@@ -92,7 +92,9 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   const email = test ? TEST_MITTI_ASSIGNEE : (need.assigneeEmail?.trim() || prof?.email?.trim() || "");
   if (!email) { await heldOnce(jobId, `booking:${bookingId}:no_email`, "The assigned electrician has no email address, so no Mitti user could be found.", { booking_id: bookingId }); return { status: "held", reason: "no electrician email" }; }
 
-  const mitti = call ?? (await import("./mitti.server")).realMittiCall;
+  // TEST flows (TEST job/partner → TEST Mitti user): the whole flow, template read included, uses the simulator.
+  const { mittiCallFor, realMittiCall } = await import("./mitti.server");
+  const mitti = call ?? await mittiCallFor(realMittiCall, email);
   const api = mittiApi(mitti);
   const claims = await import("./mitti-create.server");
   let claimId: string | null = null;

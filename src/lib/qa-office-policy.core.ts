@@ -10,6 +10,7 @@ export const QA_OFFICE_FUNCTIONS = {
   "src/lib/spot-release.functions.ts": ["getSpotRelease", "releaseSpotFn"],
   "src/lib/offer-dispatch.functions.ts": ["listChooseTrades", "sendChosenOffers"],
   "src/lib/installer-waiting.functions.ts": ["getInstallerWaitingList"],
+  "src/lib/coverage.functions.ts": ["getJobCoverage"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");
