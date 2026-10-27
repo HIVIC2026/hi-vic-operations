@@ -7,6 +7,7 @@ import { requireAdmin, WorkflowError } from "./workflow.server";
 import { requireOfficeJob, requireOfficeIdentity, officeTestJobIds } from "./qa-office-access.server";
 import { HEARD_CHIPS, INSULATION_CHIPS, REGION_CHIPS, SIZE_CHIPS, SOURCE_CHIPS } from "./office-filters.core";
 import { JOBS_STAGE_KEYS } from "./office-jobs.core";
+import { ENQUIRY_VIEWS } from "./enquiry-categories.core";
 
 const uuid = z.string().uuid();
 const range = z.object({ min: z.number().finite().min(0).optional(), max: z.number().finite().min(0).optional() }).optional();
@@ -67,7 +68,7 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
     sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("asc"), page: z.number().int().min(1).max(10_000).default(1),
     filters: columnFilters, refresh: z.boolean().default(false),
     // Jo 26 Oct 2026: the category shown (enquiry-categories.core); wantIds = every id in it (Gone quiet › Close them).
-    view: z.enum(["active", "all", "replied", "new", "waiting", "failed", "quiet"]).optional(), wantIds: z.boolean().optional(),
+    view: z.enum(ENQUIRY_VIEWS).optional(), wantIds: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     if (await requireOfficeIdentity(context.supabase) === "qa_office") {

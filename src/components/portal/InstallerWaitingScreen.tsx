@@ -142,7 +142,7 @@ export function InstallerWaitingScreen() {
       </div>
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
-        { value: "waiting_owner", label: "Waiting for owner", count: d ? waitingOwner : null },
+        { value: "waiting_owner", label: "Waiting for owner", count: waitingOwner ?? null },
       ]} />
       {areas.length > 0 && (
         <PillTabs<WaitingArea> label="Area" className="mt-2" value={area} onChange={pickArea} options={[
