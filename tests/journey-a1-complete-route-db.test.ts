@@ -16,7 +16,7 @@ const TPL_A3 = "template_a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3", TPL_A4 = "template_a
 // Jo's own allow-listed TEST inbox and mobile (test-send.core TEST_ALLOWLIST) — nothing leaves the fake providers anyway.
 // Both addresses are on the TEST send allowlist (test-send.core). The owner's is different from the trades' so the
 // owner's verified identity (owner-verify.server links by verified email) is never a trade's own login.
-const OWNER_EMAIL = "jolowexo@hotmail.com", TRADE_EMAIL = "jo@actpropertyinspections.com.au", OWNER_PHONE = "0477 511 901";
+const OWNER_EMAIL = "jolowexo@hotmail.com", TRADE_EMAIL = "ivy.installer@journey-a1.invalid", OWNER_PHONE = "0477 511 901";
 
 for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", STRIPE_PAYMENTS_ENABLED: "true" })) process.env[k] = v;
 
