@@ -96,7 +96,7 @@ function NoJobCardView({ c, onDone }: { c: NoJobCard; onDone: () => void }) {
       {c.subject && <p className="text-sm text-sub">{c.subject}</p>}
       <TheyWrote text={c.theyWrote} />
       {c.alreadyAutoReplied
-        ? <p className="text-sm text-sub">They already got the automatic reply with the website link.</p>
+        ? <p className="text-sm text-sub">They already got a reply with the website link.</p>
         : <Reply body={body} setBody={setBody} busy={busy} waiting />}
       <div className="grid grid-cols-2 gap-2 md:flex">
         {c.draft && body !== null && !c.alreadyAutoReplied && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { unmatchedEventId: c.unmatchedEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>}
