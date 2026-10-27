@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -90,7 +90,20 @@ export type NeedsFacts = {
   secondNoAccess?: { at: string; reason: string | null } | null;
   veecDay10?: { at: string } | null;
   lapsedWindow?: { deadline: string } | null;
+  /** Jo 28 Oct: the PIESA found electrical fixes and Section C is not signed yet. */
+  fixesFound?: { at: string; stage: string } | null;
+  /** Jo 28 Oct (decision 158, OFFICE CHOOSES): 30-day window lapsed and the office has not chosen who pays the repeat PIESA. */
+  repeatPiesaChoice?: { deadline: string; suggested: string | null } | null;
 };
+
+/** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
+export function fixesFoundLine(stage: string): string {
+  const what = stage === "awaiting_owner_rectification_approval" ? "waiting on owner approval of the fixes quote"
+    : stage === "rectification_scheduling" ? "waiting on the fixes booking"
+    : stage === "rectification_booked" ? "waiting on the fixes and Section C sign-off"
+    : "waiting on fixes quote/approval";
+  return `Safety check found electrical fixes — ${what}`;
+}
 
 const HOUR = 3_600_000;
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(/\s?([ap]m)$/i, (m) => m.trim().toLowerCase());
