@@ -479,8 +479,17 @@ export { clearanceFacts } from "./electrical-clearance.server";
 /** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
  *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; approved by Jo, decision 384) after the event
  *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
-export async function sweepCoordination(actorId: string | null = null) {
-  const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
+export async function sweepCoordination(actorId: string | null = null, testJobId?: string) {
+  // An explicitly scoped QA sweep is fail-closed, record-only and cannot read another job's releases.
+  if (testJobId !== undefined) {
+    if (!testJobId.trim()) throw new Error("A TEST job id is required.");
+    const { data: job, error } = await admin.from("jobs").select("source").eq("id", testJobId).maybeSingle();
+    if (error || job?.source !== "qa_test") throw new Error("Coordination QA requires one TEST job.");
+  }
+  let query = admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
+  if (testJobId !== undefined) query = query.eq("job_id", testJobId);
+  const { data: rel, error: releaseError } = await query;
+  if (releaseError) throw new Error(releaseError.message);
   let reminders = 0;
   // Speed (26 Oct 2026): read the first proposal and any earlier reminder for ALL released jobs at once (was 2 reads per
   // release on every sweep). Same answers: earliest proposal per job + kind, any reminder per job + assignment + visit.
@@ -511,7 +520,7 @@ export async function sweepCoordination(actorId: string | null = null) {
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: propAt, confirmedAt: a.booking_confirmed_at, reminderSentAt: remAt });
     if (s.state === "remind") {
       const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
-      const sends = coordinationReminderSends(r.visit_kind);
+      const sends = testJobId === undefined && coordinationReminderSends(r.visit_kind);
       await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
       reminders++;
