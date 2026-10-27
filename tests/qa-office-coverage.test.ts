@@ -23,6 +23,8 @@ const rows: Record<string, unknown[]> = {
 };
 const q = (t: string) => { const r = { data: rows[t] ?? [], error: null }; const o: Record<string, unknown> = { then: (f: (x: unknown) => unknown) => Promise.resolve(r).then(f) }; for (const m of ["select", "not", "is", "eq"]) o[m] = () => o; return o; };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
+// Echo every partner the lookup considers, so the test sees exactly which partners reach the list.
+mock.module("../src/lib/coverage.core", () => ({ tradeCoverage: (ps: { name: string }[], kind: string) => ({ state: "serviceable", matches: ps.filter((p) => (kind === "rec") === / (Delta|Sparks)$/.test(p.name)).map((p) => ({ name: p.name })) }), overallCoverage: () => "serviceable", coverageAreas: () => [], coveragePartnerBlocker: () => null }));
 const fns = await import("../src/lib/coverage.functions");
 const policy = await import("../src/lib/qa-office-policy.core");
 const names = (c: { rec: { matches: { name: string }[] }; installer: { matches: { name: string }[] } }) => [...c.installer.matches, ...c.rec.matches].map((m) => m.name).sort();
@@ -30,13 +32,11 @@ const call = () => (fns.getJobCoverage as unknown as (a: unknown) => Promise<Par
 beforeEach(() => { role = "qa_office"; });
 
 test("TEST office coverage list contains zero real installers or electricians", async () => {
-  const out = names(await call());
-  expect(out.some((n) => n.startsWith("Real"))).toBe(false);
+  expect(names(await call())).toEqual(["TEST Alpha", "TEST Delta"]);
 });
 test("admin coverage list is unchanged (real partners still listed)", async () => {
   role = "admin";
-  const out = names(await call());
-  expect(out.filter((n) => n.startsWith("Real")).length).toBeGreaterThan(0);
+  expect(names(await call())).toEqual(["Real Insulation Co", "Real Sparks", "TEST Alpha", "TEST Delta"]);
 });
 test("only the coverage lookup is newly allowed; the coverage email stays refused", () => {
   expect(policy.qaOfficeFunctionAllowed("src/lib/coverage.functions.ts", "getJobCoverage")).toBe(true);
