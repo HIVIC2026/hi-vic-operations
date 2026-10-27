@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { INSTALLER_BULK_UPLOAD_ENABLED } from "./bulk-upload-switch.core";
 export { INSTALLER_BULK_UPLOAD_ENABLED };
 
-export type Access = { admin: boolean; installer: boolean; electrician: boolean; owner: boolean; businessAdmin: boolean; installerBusinessAdmin: boolean };
+export type Access = { admin: boolean; qaOffice: boolean; installer: boolean; electrician: boolean; owner: boolean; businessAdmin: boolean; installerBusinessAdmin: boolean };
 
 // Speed (decision 280): the signed-in area's `beforeLoad` runs on EVERY navigation and used to make three network
 // round trips (auth user, roles, memberships) before any page data was asked for. These page guards are UI only —
@@ -48,8 +48,11 @@ async function loadAccessFresh(userId: string): Promise<Access> {
   const ids = (members ?? []).map((x) => x.business_id as string);
   // Business type is not read here: trade reads of businesses currently fail (row rule), so the installer role decides.
   const m = ids.map(() => null);
+  const qaRole = r.has("qa_office");
+  const user = qaRole ? (await currentUser()).data.user : null;
+  const qaOffice = qaRole && r.size === 1 && !!user?.email_confirmed_at && /^[^@\s]+@hivic-test\.example$/i.test(user?.email ?? "");
   return {
-    admin: r.has("admin"), installer: r.has("installer"), electrician: r.has("electrician"), owner: r.has("owner"),
+    admin: r.has("admin") && !qaRole, qaOffice, installer: r.has("installer"), electrician: r.has("electrician"), owner: r.has("owner"),
     businessAdmin: m.length > 0,
     installerBusinessAdmin: m.length > 0 && r.has("installer"),
   };
