@@ -555,3 +555,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] O12 You're booked
 - [x] Superseded (Jo 27 Oct, decision 406): the MJML email refresh is the correct set; the move back to the pictures was undone
 - [x] URGENT (Jo 27 Oct 21:45): stop all automatic emails until templates fixed
+
+- [ ] Journey piesa-fixes: simulate quote/fixes sends (TEST only), run 2.1–2.8
+- [ ] Journey not-eligible 1.4: find why no T7 email; press office close if that is the path
