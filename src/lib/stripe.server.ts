@@ -19,12 +19,18 @@ import { timeoutSignal } from "./network-timeout.core";
 const STRIPE_API = "https://api.stripe.com/v1";
 const STRIPE_TIMEOUT_MS = 15_000;
 
+/** Jo 28 Oct: TEST jobs use only STRIPE_TEST_SECRET_KEY (must be an sk_test_ key); real jobs only STRIPE_SECRET_KEY. */
+export function stripeKeyFor(jobSource: string | null | undefined): string | null {
+  if (jobSource === "qa_test") { const k = process.env["STRIPE_TEST_SECRET_KEY"] ?? null; return k && k.startsWith("sk_test_") ? k : null; }
+  return process.env["STRIPE_SECRET_KEY"] ?? null;
+}
+
 /** Owner "Pay now by card": a Stripe Checkout session for exactly the outstanding amount of the step that is due. */
 export async function createStepCheckout(jobId: string, returnUrl: string, actorId: string | null): Promise<{ url: string } | { blocker: string }> {
   const v = await jobPaymentView(jobId);
   if (!v || !v.due.step) return { blocker: "Nothing is due right now." };
   const step = v.due.step;
-  const key = process.env["STRIPE_SECRET_KEY"] ?? null;
+  const key = stripeKeyFor(v.jobSource);
   const blocker = stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: key, jobSource: v.jobSource, step: step.key, amountCents: step.outstandingCents });
   if (blocker) return { blocker };
   const { data: job } = await admin.from("jobs").select("job_number, owners(email)").eq("id", jobId).single();
