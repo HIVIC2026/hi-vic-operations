@@ -81,7 +81,7 @@ const s1: StepFn = async (ctx, r) => {
   const { upsertEnquiry } = await import("./enquiry.server");
   const res = await upsertEnquiry({
     external_enquiry_id: `qa-journey-${ctx.runId}`, full_name: `Test Journey`, email: ctx.ownerEmail, phone: ins!.mobile,
-    address_line: `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
+    address_line: (ctx.notes["address_line"] as string | undefined) ?? `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
     estimated_area_m2: 120, life_support: false, life_support_status: "no", declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no",
     contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), age_confirmed: true,
     base44_answers: { existing_insulation: "none", property_type: "house" },
@@ -290,7 +290,7 @@ function melbourneDate(daysAhead: number) {
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
  *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
-async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "install_deposit" | "balance", label: string) {
+async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
   const v = await jobPaymentView(ctx.jobId!);
@@ -690,8 +690,9 @@ async function allowlist(ctx: JourneyCtx, r: StepResult) {
 export async function cleanupJourney(ctx: JourneyCtx) {
   const now = new Date().toISOString();
   if (ctx.jobId) {
-    const { data: j } = await admin.from("jobs").select("source").eq("id", ctx.jobId).maybeSingle();
-    if (j?.source === "qa_test") {
+    const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
+    // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
+    if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
       await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
@@ -746,3 +747,6 @@ export async function latestJourneyRun() {
   const { data } = await admin.from("journey_runs").select("id, mode, started_at, finished_at, passed, failing_step, failing_reason").order("started_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
+
+/** Test-only access for the opt-in hard-case branches (journey-branches.server.ts). Same functions, no behaviour change. */
+export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, melbourneDate, TINY_JPEG, payStep };
