@@ -38,6 +38,3 @@ USING (NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = (SELECT auth.
 WITH CHECK (NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = (SELECT auth.uid()) AND role::text = 'qa_office'));
 CREATE POLICY qa_office_profile_delete_quarantine ON public.profiles AS RESTRICTIVE FOR DELETE TO authenticated
 USING (NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = (SELECT auth.uid()) AND role::text = 'qa_office'));
-
-CREATE POLICY qa_office_self_role_quarantine ON public.user_roles AS RESTRICTIVE FOR SELECT TO authenticated
-USING (NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = (SELECT auth.uid()) AND role::text = 'qa_office') OR user_id = (SELECT auth.uid()));
