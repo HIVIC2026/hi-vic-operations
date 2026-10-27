@@ -36,7 +36,9 @@ function DayPage() {
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
   const done = useAction(completeInstallation);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000 });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000,
+    // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
+    retry: (n, e) => n < 3 && !/available to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const [started, setStarted] = useState(false);
   const [asking, setAsking] = useState(false);
