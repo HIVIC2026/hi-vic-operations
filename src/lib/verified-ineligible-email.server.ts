@@ -58,6 +58,12 @@ export async function sendVerifiedIneligibleEmail(jobId: string): Promise<string
   }
   // The normal sender retains opt-outs, suppression, allowlist, unsubscribe and atomic once-only claims.
   return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: INELIGIBLE_PURPOSE, key, retryAfterDefiniteFailure: true,
+    beforeSend: async () => {
+      await assertCustomerDeliveryAllowed(jobId, "Verified not-eligible email");
+      const latest = await currentVerification(jobId);
+      const fresh = await gatherEvidence(jobId);
+      if (!latest || latest.id !== v.id || latest.outcome !== "not_eligible" || !fresh.readyCheck.final || verificationStale(latest, { ref: fresh.readyCheck.ref, version: fresh.readyCheck.version })) throw new Error("Verified decision changed — not sent");
+    },
     build: () => ({ subject: mail.subject, html: mail.html, text: mail.plainText }),
   });
 }
