@@ -399,6 +399,12 @@ function BookPickers({ token }: { token: string }) {
   // Jo 28 Oct (decision 158): a lapsed 30-day window replaces the booking pickers with the repeat safety check card.
   const loadRepeat = useServerFn(ownerRepeatPiesaFn);
   const { data: repeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
+  const [session, setSession] = useSession();
+  const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
+  const [understands, setUnderstands] = useState(false);
+  const [days, setDays] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (repeat) return <RepeatPiesaCard token={token} />;
   if (!data) return null;
   const installMove = data.install.turn === "owner_to_answer";
