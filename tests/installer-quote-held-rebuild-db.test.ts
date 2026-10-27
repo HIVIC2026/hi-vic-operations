@@ -15,7 +15,8 @@ CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_busi
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, measured_area_m2 numeric, verified_area_m2 numeric, removal_required boolean, external_source text, external_id text);
 CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, release_state text, release_hold_reason text, option_label text, option_code text,
-  sent_at timestamptz, subtotal_inc_gst numeric, gst_amount numeric, veec_discount_inc_gst numeric, discount_note text, customer_total_inc_gst numeric, created_by uuid, created_at timestamptz default clock_timestamp());
+  sent_at timestamptz, subtotal_inc_gst numeric, gst_amount numeric, veec_discount_inc_gst numeric, discount_note text, customer_total_inc_gst numeric, created_by uuid, created_at timestamptz default clock_timestamp(),
+  manually_adjusted boolean NOT NULL DEFAULT false);
 CREATE TABLE quote_items (id uuid primary key default gen_random_uuid(), quote_id uuid, code text, description text, quantity numeric, unit text, unit_price_inc_gst numeric, line_total_inc_gst numeric, is_other boolean, explanation text, sort int);
 CREATE TABLE veu_location_variables (postcode text, metropolitan_or_regional text, climate_region text);
 CREATE TABLE retail_estimator_settings (is_current boolean, ap_management_inc_gst numeric, piesa_assessment_inc_gst numeric, indicative_veec_value numeric, minimum_customer_copayment_inc_gst numeric);
@@ -47,6 +48,7 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => [] }));
 mock.module("../src/lib/usual-electrician-reminder.server", () => ({ maybeRemindUsualElectrician: async () => { sent.push("reminder"); } }));
 const { draftInstallerQuoteFromReadyCheck, INSTALLER_QUOTE_CODE, heldDraftHoldReason } = await import("../src/lib/installer-quote.server");
+const { QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE } = await import("../src/lib/quote-edit-replaced.core");
 
 const JOB = "00000000-0000-0000-0000-000000003129", BIZ = "00000000-0000-0000-0000-00000000b129", U = "00000000-0000-0000-0000-00000000c129";
 const form = (product: string | null) => [
@@ -268,5 +270,53 @@ describe("held path gaps", () => {
     expect(all[0]).toMatchObject({ id: accepted, status: "accepted", release_hold_reason: "Waiting for office review before sending" });
     expect(await installerLine(accepted)).toBe(4201.25);
     expect(await events("installer_quote_drafted")).toHaveLength(0);
+  });
+});
+
+// Jo 28 Oct 2026: the installer's price always rebuilds the owner quote, but when the draft the rebuild replaces was
+// edited by the office (adjustQuote sets quotes.manually_adjusted), the office gets ONE "check this quote" alert.
+describe("office-edited draft replaced by the installer's price", () => {
+  const alerts = async () => (await db.query<{ summary: string; details: { quote_id: string; replaced_quote_id: string; needs_office: boolean } }>("select summary, details from workflow_events where job_id=$1 and event_type=$2", [JOB, QUOTE_EDIT_REPLACED_EVENT])).rows;
+  const editedDraft = async () => { const id = await oldDraft(); await db.query("update quotes set manually_adjusted=true where id=$1", [id]); return id; };
+
+  test("held path: edited draft replaced → one alert, new draft has the installer's new price", async () => {
+    const old = await editedDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_edit");
+    const all = await quotes();
+    expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+    const [d] = all.filter((q) => q.status === "draft");
+    expect(await installerLine(d!.id)).toBe(2500);
+    const a = await alerts();
+    expect(a).toHaveLength(1);
+    expect(a[0]!.summary).toBe(QUOTE_EDIT_REPLACED_NOTICE);
+    expect(a[0]!.details).toMatchObject({ quote_id: d!.id, replaced_quote_id: old, needs_office: true });
+    // Never blocks: the new draft carries no extra hold reason and is still only held for office review.
+    expect(d!.release_hold_reason).not.toContain("edited");
+  });
+  test("ready path: edited draft replaced → one alert, new draft has the installer's new price", async () => {
+    const old = await editedDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, [], `intake:${JOB}`, { totalIncGst: 2500, includes: "Ceiling insulation - supply & install", areaM2: 120 });
+    const all = await quotes();
+    expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+    const [d] = all.filter((q) => q.status === "draft");
+    expect(await installerLine(d!.id)).toBe(2500);
+    expect(await alerts()).toHaveLength(1);
+  });
+  test("the same inputs again → no second alert", async () => {
+    await editedDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_edit");
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_edit");
+    expect(await alerts()).toHaveLength(1);
+    expect((await quotes()).filter((q) => q.status === "draft")).toHaveLength(1);
+  });
+  test("an unedited draft replaced → no alert", async () => {
+    const old = await oldDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_plain");
+    expect((await quotes()).find((q) => q.id === old)?.status).toBe("superseded");
+    expect(await alerts()).toHaveLength(0);
   });
 });

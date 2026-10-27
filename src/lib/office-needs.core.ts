@@ -5,6 +5,7 @@
 
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
+import { withEditReplacedNotice } from "./quote-edit-replaced.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -46,7 +47,7 @@ export type NeedsFacts = {
   /** Quote accepted and $349 paid, no PIESA offer yet (decisions 157/173). */
   electricianToChoose?: { at: string; usual: string | null } | null;
   /** Quotes to check (held with reasons, or a ready draft waiting for Send). */
-  quoteToCheck?: { at: string; reason: string | null; ready: boolean } | null;
+  quoteToCheck?: { at: string; reason: string | null; ready: boolean; /** Jo 28 Oct 2026: rebuilt from an office-edited draft. */ editReplaced?: boolean } | null;
   /** Electrical fixes quote to price / review before it goes to the owner. */
   fixesQuoteToCheck?: { at: string; reason: string | null } | null;
   /** ESC owner consent signed by the owner, AP part not signed; dueAt = 24h before install. Since decision 370 the AP part
@@ -120,7 +121,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const soon = closes - now <= 48 * HOUR;
     add({ rank: soon ? 35 : 115, group: soon ? "today" : "week", kind: "esc_window", line: `ESC notice window closes ${fmtWhen(f.escWindow.closesAt)}`, since: f.escWindow.opensAt ?? f.escWindow.closesAt, button: { label: "Open Registry block", to: "job", section: "install" } });
   }
-  if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
+  if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: withEditReplacedNotice(f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, !!f.quoteToCheck.editReplaced)!, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (f.releaseLapsed) add({ rank: 98, group: "week", kind: "release_lapsed", line: `${LAPSED_NEEDS_LINE}${f.releaseLapsed.name ? ` · released to ${f.releaseLapsed.name}` : ""}`, since: f.releaseLapsed.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });

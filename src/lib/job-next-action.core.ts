@@ -3,6 +3,7 @@
 // facts as Needs me (office-needs.core) and the office status (office-status.core), so the two can never disagree.
 import { needsCandidates, type JobSection, type NeedsFacts } from "./office-needs.core";
 import type { JobsStage } from "./office-jobs.core";
+import { withEditReplacedNotice } from "./quote-edit-replaced.core";
 
 export type NextWho = "us" | "owner" | "installer" | "electrician" | "nobody";
 export const NEXT_WHO_LABEL: Record<NextWho, string> = { us: "us", owner: "owner", installer: "installer", electrician: "electrician", nobody: "nothing to do" };
@@ -24,7 +25,7 @@ const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   choose_again: (f) => `The ${f.offerLapsed?.role ?? "trade"} offer ${f.offerLapsed?.declined ? "was declined" : "lapsed after 24 hours"} — choose another ${f.offerLapsed?.role ?? "trade"}.`,
   choose_installer: () => "Choose the installer for the Ready Check — the offer goes to that installer only.",
   choose_electrician: (f) => `Choose the electrician for the PIESA${f.electricianToChoose?.usual ? ` — ${f.electricianToChoose.usual} is the installer's usual electrician` : ""}.`,
-  quote_check: (f) => (f.quoteToCheck?.ready ? "The quote is drafted and every check passed — check it and press Send." : `The quote is held: ${f.quoteToCheck?.reason ?? "something is missing"}.`),
+  quote_check: (f) => withEditReplacedNotice(f.quoteToCheck?.ready ? "The quote is drafted and every check passed — check it and press Send." : `The quote is held: ${f.quoteToCheck?.reason ?? "something is missing"}.`, !!f.quoteToCheck?.editReplaced)!,
   fixes_quote_check: () => "Check the electrical fixes quote and send it to the owner.",
   sign_consent: (f) => f.consentToSign?.reasons?.length ? `The ESC owner consent's AP part signs itself once this is fixed: ${f.consentToSign.reasons.join(" ")} (Sign is the fallback.)` : "Sign the ESC owner consent as the AP representative before the install.",
   esc_window: () => "Submit the ESC installation notification inside its window.",

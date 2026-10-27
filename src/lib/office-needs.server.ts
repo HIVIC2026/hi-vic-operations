@@ -195,7 +195,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const h = rectHolds.find((e) => e["job_id"] === qd["job_id"] && (e["details"] as { quote_id?: string } | null)?.quote_id === qd["id"]);
     if (h) x.fixesQuoteToCheck = { at: String(h["created_at"]), reason: s((h["details"] as { reason?: string } | null)?.reason) };
   }
-  for (const r of [...q.rows, ...(qTest?.rows ?? [])]) { const x = f(r.jobId); if (x) x.quoteToCheck = { at: r.at, reason: r.kind === "ready" ? null : r.note, ready: r.kind === "ready" }; }
+  for (const r of [...q.rows, ...(qTest?.rows ?? [])]) { const x = f(r.jobId); if (x) x.quoteToCheck = { at: r.at, reason: r.kind === "ready" ? null : r.note, ready: r.kind === "ready", ...(jobById.get(r.jobId)?.facts.quote?.editReplaced ? { editReplaced: true } : {}) }; }
   for (const r of [...q.declined, ...(qTest?.declined ?? [])]) { const x = f(r.jobId); if (x && !x.quoteToCheck) x.quoteToCheck = { at: r.at, reason: `owner declined${r.reason ? ` (“${r.reason}”)` : ""} · reopen or close`, ready: false }; }
 
   for (const r of returned) {

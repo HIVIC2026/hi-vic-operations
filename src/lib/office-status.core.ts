@@ -3,6 +3,7 @@
 // Limits are defaults Jo can change in workflow_settings.office_time_limits.
 
 import { SITUATION } from "./job-wording";
+import { withEditReplacedNotice } from "./quote-edit-replaced.core";
 
 export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
 export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
@@ -115,7 +116,9 @@ export type JobFacts = {
   /** Earliest current ceiling measurement row (any status) — proof the visit actually started. */
   measurementStartedAt?: string | null;
   proposalPending?: { kind: string; since: string } | null;
-  quote?: { releaseState: string | null; holdReason: string | null; sentAt: string | null; status: string; acceptedAt: string | null } | null;
+  quote?: { releaseState: string | null; holdReason: string | null; sentAt: string | null; status: string; acceptedAt: string | null;
+    /** Jo 28 Oct 2026: this draft rebuilt an office-edited draft from the installer's price — the office checks it. */
+    editReplaced?: boolean } | null;
   rectQuote?: { releaseState: string | null; sentAt: string | null; status: string } | null;
   paymentCleared?: boolean;
   piesa?: { completedAt: string | null; passed: boolean; sectionCAt: string | null } | null;
@@ -189,7 +192,7 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     case "ready_check_scheduled": {
       // Later facts outrank the stored stage: a prepared quote means the job is at Quote.
       const q = f.quote;
-      if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: q.holdReason });
+      if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: withEditReplacedNotice(q.holdReason, !!q.editReplaced) });
       if (q?.sentAt && q.status === "issued") return pick("quote.waiting_sign", q.sentAt);
       // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled
       // (an installer's own customer then reads "Ready Check" — the installer arranges it directly, never "needs estimate").
@@ -200,7 +203,7 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     case "ready_check_complete": return f.rcSubmittedAt ? pick("ready_check.evidence_in", f.rcSubmittedAt) : pick("ready_check.done", f.enteredStageAt);
     case "assessment_complete": case "measured_estimate_ready": case "ready_for_installer_quotes": case "awaiting_quote_acceptance": {
       const q = f.quote;
-      if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: q.holdReason });
+      if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: withEditReplacedNotice(q.holdReason, !!q.editReplaced) });
       if (q?.sentAt && q.status === "issued") return pick("quote.waiting_sign", q.sentAt);
       return pick("quote.sent_auto", f.enteredStageAt);
     }

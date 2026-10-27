@@ -213,6 +213,10 @@ async function writeHeldInstallerDraft(p: {
     }
     return;
   }
+  // Jo 28 Oct 2026: note which drafts the office edited before they are replaced (`*` so the read never names a column).
+  const { data: replacing, error: re } = await admin.from("quotes").select("*").eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
+  if (re) throw new Error("Could not check the quote being replaced.");
+  const edited = (replacing ?? []).filter((q) => (q as { manually_adjusted?: boolean | null }).manually_adjusted === true).map((q) => String(q.id));
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: p.intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
@@ -225,4 +229,11 @@ async function writeHeldInstallerDraft(p: {
   if (ie) throw new Error(ie.message);
   await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held" }, { internal: true });
   if (mittiElectrician) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: q.id, electrician: mittiElectrician }, { internal: true });
+  // One office alert per replaced office-edited draft. The rebuild itself is never blocked.
+  const { QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE } = await import("./quote-edit-replaced.core");
+  for (const replacedId of edited) {
+    const { data: seen, error: ae } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", QUOTE_EDIT_REPLACED_EVENT).contains("details", { replaced_quote_id: replacedId }).limit(1).maybeSingle();
+    if (ae) throw new Error("Could not check the office quote alert.");
+    if (!seen) await logEvent(jobId, actorId, QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE, { quote_id: q.id, replaced_quote_id: replacedId, needs_office: true }, { internal: true });
+  }
 }
