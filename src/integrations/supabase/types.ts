@@ -8992,6 +8992,7 @@ export type Database = {
           trade_role: Database["public"]["Enums"]["assignment_role"]
           used_at: string | null
           worker_id: string | null
+          worker_role: string | null
         }
         Insert: {
           business_id: string
@@ -9011,6 +9012,7 @@ export type Database = {
           trade_role: Database["public"]["Enums"]["assignment_role"]
           used_at?: string | null
           worker_id?: string | null
+          worker_role?: string | null
         }
         Update: {
           business_id?: string
@@ -9030,6 +9032,7 @@ export type Database = {
           trade_role?: Database["public"]["Enums"]["assignment_role"]
           used_at?: string | null
           worker_id?: string | null
+          worker_role?: string | null
         }
         Relationships: [
           {
@@ -9079,6 +9082,7 @@ export type Database = {
           source_application_id: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at: string
+          worker_role: string | null
         }
         Insert: {
           account_status?: string
@@ -9110,6 +9114,7 @@ export type Database = {
           source_application_id?: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
+          worker_role?: string | null
         }
         Update: {
           account_status?: string
@@ -9141,6 +9146,7 @@ export type Database = {
           source_application_id?: string | null
           trade_role?: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
+          worker_role?: string | null
         }
         Relationships: [
           {
