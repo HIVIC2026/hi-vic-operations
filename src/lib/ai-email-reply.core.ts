@@ -14,6 +14,20 @@ import { smsQuietReason } from "./quote-hold.core";
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
 export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";
+/** Jo 27 Oct 2026: her edits to a draft are saved as she types (append-only), so a refresh keeps them. */
+export const AI_EMAIL_DRAFT_EDITED_EVENT = "email_ai_draft_edited";
+
+/** Newest saved edit per draft (rows in any order). */
+export function latestDraftEdits(rows: { created_at: string; details: { draft_event_id?: string; body?: string } | null }[]): Map<string, string> {
+  const best = new Map<string, { at: string; body: string }>();
+  for (const r of rows) {
+    const id = r.details?.draft_event_id; const body = r.details?.body;
+    if (!id || typeof body !== "string") continue;
+    const cur = best.get(id);
+    if (!cur || r.created_at >= cur.at) best.set(id, { at: r.created_at, body });
+  }
+  return new Map([...best].map(([k, v]) => [k, v.body]));
+}
 export const AI_EMAIL_REPLY_PURPOSE = "owner_email_ai_reply";
 /** Master switch for writing AI drafts on jobs. */
 export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;

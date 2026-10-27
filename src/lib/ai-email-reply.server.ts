@@ -7,7 +7,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
-  AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
+  AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
@@ -77,18 +77,42 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
 
 export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null };
 
+/** Saved edits for these drafts: draft id -> newest body. */
+export async function draftEditsFor(ids: string[]): Promise<Map<string, string>> {
+  const out: { created_at: string; details: { draft_event_id?: string; body?: string } | null }[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const { data, error } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_EMAIL_DRAFT_EDITED_EVENT).in("details->>draft_event_id", ids.slice(i, i + 50));
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as typeof out));
+  }
+  return latestDraftEdits(out);
+}
+
+/** Save the office's edit to an open draft (job or no-job). Nothing is sent. */
+export async function saveDraftEdit(eventId: string, body: string, actorId: string): Promise<{ ok: true }> {
+  const { data: ev } = await loose.from("workflow_events").select("id, job_id, event_type").eq("id", eventId).maybeSingle();
+  if (!ev || (ev.event_type !== AI_EMAIL_DRAFT_EVENT && ev.event_type !== "email_nojob_ai_draft")) throw new Error("That draft wasn't found.");
+  const { data: done } = await loose.from("workflow_events").select("event_type").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, "email_nojob_reply_sent", "email_nojob_ai_draft_closed"]).eq("details->>draft_event_id", eventId).limit(1);
+  if ((done ?? []).length) throw new Error("This reply has already been sent or closed.");
+  const { error } = await loose.from("workflow_events").insert({ job_id: ev.job_id ?? null, actor_id: actorId, event_type: AI_EMAIL_DRAFT_EDITED_EVENT, internal: true,
+    summary: "Reply draft edited by office", details: { draft_event_id: eventId, body } });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
 export async function listAiDrafts(jobId: string): Promise<AiDraftRow[]> {
   const [d, done] = await Promise.all([
     loose.from("workflow_events").select("id, created_at, details").eq("job_id", jobId).eq("event_type", AI_EMAIL_DRAFT_EVENT).order("created_at", { ascending: false }).limit(50),
     loose.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT]).limit(200),
   ]);
   if (d.error) throw new Error(d.error.message);
+  const edits = await draftEditsFor(((d.data ?? []) as { id: string }[]).map((r) => r.id));
   const res = new Map<string, { type: string; at: string }>();
   for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string } }[]) if (r.details?.draft_event_id) res.set(r.details.draft_event_id, { type: r.event_type, at: r.created_at });
   return ((d.data ?? []) as { id: string; created_at: string; details: Record<string, unknown> }[]).map((r) => {
     const x = res.get(r.id); const det = r.details;
     return { eventId: r.id, at: r.created_at, from: (det["from"] as string) ?? null, to: String(det["to"] ?? ""), subject: String(det["subject"] ?? ""), theirSubject: (det["their_subject"] as string) ?? null,
-      body: String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null };
+      body: edits.get(r.id) ?? String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null };
   });
 }
 

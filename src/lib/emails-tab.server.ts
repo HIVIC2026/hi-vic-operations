@@ -54,12 +54,13 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   // Review fix 6: resolutions are looked up for exactly these drafts, not the newest N across all jobs.
   const done = await many<{ details: { draft_event_id?: string } | null }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT, NO_JOB_DRAFT_CLOSED_EVENT]).in("details->>draft_event_id", part));
   const closed = new Set(done.map((r) => r.details?.draft_event_id).filter(Boolean));
+  const edits = await (await import("./ai-email-reply.server")).draftEditsFor(drafts.map((d) => d.id));
   // Review fix 1: job drafts by job + message, no-job drafts by message — never mixed.
   const jobDrafts = new Map<string, DraftRef>(), noJobDrafts = new Map<string, DraftRef>(), closedJobDrafts = new Set<string>();
   for (const r of drafts) {
     const mid = str(r.details["message_id"]);
     if (!mid) continue;
-    const ref = { eventId: r.id, body: String(r.details["body"] ?? "") };
+    const ref = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? "") };
     if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
       const k = jobDraftKey(r.job_id, mid);
       if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);

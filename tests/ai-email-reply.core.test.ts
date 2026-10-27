@@ -44,3 +44,18 @@ describe("AI reply layout (Jo 26 Oct)", () => {
   test("sign-off on its own lines", () => expect(render(out)).toContain("Cheers,<br />the Home Insulation Victoria team"));
   test("refreshed look: hosted logo, no embedded image", () => { const h = render(out); expect(h).toContain(MAIL_LOGO_URL); expect(h).not.toContain("data:image"); });
 });
+
+describe("latestDraftEdits (Jo 27 Oct 2026: edits survive a refresh)", () => {
+  test("keeps the newest edit per draft", async () => {
+    const { latestDraftEdits } = await import("../src/lib/ai-email-reply.core");
+    const m = latestDraftEdits([
+      { created_at: "2026-10-27T11:00:00Z", details: { draft_event_id: "a", body: "first" } },
+      { created_at: "2026-10-27T11:05:00Z", details: { draft_event_id: "a", body: "second" } },
+      { created_at: "2026-10-27T11:02:00Z", details: { draft_event_id: "b", body: "only" } },
+      { created_at: "2026-10-27T11:09:00Z", details: { draft_event_id: "c" } },
+    ]);
+    expect(m.get("a")).toBe("second");
+    expect(m.get("b")).toBe("only");
+    expect(m.has("c")).toBe(false);
+  });
+});
