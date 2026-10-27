@@ -25,6 +25,9 @@ export type InstallerPriceInput = {
   priceIncGst: number | string | null | undefined;
   included: string[];
   includedOther?: string | null | undefined;
+  /** Jo 27 Oct 2026: does the current Ready Check say removal is needed? false = it positively says none, so the
+   *  "Removal of existing insulation" tick is refused. true/null/undefined = allowed (nothing changes). */
+  removalRequired?: boolean | null;
 };
 /** Legacy electrician block on records saved before 25 Oct 2026 (decision 289); new records store null. */
 export type LegacyPriceElectrician = { choice: PriceElectricianChoice; name: string | null; licence: string | null; price_inc_gst: number | null };
@@ -44,12 +47,15 @@ const money = (v: unknown): number | null => {
 };
 const nrm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9&]+/g, " ").trim();
 const INCLUDED_BASE = INCLUDED_OPTIONS[0]; // "Ceiling insulation - supply & install"
+const INCLUDED_REMOVAL = INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 
 export const PRICE_ISSUES = {
   price: "Enter your price inc GST (more than $0).",
   included: "Tick what the price includes.",
   base: `"${INCLUDED_BASE}" must be ticked.`,
   other: "Say what else is included.",
+  // Jo 27 Oct 2026 (exact wording, shown under the tickbox and refused by the server check alike).
+  noRemoval: "Your Ready Check in Mitti says there's no removal on this job. If there is, add the removal area to the Mitti form first, then you can include it here.",
 } as const;
 
 /** Fails closed: any issue = nothing saved. Price + what is included only (decision 289). */
