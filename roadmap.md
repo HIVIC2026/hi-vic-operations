@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 02:24 DC Xero switch (clarified 02:25)
+- [ ] Select already-linked DC Xero with Home Insulation Victoria business-unit tracking; confirm Demo-only TEST routing. No messages, switches or publication.
 ## Jo 27 Oct 02:15 guarded not-eligible email and journey rerun
 - [x] Actual portal xeroConnectionStatus normal environment: configured/connected true; only Home Insulation Victoria, no TEST Demo route. Separate workspace connection has Demo, but no connection/secret changed.
 - [x] Preview once-only approved T7 after current final not_eligible, durable held retry with normal customer/TEST guards; 10 new isolated tests and 39 existing eligibility/retry/practice checks pass; decision 407/source of truth recorded; build OK. Hosted flow unverified; no publish.
