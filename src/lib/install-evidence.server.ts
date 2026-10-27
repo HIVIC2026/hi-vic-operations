@@ -107,7 +107,11 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
           if (!file.mediaId) throw new Error("media id missing");
           const { data: ex, error: lookupError } = await admin.from("documents").select("id, storage_path").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
           if (lookupError) throw new Error(lookupError.message);
-          if (ex) continue;
+          if (ex) {
+            const check = ex.storage_path ? await admin.storage.from("job-files").download(ex.storage_path) : null;
+            if (check?.error || !check?.data?.size) throw new Error("saved photo is missing from job files");
+            continue;
+          }
           const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
           if (!bytes.length) throw new Error("empty media");
           const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : contentType.includes("heic") ? "heic" : "bin";
@@ -151,6 +155,7 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   const summary = evaluateInstallEvidence(readInstallEvidence(audit), ctx, workStartAt);
   summary.jobId = jobId;
   summary.auditId = auditId;
+  summary.auditFingerprint = await (await import("./mitti-create-claim.core")).stableUuid(JSON.stringify(audit));
   if (summary.rulerPhotos?.length) {
     if (fetchMedia) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
     else summary.copyFailures = summary.rulerPhotos.flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" })));

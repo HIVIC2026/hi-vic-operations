@@ -284,6 +284,7 @@ export type InstallEvidenceItem = { id: string; zone: number | null; label: stri
 export type InstallEvidenceSummary = {
   jobId?: string;
   auditId?: string;
+  auditFingerprint?: string;
   copyFailures?: { mediaId: string; area: string; which: string; reason: string }[];
   rule: typeof INSTALL_EVIDENCE_RULE; applies: boolean; installDate: string | null; zoneCount: number;
   items: InstallEvidenceItem[];

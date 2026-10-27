@@ -37,6 +37,11 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
       if (error || !auditId || evidence?.audit_id !== auditId || evidence.summary?.jobId !== jobId || evidence.summary?.auditId !== auditId) throw new Error("Current A5 summary missing");
       const { data: failed, error: fe } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "install_evidence_sync_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (fe || (failed && (!evidence.createdAt || failed.created_at >= evidence.createdAt))) throw new Error("A5 refresh failed");
+      // Even the same audit cannot reuse a summary after its answers change.
+      const { mittiApi, realMittiCall } = await import("./mitti.server");
+      const audit = await mittiApi(realMittiCall).getAudit(auditId);
+      const fingerprint = await (await import("./mitti-create-claim.core")).stableUuid(JSON.stringify(audit));
+      if (!evidence.summary?.auditFingerprint || evidence.summary.auditFingerprint !== fingerprint) throw new Error("A5 changed since evidence was checked");
       lines = rulerPhotoBlockersOf(evidence.summary);
     }
     catch { throw new WorkflowError("The install day form's ruler photos could not be checked — please try again."); }
