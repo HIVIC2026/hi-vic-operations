@@ -1013,6 +1013,17 @@ async function officeToldOnce(ctx: JourneyCtx, page: Shot | undefined, re: RegEx
   };
 }
 
+/** The office Payouts tab data for one TEST job — the same function the office Money screen calls, TEST-scoped.
+ *  The TEST office login cannot open /admin/money (TEST-office allowlist), so the office signal is read through this. */
+async function officePayouts(jobId: string) {
+  const { moneyPayouts } = await import("./office-money.server");
+  const m = await moneyPayouts([jobId]);
+  const held = (m.held ?? []).filter((h: { jobId: string }) => h.jobId === jobId);
+  const due = (m.due ?? []).filter((g: { jobs: { jobId: string }[] }) => g.jobs.some((j) => j.jobId === jobId));
+  const paid = (m.paid ?? []).filter((g: { jobs: { jobId: string }[] }) => g.jobs.some((j) => j.jobId === jobId));
+  return { held, due, paid };
+}
+
 const ownerUserId = async (ctx: JourneyCtx) => {
   const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
   return (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
