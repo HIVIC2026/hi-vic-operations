@@ -1,3 +1,4 @@
+import { commitCampaignSpot, repairCampaignSpotStage } from "./campaign-spot-save.server";
 import { SPOT_RANK_LABEL, compareSpots, leadRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
 import { houseAgeLabel } from "./onsite-assessment.core";
 import { buildDecadeFromAnswers, buildDecadeLabel } from "./build-decade.core";
@@ -75,6 +76,7 @@ export function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof camp
 export async function campaignPage(token: unknown, testMode = false) {
   const c = await campaignLink(token);
   if (!c) return null;
+  await repairCampaignSpotStage(c.job.id);
   const { resolvePublicEstimate } = await import("./estimatelink.server");
   const [{ data: response }, estimate] = await Promise.all([
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority, saved_total, saved_veu_discount").eq("job_id", c.job.id).maybeSingle(),
@@ -110,9 +112,13 @@ export async function campaignPage(token: unknown, testMode = false) {
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
-  const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
+  const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status, spot_saved_at, estimate_link_id").eq("job_id", c.job.id).maybeSingle();
   if (reviewError || !campaignPermission(c, review?.desk_check_status)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
-  const now = new Date().toISOString();
+  if (review?.spot_saved_at) {
+    await commitCampaignSpot(c.job.id, review.estimate_link_id, {}, c.group === "onsite", "Owner saved a place", { campaign: LAUNCH_CAMPAIGN });
+    await queueSpotSavedConfirmations(c.job.id, String(token));
+    return { ok: true as const };
+  }
   const { data: est } = await admin.from("indicative_estimates").select("id, area_source, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   const basis = joAreaBasis({ areaSource: est?.area_source, areaM2: est?.area_m2, ownerAreaM2: c.job.estimated_area_m2 });
   if (!calc && !basis.ok) throw new Error("Your estimate is being updated. Please check the size before saving your spot.");
@@ -137,34 +143,11 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     }
   }
   const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/${calc ? "calculator" : "campaign"}` };
-  // Idempotent: ON CONFLICT (job_id) DO NOTHING, then fill an existing unsaved row. Double taps / two devices both succeed.
-  const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
-  let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
-  if (!firstSave) {
-    let query = admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null);
-    if (c.group === "onsite" && c.mediaReview !== "below_r2") query = c.ownerQualified ? query.in("desk_check_status", ["not_needed", "pending", "looks_eligible"]) : query.eq("desk_check_status", "looks_eligible");
-    const upd = await query.select("id");
-    firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
-  }
-  const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
-  if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
-  if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
-  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, area_assumed: !calc && basis.ok && basis.areaEstimated, ...snapshot }, { internal: true });
-  // Spot saved → only now does the job move on to the free Ready Check (Jo, 8 Oct).
-  {
-    const { data: j, error: je } = await admin.from("jobs").select("stage").eq("id", c.job.id).maybeSingle();
-    if (je) await logEvent(c.job.id, null, "campaign_spot_advance_blocked", `Spot saved but the job stage could not be read: ${je.message}`, {}, { internal: true }).catch(() => console.error("advance check failed", c.job.id, je.message));
-    if (j && ["preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(j.stage)) {
-      const { transition } = await import("./workflow.server");
-      // The spot itself is saved; a refused stage move must not fail the owner's request, but office must see it.
-      const flag = (to: string) => (e: unknown) => logEvent(c.job.id, null, "campaign_spot_advance_blocked", `Spot saved but the job could not move to ${to}: ${(e as Error)?.message ?? e}`, { to }, { internal: true }).catch((le) => console.error("campaign_spot_advance_blocked not logged", c.job.id, to, (le as Error)?.message));
-      if (j.stage !== "preliminary_estimate_ready") await transition(c.job.id, "preliminary_estimate_ready", null, "Owner saved their spot – preliminary queue qualification; final onsite verification required").catch(flag("preliminary_estimate_ready"));
-      await transition(c.job.id, "ready_check_ready_to_schedule", null, "Owner saved their spot – free Ready Check next").catch(flag("ready_check_ready_to_schedule"));
-    }
-  }
-  // Queued only after the stage move: this step is slow, and a request cut off here used to leave the job
-  // saved but stuck at the estimate stage with nothing logged (HV-3022, 21 Oct).
-  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
+  await commitCampaignSpot(c.job.id, c.link.id, snapshot, c.group === "onsite",
+    price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check",
+    { campaign: LAUNCH_CAMPAIGN, area_assumed: !calc && basis.ok && basis.areaEstimated, ...snapshot });
+  // Replays must reach the existing once-only confirmation, not stop at the saved row.
+  await queueSpotSavedConfirmations(c.job.id, String(token));
   return { ok: true as const };
 }
 
@@ -346,21 +329,25 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
  */
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
-  if (done) return { queued: false as const };
+  const { data: completed } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_completed").limit(1).maybeSingle();
+  if (completed) return { queued: false as const };
   const { buildSpotSavedMessages, sendSpotSavedConfirmation } = await import("./spot-saved-send.server");
   const msgs = await buildSpotSavedMessages(jobId, token);
   if (!msgs) return { queued: false as const };
   const { job, owner, sms, email } = msgs;
   // Record the attempt FIRST so a second tap/device can never send twice (per-owner keys also block duplicates).
-  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email prepared", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
+  if (!done) await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email prepared", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
   // TEST homes only: deliver the confirmation email to Jo's allowlisted inbox via the test sender.
   if (job.source === "qa_test") {
+    // Historical TEST attempts lack delivery idempotency: never replay an uncertain attempt.
+    if (done) return { queued: false as const };
     if (owner?.email) {
       const { sendTestEmail } = await import("./test-send.server");
       const html = email.html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
       const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
       await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
     }
+    await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved confirmation attempt completed", {}, { internal: true });
     return { queued: true as const };
   }
   // Real homes (Jo 23 Oct): the approved email + text really go, through the live email service and Twilio,
@@ -373,6 +360,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
       sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: `spot_saved:${ch}`, source_reference: `Not sent: ${res.detail}`.slice(0, 200),
     } as never);
   }
+  await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved confirmation attempt completed", {}, { internal: true });
   return { queued: true as const };
 }
 
