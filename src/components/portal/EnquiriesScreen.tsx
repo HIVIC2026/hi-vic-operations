@@ -127,8 +127,8 @@ export function EnquiriesScreen() {
   const pick = (v: EnquiryView) => { setView(v); setPage(1); setPicked(new Set()); };
   const meta = view === "all" ? { label: "Every open enquiry", hint: "Everything before a spot is saved, in one list." }
     : ENQUIRY_CATEGORIES.find((x) => x.key === view)!;
-  const closeReason = view !== "all" ? CLOSABLE[view] : undefined;
-  const viewCount = counts && view !== "all" ? counts[view] : null;
+  const closeReason = view === "all" ? undefined : CLOSABLE[view === "active" ? "offered" : view];
+  const viewCount = counts && view !== "all" ? counts[view === "active" ? "offered" : view] : null;
   // Literal class names (Tailwind only sees whole strings). Decision 286 columns: Job · Owner · Address · Size · Insulation · Estimate · Last heard.
   const cols = "lg:grid-cols-[24px_76px_minmax(0,1.3fr)_minmax(0,1.4fr)_76px_92px_92px_minmax(0,1fr)]";
   return (
