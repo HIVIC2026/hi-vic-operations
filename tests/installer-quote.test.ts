@@ -33,6 +33,15 @@ describe("automatic installer quote", () => {
     expect(d.ready).toBe(true);
     expect(d.afterDiscount).toBe(200);
   });
+  test("Jo 27 Oct 2026 (HV-3385): a removal tick mismatch holds the quote but never blanks the entered price", () => {
+    // Removal ticked as included, no ceiling area marked Remove (removalRequired false), price $4,500 in the portal.
+    const price = quotedPriceFromEntries(e("R5.0 supply and install, Removal of existing insulation", "4500"), false);
+    const d = buildInstallerQuoteDraft({ ...base, price });
+    expect(d.ready).toBe(false);
+    expect(d.blockers).toEqual(["Removal is ticked as included, but no ceiling area is marked Remove — office must review."]);
+    expect(d.blockers).not.toContain("Installer quote amount is missing.");
+    expect(d.lines.find((l) => l.code === "INSTALLER_PRICE")?.line_total_inc_gst).toBe(4500);
+  });
 });
 
 describe("Industry Pack example", () => {

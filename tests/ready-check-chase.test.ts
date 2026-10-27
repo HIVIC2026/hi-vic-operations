@@ -16,10 +16,12 @@ describe("Stage 7: incomplete Ready Check form", () => {
     expect(installerMissing(clean)).toEqual([]);
     expect(incompleteDecision({ completed: true, modifiedAt: h(1), visitAt: null, now, facts: clean }).notify).toBe(false);
   });
-  test("completed form missing photos and price: installer told exactly what", () => {
+  test("completed form missing photos and price: nothing to chase — photos are optional and the price is never on the Mitti form", () => {
+    // Jo 27 Oct 2026 (HV-3385): the price lives in the portal ("Your price" card, decision 278), so the form chase
+    // must never tell the installer their price is missing in Mitti. Photos are optional (Jo 23 Oct).
     const d = incompleteDecision({ completed: true, modifiedAt: h(0), visitAt: null, now, facts: { ...clean, depthPhoto: false, overviewPhoto: false, priceKnown: false } });
-    expect(d.notify).toBe(true);
-    expect(d.missing).toEqual(["your total quoted price (inc GST)"]); // photos optional (Jo 23 Oct): taken on install day
+    expect(d.notify).toBe(false);
+    expect(d.missing).toEqual([]);
   });
   test("unfinished form while still being filled in: no text", () => {
     expect(incompleteDecision({ completed: false, modifiedAt: h(1), visitAt: h(2), now, facts: { ...clean, formComplete: false } }).notify).toBe(false);
