@@ -557,6 +557,7 @@ async function officeSignals(jobId: string) {
 async function freshCtx() {
   const ctx = await newJourneyCtx();
   ctx.notes["address_line"] = `${parseInt(ctx.runId.slice(0, 8), 16)} Journey Test Street`;
+  ctx.notes["mitti_guard_routes"] = [] as string[][]; // default steps 6/7 record their simulator routes here
   return ctx;
 }
 async function toQuoteAccepted(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], jobs: BranchResult["jobs"]) {
