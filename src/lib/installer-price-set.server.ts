@@ -40,12 +40,14 @@ export async function installerPriceView(jobId: string, userId: string) {
     readInstallerPrice(jobId),
     (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
     (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
-    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null })),
+    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })),
   ]);
   const { entries, removalRequired } = readyCheck;
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const { accessFlagFromEntries } = await import("./ready-check-answers.core");
+  // Jo 27 Oct 2026 (redone): the card's Ready Check rows — same source the quote uses (current measurement + form removal m²).
+  const { readyCheckDetailLines, accessFlagLine, NOT_ON_READY_CHECK } = await import("./installer-price.core");
   const legacy = stored?.record.electrician?.choice ?? contactAnswersFromEntries(entries).electricianChoice;
   const choice = resolveElectricianChoice({ recorded, legacy, usual: usual.electrician });
   return {
