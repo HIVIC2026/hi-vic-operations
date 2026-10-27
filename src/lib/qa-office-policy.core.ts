@@ -9,6 +9,7 @@ export const QA_OFFICE_FUNCTIONS = {
   "src/lib/ap-queue.functions.ts": ["getFinalCheck", "approveApJob"],
   "src/lib/spot-release.functions.ts": ["getSpotRelease", "releaseSpotFn"],
   "src/lib/offer-dispatch.functions.ts": ["listChooseTrades", "sendChosenOffers"],
+  "src/lib/installer-waiting.functions.ts": ["getInstallerWaitingList"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");
