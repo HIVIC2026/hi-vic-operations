@@ -8,7 +8,11 @@ export async function saveFixesQuote(jobId: string, values: Record<string, unkno
   const current = await currentFixesQuote(jobId);
   const { data: previous, error: pe } = current ? await admin.from("quote_internals").select("calc_snapshot").eq("quote_id", current.id).maybeSingle() : { data: null, error: null };
   if (pe) throw new Error(pe.message);
-  if ((previous?.calc_snapshot as Record<string, unknown> | null)?.["fixes_basis"] === basis) return { id: current?.id as string, already: true };
+  if (current && (previous?.calc_snapshot as Record<string, unknown> | null)?.["fixes_basis"] === basis) {
+    const { error } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued", "accepted"]).neq("id", current.id);
+    if (error) throw new Error(error.message);
+    return { id: current.id, already: true };
+  }
   const id = await stableUuid(`fixes-quote:v1:${jobId}:${basis}`);
   const { error: qe } = await admin.from("quotes").upsert({ ...values, id, job_id: jobId, kind: "rectification", status: "draft" } as never, { onConflict: "id", ignoreDuplicates: true });
   if (qe) throw new Error(qe.message);
