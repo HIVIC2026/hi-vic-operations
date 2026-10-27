@@ -12,7 +12,7 @@ import { currentFixesQuote, FIXES_ACCEPT_LATEST } from "./fixes-quote-current.se
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
   cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
-  provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
+  provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
 } from "./payments.core";
 
 // Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
