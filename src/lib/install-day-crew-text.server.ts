@@ -3,7 +3,8 @@
 // (/sp/<token>: SWMS + PIESA result + hazards). Pure rules/wording: worker-role.core.ts.
 // Same shape as swms-sign-text.server: ONE `install_day_crew_texted` workflow event per person per install date is
 // recorded BEFORE anything is sent (never sent twice); TEST job / TEST partner → test-send only; real → the ONE real SMS
-// sender (`sendRealSms`: switch, wording approval, quiet hours (no texts after 8pm), STOP and partner consent live there).
+// sender (`sendRealSms`: switch, wording approval, STOP and partner consent live there).
+// No texts after 8pm: `installDayTextDue` only allows the install date between the send time and 20:00 Melbourne.
 // Never changes a booking, the plan, a signature or a stage. Run from the 15-minute tick via `sweepInstallerTexts`.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -42,11 +43,6 @@ export async function textInstallDayCrew(jobId: string, booking: { id: string; s
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(biz ?? {});
   const test = job.source === "qa_test" || partnerIsTest;
-  if (!test) {
-    const { smsQuietReason } = await import("./quote-hold.core");
-    const q = smsQuietReason(now.toISOString());
-    if (q) return [`held: ${q}`];
-  }
   const { lead, crew } = await crewForJob(jobId, asg.business_id);
   const people = installDayRecipients(lead, crew);
   if (!people.length) return ["no crew chosen"];

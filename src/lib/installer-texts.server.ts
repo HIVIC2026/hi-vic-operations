@@ -153,10 +153,12 @@ export async function textTeamMemberInvite(p: { inviteId: string; businessId: st
 }
 
 /** 15-minute tick: tomorrow's installs (from the afternoon before), plus a 24h catch-up for 79/82 triggers missed live. */
-export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; daysSuggested: number; booked: number; swmsSignLinks: number }> {
-  const out = { installTomorrow: 0, daysSuggested: 0, booked: 0, swmsSignLinks: 0 };
+export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; daysSuggested: number; booked: number; swmsSignLinks: number; installDayCrew: number }> {
+  const out = { installTomorrow: 0, daysSuggested: 0, booked: 0, swmsSignLinks: 0, installDayCrew: 0 };
   // Decision 377: each crew member's own safety plan sign link first, so the install-tomorrow text below can list them by name.
   try { out.swmsSignLinks = await (await import("./swms-sign-text.server")).sweepSwmsSignLinks(now); } catch (e) { console.error("safety plan sign link sweep failed", (e as Error).message); }
+  // Decision 411: install-day text to the lead + each crew member on their own mobile.
+  try { out.installDayCrew = await (await import("./install-day-crew-text.server")).sweepInstallDayCrewTexts(now); } catch (e) { console.error("install day crew text sweep failed", (e as Error).message); }
   const since = new Date(now.getTime() - INSTALLER_TEXT_SWEEP_HOURS * 3_600_000).toISOString();
   const { melbourneMidnight } = await import("./daily-brief.core");
   const { addYmd } = await import("./melbourne-time.core");
