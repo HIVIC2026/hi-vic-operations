@@ -62,7 +62,7 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
     { business_id: BIZ, name: "TEST Alpha", blocker: null }, { business_id: BIZ2, name: "TEST Beta", blocker: "No approved installer with a Full, current EEC certification recorded." },
   ] }),
 }));
-mock.module("../src/lib/ready-check-offer-text.server", () => ({ textInstallerAboutOffer: async (id: string) => { calls.texts.push(id); return "blocked: Wording not approved yet"; } }));
+mock.module("../src/lib/ready-check-offer-text.server", () => ({ textInstallerAboutOffer: async (id: string) => { calls.texts.push(id); return "blocked: Wording not approved yet"; }, emailInstallerAboutOffer: async () => "blocked: TEST fixture" }));
 mock.module("../src/lib/ready-check-times-email.server", () => ({ emailOwnerReadyCheckTimes: async (_j: string, s: string[]) => { calls.emails.push(s); return "not sent — wording awaiting approval"; } }));
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, label: string) => {

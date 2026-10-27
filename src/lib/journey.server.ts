@@ -702,7 +702,10 @@ export async function cleanupJourney(ctx: JourneyCtx) {
     const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
     // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
     if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
-      await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      const { error: offerError } = await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (offerError) throw new Error(`TEST offer cleanup failed: ${offerError.message}`);
+      const { count: remaining, error: remainingError } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (remainingError || remaining !== 0) throw new Error("TEST cleanup refused: a pending offer remains.");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
