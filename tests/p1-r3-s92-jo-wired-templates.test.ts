@@ -162,7 +162,7 @@ describe("A6. the correct pricing values reach the renderer", () => {
   test("the saved figures appear verbatim in both parts of the email", () => {
     const mail = renderJoOutcomeEmail(base({}))!;
     expect(mail.plainText).toContain("You save $1,482");
-    expect(mail.plainText).toContain("You pay after the rebate: $3,697 incl. GST (full price before rebate $5,179)");
+    expect(mail.plainText).toContain("You pay after the rebate: $3,697 incl. GST (full price $5,179)");
     expect(mail.html).toContain("$1,482");
     expect(mail.html).toContain("$3,697");
     expect(mail.html).toContain("$5,179");
@@ -172,7 +172,7 @@ describe("A6. the correct pricing values reach the renderer", () => {
     expect(belowR2.plainText).toContain("If some needs removing: $15/m², only the areas that need it.");
     expect(belowR2.plainText).toContain("If it can stay: $0.");
     // It is never added to the quoted total.
-    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price before rebate $5,179)");
+    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price $5,179)");
   });
   test("the included card states the customer price and rebate supplied, and no unsupplied figure is invented", () => {
     const mail = renderJoOutcomeEmail(base({}))!;

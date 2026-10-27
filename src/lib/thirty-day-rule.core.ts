@@ -64,7 +64,7 @@ export function installerInstallWindowText(f: ReminderFacts): string {
   return `${job}: only ${dayWord(f.daysLeft)} left (last day ${by}). If the window lapses the repeat PIESA is charged to whoever caused the delay. Agree a day now: ${f.link} Reply STOP to opt out.`;
 }
 
-/** Owner email. Design: docs/templates/mjml/owner_install-window.mjml (MJML email refresh, 27 Oct 2026 — not approved by Jo). */
+/** Owner email. Design: docs/templates/mjml/owner_install-window.mjml (MJML email refresh, Jo 27 Oct 2026). */
 export function ownerInstallWindowEmail(f: ReminderFacts): { subject: string; html: string; text: string } {
   const first = K.cleanName(f.firstName) ?? "there";
   const by = longDate(f.deadline);

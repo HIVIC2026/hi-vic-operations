@@ -64,8 +64,8 @@ describe("Add your own customer", () => {
 });
 
 describe("Trade sign-in", () => {
-  test("invite emails stay off until Jo approves; only approved workers get access", () => {
-    expect(TRADE_INVITE_EMAIL_APPROVED).toBe(false);
+  test("invite email approved by Jo 27 Oct 2026 (decision 406); only approved workers get access", () => {
+    expect(TRADE_INVITE_EMAIL_APPROVED).toBe(true);
     const w = { email: "a@b.com", approval_status: "approved", removed_at: null, trade_role: "installer", certification_status: "verified" };
     expect(tradeAccessBlocker(w, true)).toBeNull();
     expect(tradeAccessBlocker({ ...w, approval_status: "pending" }, true)).not.toBeNull();

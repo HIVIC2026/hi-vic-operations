@@ -100,7 +100,7 @@ describe("decision 386 classifier: send only the standard answers", () => {
     expect(decide(body, facts(WAITING), { subject: "Re: Save my spot — price inside" }).kind).toBe("none");
   });
   test("mode: TEST → test-send; real owners need the approved flag AND customer comms", () => {
-    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
+    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(true); // Jo approved the O76 wording 27 Oct 2026 (decision 406)
     expect(autoReplyMode({ testJob: true, approved: false, commsEnabled: null })).toEqual({ mode: "test_send" });
     expect(autoReplyMode({ testJob: false, approved: false, commsEnabled: true }).mode).toBe("held");
     expect(autoReplyMode({ testJob: false, approved: true, commsEnabled: false }).mode).toBe("held");
@@ -288,9 +288,9 @@ const run = (o: Parameters<typeof msg>[0] = {}, jobIds = ["job-real"], switches:
   autoReplyToOwner({ jobIds, message: msg(o), mailbox: MAILBOX, ...(switches ? { switches } : {}) });
 
 describe("server (mocked): guards, idempotency, TEST routing, approval gate, filing", () => {
-  test("unapproved (the code constant) → draft + ONE Needs me row, nothing claimed, nothing sent, nothing filed", async () => {
+  test("unapproved → draft + ONE Needs me row, nothing claimed, nothing sent, nothing filed", async () => {
     reset();
-    const r = await run({}, ["job-real"], null);
+    const r = await run({}, ["job-real"], { approved: false, archive: true });
     expect(r).toMatchObject({ status: "held", suppressDraft: false, officeRow: true });
     expect(r.detail).toContain("waiting for Jo's approval");
     expect(calls.owner.length + calls.testEmail.length + calls.archive.length).toBe(0);
@@ -325,7 +325,7 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
   });
   test("TEST job → test-send only once approved, never the real sender", async () => {
     reset();
-    expect((await run({ from: "jo@test.test", id: "mt0" }, ["job-test"], null)).status).toBe("held"); // Jo 26 Oct: unapproved = draft, TEST too
+    expect((await run({ from: "jo@test.test", id: "mt0" }, ["job-test"], { approved: false, archive: false })).status).toBe("held"); // Jo 26 Oct: unapproved = draft, TEST too
     calls.testEmail = []; db.workflow_events = db.workflow_events!.filter((e) => e["details"]?.message_id !== "mt0");
     const r = await run({ from: "jo@test.test" }, ["job-test"], { approved: true, archive: false });
     expect(r.status).toBe("sent");

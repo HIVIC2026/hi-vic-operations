@@ -16,8 +16,8 @@
 //   (non-owner = skip, no link = draft, so no O76 answer ever carries a non-owner link).
 // - Jo asked that owners waiting for an installer are told there is a long list and spots are released in the order
 //   they were saved (`LONG_LIST`).
-// Wording is a DRAFT (O76a–O76j in docs/templates/drafts/) behind OWNER_EMAIL_AUTO_REPLY_APPROVED = false: real owners
-// get nothing automatic until Jo approves it (their email gets the draft + Needs me row instead); TEST jobs → test-send.
+// Wording (O76a–O76j in docs/templates/drafts/) approved by Jo 27 Oct 2026 (decision 406): OWNER_EMAIL_AUTO_REPLY_APPROVED = true;
+// real sends still need the customer messages switch + consent; TEST jobs → test-send.
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { classifyEmailIntents, type EmailIntent } from "./email-intent.core";
@@ -25,8 +25,8 @@ import { classifyIntent, latestReplyText } from "./outlook-correspondence.core";
 import { firstNameOf, isEnquiryStage, slotText, type Slot } from "./email-reply.core";
 import { newSenderReplySubject } from "./new-sender-reply.core";
 
-/** DRAFT (decision 386): false until Jo approves the O76 wording. Real delivery also needs customer_comms_enabled + consent. */
-export const OWNER_EMAIL_AUTO_REPLY_APPROVED: boolean = false;
+/** Jo approved the O76 wording on 27 Oct 2026 (decision 406). Real delivery also needs customer_comms_enabled + consent. */
+export const OWNER_EMAIL_AUTO_REPLY_APPROVED: boolean = true;
 /** ONE per Outlook message, written BEFORE the send (the claim; unique key per provider message id). */
 export const EMAIL_AUTO_REPLIED_EVENT = "email_auto_replied";
 /** Written when a claimed reply could not go (held / failed): the decision-244 draft + Needs me row follow. */
