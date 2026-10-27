@@ -39,9 +39,16 @@ export async function repeatPiesaContext(jobId: string): Promise<{ state: Repeat
 }
 
 /** Office choice. The suggestion is recorded alongside, never used to decide. */
-export async function chooseRepeatPayer(jobId: string, payer: RepeatPayer, actorId: string): Promise<RepeatState> {
+export async function chooseRepeatPayer(jobId: string, payer: RepeatPayer, actorId: string, opts: { testPriceIncGst?: number } = {}): Promise<RepeatState> {
   const { state, suggestion } = await repeatPiesaContext(jobId);
-  const price = await repeatPiesaPrice();
+  let price = await repeatPiesaPrice();
+  // TEST journeys only (server-side, never an endpoint input): a stand-in price on a qa_test job, so the owner-pays path
+  // can be proven while the real office setting stays empty.
+  if (opts.testPriceIncGst != null) {
+    const { data: j } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
+    if (j?.source !== "qa_test") throw new WorkflowError("A stand-in repeat price is only allowed on TEST jobs.");
+    price = opts.testPriceIncGst;
+  }
   const blocker = chooseRepeatPayerBlocker(state, payer, price);
   if (blocker) throw new WorkflowError(blocker);
   const label = payer === "hivic" ? "Home Insulation Victoria" : `the ${payer}`;
@@ -58,7 +65,11 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
     if (state.stage === "owner_pay" || state.stage === "offer") return state; // idempotent
     throw new WorkflowError("There's nothing to accept right now.");
   }
-  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
+  // What the owner had already paid on the ONE invoice when they accepted: the repeat counts as paid only once payments
+  // reach this plus the repeat price (a reversed-and-re-applied payment never counts as the repeat payment).
+  const { data: invRow } = await admin.from("invoices").select("total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const paidBeforeCents = Math.round(Number(invRow?.total_paid ?? 0) * 100);
+  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0, paid_before_cents: paidBeforeCents }, { internal: false });
   const next = (await repeatPiesaContext(jobId)).state;
   // Owner pays (decision 233): the price goes on the job's ONE Xero invoice now; every Sync retries / holds for the office.
   if (next.stage === "owner_pay") await (await import("./xero.server")).addRepeatPiesaToXeroInvoice(jobId, null)
@@ -86,7 +97,10 @@ export async function repeatPaidFromInvoice(jobId: string, invoiceId: string, pa
   const { data: added } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT).contains("details", { invoice_id: invoiceId, deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const d = (added?.details ?? null) as { amount_cents?: number; paid_at_add_cents?: number } | null;
   if (!d) return false;
-  if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: Number(d.paid_at_add_cents ?? 0), priceCents: Number(d.amount_cents ?? 0) })) return false;
+  const { data: acc } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_ACCEPTED_EVENT).contains("details", { deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const before = Number((acc?.details as { paid_before_cents?: number } | null)?.paid_before_cents ?? NaN);
+  const paidAtAdd = Math.max(Number.isFinite(before) ? before : 0, Number(d.paid_at_add_cents ?? 0));
+  if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: paidAtAdd, priceCents: Number(d.amount_cents ?? 0) })) return false;
   await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on the Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);
