@@ -5,6 +5,7 @@
 // Only the job this run created is archived; TEST trades are restored by cleanupJourney.
 import { mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { acceptedTestEmail } from "./journey-email-evidence.core";
 
 const removed: string[] = [];
 for (const key of Object.keys(process.env)) if (/RESEND|TWILIO|SMS.*(?:KEY|TOKEN)|EMAIL.*(?:KEY|TOKEN)|SMTP|SENDGRID|MAILGUN|POSTMARK|CUSTOMER_EMAIL|DELIVERY.*(?:KEY|SECRET)|MITTI_API_TOKEN/i.test(key)) { delete process.env[key]; removed.push(key); }
@@ -127,7 +128,7 @@ async def main():
             if name == "Release":
                 bravo = page.get_by_text("TEST Bravo Insulation", exact=True).first
                 if await bravo.count():
-                    row = bravo.locator("xpath=ancestor::tr[1]")
+                    row = bravo.locator("xpath=ancestor::li[1]")
                     if await row.count():
                         release = row.get_by_role("button", name="Release", exact=True)
                         if await release.count():
@@ -215,7 +216,7 @@ if (!ctx?.jobId || !safe) {
 // ---- cleanup: archive only this run's job, restore TEST trades ----
 let archived: string[] = [];
 const { data: communications } = ctx?.jobId ? await admin.from("job_communications").select("subject,recipients,delivery_status,provider_message_id,source_event,source_reference,created_at").eq("job_id", ctx.jobId).eq("channel", "email").order("created_at") : { data: [] };
-const sentEmails = (communications ?? []).filter(c => c.provider_message_id && !/blocked|held|failed/.test(c.delivery_status));
+const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 

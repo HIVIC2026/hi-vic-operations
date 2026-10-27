@@ -1,9 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 10:46 TEST Bravo and browser rerun
-- [ ] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; leave Alpha/HV-1554 untouched.
+- [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
 - [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
-- [ ] Simulated fixes-day template includes canonical real questions; test creation/readback without network.
-- [ ] Run screens, continue independent page checks after failures; report unreached work honestly, Jo-only emails, archive run job and restore trades.
+- [x] Simulated fixes-day template includes canonical real questions; 7 routing tests and form creation/readback pass without network.
+- [x] Screens ran through final page inspection: 6 pass/4 fail/9 blocked; HV-3420 archived. One Spot saved email provider-accepted to Jo; original recipient verified by redirect audit. Release selector failed; later workflow not completed, not claimed. TEST trades restored.
+- [ ] Full workflow through payout blocked at Release. Runner used table selector on list rows (corrected for future runs); actual Release/confirmation/booking and downstream mutation controls remain unverified. No bypass or new run performed.
 ## Jo 27 Oct 10:28 four safeguards only
 - [x] Keep unreplied enquiries/unanswered owner mail out of Gone quiet; notes excluded and bulk closure freshly rechecked.
 - [x] Newest non-superseded fixes quote gates payment/booking; My job accepts replacements at scheduling/booked stages. Stable quote/line saves recover interruptions; existing single-invoice lock/revision protection retained.
