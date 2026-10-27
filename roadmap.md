@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 02:24 DC Xero switch (clarified 02:25)
 - [x] Preview selects already-linked DC Xero; actual status configured/connected, DC live and Demo-only TEST routing confirmed; 53 tests pass, build OK. No messages, switches or publication.
-- [ ] DC invoice tracking needs Jo's direction: read-only check finds Home Insulation Victoria under Projects, not the required Business Unit category; existing guard unchanged, invoices remain blocked if tracking is missing.
+- [ ] Jo 02:29 approved tracking fix: use DC Projects → Home Insulation Victoria, keep wrong-business/missing-tracking guards and Demo isolation; test and verify read-only, no invoices sent or publication.
 ## Jo 27 Oct 02:15 guarded not-eligible email and journey rerun
 - [x] Actual portal xeroConnectionStatus normal environment: configured/connected true; only Home Insulation Victoria, no TEST Demo route. Separate workspace connection has Demo, but no connection/secret changed.
 - [x] Preview once-only approved T7 after current final not_eligible, durable held retry with normal customer/TEST guards; 10 new isolated tests and 39 existing eligibility/retry/practice checks pass; decision 407/source of truth recorded; build OK. Hosted flow unverified; no publish.

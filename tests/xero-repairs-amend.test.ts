@@ -77,7 +77,7 @@ process.env["LOVABLE_API_KEY"] = "test-lovable";
 process.env["XERO_API_KEY"] = "test-xero";
 afterAll(() => { globalThis.fetch = realFetch; });
 
-const tracking = { categoryName: "Business Unit", optionName: "Home Insulation Victoria" };
+const tracking = { categoryName: "Projects", optionName: "Home Insulation Victoria" };
 function freshXeroInvoice(): XInv {
   const payload = buildInvoicePayload({ contactId: "c-1", jobNumber: "HV-0101", dueDate: "2026-11-20", total: 4000, items: [
     { description: "Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit_price_inc_gst: 349, line_total_inc_gst: 349 },
@@ -130,7 +130,7 @@ describe("R07 acceptance: $4,000 installation + $550 later-approved fixes on the
     expect(fixes.Description).toStartWith("Home Insulation Victoria HV-0101 – Electrical fixes");
     expect(fixes.Description).toContain(repairsTag(QR));
     expect(fixes.UnitAmount).toBe(550);
-    expect(fixes.Tracking).toEqual([{ Name: "Business Unit", Option: "Home Insulation Victoria" }]);
+    expect(fixes.Tracking).toEqual([{ Name: "Projects", Option: "Home Insulation Victoria" }]);
     // Portal invoice row = Xero's varied total; the owner's plan counts the fixes once and adds up to the same total.
     expect(Number(invRow()["total_inc_gst"])).toBe(4550);
     expect(Number(invRow()["balance_amount"])).toBe(4201);
@@ -263,7 +263,7 @@ describe("pure rules (xero-repairs.core)", () => {
     expect(repairsAmendDecision({ ...base, xero: { ...x, Total: 4550, Status: "PAID" } })).toEqual({ action: "already", basis: "total_matches" });
     expect(repairsAmendDecision({ ...base, xero: null })).toMatchObject({ action: "hold" });
   });
-  test("the edit sends every original line back unchanged plus ONE tracked line; live payloads must carry Business Unit tracking", () => {
+  test("the edit sends every original line back unchanged plus ONE tracked line; live payloads must carry Projects tracking", () => {
     const x = freshXeroInvoice();
     const u = buildRepairsAmendment({ xero: x, jobNumber: "HV-0101", rectQuoteId: QR, amountCents: 55_000, key, mode: "live" });
     expect(u.path).toBe(`/api.xro/2.0/Invoices/${XID}`);
@@ -272,7 +272,7 @@ describe("pure rules (xero-repairs.core)", () => {
     expect(u.body.Invoices[0]!.LineItems.length).toBe(x.LineItems!.length + 1);
     expect(u.expectedTotalCents).toBe(455_000);
     const untracked = { ...x, LineItems: x.LineItems!.map(({ Tracking: _t, ...l }) => l) };
-    expect(() => buildRepairsAmendment({ xero: untracked, jobNumber: "HV-0101", rectQuoteId: QR, amountCents: 55_000, key, mode: "live" })).toThrow(/Business Unit/);
+    expect(() => buildRepairsAmendment({ xero: untracked, jobNumber: "HV-0101", rectQuoteId: QR, amountCents: 55_000, key, mode: "live" })).toThrow(/Projects/);
   });
   test("Xero's answer is verified: total, every original line, and the fixes line", () => {
     const x = freshXeroInvoice();
