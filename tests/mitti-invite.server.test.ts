@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
 const reads: string[] = [];
+let membershipReadError = false;
+let changeProfileDuringLink = false;
 function from(t: string) {
   reads.push(t);
   let rows = [...(tables[t] ?? [])];
@@ -16,7 +18,10 @@ function from(t: string) {
   Object.assign(q, {
     select: () => q,
     eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; },
-    ilike: (k: string, v: string) => { rows = rows.filter(r => String(r[k]).toLowerCase() === v.toLowerCase()); return q; },
+    ilike: (k: string, v: string) => {
+      if (t === "profiles" && op === "update" && changeProfileDuringLink) for (const r of rows) r.email = "changed@sparks.com.au";
+      rows = rows.filter(r => String(r[k]).toLowerCase() === v.toLowerCase()); return q;
+    },
     in: (k: string, v: unknown[]) => { rows = rows.filter((r) => v.includes(r[k])); return q; },
     or: () => q,
     contains: (k: string, v: Row) => { rows = rows.filter((r) => Object.entries(v).every(([kk, vv]) => (r[k] as Row | undefined)?.[kk] === vv)); return q; },
@@ -24,7 +29,7 @@ function from(t: string) {
     update: (p: Row) => { op = "update"; patch = p; return q; },
     insert: (r: Row) => { op = "insert"; (tables[t] ??= []).push({ created_at: new Date(Date.now() + (tables[t]?.length ?? 0)).toISOString(), ...r }); return q; },
     maybeSingle: async () => { apply(); return { data: op === "select" ? rows[0] ?? null : null, error: null }; },
-    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "insert" ? null : rows, error: null }); },
+    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "insert" ? null : rows, error: t === "partner_workers" && membershipReadError ? { message: "lookup unavailable" } : null }); },
   });
   return q;
 }
@@ -64,6 +69,7 @@ const events = () => (tables["admin_config_events"] ?? []).map((e) => e["event_t
 
 beforeEach(() => {
   reads.length = 0; searches.length = 0; calls.length = 0; messages.length = 0; found = null; failCreate = false;
+  membershipReadError = false; changeProfileDuringLink = false;
   tables = {
     partner_workers: [
       { id: "w-test", email: "sparky@hivic.test", mobile: "0400000000", full_legal_name: "Test Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
@@ -79,6 +85,12 @@ beforeEach(() => {
 });
 
 describe("onPartnerPersonApproved", () => {
+  test("email changed during link rejects the zero-row save and sends nothing", async () => {
+    found = "user_77"; changeProfileDuringLink = true;
+    await expect(onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).rejects.toThrow(/email changed/);
+    expect(tables["profiles"]?.find(p => p.id === "p2")?.mitti_user_id).toBeNull();
+    expect(messages).toEqual([]); expect(events()).toEqual([]);
+  });
   test("wrong linked profile refuses before provider calls or changing another person's identity", async () => {
     const profile = tables["profiles"]?.find(p => p.id === "p2");
     if (!profile) throw new Error("profile fixture missing");
@@ -168,6 +180,11 @@ describe("onPartnerPersonApproved", () => {
 });
 
 describe("onPartnerPersonRemoved", () => {
+  test("unreadable other memberships refuse deactivation", async () => {
+    membershipReadError = true;
+    await expect(onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).rejects.toThrow(/could not be checked/);
+    expect(calls).toEqual([]);
+  });
   test("removed → the Mitti user the portal created is deactivated once; approved again → reactivated (same seat)", async () => {
     await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message });
     tables["partner_workers"]![1]!["removed_at"] = "2026-10-25T00:00:00Z";
