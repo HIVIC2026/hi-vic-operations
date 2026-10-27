@@ -229,6 +229,7 @@ test("actual health server makes one template GET and preserves an official appr
   const h = createMittiBoundaryHarness({ provider: ordinaryProvider(), dependencies: {
     "./official-forms.core": { officialFormUseBlocker: () => "Fixture approval pending" },
     "./mitti-forms.core": { flattenDefinition: (doc: unknown) => doc, validateTemplate: () => ({ ok: true, issues: [] }) },
+    "./mitti-form-schema.core": { validateSavedDefinition: () => ({ ok: true, issues: [] }) },
   } });
   const result = await h.load("mitti-form-health.server").checkMittiFormHealth("piisa", A2_UUID, h.call);
   assert.equal(result.identity, "verified"); assert.equal(result.ok, false); assert.equal(result.approvalBlocker, "Fixture approval pending");
