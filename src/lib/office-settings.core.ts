@@ -22,6 +22,7 @@ export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>>
   auto_installer_offers: "docs/pending-migrations/auto-offer-switches.sql",
   auto_electrician_offers: "docs/pending-migrations/auto-offer-switches.sql",
   esc_registry_robot_enabled: "docs/pending-migrations/esc-registry-robot-switch.sql",
+  mitti_instant_notice_enabled: "docs/pending-migrations/mitti-instant-notice-switch.sql",
 };
 
 export const SWITCHES: SwitchDef[] = [
@@ -36,7 +37,7 @@ export const SWITCHES: SwitchDef[] = [
   { key: "consent_copy", label: "ESC consent copy", what: "Email after the AP signs (copy of the signed consent)", why: "decision 170", kind: "code", value: CONSENT_COPY_EMAIL_APPROVED, where: "consent-copy-email.core.ts CONSENT_COPY_EMAIL_APPROVED" },
   { key: "daily_mitti", label: "Installer good-morning texts", what: "6:30am Mitti links on job days (each installer text type also has its own switch)", why: "decision 154", kind: "column", column: "daily_mitti_text_enabled" },
   { key: "mitti_pickup", label: "Mitti pick-up", what: "Forms started in Mitti become jobs every 15 minutes", why: "Mitti-first pickup rule", kind: "column", column: "mitti_pickup_auto_enabled" },
-  { key: "mitti_instant", label: "Mitti instant updates", what: "Ready Check changes reach the portal within a minute (the 15-minute check stays as backup)", why: "Jo 27 Oct 2026", kind: "column", column: "mitti_instant_notice_enabled" },
+  { key: "mitti_instant", label: "Mitti instant updates", what: "Ready Check changes reach the portal within a minute (the 15-minute check stays as backup)", why: "Jo 27 Oct 2026", kind: "column", column: "mitti_instant_notice_enabled", pendingMigration: PENDING_SWITCH_COLUMNS.mitti_instant_notice_enabled },
   { key: "esc_registry_robot", label: "ESC Registry robot", what: "Fills the VEU Registry install notification (24h–5 days before the install) and the VEEC creation (after the owner signs); dry run until the deployment is set live; TEST jobs never submit; a failure comes to Needs me", why: "decisions 195, 272; also needs ESC_REGISTRY_ROBOT_ENABLED on the deployment", kind: "column", column: "esc_registry_robot_enabled", pendingMigration: PENDING_SWITCH_COLUMNS.esc_registry_robot_enabled },
 ];
 

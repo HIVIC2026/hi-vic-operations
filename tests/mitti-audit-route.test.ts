@@ -127,4 +127,12 @@ describe("Settings switch", () => {
     const i = SWITCHES.findIndex((s) => s.key === "mitti_pickup");
     expect(SWITCHES[i + 1]).toMatchObject({ key: "mitti_instant", label: "Mitti instant updates", kind: "column", column: "mitti_instant_notice_enabled" });
   });
+  test("before its migration the switch reads 'waiting for the database change', off and not editable", async () => {
+    const { PENDING_SWITCH_COLUMNS, SWITCHES, switchState } = await import("../src/lib/office-settings.core");
+    expect(PENDING_SWITCH_COLUMNS.mitti_instant_notice_enabled).toBe("docs/pending-migrations/mitti-instant-notice-switch.sql");
+    const def = SWITCHES.find((s) => s.key === "mitti_instant")!;
+    expect(def).toMatchObject({ pendingMigration: "docs/pending-migrations/mitti-instant-notice-switch.sql" });
+    expect(switchState(def, { customer_comms_enabled: false })).toMatchObject({ on: false, editable: false, note: expect.stringContaining("mitti-instant-notice-switch.sql") });
+    expect(switchState(def, { mitti_instant_notice_enabled: true })).toMatchObject({ on: true, editable: true });
+  });
 });
