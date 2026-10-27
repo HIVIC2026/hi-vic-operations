@@ -21,6 +21,8 @@ export const isNotOnboardedReason = (reason: string | null | undefined) => /^Ele
 /** Jo 28 Oct 2026 (spec rule 3): the installer's note while the quote is held for this reason (decision 303). Installer
  *  wording only; the internal hold reason stays `notOnboardedReason(name)`. */
 export const installerNotOnboardedNote = (name: string) => `We can't send the owner's quote yet. ${name} hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead.`;
+/** Jo 28 Oct 2026: is this installer line the not-signed-up note above (any name)? */
+export const isInstallerNotOnboardedNote = (line: string | null | undefined) => /^We can't send the owner's quote yet\. .+ hasn't finished signing up with us\. Ask them to finish, or use our electrician \(\$349\) instead\.$/.test(line ?? "");
 /** The electrician named in a "Electrician not onboarded: <name>" hold reason, or null. */
 export const notOnboardedNameFromReason = (reason: string | null | undefined): string | null => {
   if (!isNotOnboardedReason(reason)) return null;

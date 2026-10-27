@@ -106,7 +106,7 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 }
 
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
-import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
+import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE, quoteLineYours } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
 
@@ -164,7 +164,7 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
     if (f.boss) return { kind: "price", title: ENTER_PRICE_TITLE, home: "Next: enter your price", yours: true };
     return { kind: "waiting_boss", title: WAITING_BOSS_TITLE, home: "Next: nothing yet — waiting on your business owner", yours: false };
   }
-  if (f.quoteLine) return { kind: "quote", title: f.quoteLine.replace(/^You:\s*/, ""), home: f.quoteLine, yours: f.quoteLine.startsWith("You:") };
+  if (f.quoteLine) return { kind: "quote", title: f.quoteLine.replace(/^You:\s*/, ""), home: f.quoteLine, yours: quoteLineYours(f.quoteLine) };
   return { kind: "none", title: "", home: "", yours: false };
 }
 
@@ -213,7 +213,7 @@ export function jobNext(f: JobNextFacts): JobNext {
     if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: "Your price and what it includes. We add the $349 fee and the electrical safety check, take off the rebate and prepare the owner's quote.", yours: true };
     if (status.kind === "waiting_boss") return { panel: "waiting", title: status.title, sub: "Nothing else is needed from you on this job right now.", yours: false };
     if (f.quoteLine) {
-      const yours = f.quoteLine.startsWith("You:");
+      const yours = quoteLineYours(f.quoteLine);
       return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, "").replace(/^Waiting on (owner|office):\s*/i, (_, w) => `Waiting on ${w}: `), sub: null, yours };
     }
     if (!f.formCompleted && f.readyCheckTurn === "booked" && f.readyCheckBookedAt) return { panel: "mitti_form", title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`, sub: "Fill in the Mitti form on site and press Complete when it's finished — we then send the owner their quote.", yours: true };
@@ -226,7 +226,7 @@ export function jobNext(f: JobNextFacts): JobNext {
     if (f.readyCheckBookedAt) return { panel: "form_coming", title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`, sub: "Your Ready Check form is being set up in Mitti. It appears within about 15 minutes.", yours: false };
     return { panel: "ready_check_set_time", title: "Your Ready Check form is being set up in Mitti", sub: "It appears within about 15 minutes. Enter the visit day and time below if you've agreed one with the owner.", yours: false };
   }
-  if (f.quoteLine) return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, ""), sub: null, yours: f.quoteLine.startsWith("You:") };
+  if (f.quoteLine) return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, ""), sub: null, yours: quoteLineYours(f.quoteLine) };
   return { panel: "waiting", title: "Nothing for you right now", sub: "We'll tell you when something needs you.", yours: false };
 }
 

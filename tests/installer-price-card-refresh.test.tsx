@@ -22,6 +22,8 @@ const view = () => ({
   canSet: true, current: null, electrician: "Home Insulation Victoria electrician", access: { rating: null, issues: [] }, removalRequired: null,
   readyCheck: { address: "1 Test Street", install: "120 m²", removal: "None", access: "Easy", product: "Bradford Gold R5" },
 });
+// Jo 28 Oct 2026: the card also carries the switch-to-our-electrician button (not used here).
+mock.module("@/lib/electrician-choice.functions", () => ({ switchToHivicElectrician: async () => ({ ok: true }) }));
 mock.module("@/lib/installer-price.functions", () => ({
   getInstallerPriceFn: async () => { calls.push("getInstallerPrice"); return view(); },
   // The real save resolves only after the redraft; here the new held draft exists once the save resolves.

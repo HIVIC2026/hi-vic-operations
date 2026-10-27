@@ -2,7 +2,7 @@
 // (A2, R5/R6/R7_BATTS) alike. The installer presses Complete in the Mitti Ready Check, the quote is prepared
 // automatically and the office presses Send. Old installer quote approval events stay as history and are no
 // longer read or written. Pure presentation only — never a send, release or readiness decision.
-import { installerNotOnboardedNote } from "./rec-onboarded.core";
+import { installerNotOnboardedNote, isInstallerNotOnboardedNote } from "./rec-onboarded.core";
 
 export const INSTALLER_A1_CODE = "INSTALLER_A1";
 export const A2_RATE_CARD_CODES = ["R5_BATTS", "R6_BATTS", "R7_BATTS"] as const;
@@ -40,6 +40,10 @@ export function installerQuoteLine(f: InstallerQuoteFacts): string {
   if (f.held || f.formCompleted) return QUOTE_HELD_LINE;
   return PRESS_COMPLETE_LINE;
 }
+
+/** Jo 28 Oct 2026 (spec rule 3): the installer's move — a "You:" line, or the not-signed-up note (they ask the
+ *  electrician to finish, or switch to ours). Such a job sits under Action needed, never In progress. */
+export const quoteLineYours = (line: string | null | undefined): boolean => !!line && (line.startsWith("You:") || isInstallerNotOnboardedNote(line));
 
 /** Office Quotes to check: every draft is listed for Check & send; jobs with no draft yet (Ready Check basics
  *  missing, or held before drafting) are listed separately with what is missing. No installer-approval split. */

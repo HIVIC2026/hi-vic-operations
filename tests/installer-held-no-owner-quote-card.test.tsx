@@ -14,6 +14,8 @@ mock.module("@tanstack/react-start", () => ({
 }));
 mock.module("@tanstack/react-router", () => ({ Link: ({ children }: { children: ReactNode }) => <a>{children}</a> }));
 mock.module("@/hooks/use-me", () => ({ useAction: (fn: (o: { data: unknown }) => Promise<unknown>) => async (data: unknown) => fn({ data }) }));
+// Jo 28 Oct 2026: the card also carries the switch-to-our-electrician button (not used here).
+mock.module("@/lib/electrician-choice.functions", () => ({ switchToHivicElectrician: async () => ({ ok: true }) }));
 mock.module("@/lib/installer-price.functions", () => ({
   getInstallerPriceFn: async () => ({
     canSet: true, electrician: "My usual electrician (TEST Sparky)", access: { rating: null, issues: [] }, removalRequired: null,

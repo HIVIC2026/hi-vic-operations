@@ -3,6 +3,7 @@
 // per job from facts the server has already decided (place, stage, quote status, Mitti basics, bookings).
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
+import { isInstallerNotOnboardedNote } from "./rec-onboarded.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { installerStatusLine } from "./installer-screens.core";
 
@@ -83,6 +84,8 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (status.kind === "price") return { group: "action", next: status.home };
   if (status.kind === "waiting_boss") return { group: "progress", next: status.home };
   if (j.quoteLine === PRESS_COMPLETE_LINE) return { group: "action", next: "Next: press Complete in Mitti when the Ready Check is finished" };
+  // Jo 28 Oct 2026 (spec rule 3): stuck on a not-signed-up electrician — the installer's move, shown with the note itself.
+  if (isInstallerNotOnboardedNote(j.quoteLine)) return { group: "action", next: j.quoteLine! };
   if (j.quoteLine === QUOTE_HELD_LINE) return { group: "progress", next: "Next: nothing yet — office is checking the quote" };
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };

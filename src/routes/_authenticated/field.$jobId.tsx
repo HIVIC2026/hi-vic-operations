@@ -57,6 +57,7 @@ import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { isInstallerNotOnboardedNote } from "@/lib/rec-onboarded.core";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
 import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
@@ -388,7 +389,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
-          {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
+          {/* Jo 28 Oct 2026: the not-signed-up note is the installer's move but not a Mitti task — no form link for it. */}
+          {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours && !isInstallerNotOnboardedNote(page.quote?.line))) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
           {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}
           {/* Decision 328: check the A5 Install day form now — the same result the lead installer is texted. */}
@@ -411,7 +413,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {page.pay.amount != null && !page.quote?.declined && <Row label="Your pay for this job" value={`$${Math.round(page.pay.amount).toLocaleString("en-AU")}`} tone="bold" />}
           {page.pay.amount != null && !page.quote?.declined && <Note>{payNote({ channel: page.channel, areaM2: page.pay.areaM2, removalM2: page.pay.removalM2 })}</Note>}
           {/* Decision 278: the business owner's price card — the server returns nothing for team members. */}
-          {page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}
+          {page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} electricianNotOnboarded={page.quote?.electricianNotOnboarded ?? null} />}
           {showQuoteStatus && <OwnerQuoteCard jobId={jobId} hideStatus />}
           {elecRow && <div className="mt-1.5 border-t border-line"><Row label={elecRow.label} value={<span className="font-medium">{elecRow.value}</span>} last={!installLine} /></div>}
           {installLine && <Row label="Install" value={installLine} last />}

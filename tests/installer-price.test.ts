@@ -179,7 +179,7 @@ describe("wiring (source facts)", () => {
   });
   test("job page: the card renders for the boss on their own jobs only; staff see nothing about price; no electrician question on the card", () => {
     const page = read("src/routes/_authenticated/field.$jobId.tsx");
-    expect(page).toContain('{page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}');
+    expect(page).toContain('{page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} electricianNotOnboarded={page.quote?.electricianNotOnboarded ?? null} />}');
     expect(page).not.toContain("Your price goes in the Mitti form");
     expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.boss ? pay : null");
     // The owner's quote (with the boss's figures) is status-only for team members on installer jobs.

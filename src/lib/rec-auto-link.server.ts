@@ -9,8 +9,9 @@ import { AUTO_LINK_SOURCE, REC_AUTO_LINKED_EVENT, REC_LINK_CONFLICT_EVENT, autoL
 import { ELECTRICIAN_ONBOARDING_NEEDED_EVENT } from "./rec-onboarded.core";
 import { USUAL_ELECTRICIAN_EVENT, usualElectrician } from "./usual-electrician.core";
 
-/** Re-run the quote pipeline from the job's current Mitti form (same path as the price card); null = no form / Mitti down (the tick retries). */
-async function redraftFromMitti(jobId: string, actorId: string | null): Promise<boolean | null> {
+/** Re-run the quote pipeline from the job's current Mitti form (same path as the price card); null = no form / Mitti down (the tick retries).
+ *  Prepares a draft only — never sends (also used by the switch to our electrician, Jo 28 Oct 2026). */
+export async function redraftFromMitti(jobId: string, actorId: string | null): Promise<boolean | null> {
   try {
     const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
     if (m?.external_source !== "mitti" || !m.external_id) return null;

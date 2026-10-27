@@ -65,11 +65,18 @@ export async function installerPriceView(jobId: string, userId: string) {
   };
 }
 
-/** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
-export async function setInstallerPrice(jobId: string, userId: string, input: InstallerPriceInput): Promise<StoredInstallerPrice> {
+/** The ONE "business owner of the installer business on this job" check: an installer job (A1) and the user is that
+ *  business's admin (`requireMember(…, true)`). Save price and the switch to our electrician (Jo 28 Oct) both use it. */
+export async function requireJobBusinessOwner(jobId: string, userId: string) {
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
+  return j;
+}
+
+/** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
+export async function setInstallerPrice(jobId: string, userId: string, input: InstallerPriceInput): Promise<StoredInstallerPrice> {
+  const j = await requireJobBusinessOwner(jobId, userId);
   // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
   const { removalRequired } = await currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null }));
   const v = validateInstallerPrice({ ...input, removalRequired });

@@ -14,11 +14,21 @@ import { PRICE_INCLUDED_OPTIONS, PRICE_ISSUES, accessFlagLine, priceCardLines, v
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
+import { OneTapAction } from "@/components/trade/one-tap-action";
+import { switchToHivicElectrician } from "@/lib/electrician-choice.functions";
+import { installerNotOnboardedNote } from "@/lib/rec-onboarded.core";
 
-export function InstallerPriceCard({ jobId }: { jobId: string }) {
+/** Jo 28 Oct 2026 (spec rule 3): exact button wording; the switch is final (no switch back). */
+export const SWITCH_TO_HIVIC_ELECTRICIAN = "Use Home Insulation Victoria's electrician ($349) instead";
+
+/** `electricianNotOnboarded` (from the job page quote): the job is held because this electrician hasn't finished signing
+ *  up — the card then shows the note and the switch button under the price. */
+export function InstallerPriceCard({ jobId, electricianNotOnboarded = null }: { jobId: string; electricianNotOnboarded?: { name: string } | null }) {
   const load = useServerFn(getInstallerPriceFn);
   const q = useQuery({ queryKey: ["installer-price", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
+  const switchElectrician = useAction(switchToHivicElectrician);
+  const [switchRefused, setSwitchRefused] = useState<string | null>(null);
   const qc = useQueryClient();
   const view = q.data;
   const [editing, setEditing] = useState(false);
@@ -88,6 +98,18 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             {current && <button type="button" className="min-h-11 px-4 text-[15px] font-semibold text-sub" onClick={() => setEditing(false)}>Cancel</button>}
           </div>
         </form>
+      )}
+      {electricianNotOnboarded && (
+        <div data-electrician-switch className="border-t border-line pt-2">
+          <Note className="mt-0 pb-2 text-[15px] text-ink">{installerNotOnboardedNote(electricianNotOnboarded.name)}</Note>
+          <OneTapAction label={SWITCH_TO_HIVIC_ELECTRICIAN} busyLabel="Switching…" confirm="Are you sure?" run={async () => {
+            setSwitchRefused(null);
+            const r = await switchElectrician({ jobId });
+            if (r && !r.ok) { setSwitchRefused(r.reason); return; }
+            if (r?.ok) await Promise.all([q.refetch(), refreshQuoteViews()]);
+          }} />
+          {switchRefused && <p data-switch-refused className="pt-2 text-sm text-rose">{switchRefused}</p>}
+        </div>
       )}
     </div>
   );
