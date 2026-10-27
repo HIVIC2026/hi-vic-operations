@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateTemplate } from "@/lib/mitti-forms.core";
 import { SHORT_PIESA_FIELDS } from "@/lib/official-short.core";
 import { expandPiesa } from "@/lib/official-expand.core";
