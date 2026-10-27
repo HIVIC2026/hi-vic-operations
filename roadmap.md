@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 06:02 independent Mitti pull
+- [x] Attempted no-message HV-3385 sync: refused because its measurement was already completed by production at 05:45; current form read confirmed 75m², batts below R2, remove75m², Bradford Gold R5 and easy access. No sends.
+- [x] Separate authenticated Mitti callback and remove only two requested sweeps from preview allocation; retain all other tick behaviour.
+- [ ] Activate production five-minute schedule only with deployed callback; blocked pending explicit publication authorisation. Do not point a live timer at a nonexistent route or alter unmanaged allocation authentication.
 ## Jo 27 Oct 05:16 interrupted Save my spot — one bug only
 - [x] Atomic save/event/stage applied after practice rollback/retry/access tests; both save handlers resume confirmation, secure next visit repairs only that recorded job without messages. Regression tests pass; no sends/settings/publication.
 ## Jo 27 Oct 04:18 main journey follow-ups

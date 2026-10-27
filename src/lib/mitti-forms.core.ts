@@ -423,6 +423,9 @@ export function validateQuotedPrice(input: {
   if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
   // "Price already agreed with the owner?" is optional: the office reviews every quote draft before sending,
   // so no draft is ever sent without a human look. A Yes/No answer is still recorded when the form has it.
-  if (issues.length) return { ok: false, issues, price: null };
+  // Jo 27 Oct 2026 (HV-3385): other issues (e.g. a removal tick mismatch) hold the quote for office review but must NOT
+  // blank the price — the entered amount is known, and nulling it made the draft say "Installer quote amount is missing."
+  // even though the price was there. Only a missing/invalid total leaves the price null.
+  if (issues.length) return { ok: false, issues, price: Number.isFinite(totalIncGst) && totalIncGst > 0 ? { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } : null };
   return { ok: true, issues: [], price: { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }
