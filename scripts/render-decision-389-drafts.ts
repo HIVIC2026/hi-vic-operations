@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { renderSpotReleasedEmail } from "../src/lib/spot-release-email.core";
 import { spotReleasePageLink, spotReleasedText } from "../src/lib/spot-release.core";
 
-const TEMPLATES = new URL("../docs/templates/owner/", import.meta.url).pathname;
+const TEMPLATES = "/tmp/email-drafts/";
 const DESIGNS = "/tmp/designs/";
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const LINK = spotReleasePageLink(MY_JOB);

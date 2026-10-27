@@ -229,9 +229,9 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:estimate-unopened", section: "owner", step: "enquiry", kind: "email", code: "", name: "Estimate not opened (3 days)", when: "Three days after the estimate email when the estimate link was never opened", who: "Owner", approvalNote: "The one active estimate follow-up kind (customer-followups hook)", gate: { kind: "email" },
     source: { builder: "src/lib/followup-email.ts", fn: "renderFollowupEmail", sender: "src/lib/followups.server.ts" },
     render: () => email(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: EST })) }),
-  ...([["day_2", "O66", "Estimate reminder (day 2)", "O66-estimate-reminder-day-2.html"], ["day_7", "O67", "Estimate reminder (day 7)", "O67-estimate-reminder-day-7.html"], ["day_21", "O68", "Estimate closing (day 21)", "O68-estimate-closing-day-21.html"]] as const).map(([step, code, name, file]) =>
+  ...([["day_2", "O66", "Estimate reminder (day 2)", "owner_O66.mjml"], ["day_7", "O67", "Estimate reminder (day 7)", "owner_O67.mjml"], ["day_21", "O68", "Estimate closing (day 21)", "owner_O68.mjml"]] as const).map(([step, code, name, file]) =>
     ENTRY({ id: `owner:${code}`, section: "owner", step: "enquiry", kind: "email", code, name, when: `${step.replace("day_", "Day ")} after the estimate email, until the spot is saved, they reply or opt out (closes a week after day 21)`, who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 242 (reconfirmed 357); HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
-      source: { builder: "src/lib/estimate-followup.core.ts", fn: "renderEstimateFollowupEmail", sender: "src/lib/estimate-followup.server.ts" }, design: `docs/templates/owner/${file}`,
+      source: { builder: "src/lib/estimate-followup.core.ts", fn: "renderEstimateFollowupEmail", sender: "src/lib/estimate-followup.server.ts" }, design: `docs/templates/mjml/${file}`,
       render: () => email(renderEstimateFollowupEmail({ step, firstName: "Helen", rebate: 1610, price: 2188, fullPrice: 3798, basis: "Based on what you told us: 137 m² ceiling, no existing insulation.", saveUrl: `${EST}/campaign`, calculatorUrl: `${EST}/calculator`, unsubscribeUrl: UNSUB })) })),
   ENTRY({ id: "owner:sms-save_spot_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "Save my spot reminder (one-off)", when: "Office one-off reminder to owners who have an estimate but no saved spot", who: "Owner", approvalNote: "Jo (one-off blast wording); HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "text", smsType: "save_spot_reminder" },
     source: { builder: "src/lib/save-spot-reminder-blast.core.ts", fn: "blastMessage", sender: "src/lib/save-spot-reminder-blast.server.ts" },
@@ -418,7 +418,7 @@ const OWNER: TemplateEntry[] = [
     ["P3", "install", "Owner's consent form (ESC)", "After the install day is agreed, at least 24 hours before work", "P3-owner-consent-page.html"],
     ["P4", "rebate", "Sign your rebate form (VEEC assignment)", "The O44 / O61 link after the install", "P4-veec-sign-page.html"]] as const).map(([code, step, name, when, file]) =>
     ENTRY({ id: `owner:${code}`, section: "owner", step, kind: "page", code, name, when, who: "Owner (My job link)", approvalNote: "Jo 24 Oct 2026, decisions 125–130", gate: { kind: "always" },
-      source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/owner/${file}`,
+      source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/mjml/${file}`,
       render: () => ({ kind: "file", path: `docs/templates/owner/${file}`, as: "html", note: "Jo's approved page design. The live My job page uses this wording byte-for-byte (owner-pages.core.ts, tested by tests/owner-pages.core.test.ts)." }) })),
   // Owner paperwork (Gate B, current versions)
   ...GATE_DOCS.filter((d) => d.gate === "B" && !RETIRED_DOC_KEYS.has(d.key)).map((d) =>

@@ -11,7 +11,7 @@ import { renderPaperworkCopyEmail } from "../src/lib/paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "../src/lib/piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "../src/lib/installer-planning-notice.core";
 
-const TEMPLATES = new URL("../docs/templates/", import.meta.url).pathname;
+const TEMPLATES = "/tmp/email-drafts/";
 const DESIGNS = "/tmp/designs/";
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const FIELD = "https://estimate.homeinsulationvictoria.com.au/field/job-1";

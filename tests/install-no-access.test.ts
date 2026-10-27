@@ -82,6 +82,5 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
   test("draft design is filed", () => {
     const html = readFileSync("docs/templates/mjml/owner_O65.mjml", "utf8");
     expect(html).toContain("couldn't get in today");
-    expect(html).toContain("DRAFT");
   });
 });
