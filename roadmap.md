@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 05:16 interrupted Save my spot — one bug only
+- [ ] Atomic save/event/stage, retry completes confirmation, secure next-visit no-message repair; practice tests before live migration. No sends/settings/publication.
 ## Jo 27 Oct 04:18 main journey follow-ups
 - [x] HV-3371 read-only audit: customer_email_sends 0, sms_messages 0; all21 job_communications (14 email/7 SMS) blocked_prelaunch, no provider ids. Reserved TEST-domain emails and dummy mobiles are NOT sending-allowlisted. Complete row list in Files journey/HV-3371-message-audit.md.
 - [x] Only main TEST consent input changed: four existing required ticks in shared journey fixture;20 focused tests pass, build OK. Wrapper verified in executing child, all sending keys removed,17 Demo-only Xero calls,zero external/provider refusals; existing M passes. HV-3376 archived;1–6/9/10 PASS,7 FAIL after consent succeeds because ESC notice is configuration required,8 SKIPPED. Report journey/2026-10-27T04-21-11/report.md +json. No rules/settings/publishing changes; TEST flags restored.
