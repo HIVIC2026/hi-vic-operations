@@ -162,6 +162,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // 30-day window lapsed with no install (decision 1/2): watch.
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
   }
+  // Jo 28 Oct: a current failed PIESA (fixes found) with no Section C pass yet also tells the office (stage may be piesa_complete).
+  if (ids.length) {
+    const cur = await byIds("current PIESA outcomes", ids, (chunk, a, b) => admin.from("piesa_records").select("job_id, kind, outcome, created_at").in("job_id", chunk).eq("is_current", true).range(a, b));
+    for (const r of cur) {
+      const x = f(String(r["job_id"])); const j = jobById.get(String(r["job_id"]));
+      if (x && j && !x.fixesFound && r["outcome"] === "fail" && r["kind"] !== "post_rectification" && !j.facts.installedAt) x.fixesFound = { at: String(r["created_at"]), stage: j.stage };
+    }
+  }
   // Jo 28 Oct (decision 158, OFFICE CHOOSES): a lapsed window with no office payer choice for that deadline → one Today row.
   const lapsedIds = [...facts.values()].filter((x) => x.lapsedWindow).map((x) => x.jobId);
   if (lapsedIds.length) {
