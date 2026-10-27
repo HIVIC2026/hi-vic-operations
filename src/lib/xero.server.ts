@@ -78,6 +78,22 @@ export async function recordDemoTestPayment(invoiceId: string, amount: number, a
   await syncInvoiceFromXero(invoiceId, actorId);
 }
 
+/** TEST journeys only (Jo 27 Oct, Phase 3 path 3): delete the newest "TEST payment" on a TEST job's Demo Company invoice,
+ *  as a person reversing it in Xero would, then read the invoice back through the normal sync (ledger reversal row). */
+export async function reverseDemoTestPayment(invoiceId: string, actorId: string) {
+  if ((await modeForInvoice(invoiceId)) !== "test") throw new Error("Test payment reversals are only allowed on TEST jobs.");
+  const { data: inv } = await admin.from("invoices").select("job_id, xero_invoice_id").eq("id", invoiceId).single();
+  if (!inv?.xero_invoice_id) throw new Error("No Demo Company invoice.");
+  const call = await tenantCall("test");
+  const got = await call(`/api.xro/2.0/Invoices/${encodeURIComponent(inv.xero_invoice_id)}`);
+  const pays = ((got.Invoices?.[0]?.Payments ?? []) as { PaymentID?: string; Reference?: string; Status?: string }[]).filter((p) => p.PaymentID && String(p.Status ?? "AUTHORISED").toUpperCase() !== "DELETED");
+  const last = pays.filter((p) => (p.Reference ?? "") === "TEST payment").at(-1) ?? pays.at(-1);
+  if (!last?.PaymentID) throw new Error("No Demo Company payment to reverse.");
+  await call(`/api.xro/2.0/Payments/${encodeURIComponent(last.PaymentID)}`, { method: "POST", body: { Status: "DELETED" } });
+  await logEvent(inv.job_id, actorId, "xero_test_payment_reversed", "TEST payment deleted in Xero Demo Company", { invoice_id: invoiceId, xero_payment_id: last.PaymentID }, { internal: true });
+  await syncInvoiceFromXero(invoiceId, actorId);
+}
+
 /** Supabase-backed store for the pure invoice lifecycle. */
 export const dbStore: InvoiceStore = {
   async find(quoteId) {
