@@ -534,7 +534,8 @@ async function shoot(moment: string, list: { who: string; email: string | null; 
   const shots = [] as { name: string; path: string; session: unknown }[];
   for (const [i, s] of list.entries()) shots.push({ name: `${String(SHOTS.length + i).padStart(2, "0")}-${moment}-${s.who}.png`.replace(/[^a-z0-9.-]+/gi, "_"), path: s.path, session: s.email ? await personaSession(s.email) : null });
   const manifest = `${SHOT_DIR}/.shots.json`, resultFile = `${SHOT_DIR}/.shots-result.json`;
-  writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir: SHOT_DIR, storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, shots, resultFile }));
+  const { data: shotJob } = shots.length ? await admin.from("jobs").select("job_number").eq("id", (list[0]?.path.match(/\/jobs\/([^/?]+)/)?.[1] ?? list.map(x => x.path).join(" ").match(/\/(?:jobs|day)\/([^/? ]+)/)?.[1] ?? "")).maybeSingle() : { data: null };
+  writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir: SHOT_DIR, jobNumber: shotJob?.job_number ?? "", storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, shots, resultFile }));
   const script = new URL("../../e2e/journey/branch_shot.py", import.meta.url).pathname;
   spawnSync("python3", [script, manifest], { encoding: "utf8", timeout: 300_000 });
   writeFileSync(manifest, "{}"); // sessions are short-lived secrets; never leave them on disk
@@ -573,7 +574,7 @@ async function toQuoteAccepted(rec: Recorder, ctx: JourneyCtx, setup: StepResult
 }
 const ELEC = "qa.rec.delta@hivic-test.example";
 const INST = "qa.installer.alpha@hivic-test.example";
-const officePages = (ctx: JourneyCtx) => [{ who: "office-job", email: JOURNEY_ACTOR_EMAIL, path: `/admin/jobs/${ctx.jobId}` }, { who: "office-needs-me", email: JOURNEY_ACTOR_EMAIL, path: "/admin/needs-me" }];
+const officePages = (ctx: JourneyCtx) => [{ who: "office-job", email: "qa.office@hivic-test.example", path: `/admin/jobs/${ctx.jobId}` }, { who: "office-needs-me", email: "qa.office@hivic-test.example", path: "/admin/needs-me?test=true" }];
 const ownerPage = (ctx: JourneyCtx, q = "") => ({ who: "owner", email: null, path: `/my-job/${ctx.token}${q}` });
 
 async function finish(ctx: JourneyCtx, jobs: BranchResult["jobs"]) {
@@ -797,8 +798,11 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
     answer("stops", (props25 ?? 0) === 0 && (rcBooked ?? 0) === 0, `24h: times offered=${props25}; installer then ${offered}; 48h: Ready Check bookings=${rcBooked} (the all-jobs reminder sweep was NOT RUN: it would touch real jobs)`);
     answer("reason", sees(at25[0], /offer|times|accept|decline|expired|closed/i) && sees(at49[0], /pick|choose|time|Ready Check/i), `installer offer page at 24h: "${at25[0]?.text.slice(0, 160) ?? "-"}"; owner page at 48h asks to pick a time=${sees(at49[0], /pick|choose/i)}`);
-    // The 24h/48h alerts are written by the all-jobs background sweeps (offer expiry, coordination); a TEST run must not start them.
-    answer("office_once", sig25.needsMe === 1 && sig49.needsMe === 1, `One-job timers ran twice. 24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}); 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}). Scoped coordination never calls any sender.`);
+    const office25 = at25.find(x => x.who === "office-needs-me");
+    const office49 = at49.find(x => x.who === "office-needs-me");
+    const visible25 = sees(office25, new RegExp(`${ctx.jobNumber}.*Installer offer lapsed`));
+    const visible49 = sees(office49, new RegExp(`${ctx.jobNumber}.*Ready Check time not confirmed`));
+    answer("office_once", sig25.needsMe === 1 && sig49.needsMe === 1 && visible25 && visible49, `One-job timers ran twice. 24h: Needs me=${sig25.needsMe}, visible=${visible25}; 48h: Needs me=${sig49.needsMe}, visible=${visible49}. Scoped coordination never calls any sender.`);
     // Fix for (b): the owner takes one of the times → booked.
     let fix = "booked";
     try {

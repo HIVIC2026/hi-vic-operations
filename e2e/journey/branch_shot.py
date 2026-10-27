@@ -25,6 +25,13 @@ async def main(path):
                 for _ in range(10):  # a page still saying "Loading…" gets up to 10 more seconds
                     if "Loading" not in await page.inner_text("body"): break
                     await page.wait_for_timeout(1000)
+                if "/admin/needs-me" in s["path"]:
+                    for card in await page.locator("[data-card] > button").all():
+                        await card.click(); await page.wait_for_timeout(800)
+                        target = page.get_by_text(m.get("jobNumber", ""), exact=True)
+                        visible = [x for x in await target.all() if await x.is_visible()]
+                        if visible:
+                            await visible[0].scroll_into_view_if_needed(); break
                 text = " ".join((await page.inner_text("body")).split())
                 width = await page.evaluate("document.documentElement.scrollWidth")
                 await page.screenshot(path=str(out / s["name"]))
