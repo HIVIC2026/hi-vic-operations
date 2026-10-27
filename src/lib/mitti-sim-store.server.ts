@@ -20,8 +20,10 @@ const newAuditId = () => `${SIM_ID_PREFIX}audit_${crypto.randomUUID().replaceAll
 const known = new Set<string>();
 export async function isStoredSimAudit(id: string): Promise<boolean> {
   if (known.has(id)) return true;
-  const { data, error } = await db().select("id").eq("id", id).maybeSingle();
-  if (error || !data) return false; // unreadable store = not known; real ids keep their real path
+  try {
+    const { data, error } = await db().select("id").eq("id", id).maybeSingle();
+    if (error || !data) return false; // unreadable store = not known; real ids keep their real path
+  } catch { return false; }
   known.add(id); return true;
 }
 
