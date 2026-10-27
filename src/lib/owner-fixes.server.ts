@@ -20,12 +20,13 @@ export type OwnerFixesState = {
 
 export async function ownerFixesState(jobId: string, now = new Date()): Promise<OwnerFixesState> {
   const [{ data: qs, error: qe }, { data: ws, error: we }, { data: bk, error: be }] = await Promise.all([
-    admin.from("quotes").select("id, status, version, customer_total_inc_gst, created_at, quote_items(description, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).limit(1),
+    admin.from("quotes").select("id, status, version, customer_total_inc_gst, created_at, quote_items(description, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "rectification").neq("status", "superseded").order("created_at", { ascending: false }).limit(1),
     admin.from("appointment_proposals").select("id, starts_at, ends_at, status, responded_at").eq("job_id", jobId).eq("kind", "rectification").eq("electrician_window", true),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "rectification").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (qe || we || be) throw new Error(`Could not read the electrical fixes: ${(qe ?? we ?? be)!.message}`);
-  const q = ((qs ?? []) as unknown as QuoteRow[])[0] ?? null;
+  const latest = ((qs ?? []) as unknown as QuoteRow[])[0] ?? null;
+  const q = latest && ["issued", "accepted", "declined"].includes(latest.status) ? latest : null;
   const windows = (ws ?? []) as unknown as WindowRow[];
   const pickable = pickableRectWindows(windows, now);
   const picked = windows.filter((w) => w.status === "accepted").sort((a, b) => (b.responded_at ?? "").localeCompare(a.responded_at ?? ""))[0] ?? null;

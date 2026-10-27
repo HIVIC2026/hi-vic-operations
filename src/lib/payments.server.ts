@@ -8,6 +8,7 @@
 // unique, so two concurrent deliveries of one receipt write ONE row; the loser's 23505 reads as "already recorded".
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
+import { currentFixesQuote, FIXES_ACCEPT_LATEST } from "./fixes-quote-current.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
   cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
@@ -124,7 +125,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const [{ data: inv }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }] = await Promise.all([
     admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid, deposit_amount, xero_invoice_number, xero_reference, xero_online_url, xero_invoice_id, balance_due_date, quotes(accepted_at, customer_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
-    admin.from("quotes").select("customer_total_inc_gst, accepted_at").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
+    currentFixesQuote(jobId).then(q => ({ data: q?.status === "accepted" ? q : null })),
     admin.from("bookings").select("id, created_at, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "completed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("jobs").select("job_number, stage, source").eq("id", jobId).maybeSingle(),
@@ -183,7 +184,10 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
  *  the job has no separate fixes step (none, or folded into the installation quote) or no invoice. Shared by
  *  confirmBooking (kind rectification) and stageEntryBlockers("rectification_booked"). */
 export async function fixesPaymentBlockerFor(jobId: string): Promise<string | null> {
+  const current = await currentFixesQuote(jobId);
+  if (current && current.status !== "accepted") return FIXES_ACCEPT_LATEST;
   const v = await jobPaymentView(jobId);
+  if (current && !v) return "The newest electrical fixes quote must be paid in full before the fixes can be booked — invoice not available.";
   return v ? fixesPaymentBlocker(v.plan, v.steps) : null;
 }
 
