@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -64,6 +64,8 @@ export type NeedsFacts = {
   eligibilityReview?: { at: string; reason: string | null } | null;
   /** Hard stop (payment mismatch): an owner payment was reversed (deleted/voided in Xero, or refunded) and no payment came in since. */
   paymentReversed?: { at: string; text: string } | null;
+  /** Hard stop: the Mitti form on this job was refused (wrong job number, wrong or different form). */
+  mittiFormProblem?: { at: string; error: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
@@ -124,6 +126,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const soon = closes - now <= 48 * HOUR;
     add({ rank: soon ? 35 : 115, group: soon ? "today" : "week", kind: "esc_window", line: `ESC notice window closes ${fmtWhen(f.escWindow.closesAt)}`, since: f.escWindow.opensAt ?? f.escWindow.closesAt, button: { label: "Open Registry block", to: "job", section: "install" } });
   }
+  if (f.mittiFormProblem) add({ rank: 39, group: "today", kind: "mitti_form_problem", line: `Mitti form refused · ${f.mittiFormProblem.error.slice(0, 140)}`, since: f.mittiFormProblem.at, button: { label: "Open job", to: "job" } });
   if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });

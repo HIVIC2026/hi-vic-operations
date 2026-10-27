@@ -273,6 +273,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const elig = await all("eligibility reviews", (a, b) => { const q = (admin as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: unknown) => { eq: (k: string, v: unknown) => { in: (c: string, v: string[]) => never; range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> } } } } }).from("eligibility_verifications").select("*").eq("is_current", true).eq("outcome", "needs_review"); return (opts.onlyIds ? (q as unknown as { in: (c: string, v: string[]) => typeof q }).in("job_id", opts.onlyIds) : q).range(a, b); });
     for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
   } catch { unavailable.push("eligibility reviews"); }
+  // Hard stop: a refused Mitti form (wrong job number / wrong form) → one row until a good sync clears the error.
+  try {
+    const mf = await all("Mitti form problems", (a, b) => scoped(admin.from("assessments").select("job_id, mitti_last_error, updated_at")).eq("mitti_sync_status", "error").not("mitti_last_error", "is", null).neq("status", "complete").range(a, b));
+    for (const r of mf) { const x = f(String(r["job_id"])); if (x && !x.mittiFormProblem) x.mittiFormProblem = { at: String(r["updated_at"]), error: String(r["mitti_last_error"]) }; }
+  } catch { unavailable.push("Mitti form problems"); }
   // Hard stop: a reversed owner payment with nothing paid since → one Money row until a new payment is recorded.
   try {
     const { openPaymentReversal } = await import("./office-needs.core");
