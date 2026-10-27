@@ -46,7 +46,7 @@ mock.module("../src/lib/workflow.server", () => ({
 // No approved RECs on this practice database (the shim can't run the live `cs` filter): "TEST Sparky" is not onboarded.
 mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => [] }));
 mock.module("../src/lib/usual-electrician-reminder.server", () => ({ maybeRemindUsualElectrician: async () => { sent.push("reminder"); } }));
-const { draftInstallerQuoteFromReadyCheck, INSTALLER_QUOTE_CODE } = await import("../src/lib/installer-quote.server");
+const { draftInstallerQuoteFromReadyCheck, INSTALLER_QUOTE_CODE, heldDraftHoldReason } = await import("../src/lib/installer-quote.server");
 
 const JOB = "00000000-0000-0000-0000-000000003129", BIZ = "00000000-0000-0000-0000-00000000b129", U = "00000000-0000-0000-0000-00000000c129";
 const form = (product: string | null) => [
@@ -205,5 +205,15 @@ describe("installer status with no draft (HV-3129 shape)", () => {
     const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
     expect((await loadInstallerQuote(JOB)).applies).toBe(false);
     expect((await loadInstallerQuotes([JOB])).get(JOB)!.applies).toBe(false);
+  });
+});
+
+// Review fix (27 Oct 2026): a held draft always carries a reason, so it can never look sendable.
+describe("held draft hold reason", () => {
+  test("no blockers → the generic hold reason, never just the office-review suffix", () => {
+    expect(heldDraftHoldReason([])).toBe("Quote held for office review · Waiting for office review before sending");
+  });
+  test("blockers → joined, then the office-review suffix", () => {
+    expect(heldDraftHoldReason(["A", "B"])).toBe("A · B · Waiting for office review before sending");
   });
 });

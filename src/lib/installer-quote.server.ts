@@ -132,7 +132,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     // guessed $349) and any open draft is withdrawn, so the installer sees only their own price.
     if (electricianPriceKnown(mittiElectrician, draftInput.piesaIncGst) && heldFiguresBuildable(draft, { measuredM2: m2, wholeVeec })) {
       setPiesaExplanation(draft, mittiElectrician);
-      await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: [...draft.blockers, "Waiting for office review before sending"].join(" · "), intakePrice: !!intakePrice, mittiElectrician });
+      await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: heldDraftHoldReason(draft.blockers), intakePrice: !!intakePrice, mittiElectrician });
     } else if ((open ?? []).some((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
       const { error: se } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft").eq("option_code", INSTALLER_QUOTE_CODE);
       if (se) throw new Error("The old quote could not be withdrawn.");
@@ -171,6 +171,13 @@ export function heldFiguresBuildable(draft: Pick<InstallerDraft, "lines" | "subt
   const installer = Number(draft.lines.find((l) => l.code === "INSTALLER_PRICE")?.line_total_inc_gst);
   const area = rebate.measuredM2 != null && Number.isFinite(rebate.measuredM2) && rebate.measuredM2 > 0;
   return Number.isFinite(installer) && installer > 0 && draft.subtotal > 0 && area && rebate.wholeVeec != null;
+}
+
+/** Hold reason for a draft built on the held path: its blockers, then the office-review line. With no blockers the
+ *  generic hold ("Quote held for office review", as in quotes.server) is used so a held draft never looks sendable. */
+export function heldDraftHoldReason(blockers: string[]): string {
+  const reasons = blockers.filter((b) => b.trim().length > 0);
+  return [...(reasons.length ? reasons : ["Quote held for office review"]), "Waiting for office review before sending"].join(" · ");
 }
 
 /** Identity is part of scope even if the selected electrician has the same price. */
