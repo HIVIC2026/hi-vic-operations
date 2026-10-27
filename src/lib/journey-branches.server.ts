@@ -546,7 +546,7 @@ const jobMentions = (s: Shot | undefined, jobNumber: string | null) => (s && job
 async function officeSignals(jobId: string) {
   const rows = await needsRows(jobId);
   let hivic: string[] = [];
-  try { hivic = (await (await import("./needs.server")).loadNeedsHivic()).filter((x) => JSON.stringify(x).includes(jobId)).map((x) => String((x as { code?: string }).code ?? (x as { key?: string }).key)); } catch { /* read-only best effort */ }
+  try { hivic = (await (await import("./needs.server")).loadNeedsHivic()).items.filter((x: unknown) => JSON.stringify(x).includes(jobId)).map((x: unknown) => String((x as { code?: string }).code ?? (x as { key?: string }).key)); } catch { /* read-only best effort */ }
   return { needsMe: rows.length, needsMeText: rows.map((r) => r.text.slice(0, 160)), exceptions: hivic };
 }
 
