@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:23 decision 316
+- [x] Align guides, record Jo’s reconfirmation and correct piesa-fixes check 2.7 to use the official PIESA date; portal deadline code unchanged.
 ## Jo 27 Oct 07:09 HV-3385 review fixes
 - [x] Refresh changed completed Mitti measurements, audit and redraft held quotes only; issued/accepted quotes unchanged. Practice sweep/readback and unchanged replay checked; verified measurements retain protection.
 - [x] Price is already excluded from Mitti missing-items messages; existing regression checks pass; installer quote amount validation untouched.
