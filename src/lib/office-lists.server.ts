@@ -96,14 +96,14 @@ async function estimateMap(ids: string[]) {
 
 export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
   const now = Date.now();
-  const index = testJobIds ? await all("TEST enquiries", (a, b) => admin.from("jobs")
+  const index: Row[] = testJobIds ? await all("TEST enquiries", (a, b) => admin.from("jobs")
     .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
     .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
     .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"]).order("created_at", { ascending: false }).order("id").range(a, b))
     .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null }; }))
     : await all("enquiries", (a, b) => {
     let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
-    q = testJobIds ? q.eq("source", "qa_test").in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]) : q.in("source", ["base44", "portal", "email"]);
+    q = q.in("source", ["base44", "portal", "email"]);
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   const ids = index.map((r) => String(r["id"]));
@@ -164,7 +164,7 @@ export type JobsListRow = {
 
 export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
   const now = Date.now();
-  const base = testJobIds ? await all("TEST active jobs", (a, b) => admin.from("jobs")
+  const base: Row[] = testJobIds ? await all("TEST active jobs", (a, b) => admin.from("jobs")
     .select("id,job_number,stage,source,channel,life_support,last_activity_at,created_at,owners(full_name,email,phone),properties(address_line),businesses!jobs_originating_installer_business_id_fkey(name)")
     .eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null)
     .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
@@ -174,7 +174,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     // office_job_list is the shared office bucket view (not in the generated client types).
     const view = (admin as unknown as { from: (t: string) => any }).from("office_job_list"); // eslint-disable-line @typescript-eslint/no-explicit-any
     let q = view.select("id, job_number, stage, source, channel, owner_name, owner_email, owner_phone, property_address, installer_name, originating_business_name, life_support, last_activity_at, created_at").eq("office_bucket", "active");
-    q = testJobIds ? q.eq("source", "qa_test").in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]) : p.includeTest ? q : q.or("source.is.null,source.neq.qa_test");
+    q = p.includeTest ? q : q.or("source.is.null,source.neq.qa_test");
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   const ids = base.map((r) => String(r["id"]));
