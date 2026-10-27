@@ -418,7 +418,7 @@ const OWNER: TemplateEntry[] = [
     ["P3", "install", "Owner's consent form (ESC)", "After the install day is agreed, at least 24 hours before work", "P3-owner-consent-page.html"],
     ["P4", "rebate", "Sign your rebate form (VEEC assignment)", "The O44 / O61 link after the install", "P4-veec-sign-page.html"]] as const).map(([code, step, name, when, file]) =>
     ENTRY({ id: `owner:${code}`, section: "owner", step, kind: "page", code, name, when, who: "Owner (My job link)", approvalNote: "Jo 24 Oct 2026, decisions 125–130", gate: { kind: "always" },
-      source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/mjml/${file}`,
+      source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/owner/${file}`,
       render: () => ({ kind: "file", path: `docs/templates/owner/${file}`, as: "html", note: "Jo's approved page design. The live My job page uses this wording byte-for-byte (owner-pages.core.ts, tested by tests/owner-pages.core.test.ts)." }) })),
   // Owner paperwork (Gate B, current versions)
   ...GATE_DOCS.filter((d) => d.gate === "B" && !RETIRED_DOC_KEYS.has(d.key)).map((d) =>
