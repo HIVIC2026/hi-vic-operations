@@ -217,6 +217,7 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
     expect(await q<{ consent_status: string; source: string }>("select consent_status, source from owner_contact_consents where job_id=$1", [A])).toEqual([{ consent_status: "granted", source: "onsite_ready_check" }]);
     expect(await q("select id from job_assignments where job_id=$1 and role='installer' and active", [A])).toHaveLength(1);
     // The form creation ran behind the atomic claim: ONE Mitti form, assigned to the TEST Mitti account, with the owner's details prefilled.
+    expect(await auditOf(A)).toBe("audit_1"); // Immediate create finished before Add a job returned.
     await settle();
     const auditId = await auditOf(A);
     expect(auditId).toBe("audit_1");
@@ -238,6 +239,46 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
     await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call)).rejects.toThrow(/Victorian/);
     await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
     expect((await q("select id from jobs")).length).toBe(before);
+  });
+});
+
+describe("Jo 27 Oct completed Ready Check edit recovery", () => {
+  test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
+    const beforeSends = sent.length;
+    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call);
+    const auditId = await auditOf(added.jobId);
+    if (!auditId) throw new Error("No fixture audit");
+    completeForm(auditId, "Home Insulation Victoria electrician");
+    await ms.syncMittiAssessment(added.jobId, null, call);
+    const original = await q<{ id: string }>("select id from quotes where job_id=$1 and status='draft'", [added.jobId]);
+    expect(original).toHaveLength(1);
+    const audit = mitti.audits.get(auditId);
+    if (!audit) throw new Error("No fixture audit");
+    audit.items = audit.items.filter(i => i.item_id !== "a_area1");
+    audit.items.push({ item_id: "a_area1", label: "Ceiling area 1", type: "section", children: [ans("Enter the measured ceiling area (m²)", "75"), pick("Is there existing insulation?", "Yes – batts below R2.0"), pick("Does any insulation in this area need to be removed?", "Yes"), ans("How much existing insulation needs to be removed? (m²)", "75")] });
+    audit.items = audit.items.filter(i => i.label !== "What's included in your quote?");
+    audit.items.push(pick("What's included in your quote?", "R5.0 ceiling insulation - supply & install", "Removal of existing insulation"));
+    audit["modified_at"] = new Date(Date.now() + 1000).toISOString();
+    await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: false, call });
+    expect((await q("select measured_area_m2,removal_required,removal_m2,access_difficulty,status from ceiling_measurements where job_id=$1 and is_current", [added.jobId]))[0]).toMatchObject({ measured_area_m2: "75", removal_required: true, removal_m2: "75", access_difficulty: "easy", status: "complete" });
+    expect(await events(added.jobId, "mitti_completed_measurement_refreshed")).toHaveLength(1);
+    expect(await q("select id from quotes where job_id=$1 and status='superseded'", [added.jobId])).toEqual(original);
+    const draft = await q<{ id: string }>("select id from quotes where job_id=$1 and status='draft' and release_state='held'", [added.jobId]);
+    expect(draft).toHaveLength(1);
+    expect(draft[0]?.id).not.toBe(original[0]?.id);
+    await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: false, call });
+    expect(await events(added.jobId, "mitti_completed_measurement_refreshed")).toHaveLength(1);
+    expect(await q("select id from quotes where job_id=$1 and status='draft'", [added.jobId])).toEqual(draft);
+    expect(sent.length).toBe(beforeSends);
+    // Both issued and accepted quotes remain byte-for-byte unchanged on further form edits.
+    for (const status of ["issued", "accepted"]) {
+      await q("update quotes set status=$2,sent_at=now(),release_state='released' where id=$1", [draft[0]?.id, status]);
+      const before = await q("select * from quotes where job_id=$1 order by id", [added.jobId]);
+      audit.items.push(ans("Please explain", `Access note ${status}`));
+      await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: false, call });
+      expect(await q("select * from quotes where job_id=$1 order by id", [added.jobId])).toEqual(before);
+      expect(sent.length).toBe(beforeSends);
+    }
   });
 });
 
