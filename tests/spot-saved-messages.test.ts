@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { renderSpotSavedEmail, renderSpotSavedSms, addressBits } from "../src/lib/spot-saved-messages.core";
-import { readFileSync } from "node:fs";
 const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress: "12 Smith St, Ballarat", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/abc", optOutUrl: "https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=x" };
 describe("spot saved confirmations", () => {
   test("text wording", () => {
@@ -32,15 +31,8 @@ describe("spot saved confirmations", () => {
     expect(without.text).not.toContain("HAVE A FRIEND WHO NEEDS A SPOT SAVED?");
     expect(renderSpotSavedSms({ ...i, referralUrl: ref })).toBe(renderSpotSavedSms(i));
   });
-  test("sent once: only on first save, deduped by history event, video re-save skipped", () => {
-    const src = readFileSync("src/lib/launch-campaign.server.ts", "utf8");
-    expect(src).toContain("if (firstSave) await queueSpotSavedConfirmations(");
-    expect(src).toContain('eq("event_type", "spot_saved_confirmation_queued")');
-    // Atomic first-save: insert ignoring duplicates, else fill only a row whose spot_saved_at is still null.
-    expect(src).toContain('ignoreDuplicates: true');
-    expect(src).toContain('.is("spot_saved_at", null)');
-    expect(src).toContain('delivery_status: "queued"');
-  });
+  // Save/confirmation replay behaviour is exercised by the atomic database and
+  // real-handler isolated tests, not firstSave source-text assertions.
 });
 
 import { addressBits as ab } from "../src/lib/spot-saved-messages.core";
