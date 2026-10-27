@@ -89,6 +89,10 @@ const s1: StepFn = async (ctx, r) => {
   ctx.jobId = res.job_id; ctx.jobNumber = res.job_number ?? null;
   await assertOwnTestJob(ctx);
   // Website contact consent, recorded exactly as the Base44 intake does (TEST job).
+  const { data: safetyJob, error: safetyRead } = await admin.from("jobs").select("external_refs").eq("id", ctx.jobId).eq("source", "qa_test").single();
+  if (safetyRead || !safetyJob) throw new Error("TEST delivery safety could not be checked.");
+  const { error: safetyWrite } = await admin.from("jobs").update({ external_refs: { ...((safetyJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (safetyWrite) throw new Error("TEST delivery safety could not be saved.");
   const { data: jo } = await admin.from("jobs").select("owner_id").eq("id", ctx.jobId).single();
   const { recordContactConsent } = await import("./intake.server");
   await recordContactConsent(ctx.jobId, jo!.owner_id!, { contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), external_enquiry_id: `qa-journey-${ctx.runId}` } as never);
