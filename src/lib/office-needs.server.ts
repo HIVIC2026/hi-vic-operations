@@ -134,12 +134,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
     const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));
-    const { coordinationState, visitIsCurrent } = await import("./allocation.core");
+    const { coordinationState, visitIsCurrent, readyCheckOverdueApplies } = await import("./allocation.core");
     for (const r of releases) {
       const id = String(r["job_id"]), x = f(id), j = jobById.get(id);
       const assignment = r["job_assignments"] as { active?: boolean; booking_confirmed_at?: string | null } | null;
       const visit = String(r["visit_kind"]);
       if (!x || !j || !assignment?.active || !visitIsCurrent(visit, j.stage) || !["ready_check", "piesa", "rectification", "installation"].includes(visit)) continue;
+      // Jo 28 Oct: installers book the Ready Check outside the portal; a done Ready Check never waits on a time.
+      if (!readyCheckOverdueApplies(visit, { stage: j.stage, channel: j.facts.ownJob ? "installer_sourced" : null })) continue;
       if (coordinationState({ releasedAt: s(r["released_at"]), firstProposalAt: null, confirmedAt: assignment.booking_confirmed_at ?? null }, new Date(now)).state === "needs_office") x.bookingOverdue = { at: String(r["released_at"]), visit: visit as "ready_check" | "piesa" | "rectification" | "installation" };
     }
   }
