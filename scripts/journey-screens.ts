@@ -213,8 +213,7 @@ async def main():
                         if values: await select.select_option(values[0])
             if name == "time:":
                 # A person taps the first offered time tile inside "Choose your Ready Check time".
-                sec = page.locator("section,div").filter(has_text=re.compile("Choose your Ready Check time")).last
-                tiles = [t for t in await sec.get_by_role("button").all() if re.search(r"\d", await t.inner_text()) and not re.search(r"suggest|code", await t.inner_text(), re.I)]
+                tiles = [t for t in await page.get_by_role("button").all() if re.search(r"^(Monday|Tuesday|Wednesday|Thursday|Friday).* at ", await t.inner_text(), re.I) and await t.is_visible()]
                 el, how = (tiles[0] if tiles else None), "time tile"
             elif name == "prestart:":
                 checks = page.locator("[data-prestart-checks]")
