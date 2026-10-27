@@ -410,11 +410,16 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   let raised = 0;
   try {
     const partner = await fromPartner(m.from);
-    const changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
+    let changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
       attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: partner });
     // Decision 337: a date/time change or cancel from the matched owner gets ONE automatic reply with their My job link;
     // the Apply/Ignore row is then raised only for a cancel the owner can't do themselves (or when the reply didn't go).
     const replied = new Map<string, { sent: boolean; keepOfficeRow: boolean }>();
+    // Jo 27 Oct 2026: a clear decline on an unbooked, unpaid enquiry closes the job itself — no reply, no Apply card.
+    if (changes.some((c) => c.intent === "cancel")) {
+      const r = await (await import("./email-decline-close.server")).closeOnDeclineEmail({ jobIds, message: m, fromPartner: partner });
+      if (r.closed) changes = changes.filter((c) => c.intent !== "cancel");
+    }
     for (const c of changes) {
       if (c.intent !== "reschedule" && c.intent !== "cancel") continue;
       try {
@@ -454,6 +459,8 @@ async function changeReplied(jobId: string, messageId: string): Promise<boolean>
 async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
   if (m.direction !== "inbound" || !jobIds.length) return false;
   try {
+    // Jo 27 Oct 2026: a plain decline that closed the job gets no reply and no AI draft.
+    if (jobIds.length === 1 && await (await import("./email-decline-close.server")).declineClosedFor(jobIds[0]!, m.providerMessageId)) return true;
     const r = await (await import("./owner-email-auto-reply.server")).autoReplyToOwner({ jobIds, message: m, mailbox });
     if (r.status === "sent" && counts) bump(counts, "ownerAutoReplies");
     // Jo 26 Oct: anything not sent gets ONE fresh AI reply draft saved on the job for Jo to approve and send.

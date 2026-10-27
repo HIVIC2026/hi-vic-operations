@@ -76,7 +76,7 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
     await logEvent(jobId, actorId, "cancel_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "email the installer"].filter(Boolean).join(" and ")} — sending by email (decision 291).`, { tell, wording_approved: CANCEL_NOTICE_EMAILS_APPROVED, cancel_seq: cancelSeq }, { internal: true });
     try {
       const { sendCancelNotices } = await import("./cancel-notice.server");
-      notices = await sendCancelNotices(jobId, actorId, tell, { cancelSeq, installer: installerRecipient });
+      notices = await sendCancelNotices(jobId, actorId ?? "", tell, { cancelSeq, installer: installerRecipient });
     } catch (e) {
       await logEvent(jobId, actorId, "cancel_notice_held", `Cancel notices could not be sent: ${(e as Error).message}`, { tell, cancel_seq: cancelSeq, decision: 291 }, { internal: true }).catch(() => undefined);
     }
