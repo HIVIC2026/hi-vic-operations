@@ -133,9 +133,9 @@ export function EnquiriesScreen() {
                     <span className="font-semibold">{r.jobNumber}</span>
                     <span className="col-start-2 truncate lg:col-auto">{r.ownerName || "—"}</span>
                     <span className={cn("col-start-2 truncate lg:col-auto", r.problems.length > 0 && "text-sub")} title={r.problems.length ? "Suburb / postcode looked up automatically" : undefined}>{r.address || "—"}</span>
-                    <span className="col-start-2 lg:col-auto">{sizeLabel(r.areaM2)}</span>
-                    <span className="col-start-2 lg:col-auto">{INSULATION_LABEL[r.insulation]}</span>
-                    <span className="col-start-2 lg:col-auto">{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span>
+                    <span className="col-start-2 lg:col-auto"><span className="text-sub lg:hidden">Size: </span>{sizeLabel(r.areaM2)}</span>
+                    <span className="col-start-2 lg:col-auto"><span className="text-sub lg:hidden">Insulation: </span>{INSULATION_LABEL[r.insulation]}</span>
+                    <span className="col-start-2 lg:col-auto"><span className="text-sub lg:hidden">Estimate: </span>{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span>
                     <span className="col-start-2 text-sub lg:col-auto">{heardLabel(r.lastHeardAt, r.lastHeardChannel)}</span>
                     <span className="col-start-2 lg:col-auto"><button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void navigate({ to: "/admin/jobs/$jobId", params: { jobId: r.id } })}>Open</button></span>
                   </div>

@@ -27,13 +27,13 @@ export type PersonView = {
 
 const ROLE: Record<string, string> = { installer: "Installer", electrician: "Electrician" };
 
-export function PeopleTable({ people, showBusiness = true, invalidate }: { people: PersonView[]; showBusiness?: boolean; invalidate: string[] }) {
+export function PeopleTable({ people, showBusiness = true, invalidate, phoneCards = false }: { people: PersonView[]; showBusiness?: boolean; invalidate: string[]; phoneCards?: boolean }) {
   const [verify, setVerify] = useState<PersonView | null>(null);
   const qc = useQueryClient();
   const [invite, setInvite] = useState<PersonView | null>(null);
   return (
     <>
-      <OfficeTable why="153 CII, 130 privacy notice, 22/188 Mitti invite per person" isEmpty={!people.length} empty="No people listed yet."
+      <OfficeTable phoneCards={phoneCards} why="153 CII, 130 privacy notice, 22/188 Mitti invite per person" isEmpty={!people.length} empty="No people listed yet."
         head={["Person", ...(showBusiness ? ["Business"] : []), "Role", "CII", "White Card", "Privacy notice", "Mitti", ""]}>
         {people.map((p) => (
           <tr key={p.id}>

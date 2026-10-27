@@ -18,7 +18,7 @@ export function EmailsToMatch() {
   if (!rows.length) return null;
   const now = Date.now();
   return (
-    <details open className="mb-4 overflow-hidden rounded-[14px] border border-line bg-paper" aria-label="Emails to match">
+    <details className="mb-4 overflow-hidden rounded-[14px] border border-line bg-paper" aria-label="Emails to match">
       <summary className="cursor-pointer bg-mist px-4 py-3 font-display text-base font-bold text-ink">Emails to match ({rows.length})</summary>
       <BulkMatch rows={bulkMatchable(rows)} onDone={refresh} />
       <ul>
@@ -29,7 +29,7 @@ export function EmailsToMatch() {
               <span className="ml-auto shrink-0 text-xs text-sub">{ageLabel(row.since, now)}</span>
             </span>
             <span className="block min-w-0 break-words text-sm text-ink">{row.line}</span>
-            <EmailActions row={row} onDone={refresh} />
+            <EmailActions row={row} onDone={refresh} matchTone="secondary" />
           </li>
         ))}
       </ul>

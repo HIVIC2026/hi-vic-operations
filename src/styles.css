@@ -457,3 +457,15 @@
 .estimate-brand.portal-theme .rounded-\[22px\] { border-radius: 18px; }
 .estimate-brand.portal-theme :is(.rounded-\[22px\].bg-card, .rounded-\[22px\].bg-white) { border: 1px solid var(--hiv-line); box-shadow: var(--shadow-card); }
 .estimate-brand.portal-theme :is(button, a).rounded-full { border-radius: 10px; }
+
+/* Office tables as cards on phones (OfficeTable phoneCards; design review 27 Oct 2026): every column is visible,
+   each value sits under its column heading, nothing runs off the right edge. */
+@media (max-width: 639px) {
+  .office-cards table, .office-cards tbody, .office-cards tbody > tr, .office-cards tbody td { display: block; width: 100%; }
+  .office-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .office-cards tbody > tr { padding: 12px 15px; }
+  .office-cards tbody > tr:first-child { border-top: 0; }
+  .office-cards tbody td { padding: 3px 0 !important; }
+  .office-cards tbody td:empty { display: none; }
+  .office-cards tbody td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--hiv-sub); }
+}

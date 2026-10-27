@@ -55,7 +55,7 @@ export function EligibilityCard({ jobId, override, verifiedControls }: { jobId: 
               <tr key={key} className="align-top" data-check={key}>
                 <td className="px-4 py-1.5 font-medium">{label}</td>
                 <td className="px-2 py-1.5 text-muted-foreground">{said}</td>
-                <td className="px-2 py-1.5"><Pill t={TONE[m]}>{CHECK_MARK_LABEL[m]}</Pill></td>
+                <td className="whitespace-nowrap px-2 py-1.5"><Pill t={TONE[m]}>{CHECK_MARK_LABEL[m]}</Pill></td>
                 {ev && <td className="px-2 py-1.5">{on ? <span className={on.mark === "fail" ? "text-danger" : on.mark === "confirm" ? "text-muted-foreground" : ""}>{on.text}</span> : <span className="text-muted-foreground">—</span>}</td>}
               </tr>
             );

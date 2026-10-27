@@ -92,7 +92,7 @@ export function ActionsMenu({ actions, selected, onPick }: { actions: BulkAction
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="inline-flex min-h-[38px] items-center rounded-[10px] border border-line bg-paper px-3 text-[13px] font-bold text-hiv-blue">Actions ▾{selected ? ` (${selected})` : ""}</button>
+      <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="inline-flex min-h-[38px] items-center whitespace-nowrap rounded-[10px] border border-line bg-paper px-3 text-[13px] font-bold text-hiv-blue">Actions ▾{selected ? ` (${selected})` : ""}</button>
       <MenuPanel open={open} onPick={() => setOpen(false)}>
         {selected === 0 && <p className="px-3 py-2 text-xs text-sub">Tick rows first.</p>}
         {actions.map((a) => <button key={a.key} role="menuitem" type="button" disabled={selected === 0} onClick={() => onPick(a.key)} className={cn("block w-full rounded-[10px] px-3 py-2 text-left text-sm hover:bg-mist disabled:opacity-40", a.danger && "text-rose")}>{a.label}{selected ? ` (${selected})` : ""}</button>)}

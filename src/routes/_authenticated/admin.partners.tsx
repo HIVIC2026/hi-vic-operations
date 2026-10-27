@@ -54,11 +54,11 @@ function Partners() {
   return (
     <AppShell wide>
       <PageHeader title="Partners" sub="Who we work with." />
-      <OfficeTabs label="Partners" tabs={tabs} value={tab} onChange={(t) => void navigate({ search: t === "applications" ? {} : { tab: t } })} />
+      <OfficeTabs wrapOnPhone label="Partners" tabs={tabs} value={tab} onChange={(t) => void navigate({ search: t === "applications" ? {} : { tab: t } })} />
       {q.error ? <LoadError what="Partners" error={q.error} retry={() => void q.refetch()} /> : !d ? <Loading what="partners" /> : <>
         {tab === "applications" && <Applications d={d} />}
         {tab === "approved" && <Approved d={d} />}
-        {tab === "people" && <section data-why="153 CII, 130 privacy notice, 22/188 Mitti invite per person"><TabCaption>{d.people.length} people · a person without a verified CII or an acknowledged notice cannot be listed on an installation</TabCaption><OfficeMittiInvites /><PeopleTable people={d.people} invalidate={["partners-board"]} /></section>}
+        {tab === "people" && <section data-why="153 CII, 130 privacy notice, 22/188 Mitti invite per person"><TabCaption>{d.people.length} people · a person without a verified CII or an acknowledged notice cannot be listed on an installation</TabCaption><OfficeMittiInvites /><PeopleTable phoneCards people={d.people} invalidate={["partners-board"]} /></section>}
         {tab === "rates" && <Rates d={d} />}
         {tab === "coverage" && <Coverage d={d} />}
       </>}
@@ -84,7 +84,7 @@ function Applications({ d }: { d: Board }) {
           <div className="mt-3"><OnboardingDrafts partnerType={kind} /></div>
         </div>
       ) : (
-        <OfficeTable why="one review queue; row opens the application review" isEmpty={!rows.length} empty="Nothing waiting." head={["Business", "Type", "Area", "What they sent", "Received", ""]}>
+        <OfficeTable phoneCards why="one review queue; row opens the application review" isEmpty={!rows.length} empty="Nothing waiting." head={["Business", "Type", "Area", "What they sent", "Received", ""]}>
           {(view === "waiting" ? [["Pending approval · signed applications", rows.filter((r) => r.signed)], ["Website enquiries · no signed application yet", rows.filter((r) => !r.signed)]] as const : [["", rows]] as const).flatMap(([heading, list]) => [
             ...(heading && list.length ? [<tr key={heading}><td colSpan={6} className="bg-table-head text-xs font-semibold text-sub">{heading} ({list.length})</td></tr>] : []),
             ...list.map((r) => (
@@ -109,7 +109,7 @@ function Approved({ d }: { d: Board }) {
         <TabCaption>{d.approved.length} businesses · {installers} installer{installers === 1 ? "" : "s"}, {d.approved.length - installers} electrician{d.approved.length - installers === 1 ? "" : "s"}</TabCaption>
         <Btn tone="secondary" data-why="decision 193: PL insurance and licences re-checked" onClick={() => void sweep(undefined as never, "Expiry check complete")}>Check expiries</Btn>
       </div>
-      <OfficeTable why="approved businesses; row opens the business file" isEmpty={!d.approved.length} empty="No approved partners yet." head={["Business", "Area", "CII cleared", "PL insurance", "Usual electrician", "Taking new jobs"]}>
+      <OfficeTable phoneCards why="approved businesses; row opens the business file" isEmpty={!d.approved.length} empty="No approved partners yet." head={["Business", "Area", "CII cleared", "PL insurance", "Usual electrician", "Taking new jobs"]}>
         {d.approved.map((b) => (
           <tr key={b.id}>
             <td><Link to="/admin/partners/business/$businessId" params={{ businessId: b.id }} data-partner-record-name className="font-semibold text-hiv-blue hover:underline">{b.name}</Link><span className="block text-xs text-sub">{b.kind}</span></td>
@@ -137,7 +137,7 @@ function Rates({ d }: { d: Board }) {
         <TabCaption>Agreed rate cards · {d.changes.length} change request{d.changes.length === 1 ? "" : "s"} waiting</TabCaption>
         <Link to="/admin/electrician-rates" className="text-sm font-semibold text-hiv-blue hover:underline" data-why="decision 157: the electrician (PIESA) rate card is versioned there">Electrician rate cards ›</Link>
       </div>
-      <OfficeTable why="approved partner rates (installer price lists ex GST, electrician rates inc GST)" isEmpty={!d.rates.length && !d.changes.length} empty="No agreed rate cards yet." head={["Rate card", "Business", "What it says", "Effective", ""]}>
+      <OfficeTable phoneCards why="approved partner rates (installer price lists ex GST, electrician rates inc GST)" isEmpty={!d.rates.length && !d.changes.length} empty="No agreed rate cards yet." head={["Rate card", "Business", "What it says", "Effective", ""]}>
         {d.rates.map((r) => (
           <tr key={r.id}><td className="font-semibold">{r.card}</td><td><Link to="/admin/partners/business/$businessId" params={{ businessId: r.businessId }} className="text-hiv-blue hover:underline">{r.business}</Link></td><td className="text-xs">{r.says}</td><td>{fmtDay(r.effective)}</td><td /></tr>
         ))}
@@ -166,7 +166,7 @@ function Coverage({ d }: { d: Board }) {
   return (
     <section data-why="decision 229: Coverage kept; Choose installer filters by coverage">
       <TabCaption>Suburbs and postcodes each business takes · only verified postcodes are used when choosing a trade</TabCaption>
-      <OfficeTable why="decision 229" isEmpty={!d.coverage.length} empty="No approved partners yet." head={["Business", "Suburbs covered", "Postcodes", ""]}>
+      <OfficeTable phoneCards why="decision 229" isEmpty={!d.coverage.length} empty="No approved partners yet." head={["Business", "Suburbs covered", "Postcodes", ""]}>
         {d.coverage.map((c) => (
           <tr key={c.id}>
             <td className="font-semibold">{c.name}{c.electrician && <span className="block text-xs font-normal text-sub">Electrician</span>}</td>

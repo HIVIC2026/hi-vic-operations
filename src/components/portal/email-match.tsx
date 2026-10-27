@@ -11,7 +11,8 @@ import type { NeedsRow } from "@/lib/office-needs.core";
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 
 /** Email rows (decisions 245/247): Apply / Ignore, Match / Not a customer. Nothing changes on a job without this tap. */
-export function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => void }) {
+/** `matchTone` lets a long list (Enquiries) show Match as a quiet button so "Review and match all" stands out. */
+export function EmailActions({ row, onDone, matchTone = "primary" }: { row: NeedsRow; onDone: () => void; matchTone?: "primary" | "secondary" }) {
   const apply = useServerFn(applyEmailChange);
   const ignore = useServerFn(ignoreEmailChange);
   const match = useServerFn(matchOutlookEmail);
@@ -36,7 +37,7 @@ export function EmailActions({ row, onDone }: { row: NeedsRow; onDone: () => voi
   return (
     <div className="grid gap-2">
       <div className="grid grid-cols-2 gap-2 md:flex">
-        <button type="button" disabled={busy} className={btn("primary")} onClick={() => row.jobId && !picking ? void run(() => match({ data: { messageEventId: row.eventId!, jobId: row.jobId! } }), `Matched to ${row.jobNumber}`) : setPicking(true)}>{row.jobId ? `Match to ${row.jobNumber}` : "Match"}</button>
+        <button type="button" disabled={busy} className={btn(matchTone)} onClick={() => row.jobId && !picking ? void run(() => match({ data: { messageEventId: row.eventId!, jobId: row.jobId! } }), `Matched to ${row.jobNumber}`) : setPicking(true)}>{row.jobId ? `Match to ${row.jobNumber}` : "Match"}</button>
         <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => match({ data: { messageEventId: row.eventId!, jobId: null } }), "Marked not a customer")}>Not a customer</button>
       </div>
       {row.jobId && !picking && <button type="button" className="min-h-11 text-left text-sm font-semibold text-hiv-blue underline" onClick={() => setPicking(true)}>A different job…</button>}

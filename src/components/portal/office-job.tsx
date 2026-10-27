@@ -285,7 +285,8 @@ export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: stri
       </div>
       <p className="mb-3 text-sm"><span className="font-semibold">Waiting for:</span> {waitingFor}</p>
       <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter by channel">
-        {(["All", ...CONTACT_CHANNELS] as const).map((c) => (
+        {/* Design review 27 Oct 2026: channels with nothing in them stay hidden unless picked. */}
+        {(["All", ...CONTACT_CHANNELS] as const).filter((c) => c === "All" || counts[c] > 0 || channel === c).map((c) => (
           <button key={c} type="button" aria-pressed={channel === c} onClick={() => setChannel(c)} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", channel === c ? "border-ink bg-ink text-white" : "border-line bg-paper text-sub")}>{c}{c !== "All" ? ` ${counts[c]}` : ""}</button>
         ))}
       </div>

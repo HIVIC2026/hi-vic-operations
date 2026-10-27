@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
+import { btnClass } from "@/components/portal/kit";
 import { getAdminEngagement, sendEstimateEmailAdmin, suppressFollowupsAdmin } from "@/lib/engagement.functions";
 import { OPEN_PRIVACY_NOTE, type Summary } from "@/lib/engagement.core";
 
@@ -44,13 +45,13 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
     qc.invalidateQueries({ queryKey: ["admin_engagement", jobId] });
   };
   return (
-    <div className="mb-3 rounded-lg border p-3 text-sm" data-testid="engagement-panel">
+    <div className="mb-3 border-t pt-3 text-sm" data-testid="engagement-panel">
       <div className="mb-2 flex flex-wrap items-center gap-2"><b>Customer engagement</b><span className="text-xs text-muted-foreground">tier: {s.tier.replace(/_/g, " ")}</span></div>
       <dl className="grid gap-1 sm:grid-cols-2">{rows.map(([k, v]) => <div key={k}><dt className="inline font-medium">{k}: </dt><dd className="inline">{v}</dd></div>)}</dl>
       <p className="mt-2 text-xs text-muted-foreground">{OPEN_PRIVACY_NOTE}</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" className="h-10 rounded border px-3" onClick={doSend}>Send estimate email</button>
-        {next && <button type="button" className="h-10 rounded border px-3" onClick={doSuppress}>Suppress follow-ups</button>}
+        <button type="button" className={btnClass("secondary")} onClick={doSend}>Send estimate email</button>
+        {next && <button type="button" className={btnClass("secondary")} onClick={doSuppress}>Suppress follow-ups</button>}
       </div>
       {msg && <p className="mt-2 text-xs font-medium" role="status">{msg}</p>}
       {data.followups.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{data.followups.map((f) => <li key={f.id}>{f.slot} · {f.kind.replace(/_/g, " ")} · {f.status}{f.suppression_reason ? ` (${f.suppression_reason})` : ""}{f.sent_at ? ` · sent ${d(f.sent_at)}` : ""}</li>)}</ul>}

@@ -12,6 +12,7 @@ import type { LocationVariables } from "@/lib/activity48.core";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
+import { btnClass } from "./kit";
 import { removalFromScenario, removalNote } from "@/lib/estimate-removal.core";
 import { SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
 
@@ -269,21 +270,27 @@ export function AdminEstimateCard({ jobId }: { jobId: string }) {
   if (!v) return null;
   const e = v.estimate, s = v.settings;
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="border-t pt-4 sm:rounded-xl sm:border sm:bg-card sm:p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Step 3 · Indicative estimate</h3>
         {e ? <Pill t="good">Current v{e.settings_version} · {new Date(e.created_at).toLocaleString("en-AU")}</Pill> : <Pill t="warn">Not shown to customer</Pill>}
       </div>
       {v.reason && <p className="mb-3 rounded bg-warning-soft px-3 py-2 text-sm font-medium">{v.reason}</p>}
       {e && (
-        <div className="mb-3 grid gap-1 text-sm sm:grid-cols-2">
+        <div className="mb-3 grid gap-1 text-sm">
           <div>Area: <b>{e.area.m2} m²</b> — {e.area.label} ({e.area.basis})</div>
-          <div>Postcode {e.location.postcode}: <b>{e.location.metropolitan_or_regional} / {e.location.climate_region}</b> (zone {e.location.climate_zone}, Spec v{e.location.source_version})</div>
-          <div>GHG reduction: {e.ghg.formula} = <b>{r(e.ghg.ghgReduction)} t CO2-e</b> (≈ VEEC equivalent)</div>
-          <div>× ${Number(s?.indicative_veec_value).toFixed(2)} {BENCHMARK_LABEL.toLowerCase()} (settings v{s?.version}, not market price) = raw {dollars(e.raw_estimated_discount)} · applied {dollars(e.applied_discount)} (<a className="underline" href={s?.veec_value_source_url} target="_blank" rel="noreferrer">source</a>, checked {s?.veec_value_checked_at})</div>
           <div>{FEE_LABEL}: {dollars(Number(s?.ap_management_inc_gst))}</div>
-          <div>Insulation declared: {v.insulationDeclared ?? "not answered"} · scenarios: {e.scenarios.length}</div>
           <div>Access totals (primary): {(["standard", "moderate", "difficult"] as const).map((a) => `${a} ${dollars(e.primary.by_access[a].estimated_customer_total)}`).join(" · ")}</div>
+          {/* Design review 27 Oct 2026: the working sits behind one tap so the phone view isn't a wall of formula. */}
+          <details className="text-sm">
+            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-hiv-blue">Show working</summary>
+            <div className="grid gap-1 pb-1">
+              <div>Postcode {e.location.postcode}: <b>{e.location.metropolitan_or_regional} / {e.location.climate_region}</b> (zone {e.location.climate_zone}, Spec v{e.location.source_version})</div>
+              <div>GHG reduction: {e.ghg.formula} = <b>{r(e.ghg.ghgReduction)} t CO2-e</b> (≈ VEEC equivalent)</div>
+              <div>× ${Number(s?.indicative_veec_value).toFixed(2)} {BENCHMARK_LABEL.toLowerCase()} (settings v{s?.version}, not market price) = raw {dollars(e.raw_estimated_discount)} · applied {dollars(e.applied_discount)} (<a className="underline" href={s?.veec_value_source_url} target="_blank" rel="noreferrer">source</a>, checked {s?.veec_value_checked_at})</div>
+              <div>Insulation declared: {v.insulationDeclared ?? "not answered"} · scenarios: {e.scenarios.length}</div>
+            </div>
+          </details>
         </div>
       )}
       <EstimateLinkPanel jobId={jobId} />
@@ -297,7 +304,7 @@ export function AdminEstimateCard({ jobId }: { jobId: string }) {
 function AdminCustomerEmailPreview({ jobId, estimateId }: { jobId: string; estimateId?: string }) {
   const fn = useServerFn(getAdminJobEmailPreview);
   const { data, isPending, error, refetch } = useQuery({ queryKey: ['admin_job_email_preview', jobId, estimateId], queryFn: () => fn({ data: { jobId } }), retry: false });
-  return <div className="min-w-0 rounded-lg border border-dashed p-3 sm:p-5">
+  return <div className="min-w-0 border-t pt-3 sm:rounded-lg sm:border sm:border-dashed sm:p-5">
     <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Customer-facing preview</h4>
     {isPending ? <p className="text-sm text-muted-foreground">Loading customer email…</p> : error ? <div role="alert"><p className="text-sm text-danger">Could not load the customer email preview.</p><Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button></div> : data?.mail ? <>
       <p className="mb-3 text-sm font-semibold">{data.mail.subject}</p>
@@ -318,14 +325,14 @@ function EstimateLinkPanel({ jobId }: { jobId: string }) {
   const active = l?.status === "active" && Date.parse(l.expires_at) > Date.now();
   const reveal = async () => { const r = await urlFn({ data: { jobId } }); setUrl(r.path ? `${window.location.origin}${r.path}` : null); };
   return (
-    <div className="mb-3 rounded-lg border p-3 text-sm" data-testid="estimate-link-panel">
+    <div className="mb-3 border-t pt-3 text-sm" data-testid="estimate-link-panel">
       <div className="mb-1 flex flex-wrap items-center gap-2"><b>Secure customer estimate link</b>{active ? <Pill t="good">Active</Pill> : <Pill t="warn">{l ? l.status : "Not prepared"}</Pill>}</div>
       {l && <div className="text-muted-foreground">Created {new Date(l.created_at).toLocaleString("en-AU")} · expires {new Date(l.expires_at).toLocaleDateString("en-AU")} · views {l.view_count}{l.last_viewed_at ? ` (last ${new Date(l.last_viewed_at).toLocaleString("en-AU")})` : ""}{l.revocation_reason ? ` · ${l.revocation_reason}` : ""}</div>}
       <div className="mt-1 font-medium">{data.delivery.commsEnabled ? (data.delivery.ready ? "Delivery allowed (not sent automatically)" : "Owner contact consent missing — delivery not allowed") : LINK_COMMS_OFF}</div>
       {active && <p className="mt-1 text-xs text-warning-foreground">{LINK_ADMIN_WARNING}</p>}
       {active && (url
-        ? <div className="mt-2 flex flex-wrap gap-2"><input readOnly className="h-10 flex-1 rounded border bg-background px-2 text-xs" value={url} /><button type="button" className="h-10 rounded border px-3" onClick={() => navigator.clipboard.writeText(url)}>Copy</button><a className="h-10 rounded border px-3 leading-10" href={url} target="_blank" rel="noreferrer noopener">Open</a></div>
-        : <button type="button" className="mt-2 h-10 rounded border px-3" onClick={reveal}>Show link (admin only)</button>)}
+        ? <div className="mt-2 flex flex-wrap gap-2"><input readOnly className="h-10 flex-1 rounded border bg-background px-2 text-xs" value={url} /><button type="button" className={btnClass("secondary")} onClick={() => navigator.clipboard.writeText(url)}>Copy</button><a className={btnClass("secondary")} href={url} target="_blank" rel="noreferrer noopener">Open</a></div>
+        : <button type="button" className={btnClass("secondary", "mt-2")} onClick={reveal}>Show link (admin only)</button>)}
     </div>
   );
 }
