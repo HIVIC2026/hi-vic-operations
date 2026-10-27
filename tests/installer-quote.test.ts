@@ -49,3 +49,31 @@ describe("Industry Pack example", () => {
     expect(Math.floor(0.00546 * 150 * 25 * 1.04)).toBe(21);
   });
 });
+
+// Jo 27 Oct 2026: the owner and installer see what was ticked, never the internal "R5.0 supply and install" key —
+// an R6 product with "Ceiling insulation - supply & install" ticked must not read "R5.0".
+describe("installer line wording shows what was ticked", () => {
+  test("R6 product + 'Ceiling insulation - supply & install' → explanation and description carry the ticked label, no R5.0", async () => {
+    const { applyMittiProduct } = await import("../src/lib/mitti-installer-quote.core");
+    const { resolveMittiProduct } = await import("../src/lib/insulation-product.core");
+    const price = quotedPriceFromEntries(e("Ceiling insulation - supply & install", "3000"), false);
+    expect(price.ok).toBe(true); // validation still uses the canonical key
+    expect(price.price?.included).toEqual(["R5.0 supply and install"]);
+    const d = buildInstallerQuoteDraft({ ...base, price });
+    const product = resolveMittiProduct("Bradford Gold R6");
+    expect(product.ready).toBe(true);
+    applyMittiProduct(d, product, 100);
+    const line = d.lines.find((l) => l.code === "INSTALLER_PRICE")!;
+    expect(line.explanation).toContain("Ceiling insulation - supply & install");
+    expect(line.explanation).not.toContain("R5.0");
+    // Before the product is applied the description lists the same ticked words.
+    const plain = buildInstallerQuoteDraft({ ...base, price }).lines[0]!;
+    expect(plain.description).toContain("Ceiling insulation - supply & install");
+    expect(plain.description).not.toContain("R5.0");
+  });
+  test("removal + other keep their ticked wording too", () => {
+    const entries = [...e("Ceiling insulation - supply & install, Removal of existing insulation, Other", "3600").slice(0, 2), { label: "What else is included?", value: "Whirlybird" }];
+    const d = buildInstallerQuoteDraft({ ...base, price: quotedPriceFromEntries(entries, true) });
+    expect(d.lines[0]!.explanation).toBe("Ceiling insulation - supply & install\nRemoval of existing insulation\nOther: Whirlybird");
+  });
+});

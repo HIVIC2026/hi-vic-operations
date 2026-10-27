@@ -237,7 +237,7 @@ export function buildInstallerQuoteDraft(i: {
   for (const b of owner.blockers) if (!blockers.includes(b)) blockers.push(b);
   const lines: InstallerQuoteLine[] = [];
   if (p) {
-    const inc = p.included.map((x) => (x === "Other" && p.otherDescription ? `Other: ${p.otherDescription}` : x));
+    const inc = (p.shown ?? p.included).map((x) => (x.toLowerCase() === "other" && p.otherDescription ? `Other: ${p.otherDescription}` : x));
     lines.push({ code: "INSTALLER_PRICE", description: `Insulation works by your installer — includes: ${inc.join(", ")}`, quantity: 1, unit: "flat", unit_price_inc_gst: p.totalIncGst, line_total_inc_gst: p.totalIncGst, is_other: false, explanation: inc.join("\n"), sort: 0 });
   }
   if (p) (i.separateLines ?? []).forEach((l, n) => lines.push({ code: l.code, description: l.description, quantity: 1, unit: "flat", unit_price_inc_gst: l.amountIncGst, line_total_inc_gst: l.amountIncGst, is_other: l.code === "INSTALLER_EXTRA", explanation: l.code === "INSTALLER_EXTRA" ? "Agreed additional price from the installer's quote" : null, sort: 0 }));

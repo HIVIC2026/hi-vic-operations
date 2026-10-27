@@ -383,7 +383,10 @@ export function readyCheckVariant(channel: string | null | undefined): "ready_ch
 }
 
 export type QuotedPrice = {
+  /** Canonical keys for the checks ("R5.0 supply and install" etc.). */
   included: string[];
+  /** Jo 27 Oct 2026: what the installer actually ticked, for the owner's and installer's screens (never the R5.0 key). */
+  shown?: string[];
   otherDescription: string;
   totalIncGst: number;
   agreedWithOwner: boolean;
@@ -405,13 +408,14 @@ export function validateQuotedPrice(input: {
 }): { ok: boolean; issues: string[]; price: QuotedPrice | null } {
   const issues: string[] = [];
   const included: string[] = [];
+  const shown: string[] = [];
   for (const raw of input.included) {
     const v = (raw ?? "").trim().toLowerCase();
     if (!v) continue;
     const key = (PRICE_ALIASES[v] ?? v).toLowerCase();
     const m = ([...PRICE_ITEMS, ...LEGACY_PRICE_ITEMS] as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
-    else if (!included.includes(m)) included.push(m);
+    else if (!included.includes(m)) { included.push(m); shown.push((raw ?? "").trim()); }
   }
   if (!included.includes("R5.0 supply and install")) issues.push("'R5.0 supply and install' must be ticked as included.");
   const removal = included.includes("Removal of existing insulation");
@@ -426,6 +430,6 @@ export function validateQuotedPrice(input: {
   // Jo 27 Oct 2026 (HV-3385): other issues (e.g. a removal tick mismatch) hold the quote for office review but must NOT
   // blank the price — the entered amount is known, and nulling it made the draft say "Installer quote amount is missing."
   // even though the price was there. Only a missing/invalid total leaves the price null.
-  if (issues.length) return { ok: false, issues, price: Number.isFinite(totalIncGst) && totalIncGst > 0 ? { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } : null };
-  return { ok: true, issues: [], price: { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
+  if (issues.length) return { ok: false, issues, price: Number.isFinite(totalIncGst) && totalIncGst > 0 ? { included, shown, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } : null };
+  return { ok: true, issues: [], price: { included, shown, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }
