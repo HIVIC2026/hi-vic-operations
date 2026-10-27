@@ -876,7 +876,7 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ invoiceId: uuid, amountPaid: z.number().min(0) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    if (process.env["XERO_API_KEY_1"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
+    if (process.env["XERO_API_KEY"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
     const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
     // Testing tool: never writes a fake payment onto a real customer job (production shares this database).
@@ -1792,7 +1792,7 @@ export const getXeroConnection = createServerFn({ method: "GET" }).middleware([r
     const { xeroConnectionStatus } = await import("./xero.server");
     const { describeXeroRouting } = await import("./xero.core");
     try { return { ...(await xeroConnectionStatus()), error: null as string | null }; }
-    catch (e) { return { configured: Boolean(process.env["LOVABLE_API_KEY"] && process.env["XERO_API_KEY_1"]), connected: false, checkedAt: new Date().toISOString(), routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[], error: e instanceof Error ? e.message : "The Xero connection could not be checked." }; }
+    catch (e) { return { configured: Boolean(process.env["LOVABLE_API_KEY"] && process.env["XERO_API_KEY"]), connected: false, checkedAt: new Date().toISOString(), routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[], error: e instanceof Error ? e.message : "The Xero connection could not be checked." }; }
   });
 
 export const recordXeroTestPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

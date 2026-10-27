@@ -181,7 +181,7 @@ export const XERO_LIVE_CALLS_ENABLED = true;
 export type XeroMode = "test" | "live";
 export type XeroTenant = { tenantId: string; tenantName?: string | null };
 const DEMO = /demo company/i;
-const LIVE = /^home insulation victoria$/i;
+const LIVE = /^dc construction solutions pty ltd$/i;
 /** Read-only description of the existing routes. Availability does not enable a route. */
 export function describeXeroRouting(conns: XeroTenant[]) {
   const testOrganisation = conns.find(c => DEMO.test(c.tenantName ?? ""))?.tenantName ?? null;
@@ -193,7 +193,7 @@ export function describeXeroRouting(conns: XeroTenant[]) {
   catch (error) { liveBlocker = error instanceof Error ? error.message : "The real-job Xero route could not be verified."; }
   return { liveCallsEnabled: XERO_LIVE_CALLS_ENABLED, testOrganisation, liveOrganisation, liveCandidates, liveBlocker };
 }
-/** TEST (qa_test) jobs only ever reach the Xero Demo Company; live jobs only ever reach Home Insulation Victoria. Never "first org". */
+/** Jo 27 Oct: TEST jobs use Demo; real Home Insulation Victoria work uses DC's books with the existing business-unit barrier. Never "first org". */
 export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant {
   const name = (t: XeroTenant) => t.tenantName ?? "";
   if (mode === "test") {
@@ -203,6 +203,6 @@ export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant 
   }
   if (!XERO_LIVE_CALLS_ENABLED) throw new Error("Xero is switched off for real jobs.");
   const t = conns.find((c) => LIVE.test(name(c)) && !DEMO.test(name(c)));
-  if (!t) throw new Error("Home Insulation Victoria Xero organisation is not connected.");
+  if (!t) throw new Error("DC Construction Solutions Xero organisation is not connected.");
   return t;
 }

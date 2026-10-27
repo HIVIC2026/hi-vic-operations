@@ -50,7 +50,7 @@ globalThis.fetch = (async (input: string, init?: RequestInit) => {
   if (!url.href.startsWith("https://connector-gateway.lovable.dev/xero")) throw new Error(`network blocked: ${url.href}`);
   const path = url.pathname.replace(/^\/xero/, "");
   const method = init?.method ?? "GET";
-  if (path === "/connections") return json([{ tenantId: "t-live", tenantName: "Home Insulation Victoria" }, { tenantId: "t-demo", tenantName: "Demo Company (AU)" }]);
+  if (path === "/connections") return json([{ tenantId: "t-live", tenantName: "DC Construction Solutions Pty Ltd" }, { tenantId: "t-demo", tenantName: "Demo Company (AU)" }]);
   if ((init?.headers as Record<string, string>)["xero-tenant-id"] !== "t-live") return json({ Message: "wrong organisation" }, 403);
   if (path === `/api.xro/2.0/Invoices/${XID}` && method === "GET") return json({ Invoices: [structuredClone(xero)] });
   if (path === `/api.xro/2.0/Invoices/${XID}/OnlineInvoice`) return json({ OnlineInvoices: [{ OnlineInvoiceUrl: "https://in.xero.com/abc" }] });
@@ -74,7 +74,7 @@ globalThis.fetch = (async (input: string, init?: RequestInit) => {
   throw new Error(`unmocked Xero call ${method} ${path}`);
 }) as unknown as typeof fetch;
 process.env["LOVABLE_API_KEY"] = "test-lovable";
-process.env["XERO_API_KEY_1"] = "test-xero";
+process.env["XERO_API_KEY"] = "test-xero";
 afterAll(() => { globalThis.fetch = realFetch; });
 
 const tracking = { categoryName: "Business Unit", optionName: "Home Insulation Victoria" };
