@@ -688,7 +688,7 @@ async function p4Docs(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResu
     const setAll = (d: string) => admin.from("business_credentials").update({ expires_at: d }).eq("business_id", biz).eq("kind", "public_liability_insurance" as never);
     // (a) expiring within 30 days: warned, still offered work.
     await setAll(addYmd(today, 20));
-    const office = async () => { try { const o = await (await import("./office.server")).loadOffice(admin as never, { includeTest: true }); return o.needs.items.filter((x) => JSON.stringify(x).includes(biz)).map((x) => String((x as { title?: string }).title ?? "")); } catch (e) { return [`office read failed: ${(e as Error).message}`]; } };
+    const office = async () => { try { const o = await (await import("./office.server")).loadOffice(admin as never, { includeTest: true }); return o.needs.items.filter((x) => JSON.stringify(x).includes(biz)).map((x) => JSON.stringify(x).slice(0, 220)); } catch (e) { return [`office read failed: ${(e as Error).message}`]; } };
     const soon = await office();
     const soonShots = await shoot("p4-expiring", [{ who: "electrician-business", email: ELEC, path: "/field/business" }, officePages(ctx)[1]!]);
     // (b) expired yesterday: no new offers.
