@@ -37,7 +37,7 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
     const listed = classifyNewInstallerJob({
       jobId: job.data.id, jobNumber: job.data.job_number, createdAt: job.data.created_at, source: job.data.source, stage: job.data.stage,
       owner: null, address: null, installer: biz?.name ?? null, eligibility: job.data.eligibility_outcome,
-      hasMittiForm: !!auditId, mittiAuditId: auditId, hasQuote: !!ap?.applies, events: ev,
+      hasMittiForm: !!auditId, mittiAuditId: auditId, hasQuote: !!(ap?.applies && ap.quote), events: ev,
     }, new Date());
     const warnings = (listed?.warnings ?? []).filter((w) => !/^(No Mitti Ready Check form yet|Ready Check missing:|Quote held|Mitti Ready Check form could not be created)/.test(w) && w !== problem?.summary?.trim());
     const b = basicsEv?.details as { missing?: string[]; stops?: string[]; completed?: boolean } | null;
@@ -47,7 +47,7 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
       mittiAuditId: auditId, formProblem: problem?.summary?.trim() ?? null,
       basics: b ? { missing: b.missing ?? [], stops: b.stops ?? [], completed: b.completed === true } : null,
       heldReasons: held ? ((heldDetails["blockers"] as string[] | undefined) ?? (heldDetails["reasons"] as string[] | undefined) ?? ["Reason not recorded"]) : null,
-      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted, declined: ap.declined, held: ap.held, safetyCheckIncGst: (() => { const c = piesaLineCents(ap.quote?.quote_items ?? []); return c == null ? null : c / 100; })() } : null,
+      quote: ap?.applies && ap.quote ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted, declined: ap.declined, held: ap.held, safetyCheckIncGst: (() => { const c = piesaLineCents(ap.quote?.quote_items ?? []); return c == null ? null : c / 100; })() } : null,
       warnings,
     });
     return { applies: true as const, installer: biz?.name ?? null, consent: consent.data?.consent_status ?? null, ...summary };

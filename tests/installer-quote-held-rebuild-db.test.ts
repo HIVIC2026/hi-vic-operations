@@ -13,7 +13,7 @@ await db.exec(`
 CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_business_id uuid, electrician_choice text, ap_fee_override_inc_gst numeric, properties jsonb, stage text DEFAULT 'measured_estimate_ready',
   deleted_at timestamptz, qa_archived_at timestamptz, source text DEFAULT 'qa_test', job_number text DEFAULT 'HV-3129');
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
-CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, measured_area_m2 numeric, verified_area_m2 numeric, removal_required boolean);
+CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, measured_area_m2 numeric, verified_area_m2 numeric, removal_required boolean, external_source text, external_id text);
 CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, release_state text, release_hold_reason text, option_label text, option_code text,
   sent_at timestamptz, subtotal_inc_gst numeric, gst_amount numeric, veec_discount_inc_gst numeric, discount_note text, customer_total_inc_gst numeric, created_by uuid, created_at timestamptz default clock_timestamp());
 CREATE TABLE quote_items (id uuid primary key default gen_random_uuid(), quote_id uuid, code text, description text, quantity numeric, unit text, unit_price_inc_gst numeric, line_total_inc_gst numeric, is_other boolean, explanation text, sort int);
@@ -28,7 +28,8 @@ const admin = {
   from(t: string) {
     const b = shim.from(t) as Record<string, (...a: unknown[]) => unknown>;
     const sel = b.select!, ins = b.insert!;
-    b.select = (c?: unknown, o?: unknown) => sel(typeof c === "string" ? c.replace("properties(postcode)", "properties") : c, o);
+    // The status loader's embedded quote_items(...) is not needed here (the HV-3129 shape has no quote).
+    b.select = (c?: unknown, o?: unknown) => sel(typeof c === "string" ? c.replace("properties(postcode)", "properties").replace(/,\s*quote_items\([^)]*\)/, "") : c, o);
     b.insert = (p: unknown) => {
       if (!Array.isArray(p)) return ins(p);
       return { then: async (r: (v: unknown) => unknown) => { for (const row of p) { const x = (await shim.from(t).insert(row)) as { error: unknown }; if (x.error) return r(x); } return r({ data: null, error: null }); } };
@@ -177,5 +178,32 @@ describe("held, rebate can't be worked out", () => {
     expect(all.find((q) => q.id === old)?.status).toBe("superseded");
     expect(all.filter((q) => q.status === "draft")).toEqual([]);
     expect(await events("installer_quote_drafted")).toHaveLength(0);
+  });
+});
+
+// Review fix (27 Oct 2026): with the not-known branch there is no draft, so the installer's status must take the
+// not-onboarded flag from the latest installer_quote_held event — never the generic line.
+describe("installer status with no draft (HV-3129 shape)", () => {
+  test("electrician not onboarded, no draft → 'Your electrician needs to finish onboarding'", async () => {
+    await notOnboardedElectrician();
+    await oldDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    expect((await quotes()).filter((q) => q.status === "draft")).toEqual([]);
+    const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
+    const { installerQuoteLine, QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE } = await import("../src/lib/installer-quote-status.core");
+    const one = await loadInstallerQuote(JOB);
+    expect(one.quote).toBeNull();
+    expect(one.applies).toBe(true);
+    expect(installerQuoteLine(one)).toBe(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE);
+    const many = (await loadInstallerQuotes([JOB])).get(JOB)!;
+    expect(many.quote).toBeNull();
+    expect(many.applies).toBe(true);
+    expect(installerQuoteLine(many)).toBe(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE);
+  });
+  test("no draft and no not-onboarded hold → still nothing to show", async () => {
+    const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
+    expect((await loadInstallerQuote(JOB)).applies).toBe(false);
+    expect((await loadInstallerQuotes([JOB])).get(JOB)!.applies).toBe(false);
   });
 });
