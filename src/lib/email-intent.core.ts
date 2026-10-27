@@ -174,3 +174,33 @@ export function officeRowNeeded(intent: string, outcome: { sent: boolean; keepOf
   if (!outcome || !outcome.sent) return true;
   return outcome.keepOfficeRow;
 }
+
+// ---------- Jo 27 Oct 2026: automatic close on a clear "not going ahead" email ----------
+/** Enquiry stages (up to Ready Check ready to schedule) where a clear decline from the owner closes the job itself. */
+export const DECLINE_AUTO_CLOSE_STAGES: ReadonlySet<string> = new Set([
+  "new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule",
+]);
+export const DECLINE_CLOSED_EVENT = "email_decline_closed";
+export const DECLINE_CLOSED_LINE = "Closed: owner said not going ahead by email";
+
+export type DeclineCloseFacts = {
+  stage: string; deleted: boolean; senderIsOwner: boolean; fromPartner: boolean; matchedJobs: number;
+  confirmedBooking: boolean; paid: boolean;
+};
+/** Close automatically only an unbooked, unpaid enquiry, for one matched job, when the owner on file wrote it.
+ *  Anything else keeps the decision-245 Apply card (booked/paid jobs release installers when cancelled). */
+export function declineAutoClose(f: DeclineCloseFacts): { close: true } | { close: false; why: string } {
+  if (f.matchedJobs !== 1) return { close: false, why: "the email matches more than one job" };
+  if (f.fromPartner || !f.senderIsOwner) return { close: false, why: "sender is not the owner on file" };
+  if (f.deleted || f.stage === "cancelled" || f.stage === "complete") return { close: false, why: "job is already closed" };
+  if (!DECLINE_AUTO_CLOSE_STAGES.has(f.stage)) return { close: false, why: "job is past the enquiry stage" };
+  if (f.confirmedBooking) return { close: false, why: "job has a confirmed booking" };
+  if (f.paid) return { close: false, why: "owner has paid" };
+  return { close: true };
+}
+
+/** Does this owner email read as a clear decline? (The shared cancel rule; hedged or questioning mail never does.) */
+export function isClearDecline(m: IntentInput): { decline: true; phrase: string } | { decline: false } {
+  const hit = classifyEmailIntents(m).find((h) => h.intent === "cancel");
+  return hit ? { decline: true, phrase: hit.phrase } : { decline: false };
+}

@@ -22,11 +22,11 @@ export const matchOutlookEmail = createServerFn({ method: "POST" }).middleware([
 
 /** Apply a suggested change from an owner email through the existing guarded paths (never moves a booking). */
 export const applyEmailChange = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ eventId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ eventId: z.string().uuid(), close: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    return (await import("./email-office.server")).applyEmailChange(data.eventId, context.userId);
+    return (await import("./email-office.server")).applyEmailChange(data.eventId, context.userId, { close: data.close });
   });
 
 /** Ignore a suggested change (nothing on the job changes; the row clears). */

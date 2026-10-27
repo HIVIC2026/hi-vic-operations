@@ -206,6 +206,10 @@ const EXPLICIT: { re: RegExp; category: DeclineCategory }[] = [
   { re: /\b(already|has) (had|got) (it|this|the (insulation|work)) (done|installed)\b/i, category: "other_provider" },
   { re: /\bwaiting (for|on) (another|a different|the other) (provider|company|installer|quote)\b/i, category: "other_provider" },
   { re: /\b(too expensive|can'?t afford|cannot afford|out of (our|my) budget)\b[^.?!]*\b(not|won'?t|will not|unable to) (be )?(proceed|go ahead|continu)/i, category: "price" },
+  // Jo 27 Oct 2026: clear "leave it for now", "can't afford it" and a plain "no thanks" are declines too.
+  { re: /\b(can'?t|cannot|can not|unable to) afford\b|\bdo(?:n'?t| not) have the (money|funds|balance|budget)\b|\bnot enough for (us|me) to (go ahead|proceed)\b/i, category: "price" },
+  { re: /\b(will|i'?ll|we'?ll|going to) leave (?:it |this |things )?(for now|for the moment|for the time being|until next year|till next year)\b|\bleave it for now\b/i, category: "timing" },
+  { re: /^\s*no,? thank(s| you)\b/i, category: "not_interested" },
   { re: /\b(not|won'?t|will not|do not|don'?t|no longer) (be )?(going to )?(want to )?(proceed|proceeding|go ahead|going ahead|continue|continuing)\b/i, category: "general" },
   { re: /\b(declin(e|ing)|reject(ing)?) (the|your|this) (quote|offer)\b|\bwe(?:'ll| will) pass\b/i, category: "general" },
   { re: /\b(not|no longer) interested\b|\bno longer (need|require|want)\b|\bplease (cancel|close)\b|\bcancel (my|our|the) (enquiry|booking|request|spot)\b|\b(remove|take) (me|us) off\b/i, category: "not_interested" },
