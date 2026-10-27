@@ -20,7 +20,7 @@ The installer measures the ceiling in Mitti. The portal turns that into the owne
 
 **4. The quote is prepared** *(automatic)*, **then you check it and press Send** *(office, for now)*
 - The portal prices it from our price list:
-  - insulation per m² (R5 $30, R6 $32, R7 $33)
+  - insulation per m² (R5 $30, R6 $32, R7 $35)
   - removal of old insulation per m², if needed
   - the electrical safety check (PIESA): always $349 on our leads, whoever does it
   - our AP fee

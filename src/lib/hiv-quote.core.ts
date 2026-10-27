@@ -12,8 +12,8 @@ export const AP_FEE_DESCRIPTION = "Accredited Person fee (Home Insulation Victor
 /** Older quotes still store the old fee name; shown and invoiced with the current one (amounts never change). */
 export const currentFeeWording = (s: string) => s.replace(/Accredited Provider/g, "Accredited Person");
 
-/** Jo 22 Oct 2026: owner R6.0/R7.0 prices inc GST per m². R5.0 stays the office-set owner price ($30). */
-export const OWNER_HIGHER_R_INC_PER_M2: Record<Exclude<ProductRValue, "R5.0">, number> = { "R6.0": 32, "R7.0": 33 };
+/** Jo 22 Oct 2026: owner R6.0 price inc GST per m²; Jo 27 Oct 2026: R7.0 $35 (was $33). R5.0 stays the office-set owner price ($30). */
+export const OWNER_HIGHER_R_INC_PER_M2: Record<Exclude<ProductRValue, "R5.0">, number> = { "R6.0": 32, "R7.0": 35 };
 export const R_VALUE_CODE: Record<ProductRValue, string> = { "R5.0": "R5_BATTS", "R6.0": "R6_BATTS", "R7.0": "R7_BATTS" };
 export const ownerRateForR = (r: ProductRValue, ownerR5IncPerM2: number) => (r === "R5.0" ? ownerR5IncPerM2 : OWNER_HIGHER_R_INC_PER_M2[r]);
 export const rateAboveOwnerReason = (r: ProductRValue) => `This installer's agreed ${r} rate is above the owner price – office review needed.`;
