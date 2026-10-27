@@ -4,7 +4,7 @@ import { currentFeeWording } from "./hiv-quote.core";
 
 export type XeroCall = (path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => Promise<any>;
 
-export const TRACKING_CATEGORY = "Business Unit"; // never fall back to the legacy "Projects" category
+export const TRACKING_CATEGORY = "Projects"; // Jo 27 Oct: DC Xero uses Projects → Home Insulation Victoria, no fallback category
 export const TRACKING_OPTION = "Home Insulation Victoria";
 export const LOCK_STALE_MS = 2 * 60 * 1000;
 
@@ -24,12 +24,12 @@ export function assertHivicJob(job: { business_unit?: string | null } | null | u
 export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (id: string) => Promise<{ business_unit?: string | null } | null>) {
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
-/** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Business Unit = Home Insulation Victoria on every line. */
+/** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Projects = Home Insulation Victoria on every line. */
 export function assertHivicPayload(payload: { Invoices: { Reference?: string | undefined; LineItems: { Tracking?: { Name: string; Option: string }[] | undefined }[] }[] }, mode: XeroMode = "live") {
   for (const inv of payload.Invoices) {
     if (!inv.Reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error(`Xero write blocked: invoice reference must start with '${XERO_REFERENCE_PREFIX}'.`);
     if (!inv.LineItems.length) throw new Error("Xero write blocked: invoice has no lines.");
-    if (mode === "test") continue; // Demo Company TEST invoices only: Business Unit tracking not required
+    if (mode === "test") continue; // Demo Company TEST invoices only: Projects tracking not required
     if (!inv.LineItems.every((l) => l.Tracking?.some((t) => t.Name === TRACKING_CATEGORY && t.Option === TRACKING_OPTION)))
       throw new Error(`Xero write blocked: every line must be tracked ${TRACKING_CATEGORY} = ${TRACKING_OPTION}.`);
   }
