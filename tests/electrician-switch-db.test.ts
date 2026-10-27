@@ -158,6 +158,25 @@ describe("the job's installer business owner switches a stuck job", () => {
   });
 });
 
+// Fix round 2 (Jo 28 Oct 2026): "The crew shouldn't see the price!!!" — the real loaders' output as trade-view sends it.
+describe("crew on the stuck job (real loaders)", () => {
+  test("crew: short line, In progress, no $ in the page data or the job list line; owner unchanged", async () => {
+    await stuckJob();
+    const { installerQuoteView, quoteLineForViewer, NOT_ONBOARDED_NEXT_TITLE } = await import("../src/lib/installer-quote-status.core");
+    const one = await loadInstallerQuote(JOB);
+    const crewPage = installerQuoteView(one, false);
+    expect(crewPage.line).toBe(NOT_ONBOARDED_NEXT_TITLE);
+    expect(JSON.stringify(crewPage)).not.toContain("$");
+    const q = (await loadInstallerQuotes([JOB])).get(JOB)!;
+    const crewList = quoteLineForViewer(q.applies ? installerQuoteLine(q) : null, false);
+    expect(crewList).toBe(NOT_ONBOARDED_NEXT_TITLE);
+    expect(quoteLineTab("progress", crewList)).toBe("progress");
+    // Owner: the note and Action needed, as before.
+    expect(installerQuoteView(one, true).line).toContain("($349)");
+    expect(quoteLineTab("progress", quoteLineForViewer(installerQuoteLine(q), true))).toBe("action");
+  });
+});
+
 describe("job list tab (trade-view tradeHome, batch loader)", () => {
   const tabOf = async () => { const q = (await loadInstallerQuotes([JOB])).get(JOB)!; return quoteLineTab("progress", q.applies ? installerQuoteLine(q) : null); };
   test("a stuck job sits under Action needed; after the switch it doesn't", async () => {

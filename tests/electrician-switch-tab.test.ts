@@ -64,10 +64,13 @@ describe("job page: the note shows once", () => {
     expect(next.yours).toBe(true);
     expect(count(texts)).toBe(1);
   });
-  test("staff (no price card): the note once, in the Next panel", () => {
+  test("crew (fix round 2, Jo 28 Oct: \"The crew shouldn't see the price!!!\"): no note at all — the short line, not theirs", () => {
     const { next, texts } = pageTexts(false);
-    expect(next.title).toBe(NOTE);
-    expect(count(texts)).toBe(1);
+    expect(next.title).toBe(NOT_ONBOARDED_NEXT_TITLE);
+    expect(next.panel).toBe("quote_status");
+    expect(next.yours).toBe(false);
+    expect(count(texts)).toBe(0);
+    expect(texts.join(" ")).not.toContain("$");
   });
   test("other quote lines are unchanged", () => {
     expect(jobNext({ ...(pageFacts(true) as object), quoteLine: "You: something" } as never).title).toBe("something");

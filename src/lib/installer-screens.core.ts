@@ -106,7 +106,7 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 }
 
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
-import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE, quoteLineYours } from "./installer-quote-status.core";
+import { NOT_ONBOARDED_NEXT_TITLE, PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE, quoteLineForViewer, quoteLineYours } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
 import { isInstallerNotOnboardedNote } from "./rec-onboarded.core";
@@ -159,7 +159,9 @@ export type StatusLine = { kind: "ready_check" | "price" | "waiting_boss" | "quo
 export const DO_READY_CHECK_TITLE = "Do the Ready Check";
 export const ENTER_PRICE_TITLE = "Enter your price";
 export const WAITING_BOSS_TITLE = "Nothing for you — waiting on your business owner";
-export function installerStatusLine(f: StatusLineFacts): StatusLine {
+export function installerStatusLine(f0: StatusLineFacts): StatusLine {
+  // Jo 28 Oct 2026: crew never see a price — the not-signed-up note becomes the short line (not theirs to act on).
+  const f = { ...f0, quoteLine: quoteLineForViewer(f0.quoteLine, f0.boss) };
   if (f.formLinked && !f.formCompleted && f.formHasAnswers === false) return { kind: "ready_check", title: DO_READY_CHECK_TITLE, home: "Next: do the Ready Check", yours: true };
   if (f.channel === "installer_sourced" && f.priceEntered === false && (f.formHasAnswers === true || f.formCompleted)) {
     if (f.boss) return { kind: "price", title: ENTER_PRICE_TITLE, home: "Next: enter your price", yours: true };
@@ -170,13 +172,16 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
 }
 
 /** Fix round 1 (Jo 28 Oct 2026, spec rule 3): the business owner's price card on an installer job shows the
- *  not-signed-up note with the switch button, so the job page's Next panel says this short line instead (note once). */
-export const NOT_ONBOARDED_NEXT_TITLE = "Waiting on your electrician to sign up";
+ *  not-signed-up note with the switch button, so the job page's Next panel says this short line instead (note once).
+ *  Fix round 2: crew get the same short line everywhere (`quoteLineForViewer`), as "In progress". */
+export { NOT_ONBOARDED_NEXT_TITLE };
 const noteOnPriceCard = (f: Pick<JobNextFacts, "quoteLine" | "boss" | "channel">) => f.boss === true && f.channel === "installer_sourced" && isInstallerNotOnboardedNote(f.quoteLine);
 
 /** The one thing on the job page (decisions 36/41/196). Nothing about the install shows until the install is cleared;
  *  nothing about the rebate form until the Mitti install form is Complete. */
-export function jobNext(f: JobNextFacts): JobNext {
+export function jobNext(f0: JobNextFacts): JobNext {
+  // Jo 28 Oct 2026 ("The crew shouldn't see the price!!!"): only the business owner may see the not-signed-up note.
+  const f = { ...f0, quoteLine: quoteLineForViewer(f0.quoteLine, f0.boss === true) };
   const owner = f.ownerFirstName ?? "the owner";
   const left = f.installDaysLeft != null ? ` · ${f.installDaysLeft} day${f.installDaysLeft === 1 ? "" : "s"} left` : "";
   const window = f.installDeadline ? `${f.clearedOn ? `Safety check cleared ${shortDate(f.clearedOn)} · ` : ""}Install by ${ymdShort(f.installDeadline, true)}${left}` : null;

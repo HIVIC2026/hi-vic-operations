@@ -41,6 +41,23 @@ export function installerQuoteLine(f: InstallerQuoteFacts): string {
   return PRESS_COMPLETE_LINE;
 }
 
+/** Jo 28 Oct 2026 (spec rule 3): the short line instead of the not-signed-up note — the business owner's job page Next
+ *  panel (the note is on their price card), and everything a crew member sees (the note carries a price). */
+export const NOT_ONBOARDED_NEXT_TITLE = "Waiting on your electrician to sign up";
+
+/** Jo 28 Oct 2026 ("The crew shouldn't see the price!!!"): the quote line as this viewer may see it. The business owner
+ *  gets the line unchanged; a crew member (`boss` false) gets the short line instead of the not-signed-up note, which
+ *  has the $349 price. Every other line has no price and is unchanged. */
+export function quoteLineForViewer<T extends string | null | undefined>(line: T, boss: boolean): T | typeof NOT_ONBOARDED_NEXT_TITLE {
+  return !boss && isInstallerNotOnboardedNote(line) ? NOT_ONBOARDED_NEXT_TITLE : line;
+}
+
+/** The installer job page's quote line and electrician facts for this viewer (trade-view tradeJobPage). The electrician's
+ *  name has no price, so it is kept; the line is `quoteLineForViewer`. */
+export function installerQuoteView(f: InstallerQuoteFacts, boss: boolean): { line: string; electricianNotOnboarded: { name: string } | null } {
+  return { line: quoteLineForViewer(installerQuoteLine(f), boss), electricianNotOnboarded: f.electricianNotOnboarded ?? null };
+}
+
 /** Jo 28 Oct 2026 (spec rule 3): the installer's move — a "You:" line, or the not-signed-up note (they ask the
  *  electrician to finish, or switch to ours). Such a job sits under Action needed, never In progress. */
 export const quoteLineYours = (line: string | null | undefined): boolean => !!line && (line.startsWith("You:") || isInstallerNotOnboardedNote(line));

@@ -2,7 +2,7 @@
 // puts each of the installer's jobs in exactly ONE of Action needed / In progress / Done and writes ONE "Next:" line
 // per job from facts the server has already decided (place, stage, quote status, Mitti basics, bookings).
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
-import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
+import { NOT_ONBOARDED_NEXT_TITLE, PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE, quoteLineForViewer } from "./installer-quote-status.core";
 import { isInstallerNotOnboardedNote } from "./rec-onboarded.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { installerStatusLine } from "./installer-screens.core";
@@ -73,7 +73,9 @@ export function needsFinishingItems(nextAction: string | null | undefined): stri
 const ELECTRICIAN_STAGES = new Set(["piesa_and_install_window_pending", "awaiting_electrician", "assessment_booking", "piesa_scheduled", "assessment_booked", "piesa_complete", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "electrical_variation_pending", "rectification_scheduling", "rectification_booked"]);
 
 /** ONE "Next:" line and the group it belongs to. Order of precedence is the installer's own task first. */
-export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: string } {
+export function installerNext(j0: InstallerHomeJob): { group: HomeGroup; next: string } {
+  // Jo 28 Oct 2026 ("The crew shouldn't see the price!!!"): only the business owner may see the not-signed-up note.
+  const j = { ...j0, quoteLine: quoteLineForViewer(j0.quoteLine, j0.boss === true) };
   if (j.stage === "complete" || j.stage === "cancelled") return { group: "done", next: doneLine(j.stage, j.endedAt) };
   if (j.place === "offers") return { group: "offer", next: "Next: reply to the job offer" };
   // Decision 279: ONE line. Empty form → only "do the Ready Check"; answers but no boss price (A1) → "enter your price".
@@ -86,6 +88,8 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (j.quoteLine === PRESS_COMPLETE_LINE) return { group: "action", next: "Next: press Complete in Mitti when the Ready Check is finished" };
   // Jo 28 Oct 2026 (spec rule 3): stuck on a not-signed-up electrician — the installer's move, shown with the note itself.
   if (isInstallerNotOnboardedNote(j.quoteLine)) return { group: "action", next: j.quoteLine! };
+  // Crew: the short line, no price, and not theirs to act on (In progress).
+  if (j.quoteLine === NOT_ONBOARDED_NEXT_TITLE) return { group: "progress", next: NOT_ONBOARDED_NEXT_TITLE };
   if (j.quoteLine === QUOTE_HELD_LINE) return { group: "progress", next: "Next: nothing yet — office is checking the quote" };
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };

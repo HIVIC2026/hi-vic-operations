@@ -1,5 +1,5 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { installerQuoteLine } from "./installer-quote-status.core";
+import { installerQuoteLine, quoteLineForViewer } from "./installer-quote-status.core";
 import { needsFinishingTask, jobCardLine } from "./trade-view.core";
 
 /** Presentation only; reads the linked form, the quote status and existing next-action rules. */
@@ -17,7 +17,8 @@ export async function mittiJobPresentation(jobId: string, userId: string, pre?: 
   const [{ loadInstallerQuote }, { statusFactsFor, statusView }] = await Promise.all([import("./installer-quote-status.server"), import("./job-status.server")]);
   const [a, facts] = await Promise.all([loadInstallerQuote(jobId), statusFactsFor(c, [jobId])]);
   const f = facts.get(jobId);
-  const next = a.applies ? installerQuoteLine(a)
+  // Jo 28 Oct 2026: crew never see a price — no not-signed-up note ($349) for anyone but the business owner.
+  const next = a.applies ? quoteLineForViewer(installerQuoteLine(a), c.boss)
     : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");
   const electrical = e?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
   // Decision 369: the job page names the electrician only — no declared electrician price (decision 353: their own

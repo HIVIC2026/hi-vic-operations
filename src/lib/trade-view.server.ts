@@ -94,7 +94,7 @@ export async function tradeHome(userId: string) {
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
   // Speed (decision 280): the month figures, status facts, Ready Check quote lines and ended assignments do not depend
   // on each other — one round trip instead of five in a row, and the quote facts in one batch instead of one read per job.
-  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine, quoteLineTab }] = await Promise.all([
+  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine, quoteLineForViewer, quoteLineTab }] = await Promise.all([
     import("./job-status.server"), import("./installer-progress.core"), import("./installer-home.core"), import("./installer-quote-status.server"), import("./installer-quote-status.core"),
   ]);
   const liveIds = live.map((j) => j.id);
@@ -118,7 +118,8 @@ export async function tradeHome(userId: string) {
   // Done: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, source, terminal reason) — no owner, address, contact or price, and no reopened access.
   const quoteLine = new Map<string, string>();
-  for (const [id, ap] of rcQuotes) if (ap.applies) quoteLine.set(id, installerQuoteLine(ap));
+  // Jo 28 Oct 2026: crew never see a price — the viewer-specific line is chosen here, where `boss` is known.
+  for (const [id, ap] of rcQuotes) if (ap.applies) quoteLine.set(id, quoteLineForViewer(installerQuoteLine(ap), c.boss));
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formFacts = new Map<string, { linked: boolean; completed: boolean; hasAnswers: boolean | null }>();
@@ -841,7 +842,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const c = await requireTradeJob(userId, jobId, pre);
   // Speed (decision 280): modules first (cached after the first call), then every independent read in one round trip —
   // including the boss's own pay rows, which used to wait for everything else.
-  const [{ loadInstallerQuote }, { clearanceFacts }, { electricalClearance }, { mittiJobPresentation }, { needsFinishingTask }, { installerQuoteLine }, { needsFinishingList }, { currentAllocation }] = await Promise.all([
+  const [{ loadInstallerQuote }, { clearanceFacts }, { electricalClearance }, { mittiJobPresentation }, { needsFinishingTask }, { installerQuoteView }, { needsFinishingList }, { currentAllocation }] = await Promise.all([
     import("./installer-quote-status.server"), import("./allocation.server"), import("./allocation.core"), import("./mitti-job-presentation.server"),
     import("./trade-view.core"), import("./installer-quote-status.core"), import("./installer-screens.core"), import("./visit-allocation.core"),
   ]);
@@ -893,7 +894,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
     price: { entered: j?.channel === "installer_sourced" ? !!(await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null)) : null },
     boss: c.boss,
-    quote: quote.applies ? { line: installerQuoteLine(quote), electricianNotOnboarded: quote.electricianNotOnboarded, sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
+    // Jo 28 Oct 2026: crew never see a price — no not-signed-up note (it has $349) in a crew member's page data.
+    quote: quote.applies ? { ...installerQuoteView(quote, c.boss), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
