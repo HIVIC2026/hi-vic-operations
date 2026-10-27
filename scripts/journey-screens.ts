@@ -125,7 +125,7 @@ async def main():
         res["leaks"] = [m for m in cfg.get("mustNot", []) if m and m.lower() in text.lower()]
         res["clicked"] = None
         async def find(name, scope):
-            # Find a control the way a person would: its visible label, inside the card/row/item that shows `scope`, whatever the layout.
+            # Find a control the way a person would: its visible label, inside the card/row/item that shows the scope text, whatever the layout.
             rx = re.compile(re.escape(name), re.I)
             loc = page.get_by_role("button", name=rx).or_(page.get_by_role("link", name=rx))
             try: await loc.first.wait_for(state="visible", timeout=35000)
