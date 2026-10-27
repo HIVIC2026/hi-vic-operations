@@ -218,7 +218,7 @@ export function EnquiriesScreen() {
           let done = 0, failed = 0;
           const t = toast.loading(`Closing 0 of ${list.length.toLocaleString("en-AU")}…`);
           for (let i = 0; i < list.length; i += 200) {
-            const r = await cancel({ jobIds: list.slice(i, i + 200), reason });
+            const r = await cancel({ jobIds: list.slice(i, i + 200), reason, closeAll: true });
             if (!r) { failed += Math.min(200, list.length - i); continue; }
             done += r.done; failed += r.failed.length;
             toast.loading(`Closing ${(done + failed).toLocaleString("en-AU")} of ${list.length.toLocaleString("en-AU")}…`, { id: t });
