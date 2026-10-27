@@ -13920,6 +13920,7 @@ export type Database = {
         Args: { _actor: string; _file: Json; _row: string }
         Returns: string
       }
+      repair_campaign_spot_stage: { Args: { p_job: string }; Returns: boolean }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
@@ -13937,6 +13938,17 @@ export type Database = {
       save_bulk_import_analysis: {
         Args: { _actor: string; _batch: string; _rows: Json; _summary: Json }
         Returns: undefined
+      }
+      save_campaign_spot_atomic: {
+        Args: {
+          p_details: Json
+          p_job: string
+          p_link: string
+          p_onsite: boolean
+          p_snapshot: Json
+          p_summary: string
+        }
+        Returns: boolean
       }
       save_owner_insulation_details: {
         Args: { p_answers: Json; p_token: string }
