@@ -739,8 +739,8 @@ async function runServerJourneyInner(opts: { cleanup?: boolean; afterStep?: (ctx
     const always = s.key === "s9_visibility" || s.key === "s10_allowlist";
     if (broken && !always) { r.error = "skipped — an earlier step failed"; steps.push(r); continue; }
     try {
-      await STEP_FNS[s.key](ctx, r);
       if (s.key === "s10_allowlist") check(r, "M: no real Mitti call", refused.length === 0, refused.length ? `REAL MITTI CALLS REFUSED: ${refused.join("; ")}` : `0 real Mitti calls; simulated routes: ${(ctx.notes["mitti_guard_routes"] as string[][]).flat().join("; ") || "none"}`);
+      await STEP_FNS[s.key](ctx, r);
       r.passed = true;
     }
     catch (e) { r.error = e instanceof Error ? e.message : String(e); if (!always) broken = true; }
