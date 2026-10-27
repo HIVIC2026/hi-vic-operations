@@ -3,7 +3,7 @@ import { CODE_MAX_ATTEMPTS } from "./owner-verify.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { hashToken, newToken } from "./worker-links.core";
-import { CODES_PER_HOUR, CODE_TTL_MIN, SESSION_TTL_MIN, codeBlocker, maskContact, newCode, requestBlocker, sessionUsable } from "./owner-verify.core";
+import { CODES_PER_HOUR, CODE_TTL_MIN, SESSION_TTL_MIN, codeBlocker, maskContact, newCode, qaOwnerCodeCopyAllowed, requestBlocker, sessionUsable } from "./owner-verify.core";
 import { logEvent, WorkflowError } from "./workflow.server";
 
 async function jobForLink(token: unknown) {
@@ -42,8 +42,15 @@ export async function requestOwnerCode(token: unknown, channel: "sms" | "email")
   await logEvent(jobId, null, "owner_code_requested", `Owner asked for a signing code by ${channel === "sms" ? "text" : "email"} (${masked}); delivery follows the sending switches`, { code_id: row.id, channel }, { internal: true });
   if (source !== "qa_test") {
     await (await import("./owner-code-delivery.server")).deliverOwnerCode({ jobId, codeId: row.id, channel, code, owner: { email: owner?.email ?? null, phone: owner?.phone ?? null } });
+  } else if (qaOwnerCodeCopyAllowed(source, channel, owner?.email)) {
+    // Jo 27 Oct 13:15: TEST-domain owner on a qa_test job only — keep a service-role-only copy for the walk-through and
+    // email the code through the guarded owner sender, which redirects qa_test mail to the TEST inbox. Never SMS.
+    await admin.from("qa_owner_codes").insert({ job_id: jobId, code_id: row.id, code, expires_at: new Date(Date.now() + CODE_TTL_MIN * 60_000).toISOString() });
+    const d = await import("./owner-code-delivery.core");
+    const mail = d.ownerCodeEmail(code);
+    await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: source, to: owner!.email!, purpose: d.OWNER_CODE_PURPOSE, key: d.ownerCodeDeliveryKey(row.id), build: () => ({ subject: mail.text.split("\n")[0] ?? "Your signing code", html: mail.html, text: mail.text }) }).catch(() => null);
   }
-  // TEST jobs never send anything, so the code is shown on screen for preview checks only.
+  // TEST jobs show the code on screen for preview checks.
   return { masked, testCode: source === "qa_test" ? code : null };
 }
 
