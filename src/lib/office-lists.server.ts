@@ -190,7 +190,7 @@ export async function enquiryCloseBlocker(jobId: string): Promise<string | null>
   ]);
   if (inbound.error) throw new Error("The owner's email could not be rechecked.");
   const { enquiryBulkCloseBlocker } = await import("./enquiry-categories.core");
-  return enquiryBulkCloseBlocker({ createdAt: index.created_at, enquiryStatus: index.enquiry_status, lastOutboundAt: heard.last.get(jobId)?.at ?? null, lastOwnerAt: inbound.data?.received_at ?? null, inboundAt: inbound.data?.received_at ?? null, optedOut: index.enquiry_status === "opted_out", sendFailed: false, noResponseYet: !(heard.sends.get(jobId) ?? []).some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose)) }, Date.now());
+  return enquiryBulkCloseBlocker({ createdAt: index.created_at ?? "", enquiryStatus: index.enquiry_status, lastOutboundAt: heard.last.get(jobId)?.at ?? null, lastOwnerAt: inbound.data?.received_at ?? null, inboundAt: inbound.data?.received_at ?? null, optedOut: index.enquiry_status === "opted_out", sendFailed: false, noResponseYet: !(heard.sends.get(jobId) ?? []).some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose)) }, Date.now());
 }
 export type JobsListRow = {
   id: string; jobNumber: string; owner: string; surname: string; suburb: string | null; stage: JobsStage; status: string; lastHeardAt: string | null; lastHeardChannel: string | null;

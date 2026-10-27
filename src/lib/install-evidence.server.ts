@@ -153,7 +153,7 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   summary.auditId = auditId;
   if (summary.rulerPhotos?.length) {
     if (fetchMedia) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
-    else summary.copyFailures = summary.rulerPhotos.flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId, area: a.name, which: "photo", reason: "Photo copy has not been checked" })));
+    else summary.copyFailures = summary.rulerPhotos.flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" })));
     const copyLines = (summary.copyFailures ?? []).map(f => `${f.area}: ${f.which} ruler photo ${f.mediaId || "(missing id)"} could not be saved — sync again to retry`);
     summary.blockers = [...new Set([...summary.blockers, ...copyLines])];
     summary.rulerBlockers = [...new Set([...(summary.rulerBlockers ?? []), ...copyLines])];
