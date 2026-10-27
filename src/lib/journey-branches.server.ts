@@ -1485,11 +1485,55 @@ async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
   } finally { await finish(ctx, jobs); }
 }
 
-export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent";
+// ---------- Jo 28 Oct: lapsed 30-day window → office chooses who pays the repeat PIESA (decision 158) ----------
+async function r158RepeatPiesa(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const r6: StepResult = { key: "s6_electrician", label: "PIESA", passed: true, checks: [] };
+    try { await J.s6(ctx, r6); } catch (e) { BLOCKED_REASON = `PIESA step failed: ${(e as Error).message}`; return; }
+    const { addYmd, melbourneToday } = await import("./melbourne-time.core");
+    const today = melbourneToday(new Date());
+    await J.assertOwnTestJob(ctx);
+    const { data: pr } = await admin.from("piesa_records").select("id").eq("job_id", ctx.jobId!).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1).single();
+    await admin.from("piesa_records").update({ completed_date: addYmd(today, -31) }).eq("id", pr!.id);
+    await admin.from("assessments").update({ assessed_on: addYmd(today, -31) } as never).eq("job_id", ctx.jobId!);
+    const { installDayContext } = await import("./install-days.server");
+    const c = await installDayContext(ctx.jobId!);
+    if (!c.expired || !c.deadline) { BLOCKED_REASON = `window did not lapse (deadline ${c.deadline}, expired=${c.expired}, stage via setup)`; return; }
+    const tdr = await import("./thirty-day-rule.server");
+    await tdr.recordInstallWindowExpiry(ctx.jobId!, c.deadline, c.clearance.timingDate); // this one TEST job only
+    const rp = await import("./repeat-piesa.server");
+    const before = await rp.repeatPiesaContext(ctx.jobId!);
+    const sig = await officeSignals(ctx.jobId!);
+    const stop = await shoot("r158-lapsed", [ownerPage(ctx), ...officePages(ctx)]);
+    rec.checks.push({ n: "R.1", name: "lapse waits for the office; suggestion only", status: before.state.stage === "choose" ? "passed" : "failed", detail: `stage=${before.state.stage}; suggestion=${before.suggestion ?? "none"}`, ids: {} });
+    answer("stops", before.state.stage === "choose", `repeat stage=${before.state.stage}; owner page says installer can offer days=${sees(stop[0], /installer will offer you 3 install days|offer you 3 install days/i)}`);
+    answer("reason", sees(stop[0], /arranging the next step/i) && !sees(stop[0], /offer you 3 install days/i), `owner sees "arranging the next step"=${sees(stop[0], /arranging the next step/i)}`);
+    answer("office_once", sig.needsMeText.filter((t) => /choose who pays/i.test(t)).length === 1, `Needs me rows=${sig.needsMe} (${sig.needsMeText.join(" | ") || "none"})`);
+    const price = await rp.repeatPiesaPrice();
+    let ownerRefused = "allowed";
+    if (price == null) { try { await rp.chooseRepeatPayer(ctx.jobId!, "owner", ctx.actorId); } catch (e) { ownerRefused = `refused: ${(e as Error).message}`; } }
+    rec.checks.push({ n: "R.2", name: "owner-pays refused while the price setting is empty", status: price != null || ownerRefused.startsWith("refused") ? "passed" : "failed", detail: price != null ? `price is set ($${price}) — not checked` : ownerRefused, ids: {} });
+    await rp.chooseRepeatPayer(ctx.jobId!, "installer", ctx.actorId);
+    const chosen = await shoot("r158-chosen", [ownerPage(ctx)]);
+    rec.checks.push({ n: "R.3", name: "owner page after the choice: plain reason, no cost, Accept", status: sees(chosen[0], /A new safety check \(PIESA\) is needed/) && sees(chosen[0], /30 days since your last check have passed/) && sees(chosen[0], /no cost to you/i) ? "passed" : "failed", detail: chosen[0]?.text.slice(0, 300) ?? "", ids: {} });
+    let acc = "accepted";
+    try { const st = await rp.acceptRepeatPiesa(ctx.jobId!); acc = `stage=${st.stage}`; } catch (e) { acc = `refused: ${(e as Error).message}`; }
+    const { data: fail } = await admin.from("workflow_events").select("summary").eq("job_id", ctx.jobId!).eq("event_type", "repeat_piesa_offer_failed").limit(1).maybeSingle();
+    const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending");
+    const sig2 = await officeSignals(ctx.jobId!);
+    await shoot("r158-accepted", [ownerPage(ctx), ...officePages(ctx)]);
+    answer("carries_on", (offers ?? 0) > 0, `owner accept ${acc}; pending PIESA offers=${offers}; ${fail ? fail.summary : "no offer failure"}; Needs me after: ${sig2.needsMeText.join(" | ") || "none"}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "r158-repeat-piesa";
 export const PHASE4: Record<Phase4Name, (rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) => Promise<void>> = {
   "m8-quote-payment": m8QuotePayment, "m10-deposit": m10Deposit, "m11-fixes-payment": m11FixesPayment, "m22-payout-form": m22PayoutForm,
   "m23-electrician-payout": m23ElectricianPayout, "m24-installer-payout": m24InstallerPayout, "m9-piesa-prereqs": m9PiesaPrereqs,
-  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent,
+  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "r158-repeat-piesa": r158RepeatPiesa,
 };
 export async function runPhase4(name: Phase4Name, shotDir: string): Promise<Phase3Result> {
   SHOT_DIR = shotDir; SHOTS.length = 0; ANSWERS.length = 0; BLOCKED_REASON = null;

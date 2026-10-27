@@ -77,5 +77,5 @@ export async function recordRepeatPiesaPaid(jobId: string, actorId: string, refe
 async function startRepeatOffer(jobId: string, s: RepeatState) {
   if (s.stage !== "offer") return;
   const { startPiesaAllocation } = await import("./allocation.server");
-  await startPiesaAllocation(jobId, null, "piesa", { adding: false, repeat: true } as never);
+  await startPiesaAllocation(jobId, null, "piesa", { adding: false, repeat: true });
 }

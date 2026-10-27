@@ -166,7 +166,7 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -178,7 +178,8 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
+  // Jo 28 Oct: a repeat PIESA after a lapsed window goes to electricians again; the first check's electrician does not block it.
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
