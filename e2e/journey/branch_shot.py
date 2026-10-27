@@ -22,6 +22,9 @@ async def main(path):
                     await page.evaluate("([k, v]) => window.localStorage.setItem(k, v)", [m["storageKey"], json.dumps(s["session"])])
                 await page.goto(m["base"] + s["path"], wait_until="networkidle", timeout=45000)
                 await page.wait_for_timeout(2500)
+                for _ in range(10):  # a page still saying "Loading…" gets up to 10 more seconds
+                    if "Loading" not in await page.inner_text("body"): break
+                    await page.wait_for_timeout(1000)
                 text = " ".join((await page.inner_text("body")).split())
                 width = await page.evaluate("document.documentElement.scrollWidth")
                 await page.screenshot(path=str(out / s["name"]))
