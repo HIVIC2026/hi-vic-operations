@@ -65,34 +65,57 @@ export function outlookConfigured(): boolean {
   return !!process.env["LOVABLE_API_KEY"] && !!process.env["MICROSOFT_OUTLOOK_API_KEY"];
 }
 
-async function graph<T>(path: string): Promise<T> {
+/** Time limits for one sync run. `exhausted` is the soft budget, checked only BETWEEN pages, so a started page is
+ *  always finished. `signal(capMs)` gives each Microsoft Graph call an AbortSignal for the lesser of its own timeout
+ *  and the time left before the run's hard deadline; it throws `OutlookTimeoutError` when no time is left. */
+export type SyncBudget = { exhausted: () => boolean; signal: (capMs: number) => AbortSignal };
+const NO_BUDGET: SyncBudget = { exhausted: () => false, signal: (capMs) => AbortSignal.timeout(capMs) };
+
+/** A Graph call ran out of time (its own timeout or the run's hard deadline). The page it belonged to is not saved,
+ *  so it is re-read next run; reserved messages stay pending and dedupe on provider_message_id. */
+export class OutlookTimeoutError extends Error {
+  constructor() { super("Outlook took too long to answer; this page is left for the next run."); this.name = "OutlookTimeoutError"; }
+}
+
+/** Runs one Graph request under its deadline signal; an abort (including while the body is read) is a timeout. */
+async function withDeadline<T>(limits: SyncBudget, capMs: number, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const signal = limits.signal(capMs);
+  try { return await request(signal); }
+  catch (e) { if (signal.aborted) throw new OutlookTimeoutError(); throw e; }
+}
+
+async function graph<T>(path: string, limits: SyncBudget = NO_BUDGET): Promise<T> {
   // Never follow redirects with connector credentials, or use an arbitrary provider next-link origin.
-  const res = await fetch(outlookGatewayUrl(path), {
-    method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(20_000),
-    headers: {
-      Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
-      "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
-      Prefer: 'IdType="ImmutableId", outlook.body-content-type="text"',
-    },
+  return withDeadline(limits, 20_000, async (signal) => {
+    const res = await fetch(outlookGatewayUrl(path), {
+      method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal,
+      headers: {
+        Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
+        "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
+        Prefer: 'IdType="ImmutableId", outlook.body-content-type="text"',
+      },
+    });
+    if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect; the request was not followed.");
+    if (!res.ok) throw new Error(`Outlook request failed (HTTP ${res.status}). Check the connector account and permissions.`);
+    try { return (await res.json()) as T; }
+    catch (e) { if (signal.aborted) throw e; throw new Error("Outlook returned an unreadable response."); }
   });
-  if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect; the request was not followed.");
-  if (!res.ok) throw new Error(`Outlook request failed (HTTP ${res.status}). Check the connector account and permissions.`);
-  try { return (await res.json()) as T; }
-  catch { throw new Error("Outlook returned an unreadable response."); }
 }
 
 /** Raw bytes of one attachment ($value). Never follows redirects; the URL goes through the approved-gateway check. */
-async function attachmentBytes(mailbox: string, messageId: string, attachmentId: string): Promise<ArrayBuffer> {
-  const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/$value`), {
-    method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(30_000),
-    headers: {
-      Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
-      "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
-    },
+async function attachmentBytes(mailbox: string, messageId: string, attachmentId: string, limits: SyncBudget = NO_BUDGET): Promise<ArrayBuffer> {
+  return withDeadline(limits, 30_000, async (signal) => {
+    const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/$value`), {
+      method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal,
+      headers: {
+        Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
+        "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
+      },
+    });
+    if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect an attachment download; it was not followed.");
+    if (!res.ok) throw new Error(`Outlook attachment download failed (HTTP ${res.status}).`);
+    return res.arrayBuffer();
   });
-  if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect an attachment download; it was not followed.");
-  if (!res.ok) throw new Error(`Outlook attachment download failed (HTTP ${res.status}).`);
-  return res.arrayBuffer();
 }
 
 type Identity = { id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null };
@@ -100,11 +123,11 @@ type Identity = { id?: string; mail?: string | null; userPrincipalName?: string 
  *  Mail-only connections (no profile permission) cannot read /me; then the identity is the shared mailbox itself,
  *  and access is still proven by reading its Inbox and Sent Items. `accessError` is the mailbox check's failure
  *  (null when readable, or when no mailbox was given). */
-async function identityAndAccess(mailbox: string | null): Promise<{ me: Identity; accessError: Error | null }> {
+async function identityAndAccess(mailbox: string | null, limits: SyncBudget = NO_BUDGET): Promise<{ me: Identity; accessError: Error | null }> {
   const target = normaliseMailbox(mailbox);
   const [meR, accessR] = await Promise.allSettled([
-    graph<Identity>("/me?$select=id,mail,userPrincipalName,displayName"),
-    target ? verifyMailboxReadAccess(target) : Promise.resolve(),
+    graph<Identity>("/me?$select=id,mail,userPrincipalName,displayName", limits),
+    target ? verifyMailboxReadAccess(target, limits) : Promise.resolve(),
   ]);
   const accessError = accessR.status === "rejected"
     ? (accessR.reason instanceof Error ? accessR.reason : new Error("Outlook mailbox access check failed.")) : null;
@@ -142,11 +165,11 @@ export async function checkOutlookConnection(candidateMailbox?: string): Promise
   }
 }
 
-async function verifyMailboxReadAccess(mailbox: string): Promise<void> {
+async function verifyMailboxReadAccess(mailbox: string, limits: SyncBudget = NO_BUDGET): Promise<void> {
   // /me identifies the delegate; it is not necessarily the shared mailbox. Read and discard one
   // message per required folder to check message/body access, including on empty mailboxes (both in parallel).
   await Promise.all(["inbox", "sentitems"].map(async (folder) => {
-    const response = await graph<{ value?: unknown[] }>(`${outlookMailboxPath(mailbox)}/mailFolders/${folder}/messages?$top=1&$select=id,body`);
+    const response = await graph<{ value?: unknown[] }>(`${outlookMailboxPath(mailbox)}/mailFolders/${folder}/messages?$top=1&$select=id,body`, limits);
     if (!Array.isArray(response.value)) throw new Error(`Outlook could not verify ${folder} access for the selected shared mailbox.`);
   }));
 }
@@ -168,7 +191,7 @@ export async function pendingOutlookWorkCount(): Promise<number> {
   return count;
 }
 
-async function attachmentsFor(id: string, mailbox: string): Promise<AttachmentRef[]> {
+async function attachmentsFor(id: string, mailbox: string, limits: SyncBudget = NO_BUDGET): Promise<AttachmentRef[]> {
   const refs: AttachmentRef[] = [];
   let url: string | null = `${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(id)}/attachments?$select=id,name,contentType,size,isInline`;
   const visited = new Set<string>();
@@ -176,7 +199,7 @@ async function attachmentsFor(id: string, mailbox: string): Promise<AttachmentRe
     const canonical = outlookGatewayUrl(url);
     if (visited.has(canonical)) throw new Error("Outlook repeated an attachment continuation.");
     visited.add(canonical);
-    const r: { value: { id: string; name: string; contentType?: string; size?: number; isInline?: boolean }[]; "@odata.nextLink"?: string } = await graph(canonical);
+    const r: { value: { id: string; name: string; contentType?: string; size?: number; isInline?: boolean }[]; "@odata.nextLink"?: string } = await graph(canonical, limits);
     if (!Array.isArray(r.value)) throw new Error("Outlook returned an invalid attachment response.");
     if (r.value.some(a => typeof a.id !== "string" || !a.id || typeof a.name !== "string"))
       throw new Error("Outlook returned incomplete attachment metadata.");
@@ -196,7 +219,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
  *  (a file whose size the provider did not report is still checked), an existing object is only reused
  *  after its bytes are verified against the mailbox copy, and every skipped file keeps a visible reason
  *  — a file that was not stored is never presented as preserved. */
-async function storeAttachments(work: Work, refs: AttachmentRef[], jobIds: string[]): Promise<{ refs: StoredAttachmentRef[]; stored: number; skipped: number }> {
+async function storeAttachments(work: Work, refs: AttachmentRef[], jobIds: string[], limits: SyncBudget = NO_BUDGET): Promise<{ refs: StoredAttachmentRef[]; stored: number; skipped: number }> {
   const prefix = jobIds[0] ?? "unmatched";
   const plan = planAttachments(refs);
   const skippedIds = new Set(plan.skipped.map((s) => s.ref.id));
@@ -206,7 +229,7 @@ async function storeAttachments(work: Work, refs: AttachmentRef[], jobIds: strin
   let actualTotal = 0;
   for (const [i, ref] of refs.entries()) {
     if (skippedIds.has(ref.id)) { stored.push({ ...ref, path: null, storedAt: null, skipped: reasonById.get(ref.id) ?? "skipped", contentHash: null }); continue; }
-    const bytes = new Uint8Array(await attachmentBytes(work.mailbox, work.provider_message_id, ref.id));
+    const bytes = new Uint8Array(await attachmentBytes(work.mailbox, work.provider_message_id, ref.id, limits));
     if (bytes.byteLength > ATTACHMENT_MAX_FILE_BYTES) { stored.push({ ...ref, path: null, storedAt: null, skipped: `over the ${Math.round(ATTACHMENT_MAX_FILE_BYTES / 1048576)} MB per-file limit`, contentHash: null }); continue; }
     if (actualTotal + bytes.byteLength > ATTACHMENT_MAX_MESSAGE_BYTES) { stored.push({ ...ref, path: null, storedAt: null, skipped: "over the per-message attachment budget", contentHash: null }); continue; }
     const path = attachmentStoragePath(prefix, attachmentIdentityKey(work.mailbox, work.provider_message_id, ref.id), i, ref.name);
@@ -236,12 +259,12 @@ async function storeAttachments(work: Work, refs: AttachmentRef[], jobIds: strin
 /** Idempotent byte/inline repair for mail stored by the metadata-only era (or completed work whose files
  *  were never downloaded). No workflow changes: already-verified files are reused, missing ones are
  *  fetched and stored, and each job row keeps its existing stored paths. */
-async function repairAttachments(work: Work): Promise<{ stored: number } | null> {
+async function repairAttachments(work: Work, limits: SyncBudget = NO_BUDGET): Promise<{ stored: number } | null> {
   const jobIds = routeJobIds(work.route);
   if (!jobIds.length) return null;
-  const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
+  const refs = await attachmentsFor(work.provider_message_id, work.mailbox, limits);
   if (!refs.length) return null;
-  const storedRefs = await storeAttachments(work, refs, jobIds);
+  const storedRefs = await storeAttachments(work, refs, jobIds, limits);
   for (const jobId of jobIds) {
     const { data: rows, error } = await syncAdmin.from("job_communications").select("id, attachment_refs")
       .eq("provider", "outlook").eq("provider_message_id", work.provider_message_id).eq("job_id", jobId);
@@ -530,12 +553,12 @@ export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?:
   return { communicationId, message: m, changeRequests, replyDraftId };
 }
 
-async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow): Promise<void> {
+async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow, limits: SyncBudget = NO_BUDGET): Promise<void> {
   if (work.route.kind !== "job" || !isHumanOwnerEmail({...work.message,provider:"outlook",channel:"email"})) return;
   try {
     if (!work.attachments_complete) {
-      const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
-      const storedRefs = await storeAttachments(work, refs, routeJobIds(work.route));
+      const refs = await attachmentsFor(work.provider_message_id, work.mailbox, limits);
+      const storedRefs = await storeAttachments(work, refs, routeJobIds(work.route), limits);
       const { data, error } = await syncAdmin.from("outlook_message_work")
         .update({ attachments_complete: true, attachment_refs: storedRefs.refs, last_error: null })
         .eq("provider_message_id", work.provider_message_id).eq("status", "pending")
@@ -554,7 +577,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     } else if (work.message.hasAttachments && (work.attachment_refs ?? []).some((r) => r.path === null && r.skipped === null)) {
       // Work completed by the metadata-only era: its files were never downloaded. Repair them
       // idempotently (verified existing objects are reused). No workflow changes.
-      const repaired = await repairAttachments(work);
+      const repaired = await repairAttachments(work, limits);
       if (repaired) counts.files += repaired.stored;
     }
     const decision = { action: "none" };
@@ -596,10 +619,6 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
     if (data.length < 200) return false;
   }
 }
-
-/** Stops a run from starting new work once its time budget is spent; everything left is durable for the next run. */
-export type SyncBudget = { exhausted: () => boolean };
-const NO_BUDGET: SyncBudget = { exhausted: () => false };
 
 /** Existing durable work rows for these provider ids, in one query (not one per message). */
 async function existingWork(ids: string[]): Promise<Map<string, Work & { status: string }>> {
@@ -661,7 +680,7 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
         counts.duplicate++;
         if (m.hasAttachments) {
           try {
-            const r = await repairAttachments({ provider_message_id: m.providerMessageId, mailbox, message: m, route: { kind: "job", jobIds: aliasIds, how: "thread" }, attachments_complete: true, attachment_refs: [], status: "complete", record_only: true });
+            const r = await repairAttachments({ provider_message_id: m.providerMessageId, mailbox, message: m, route: { kind: "job", jobIds: aliasIds, how: "thread" }, attachments_complete: true, attachment_refs: [], status: "complete", record_only: true }, budget);
             if (r) counts.files += r.stored;
           } catch { counts.filesSkipped++; } // visible in the counts; retried naturally on the next sync
         }
@@ -711,25 +730,21 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       }
     }
   }
-  // Every message on the page is now durably reserved; past the budget the rest stay pending for the next run.
-  for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) {
-    if (budget.exhausted()) break;
-    await finishWork(item, counts, window);
-  }
+  // Every message on the page is now durably reserved. A started page is always finished whole (the budget is only
+  // checked between pages); only the hard deadline can stop it, leaving the rest pending and the page unsaved.
+  for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) await finishWork(item, counts, window, budget);
 }
 
-/** Retry only explicitly pending new imports, never unmarked legacy correspondence. No mailbox reread required. */
+/** Retry only explicitly pending new imports, never unmarked legacy correspondence. No mailbox reread required.
+ *  Runs FIRST in a run, before any new page, so mail an earlier run left pending is finished before newer mail.
+ *  It is one batch like a page: finished whole, stopped only by the hard deadline. */
 async function resumePending(mailbox: string, counts: SyncCounts, window: ClosureWindow, budget: SyncBudget = NO_BUDGET): Promise<void> {
-  if (budget.exhausted()) return;
   const { data, error } = await syncAdmin.from("outlook_message_work").select("*")
     .eq("mailbox", mailbox).eq("status", "pending").order("created_at").limit(200);
   if (error || !data) throw new Error(`Outlook retry queue unavailable: ${error?.message ?? "rows missing"}`);
   // This queue is independent of timestamp cursors: unresolved old work is never silently skipped.
-  // Only pending rows are read, so completed work is never re-processed; past the budget the rest wait.
-  for (const work of data as Work[]) {
-    if (budget.exhausted()) break;
-    await finishWork(work, counts, window);
-  }
+  // Only pending rows are read, so completed work is never re-processed.
+  for (const work of data as Work[]) await finishWork(work, counts, window, budget);
 }
 
 /** A failed/concurrent status save is an error, never a successful sync. On success the in-memory state carries the
@@ -744,20 +759,31 @@ async function saveSyncState(state: SyncState, patch: Record<string, unknown>): 
   Object.assign(state, patch, { updated_at: saved ?? updatedAt });
 }
 
-/** Default run budget: stop STARTING new pages/messages after this, so a run (plus its final save) ends well
- *  inside the scheduler's 55 s request limit. Whatever is left is durable (cursor, continuation, pending work). */
-export const OUTLOOK_SYNC_BUDGET_MS = 35_000;
+/** Soft run budget: no NEW page is started after this (a started page is always finished), so a run normally ends
+ *  well inside the scheduler's 55 s request limit. Whatever is left is durable (cursor, continuation, pending work). */
+export const OUTLOOK_SYNC_BUDGET_MS = 20_000;
+/** Hard run deadline: every Graph call in a run is aborted at this point (each call's own timeout is shortened to the
+ *  time left), so one slow call can't push a run past the limit. A timed-out page is not saved and is re-read next run. */
+export const OUTLOOK_SYNC_DEADLINE_MS = 45_000;
 export type SyncTimings = { identity: number; inbound: number; outbound: number; resume: number; total: number };
 
 /** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages.
  *  Progress (cursor + continuation) is saved after every finished page, so a run cut short later keeps it. */
-export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number; budgetMs?: number; clock?: () => number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts; partial: boolean; timingsMs: SyncTimings }> {
+export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number; budgetMs?: number; deadlineMs?: number; clock?: () => number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts; partial: boolean; timingsMs: SyncTimings }> {
   const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 };
   const clock = opts.clock ?? (() => Date.now());
   const started = clock();
   const budgetMs = Math.max(1, opts.budgetMs ?? OUTLOOK_SYNC_BUDGET_MS);
+  const deadlineMs = Math.max(budgetMs, opts.deadlineMs ?? OUTLOOK_SYNC_DEADLINE_MS);
   let stopped = false;
-  const budget: SyncBudget = { exhausted: () => (stopped ||= clock() - started >= budgetMs) };
+  const budget: SyncBudget = {
+    exhausted: () => (stopped ||= clock() - started >= budgetMs),
+    signal: (capMs) => {
+      const left = deadlineMs - (clock() - started);
+      if (left <= 0) throw new OutlookTimeoutError();
+      return AbortSignal.timeout(Math.min(capMs, left));
+    },
+  };
   const timingsMs: SyncTimings = { identity: 0, inbound: 0, outbound: 0, resume: 0, total: 0 };
   const timed = async <T>(k: keyof SyncTimings, fn: () => Promise<T>): Promise<T> => {
     const t = clock();
@@ -771,7 +797,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     if (!outlookConfigured()) throw new Error("Outlook credentials are not configured for this project.");
     if (!state.expected_mailbox) throw new Error("Enter, check and confirm the intended shared business mailbox address before importing correspondence.");
     const expected = state.expected_mailbox;
-    const { me, accessError } = await timed("identity", () => identityAndAccess(expected));
+    const { me, accessError } = await timed("identity", () => identityAndAccess(expected, budget));
     if (accessError) throw accessError;
     const health = checkedOutlookHealth(true, state.expected_mailbox, me, now, state.expected_mailbox);
     if (!health.readyForSync || !health.targetMailbox) throw new Error(health.problem ?? "Shared mailbox access could not be verified.");
@@ -802,8 +828,10 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         if (visited.has(canonical)) throw new Error("Outlook repeated a continuation; the cursor was not advanced.");
         visited.add(canonical);
         let response: { value: GraphMessage[]; "@odata.nextLink"?: string };
-        try { response = await graph(canonical); }
+        try { response = await graph(canonical, budget); }
         catch (e) {
+          // Out of time is not an expired continuation: keep the saved place and stop.
+          if (e instanceof OutlookTimeoutError) throw e;
           // An expired or invalid saved continuation is recovered by replaying that stream from its saved
           // timestamp — already-imported messages dedupe by provider id, so nothing is skipped or repeated.
           if (usingSavedNext && !recovered) { recovered = true; usingSavedNext = false; url = freshUrl; continue; }
@@ -817,8 +845,9 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         // Inbound is processed first, so outbound and pending retries receive the same proven window.
         const win: ClosureWindow = completeWhenFresh && !usingSavedNext && !next ? { ...window, inboxCompleteThrough: completeWhenFresh } : window;
         counts.fetched += response.value.length;
+        const errorsBefore = counts.errors; // pending work that failed earlier in this run must not hold this page back
         await processMessages(response.value, mailbox, counts, win, budget);
-        if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
+        if (counts.errors > errorsBefore) throw new Error(`${counts.errors - errorsBefore} message(s) remain unfinished; the cursor was not advanced.`);
         const tail = response.value.at(-1);
         const tailAt = tail ? (field === "receivedDateTime" ? tail.receivedDateTime : tail.sentDateTime) : null;
         if (tailAt) {
@@ -839,6 +868,8 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       // Historical catch-up: record-only before backfill_from, resumable across runs, then cleared.
       let done = 0;
       const historyWindow: ClosureWindow = { inboxCompleteThrough: null, history: true, backfillFrom: state.backfill_from };
+      // Mail left pending by an earlier run is finished before any new page.
+      await timed("resume", () => resumePending(mailbox, counts, historyWindow, budget));
       const streams = [
         ["receivedDateTime", "catchup_inbound_cursor", "catchup_inbound_next_link"],
         ["sentDateTime", "catchup_outbound_cursor", "catchup_outbound_next_link"],
@@ -854,8 +885,10 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         cursors["catchup_inbound_cursor"] = null; cursors["catchup_inbound_next_link"] = null;
         cursors["catchup_outbound_cursor"] = null; cursors["catchup_outbound_next_link"] = null;
       }
-      await timed("resume", () => resumePending(mailbox, counts, historyWindow, budget));
     } else {
+      // Mail left pending by an earlier run is finished before any new page. Pending work only reads `history`
+      // from its window (record-only: nothing closes), so finishing it before the inbound pull changes no decision.
+      await timed("resume", () => resumePending(mailbox, counts, { inboxCompleteThrough: null }, budget));
       let inboxCompleteThrough: string | null = null;
       const startedWithNext = !!state.all_inbound_next_link;
       const inboundRemaining = await timed("inbound", () => pull("receivedDateTime", "all_inbound_cursor", "all_inbound_next_link",
@@ -863,7 +896,6 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       if (!startedWithNext && inboundRemaining === null) inboxCompleteThrough = now;
       await timed("outbound", () => pull("sentDateTime", "all_outbound_cursor", "all_outbound_next_link",
         state!.all_outbound_cursor ?? state!.backfill_from, { inboxCompleteThrough }, null));
-      await timed("resume", () => resumePending(mailbox, counts, { inboxCompleteThrough }, budget));
     }
     if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
     await saveSyncState(state, { ...cursors, mailbox, last_run_at: now, last_ok_at: now, last_error: null, last_counts: counts });
