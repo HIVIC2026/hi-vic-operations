@@ -16,6 +16,8 @@ export type NextInput = {
   closed: { kind: "cancelled" | "complete" | "ineligible"; reason: string | null } | null;
   onHold: { reason: string | null; until: string | null } | null;
   blockers?: string[];
+  /** True only when an installation quote has actually been issued (sent_at set). false = held/not drafted; null/undefined = unknown (older callers keep the old wording). */
+  quoteIssued?: boolean | null;
 };
 
 const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
