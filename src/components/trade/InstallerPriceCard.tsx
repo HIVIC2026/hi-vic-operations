@@ -4,7 +4,7 @@
 // here — never asked again. Decision 290 (corrected): the Ready Check's access rating and issue notes show as the flag;
 // the boss prices any difficult access themselves. The boss's text (decision 288) deep-links to `#price`.
 import { Fragment, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
   const q = useQuery({ queryKey: ["installer-price", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
+  const qc = useQueryClient();
   const view = q.data;
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
@@ -34,6 +35,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     if (!cur) return;
     setPrice(String(cur.price_inc_gst)); setIncluded(removalBlocked ? cur.included.filter((x) => x !== REMOVAL_OPTION) : cur.included); setOther(cur.included_other ?? "");
   }, [view?.current?.setAt, removalBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Jo 27 Oct 2026 (HV-3197): the save resolves after the server has redrafted the held quote, so re-read the owner-quote
+  // preview and the job page now — never leave the superseded draft on screen until a reload.
+  const refreshQuoteViews = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ["my-owner-quote", jobId] }),
+    qc.invalidateQueries({ queryKey: ["trade-job-page", jobId] }),
+  ]);
   if (!view?.canSet) return null;
   const current = view.current?.record ?? null;
   const lines = current ? priceCardLines(current) : null;
@@ -62,7 +69,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
         </>
       )}
       {showForm && (
-        <form className="space-y-3 py-2" onSubmit={async (e) => { e.preventDefault(); if (!check.ok) return; setBusy(true); try { const r = await save({ jobId, priceIncGst: price, included, includedOther: other || null }, "Price saved"); if (r) { setEditing(false); await q.refetch(); } } finally { setBusy(false); } }}>
+        <form className="space-y-3 py-2" onSubmit={async (e) => { e.preventDefault(); if (!check.ok) return; setBusy(true); try { const r = await save({ jobId, priceIncGst: price, included, includedOther: other || null }, "Price saved"); if (r) { setEditing(false); await Promise.all([q.refetch(), refreshQuoteViews()]); } } finally { setBusy(false); } }}>
           <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the electrical safety check, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
           <div><Label htmlFor="ip-price">Your price to the owner (inc GST)</Label><Input id="ip-price" inputMode="decimal" placeholder="e.g. 2400" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
           <fieldset>
