@@ -66,9 +66,14 @@ export const getAdminCoverage = createServerFn({ method: "POST" }).middleware([r
 export const getJobCoverage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ jobId: uuid }).parse(data))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { partners, jobs } = await loadCoverageData();
-    const job = jobs.find((candidate) => candidate.id === data.jobId);
+    // TEST office (Jo 27 Oct): qa_test jobs only, TEST partners only; admin unchanged.
+    const { requireOfficeJob, officeTestBusinessIds } = await import("./qa-office-access.server");
+    const officeRole = await requireOfficeJob(context.supabase, data.jobId);
+    if (officeRole !== "qa_office") await requireAdmin(context.supabase);
+    const loaded = await loadCoverageData();
+    const testIds = officeRole === "qa_office" ? new Set(await officeTestBusinessIds(context.supabase)) : null;
+    const partners = testIds ? loaded.partners.filter((p) => testIds.has(p.id)) : loaded.partners;
+    const job = loaded.jobs.find((candidate) => candidate.id === data.jobId);
     if (!job) throw new Error("Job not found.");
     const property = job.properties as { suburb: string | null; postcode: string | null } | null;
     const site = { postcode: property?.postcode ?? null, suburb: property?.suburb ?? null };
