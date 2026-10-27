@@ -72,7 +72,7 @@ export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, s
           </div>
         );
       })}
-      {data.canAllocate && <Note>{hasInstall ? `The Mitti install form and the 6:30am text go to ${data.visits.find((v) => v.kind === "install")?.current?.name ?? "the person you choose"}. Only CII-cleared staff can do install days.` : "The Mitti form and the 6:30am text go to the person you choose."}</Note>}
+      {data.canAllocate && <Note>{hasInstall ? `The Mitti install form and the 6:30am text go to ${data.visits.find((v) => v.kind === "install")?.current?.name ?? "the person you choose"}. Only CII-cleared Lead installers can do install days; pick crew on the crew list.` : "The Mitti form and the 6:30am text go to the person you choose."}</Note>}
     </Group>
   );
 }
