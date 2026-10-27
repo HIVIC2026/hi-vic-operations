@@ -40,6 +40,7 @@ async function rawFetch(path: string, init: { method?: string; body?: unknown; h
 }
 
 async function tenantCall(mode: XeroMode): Promise<XeroCall> {
+  if ((await import("./qa-context.server")).qaContextActive() && mode !== "test") throw new Error("SAFETY STOP: active TEST preview requests may only use Xero Demo Company");
   const conns = (await rawFetch("/connections")) as XeroTenant[];
   const tid = pickXeroTenant(conns, mode).tenantId;
   return (path, init) => rawFetch(path, init, tid);

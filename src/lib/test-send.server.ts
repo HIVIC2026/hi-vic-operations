@@ -31,7 +31,7 @@ function gw() {
 export async function sendTestSms(ctx: Ctx, to: string, rawBody: string): Promise<SendResult> {
   const body = brandSmsBody(rawBody);
   const norm = normaliseAuMobile(to) ?? to;
-  const blocked = testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const blocked = ctx.jobSource === "qa_test" || (await import("./qa-context.server")).qaContextActive() ? "TEST delivery recorded only; no SMS service called" : testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "sms", to: norm, status: "blocked", detail: blocked };
   else {
@@ -56,7 +56,7 @@ async function idemKey(to: string, subject: string, html: string) {
 
 export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string, opts: { attachments?: import("./email-kit.core").EmailAttachment[] } = {}): Promise<SendResult> {
   const norm = normaliseEmail(to);
-  const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const blocked = ctx.jobSource === "qa_test" || (await import("./qa-context.server")).qaContextActive() ? "TEST delivery recorded only; no email service called" : testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "email", to: norm, status: "blocked", detail: blocked };
   else {

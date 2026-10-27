@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 05:33 running-portal TEST safety and Phase 2
+- [x] Read-only count: 0 real installation bookings, 0 missing ends; confirmBooking never writes scheduled_end, nullable/no default or filling trigger, so real installs can block ESC. Decision410 current code has office approval +7days with no owner-payment condition; Section C unchanged.
+- [x] Persisted qa_test simulated forms in private existing workflow history; job-aware create/read/update/assign paths plus audit attribution and request-scoped refusal. Practice cross-request/job-isolation tests and real transport unchanged tests pass. Unsupported report/media/unknown operations fail closed, never live fallback.
+- [x] Signed server-only preview TEST intake branch in existing calculator form; email alone never authorises TEST. Running preview read-only probe confirmed TEST context, unattributed Mitti refusal, delivery disabled and Demo connected. No new switch or publication.
+- [x] Full suite completed via bounded independent processes after normal runner crashed on 2GB test output:713 files,6979 PASS,218 FAIL,0 incomplete. Existing failures not silently rewritten; affected visit mock corrected,15 PASS. Phase2 ran once:0 PASS/3 FAIL/70 BLOCKED; navigation interrupted read-only preflight, no job created or archived, no sends/invoices/real forms,HV-3274/HV-3239 untouched.
+- [ ] Full browser enquiry→payout remains BLOCKED: no existing office TEST-domain identity; TEST offer flags stay paused; downstream interactive runner not implemented. Original run preflight failed on Vite navigation; later read-only boundary-only probe passed, not a rerun or workflow PASS.
 ## Jo 27 Oct 05:16 interrupted Save my spot — one bug only
 - [x] Atomic save/event/stage applied after practice rollback/retry/access tests; both save handlers resume confirmation, secure next visit repairs only that recorded job without messages. Regression tests pass; no sends/settings/publication.
 ## Jo 27 Oct 04:18 main journey follow-ups

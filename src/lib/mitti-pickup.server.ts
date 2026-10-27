@@ -146,6 +146,7 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
     : await admin.from("jobs").select(sel).ilike("job_number", jobRef.toUpperCase().replace(/^(\d)/, "HV-$1")).maybeSingle();
   if (!job) throw new WorkflowError(`No job found for "${jobRef}".`);
   const jobId = job.id;
+  call = await (await import("./mitti.server")).mittiCallForJob(jobId, call);
   if (!job || job.deleted_at) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti linking is only available for Home Insulation Victoria jobs.");
   if (!READY_CHECK_STAGES.includes(job.stage)) throw new WorkflowError(`This job is at "${job.stage}". Only jobs waiting for or attending the Ready Check can take a Mitti form.`);
@@ -225,6 +226,7 @@ function dateItemOf(audit: unknown): { itemId: string; type: string; header: boo
 /** Reschedule write-back: the booked date on the job's Mitti form follows the new booking. Never creates or
  *  sends anything; a form without a date field is left untouched and reported. */
 export async function updateMittiFormDate(jobId: string, start: string, actorId: string | null, call: MittiCall = realMittiCall): Promise<{ updated: boolean; reason?: string }> {
+  call = await (await import("./mitti.server")).mittiCallForJob(jobId, call);
   const scope = await jobScope(jobId);
   const m = scope.measurementRow;
   const auditId = m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null;

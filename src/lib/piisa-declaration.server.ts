@@ -22,7 +22,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   // A test template id is only accepted on TEST jobs (journey simulation).
   const expectedTpl = (job.source === "qa_test" && opts.testTemplateId) || ws?.mitti_piisa_template_id?.trim() || "";
   if (!expectedTpl) return { status: "no_form", message: "PIISA Mitti form is not configured." };
-  const realCall = call ?? (await import("./mitti.server")).realMittiCall;
+  const realCall = await (await import("./mitti.server")).mittiCallForJob(jobId, call);
   const audit = await mittiApi(realCall).getAudit(auditId);
   const p = parseAudit(audit);
   if (p.auditId && p.auditId !== auditId) return { status: "error", message: "Mitti returned a different audit." };

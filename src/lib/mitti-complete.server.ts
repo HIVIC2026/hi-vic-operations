@@ -85,7 +85,7 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     if (!auto) continue; // only Ready Checks this automation completed
     let modifiedAt: string | null = null;
     let entries: { label: string; value: string | null }[] = [];
-    try { const a = await mittiApi(call).getAudit(String(r.external_id)); modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; entries = parseAudit(a).snapshot; watched++; } catch { /* Mitti unavailable: retry next tick */ }
+    try { const jobCall = await (await import("./mitti.server")).mittiCallForJob(r.job_id, call); const a = await mittiApi(jobCall).getAudit(String(r.external_id)); modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; entries = parseAudit(a).snapshot; watched++; } catch { /* Mitti unavailable: retry next tick */ }
     // Decision 113 (Jo 24 Oct): a quote held at Complete (e.g. "My usual electrician" with none saved yet) simply waits.
     // The regular sync stops reading a completed form, so once the missing details are in (usual electrician saved in
     // My business, or the form changed to our electrician) this tick prepares the installer's draft from the form.

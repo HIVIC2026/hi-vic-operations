@@ -18,7 +18,7 @@ import {
 
 export type InterestErrors = Partial<Record<keyof InterestDraft | "submit", string>>;
 export type InterestResult =
-  | { ok: true; duplicate: boolean }
+  | { ok: true; duplicate: boolean; qaJobId?: string; qaJobNumber?: string }
   | { ok: false; errors: InterestErrors };
 
 export type InterestRow = {
@@ -67,6 +67,11 @@ export const registerInterest = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<InterestResult> => {
     const parsed = parseInterest(data);
     if (!parsed.ok) return { ok: false, errors: parsed.errors as InterestErrors };
+    const { qaContextActive } = await import("./qa-context.server");
+    if (qaContextActive()) {
+      const result = await (await import("./qa-website.server")).recordQaWebsiteEnquiry(parsed.value);
+      return { ok: true, duplicate: !result.created, qaJobId: result.job_id, qaJobNumber: result.job_number };
+    }
     const supabasePublic = publishableClient();
     const dup = await supabasePublic.rpc("calculator_interest_is_duplicate", {
       _email: parsed.value.email,
@@ -92,6 +97,18 @@ export const registerInterest = createServerFn({ method: "POST" })
       };
     return { ok: true, duplicate: false };
   });
+
+/** Read-only proof of the running preview boundary, never a settings/connection change. */
+export const previewJourneySafety = createServerFn({ method: "GET" }).handler(async () => {
+  const { qaContextActive } = await import("./qa-context.server");
+  if (!qaContextActive()) throw new Error("Authorised preview TEST request required");
+  const { realMittiCall } = await import("./mitti.server");
+  let unattributedRefused = false;
+  try { await realMittiCall("POST", "/users/search", { email: ["boundary@hivic-test.example"] }); }
+  catch (e) { if (e instanceof Error && e.message.includes("SAFETY STOP")) unattributedRefused = true; else throw e; }
+  const status = await (await import("./xero.server")).xeroConnectionStatus();
+  return { qa: true, unattributedRefused, deliveryAdapterAbsent: (await (await import("./delivery.server")).configuredDeliveryAdapter()) === null, demoConnected: status.configured && status.connected && status.orgs.some(o => o.name === "Demo Company (AU)") };
+});
 
 export const listInterests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

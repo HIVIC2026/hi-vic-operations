@@ -22,6 +22,8 @@ import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
 import { MITTI_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import { qaContextActive } from "./qa-context.server";
+import { mittiRoute } from "./mitti-routing.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -37,6 +39,29 @@ export function armJourneyMittiGuard(sim: MittiCall | null): JourneyMittiGuard {
 }
 export function disarmJourneyMittiGuard() { delete (globalThis as Record<string, unknown>)[JOURNEY_GUARD]; }
 
+/** Resolve the recorded source for EVERY job-aware call, including ticks and webhooks. */
+export async function mittiCallForJob(jobId: string, call: MittiCall = realMittiCall): Promise<MittiCall> {
+  if (call !== realMittiCall && call !== liveMittiCall) return call; // existing isolated unit/command simulator injection
+  const { data: job, error } = await admin.from("jobs").select("source").eq("id", jobId).single();
+  if (error || !job) throw new MittiError("SAFETY STOP: Mitti job source could not be verified");
+  if (mittiRoute(job.source, qaContextActive(), true) === "simulated") return (await import("./mitti-simulated.server")).simulatedJobMitti(jobId);
+  return liveMittiCall;
+}
+
+/** Audit-only callers are attributed from stored links, never from user-supplied source. */
+async function auditJobId(path: string): Promise<string | null> {
+  const id = /^\/(?:audits|inspections\/v1\/inspections)\/([^/?]+)/.exec(path)?.[1];
+  if (!id) return null;
+  const auditId = decodeURIComponent(id);
+  const [{ data: a, error: ae }, { data: m, error: me }, { data: e, error: ee }] = await Promise.all([
+    admin.from("assessments").select("job_id").eq("external_mitti_id", auditId).limit(1).maybeSingle(),
+    admin.from("ceiling_measurements").select("job_id").eq("external_source", "mitti").eq("external_id", auditId).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("job_id").contains("details", { audit_id: auditId }).limit(1).maybeSingle(),
+  ]);
+  if (ae || me || ee) throw new MittiError("SAFETY STOP: Mitti audit attribution could not be verified");
+  return a?.job_id ?? m?.job_id ?? e?.job_id ?? null;
+}
+
 export const realMittiCall: MittiCall = async (method, path, body) => {
   const g = journeyGuard();
   if (g) {
@@ -44,6 +69,13 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
     g.routed.push(`${method} ${path.split("?")[0]}`);
     return g.sim(method, path, body);
   }
+  const jobId = await auditJobId(path);
+  if (jobId) return (await mittiCallForJob(jobId))(method, path, body);
+  mittiRoute(undefined, qaContextActive(), false);
+  return liveMittiCall(method, path, body);
+};
+
+const liveMittiCall: MittiCall = async (method, path, body) => {
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.", { code: "not_configured" });
   let res: Response;
@@ -74,6 +106,11 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
 export type MittiMediaFetch = (auditId: string, mediaId: string) => Promise<{ bytes: Uint8Array; contentType: string }>;
 export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
   if (journeyGuard()) throw new MittiError("SAFETY STOP: real Mitti media download refused during a TEST journey");
+  const jobId = await auditJobId(`/audits/${encodeURIComponent(auditId)}`);
+  if (jobId) {
+    const { data: j, error } = await admin.from("jobs").select("source").eq("id", jobId).single();
+    if (error || !j || j.source === "qa_test") throw new MittiError("SAFETY STOP: real Mitti media refused for qa_test or unverifiable job");
+  } else mittiRoute(undefined, qaContextActive(), false);
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.");
   const res = await fetch(`${MITTI_BASE_URL}/audits/${encodeURIComponent(auditId)}/media/${encodeURIComponent(mediaId)}`, { headers: { Authorization: `Bearer ${token}` }, signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS) }).catch(() => null);
@@ -98,6 +135,7 @@ export const PIESA_BOOKING_MISSING = "The PIESA form can only be created once a 
 
 /** opts.assignee: hand the Ready Check to this specific approved worker (auto-assign); opts.readyCheck forces the installer Ready Check form. */
 export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean; officeOverride?: boolean } = {}) {
+  call = await mittiCallForJob(jobId, call);
   const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,life_support_status,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
@@ -386,6 +424,7 @@ async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite
 
 /** Sync the STORED audit(s) only. Never completes a requirement. */
 export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, fetchMedia: MittiMediaFetch = realMittiMedia) {
+  call = await mittiCallForJob(jobId, call);
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
@@ -600,6 +639,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
 export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
+  call = await mittiCallForJob(jobId, call);
   const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
@@ -785,6 +825,7 @@ export async function findMittiUserByEmail(email: string, call: MittiCall = real
  * touches the create claim (nothing non-idempotent happens here); repeating it is harmless.
  */
 export async function reassignMittiFormTo(p: { jobId: string; auditId: string; kind: "ready_check" | "install"; mittiUserId: string; email: string; actorId: string | null }, call: MittiCall = realMittiCall) {
+  call = await mittiCallForJob(p.jobId, call);
   const [{ data: job }, { data: ws }] = await Promise.all([
     admin.from("jobs").select("job_number").eq("id", p.jobId).single(),
     admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle(),
