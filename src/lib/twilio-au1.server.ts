@@ -13,6 +13,7 @@ export const au1Configured = () => creds() !== null;
 
 /** POST /Messages.json through the explicitly selected US1 connection; preserve caller status rules. */
 export async function au1SendMessage(params: URLSearchParams): Promise<{ ok: boolean; status: number; text: string }> {
+  if ((await import("./qa-context.server")).qaContextActive()) return { ok: false, status: 0, text: "TEST preview delivery blocked; no SMS service called" };
   const c = creds();
   if (!c) return { ok: false, status: 0, text: "SMS connection is not configured" };
   const res = await fetch(`${HOST}/Messages.json`, { method: "POST", headers: { ...c.headers, "Content-Type": "application/x-www-form-urlencoded" }, body: params, signal: timeoutSignal(TWILIO_FETCH_TIMEOUT_MS) });
