@@ -7,10 +7,9 @@ test("both versions link the official Mitti apps", () => {
   expect(MITTI_APP_STORE_URL).toBe("https://apps.apple.com/au/app/mitti-by-safetyculture/id499999532");
   expect(MITTI_GOOGLE_PLAY_URL).toBe("https://play.google.com/store/apps/details?id=com.safetyculture.iauditor");
 });
-test("electrician: A3 at the safety check, A4 for fixes, pay 7 days after form complete and owner paid (decision 355)", () => {
+test("electrician: A3 at the safety check, A4 for fixes", () => {
   const t = make("electrician").text;
   expect(t).toContain("A3 PIESA form at the safety check, and the A4 fixes form");
-  expect(t).toContain("7 days after the form is complete and the owner has paid");
 });
 test("installer: Ready Check form at the measure, install form on install day, guide link kept", () => {
   const t = make("installer").text;

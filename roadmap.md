@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:52 welcome wording and TEST trades
+- [ ] Change only electrician pay tick/step 5 and both welcome Mitti step 1; inspect actual payout rule without changing it.
+- [ ] Disable named dummy trades with normal offer flags, prove on practice database first; preserve logins and real businesses; list current real-offer candidates.
 ## Jo 27 Oct 03:31 A3 Owner name back + reruns
 - [x] Real A3 (GET only): Job Reference ID, Address including postcode, Owner name, Office life support record, Date of inspection; prefill matches all, Owner name required (never made optional).
 - [x] piesa-fixes HV-3366 all pass incl. M; archived.
