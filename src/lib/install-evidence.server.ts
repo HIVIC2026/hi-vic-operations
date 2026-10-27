@@ -164,7 +164,9 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
     for (const item of summary.items) if (item.id.startsWith("ruler_") && copyLines.length) { item.state = "review"; item.problems.push(...copyLines); }
   }
   const prev = await latestInstallEvidenceRecord(jobId);
-  if (prev?.audit_id !== auditId || JSON.stringify(prev?.summary ?? null) !== JSON.stringify(summary)) {
+  const { data: lastFailure, error: failureError } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "install_evidence_sync_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (failureError) throw new Error("Evidence retry history could not be checked.");
+  if (prev?.audit_id !== auditId || JSON.stringify(prev?.summary ?? null) !== JSON.stringify(summary) || (lastFailure && (!prev?.createdAt || lastFailure.created_at >= prev.createdAt))) {
     const n = summary.blockers.length;
     await logEvent(jobId, actorId, INSTALL_EVIDENCE_EVENT, !summary.applies ? (n ? `Install-day evidence: ${n} ruler photo item(s) outstanding (decision 396; the rest of the new rule does not apply before the effective date)` : "Install-day evidence: new rule does not apply (install before the effective date)") : n ? `Install-day evidence: ${n} item(s) outstanding` : "Install-day evidence: every item present, SWMS complete, sign-off done", { audit_id: auditId, summary } as unknown as Record<string, unknown>, { internal: true });
   }
