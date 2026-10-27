@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
 import { fixesFoundLine, needsCandidates } from "../src/lib/office-needs.core";
 import { jobNext, FIXES_PAUSED_TITLE } from "../src/lib/installer-screens.core";
