@@ -1531,11 +1531,66 @@ async function r158RepeatPiesa(rec: Recorder, jobs: BranchResult["jobs"], setup:
   } finally { await finish(ctx, jobs); }
 }
 
-export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa";
+// ---------- Jo 28 Oct (decision 233): owner pays the repeat PIESA — one line on the job's ONE Xero invoice (Demo Company) ----------
+async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const r6: StepResult = { key: "s6_electrician", label: "PIESA", passed: true, checks: [] };
+    try { await J.s6(ctx, r6); } catch (e) { BLOCKED_REASON = `PIESA step failed: ${(e as Error).message}`; return; }
+    const { addYmd, melbourneToday } = await import("./melbourne-time.core");
+    const today = melbourneToday(new Date());
+    await J.assertOwnTestJob(ctx);
+    const { data: pr } = await admin.from("piesa_records").select("id").eq("job_id", ctx.jobId!).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1).single();
+    await admin.from("piesa_records").update({ completed_date: addYmd(today, -31) }).eq("id", pr!.id);
+    await admin.from("assessments").update({ assessed_on: addYmd(today, -31) } as never).eq("job_id", ctx.jobId!);
+    const { installDayContext } = await import("./install-days.server");
+    const c = await installDayContext(ctx.jobId!);
+    if (!c.expired || !c.deadline) { BLOCKED_REASON = `window did not lapse (deadline ${c.deadline}, expired=${c.expired})`; return; }
+    await (await import("./thirty-day-rule.server")).recordInstallWindowExpiry(ctx.jobId!, c.deadline, c.clearance.timingDate);
+    const rp = await import("./repeat-piesa.server");
+    const TEST_PRICE = 349; // stand-in on this TEST job only; the real office setting stays empty
+    await rp.chooseRepeatPayer(ctx.jobId!, "owner", ctx.actorId, { testPriceIncGst: TEST_PRICE });
+    const chosen = await shoot("m158o-chosen", [ownerPage(ctx)]);
+    rec.checks.push({ n: "O.1", name: "owner page shows the redo price and Accept", status: sees(chosen[0], /A new safety check \(PIESA\) is needed/) && sees(chosen[0], /\$349 inc GST/) && sees(chosen[0], /Accept/) ? "passed" : "failed", detail: chosen[0]?.text.slice(0, 300) ?? "", ids: {} });
+    const { data: inv0 } = await admin.from("invoices").select("id, total_inc_gst, total_paid, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).single();
+    const { count: invCount0 } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!);
+    const st1 = await rp.acceptRepeatPiesa(ctx.jobId!);
+    const { data: ev1 } = await admin.from("workflow_events").select("event_type, summary").eq("job_id", ctx.jobId!).in("event_type", ["xero_invoice_repeat_piesa_added", "xero_invoice_repeat_piesa_held"]).order("created_at");
+    const { count: offers1 } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending");
+    const sig = await officeSignals(ctx.jobId!);
+    const shots = await shoot("m158o-accepted", [ownerPage(ctx), ...officePages(ctx)]);
+    answer("stops", st1.stage === "owner_pay" && (offers1 ?? 0) === 0, `after Accept stage=${st1.stage}; pending PIESA offers=${offers1}; Xero line events: ${(ev1 ?? []).map((e) => `${e.event_type}: ${e.summary}`).join(" | ") || "none"}`);
+    answer("reason", sees(shots[0], /Please pay \$349 inc GST for the new safety check/), `owner sees the pay-first line=${sees(shots[0], /Please pay \$349 inc GST/)}`);
+    const held = (ev1 ?? []).some((e) => e.event_type === "xero_invoice_repeat_piesa_held");
+    answer("office_once", !held || sig.needsMeText.filter((t) => /repeat safety check/i.test(t)).length === 1, held ? `Xero refused the edit (payment on the invoice); Needs me rows: ${sig.needsMeText.join(" | ") || "none"}` : "line added straight away — nothing for the office to do");
+    // Fix as the office would when held: remove the $349 payment in Xero, Sync (the line goes on), re-apply the $349.
+    const x = await import("./xero.server");
+    if (held) {
+      await x.reverseDemoTestPayment(inv0!.id, ctx.actorId);
+      await x.recordDemoTestPayment(inv0!.id, Number(inv0!.total_paid ?? 0), ctx.actorId);
+    }
+    const { data: inv1 } = await admin.from("invoices").select("total_inc_gst, total_paid").eq("id", inv0!.id).single();
+    const { count: invCount1 } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!);
+    const mid = (await rp.repeatPiesaContext(ctx.jobId!)).state;
+    rec.checks.push({ n: "O.2", name: "repeat price is a line on the SAME invoice; re-applied payment does not count as the repeat payment", status: Number(inv1!.total_inc_gst) === Number(inv0!.total_inc_gst) + TEST_PRICE && invCount1 === invCount0 && mid.stage === "owner_pay" ? "passed" : "failed", detail: `invoice total ${inv0!.total_inc_gst}→${inv1!.total_inc_gst}; invoices on job ${invCount0}→${invCount1}; stage=${mid.stage}`, ids: { invoice_id: inv0!.id } });
+    // The owner pays the repeat price (TEST payment, Demo Company) → paid once → normal PIESA offer.
+    await x.recordDemoTestPayment(inv0!.id, TEST_PRICE, ctx.actorId);
+    const end = (await rp.repeatPiesaContext(ctx.jobId!)).state;
+    const { count: paidEv } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "repeat_piesa_paid");
+    const { count: offers2 } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending");
+    await shoot("m158o-paid", [ownerPage(ctx), ...officePages(ctx)]);
+    const sig2 = await officeSignals(ctx.jobId!);
+    answer("carries_on", end.stage === "offer" && paidEv === 1 && (offers2 ?? 0) > 0, `stage=${end.stage}; paid events=${paidEv}; pending PIESA offers=${offers2}; Needs me after: ${sig2.needsMeText.join(" | ") || "none"}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays";
 export const PHASE4: Record<Phase4Name, (rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) => Promise<void>> = {
   "m8-quote-payment": m8QuotePayment, "m10-deposit": m10Deposit, "m11-fixes-payment": m11FixesPayment, "m22-payout-form": m22PayoutForm,
   "m23-electrician-payout": m23ElectricianPayout, "m24-installer-payout": m24InstallerPayout, "m9-piesa-prereqs": m9PiesaPrereqs,
-  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "m158-repeat-piesa": r158RepeatPiesa,
+  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "m158-repeat-piesa": r158RepeatPiesa, "m158-owner-pays": r158OwnerPays,
 };
 export async function runPhase4(name: Phase4Name, shotDir: string): Promise<Phase3Result> {
   SHOT_DIR = shotDir; SHOTS.length = 0; ANSWERS.length = 0; BLOCKED_REASON = null;
