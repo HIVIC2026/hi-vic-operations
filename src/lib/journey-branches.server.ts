@@ -10,7 +10,7 @@ import { journeyInternals as J, newJourneyCtx, cleanupJourney, personaClient, JO
 import type { StepResult } from "./journey-test.core";
 
 export type BranchName = "not-eligible" | "piesa-fixes";
-export type BranchCheck = { n: string; name: string; status: "passed" | "failed" | "blocked"; detail: string; ids: Record<string, string | null> };
+export type BranchCheck = { n: string; name: string; status: "passed" | "failed" | "blocked" | "simulated"; detail: string; ids: Record<string, string | null> };
 export type BranchResult = { branch: BranchName; jobs: { jobNumber: string | null; jobId: string | null; archived: boolean }[]; setup: StepResult[]; checks: BranchCheck[] };
 
 type Counts = { events: number; emails: number; needs: number };
@@ -48,6 +48,8 @@ async function emailsSince(jobId: string, sinceIso: string) {
 
 class Recorder {
   checks: BranchCheck[] = [];
+  /** Jo 27 Oct: a step skipped because customer messages are off — recorded as simulated, never as passed. */
+  simulated(n: string, name: string, detail: string, ids: Record<string, string | null> = {}) { this.checks.push({ n, name, status: "simulated", detail, ids }); }
   async run(n: string, name: string, fn: () => Promise<{ ok: boolean; detail: string; ids?: Record<string, string | null> }>, needs: string[] = []) {
     const blockedBy = needs.filter((x) => this.checks.find((c) => c.n === x)?.status !== "passed");
     if (blockedBy.length) { this.checks.push({ n, name, status: "blocked", detail: `blocked: check ${blockedBy.join(", ")} did not pass`, ids: {} }); return false; }
@@ -63,9 +65,9 @@ class Recorder {
 }
 
 /** Steps 1..n of the default run (same code) on a fresh TEST job. */
-async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx, r: StepResult) => Promise<void>) {
+async function setupSteps(ctx: JourneyCtx, upTo: 3 | 5, ready?: (ctx: JourneyCtx, r: StepResult) => Promise<void>, beforeS5?: (ctx: JourneyCtx) => Promise<void>) {
   const fns: [string, (c: JourneyCtx, r: StepResult) => Promise<void>][] = [["s1_calculator", J.s1], ["s2_owner_links", J.s2], ["s3_office_offer", J.s3]];
-  if (upTo === 5) { fns.push(["s4_ready_check", ready!]); fns.push(["s5_owner_accept", J.s5]); }
+  if (upTo === 5) { fns.push(["s4_ready_check", ready!]); fns.push(["s5_owner_accept", async (c, r) => { if (beforeS5) await beforeS5(c); await J.s5(c, r); }]); }
   const out: StepResult[] = [];
   for (const [key, fn] of fns) {
     const r: StepResult = { key: key as StepResult["key"], label: `${ctx.jobNumber ?? "new job"} setup ${key}`, passed: false, checks: [] };
@@ -225,13 +227,39 @@ async function defaultReadyCheck(ctx: JourneyCtx, r: StepResult) {
 }
 
 const FIXES_PRICE = 880;
+export const SIMULATED_SEND_LABEL = "simulated: quote send skipped because customer messages are off";
+const commsOff = (m: string) => /customer communications are disabled|customer messages are (switched )?off/i.test(m);
+
+/** TEST job only: leave the quote exactly as a successful send would (stage, owner link, issued/released/sent) without
+ *  sending anything — the owner "quote ready" email is the skipped part. Product code is not changed. */
+async function simulateQuoteRelease(ctx: JourneyCtx, quoteId: string, how: "office" | "fixes") {
+  await J.assertOwnTestJob(ctx);
+  const wf = await import("./workflow.server");
+  if (how === "office" && (await J.stageOf(ctx)) === "ready_check_complete") await wf.transition(ctx.jobId!, "measured_estimate_ready", ctx.actorId, `TEST journey: ${SIMULATED_SEND_LABEL}`, { quote_id: quoteId });
+  if (how === "office") await (await import("./estimatelink.server")).ensureOwnerLink(ctx.jobId!);
+  const now = new Date().toISOString();
+  const { data, error } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, ...(how === "office" ? { office_reviewed_at: now, office_reviewed_by: ctx.actorId } : {}) })
+    .eq("id", quoteId).eq("job_id", ctx.jobId!).eq("status", "draft").is("sent_at", null).select("id").maybeSingle();
+  if (error || !data) throw new Error(`simulated release failed: ${error?.message ?? "quote not a draft"}`);
+  await wf.logEvent(ctx.jobId!, ctx.actorId, "journey_send_simulated", `TEST journey: ${SIMULATED_SEND_LABEL}`, { quote_id: quoteId, step: how, simulated: true }, { internal: true });
+}
 
 async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await newJourneyCtx();
   // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
   ctx.notes["address_line"] = `${parseInt(ctx.runId.slice(0, 8), 16)} Journey Test Street`;
   try {
-    const s = await setupSteps(ctx, 5, defaultReadyCheck);
+    const s = await setupSteps(ctx, 5, defaultReadyCheck, async (c) => {
+      const { data: q0 } = await admin.from("quotes").select("id, status").eq("id", c.quoteId!).single();
+      if (q0?.status !== "draft") return;
+      try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(c.jobId!, c.quoteId!, c.actorId); }
+      catch (e) {
+        const m = e instanceof Error ? e.message : String(e);
+        if (!commsOff(m)) throw e;
+        await simulateQuoteRelease(c, c.quoteId!, "office");
+        rec.simulated("S5", "office presses Send quote", `${SIMULATED_SEND_LABEL} (portal said: ${m}); owner "quote ready" email counted as skipped`, { quote_id: c.quoteId! });
+      }
+    });
     setup.push(...s.out);
     jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
     if (!s.ok) { await rec.run("2.1", "setup steps 1–5", async () => ({ ok: false, detail: s.out.at(-1)?.error ?? "setup failed" })); return; }
@@ -315,6 +343,12 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const since = new Date().toISOString();
       const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
       rectQuoteId = o.quoteId ?? rectQuoteId;
+      let simulatedSend = false;
+      if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) {
+        await simulateQuoteRelease(ctx, rectQuoteId, "fixes");
+        rec.simulated("2.2s", "fixes quote email to the owner", `simulated: fixes quote send skipped because customer messages are off (portal said: ${o.reason}); expected owner email counted as skipped`, { quote_id: rectQuoteId });
+        simulatedSend = true;
+      }
       const a = await counts(ctx.jobId!);
       const e = await emailsSince(ctx.jobId!, since);
       const { data: q } = rectQuoteId ? await admin.from("quotes").select("status, customer_total_inc_gst, sent_at").eq("id", rectQuoteId).single() : { data: null };
@@ -324,7 +358,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const expected = FIXES_PRICE + fixesMarginFor(src);
       const total = Number(q?.customer_total_inc_gst ?? NaN);
       const emails = e.ces.length + e.comm.length;
-      return { ok: o.result === "sent" && q?.status === "issued" && emails === 1 && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
+      return { ok: (simulatedSend || (o.result === "sent" && emails === 1)) && q?.status === "issued" && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}${simulatedSend ? " (send simulated — email skipped)" : ""}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
     }, ["2.1"]);
 
     await rec.run("2.4", "owner accepts and pays the fixes (Demo Company); still no install booking", async () => {

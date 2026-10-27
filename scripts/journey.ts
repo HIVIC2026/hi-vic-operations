@@ -26,7 +26,7 @@ if (branchArg) {
   writeFileSync(`${dir}/report.json`, JSON.stringify(res, null, 2));
   for (const c of res.checks) console.log(`${c.status.toUpperCase().padEnd(7)} ${c.n} ${c.name} — ${c.detail}`);
   console.log(`\nReport: ${dir}/report.md`);
-  process.exit(res.checks.length && res.checks.every((c) => c.status === "passed") ? 0 : 1);
+  process.exit(res.checks.length && res.checks.every((c) => c.status === "passed" || c.status === "simulated") ? 0 : 1);
 }
 const noBrowser = process.argv.includes("--no-browser");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
