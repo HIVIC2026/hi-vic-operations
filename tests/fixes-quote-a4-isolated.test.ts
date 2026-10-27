@@ -24,6 +24,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
     select() { return q; }, eq() { return q; }, contains() { return q; }, is() { return q; }, in() { return q; }, neq() { return q; }, order() { return q; }, limit() { return q; },
     update(p: any) { update = p; updates.push({ table, patch: p }); return q; },
     insert(r: any) { insert = r; inserts.push({ table, row: r }); return q; },
+    upsert(r: any) { insert = r; inserts.push({ table, row: r }); return q; },
     single() { return Promise.resolve(result(true)); }, maybeSingle() { return Promise.resolve(result(true)); },
     then(a: any, b: any) { return Promise.resolve(result(false)).then(a, b); },
   };
