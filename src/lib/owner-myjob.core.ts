@@ -39,7 +39,7 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   const none = (title: string, sentence: string, pill: string | null = null): OwnerAction => ({ kicker: "Nothing for you to do", title, sentence, pill, button: null });
   const todo = (title: string, sentence: string, label: string, screen: OwnerScreen, pill: string | null = null): OwnerAction => ({ kicker: "You need to do this", title, sentence, pill, button: { label, screen } });
   if (s === "complete") return none(stageWording("complete").owner!, "Your insulation is in and the paperwork is finished.");
-  if (s === "cancelled") return none("This job is closed", "Got a question? Message us.");
+  if (s === "cancelled") return none(OWNER_CLOSED_HEADLINE, "Got a question? Message us.");
   if (s === "on_hold") return none(stageWording("on_hold").owner!, "We'll let you know as soon as it's moving again.");
   if (f.visit) return none(f.visit.kind === "installation" ? stageWording("installation_booked").owner! : f.visit.kind === "ready_check" ? stageWording("ready_check_scheduled").owner! : f.visit.kind === "rectification" ? stageWording("rectification_booked").owner! : stageWording("piesa_scheduled").owner!, "We'll text you the day before.", visitPill(f.visit.startsAt));
   if (f.quoteOpen) return todo(stageWording("measured_estimate_ready").owner!, "Have a look at your quote and say yes when you're ready.", "See my quote", "quote", f.quoteOpen.expiresAt ? `Please approve by ${fmtDay(f.quoteOpen.expiresAt)}` : null);
@@ -54,9 +54,14 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   return none("We're on it", "We'll let you know when there's something for you.");
 }
 
-export function ownerHero(stage: string, rebate: number): { level: HouseLevel; headline: string; step: number } {
+/** A cancelled or archived job is closed for the owner. */
+export const OWNER_CLOSED_HEADLINE = "This job is closed";
+export function ownerStage(stage: string, deletedAt: string | null): string { return deletedAt ? "cancelled" : stage; }
+
+export function ownerHero(stage: string, rebate: number): { level: HouseLevel; headline: string; step: number; closed: boolean } {
   const level = houseLevelForStage(stage);
-  return { level, headline: ownerHeadline(HEADLINE_BY_LEVEL[level]!, rebate), step: ownerStepIndex(stage) };
+  if (stage === "cancelled") return { level, headline: OWNER_CLOSED_HEADLINE, step: -1, closed: true };
+  return { level, headline: ownerHeadline(HEADLINE_BY_LEVEL[level]!, rebate), step: ownerStepIndex(stage), closed: false };
 }
 
 /** Earliest allowed install date after a safety check, from the office gap setting (days). */

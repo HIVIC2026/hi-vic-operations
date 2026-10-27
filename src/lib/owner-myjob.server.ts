@@ -4,7 +4,7 @@ import { currentFeeWording } from "./hiv-quote.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { formatPropertyAddress, shortAddress } from "./address";
-import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero } from "./owner-myjob.core";
+import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero, ownerStage } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
@@ -18,7 +18,7 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
@@ -34,7 +34,8 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
   ]);
   const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
-  const stage = j.stage as string;
+  // An archived job reads as closed to the owner, the same as a cancelled one.
+  const stage = ownerStage(j.stage as string, (j as { deleted_at?: string | null }).deleted_at ?? null);
   // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
   const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
   const shown = ownerVisibleQuotes(quotes ?? []);

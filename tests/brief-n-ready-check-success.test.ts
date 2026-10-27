@@ -174,7 +174,7 @@ describe("B — office sends the Ready Check offer", () => {
     expect(byId.get(ID.bizA)?.blocker).toBeNull();
     expect(byId.get(ID.bizB)?.blocker).toBeNull();
     // It IS evaluated (it is an active TEST partner covering the postcode) but is refused by the approval rule.
-    expect(byId.get(ID.bizUnapproved)?.blocker).toBe("Installer business is not approved and active.");
+    expect(byId.get(ID.bizUnapproved)?.blocker).toBe("Installer business is not approved and active. The office must approve it.");
   });
 
   test("B6–B8 — dispatch writes the offer, the booking context and the workflow event", async () => {
@@ -595,7 +595,7 @@ describe("N — negative guards", () => {
     // A job with open times and no offers yet.
     await submitReadyCheckWindows(ID.jobNoWindows, (await ownerPicks(3)) as never);
     expect(await failure(() => startReadyCheckOffers(ID.jobNoWindows, ID.officeProfile, [ID.bizUnapproved], { adding: false })))
-      .toBe("Brief N Unapproved can't take this Ready Check: Installer business is not approved and active.");
+      .toBe("Brief N Unapproved can't take this Ready Check: Installer business is not approved and active. The office must approve it.");
     expect((await offersFor(admin, ID.jobNoWindows)).length).toBe(0);
   });
 

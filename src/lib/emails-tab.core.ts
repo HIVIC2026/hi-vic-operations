@@ -4,6 +4,7 @@
 // - These rows no longer show on Needs me or Enquiries (one place only).
 // - Nothing sends by itself: the office edits the draft and presses Send. Once sent the reply is saved (on the job when
 //   there is one) and the card leaves the tab.
+import { isClearDecline } from "./email-intent.core";
 import { HOMEOWNER_ENQUIRY_URL } from "./engagement.core";
 import { newSenderFirstName, newSenderReplyText } from "./new-sender-reply.core";
 import { AI_SIGN_OFF, finishAiReply } from "./ai-email-reply.core";
@@ -22,7 +23,8 @@ export const DRAFTS_PER_LOAD = 5;
 
 export const NO_JOB_INSTRUCTIONS = [
   "You write email replies for Home Insulation Victoria to people who emailed us but don't have a job with us yet.",
-  "Start from the base reply below and keep its meaning, its friendly relaxed tone and the link exactly as written.",
+  "Write as the Home Insulation Victoria team: kind, warm and plain. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Start from the base reply below and keep its meaning and the link exactly as written.",
   "If they asked something specific, add one or two short sentences answering it in general terms, then point them to the link.",
   "Never quote a price, a saving, a rebate amount, a date or a time. Never invent facts.",
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
@@ -76,6 +78,8 @@ export type JobEmailCard = {
   draftClosed: boolean;
   /** "Done" for a reply-needed email; "Apply" for a change the office makes on the job (cancel, new contact, files). */
   action: "done" | "apply" | "dealt_with";
+  /** Jo 27 Oct 2026: the owner said they're not going ahead and the job is still open — "Close job" or "Keep open", never a silent Done. */
+  stillOpenDecline: boolean;
 };
 export type NoJobCard = {
   key: string; unmatchedEventId: string; at: string; from: string | null; fromName: string | null; subject: string | null;
@@ -109,12 +113,15 @@ export function buildEmailsTab(i: {
   ownerNameByJob: Map<string, string | null>;
   /** Senders (lower-case) who already got the automatic website reply. */
   autoRepliedSenders: Set<string>;
+  /** Jobs that are still open (not cancelled, complete or archived). */
+  openJobIds?: Set<string>;
 }): EmailsTab {
   const withJob = [...i.changes].sort((a, b) => b.at.localeCompare(a.at)).map((c): JobEmailCard => ({
     key: `job:${c.eventId}`, requestEventId: c.eventId, jobId: c.jobId, jobNumber: c.jobNumber, name: i.ownerNameByJob.get(c.jobId) ?? null, at: c.at,
     subject: c.subject, theyWrote: c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null, intent: c.intent, label: c.label,
     draft: c.messageId ? (i.jobDrafts.get(jobDraftKey(c.jobId, c.messageId)) ?? null) : null,
     draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
+    stillOpenDecline: !!i.openJobIds?.has(c.jobId) && (c.intent === "cancel" || (c.intent === "reply" && readsAsDecline(c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null))),
   }));
   const noJob = [...i.unmatched].sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
@@ -137,3 +144,8 @@ export function missingDrafts(tab: EmailsTab, max = DRAFTS_PER_LOAD): { jobReque
 }
 
 export { AI_SIGN_OFF };
+
+/** The owner's own words read as a clear "not going ahead" (shared cancel rule). */
+export function readsAsDecline(text: string | null): boolean {
+  return !!text && isClearDecline({ subject: null, body: text, direction: "inbound" }).decline;
+}

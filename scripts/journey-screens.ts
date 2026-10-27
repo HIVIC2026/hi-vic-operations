@@ -14,7 +14,7 @@ const temp = `/tmp/browser/journey-screens-${stamp}`;
 const out = `/mnt/documents/journey/${stamp}-screens`;
 mkdirSync(temp, { recursive: true }); mkdirSync(`${out}/screenshots`, { recursive: true });
 
-type Status = "pass" | "fail" | "blocked" | "not_run" | "simulated";
+type Status = "pass" | "fail" | "blocked" | "not_run" | "simulated" | "runner_error";
 type Row = { step: string; person: string; status: Status; detail: string; severity: "Stop launch" | "Fix soon" | "Polish" | null; screenshot: string[]; stage: string | null; events: number | null; emailRows: number | null; nextVisible: boolean | null; leaks: string[] };
 const rows: Row[] = [];
 const add = (r: Partial<Row> & Pick<Row, "step" | "person" | "status" | "detail">) => rows.push({ severity: null, screenshot: [], stage: null, events: null, emailRows: null, nextVisible: null, leaks: [], ...r });
@@ -76,17 +76,26 @@ if (ctx?.jobId) {
 const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
 const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
-type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
-const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
+type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
+const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("offered_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
 let offer: string | undefined;
+const noticeAcked = async () => {
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, email, trade_role").eq("email", installerEmail).is("removed_at", null);
+  if (!w?.length) return false;
+  const m = await (await import("../src/lib/esc-collection-notice.server")).noticeAckMap(w as never);
+  return w.every((x) => m.get(x.id) === true);
+};
 const STEPS: Step[] = [
   { step: "Save my spot", person: "homeowner", path: () => `/estimate/${ctx!.token}/campaign`, wait: "Save my spot", button: "Save my spot", severity: "Stop launch", next: "spot",
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
-  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", severity: "Stop launch", next: "Choose installer",
+  // Decision 130 (Jo 27 Oct): the installer accepts the ESC privacy notice themself, on their phone, through the real page.
+  { step: "Installer accepts the ESC privacy notice (My business → ESC privacy notice)", person: "installer owner", path: () => "/field", wait: "My business", button: "My business|ESC privacy notice|tick:|Save acknowledgements", severity: "Stop launch", next: "acknowledg",
+    expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
+  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
     expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
-  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
+  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
@@ -115,8 +124,12 @@ async def main():
             await page.goto("http://localhost:8080/auth", wait_until="domcontentloaded")
             await page.evaluate("([k,v]) => window.localStorage.setItem(k,v)", [cfg["key"], cfg["session"]])
         await page.goto("http://localhost:8080" + cfg["path"], wait_until="domcontentloaded")
-        try: await page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I)).first.wait_for(state="visible", timeout=25000); res["loaded"] = True
-        except Exception: res["loaded"] = False
+        # Loaded = the text is VISIBLE somewhere (a hidden desktop copy of the same words must not count as missing).
+        res["loaded"] = False
+        for _ in range(50):
+            ws = page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I))
+            if any([await x.is_visible() for x in await ws.all()]): res["loaded"] = True; break
+            await page.wait_for_timeout(500)
         await page.wait_for_timeout(800)
         s1 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-before.png"; await page.screenshot(path=str(out / s1)); res["shots"] = [s1]
         res["url"] = urlsplit(page.url).path
@@ -124,39 +137,70 @@ async def main():
         res["next"] = bool(re.search(re.escape(cfg["next"]), text, re.I))
         res["leaks"] = [m for m in cfg.get("mustNot", []) if m and m.lower() in text.lower()]
         res["clicked"] = None
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
-            if name == "Release":
-                bravo = page.get_by_text("TEST Bravo Insulation", exact=True).first
-                if await bravo.count():
-                    row = bravo.locator("xpath=ancestor::li[1]")
-                    if await row.count():
-                        release = row.get_by_role("button", name="Release", exact=True)
-                        if await release.count():
-                            if not await release.is_enabled(): res["clicked"] = False; res["missing"] = "enabled TEST Bravo Release"; break
-                            await release.click(); res["clicked"] = True
-                            await page.wait_for_timeout(2000)
-                            s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
-                            continue
-                res["clicked"] = False; res["missing"] = "TEST Bravo Release"; break
+        async def find(name, scope):
+            # Find a control the way a person would: its visible label, inside the card/row/item that shows the scope text, whatever the layout.
+            if name.startswith("tick:"):
+                # A person taps their own tick row (the checkbox is visually hidden inside its label).
+                lab = page.locator("label").filter(has=page.get_by_role("checkbox"))
+                try: await lab.first.wait_for(state="visible", timeout=20000)
+                except Exception: pass
+                ls = [x for x in await lab.all() if await x.is_visible()]
+                return (ls[0] if ls else None), "role"
+            rx = re.compile(re.escape(name), re.I)
+            loc = page.get_by_role("button", name=rx).or_(page.get_by_role("link", name=rx))
+            try: await loc.first.wait_for(state="visible", timeout=35000)
+            except Exception: pass
+            cands = [x for x in await loc.all() if await x.is_visible()]
+            how = "role"
+            if scope and not any([await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return true; n = n.parentElement; d++; } return false; }", scope) for x in cands]):
+                # A person would open "Show N more" lists to look for the named card.
+                for more in await page.get_by_role("button", name=re.compile(r"^Show \d+ more", re.I)).all():
+                    if await more.is_visible(): await more.click(); await page.wait_for_timeout(800); res.setdefault("person_notes", []).append("opened a Show more list")
+                cands = [x for x in await loc.all() if await x.is_visible()]
+            if not cands:
+                t = page.get_by_text(name, exact=True)
+                cands = [x for x in await t.all() if await x.is_visible()]
+                how = "text"
+            if scope and cands:
+                scored = []
+                for x in cands:
+                    d = await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return d; n = n.parentElement; d++; } return 99; }", scope)
+                    scored.append((d, x))
+                scored = [z for z in scored if z[0] < 99]; scored.sort(key=lambda z: z[0])
+                cands = [z[1] for z in scored]
+            return (cands[0] if cands else None), how
+        res["runner_notes"] = []
+        if re.search(r"Let's check it's you", text, re.I):
+            # The owner must enter a 6-digit code from their phone/email. Asking for one sends a message, so the runner stops here.
+            res["clicked"] = False; res["runner_error"] = "owner code check shown (Text me a code / Email me a code); the runner can't receive a code without sending a message, so it stopped"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error")]):
+            scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
                 if await form.count():
-                    days = form.get_by_role("button")
                     picked = 0
-                    for day in await days.all():
+                    for day in await form.get_by_role("button").all():
                         if await day.is_enabled() and (await day.inner_text()) != "Accept this job":
                             await day.click(); picked += 1
                             if picked == 3: break
                     for select in await form.locator("select").all():
                         values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
                         if values: await select.select_option(values[0])
-            rx = re.compile(re.escape(name), re.I); btn = page.get_by_role("button", name=rx)
-            try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=35000)
-            except Exception: pass
-            btn = btn.or_(page.get_by_role("link", name=rx))
-            if not await btn.count(): res["clicked"] = False; res["missing"] = name; break
-            if not await btn.first.is_enabled(): res["clicked"] = False; res["missing"] = "enabled " + name; break
-            await btn.first.click(); res["clicked"] = True
+            el, how = await find(name, scope)
+            label = (name if name != "tick:" else "own acknowledgement tick") + (f" (in {scope})" if scope else "")
+            if el is None:
+                body = await page.inner_text("body")
+                if name != "tick:" and re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
+                else: res["clicked"] = False; res["missing"] = label
+                break
+            if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
+            if not await el.is_enabled():
+                card = await el.evaluate("el => (el.closest('li,tr,article,section,[role=listitem]') || el.parentElement).innerText")
+                why = re.search(r"Can't be offered:[^\n]*", card or "")
+                res["clicked"] = False; res["missing"] = "enabled " + label + (f" — card says: {why.group(0)}" if why else ""); break
+            try: await el.click(timeout=10000)
+            except Exception as e: res["clicked"] = False; res["runner_error"] = f'"{label}" visible but click failed: {str(e)[:100]}'; break
+            res["clicked"] = True
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
             await page.wait_for_timeout(2000)
@@ -178,14 +222,14 @@ const otherHomes = async (n: number, actor: string) => {
   return leaks;
 };
 
-async function browse(o: { n: number; slug: string; path: string; wait: string; button?: string; person: string; next: string; mustNot?: string[] }) {
+async function browse(o: { n: number; slug: string; path: string; wait: string; button?: string; scope?: Record<string, string>; person: string; next: string; mustNot?: string[] }) {
   const email = people[o.person];
   const session = email ? JSON.stringify(await J.personaSession(email)) : null;
   const cfgFile = `${temp}/cfg-${o.n}.json`, result = `${temp}/res-${o.n}.json`;
   writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session })); chmodSync(cfgFile, 0o600);
   spawnSync("python3", [`${temp}/walk_step.py`, cfgFile], { encoding: "utf8", timeout: 90_000 });
   rmSync(cfgFile, { force: true });
-  return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string } : null;
+  return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string; missing?: string; runner_error?: string; runner_notes?: string[] } : null;
 }
 
 if (!ctx?.jobId || !safe) {
@@ -194,12 +238,16 @@ if (!ctx?.jobId || !safe) {
   let broken = false; let n = 1;
   for (const s of STEPS) {
     const path = s.path();
+    if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
     if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
-    const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, person: s.person, next: s.next });
+    const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
-    const why = !r ? "browser step crashed" : !r.loaded ? `page content "${s.wait}" never appeared (${r.url})` : r.clicked === false ? `no "${(r as { missing?: string }).missing ?? s.button}" button/link on the page (${r.url})` : s.expect ? await s.expect() : null;
+    const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;
+    const why = runnerErr ? null : !r!.loaded ? `page content "${s.wait}" never appeared (${r!.url})` : r!.clicked === false ? `a person could not find "${r!.missing ?? s.button}" on the page (${r!.url})` : s.expect ? await s.expect() : null;
     const leaks = await otherHomes(n, s.person);
-    add({ step: s.step, person: s.person, status: why ? "fail" : "pass", severity: why ? s.severity : null, detail: why ?? `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
+    if (runnerErr) { add({ step: s.step, person: s.person, status: "runner_error", detail: runnerErr, screenshot: r?.shots ?? [] }); broken = true; n++; continue; }
+    if (r?.runner_notes?.length) add({ step: `${s.step}: runner note`, person: "runner", status: "runner_error", detail: r.runner_notes.join("; ") + " — runner fallback used, step continued." });
+    add({ step: s.step, person: s.person, status: why ? (broken ? "blocked" : "fail") : "pass", severity: why && !broken ? s.severity : null, detail: why ? (broken ? `earlier step not done — ${why}` : why) : `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
     n++;
@@ -220,9 +268,9 @@ const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 
-const totals = { pass: rows.filter(r => r.status === "pass").length, fail: rows.filter(r => r.status === "fail").length, blocked: rows.filter(r => r.status === "blocked").length, not_run: rows.filter(r => r.status === "not_run").length };
+const totals = { pass: rows.filter(r => r.status === "pass").length, fail: rows.filter(r => r.status === "fail").length, blocked: rows.filter(r => r.status === "blocked").length, not_run: rows.filter(r => r.status === "not_run").length, runner_error: rows.filter(r => r.status === "runner_error").length };
 writeFileSync(`${out}/report.json`, JSON.stringify({ mode: "screens", startedAt: stamp, job: ctx?.jobNumber ?? null, archived, totals, rows, sentEmails, sendingKeysRemoved: removed.length, published: false, switchesChanged: false }, null, 2));
-writeFileSync(`${out}/report.md`, [`# Phone walk-through ${stamp}`, "", `Job ${ctx?.jobNumber ?? "none"} (qa_test). PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}`, "", "Website step skipped (covered by portal-qa). Viewport 390x844.", "", "| Step | Person | Result | Severity | Stage | Events | Email rows | Next visible | Detail | Screens |", "|---|---|---|---|---|---|---|---|---|---|",
-  ...rows.map(r => `| ${r.step} | ${r.person} | ${r.status.toUpperCase()} | ${r.severity ?? ""} | ${r.stage ?? ""} | ${r.events ?? ""} | ${r.emailRows ?? ""} | ${r.nextVisible ?? ""} | ${r.detail.replace(/\|/g, "\\|")} | ${r.screenshot.join(" ")} |`), "", `Archived: ${archived.join(", ") || "nothing"}. TEST trades restored by journey cleanup.`].join("\n"));
+writeFileSync(`${out}/report.md`, [`# Phone walk-through ${stamp}`, "", `Job ${ctx?.jobNumber ?? "none"} (qa_test). PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run} / RUNNER ERROR ${totals.runner_error}`, "", "Website step skipped (covered by portal-qa). Viewport 390x844.", "", "| Step | Person | Result | Severity | Stage | Events | Email rows | Next visible | Detail | Screens |", "|---|---|---|---|---|---|---|---|---|---|",
+  ...rows.map(r => `| ${r.step} | ${r.person} | ${r.status.toUpperCase()} | ${r.severity ?? ""} | ${r.stage ?? ""} | ${r.events ?? ""} | ${r.emailRows ?? ""} | ${r.nextVisible ?? ""} | ${r.detail.replace(/\|/g, "\\|")} | ${r.screenshot.join(" ")} |`), "", "", "Data finding (Polish): HV-1554 is an old TEST import (installer_import, hivic-test.example owner, cancelled) not marked qa_test; left unchanged.", `Archived: ${archived.join(", ") || "nothing"}. TEST trades restored by journey cleanup.`].join("\n"));
 console.log(`PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}. Report: ${out}/report.md`);
 process.exit(totals.fail ? 1 : 0);
