@@ -81,7 +81,7 @@ async function fileAttachments(jobId: string, messageId: string, actorId: string
 }
 
 /** Apply a suggested change (decision 245) through the existing guarded paths only. */
-export async function applyEmailChange(eventId: string, actorId: string, opts: { close?: boolean } = {}) {
+export async function applyEmailChange(eventId: string, actorId: string, opts: { close?: boolean | undefined } = {}) {
   const ev = await eventById(eventId);
   if (!ev || ev.event_type !== EMAIL_CHANGE_REQUEST_EVENT || !ev.job_id) throw new WorkflowError("That change request was not found.");
   if (await resolutionOf([EMAIL_CHANGE_APPLIED_EVENT, EMAIL_CHANGE_IGNORED_EVENT], "request_event_id", ev.id)) throw new WorkflowError("That change request has already been dealt with.");
