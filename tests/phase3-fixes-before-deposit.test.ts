@@ -18,3 +18,15 @@ describe("10% deposit waits for the fixes", () => {
     expect(installDepositDueNow("piesa_scheduled", null)).toBe(false);
   });
 });
+
+import { officeStatus } from "../src/lib/office-status.core";
+describe("office label after a PIESA that found fixes", () => {
+  const f = (piesa: { completedAt: string | null; passed: boolean; sectionCAt: string | null }) =>
+    officeStatus({ id: "j", stage: "piesa_complete", createdAt: "2026-10-01T00:00:00Z", lastActivityAt: "2026-10-27T00:00:00Z", enteredStageAt: "2026-10-27T00:00:00Z", piesa } as never, Date.parse("2026-10-27T01:00:00Z"));
+  test("fixes found → not 'PIESA passed'", () => {
+    expect(f({ completedAt: "2026-10-27", passed: false, sectionCAt: null })?.label).toBe("PIESA found electrical fixes");
+  });
+  test("pass → 'PIESA passed'", () => {
+    expect(f({ completedAt: "2026-10-27", passed: true, sectionCAt: null })?.label).toBe("PIESA passed");
+  });
+});
