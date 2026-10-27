@@ -353,7 +353,7 @@ describe("approved installer email designs", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Re: Ceiling insulation quote");
-    has(m.html, [">Hi Sam, thanks for getting in touch</div>", "To get started, please add your home on our website: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "If you have any questions, just reply to this email.", ">— Home Insulation Victoria</div>"]);
+    has(m.html, [">Hi Sam, thanks for getting in touch</div>", "You can check if your home is eligible for the insulation rebate and get a price estimate here: ", 'href="https://homeinsulationvictoria.com.au/homeowner"', "Once you've done that, we'll take it from there and be in touch about next steps.", ">Cheers,<br>the Home Insulation Victoria team</div>"]); // Jo 27 Oct, decision 413
     expect(m.html.match(/href="(?!https:\/\/fonts\.googleapis\.com\/)[^"]*"/g)).toEqual(['href="https://homeinsulationvictoria.com.au/homeowner"']); // the one calculator link
     expect(m.html).not.toMatch(/\$\d/);
     expect(visLines(m.html)).toEqual(designLines("owner_O70"));

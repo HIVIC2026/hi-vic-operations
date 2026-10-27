@@ -28,10 +28,10 @@ describe("the approved wording (decision 292)", () => {
     expect(WEBSITE_CALCULATOR_URL).toBe("https://homeinsulationvictoria.com.au/homeowner"); // decision 387
     expect(newSenderReplyText("Sam")).toBe([
       "Hi Sam,", "",
-      "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: https://homeinsulationvictoria.com.au/homeowner.", "",
-      "There are thousands of people on the list, and spots are released in the order they're saved.", "",
-      "If you have any questions, just reply to this email.", "",
-      "— Home Insulation Victoria",
+      "Thanks for getting in touch!", "",
+      "You can check if your home is eligible for the insulation rebate and get a price estimate here: https://homeinsulationvictoria.com.au/homeowner", "",
+      "Once you've done that, we'll take it from there and be in touch about next steps.", "",
+      "Cheers,", "the Home Insulation Victoria team",
     ].join("\n"));
     expect(newSenderReplyText(null).startsWith("Hi there,\n")).toBe(true);
     expect((newSenderReplyText(null).match(/https?:\/\//g) ?? []).length).toBe(1);
@@ -140,16 +140,16 @@ describe("the O70 email (plain, MJML design docs/templates/mjml/owner_O70)", () 
     expect(m.html).not.toContain("data:image");
     expect(m.html).toContain("ABN 44 671 613 979");
     expect(m.html).toContain(">Hi Sam, thanks for getting in touch</div>");
-    expect(m.html).toContain(`To get started, please add your home on our website: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
-    expect(m.html).toContain("There are thousands of people on the list");
-    expect(m.html).toContain("If you have any questions, just reply to this email.");
-    expect(m.html).toContain(">— Home Insulation Victoria</div>");
+    expect(m.html).toContain(`You can check if your home is eligible for the insulation rebate and get a price estimate here: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
+    expect(m.html).toContain("Once you've done that, we'll take it from there and be in touch about next steps.");
+    expect(m.html).toContain(">Cheers,<br>the Home Insulation Victoria team</div>");
+    expect(m.html).not.toContain("thousands of people");
     expect(m.html).not.toContain(">Unsubscribe</a>");
     expect(m.html).not.toContain("TEST — only sent to Jo");
     expect(m.html).not.toMatch(/display:\s*flex|<script|\son[a-z]+=|<h1/i);
     const hrefs = [...m.html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((x) => x[1]);
     expect(hrefs).toEqual([WEBSITE_CALCULATOR_URL]);
-    expect(m.text).toContain(["Hi Sam, thanks for getting in touch", "", `To get started, please add your home on our website: ${WEBSITE_CALCULATOR_URL}`, "", "There are thousands of people on the list, and spots are released in the order they're saved.", "", "If you have any questions, just reply to this email.", "", "— Home Insulation Victoria"].join("\n"));
+    expect(m.text).toContain(["Hi Sam, thanks for getting in touch", "", `You can check if your home is eligible for the insulation rebate and get a price estimate here: ${WEBSITE_CALCULATOR_URL}`, "", "Once you've done that, we'll take it from there and be in touch about next steps.", "", "Cheers,", "the Home Insulation Victoria team"].join("\n"));
     expect(m.text).toContain(FOOTER_TEXT);
     expect(m.text).not.toContain("Unsubscribe");
     for (const re of RETIRED) { expect(m.html).not.toMatch(re); expect(m.text).not.toMatch(re); }
