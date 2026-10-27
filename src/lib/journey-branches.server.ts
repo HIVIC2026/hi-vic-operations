@@ -312,7 +312,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       let auditId = a1?.external_mitti_id ?? null;
       if (auditId) mitti.seed(auditId, tpl.a3);
       else auditId = (await (await import("./mitti.server")).createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })).auditId;
-      mitti.fill(auditId!, items as never);
+      // The real portal prefills Portal Job Number on the form; a blank one now fails closed (identity rule), so fill it as the prefill would.
+      mitti.fill(auditId!, [{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...items] as never);
       const b = await counts(ctx.jobId!);
       await J.assertOwnTestJob(ctx);
       const synced = await (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, fetchMedia);
