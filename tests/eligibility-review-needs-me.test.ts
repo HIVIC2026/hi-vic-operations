@@ -21,3 +21,16 @@ describe("eligibility needs review → Needs me", () => {
     expect(eligibilityReviewLine(null)).toBe("Eligibility needs review · Ready Check answers missing or conflicting");
   });
 });
+
+import { openPaymentReversal } from "../src/lib/office-needs.core";
+describe("payment reversed → one Money row until paid again", () => {
+  test("reversal is the newest payment event → row with the amount", () => {
+    const o = openPaymentReversal([{ event_type: "owner_payment_recorded", created_at: "2026-10-27T01:00:00Z", amount_cents: 34900 }, { event_type: "owner_payment_reversed", created_at: "2026-10-27T02:00:00Z", amount_cents: 34900 }]);
+    expect(o?.text).toBe("$349.00 no longer counted · ask the owner to pay again");
+    const rows = buildNeedsRows({ now: Date.now(), jobs: [{ ...base, paymentReversed: o }] });
+    expect(Object.values(rows).flat().filter((r) => r.kind === "payment_reversed").length).toBe(1);
+  });
+  test("a payment after the reversal clears it", () => {
+    expect(openPaymentReversal([{ event_type: "owner_payment_reversed", created_at: "2026-10-27T02:00:00Z" }, { event_type: "owner_payment_recorded", created_at: "2026-10-27T03:00:00Z" }])).toBeNull();
+  });
+});
