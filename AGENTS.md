@@ -27,7 +27,8 @@
 
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
 - `journey --screens` is browser-first evidence with a fail-closed preflight, never the legacy server-driven setup; unproven website sandbox, server-wide provider guards, TEST-domain actors or rule mismatches block downstream actions. Why: command-process guards cannot protect browser-triggered server mutations, and screenshots after direct server actions are not screen proof.
-- Screen preflight probes the running enquiry endpoint before any browser work and records absent signed TEST authorisation as FAIL; dependent job/provider probes are BLOCKED, never simulated passes. Why: unsigned intake can enter real-job processing and must not be used to test missing TEST authorisation.
+- Screen walk-through starts from the journey s1 qa_test job (website form is portal-qa's), probes message/Mitti/Demo safeguards for that job before any page action, and marks unreached steps BLOCKED/NOT RUN. Why: honest page evidence without manufacturing downstream state.
+- `realMittiCall` routes TEST people (reserved domain, TEST_MITTI_ASSIGNEE), sim_ ids and stored `mitti_sim_audits` ids to the persistent simulator; `mittiCallFor` swaps whole TEST flows including template reads. Why: browser-driven TEST jobs in the running portal never reach real Mitti, real calls stay byte-identical.
 - QA scripts resolve server-function IDs from the target's served dev transform or served compiled client (`scripts/qa-serverfn-resolve.ts`); unresolved = diagnostic failure, never a permission result. Office bulk lookups by job id are batched. Why: guessed IDs gave 500s and one all-ids URL stalled Office reads for minutes.
 
 - Detailed application/domain rules live in `src/AGENTS.md`; read it before changing source or scripts that exercise these flows, then read narrower directory guidance. Why: keep cross-project guidance small without losing operational safeguards.
