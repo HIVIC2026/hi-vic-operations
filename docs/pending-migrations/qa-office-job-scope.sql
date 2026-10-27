@@ -53,8 +53,10 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
           OR (k.contractor_id IS NOT NULL AND NOT public.qa_office_reserved_email(u.email))))
       AND NOT EXISTS (SELECT 1 FROM public.assessments a LEFT JOIN public.profiles u ON u.id=a.assessor_id
         WHERE a.job_id=j.id AND a.assessor_id IS NOT NULL AND NOT public.qa_office_reserved_email(u.email))
-      AND NOT EXISTS (SELECT 1 FROM public.ceiling_measurements m LEFT JOIN public.profiles u ON u.id=m.measurer_id
-        WHERE m.job_id=j.id AND m.measurer_id IS NOT NULL AND NOT public.qa_office_reserved_email(u.email))
+      AND NOT EXISTS (SELECT 1 FROM public.ceiling_measurements m LEFT JOIN public.profiles u ON u.id=m.completed_by
+        WHERE m.job_id=j.id AND m.completed_by IS NOT NULL AND NOT public.qa_office_reserved_email(u.email))
+      AND NOT EXISTS (SELECT 1 FROM public.ceiling_measurements m WHERE m.job_id=j.id
+        AND m.measured_by_business_id IS NOT NULL AND NOT public.qa_office_business_allowed(m.measured_by_business_id))
   )
 $$;
 
@@ -68,11 +70,11 @@ DO $$ DECLARE t text; predicate text; BEGIN
     'documents','evidence_files','evidence_requirements','job_communications','office_snoozes'] LOOP
     predicate := CASE t
       WHEN 'jobs' THEN '(SELECT public.qa_office_job_allowed(id))'
-      WHEN 'owners' THEN 'EXISTS (SELECT 1 FROM public.jobs j WHERE j.owner_id=id AND public.qa_office_job_allowed(j.id))'
-      WHEN 'properties' THEN 'EXISTS (SELECT 1 FROM public.jobs j WHERE j.property_id=id AND public.qa_office_job_allowed(j.id))'
+      WHEN 'owners' THEN 'EXISTS (SELECT 1 FROM public.jobs j WHERE j.owner_id=owners.id AND public.qa_office_job_allowed(j.id))'
+      WHEN 'properties' THEN 'EXISTS (SELECT 1 FROM public.jobs j WHERE j.property_id=properties.id AND public.qa_office_job_allowed(j.id))'
       WHEN 'businesses' THEN '(SELECT public.qa_office_business_allowed(id))'
-      WHEN 'quote_items' THEN 'EXISTS (SELECT 1 FROM public.quotes q WHERE q.id=quote_id AND public.qa_office_job_allowed(q.job_id))'
-      WHEN 'quote_internals' THEN 'EXISTS (SELECT 1 FROM public.quotes q WHERE q.id=quote_id AND public.qa_office_job_allowed(q.job_id))'
+      WHEN 'quote_items' THEN 'EXISTS (SELECT 1 FROM public.quotes q WHERE q.id=quote_items.quote_id AND public.qa_office_job_allowed(q.job_id))'
+      WHEN 'quote_internals' THEN 'EXISTS (SELECT 1 FROM public.quotes q WHERE q.id=quote_internals.quote_id AND public.qa_office_job_allowed(q.job_id))'
       ELSE '(SELECT public.qa_office_job_allowed(job_id))' END;
     -- Quarantine ALL is replaced by SELECT scope plus an unchanged deny-all write quarantine.
     EXECUTE format('DROP POLICY qa_office_quarantine ON public.%I',t);
