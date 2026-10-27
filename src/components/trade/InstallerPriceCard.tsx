@@ -2,7 +2,9 @@
 // what it includes are entered HERE, never in Mitti. The server returns null for team members, so the card (and every word
 // about price) never renders for staff. Decision 289: the electrician was chosen once at Add a job and is shown read-only
 // here — never asked again. Decision 290 (corrected): the Ready Check's access rating and issue notes show as the flag;
-// the boss prices any difficult access themselves. The boss's text (decision 288) deep-links to `#price`.
+// the boss prices any difficult access themselves. Jo 27 Oct 2026: the card also shows the current Ready Check's install
+// m², removal m² ("None" when nothing needs removing) and access (rating + notes) above the price, always, so the boss
+// can see what they are pricing. The boss's text (decision 288) deep-links to `#price`.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -10,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
 import { getInstallerPriceFn, setInstallerPriceFn } from "@/lib/installer-price.functions";
-import { PRICE_INCLUDED_OPTIONS, accessFlagLine, priceCardLines, validateInstallerPrice } from "@/lib/installer-price.core";
+import { PRICE_INCLUDED_OPTIONS, accessFlagLine, priceCardLines, readyCheckPriceLines, validateInstallerPrice } from "@/lib/installer-price.core";
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
 
@@ -32,14 +34,17 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   if (!view?.canSet) return null;
   const current = view.current?.record ?? null;
   const lines = current ? priceCardLines(current) : null;
-  const access = accessFlagLine(view.access);
+  const facts = readyCheckPriceLines(view.readyCheck);
+  const access = accessFlagLine(view.readyCheck.access);
   const check = validateInstallerPrice({ priceIncGst: price, included, includedOther: other });
   const showForm = editing || !current;
   const toggle = (o: string) => setIncluded((xs) => (xs.includes(o) ? xs.filter((x) => x !== o) : [...xs, o]));
   return (
     <div id={PRICE_CARD_ANCHOR} data-installer-price className="mt-1.5 scroll-mt-4 border-t border-line pt-1.5">
       <p className="text-[13px] font-bold uppercase tracking-[1.1px] text-hiv-blue">Your price</p>
-      {access && <Row label="Ready Check" value={access} />}
+      <Row label="Install m²" value={facts.install} />
+      <Row label="Removal m²" value={facts.removal} />
+      <Row label="Access" value={facts.access} />
       <Row label="Electrical safety check" value={view.electrician} last={!lines || showForm} />
       {lines && !showForm && (
         <>
