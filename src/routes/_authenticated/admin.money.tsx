@@ -24,7 +24,7 @@ const TAB_KEYS: Tab[] = ["overview", "payouts", "invoices", "veecs", "prices"];
 
 export const Route = createFileRoute("/_authenticated/admin/money")({
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (TAB_KEYS.includes(s["tab"] as Tab) && s["tab"] !== "overview" ? { tab: s["tab"] as Tab } : {}),
-  head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "What we earn and owe: margin, payouts, invoices, VEECs and prices." }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "What we earn and owe: margin, payouts, invoices, VEECs and prices." }, { property: "og:title", content: "Money – Home Insulation Victoria" }, { property: "og:description", content: "What we earn and owe: margin, payouts, invoices, VEECs and prices." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: Money,
 });
 
