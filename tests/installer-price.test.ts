@@ -171,7 +171,7 @@ describe("wiring (source facts)", () => {
     expect(s).not.toMatch(/electrician: z\.enum|different: z\.object/);
   });
   test("quote pipeline reads the portal price first: draft, basics, chase, auto-send hold, completion", () => {
-    expect(read("src/lib/installer-quote.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
+    expect(read("src/lib/installer-quote.server.ts")).toContain("entriesAndPriceSource(jobId, formEntries)"); // Jo 27 Oct: same read, also says the price card is the price
     expect(read("src/lib/ready-check-basics.server.ts")).toContain("withInstallerPrice(formEntries, priceRecord?.record ?? null)");
     expect(read("src/lib/ready-check-chase.server.ts")).toContain("entriesWithInstallerPrice(p.jobId, p.entries)");
     expect(read("src/lib/auto-quote-send.server.ts")).toContain("await held(jobId, `price:${jobId}`, [PRICE_NOT_ENTERED]);");

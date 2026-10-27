@@ -50,7 +50,11 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return null; // HV-1351: no draft, no hold, no events
   // Decision 278: price, inclusions and electrician come from the business owner's portal entry (`installer_price_set`,
   // latest wins) FIRST; the Mitti answers are read only on old forms that still carry them.
-  const entries = intakePrice ? formEntries : (await (await import("./installer-price.server")).entriesWithInstallerPrice(jobId, formEntries)) as { label: string; value: string | null }[];
+  const priced = intakePrice ? { entries: formEntries, fromPriceCard: false } : await (await import("./installer-price.server")).entriesAndPriceSource(jobId, formEntries);
+  const entries = priced.entries as { label: string; value: string | null }[];
+  // Jo 27 Oct 2026 (HV-3197, "Ignore it"): the price card is the only price — a Mitti difficult-access charge/fee neither
+  // shows on the installer line nor holds the quote. Old forms with no price-card entry keep the form's access answers.
+  const fromPriceCard = priced.fromPriceCard;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code, discount_note").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
@@ -81,7 +85,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const wholeVeec = loc && m2 && rs ? wholeVeecDiscount(m2, loc as unknown as LocationVariables, Number(rs.indicative_veec_value)) : null;
   // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
   // installer line and taken out only for the per-m² price check.
-  const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
+  const accessFee = !intakePrice && !fromPriceCard ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
@@ -105,7 +109,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (!intakePrice) {
     const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
     applyMittiRemoval(draft, answers.removalTotalM2(entries));
-    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst, accessFee.amountIncGst);
+    if (!fromPriceCard) (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst, accessFee.amountIncGst);
   }
   if (!draft.ready) {
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
