@@ -1,6 +1,16 @@
 // Full-journey test: the step list, the expected maths and the result shape. Pure, shared by the
 // browser runner (e2e/journey) and the server runner (journey.server.ts). TEST data only.
 
+/** Main TEST journey signs the same four declarations as the real owner page. */
+export const JOURNEY_INSTALL_CONSENT = {
+  signatoryName: "Test Journey", authorityType: "owner" as const,
+  accept: true, signatureName: "Test Journey",
+  declarations: {
+    owner_or_authorised: true, details_accurate: true,
+    consent_ap_sends: true, consent_commission_shares: true,
+  },
+};
+
 export const JOURNEY_STEPS = [
   { key: "s1_calculator", label: "1. Public calculator: register and whole-VEEC price" },
   { key: "s2_owner_links", label: "2. Owner email links: Save my spot (double tap), owner calculator, My job" },

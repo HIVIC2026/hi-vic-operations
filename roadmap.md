@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 04:18 main journey follow-ups
+- [ ] Read-only audit every HV-3371 email/SMS record and recipient allowlist status.
+- [ ] Update only main journey consent input to the four existing required ticks; test and rerun with verified no-send, simulated Mitti and Demo-only wrapper; archive only this run's jobs.
+- [ ] Wait for installer/electrician page content and distinguish early screenshots from a real hang; report hangs without fixing product pages.
 ## Jo 27 Oct 04:08 full journey proof Phases 1–2
 - [x] Saved partial read-only register:47 source-backed gate families plus859 literal candidates; exact messages indexed, untraced callers/notifications/SQL/printed-form branches marked incomplete. journey/block-register.md in Files; exhaustive Phase 1 completion not claimed.
 - [x] Added browser-first --screens preflight, without legacy server mutations or product/look changes;14 focused safety/guard tests pass, preview build OK. Current mode records downstream steps blocked, not a implemented full interactive all-clear journey.
