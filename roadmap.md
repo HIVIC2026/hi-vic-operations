@@ -1,9 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 07:33 TEST-only office and Phase 2
-- [ ] Build fail-closed qa_office office access across database policies, server readers/actions and screens, preserving admin.
-- [ ] Prove real-id/list/settings denial and unchanged admin using two users on practice database before live changes.
-- [ ] Create exactly one reserved-domain qa_office login with project-secret-only password, after isolation is proven.
-- [ ] Run browser-first 390px Phase 2 website-to-payout; restore only TEST trade flags and archive only the created TEST job.
+- [ ] Complete qa_office office access: inactive pure scope checks and quarantine SQL only are built; no production permissions or route changes. Remaining server readers/actions, views/RPCs, storage/exports and scoped list caches are NOT implemented; never widen requireAdmin/is_admin.
+- [x] Practice foundation only: 24 focused checks pass, including two-user quarantine real-id/table/settings denial and unchanged admin. This does NOT prove full office list/action isolation or authenticated end-to-end access.
+- [ ] Create exactly one reserved-domain qa_office login with project-secret-only password; BLOCKED until the complete access surface is implemented/proven. No role/account/password or live migration created.
+- [ ] Complete browser-first 390px Phase 2 website-to-payout; latest safe preflight run is 0 pass/0 fail/73 blocked. Calculator and registration content loaded with no page errors; no job created, no archive or trade-flag restoration needed. BLOCKED on isolated website submission, serving-process no-send/Mitti/Demo proof and role integration; no providers/switches/publication.
 ## Jo 27 Oct 07:26 stale tests
 - [x] Correct only the three stale test expectations: current MJML templates/folders, retired A3 question and Owner name in the updated-form test; 37 tests pass in three isolated files. No product changes, sends, switches or publication.
 ## Jo 27 Oct 07:23 decision 316
