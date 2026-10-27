@@ -5,7 +5,7 @@ export const TEST_OFFICE_UNAVAILABLE = "Not available for the TEST office login"
 export const QA_OFFICE_FUNCTIONS = {
   "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
   "src/lib/office-money.functions.ts": ["getMoneyPayouts"],
-  "src/lib/office.functions.ts": ["approveElectricianForm", "markPayoutPaid"],
+  "src/lib/office.functions.ts": ["searchOffice", "approveElectricianForm", "markPayoutPaid"],
   "src/lib/ap-queue.functions.ts": ["getFinalCheck", "approveApJob"],
   "src/lib/spot-release.functions.ts": ["getSpotRelease", "releaseSpotFn"],
   "src/lib/offer-dispatch.functions.ts": ["listChooseTrades", "sendChosenOffers"],

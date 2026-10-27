@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
-import { requireOfficeJob } from "./qa-office-access.server";
+import { requireOfficeJob, requireOfficeIdentity, officeTestJobIds } from "./qa-office-access.server";
 import { OFFICE_STAGES, OFFICE_STATUSES, STATUS_KEYS, type StatusKey } from "./office-status.core";
 import { nextMorning } from "./needs-me.core";
 
@@ -59,7 +59,15 @@ export const listByStatus = createServerFn({ method: "GET" }).middleware([requir
 export const searchOffice = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ q: z.string().trim().min(2).max(80) }).parse(d))
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
+    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: jobs, error } = await supabaseAdmin.from("jobs").select("id,job_number,source,owners(full_name,email,phone),properties(address_line,suburb,postcode)").eq("source", "qa_test").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+      if (error) throw new Error("TEST search could not be read.");
+      const q = data.q.toLowerCase();
+      return (jobs ?? []).map(j => ({ id: j.id, job_number: j.job_number, source: j.source, owner_name: j.owners?.full_name ?? null, property_address: [j.properties?.address_line, j.properties?.suburb, j.properties?.postcode].filter(Boolean).join(" "), stage: null }))
+        .filter(j => [j.job_number,j.owner_name,j.property_address].join(" ").toLowerCase().includes(q)).slice(0,12);
+    }
     const q = data.q.replace(/[%,()]/g, " ").trim();
     const { data: rows, error } = await context.supabase.from("job_overview").select("id, job_number, owner_name, property_address, stage, source")
       .or(`job_number.ilike.%${q}%,owner_name.ilike.%${q}%,property_address.ilike.%${q}%,owner_email.ilike.%${q}%,owner_phone.ilike.%${q}%`).limit(12);

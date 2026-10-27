@@ -27,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
 });
 
 function JobPageRoute() {
+  const { qaOffice } = Route.useRouteContext();
   const { jobId } = Route.useParams();
   const { section, act } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -57,7 +58,7 @@ function JobPageRoute() {
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />
-      <AiReplyDrafts jobId={jobId} />
+      {!qaOffice && <AiReplyDrafts jobId={jobId} />}
       <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} />
       <FileList jobId={jobId} />
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />
