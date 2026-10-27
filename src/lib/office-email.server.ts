@@ -6,7 +6,7 @@ import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 export const PARTNER_EMAILS_PAUSED = "Emails are paused while the templates are reviewed (master switch off). Nothing was sent.";
-export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
+export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null; jobId?: string | null };
 
 export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string; attachments?: import("./email-kit.core").EmailAttachment[] }): Promise<SendResult> {
   // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
@@ -17,6 +17,11 @@ export async function sendOfficeEmail(p: { actorId: string | null; recipient: Of
   let mail = p.html && p.text ? { html: p.html, text: p.text } : null;
   const c = officeEmailCopy({ contactName: p.contactName, subject: p.subject, message: p.message });
   if (!mail) mail = officeEmailLayout({ contactName: p.contactName, subject: p.subject, message: p.message, test: false });
+  if (p.record.jobId) {
+    const { data: job, error } = await admin.from("jobs").select("source").eq("id", p.record.jobId).maybeSingle();
+    if (error || !job) return { channel: "email", to, status: "blocked", detail: "Job source could not be verified — nothing sent" };
+    if (job.source === "qa_test") return (await import("./test-send.server")).sendTestEmail({ jobId: p.record.jobId, jobSource: job.source, partnerIsTest: false, label: p.label, actorId: p.actorId }, to, c.subject, mail.html, mail.text, p.attachments ? { attachments: p.attachments } : {});
+  }
   let r: SendResult;
   if (blocked) r = { channel: "email", to, status: "blocked", detail: blocked };
   else {
