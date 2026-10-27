@@ -1,4 +1,11 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 16:48 follow-up
+- [x] Path 6: TEST-only one-job filters; PGlite/local filter tests pass; HV-3472 390px TEST office shows one 24h/48h row, replay once, booking clears; SMS blocked.
+- [x] Path 5: real historical booking display corrected; HV-3474 installer lands current job page with existing new-check reason. Owner wording/rules unchanged; later ESC configuration blocks completion.
+- [x] No pending TEST Ready Check offers remain; cleanup checks withdrawal and remaining count, tested against other/older TEST and real offers.
+- [x] TEST browser Complete implemented and HV-3473 rerun:13 pass/0 fail/0 blocked/8 NOT RUN; normal sync reads 120m² and reaches measured_estimate_ready. Main run zero emails; prior branch emails to Jo disclosed in journey/27oct-follow-up/report.md.
+- [ ] Full remaining eight browser actions: NOT RUN; missing runner interactions, not credentials. No full end-to-end claim.
+- [ ] Phase 4 uncovered register blocks: NOT RUN; dedicated TEST screen fixtures/recovery actions not implemented. All 47 families enumerated honestly in journey/27oct-follow-up/report.md.
 ## Jo 27 Oct 14:04 simulated Bravo invitation and remaining QA
 - [x] TEST Bravo linked with existing verifyMittiMember/setMittiInvited office helpers; sim_ identity read back, check M zero real Mitti calls. No create-user API/email; persistent simulator already models TEST membership.
 - [x] Two browser runs at 390px; final HV-3438:12 pass/0 fail/8 blocked/1 runner error. Actual prestart ticks and Start reach form handoff. Both HV-3437/HV-3438 archived; Bravo/Delta offer flags false restored.

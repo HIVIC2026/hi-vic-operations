@@ -4,6 +4,7 @@ mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { f
 let providerCalls = 0;
 globalThis.fetch = (async () => { providerCalls++; throw new Error('provider calls forbidden'); }) as typeof fetch;
 mock.module('../src/lib/twilio-au1.server', () => ({ au1SendMessage: async () => { providerCalls++; throw new Error('provider calls forbidden'); } }));
+mock.module('../src/lib/qa-inbox.server', () => ({ qaDeliveryHeld: async () => false, qaInboxRouteForJob: async () => null }));
 const { sendTestEmail, sendTestSms } = await import('../src/lib/test-send.server');
 test('actual test sender rejects reserved contact before provider and records blocked_prelaunch locally', async () => {
   const context = { jobId: 'synthetic-job', jobSource: 'qa_test', partnerIsTest: true, label: 'isolated contact denial', actorId: null };

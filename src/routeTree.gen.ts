@@ -109,6 +109,7 @@ import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/
 import { Route as ApiPublicTwilioStatusRouteImport } from './routes/api/public/twilio/status'
 import { Route as AuthenticatedAdminPartnersApplicationEnquiryIdRouteImport } from './routes/_authenticated/admin.partners_.application.$enquiryId'
 import { Route as AuthenticatedAdminPartnersBusinessBusinessIdRouteImport } from './routes/_authenticated/admin.partners_.business.$businessId'
+import { Route as AuthenticatedFieldPracticeJobIdAuditIdRouteImport } from './routes/_authenticated/field.practice.$jobId.$auditId'
 import { Route as ApiPublicEmailArtTokenFileRouteImport } from './routes/api/public/email-art.$token.$file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -658,6 +659,12 @@ const AuthenticatedAdminPartnersBusinessBusinessIdRoute =
     path: '/partners/business/$businessId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedFieldPracticeJobIdAuditIdRoute =
+  AuthenticatedFieldPracticeJobIdAuditIdRouteImport.update({
+    id: '/practice/$jobId/$auditId',
+    path: '/practice/$jobId/$auditId',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const ApiPublicEmailArtTokenFileRoute =
   ApiPublicEmailArtTokenFileRouteImport.update({
     id: '/api/public/email-art/$token/$file',
@@ -765,6 +772,7 @@ export interface FileRoutesByFullPath {
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/admin/partners/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
   '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
+  '/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesByTo {
@@ -863,6 +871,7 @@ export interface FileRoutesByTo {
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/admin/partners/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
   '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
+  '/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesById {
@@ -967,6 +976,7 @@ export interface FileRoutesById {
   '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/_authenticated/admin/partners_/application/$enquiryId': typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
   '/_authenticated/admin/partners_/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
+  '/_authenticated/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRouteTypes {
@@ -1071,6 +1081,7 @@ export interface FileRouteTypes {
     | '/api/public/twilio/status'
     | '/admin/partners/application/$enquiryId'
     | '/admin/partners/business/$businessId'
+    | '/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1169,6 +1180,7 @@ export interface FileRouteTypes {
     | '/api/public/twilio/status'
     | '/admin/partners/application/$enquiryId'
     | '/admin/partners/business/$businessId'
+    | '/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
   id:
     | '__root__'
@@ -1272,6 +1284,7 @@ export interface FileRouteTypes {
     | '/api/public/twilio/status'
     | '/_authenticated/admin/partners_/application/$enquiryId'
     | '/_authenticated/admin/partners_/business/$businessId'
+    | '/_authenticated/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
   fileRoutesById: FileRoutesById
 }
@@ -2028,6 +2041,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPartnersBusinessBusinessIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/field/practice/$jobId/$auditId': {
+      id: '/_authenticated/field/practice/$jobId/$auditId'
+      path: '/practice/$jobId/$auditId'
+      fullPath: '/field/practice/$jobId/$auditId'
+      preLoaderRoute: typeof AuthenticatedFieldPracticeJobIdAuditIdRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/api/public/email-art/$token/$file': {
       id: '/api/public/email-art/$token/$file'
       path: '/api/public/email-art/$token/$file'
@@ -2130,6 +2150,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldMoneyJobIdRoute: typeof AuthenticatedFieldMoneyJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
+  AuthenticatedFieldPracticeJobIdAuditIdRoute: typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
 }
 
 const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
@@ -2156,6 +2177,8 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldMoneyJobIdRoute: AuthenticatedFieldMoneyJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
+  AuthenticatedFieldPracticeJobIdAuditIdRoute:
+    AuthenticatedFieldPracticeJobIdAuditIdRoute,
 }
 
 const AuthenticatedFieldRouteWithChildren =

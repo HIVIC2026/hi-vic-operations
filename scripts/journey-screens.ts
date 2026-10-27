@@ -33,6 +33,11 @@ try {
   ctx.notes["address_line"] = `${Date.now()} Journey Test Street`;
   const r = { key: "s1_calculator", label: "setup", passed: false, checks: [] as { name: string; ok: boolean; detail?: string }[] };
   await J.journeyInternals.s1(ctx, r as never);
+  if (!ctx.jobId) throw new Error("No TEST job to protect.");
+  const { data: protectedJob, error: protectRead } = await admin.from("jobs").select("source,external_refs").eq("id", ctx.jobId).single();
+  if (protectRead || protectedJob?.source !== "qa_test") throw new Error("TEST delivery protection refused.");
+  const { error: protectWrite } = await admin.from("jobs").update({ external_refs: { ...((protectedJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (protectWrite) throw new Error("TEST delivery protection wasn't saved.");
   add({ step: "Setup: TEST job from journey s1 (website step skipped — covered by portal-qa)", person: "setup", status: "pass", detail: `${ctx.jobNumber} created as qa_test for a TEST-domain owner; ${r.checks.filter(c => c.ok).length} setup checks passed.` });
 } catch (e) { setupError = e instanceof Error ? e.message : String(e); add({ step: "Setup: TEST job from journey s1", person: "setup", status: "fail", severity: "Stop launch", detail: setupError }); }
 finally { ms.disarmJourneyMittiGuard(); }
@@ -208,8 +213,7 @@ async def main():
                         if values: await select.select_option(values[0])
             if name == "time:":
                 # A person taps the first offered time tile inside "Choose your Ready Check time".
-                sec = page.locator("section,div").filter(has_text=re.compile("Choose your Ready Check time")).last
-                tiles = [t for t in await sec.get_by_role("button").all() if re.search(r"\d", await t.inner_text()) and not re.search(r"suggest|code", await t.inner_text(), re.I)]
+                tiles = [t for t in await page.get_by_role("button").all() if re.search(r"^(Monday|Tuesday|Wednesday|Thursday|Friday).* at ", await t.inner_text(), re.I) and await t.is_visible()]
                 el, how = (tiles[0] if tiles else None), "time tile"
             elif name == "prestart:":
                 checks = page.locator("[data-prestart-checks]")
@@ -219,6 +223,10 @@ async def main():
                 handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
                 candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
                 el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "practice:":
+                answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
+                for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
+                el, how = page.get_by_role("button", name="Complete", exact=True), "TEST Complete button"
             else:
                 el, how = await find(name, scope)
             label = (name if name not in ("tick:", "time:") else ("own acknowledgement tick" if name == "tick:" else "an offered Ready Check time")) + (f" (in {scope})" if scope else "")
@@ -238,6 +246,9 @@ async def main():
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
             await page.wait_for_timeout(2000)
+            if name == "practice:":
+                try: await page.get_by_text("Complete", exact=True).wait_for(state="visible", timeout=45000)
+                except Exception: res["missing"] = "completed TEST form readback"; res["clicked"] = False
             s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
         await b.close()
     Path(cfg["result"]).write_text(json.dumps(res))
@@ -287,8 +298,17 @@ if (!ctx?.jobId || !safe) {
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
     if (!why && s.button === "prestart:") {
-      add({ step: "Ready Check completion", person: "runner", status: "runner_error", detail: "The installer reached the Mitti handoff. The runner has no simulated form-answer/Complete interaction yet; loading an unfinished form is not a portal failure. Later page inspections continue without inventing completion." });
-      broken = true;
+      const { data: m } = await admin.from("ceiling_measurements").select("external_id").eq("job_id", ctx.jobId).eq("is_current", true).eq("external_source", "mitti").maybeSingle();
+      const auditId = m?.external_id;
+      if (!auditId?.startsWith("sim_")) { add({ step: "Ready Check completion", person: "runner", status: "blocked", detail: "No job-bound simulated Ready Check exists." }); broken = true; }
+      else {
+        const form = await browse({ n: ++n, slug: "simulated-ready-check-complete", path: `/field/practice/${ctx.jobId}/${auditId}`, wait: "TEST Ready Check", person: "installer owner", next: "Complete", button: "practice:" });
+        const st = await jobState();
+        const { data: saved } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("mitti_sim_audits").select("completed").eq("id", auditId).single();
+        const completed = saved?.completed === true;
+        add({ step: "Ready Check completion", person: "installer owner", status: completed ? "pass" : "fail", detail: completed ? `Filled the TEST form and pressed Complete; normal Mitti pull ran; stage=${st.stage}.` : `TEST form not completed: ${form?.missing ?? form?.runner_error ?? "page interaction failed"}`, screenshot: form?.shots ?? [], stage: st.stage });
+        if (!completed) broken = true;
+      }
     }
     n++;
   }
