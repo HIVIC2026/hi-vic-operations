@@ -102,7 +102,8 @@ export function realArea(a: EnquiryInput["area"]): { m2: number | null; source: 
 /** Every non-insulation preliminary gate that must be POSITIVELY represented, with the allowed results. */
 // Current simple Gate 1 ruleset has no separate "relevant ceiling" rule; it is not required here.
 export const REQUIRED_GATES: Record<string, string[]> = {
-  location: ["pass"], residential: ["pass"], ceiling_age: ["pass"], previous_activity: ["pass"], roof_access: ["pass", "info"],
+  location: ["pass"], residential: ["pass"], ceiling_age: ["pass", "onsite"], // Jo 27 Oct: age unknown is confirmed at the Ready Check; "fail" still blocks
+  previous_activity: ["pass"], roof_access: ["pass", "info"],
 };
 const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "rollout", "relevant_ceiling"]);
 
