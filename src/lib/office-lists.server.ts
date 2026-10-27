@@ -10,6 +10,7 @@ import { tidyEnquiryDetails, type DetailsProblem } from "./name-address-tidy.cor
 import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters } from "./enquiry-columns.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
+import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -43,7 +44,7 @@ async function lastHeardMap(ids: string[]) {
   const [emails, texts, comms] = await Promise.all([
     byIds("emails sent", ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, sent_at, created_at, purpose, status").in("job_id", c).in("status", ["sent", "delivered"]).range(f, t)),
     byIds("texts sent", ids, (c, f, t) => admin.from("sms_messages").select("job_id, created_at, message_type, status").in("job_id", c).is("business_id", null).in("status", ["sent", "delivered", "accepted", "queued"]).range(f, t)),
-    byIds("recorded contact", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, channel, delivery_status").in("job_id", c).in("direction", ["outbound", "internal"]).not("sent_at", "is", null).not("delivery_status", "in", "(failed,bounced,undelivered)").range(f, t)),
+    byIds("recorded contact", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, channel, delivery_status").in("job_id", c).eq("direction", "outbound").in("channel", ["email", "sms", "phone"]).not("sent_at", "is", null).in("delivery_status", ["sent", "delivered", "accepted"]).range(f, t)),
   ]);
   const m = new Map<string, { at: string; channel: string }>();
   const put = (id: unknown, at: unknown, channel: string) => { const k = String(id), a = s(at); if (!a) return; const cur = m.get(k); if (!cur || cur.at < a) m.set(k, { at: a, channel }); };
@@ -147,7 +148,8 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     const latestFailed = r["latest_attempt_status"] === "failed" && r["needs_first_response"] === true;
     const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
-    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet: r["needs_first_response"] === true }, now);
+    const noResponseYet = !sends.some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose));
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet }, now);
     return {
       category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
@@ -177,6 +179,19 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
 }
 
 export type JobsListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ChipFilters; includeTest?: boolean };
+/** Fresh per-job recheck immediately before a bulk close, never a saved list snapshot. */
+export async function enquiryCloseBlocker(jobId: string): Promise<string | null> {
+  const { data: index, error } = await admin.from("office_enquiry_index").select("office_bucket, created_at, enquiry_status, needs_first_response").eq("id", jobId).maybeSingle();
+  if (error) throw new Error("The enquiry could not be rechecked.");
+  if (!index || index.office_bucket !== "enquiry") return null; // ordinary Jobs bulk cancellation is unchanged
+  const [heard, inbound] = await Promise.all([
+    lastHeardMap([jobId]),
+    admin.from("job_communications").select("received_at").eq("job_id", jobId).eq("direction", "inbound").not("received_at", "is", null).order("received_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (inbound.error) throw new Error("The owner's email could not be rechecked.");
+  const { enquiryBulkCloseBlocker } = await import("./enquiry-categories.core");
+  return enquiryBulkCloseBlocker({ createdAt: index.created_at, enquiryStatus: index.enquiry_status, lastOutboundAt: heard.last.get(jobId)?.at ?? null, lastOwnerAt: inbound.data?.received_at ?? null, inboundAt: inbound.data?.received_at ?? null, optedOut: index.enquiry_status === "opted_out", sendFailed: false, noResponseYet: !(heard.sends.get(jobId) ?? []).some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose)) }, Date.now());
+}
 export type JobsListRow = {
   id: string; jobNumber: string; owner: string; surname: string; suburb: string | null; stage: JobsStage; status: string; lastHeardAt: string | null; lastHeardChannel: string | null;
   installer: string | null; ownJob: boolean; onHold: boolean; lifeSupport: boolean; isTest: boolean; insulation: InsulationChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip;

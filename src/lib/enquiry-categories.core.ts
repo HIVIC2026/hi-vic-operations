@@ -45,6 +45,16 @@ export type CategoryFacts = {
 };
 
 const t = (s: string | null) => (s ? Date.parse(s) : NaN);
+export function unansweredOwnerEmail(inboundAt: string | null, repliedAt: string | null): boolean {
+  const inbound = t(inboundAt), replied = t(repliedAt);
+  return Number.isFinite(inbound) && (!Number.isFinite(replied) || replied <= inbound);
+}
+
+export function enquiryBulkCloseBlocker(f: CategoryFacts, now: number): string | null {
+  if (f.noResponseYet) return "This enquiry has no confirmed first reply and cannot be bulk closed.";
+  if (unansweredOwnerEmail(f.inboundAt ?? null, f.lastOutboundAt)) return "The owner's email has not been answered and cannot be bulk closed.";
+  return CLOSABLE[enquiryCategory(f, now)] ? null : "This enquiry is no longer Gone quiet or Opted out.";
+}
 
 export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory {
   if (f.optedOut) return "opted_out";
