@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
-  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, aiSendQuietReason, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
+  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -101,8 +101,8 @@ async function openDraft(eventId: string) {
 }
 
 export async function sendAiDraft(eventId: string, body: string, actorId: string, now = new Date()): Promise<{ status: string }> {
-  const quiet = aiSendQuietReason(now.toISOString());
-  if (quiet) throw new Error(quiet);
+  // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
+  void now;
   const problems = aiReplyProblems(body);
   if (problems.length) throw new Error(problems.join(" "));
   const ev = await openDraft(eventId);

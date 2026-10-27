@@ -11,7 +11,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, aiSendQuietReason, replySubject } from "./ai-email-reply.core";
+import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
@@ -139,8 +139,8 @@ export async function sendJobEmailReply(requestEventId: string, draftEventId: st
 
 /** Send the no-job reply to the sender, then the email leaves the tab (recorded as replied, left in Outlook). */
 export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId: string, body: string, actorId: string, now = new Date()) {
-  const quiet = aiSendQuietReason(now.toISOString());
-  if (quiet) throw new WorkflowError(quiet);
+  // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
+  void now;
   const problems = noJobReplyProblems(body);
   if (problems.length) throw new WorkflowError(problems.join(" "));
   const ev = await eventOf(unmatchedEventId, EMAIL_UNMATCHED_EVENT);
