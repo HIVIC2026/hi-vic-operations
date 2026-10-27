@@ -33,6 +33,21 @@ export async function officeTestJobIds(sb: Client): Promise<string[]> {
   }
 }
 
+export async function requireOfficeBusiness(sb: Client, businessId: string): Promise<void> {
+  if (await requireOfficeIdentity(sb) === "admin") return;
+  const { data, error } = await (sb as unknown as SupabaseClient).rpc("qa_office_business_allowed", { _business: businessId });
+  if (error || data !== true) throw new Error("Only fully isolated TEST businesses are available to TEST office.");
+}
+
+export async function officeTestBusinessIds(sb: Client): Promise<string[]> {
+  if (await requireOfficeIdentity(sb) !== "qa_office") throw new Error("Dedicated TEST office required.");
+  // No privileged candidate scan: RLS filters the list first.
+  const { data, error } = await sb.from("businesses").select("id").ilike("email", "%@hivic-test.example").like("onboarding_notes", "%[TEST PARTNER]%");
+  if (error) throw new Error("TEST businesses could not be checked.");
+  for (const row of data ?? []) await requireOfficeBusiness(sb, row.id);
+  return (data ?? []).map(row => row.id);
+}
+
 export async function requireOfficeJob(sb: Client, jobId: string): Promise<"admin" | "qa_office"> {
   const { data: auth, error: authError } = await sb.auth.getUser();
   if (authError || !auth.user) throw new Error("Office sign-in required.");

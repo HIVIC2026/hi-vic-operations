@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError, logEvent } from "./workflow.server";
+import { requireOfficeJob, requireOfficeBusiness, officeTestBusinessIds, officeTestJobIds } from "./qa-office-access.server";
 
 const kind = z.enum(["ready_check", "piesa"]);
 const NONE = ["00000000-0000-0000-0000-000000000000"];
@@ -41,7 +42,9 @@ export const setJobOfficePicks = createServerFn({ method: "POST" }).middleware([
 export const listChooseTrades = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    const officeRole = await requireOfficeJob(context.supabase, data.jobId);
+    const testBusinesses = officeRole === "qa_office" ? await officeTestBusinessIds(context.supabase) : null;
+    const testJobs = officeRole === "qa_office" ? await officeTestJobIds(context.supabase) : null;
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { chooseWarnings, distanceKm, officePicks } = await import("./offer-dispatch.core");
     const { installerOfferable } = await import("./readycheck-booking.core");
@@ -51,6 +54,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
     const r = isRc
       ? await (await import("./readycheck-booking.server")).installerCandidatesFor(data.jobId)
       : await (await import("./allocation.server")).recCandidatesFor(data.jobId);
+    if (testBusinesses) r.candidates = r.candidates.filter(c => testBusinesses.includes(c.business_id));
     const ids = r.candidates.map((c) => c.business_id);
     const inIds = ids.length ? ids : NONE;
     const today = melbourneToday();
@@ -61,8 +65,8 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       admin.from("businesses").select("id, name, trading_name, signer_name, service_postcodes, coverage_lat, coverage_lng, weekly_capacity, daily_job_limit, base_suburb").in("id", inIds),
       admin.from("business_credentials").select("business_id, kind, expires_at").in("business_id", inIds),
       admin.from("partner_workers").select("business_id, licence_expires_on").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
-      admin.from("bookings").select("business_id").eq("status", "confirmed").gte("scheduled_start", wk0.toISOString()).lt("scheduled_start", wk1.toISOString()).in("business_id", inIds),
-      admin.from("partner_offers").select("business_id").eq("status", "pending").in("business_id", inIds),
+      (() => { const q = admin.from("bookings").select("business_id").eq("status", "confirmed").gte("scheduled_start", wk0.toISOString()).lt("scheduled_start", wk1.toISOString()).in("business_id", inIds); return testJobs ? q.in("job_id", testJobs.length ? testJobs : NONE) : q; })(),
+      (() => { const q = admin.from("partner_offers").select("business_id").eq("status", "pending").in("business_id", inIds); return testJobs ? q.in("job_id", testJobs.length ? testJobs : NONE) : q; })(),
       admin.from("partner_offers").select("business_id, status, offered_at, expires_at").eq("job_id", data.jobId).eq("kind", data.kind),
       admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
       admin.from("jobs").select("job_number, source, channel, stage, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
@@ -127,12 +131,15 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
 export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind, businessIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
+    for (const businessId of data.businessIds) await requireOfficeBusiness(context.supabase, businessId);
     // Decision 389: a Ready Check is never offered to an installer before the owner confirms — the office Releases the
     // spot (owner "It's your turn"), and the offer runs on the owner's Confirm (or straight away for a confirmed owner).
     if (data.kind === "ready_check") {
       if (data.businessIds.length !== 1) throw new WorkflowError("Choose one installer.");
-      const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, data.businessIds[0]!);
+      const businessId = data.businessIds[0];
+      if (!businessId) throw new WorkflowError("Choose one installer.");
+      const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, businessId);
       return { offered: r.mode === "offered" ? 1 : 0, released: r.mode === "released" };
     }
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");

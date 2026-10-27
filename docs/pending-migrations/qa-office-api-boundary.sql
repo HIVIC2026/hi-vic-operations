@@ -14,7 +14,7 @@ BEGIN
  IF NOT public.qa_office_has_role() THEN RETURN; END IF;
  IF NOT public.is_qa_office() THEN RAISE EXCEPTION 'Not available for the TEST office login' USING ERRCODE='42501'; END IF;
  -- Job actions use audited server entrypoints, never direct browser writes. Lists start from RLS-scoped jobs.
- IF (method IN ('GET','HEAD') AND path IN ('/jobs','/profiles','/user_roles','/business_members'))
+ IF (method IN ('GET','HEAD') AND path IN ('/jobs','/profiles','/user_roles','/business_members','/businesses'))
    OR (method IN ('GET','HEAD','POST') AND path IN ('/rpc/get_my_profile','/rpc/is_qa_office','/rpc/qa_office_job_allowed','/rpc/qa_office_business_allowed')) THEN RETURN; END IF;
  RAISE EXCEPTION 'Not available for the TEST office login' USING ERRCODE='42501';
 END $$;
