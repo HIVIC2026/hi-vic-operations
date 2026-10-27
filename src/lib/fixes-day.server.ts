@@ -92,7 +92,7 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   const email = test ? TEST_MITTI_ASSIGNEE : (need.assigneeEmail?.trim() || prof?.email?.trim() || "");
   if (!email) { await heldOnce(jobId, `booking:${bookingId}:no_email`, "The assigned electrician has no email address, so no Mitti user could be found.", { booking_id: bookingId }); return { status: "held", reason: "no electrician email" }; }
 
-  const mitti = call ?? (await import("./mitti.server")).realMittiCall;
+  const mitti = await (await import("./mitti.server")).mittiCallForJob(jobId, call);
   const api = mittiApi(mitti);
   const claims = await import("./mitti-create.server");
   let claimId: string | null = null;
@@ -244,7 +244,7 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   if (!job) throw new WorkflowError("Job not found.");
   const { isClosedOrArchivedJob } = await import("./mitti.core");
   if (isClosedOrArchivedJob(job)) return { status: "waiting", detail: "job closed or archived" };
-  const mitti = opts.call ?? (await import("./mitti.server")).realMittiCall;
+  const mitti = await (await import("./mitti.server")).mittiCallForJob(jobId, opts.call);
   const fetchMedia = opts.fetchMedia ?? (await import("./mitti.server")).realMittiMedia;
   const audit = await mittiApi(mitti).getAudit(auditId);
   const parsed = parseAudit(audit as never);

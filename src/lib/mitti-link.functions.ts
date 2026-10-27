@@ -20,8 +20,8 @@ export const getMittiFormLink = createServerFn({ method: "POST" }).middleware([r
     const { mittiFormUrl, deepLinkFromResponse } = await import("./mitti-link.core");
     try {
       const { mittiApi } = await import("./mitti.core");
-      const { realMittiCall } = await import("./mitti.server");
-      const link = deepLinkFromResponse(await mittiApi(realMittiCall).deepLink(data.auditId));
+      const { mittiCallForJob } = await import("./mitti.server");
+      const link = deepLinkFromResponse(await mittiApi(await mittiCallForJob(jobId)).deepLink(data.auditId));
       if (link) return { url: link, deep: true as const };
     } catch { /* Mitti unavailable: fall back to the web address */ }
     return { url: mittiFormUrl(data.auditId), deep: false as const };

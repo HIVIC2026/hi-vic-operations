@@ -15,7 +15,7 @@ async function redraftFromMitti(jobId: string, actorId: string | null): Promise<
     const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
     if (m?.external_source !== "mitti" || !m.external_id) return null;
     const { mittiApi, parseAudit } = await import("./mitti.core");
-    const a = await mittiApi((await import("./mitti.server")).realMittiCall).getAudit(String(m.external_id));
+    const a = await mittiApi(await (await import("./mitti.server")).mittiCallForJob(jobId)).getAudit(String(m.external_id));
     const entries = parseAudit(a).snapshot as { label: string; value: string | null }[];
     const d = await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, actorId, entries, String(m.external_id));
     return d ? d.ready : null;

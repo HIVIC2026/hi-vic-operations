@@ -67,7 +67,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
     const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
     if (m?.external_source === "mitti" && m.external_id && m.status === "complete") {
       const { mittiApi, parseAudit } = await import("./mitti.core");
-      const a = await mittiApi((await import("./mitti.server")).realMittiCall).getAudit(String(m.external_id));
+      const a = await mittiApi(await (await import("./mitti.server")).mittiCallForJob(jobId)).getAudit(String(m.external_id));
       const entries = parseAudit(a).snapshot as { label: string; value: string | null }[];
       await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
       await (await import("./auto-quote-send.server")).maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: a?.modified_at ?? a?.audit_data?.date_modified ?? null, entries });
