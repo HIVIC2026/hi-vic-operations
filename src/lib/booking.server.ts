@@ -2,6 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, commercialBlocker, paymentGate, getStage, logEvent, piesaStatus, transition } from "./workflow.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
+import { installEndAt } from "./install-days.core";
 import { setInstallDueDate } from "./invoice-dates.server";
 import { autoAdvanceJob } from "./autoadvance.server";
 
@@ -74,7 +75,9 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     ? (await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.scheduled_start ?? null
     : null;
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
-  const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
+  // Jo 27 Oct 2026 (install-days rule): an install day runs 8am–4pm Melbourne; the installer picks the exact arrival
+  // time, so scheduled_end is always the day's 4pm end — set on every install booking, create or move.
+  const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, scheduled_end: kind === "installation" ? installEndAt(start) : null, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
   if (insertError || !inserted) throw new Error(`Booking could not be saved: ${insertError?.message ?? "no row returned"}`);
   const nowIso = new Date().toISOString();
   await admin.from("job_assignments").update({ booking_confirmed_at: nowIso }).eq("id", contractor.id).is("booking_confirmed_at", null);

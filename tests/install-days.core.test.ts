@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INSTALL_TIMES, allowedInstallDays, dayOfferBlockers, formatInstallDay, installDayBounds, installStartAt, installTimeLabel, installDayOutsideWindow, installDayTurn, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
+import { INSTALL_TIMES, allowedInstallDays, dayOfferBlockers, formatInstallDay, installDayBounds, installEndAt, installStartAt, installTimeLabel, installDayOutsideWindow, installDayTurn, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
 import { buildNeedsHivic } from "../src/lib/allocation.core";
 
 const now = new Date("2026-10-05T00:00:00Z"); // Mon 5 Oct, 11am Melbourne
@@ -65,6 +65,17 @@ describe("install days", () => {
     expect(installTimeLabel("06:30")).toBe("6:30am");
     expect(installTimeLabel("12:00")).toBe("12pm");
     expect(INSTALL_TIMES[0]).toBe("06:30");
+  });
+  test("every installation booking gets the day's 4pm end time (Jo 27 Oct 2026)", async () => {
+    // Rule (install-days): an install day runs 8am–4pm Melbourne; the installer picks the exact arrival time,
+    // so scheduled_end is always 4pm Melbourne on that day — whatever time was picked, summer or winter.
+    expect(installEndAt("2026-10-26T20:30:00.000Z")).toBe("2026-10-27T05:00:00.000Z"); // 4pm AEDT on 27 Oct
+    expect(installEndAt("2026-06-15T22:00:00.000Z")).toBe("2026-06-16T06:00:00.000Z"); // 4pm AEST on 16 Jun
+    expect(installEndAt("2026-10-27T03:00:00.000Z")).toBe("2026-10-27T05:00:00.000Z"); // 2pm arrival still ends 4pm
+    const { readFileSync } = await import("node:fs");
+    const srv = readFileSync("src/lib/booking.server.ts", "utf8");
+    expect(srv).toContain('scheduled_end: kind === "installation" ? installEndAt(start) : null');
+    expect(srv).toContain('import { installEndAt } from "./install-days.core"');
   });
   test("no office step: the decline/none-suit office paths are gone", async () => {
     const { readFileSync } = await import("node:fs");

@@ -40,6 +40,12 @@ export function installDayBounds(ymd: string, time?: string): { starts_at: strin
   return { starts_at: (time ? installStartAt(ymd, time) : melbourneAt(ymd, INSTALL_DAY_START_HOUR)).toISOString(), ends_at: melbourneAt(ymd, INSTALL_DAY_END_HOUR).toISOString() };
 }
 
+/** Jo 27 Oct 2026: the end of the install day (4pm Melbourne) for a booked start instant — install days are 8am–4pm, so
+ *  every installation booking's scheduled_end is the day's 4pm end, whatever arrival time the installer picked. */
+export function installEndAt(startIso: string): string {
+  return melbourneAt(melbourneYmd(new Date(startIso)), INSTALL_DAY_END_HOUR).toISOString();
+}
+
 /** "6:30am" style label for an INSTALL_TIMES value. */
 export function installTimeLabel(time: string): string {
   const [h, m] = time.split(":").map(Number);
