@@ -94,10 +94,13 @@ async function estimateMap(ids: string[]) {
   return (id: string) => estimateDollars({ websiteTotal: website.get(id) ?? null, quoteTotal: quote.get(id) ?? null });
 }
 
-export async function loadEnquiriesList(p: EnquiryListParams) {
+export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
   const now = Date.now();
-  const index = await all("enquiries", (a, b) => admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone")
-    .eq("office_bucket", "enquiry").in("source", ["base44", "portal", "email"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
+  const index = await all("enquiries", (a, b) => {
+    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
+    q = testJobIds ? q.eq("source", "qa_test").in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]) : q.in("source", ["base44", "portal", "email"]);
+    return q.order("created_at", { ascending: false }).order("id").range(a, b);
+  });
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered, estimateOf] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
@@ -154,13 +157,13 @@ export type JobsListRow = {
   createdAt: string; lastActivityAt: string | null;
 };
 
-export async function loadActiveJobsList(p: JobsListParams) {
+export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
   const now = Date.now();
   const base = await all("active jobs", (a, b) => {
     // office_job_list is the shared office bucket view (not in the generated client types).
     const view = (admin as unknown as { from: (t: string) => any }).from("office_job_list"); // eslint-disable-line @typescript-eslint/no-explicit-any
     let q = view.select("id, job_number, stage, source, channel, owner_name, owner_email, owner_phone, property_address, installer_name, originating_business_name, life_support, last_activity_at, created_at").eq("office_bucket", "active");
-    q = p.includeTest ? q : q.or("source.is.null,source.neq.qa_test");
+    q = testJobIds ? q.eq("source", "qa_test").in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]) : p.includeTest ? q : q.or("source.is.null,source.neq.qa_test");
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   const ids = base.map((r) => String(r["id"]));

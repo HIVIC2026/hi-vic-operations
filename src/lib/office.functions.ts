@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { requireOfficeJob } from "./qa-office-access.server";
 import { OFFICE_STAGES, OFFICE_STATUSES, STATUS_KEYS, type StatusKey } from "./office-status.core";
 import { nextMorning } from "./needs-me.core";
 
@@ -92,7 +93,7 @@ export const snoozeNeedsItem = createServerFn({ method: "POST" }).middleware([re
 export const approveElectricianForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind: z.enum(["assessment", "rectification"]) }).parse(d))
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
     return recordElectricianFormApproval(data.jobId, data.kind, context.userId);
   });
@@ -101,7 +102,7 @@ export const approveElectricianForm = createServerFn({ method: "POST" }).middlew
 export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional() }).parse(d))
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     if (data.kind === "assessment" || data.kind === "rectification") {
       const [{ data: j }, { data: qs }] = await Promise.all([

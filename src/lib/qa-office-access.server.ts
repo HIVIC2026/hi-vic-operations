@@ -8,6 +8,31 @@ type Client = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
 const text = (value: unknown): string | null => typeof value === "string" ? value : null;
 
+/** Lists choose their scope on the server; a browser includeTest flag is never authorization. */
+export async function requireOfficeIdentity(sb: Client): Promise<"admin" | "qa_office"> {
+  const { data: auth, error } = await sb.auth.getUser();
+  if (error || !auth.user) throw new Error("Office sign-in required.");
+  const { data: rows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
+  if (roleError) throw new Error("Office permissions could not be checked.");
+  const roles = (rows ?? []).map(row => String(row.role));
+  if (!roles.includes("qa_office")) { await requireAdmin(sb); return "admin"; }
+  const blocked = qaOfficeIdentityBlocker({ roles, email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at });
+  if (blocked) throw new Error(blocked);
+  return "qa_office";
+}
+
+export async function officeTestJobIds(sb: Client): Promise<string[]> {
+  if (await requireOfficeIdentity(sb) !== "qa_office") throw new Error("Dedicated TEST office required.");
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += 100) {
+    // RLS scopes the candidate list before data leaves the database; graph recheck protects privileged readers.
+    const { data, error } = await sb.from("jobs").select("id").eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null).order("id").range(offset, offset + 99);
+    if (error) throw new Error("TEST job scope could not be checked.");
+    for (const row of data ?? []) { await requireOfficeJob(sb, row.id); ids.push(row.id); }
+    if (!data || data.length < 100) return ids;
+  }
+}
+
 export async function requireOfficeJob(sb: Client, jobId: string): Promise<"admin" | "qa_office"> {
   const { data: auth, error: authError } = await sb.auth.getUser();
   if (authError || !auth.user) throw new Error("Office sign-in required.");
