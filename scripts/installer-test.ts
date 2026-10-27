@@ -620,7 +620,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
   });
-  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Customer", "permission for Home Insulation Victoria to contact them", "Next"], mustNotSee: [...BANNED, "I'm at the property now", "Add a job for later", "Where is it from"] });
+  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Owner", "Home Insulation Victoria permission to contact them", "Add job"], mustNotSee: [...BANNED.filter((t) => t !== "optional"), // decisions 115/116: basics only, "Add job" button, one approved "(optional)" visit field
+    "I'm at the property now", "Add a job for later", "Where is it from"] });
 
   await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
     const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
