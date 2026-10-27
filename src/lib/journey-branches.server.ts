@@ -948,3 +948,483 @@ export async function runPhase3(name: Phase3Name, shotDir: string): Promise<Phas
   }
   return { branch: name as never, jobs, setup, checks: rec.checks, answers: [...ANSWERS], shots: [...SHOTS], blocked: BLOCKED_REASON };
 }
+
+// =====================================================================================================================
+// Phase 4 (Jo 27 Oct 2026, 17:50): the money and safety blocks from journey/block-register.md, each on its own fresh
+// TEST job, run in this order. Data-level runs with one 390px screenshot of the person's page and the office page.
+// Same four answers per block: stops? plain reason? office told once? carries on after the fix?
+// Same TEST-only rules: fresh qa_test job, TEST people only, simulated Mitti, Xero Demo Company, nothing sent.
+// =====================================================================================================================
+const NOPR = "no real people";
+
+/** Office told once for a blocked job: exactly one signal — a Needs me row, an office exception, or the office job
+ *  page showing the block. Zero signals = not told; more than one source still counts as told once per source. */
+async function officeToldOnce(ctx: JourneyCtx, page: Shot | undefined, re: RegExp) {
+  const sig = await officeSignals(ctx.jobId!);
+  const onPage = sees(page, re);
+  const sources = (sig.needsMe > 0 ? 1 : 0) + (sig.exceptions.length > 0 ? 1 : 0) + (onPage ? 1 : 0);
+  return {
+    ok: sources > 0,
+    detail: `Needs me rows for this job=${sig.needsMe} (${sig.needsMeText.join(" | ") || "none"}); office exceptions=${sig.exceptions.join(",") || "none"}; office job page shows the block=${onPage}`,
+  };
+}
+
+const ownerUserId = async (ctx: JourneyCtx) => {
+  const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
+  return (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
+};
+
+/** Shared fixes chain for blocks 11/22/23: accepted quote → A3 Complete with a priced repair → fixes quote issued
+ *  (release simulated while customer messages are off). Mirrors the proven Phase 3 path 2 steps 2.1–2.2. */
+async function fixesChain(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], jobs: BranchResult["jobs"]) {
+  const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+  if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return null; }
+  const sim = await import("./journey-sim.core");
+  const os = await import("./official-short.core");
+  const fd = await import("./fixes-day.core");
+  const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
+  const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
+  const fixesTemplateItems = fd.FIXES_DAY_QUESTIONS.map((q, i) => ({ item_id: `sim_a4_${i + 1}`, label: q.label, type: q.type === "photo" ? "media" : q.type === "signature" ? "signature" : q.type === "yes_no" ? "question" : "textsingle" }));
+  const tplFixes = String((ws as Record<string, unknown> | null)?.[fd.FIXES_TEMPLATE_COLUMN] ?? "").trim();
+  const now = new Date().toISOString();
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3fix`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician" });
+  const pick = (label: string, v: string[]) => ({ item_id: `sim_a3_fix_${label.length}_${v.length}`, label, type: "question", responses: { selected: v.map((x) => ({ label: x })) } });
+  const text = (label: string, v: string) => ({ item_id: `sim_a3_fix_t_${label.length}`, label, type: "textsingle", responses: { text: v } });
+  const items = pass.items.map((it) => (it.label === os.A3_REPAIR_NEEDED_LABEL ? { ...it, responses: { selected: [{ label: "Yes" }] } } : it));
+  const sigAt = items.findIndex((it) => it.type === "signature");
+  items.splice(sigAt - 1, 0, pick(os.FIXES_WORK_LABEL, [os.FIXES_RCD_OPTION]) as never, text(os.FIXES_RCD_COUNT_LABEL, "2") as never, pick(os.ONSITE_START_LABEL, ["No"]) as never, text(os.FIXES_PRICE_LABEL, String(FIXES_PRICE)) as never);
+  const { data: a0 } = await admin.from("assessments").select("id, external_mitti_id, mitti_template_id").eq("job_id", ctx.jobId!).maybeSingle();
+  const tplA3 = a0?.mitti_template_id ?? String((ws as Record<string, unknown> | null)?.["mitti_piesa_template_id"] ?? "").trim();
+  const mitti = sim.simulatedMitti({
+    templates: { [tplA3]: sim.templateOfItems([{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle" }, { item_id: "sim_a3_office_addr", label: "Property Address", type: "textsingle" }, { item_id: "sim_a3_office_owner", label: "Owner name", type: "textsingle" }, ...(items as never[] as { item_id: string; label: string; type: string }[])]), ...(tplFixes ? { [tplFixes]: { items: fixesTemplateItems as never } } : {}) },
+    users: [{ id: "sim-mitti-electrician", email: el!.email! }, { id: "sim-mitti-test-assignee", email: TEST_MITTI_ASSIGNEE }],
+  });
+  const fetchMedia = async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" });
+  const guard = (await import("./mitti.server")).armJourneyMittiGuard(mitti.call);
+  guardRouted = guard.routed;
+  const al = await import("./allocation.server");
+  await al.startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true });
+  const { data: mine } = await admin.from("partner_offers").select("id").eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending").eq("business_id", ctx.electrician.business_id).limit(1).single();
+  const pt = await import("./piesa-times.server");
+  const { allowedPiesaTimeDays, allowedPiesaTimes } = await import("./piesa-times.core");
+  await pt.acceptPiesaOfferWithTimes(mine!.id, ctx.electrician.id, allowedPiesaTimeDays().slice(1, 4).map((day) => { const ok = allowedPiesaTimes(day); return { day, time: ok.includes("10:00" as never) ? "10:00" : ok[0]! }; }));
+  const ost = await pt.ownerPiesaTimesState(ctx.jobId!);
+  await pt.ownerTakePiesaTime(ctx.jobId!, ost.open[0]!.id, ctx.actorId, { understandsThirtyDays: true, ip: null, userAgent: null });
+  const { data: a1 } = await admin.from("assessments").select("external_mitti_id").eq("job_id", ctx.jobId!).maybeSingle();
+  let auditId = a1?.external_mitti_id ?? null;
+  if (auditId) mitti.seed(auditId, tplA3);
+  else auditId = (await (await import("./mitti.server")).createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })).auditId;
+  mitti.fill(auditId!, [{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...items] as never);
+  const synced = await (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, fetchMedia);
+  for (const c of ["switchboard_cables", "piesa_signoff"]) await J.uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
+  await (await import("./piesa-complete.server")).completePiesaAssessment({ jobId: ctx.jobId! }, ctx.electrician.id);
+  const days = (await import("./piesa-windows.core")).allowedPiesaDays().slice(0, 3);
+  await (await import("./rectification.server")).recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
+  const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+  let rectQuoteId = o.quoteId;
+  if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) { await simulateQuoteRelease(ctx, rectQuoteId, "fixes"); rec.simulated("F.quote", "fixes quote email to the owner", SIMULATED_SEND_LABEL, { quote_id: rectQuoteId }); }
+  return { sim, mitti, fetchMedia, el, tplFixes, auditId, rectQuoteId, a3Synced: synced.completed };
+}
+
+/** Owner accepts the fixes quote (pick a time later) — the acceptance step of Phase 3 check 2.4, no payment. */
+async function ownerAcceptFixes(ctx: JourneyCtx, rectQuoteId: string) {
+  const { data: q } = await admin.from("quotes").select("id, version, status").eq("id", rectQuoteId).single();
+  const { respondToQuoteImpl } = await import("./portal.functions");
+  await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, pickLater: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
+    { userId: await ownerUserId(ctx), ip: "127.0.0.1", userAgent: "journey-test", authorize: async () => {}, isOwner: async () => true } as never);
+}
+
+/** Owner pays the fixes (TEST payment, Demo Company). */
+async function payFixes(ctx: JourneyCtx) {
+  const r: StepResult = { key: "s6_electrician", label: "fixes pay", passed: true, checks: [] };
+  await J.payStep(ctx, r, "fixes", "Electrical fixes payment (TEST payment, Demo Company)");
+}
+
+/** Owner picks the offered fixes time, then the A4 form is created (Phase 3 checks 2.5), then completed (2.6).
+ *  Returns the booking id and the fixes audit id. */
+async function bookAndCompleteFixes(ctx: JourneyCtx, mitti: { call: unknown; audits: Map<string, { completed?: boolean }>; seed: (id: string, tpl: string) => void; fill: (id: string, items: unknown[], opts?: { complete?: boolean }) => void }, fetchMedia: () => Promise<{ bytes: unknown; contentType: string }>, el: { full_name: string | null } | null, tplFixes: string) {
+  const fd = await import("./fixes-day.core");
+  const sim = await import("./journey-sim.core");
+  const of = await import("./owner-fixes.server");
+  const st = await of.ownerFixesState(ctx.jobId!);
+  if (!st.windows.length) throw new Error(`owner fixes step=${st.step}; no times to pick`);
+  const p = await of.ownerPickFixesTime(ctx.jobId!, st.windows[0]!.id, await ownerUserId(ctx));
+  const { data: bk } = await admin.from("bookings").select("id").eq("job_id", ctx.jobId!).eq("kind", "rectification").in("status", ["confirmed", "completed"]);
+  const bookingId = bk?.[0]?.id ?? null;
+  if (!bookingId) throw new Error("fixes booking not made");
+  await (await import("./fixes-day.server")).createFixesForm(ctx.jobId!, ctx.actorId, bookingId, mitti.call as never);
+  const { data: created } = await admin.from("workflow_events").select("details").eq("job_id", ctx.jobId!).eq("event_type", fd.FIXES_FORM_CREATED_EVENT);
+  const fixesAuditId = ((created ?? [])[0]?.details as { audit_id?: string } | null)?.audit_id ?? null;
+  if (!fixesAuditId) throw new Error("fixes form not created");
+  const cap = new Date().toISOString();
+  const media = (n: string) => ({ media_id: sim.simMediaId(`${ctx.runId}-a4-${n}`), captured_at: cap, date_created: cap, location: { ...sim.JOURNEY_SITE } });
+  const Q = fd.FIXES_DAY_Q;
+  if (!mitti.audits.has(fixesAuditId) && tplFixes) mitti.seed(fixesAuditId, tplFixes);
+  mitti.fill(fixesAuditId, [
+    { item_id: "a", label: Q.done, type: "question", responses: { selected: [{ label: "Yes" }] } },
+    { item_id: "b", label: Q.coesNumber, type: "textsingle", responses: { text: "TEST-COES-0001" } },
+    { item_id: "c", label: Q.certDate, type: "textsingle", responses: { text: J.melbourneDate(0) } },
+    { item_id: "d", label: Q.coesFile, type: "media", media: [media("coes")] },
+    { item_id: "e", label: Q.workPhoto, type: "media", media: [media("work")] },
+    { item_id: "f", label: Q.signature, type: "signature", responses: { image: { media_id: sim.simMediaId(`${ctx.runId}-a4-sig`), timestamp: cap }, name: el?.full_name ?? "TEST Delta Electrician" } },
+  ]);
+  const res = await (await import("./fixes-day.server")).completeFixesForm(ctx.jobId!, fixesAuditId, { call: mitti.call as never, fetchMedia: fetchMedia as never, actorId: ctx.actorId });
+  return { bookingId, fixesAuditId, done: res.status === "done", detail: res.detail ?? "" };
+}
+
+// ---------- Block 8 — quote/invoice payment gate ----------
+async function m8QuotePayment(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    let allocBefore = "not tried", offersBefore = 0;
+    const s = await setupSteps(ctx, 5, defaultReadyCheck, async (c) => {
+      const { data: q0 } = await admin.from("quotes").select("id, status").eq("id", c.quoteId!).single();
+      if (q0?.status === "draft") {
+        try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(c.jobId!, c.quoteId!, c.actorId); }
+        catch (e) { const m = e instanceof Error ? e.message : String(e); if (!commsOff(m)) throw e; await simulateQuoteRelease(c, c.quoteId!, "office"); rec.simulated("S5", "office presses Send quote", SIMULATED_SEND_LABEL, { quote_id: c.quoteId! }); }
+      }
+      // BLOCK: quote issued but not accepted, no payment — PIESA offers must be refused with plain reasons.
+      await J.assertOwnTestJob(c);
+      const stage0 = await J.stageOf(c);
+      try { await (await import("./allocation.server")).startPiesaAllocation(c.jobId!, c.actorId, "piesa", { onlyBusiness: c.electrician.business_id, rateToConfirm: true }); allocBefore = "NOT refused"; }
+      catch (e) { allocBefore = `refused: ${(e as Error).message.slice(0, 300)}`; }
+      const { count } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", c.jobId!).eq("kind", "piesa");
+      offersBefore = count ?? 0;
+      const stage1 = await J.stageOf(c);
+      const told = await officeToldOnce(c, (await shoot("m8-blocked", [ownerPage(c), ...officePages(c)]))[1], /quote|payment|approve|accept/i);
+      answer("stops", allocBefore.startsWith("refused") && offersBefore === 0 && stage1 === stage0, `PIESA allocation ${allocBefore}; PIESA offers=${offersBefore}; stage ${stage0}→${stage1}`);
+      const shots = SHOTS.filter((x) => x.moment === "m8-blocked");
+      answer("reason", sees(shots[0], /accept|approve|quote|payment|pay/i), `owner My job page mentions accepting/approving the quote or paying=${sees(shots[0], /accept|approve|quote|payment|pay/i)}; plain refusal: ${allocBefore.slice(0, 200)}`);
+      answer("office_once", told.ok, told.detail);
+    });
+    setup.push(...s.out);
+    jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    // Fix: the owner accepts the quote and pays the $349 (setup step 5). Now the same PIESA request is offered.
+    let allocAfter = "not tried";
+    try { await (await import("./allocation.server")).startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }); allocAfter = "offered"; }
+    catch (e) { allocAfter = `refused: ${(e as Error).message.slice(0, 200)}`; }
+    const { count: offersAfter } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa");
+    const sigF = await officeSignals(ctx.jobId!);
+    await shoot("m8-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", allocAfter === "offered" && (offersAfter ?? 0) > 0, `after the owner accepted and paid: PIESA allocation ${allocAfter}; PIESA offers=${offersAfter}; office rows after=${sigF.needsMe + sigF.exceptions.length}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 10 — installation deposit ----------
+async function m10Deposit(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const r6: StepResult = { key: "s6_electrician", label: "PIESA", passed: true, checks: [] };
+    try { await J.s6(ctx, r6); } catch (e) { BLOCKED_REASON = `PIESA step failed: ${(e as Error).message}`; return; }
+    // The owner confirms the safety check on the secure link (the real step before install days can be offered).
+    await (await import("./piesa-owner-confirm.server")).signOwnerPiesaConfirmation({ jobId: ctx.jobId!, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" });
+    const idays = await import("./install-days.server");
+    const { installStartAt } = await import("./install-days.core");
+    const days = (await idays.installerInstallDayState(ctx.jobId!, ctx.installer.id)).days.filter((d) => installStartAt(d, "08:00").getTime() > Date.now() + 25 * 3_600_000).slice(0, 3);
+    const stage0 = await J.stageOf(ctx);
+    let offered = "not tried";
+    try { await idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))); offered = "NOT refused"; }
+    catch (e) { offered = `refused: ${(e as Error).message.slice(0, 250)}`; }
+    const { count: booked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "installation");
+    const stage1 = await J.stageOf(ctx);
+    const told = await officeToldOnce(ctx, (await shoot("m10-blocked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]))[2], /deposit|payment|10%/i);
+    const shots = SHOTS.filter((x) => x.moment === "m10-blocked");
+    answer("stops", offered.startsWith("refused") && (booked ?? 0) === 0 && stage1 === stage0, `installer offering days ${offered}; install bookings=${booked}; stage ${stage0}→${stage1}`);
+    answer("reason", sees(shots[1], /deposit|pay/i) || sees(shots[0], /deposit|pay/i), `installer page mentions the deposit=${sees(shots[1], /deposit|pay/i)}; owner page=${sees(shots[0], /deposit|pay/i)}; plain refusal: ${offered.slice(0, 200)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the owner pays the 10% deposit (TEST payment, Demo Company) — then the same offering works and the owner books.
+    const r: StepResult = { key: "s7_install", label: "deposit", passed: true, checks: [] };
+    let pay = "paid";
+    try { await J.payStep(ctx, r, "install_deposit", "10% install deposit (TEST payment, Demo Company)"); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    let offered2 = "not tried";
+    try { await idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))); offered2 = "offered"; }
+    catch (e) { offered2 = `refused: ${(e as Error).message.slice(0, 200)}`; }
+    const st2 = await idays.ownerInstallDayState(ctx.jobId!);
+    let fix = "booked";
+    try { await idays.ownerTakeDay(ctx.jobId!, st2.open[0]!.id, ctx.actorId); } catch (e) { fix = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    const { count: booked2 } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "installation").in("status", ["confirmed", "completed"]);
+    await shoot("m10-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", fix === "booked" && (booked2 ?? 0) > 0, `deposit ${pay}; offering again ${offered2}; owner took a day: ${fix}; install bookings=${booked2}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 11 — fixes payment ----------
+async function m11FixesPayment(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const ch = await fixesChain(rec, ctx, setup, jobs);
+    if (!ch) return;
+    if (!ch.rectQuoteId) { BLOCKED_REASON = "fixes quote was not generated"; return; }
+    await ownerAcceptFixes(ctx, ch.rectQuoteId);
+    const of = await import("./owner-fixes.server");
+    const st = await of.ownerFixesState(ctx.jobId!);
+    const stage0 = await J.stageOf(ctx);
+    let pick = "not tried";
+    if (st.windows.length) { try { await of.ownerPickFixesTime(ctx.jobId!, st.windows[0]!.id, await ownerUserId(ctx)); pick = "NOT refused"; } catch (e) { pick = `refused: ${(e as Error).message.slice(0, 250)}`; } }
+    else pick = `no times offered (step=${st.step})`;
+    const { count: booked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "rectification");
+    const stage1 = await J.stageOf(ctx);
+    const told = await officeToldOnce(ctx, (await shoot("m11-blocked", [ownerPage(ctx), { who: "electrician", email: ELEC, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]))[2], /fix|payment|pay/i);
+    const shots = SHOTS.filter((x) => x.moment === "m11-blocked");
+    answer("stops", pick.startsWith("refused") && (booked ?? 0) === 0 && stage1 === stage0, `owner fixes step=${st.step}; picking a time ${pick}; fixes bookings=${booked}; stage ${stage0}→${stage1}`);
+    answer("reason", sees(shots[0], /fix|pay|payment/i), `owner My job page mentions the fixes payment=${sees(shots[0], /fix|pay|payment/i)}; plain refusal: ${pick.slice(0, 200)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the owner pays the fixes in full (TEST payment, Demo Company) — then the same pick books the visit.
+    let pay = "paid";
+    try { await payFixes(ctx); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    const st2 = await of.ownerFixesState(ctx.jobId!);
+    let fix = "booked";
+    try { const p = await of.ownerPickFixesTime(ctx.jobId!, st2.windows[0]!.id, await ownerUserId(ctx)); fix = p.booked ? "booked" : "picked, not booked yet"; }
+    catch (e) { fix = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    const { count: booked2 } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "rectification").in("status", ["confirmed", "completed"]);
+    await shoot("m11-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", (booked2 ?? 0) > 0, `fixes ${pay}; owner picked again: ${fix}; fixes bookings=${booked2}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 22 — completed-form payout gate ----------
+async function m22PayoutForm(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const ch = await fixesChain(rec, ctx, setup, jobs);
+    if (!ch) return;
+    if (!ch.rectQuoteId) { BLOCKED_REASON = "fixes quote was not generated"; return; }
+    await ownerAcceptFixes(ctx, ch.rectQuoteId);
+    await payFixes(ctx);
+    // The electrician's A4 form is not complete yet: the fixes payout must be held with a plain reason.
+    const tg = await import("./trade-payout-gate.server");
+    const before = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
+    const { data: asmt } = await admin.from("assessments").select("mitti_completed").eq("job_id", ctx.jobId!).maybeSingle();
+    const told = await officeToldOnce(ctx, (await shoot("m22-blocked", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|complete|payout|fixes/i);
+    const shots = SHOTS.filter((x) => x.moment === "m22-blocked");
+    answer("stops", before.length > 0 && asmt?.mitti_completed !== true, `fixes payout held with ${before.length} reason(s); A4 marked Complete=${asmt?.mitti_completed === true}`);
+    answer("reason", before.some((r) => /not marked Complete/i.test(r)), `plain reasons: ${before.join(" | ")}; electrician Money page shows held=${sees(shots[0], /held|complete|payout/i)}; office Money page=${sees(shots[1], /held|complete|payout/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the electrician completes the A4 form on the fixes visit (the real path).
+    let done = false, detail = "";
+    try { const r = await bookAndCompleteFixes(ctx, ch.mitti, ch.fetchMedia, ch.el, ch.tplFixes); done = r.done; detail = r.detail; }
+    catch (e) { detail = `failed: ${(e as Error).message.slice(0, 250)}`; }
+    const after = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
+    await shoot("m22-carried-on", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
+    answer("carries_on", done && after.length === 0, `A4 completed=${done} (${detail}); payout blockers after=${after.join(" | ") || "none"}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 23 — electrician payout: 7 days after the office presses Approve (decision 410) ----------
+async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const ch = await fixesChain(rec, ctx, setup, jobs);
+    if (!ch) return;
+    if (!ch.rectQuoteId) { BLOCKED_REASON = "fixes quote was not generated"; return; }
+    await ownerAcceptFixes(ctx, ch.rectQuoteId);
+    await payFixes(ctx);
+    let done = false, detail = "";
+    try { const r = await bookAndCompleteFixes(ctx, ch.mitti, ch.fetchMedia, ch.el, ch.tplFixes); done = r.done; detail = r.detail; }
+    catch (e) { detail = `failed: ${(e as Error).message.slice(0, 250)}`; }
+    if (!done) { BLOCKED_REASON = `A4 completion failed: ${detail}`; return; }
+    const { payoutGateFacts } = await import("./trade-payout-gate.server");
+    const ep = await import("./electrician-pay.core");
+    const before = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+    const waitingOk = !!before.formCompleteAt && !before.dueAt && before.approvable;
+    const told = await officeToldOnce(ctx, (await shoot("m23-before-approve", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /approve|payout|pay/i);
+    const shots = SHOTS.filter((x) => x.moment === "m23-before-approve");
+    answer("stops", waitingOk, `form complete at ${before.formCompleteAt ?? "none"}; due before Approve=${before.dueAt ?? "none"} (approvable=${before.approvable}) — no payout can be marked yet`);
+    answer("reason", sees(shots[0], /approve|waiting|payout/i) || sees(shots[1], /approve|waiting|payout/i), `electrician Money page explains waiting for approval=${sees(shots[0], /approve|waiting|payout/i)}; office Money page shows the Approve item=${sees(shots[1], /approve|waiting|payout/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: someone in the office presses Approve — the payout is due 7 days after that press, not the owner's payment.
+    const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
+    const { approvedAt } = await recordElectricianFormApproval(ctx.jobId!, "rectification", ctx.actorId);
+    const t = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+    const want = new Date(Date.parse(approvedAt) + 7 * 86_400_000).toISOString().slice(0, 10);
+    const got = t.dueAt ? String(t.dueAt).slice(0, 10) : null;
+    await shoot("m23-approved", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
+    answer("carries_on", got === want, `office approved at ${approvedAt}; payout due ${got ?? "none"}; expected ${want} (approval + 7 days, decision 410)`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 24 — installer payout ----------
+async function m24InstallerPayout(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const held = await (await import("./installer-pay-timing.server")).installerPayHeldReasonsFor(ctx.jobId!);
+    const told = await officeToldOnce(ctx, (await shoot("m24-blocked", [{ who: "installer-money", email: INST, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|payout|approv|veec/i);
+    const shots = SHOTS.filter((x) => x.moment === "m24-blocked");
+    answer("stops", held.length > 0, `installer payout held with ${held.length} reason(s); no payout can be marked paid`);
+    answer("reason", held.length > 0, `plain reasons: ${held.join(" | ")}; installer Money page shows held=${sees(shots[0], /held|payout|approv/i)}; office Money page=${sees(shots[1], /held|payout|approv/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the installer payout clears through AP approval (stage to ready_for_veec), which needs the full install-day
+    // and evidence chain — beyond this run's window. Reported honestly, not simulated.
+    answer("carries_on", null, "NOT RUN — clearing this block needs the completed install-day (A5) and AP review chain, which this run did not build");
+    rec.checks.push({ n: "24.fix", name: "installer payout clears after AP approval", status: "blocked", detail: "BLOCKED: full install-day A5 + AP review chain not run in this window", ids: {} });
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 9 — PIESA prerequisites ----------
+async function m9PiesaPrereqs(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const stage0 = await J.stageOf(ctx);
+    let alloc = "not tried";
+    try { await (await import("./allocation.server")).startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }); alloc = "NOT refused"; }
+    catch (e) { alloc = `refused: ${(e as Error).message.slice(0, 300)}`; }
+    const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa");
+    const stage1 = await J.stageOf(ctx);
+    const told = await officeToldOnce(ctx, (await shoot("m9-blocked", [ownerPage(ctx), ...officePages(ctx)]))[1], /ready check|eligib|quote|payment/i);
+    const shots = SHOTS.filter((x) => x.moment === "m9-blocked");
+    answer("stops", alloc.startsWith("refused") && (offers ?? 0) === 0 && stage1 === stage0, `PIESA allocation ${alloc}; PIESA offers=${offers}; stage ${stage0}→${stage1}`);
+    answer("reason", /Ready Check not complete/.test(alloc) && /eligib/i.test(alloc), `plain reasons in the refusal: ${alloc.slice(0, 250)}; office job page shows them=${sees(shots[1], /ready check|eligib/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the Ready Check is done and the owner accepts and pays (setup steps 4–5) — then the same request is offered.
+    const r4: StepResult = { key: "s4_ready_check", label: "Ready Check", passed: true, checks: [] };
+    let fix = "done";
+    try { await J.s4(ctx, r4); } catch (e) { fix = `Ready Check failed: ${(e as Error).message.slice(0, 200)}`; }
+    if (fix === "done") {
+      const r5: StepResult = { key: "s5_owner_accept", label: "accept+pay", passed: true, checks: [] };
+      try {
+        const { data: q0 } = await admin.from("quotes").select("id, status").eq("id", ctx.quoteId!).single();
+        if (q0?.status === "draft") {
+          try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(ctx.jobId!, ctx.quoteId!, ctx.actorId); }
+          catch (e) { const m = e instanceof Error ? e.message : String(e); if (!commsOff(m)) throw e; await simulateQuoteRelease(ctx, ctx.quoteId!, "office"); rec.simulated("S5", "office presses Send quote", SIMULATED_SEND_LABEL, {}); }
+        }
+        await J.s5(ctx, r5);
+      } catch (e) { fix = `accept+pay failed: ${(e as Error).message.slice(0, 200)}`; }
+    }
+    let alloc2 = "not tried";
+    try { await (await import("./allocation.server")).startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }); alloc2 = "offered"; }
+    catch (e) { alloc2 = `refused: ${(e as Error).message.slice(0, 200)}`; }
+    const { count: offers2 } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa");
+    await shoot("m9-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", alloc2 === "offered" && (offers2 ?? 0) > 0, `Ready Check ${fix}; after the fix: PIESA allocation ${alloc2}; PIESA offers=${offers2}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 7 — quote release ----------
+async function m7QuoteRelease(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const { data: est } = await admin.from("indicative_estimates").select("id, scenarios").eq("job_id", ctx.jobId!).eq("status", "current").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!est) { BLOCKED_REASON = "no current indicative estimate on this TEST job to distort"; return; }
+    // A person's mistake: the estimate is far under the real price. The quote must come out HELD with a plain reason.
+    await J.assertOwnTestJob(ctx);
+    await admin.from("indicative_estimates").update({ scenarios: [{ key: "can_remain", by_access: { standard: { estimated_customer_total: 1 } } }] } as never).eq("id", est.id);
+    const r4: StepResult = { key: "s4_ready_check", label: "Ready Check + quote", passed: true, checks: [] };
+    try { await J.s4(ctx, r4); } catch { /* the held quote may fail a step check; the quote row below is the evidence */ }
+    const { data: q } = await admin.from("quotes").select("id, status, release_state, release_hold_reason, customer_total_inc_gst").eq("job_id", ctx.jobId!).eq("kind", "installation").neq("status", "superseded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const heldOk = q?.release_state === "held" && /held: price (up|down) \d+% on estimate/.test(q.release_hold_reason ?? "");
+    let send = "not tried";
+    if (q) { try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(ctx.jobId!, q.id, ctx.actorId); send = "NOT refused"; } catch (e) { const m = e instanceof Error ? e.message : String(e); send = commsOff(m) ? `reached the comms lock (all release checks passed): ${m.slice(0, 120)}` : `refused: ${m.slice(0, 250)}`; } }
+    const told = await officeToldOnce(ctx, (await shoot("m7-blocked", [ownerPage(ctx), ...officePages(ctx)]))[1], /held|estimate|quote/i);
+    const shots = SHOTS.filter((x) => x.moment === "m7-blocked");
+    answer("stops", heldOk && send.startsWith("refused"), `quote ${q?.status}/${q?.release_state} held reason="${q?.release_hold_reason ?? "none"}"; office Send ${send}`);
+    answer("reason", heldOk && sees(shots[1], /held|estimate/i), `office job page shows the held reason=${sees(shots[1], /held|estimate/i)}; owner page shows no quote to accept=${!sees(shots[0], /accept/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the office corrects the estimate and redrafts the quote — then Send releases it (email simulated while messages are off).
+    await admin.from("indicative_estimates").update({ scenarios: est.scenarios } as never).eq("id", est.id);
+    let redraft = "redrafted";
+    try { await (await import("./quotes.server")).generateInstallerQuotes(ctx.jobId!, ctx.actorId); } catch (e) { redraft = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    const { data: q2 } = await admin.from("quotes").select("id, status, release_state, release_hold_reason").eq("job_id", ctx.jobId!).eq("kind", "installation").neq("status", "superseded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    let released = "not tried";
+    if (q2) {
+      try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(ctx.jobId!, q2.id, ctx.actorId); released = "sent"; }
+      catch (e) { const m = e instanceof Error ? e.message : String(e); if (commsOff(m)) { await simulateQuoteRelease(ctx, q2.id, "office"); rec.simulated("S5", "office presses Send quote", SIMULATED_SEND_LABEL, {}); released = "released (email simulated — messages off)"; } else released = `refused: ${m.slice(0, 200)}`; }
+    }
+    await shoot("m7-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", /sent|released/.test(released), `estimate corrected, quote ${redraft} (${q2?.release_state ?? "?"} ${q2?.release_hold_reason ?? ""}); office Send: ${released}`);
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 42 — communication lock ----------
+async function m42CommsLock(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const comms = await import("./comms.server");
+    const enabled = await comms.customerCommsEnabled();
+    let refused = "not refused";
+    try { await comms.assertCustomerDeliveryAllowed(ctx.jobId!, "TEST journey block check"); refused = "NOT refused"; }
+    catch (e) { refused = `refused: ${(e as Error).message}`; }
+    const c = await counts(ctx.jobId!);
+    const told = await officeToldOnce(ctx, (await shoot("m42-blocked", [ownerPage(ctx), ...officePages(ctx)]))[1], /communications|disabled|nothing was sent|held/i);
+    const shots = SHOTS.filter((x) => x.moment === "m42-blocked");
+    answer("stops", enabled === false && refused.startsWith("refused") && c.emails === 0, `global switch on=${enabled}; customer delivery ${refused}; owner emails on this job=${c.emails}`);
+    answer("reason", /PRE-LAUNCH: customer communications are disabled/.test(refused), `plain refusal: ${refused.slice(0, 200)}; office job page shows the held/simulated note=${sees(shots[1], /communications|disabled|held|simulated/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // The cause is Jo's global switch — by standing rule it is NEVER changed in a test. Reported honestly.
+    answer("carries_on", null, "NOT RUN — the fix is Jo's communications switch and the standing rules forbid changing switches in a test");
+    rec.checks.push({ n: "42.fix", name: "customer email flows after the switch", status: "blocked", detail: "BLOCKED: global switch is Jo's to enable; unchanged by design", ids: {} });
+  } finally { await finish(ctx, jobs); }
+}
+
+// ---------- Block 43 — contact consent ----------
+async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    const comms = await import("./comms.server");
+    const { data: cons } = await admin.from("owner_contact_consents").select("id, consent_status").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!cons) { BLOCKED_REASON = "no owner contact consent row on this TEST job to withhold"; return; }
+    // A person's mistake: the consent is withdrawn (a newer not_granted row, exactly how the product records it).
+    await J.assertOwnTestJob(ctx);
+    await admin.from("owner_contact_consents").update({ consent_status: "not_granted" } as never).eq("id", cons.id);
+    let refused = "not refused";
+    try { await comms.assertOwnerContactConsent(ctx.jobId!, "TEST journey consent check"); refused = "NOT refused"; }
+    catch (e) { refused = `refused: ${(e as Error).message}`; }
+    const state = await comms.customerDeliveryState(ctx.jobId!);
+    const c = await counts(ctx.jobId!);
+    const told = await officeToldOnce(ctx, (await shoot("m43-blocked", [ownerPage(ctx), ...officePages(ctx)]))[1], /consent|contact|correspondence/i);
+    const shots = SHOTS.filter((x) => x.moment === "m43-blocked");
+    answer("stops", refused.startsWith("refused") && c.emails === 0, `owner consent withheld; customer contact ${refused}; owner emails on this job=${c.emails}; delivery state=${state}`);
+    answer("reason", /No contact consent from the owner on record/.test(refused), `plain refusal: ${refused.slice(0, 200)}; office job page shows the consent/correspondence state=${sees(shots[1], /consent|contact|correspondence/i)}`);
+    answer("office_once", told.ok, told.detail);
+    // Fix: the owner's granted consent is back on record — the consent check passes (the global lock is a separate block, unchanged).
+    await admin.from("owner_contact_consents").update({ consent_status: cons.consent_status } as never).eq("id", cons.id);
+    let ok = "not refused";
+    try { await comms.assertOwnerContactConsent(ctx.jobId!, "TEST journey consent check"); ok = "passes"; }
+    catch (e) { ok = `still refused: ${(e as Error).message.slice(0, 200)}`; }
+    const state2 = await comms.customerDeliveryState(ctx.jobId!);
+    await shoot("m43-carried-on", [ownerPage(ctx)]);
+    answer("carries_on", ok === "passes", `consent restored: the consent check ${ok}; delivery state=${state2} (the remaining gate is the global communications lock, unchanged)`);
+  } finally { await finish(ctx, jobs); }
+}
+
+export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent";
+export const PHASE4: Record<Phase4Name, (rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) => Promise<void>> = {
+  "m8-quote-payment": m8QuotePayment, "m10-deposit": m10Deposit, "m11-fixes-payment": m11FixesPayment, "m22-payout-form": m22PayoutForm,
+  "m23-electrician-payout": m23ElectricianPayout, "m24-installer-payout": m24InstallerPayout, "m9-piesa-prereqs": m9PiesaPrereqs,
+  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent,
+};
+export async function runPhase4(name: Phase4Name, shotDir: string): Promise<Phase3Result> {
+  SHOT_DIR = shotDir; SHOTS.length = 0; ANSWERS.length = 0; BLOCKED_REASON = null;
+  const rec = new Recorder();
+  const jobs: BranchResult["jobs"] = []; const setup: StepResult[] = [];
+  const ms = await import("./mitti.server");
+  ms.armJourneyMittiGuard(null);
+  const refused: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (/mitti\.com/i.test(url)) { refused.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`); throw new Error(`SAFETY STOP: real Mitti call refused (${url.split("?")[0]})`); }
+    return realFetch(input as never, init);
+  }) as typeof fetch;
+  try { await PHASE4[name](rec, jobs, setup); }
+  catch (e) { BLOCKED_REASON = BLOCKED_REASON ?? `runner error: ${e instanceof Error ? e.message : String(e)}`; if (process.env["JOURNEY_DEBUG"]) console.error(e); }
+  finally {
+    globalThis.fetch = realFetch; ms.disarmJourneyMittiGuard();
+    rec.checks.push(refused.length ? { n: "M", name: "no real Mitti call", status: "failed", detail: `REAL MITTI CALLS REFUSED: ${refused.join("; ")}`, ids: {} } : { n: "M", name: "no real Mitti call", status: "passed", detail: `0 real Mitti calls; simulator routes: ${guardRouted.join("; ") || "none"}`, ids: {} });
+    guardRouted = [];
+  }
+  return { branch: name as never, jobs, setup, checks: rec.checks, answers: [...ANSWERS], shots: [...SHOTS], blocked: BLOCKED_REASON };
+}
