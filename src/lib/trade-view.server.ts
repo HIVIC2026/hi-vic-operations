@@ -893,7 +893,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
     price: { entered: j?.channel === "installer_sourced" ? !!(await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null)) : null },
     boss: c.boss,
-    quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
+    quote: quote.applies ? { line: installerQuoteLine(quote), electricianNotOnboarded: quote.electricianNotOnboarded, sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },

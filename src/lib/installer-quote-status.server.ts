@@ -3,22 +3,34 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { isReadyCheckQuote, type InstallerQuoteFacts } from "./installer-quote-status.core";
-import { isNotOnboardedReason } from "./rec-onboarded.core";
+import { notOnboardedNameFromReason } from "./rec-onboarded.core";
 
+type NotOnboarded = { name: string } | null;
+const named = (name: string | null | undefined): NotOnboarded => { const n = (name ?? "").trim(); return n ? { name: n } : null; };
 /** Decision 303: the hold reason on an unsent draft names an electrician who is not an approved REC yet. */
-const notOnboardedHold = (q: { sent_at: string | null; status: string; release_hold_reason: string | null }) =>
-  !q.sent_at && q.status === "draft" && (q.release_hold_reason ?? "").split(" · ").some((r) => isNotOnboardedReason(r));
-/** Jo 27 Oct 2026 (HV-3129): with no quote (the not-onboarded hold drafts none) the flag comes from the latest
- *  `installer_quote_held` event's `electrician_not_onboarded` details. */
-const heldNotOnboarded = (details: unknown) => !!(details as { electrician_not_onboarded?: unknown } | null)?.electrician_not_onboarded;
-/** No quote yet, but the latest hold says the electrician must finish onboarding: the installer sees that line. */
-const NOT_ONBOARDED_NO_QUOTE = (channel: string | null, formCompleted: boolean): InstallerQuote => ({ applies: true, quote: null, channel, sent: false, accepted: false, declined: false, held: false, electricianNotOnboarded: true, formCompleted });
+const notOnboardedHold = (q: { sent_at: string | null; status: string; release_hold_reason: string | null }): NotOnboarded => {
+  if (q.sent_at || q.status !== "draft") return null;
+  for (const r of (q.release_hold_reason ?? "").split(" · ")) { const n = named(notOnboardedNameFromReason(r)); if (n) return n; }
+  return null;
+};
+/** Jo 27 Oct 2026 (HV-3129): with no quote (the not-onboarded hold drafts none) the electrician comes from the latest
+ *  `installer_quote_held` event's `electrician_not_onboarded` details (its name; else the hold reason in its blockers). */
+const heldNotOnboarded = (details: unknown): NotOnboarded => {
+  const d = details as { electrician_not_onboarded?: { name?: unknown } | null; blockers?: unknown } | null;
+  if (!d?.electrician_not_onboarded) return null;
+  const n = named(typeof d.electrician_not_onboarded.name === "string" ? d.electrician_not_onboarded.name : null);
+  if (n) return n;
+  for (const b of Array.isArray(d.blockers) ? d.blockers : []) { const m = named(notOnboardedNameFromReason(typeof b === "string" ? b : null)); if (m) return m; }
+  return null;
+};
+/** No quote yet, but the latest hold says the electrician must finish onboarding: the installer sees that note. */
+const NOT_ONBOARDED_NO_QUOTE = (channel: string | null, formCompleted: boolean, electrician: { name: string }): InstallerQuote => ({ applies: true, quote: null, channel, sent: false, accepted: false, declined: false, held: false, electricianNotOnboarded: electrician, formCompleted });
 
 const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
 
-export type InstallerQuote = InstallerQuoteFacts & { applies: boolean; quote: any | null; channel: string | null };
+export type InstallerQuote = InstallerQuoteFacts & { applies: boolean; quote: any | null; channel: string | null; electricianNotOnboarded: { name: string } | null };
 
-const NONE = (channel: string | null): InstallerQuote => ({ applies: false, quote: null, channel, sent: false, accepted: false, declined: false, held: false, formCompleted: false });
+const NONE = (channel: string | null): InstallerQuote => ({ applies: false, quote: null, channel, sent: false, accepted: false, declined: false, held: false, electricianNotOnboarded: null, formCompleted: false });
 
 /** Latest Ready Check installation quote on the job (draft, sent, accepted or declined) and its plain status. */
 export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote> {
@@ -34,7 +46,8 @@ export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote>
   if (!q) {
     const { data: lastHeld, error: le } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_held").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (le) throw new WorkflowError("Quote hold could not be checked.");
-    return heldNotOnboarded(lastHeld?.details) ? NOT_ONBOARDED_NO_QUOTE(channel, (basics?.details as { completed?: boolean } | null)?.completed === true) : NONE(channel);
+    const electrician = heldNotOnboarded(lastHeld?.details);
+    return electrician ? NOT_ONBOARDED_NO_QUOTE(channel, (basics?.details as { completed?: boolean } | null)?.completed === true, electrician) : NONE(channel);
   }
   if (!isReadyCheckQuote(q.option_code, m)) return NONE(channel);
   const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
@@ -91,7 +104,7 @@ export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string,
   for (const id of ids) {
     const channel = channelOf.get(id) ?? null;
     const q = latestQuote.get(id) ?? null;
-    if (!q) { out.set(id, heldNotOnboarded(latestHeld.get(id)) ? NOT_ONBOARDED_NO_QUOTE(channel, latestBasics.get(id)?.completed === true) : NONE(channel)); continue; }
+    if (!q) { const electrician = heldNotOnboarded(latestHeld.get(id)); out.set(id, electrician ? NOT_ONBOARDED_NO_QUOTE(channel, latestBasics.get(id)?.completed === true, electrician) : NONE(channel)); continue; }
     if (!isReadyCheckQuote(q.option_code, measurement.get(id) ?? null)) { out.set(id, NONE(channel)); continue; }
     const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
     out.set(id, {

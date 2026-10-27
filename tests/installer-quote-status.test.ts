@@ -2,6 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PRESS_COMPLETE_LINE, QUOTE_HELD_LINE, installerQuoteLine, isReadyCheckQuote } from "../src/lib/installer-quote-status.core";
+import { installerNotOnboardedNote, notOnboardedReason } from "../src/lib/rec-onboarded.core";
 
 const f = { sent: false, accepted: false, declined: false, held: false };
 
@@ -27,6 +28,24 @@ describe("installer quote status line", () => {
     expect(isReadyCheckQuote("OTHER", { external_source: "mitti", external_id: "audit_1" })).toBe(true);
     expect(isReadyCheckQuote("OTHER", { external_source: "mitti", external_id: null })).toBe(false);
     expect(isReadyCheckQuote(null, null)).toBe(false);
+  });
+});
+
+// Jo 28 Oct 2026 (spec rule 3): the installer's note names the electrician who hasn't finished signing up.
+describe("electrician not onboarded note", () => {
+  const NOTE = "We can't send the owner's quote yet. TEST Sparky hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead.";
+  test("the exact note with the name filled in", () => {
+    expect(installerNotOnboardedNote("TEST Sparky")).toBe(NOTE);
+  });
+  test("the status line is the note while the electrician isn't onboarded, sent/accepted/declined still win", () => {
+    const held = { ...f, held: true, electricianNotOnboarded: { name: "TEST Sparky" } };
+    expect(installerQuoteLine(held)).toBe(NOTE);
+    expect(installerQuoteLine({ ...f, electricianNotOnboarded: { name: "TEST Sparky" } })).toBe(NOTE);
+    expect(installerQuoteLine({ ...held, sent: true })).toBe("Waiting on owner: to accept the quote");
+    expect(installerQuoteLine({ ...f, held: true, electricianNotOnboarded: null })).toBe(QUOTE_HELD_LINE);
+  });
+  test("the internal hold reason is unchanged", () => {
+    expect(notOnboardedReason("TEST Sparky")).toBe("Electrician not onboarded: TEST Sparky");
   });
 });
 

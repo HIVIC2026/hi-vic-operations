@@ -18,8 +18,15 @@ export const REC_ONBOARDING_INVITE_LABEL = "electrician_invite";
 /** The hold reason exactly as it appears on the quote, the Needs me row and the office job page. */
 export const notOnboardedReason = (name: string) => `Electrician not onboarded: ${name}`;
 export const isNotOnboardedReason = (reason: string | null | undefined) => /^Electrician not onboarded: /.test(reason ?? "");
-/** Installer job page line while the quote is held for this reason (decision 303). */
-export const INSTALLER_NOT_ONBOARDED_LINE = "Your electrician needs to finish onboarding before the quote goes out";
+/** Jo 28 Oct 2026 (spec rule 3): the installer's note while the quote is held for this reason (decision 303). Installer
+ *  wording only; the internal hold reason stays `notOnboardedReason(name)`. */
+export const installerNotOnboardedNote = (name: string) => `We can't send the owner's quote yet. ${name} hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead.`;
+/** The electrician named in a "Electrician not onboarded: <name>" hold reason, or null. */
+export const notOnboardedNameFromReason = (reason: string | null | undefined): string | null => {
+  if (!isNotOnboardedReason(reason)) return null;
+  const name = (reason ?? "").replace(/^Electrician not onboarded: /, "").trim();
+  return name || null;
+};
 /** Office Needs me row for the same hold. */
 export const needsMeNotOnboardedLine = (name: string) => `Quote held · ${notOnboardedReason(name)} · onboarding invite sent to the electrician once`;
 

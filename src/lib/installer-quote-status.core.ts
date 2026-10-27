@@ -2,6 +2,7 @@
 // (A2, R5/R6/R7_BATTS) alike. The installer presses Complete in the Mitti Ready Check, the quote is prepared
 // automatically and the office presses Send. Old installer quote approval events stay as history and are no
 // longer read or written. Pure presentation only — never a send, release or readiness decision.
+import { installerNotOnboardedNote } from "./rec-onboarded.core";
 
 export const INSTALLER_A1_CODE = "INSTALLER_A1";
 export const A2_RATE_CARD_CODES = ["R5_BATTS", "R6_BATTS", "R7_BATTS"] as const;
@@ -20,14 +21,13 @@ export const QUOTE_DECLINED_LINE = "Waiting on office: the owner declined the qu
 export const QUOTE_ACCEPTED_LINE = "Waiting on owner: quote accepted – waiting for owner's payment";
 export const QUOTE_SENT_LINE = "Waiting on owner: to accept the quote";
 
-/** Decision 303: the quote is held because the installer's electrician is not an approved REC yet. */
-export const QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE = "Your electrician needs to finish onboarding before the quote goes out";
 
 export type InstallerQuoteFacts = {
   sent: boolean; accepted: boolean; declined: boolean;
   /** A check held the quote for the office (quote_auto_send_held for this quote). */ held: boolean;
   /** The installer has marked the Mitti Ready Check Complete (latest ready_check_basics). */ formCompleted?: boolean;
-  /** Decision 303: held "Electrician not onboarded: <name>" (quote hold reason / latest installer_quote_held). */ electricianNotOnboarded?: boolean;
+  /** Decision 303: held "Electrician not onboarded: <name>" (quote hold reason / latest installer_quote_held); the
+   *  electrician's name, or null. */ electricianNotOnboarded?: { name: string } | null;
 };
 
 /** One line for the installer's job card: prepared / held / sent / accepted / declined. No approve step. */
@@ -35,7 +35,8 @@ export function installerQuoteLine(f: InstallerQuoteFacts): string {
   if (f.declined) return QUOTE_DECLINED_LINE;
   if (f.accepted) return QUOTE_ACCEPTED_LINE;
   if (f.sent) return QUOTE_SENT_LINE;
-  if (f.electricianNotOnboarded) return QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE;
+  // Jo 28 Oct 2026 (spec rule 3): the named note while the electrician hasn't finished signing up.
+  if (f.electricianNotOnboarded) return installerNotOnboardedNote(f.electricianNotOnboarded.name);
   if (f.held || f.formCompleted) return QUOTE_HELD_LINE;
   return PRESS_COMPLETE_LINE;
 }

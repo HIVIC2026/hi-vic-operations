@@ -44,12 +44,16 @@ mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
-// No approved RECs on this practice database (the shim can't run the live `cs` filter): "TEST Sparky" is not onboarded.
-mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => [] }));
+// No approved RECs on this practice database by default (the shim can't run the live `cs` filter): "TEST Sparky" is not
+// onboarded. A test can put an approved "TEST Sparky" REC in the list to model them finishing onboarding.
+let approvedRecs: unknown[] = [];
+mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => approvedRecs }));
 mock.module("../src/lib/usual-electrician-reminder.server", () => ({ maybeRemindUsualElectrician: async () => { sent.push("reminder"); } }));
 const { draftInstallerQuoteFromReadyCheck, INSTALLER_QUOTE_CODE, heldDraftHoldReason } = await import("../src/lib/installer-quote.server");
 const { QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE } = await import("../src/lib/quote-edit-replaced.core");
 
+/** Jo 28 Oct 2026 (spec rule 3): the exact installer note for "TEST Sparky". */
+const NOTE = "We can't send the owner's quote yet. TEST Sparky hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead.";
 const JOB = "00000000-0000-0000-0000-000000003129", BIZ = "00000000-0000-0000-0000-00000000b129", U = "00000000-0000-0000-0000-00000000c129";
 const form = (product: string | null) => [
   { label: "Homeowner agrees to be contacted by Home Insulation Victoria", value: "Yes" },
@@ -70,6 +74,7 @@ async function oldDraft(status = "draft", sentAt: string | null = null) {
 
 beforeEach(async () => {
   sent.length = 0;
+  approvedRecs = [];
   await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from quotes; delete from quote_items; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings; delete from admin_config_events;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, electrician_choice, properties) values ($1,'installer_sourced',$2,'hivic_organise','{\"postcode\":\"3000\"}')", [JOB, BIZ]);
   await db.query("insert into ceiling_measurements (job_id, is_current, measured_area_m2, removal_required) values ($1,true,120,false)", [JOB]);
@@ -186,22 +191,23 @@ describe("held, rebate can't be worked out", () => {
 // Review fix (27 Oct 2026): with the not-known branch there is no draft, so the installer's status must take the
 // not-onboarded flag from the latest installer_quote_held event — never the generic line.
 describe("installer status with no draft (HV-3129 shape)", () => {
-  test("electrician not onboarded, no draft → 'Your electrician needs to finish onboarding'", async () => {
+  test("electrician not onboarded, no draft → the named not-signed-up note", async () => {
     await notOnboardedElectrician();
     await oldDraft();
     await setCardPrice(2500);
     await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
     expect((await quotes()).filter((q) => q.status === "draft")).toEqual([]);
     const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
-    const { installerQuoteLine, QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE } = await import("../src/lib/installer-quote-status.core");
+    const { installerQuoteLine } = await import("../src/lib/installer-quote-status.core");
     const one = await loadInstallerQuote(JOB);
     expect(one.quote).toBeNull();
     expect(one.applies).toBe(true);
-    expect(installerQuoteLine(one)).toBe(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE);
+    expect(installerQuoteLine(one)).toBe(NOTE);
     const many = (await loadInstallerQuotes([JOB])).get(JOB)!;
     expect(many.quote).toBeNull();
     expect(many.applies).toBe(true);
-    expect(installerQuoteLine(many)).toBe(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE);
+    expect(many.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+    expect(installerQuoteLine(many)).toBe(NOTE);
   });
   test("the preview never reads a superseded draft: after a rebuild it shows the new draft; with only a superseded one it shows nothing", async () => {
     const { loadInstallerQuote } = await import("../src/lib/installer-quote-status.server");
@@ -219,7 +225,9 @@ describe("installer status with no draft (HV-3129 shape)", () => {
   test("no draft and no not-onboarded hold → still nothing to show", async () => {
     const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
     expect((await loadInstallerQuote(JOB)).applies).toBe(false);
+    expect((await loadInstallerQuote(JOB)).electricianNotOnboarded).toBeNull();
     expect((await loadInstallerQuotes([JOB])).get(JOB)!.applies).toBe(false);
+    expect((await loadInstallerQuotes([JOB])).get(JOB)!.electricianNotOnboarded).toBeNull();
   });
 });
 
@@ -331,5 +339,91 @@ describe("office-edited draft replaced by the installer's price", () => {
     await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_plain");
     expect((await quotes()).find((q) => q.id === old)?.status).toBe("superseded");
     expect(await alerts()).toHaveLength(0);
+  });
+});
+
+// Jo 28 Oct 2026 (spec rule 3): an existing job whose electrician isn't onboarded (HV-3129), or is no longer approved.
+// The old draft is removed, no owner preview is shown, and the installer sees the named note. Once the electrician
+// finishes onboarding, the next rebuild makes the quote at their agreed rate.
+describe("not-onboarded electrician on an existing job (rule 3)", () => {
+  /** "TEST Sparky" as an approved REC with an agreed PIESA rate of $300. */
+  const approveSparky = () => { approvedRecs = [{ business_id: "00000000-0000-0000-0000-00000000d129", name: "TEST Sparky", trading_name: null, rec_number: null, worker_licences: ["TEST-LIC-3129"], blocker: null, onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "00000000-0000-0000-0000-00000000e129", rate_inc_gst: 300 } }]; };
+  /** Old forms could name "a different electrician"; Add a job now records only usual / ours. */
+  const differentForm = (product: string | null) => [...form(product),
+    { label: "Who is doing the electrical safety check?", value: "A different electrician" },
+    { label: "Electrician name", value: "TEST Sparky" },
+    { label: "Electrician licence number", value: "TEST-LIC-3129" },
+    { label: "Electrician price (inc GST)", value: "280" }];
+  const status = async () => {
+    const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
+    const { installerQuoteLine } = await import("../src/lib/installer-quote-status.core");
+    const one = await loadInstallerQuote(JOB);
+    const many = (await loadInstallerQuotes([JOB])).get(JOB)!;
+    return { one, many, line: installerQuoteLine(one), manyLine: installerQuoteLine(many) };
+  };
+  const piesaLine = async (qid: string) => Number((await db.query<{ line_total_inc_gst: string }>("select line_total_inc_gst from quote_items where quote_id=$1 and code='PIESA'", [qid])).rows[0]?.line_total_inc_gst);
+
+  for (const [label, setup, entries] of [
+    ["usual", notOnboardedElectrician, form("Bradford Gold R5")],
+    ["different", async () => {}, differentForm("Bradford Gold R5")],
+  ] as const) {
+    test(`HV-3129 shape, choice ${label}: old $4,201.25 draft superseded, no new draft, named note`, async () => {
+      await setup();
+      const old = await oldDraft();
+      await setCardPrice(2500);
+      await draftInstallerQuoteFromReadyCheck(JOB, U, [...entries], "audit_3129");
+      const all = await quotes();
+      expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+      expect(all.filter((q) => q.status === "draft")).toEqual([]);
+      const s = await status();
+      expect(s.one.quote).toBeNull();
+      expect(s.one.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+      expect(s.many.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+      expect(s.line).toBe(NOTE);
+      expect(s.manyLine).toBe(NOTE);
+      expect(all.every((q) => q.sent_at === null)).toBe(true);
+    });
+  }
+
+  test("approved electrician who is no longer approved, on an open job → same result", async () => {
+    await notOnboardedElectrician();
+    approveSparky();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    const [first] = (await quotes()).filter((q) => q.status === "draft");
+    expect(first).toBeDefined();
+    expect(await piesaLine(first!.id)).toBe(300);
+    expect((await status()).one.electricianNotOnboarded).toBeNull();
+
+    approvedRecs = [];
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    const all = await quotes();
+    expect(all.find((q) => q.id === first!.id)?.status).toBe("superseded");
+    expect(all.filter((q) => q.status === "draft")).toEqual([]);
+    const s = await status();
+    expect(s.one.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+    expect(s.many.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+    expect(s.line).toBe(NOTE);
+  });
+
+  test("electrician finishes onboarding at $300 → next rebuild makes a held draft with a $300 PIESA line, note gone", async () => {
+    await notOnboardedElectrician();
+    await oldDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    expect((await status()).one.electricianNotOnboarded).toEqual({ name: "TEST Sparky" });
+
+    approveSparky();
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("Bradford Gold R5"), "audit_3129");
+    const drafts = (await quotes()).filter((q) => q.status === "draft");
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.release_state).toBe("held");
+    expect(drafts[0]!.sent_at).toBeNull();
+    expect(await piesaLine(drafts[0]!.id)).toBe(300);
+    expect(await installerLine(drafts[0]!.id)).toBe(2500);
+    const s = await status();
+    expect(s.one.electricianNotOnboarded).toBeNull();
+    expect(s.many.electricianNotOnboarded).toBeNull();
+    expect(s.line).not.toBe(NOTE);
   });
 });

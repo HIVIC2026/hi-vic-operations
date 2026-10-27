@@ -10,10 +10,10 @@ import { stepsLine } from "../src/lib/office-money.core";
 import { P2, centsAud, shortAud } from "../src/lib/owner-pages.core";
 import { safetyCheckPriceFromLines } from "../src/lib/owner-quote-email.core";
 import { installerJobSummary } from "../src/lib/installer-job-summary.core";
-import { QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE, QUOTE_HELD_LINE, installerQuoteLine } from "../src/lib/installer-quote-status.core";
+import { QUOTE_HELD_LINE, installerQuoteLine } from "../src/lib/installer-quote-status.core";
 import { MITTI_HIV_ELECTRICIAN_INC_GST, resolveMittiElectrician, usualElectrician, type MittiElectricianResolution } from "../src/lib/usual-electrician.core";
 import {
-  INSTALLER_NOT_ONBOARDED_LINE, INVITE_SKIP_TEXT, approvedRecBlocker, approvedRecFor, electricianInviteKey, heldQuoteNextSweep, isNotOnboardedReason,
+  INVITE_SKIP_TEXT, installerNotOnboardedNote, approvedRecBlocker, approvedRecFor, electricianInviteKey, heldQuoteNextSweep, isNotOnboardedReason,
   needsMeNotOnboardedLine, notOnboardedReason, onboardedElectricianResolution, recInviteDecision, type ApprovedRecCandidate,
 } from "../src/lib/rec-onboarded.core";
 import { buildMittiInstallerQuote, mittiQuoteElectricalBlocker } from "../src/lib/mitti-installer-quote.core";
@@ -148,9 +148,8 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(r.notOnboarded).toEqual({ name: "Volt Right Electrical", licence: "REC-99001", email: "sparky@example.com" });
     expect(isNotOnboardedReason(r.reasons[0])).toBe(true);
     expect(notOnboardedReason("X")).toBe("Electrician not onboarded: X");
-    expect(INSTALLER_NOT_ONBOARDED_LINE).toBe("Your electrician needs to finish onboarding before the quote goes out");
-    expect(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE).toBe(INSTALLER_NOT_ONBOARDED_LINE);
-    expect(installerQuoteLine({ sent: false, accepted: false, declined: false, held: true, electricianNotOnboarded: true })).toBe(INSTALLER_NOT_ONBOARDED_LINE);
+    expect(installerNotOnboardedNote("ornaldo")).toBe("We can't send the owner's quote yet. ornaldo hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead.");
+    expect(installerQuoteLine({ sent: false, accepted: false, declined: false, held: true, electricianNotOnboarded: { name: "ornaldo" } })).toBe(installerNotOnboardedNote("ornaldo"));
     expect(installerQuoteLine({ sent: false, accepted: false, declined: false, held: true })).toBe(QUOTE_HELD_LINE);
     expect(needsMeNotOnboardedLine("ornaldo")).toBe("Quote held · Electrician not onboarded: ornaldo · onboarding invite sent to the electrician once");
     // Needs me (Quotes to check) reasons from the held event / quote hold reason
