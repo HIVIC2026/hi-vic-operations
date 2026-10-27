@@ -7,7 +7,7 @@ import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { insulationChip } from "./office-filters.core";
 import { selectAgreedRate } from "./allocation.core";
 import { melbourneToday } from "./melbourne-time.core";
-import { coverageLookup, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingPartner } from "./installer-waiting-columns.core";
+import { coverageLookup, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -58,11 +58,29 @@ async function partnerFacts(): Promise<WaitingPartner[]> {
   });
 }
 
+/** Every installer business with the facts the Ready Check offer rule reads — the same loader the pop-up's candidate
+ *  list uses (readycheck-booking.server `installerOfferFacts`), so "Installer ✓" matches what the pop-up can release. */
+async function installerFacts(): Promise<WaitingInstaller[]> {
+  const bizs = await all("installers", (a, b) => admin.from("businesses").select("id, name, is_active, onboarding_status, accepting_new_jobs, receives_hivic_leads, coverage_verified_at, service_postcodes, free_measureups_for_hivic_quote_leads, onboarding_notes").or("business_type.eq.eec_installer,capabilities.cs.{installer}").range(a, b));
+  const ids = bizs.map((b) => ({ ...(b as object), id: String(b["id"]) }));
+  const facts = await (await import("./readycheck-booking.server")).installerOfferFacts(ids);
+  return ids.map((b) => {
+    const r = b as unknown as Row & { id: string };
+    return {
+      id: r.id, name: String(r["name"] ?? ""), is_active: r["is_active"] === true, onboarding_status: String(r["onboarding_status"] ?? ""),
+      accepting_new_jobs: (r["accepting_new_jobs"] ?? null) as boolean | null, receives_hivic_leads: (r["receives_hivic_leads"] ?? null) as boolean | null,
+      coverage_verified_at: s(r["coverage_verified_at"]), service_postcodes: (r["service_postcodes"] ?? null) as string[] | null,
+      free_measureups_for_hivic_quote_leads: (r["free_measureups_for_hivic_quote_leads"] ?? null) as boolean | null, onboarding_notes: s(r["onboarding_notes"]),
+      credentialsOk: facts.credentialsOk(r as never), fullCertifiedInstallers: facts.fullCertified(r.id),
+    };
+  });
+}
+
 export type InstallerWaitingList = { now: number; rows: InstallerWaitingRow[] };
 
 export async function loadInstallerWaitingList(opts: { includeTest: boolean }): Promise<InstallerWaitingList> {
   const now = Date.now();
-  const [jobs, partners] = await Promise.all([
+  const [jobs, partners, installers] = await Promise.all([
     all("waiting jobs", (a, b) => {
       let q = admin.from("jobs").select("id, job_number, stage, source, channel, created_at, estimated_area_m2, deleted_at, qa_archived_at, owners(full_name), properties(suburb, postcode, answers:enrichment->base44->raw->answers)")
         .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
@@ -70,6 +88,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }): 
       return q.order("created_at").order("id").range(a, b);
     }),
     partnerFacts(),
+    installerFacts(),
   ]);
   const ids = jobs.map((j) => String(j["id"]));
   const [assigned, offers, saved, measured, estimates] = ids.length ? await Promise.all([
@@ -88,7 +107,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }): 
   for (const m of measured) { const v = n(m["measured_area_m2"]); if (v != null) measuredBy.set(String(m["job_id"]), v); }
   const websiteTotal = new Map<string, number | null>();
   for (const e of estimates) { const k = String(e["job_id"]); if (!websiteTotal.has(k)) websiteTotal.set(k, savedPriceFromEstimate(e as never)?.total ?? null); }
-  const covered = coverageLookup(partners, new Date(now));
+  const covered = coverageLookup(partners, new Date(now), installers);
   // Decision 389: each job's release state (batched by job id).
   const releases = ids.length ? await (await import("./spot-release.server")).spotReleaseStates(ids) : new Map();
   const { releaseStatusLine, releasable } = await import("./spot-release.core");

@@ -126,7 +126,10 @@ test("electrician coverage: approved REC with an active PIESA rate and an approv
 
 test("TEST partners only count for TEST jobs, and real partners never for TEST jobs", () => {
   const t = { onboarding_notes: "[TEST PARTNER] practice" };
-  const look = coverageLookup([installer(t), rec()], at);
+  // "Installer ✓" now reads the offer rule's installer facts (HV-1509); see tests/choose-installer-agree.test.ts.
+  const offerable = { id: "i1", name: "Acme", is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true,
+    coverage_verified_at: "2026-10-01", service_postcodes: ["3140"], free_measureups_for_hivic_quote_leads: true, credentialsOk: true, fullCertifiedInstallers: 1 };
+  const look = coverageLookup([installer(t), rec()], at, [{ ...offerable, onboarding_notes: t.onboarding_notes }]);
   expect(look("3140", false)).toEqual({ installer: false, electrician: true });
   expect(look("3140", true)).toEqual({ installer: true, electrician: false });
   expect(coverageLookup([], at)("3140", false)).toEqual({ installer: false, electrician: false });

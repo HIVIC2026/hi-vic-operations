@@ -236,7 +236,7 @@ function NeedsMe() {
                 {chooseInstaller.length > 0 && (
                   <Link to={INSTALLER_WAITING_PATH} data-why="decision 378: one link, no duplicated rows (one pile per job)" className="flex min-h-14 items-center gap-3 rounded-[14px] border border-line bg-paper px-4 py-2.5 hover:bg-mist">
                     <span className="grid h-7 min-w-8 shrink-0 place-items-center rounded-full bg-mist px-2 text-sm font-bold text-hiv-blue">{chooseInstaller.length}</span>
-                    <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">Choose installers</span><span className="text-xs text-sub">Spots saved, waiting for an installer · longest {ageLabel(chooseInstaller.reduce((a, r) => (r.since < a ? r.since : a), chooseInstaller[0]!.since), data.now)}</span></span>
+                    <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">Choose installers</span><span className="text-xs text-sub">Spots saved, ready for you to choose (released ones not counted) · longest {ageLabel(chooseInstaller.reduce((a, r) => (r.since < a ? r.since : a), chooseInstaller[0]!.since), data.now)}</span></span>
                     <span aria-hidden className="text-lg text-sub">›</span>
                   </Link>
                 )}
