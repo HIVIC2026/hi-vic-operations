@@ -17,7 +17,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -60,6 +60,8 @@ export type NeedsFacts = {
   fixesOwnerUnsigned?: { at: string; fixesDate: string | null } | null;
   /** Decision 315: the electrician was texted the fixes-times link 24h+ ago and has not given the times (fixes-times.core). */
   fixesTimesMissing?: { at: string } | null;
+  /** Hard stop (missing/conflicting eligibility evidence): the current verified-eligibility result is "needs review". */
+  eligibilityReview?: { at: string; reason: string | null } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
@@ -120,6 +122,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const soon = closes - now <= 48 * HOUR;
     add({ rank: soon ? 35 : 115, group: soon ? "today" : "week", kind: "esc_window", line: `ESC notice window closes ${fmtWhen(f.escWindow.closesAt)}`, since: f.escWindow.opensAt ?? f.escWindow.closesAt, button: { label: "Open Registry block", to: "job", section: "install" } });
   }
+  if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
@@ -190,3 +193,9 @@ export function ageLabel(since: string, now: number): string {
 
 /** Partner & system fold (decision 221): one fold line; each item one line with one button. */
 export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string };
+
+/** Phase 3 path 1 (27 Oct): a "needs review" eligibility result is office work, never "nothing to do". */
+export function eligibilityReviewLine(reason: string | null): string {
+  const r = (reason ?? "").trim();
+  return `Eligibility needs review${r ? ` · ${r.length > 120 ? `${r.slice(0, 117)}…` : r}` : " · Ready Check answers missing or conflicting"}`;
+}

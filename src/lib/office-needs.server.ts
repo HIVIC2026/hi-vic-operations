@@ -268,6 +268,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (fixesConfirmed.has(`${id}:${rec?.piesa_record_id ?? ""}`)) continue;
     if (!x.fixesOwnerUnsigned || String(e["created_at"]) > x.fixesOwnerUnsigned.at) x.fixesOwnerUnsigned = { at: String(e["created_at"]), fixesDate: s(rec?.fixes_date) };
   }
+  // Hard stop: current eligibility result "needs review" (missing/conflicting evidence) → one row until a new result replaces it.
+  try {
+    const elig = await all("eligibility reviews", (a, b) => scoped((admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("eligibility_verifications").select("job_id, created_at, reason, note")).eq("is_current", true).eq("outcome", "needs_review").range(a, b));
+    for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
+  } catch { unavailable.push("eligibility reviews"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
