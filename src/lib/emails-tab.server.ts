@@ -14,9 +14,9 @@ import { WorkflowError } from "./workflow.server";
 import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, aiSendQuietReason, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
-import { NEW_SENDER_REPLIED_EVENT } from "./new-sender-reply.core";
+import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
 import {
-  NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
+  NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
   missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
@@ -39,28 +39,39 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const ids = [...new Set([...changes, ...unmatched].map((r) => r.messageId).filter((x): x is string => !!x))];
   const jobIds = [...new Set(changes.map((c) => c.jobId))];
   const senders = [...new Set(unmatched.map((u) => (u.from ?? "").trim().toLowerCase()).filter(Boolean))];
-  const none = Promise.resolve({ data: [] as unknown[], error: null });
-  const [drafts, done, inbound, owners, replied] = await Promise.all([
-    ids.length ? loose.from("workflow_events").select("id, created_at, details").in("event_type", [AI_EMAIL_DRAFT_EVENT, NO_JOB_DRAFT_EVENT]).in("details->>message_id", ids).order("created_at", { ascending: false }) : none,
-    ids.length ? loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT]).order("created_at", { ascending: false }).limit(2000) : none,
-    ids.length ? admin.from("job_communications").select("provider_message_id, body").eq("channel", "email").eq("direction", "inbound").in("provider_message_id", ids) : none,
-    jobIds.length ? admin.from("jobs").select("id, owners(full_name)").in("id", jobIds) : none,
-    senders.length ? loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).in("details->>from", senders) : none,
+  // Review fix 7: every `.in(...)` list is split so the request URL stays short.
+  const many = async <T,>(xs: string[], q: (part: string[]) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> => {
+    const out: T[] = [];
+    for (const part of chunks(xs)) { const r = await q(part); if (r.error) throw new Error(`Emails unavailable: ${r.error.message}`); out.push(...((r.data ?? []) as T[])); }
+    return out;
+  };
+  const [drafts, inbound, owners, replied] = await Promise.all([
+    many<{ id: string; job_id: string | null; event_type: string; details: Det }>(ids, (part) => loose.from("workflow_events").select("id, job_id, event_type, details").in("event_type", [AI_EMAIL_DRAFT_EVENT, NO_JOB_DRAFT_EVENT]).in("details->>message_id", part).order("created_at", { ascending: false })),
+    many<{ provider_message_id: string | null; body: string | null }>(ids, (part) => admin.from("job_communications").select("provider_message_id, body").eq("channel", "email").eq("direction", "inbound").in("provider_message_id", part)),
+    many<{ id: string; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, owners(full_name)").in("id", part)),
+    many<{ details: { from?: string; mode?: string } | null }>(senders, (part) => loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).in("details->>from", part)),
   ]);
-  const err = drafts.error ?? done.error ?? inbound.error ?? owners.error ?? replied.error;
-  if (err) throw new Error(`Emails unavailable: ${(err as { message: string }).message}`);
-  const closed = new Set(((done.data ?? []) as { details: { draft_event_id?: string } | null }[]).map((r) => r.details?.draft_event_id).filter(Boolean));
-  const draftsByMessage = new Map<string, DraftRef>();
-  for (const r of (drafts.data ?? []) as { id: string; details: Det }[]) {
+  // Review fix 6: resolutions are looked up for exactly these drafts, not the newest N across all jobs.
+  const done = await many<{ details: { draft_event_id?: string } | null }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT, NO_JOB_DRAFT_CLOSED_EVENT]).in("details->>draft_event_id", part));
+  const closed = new Set(done.map((r) => r.details?.draft_event_id).filter(Boolean));
+  // Review fix 1: job drafts by job + message, no-job drafts by message — never mixed.
+  const jobDrafts = new Map<string, DraftRef>(), noJobDrafts = new Map<string, DraftRef>(), closedJobDrafts = new Set<string>();
+  for (const r of drafts) {
     const mid = str(r.details["message_id"]);
-    if (mid && !closed.has(r.id) && !draftsByMessage.has(mid)) draftsByMessage.set(mid, { eventId: r.id, body: String(r.details["body"] ?? "") });
+    if (!mid) continue;
+    const ref = { eventId: r.id, body: String(r.details["body"] ?? "") };
+    if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
+      const k = jobDraftKey(r.job_id, mid);
+      if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
+    } else if (r.event_type === NO_JOB_DRAFT_EVENT && !closed.has(r.id) && !noJobDrafts.has(mid)) noJobDrafts.set(mid, ref);
   }
+  for (const k of jobDrafts.keys()) closedJobDrafts.delete(k);
   const inboundByMessage = new Map<string, string>();
-  for (const r of (inbound.data ?? []) as { provider_message_id: string | null; body: string | null }[]) if (r.provider_message_id && r.body) inboundByMessage.set(r.provider_message_id, r.body.slice(0, 1500));
+  for (const r of inbound) if (r.provider_message_id && r.body) inboundByMessage.set(r.provider_message_id, r.body.slice(0, 1500));
   const ownerNameByJob = new Map<string, string | null>();
-  for (const r of (owners.data ?? []) as { id: string; owners: { full_name: string | null } | null }[]) ownerNameByJob.set(r.id, r.owners?.full_name ?? null);
-  const autoRepliedSenders = new Set(((replied.data ?? []) as { details: { from?: string; mode?: string } | null }[]).filter((r) => r.details?.mode !== "test").map((r) => (r.details?.from ?? "").toLowerCase()));
-  return buildEmailsTab({ changes, unmatched, draftsByMessage, inboundByMessage, ownerNameByJob, autoRepliedSenders });
+  for (const r of owners) ownerNameByJob.set(r.id, r.owners?.full_name ?? null);
+  const autoRepliedSenders = new Set(replied.filter((r) => r.details?.mode !== "test").map((r) => (r.details?.from ?? "").toLowerCase()));
+  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders });
 }
 
 async function eventOf(id: string, type: string) {
@@ -143,6 +154,14 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   const { testRecipientBoundary } = await import("./comms-test-recipient.core");
   const boundary = testRecipientBoundary(to, null);
   if (boundary.status === "blocked") throw new WorkflowError(boundary.reason);
+  // Review fixes 4–5: one website reply per person, ever — the same claim the automatic new-sender reply uses (unique
+  // index on its key), written BEFORE the send, so a double tap, a second email from them, or the automatic reply can
+  // never send twice. A refused send keeps the claim (as the automatic reply does); the office replies from Outlook.
+  const { error: claimErr } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NEW_SENDER_REPLIED_EVENT, internal: true,
+    summary: `Website reply (office, Emails tab) to ${to}`,
+    details: { mode: "live", from: to, template: `${NEW_SENDER_REPLY_TEMPLATE}-office`, message_id: str(ev.details["message_id"]), draft_event_id: draft.id, idempotency_key: newSenderReplyKey(to) } });
+  if (claimErr?.code === "23505") throw new WorkflowError("This person has already had a reply with the website link.");
+  if (claimErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
   const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
   const key = `${noJobDraftKey(String(draft.details["message_id"]))}:send:${draft.id}`;
   const K = await import("./email-kit.core");
@@ -150,7 +169,7 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   const text = K.plainText(aiReplyText(body), { unsubscribe: null });
   const { resendSend } = await import("./hot-leads-send.server");
   const d = await resendSend(to, subject, html, text, key, null).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error" }));
-  if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}`);
+  if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
   const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
     summary: `Reply sent to ${to} pointing to the homeowner page (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, idempotency_key: key } });
@@ -168,8 +187,18 @@ export async function matchEmailToJob(unmatchedEventId: string, jobId: string, a
   const r = await matchOutlookEmail(unmatchedEventId, jobId, actorId);
   const mid = str(ev?.details["message_id"]);
   if (ev && mid) {
-    const { data: open } = await loose.from("workflow_events").select("id").eq("event_type", EMAIL_CHANGE_REQUEST_EVENT).eq("job_id", jobId).eq("details->>message_id", mid).limit(1);
-    if (!(open ?? []).length) {
+    // Review fix 1: the homeowner-page draft is no longer used once the email is on a job.
+    const { data: nj } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_DRAFT_EVENT).eq("details->>message_id", mid).limit(5);
+    for (const d of (nj ?? []) as { id: string }[])
+      await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_DRAFT_CLOSED_EVENT, internal: true, summary: "Homeowner-page draft closed: email matched to a job", details: { draft_event_id: d.id, job_id: jobId } })
+        .then(({ error }) => { if (error) console.error("no-job draft not closed", error.message); });
+    // Review fix 2: only the job's OWNER gets a reply row (a reply goes to the owner's address). Anyone else's email
+    // (a manager, family) is just filed on the job, as the normal email sync does.
+    const { data: job } = await admin.from("jobs").select("owners(email)").eq("id", jobId).maybeSingle();
+    const ownerEmail = ((job as { owners?: { email?: string | null } | null } | null)?.owners?.email ?? "").trim().toLowerCase();
+    const fromOwner = !!ownerEmail && (str(ev.details["from"]) ?? "").trim().toLowerCase() === ownerEmail;
+    const { data: open } = fromOwner ? await loose.from("workflow_events").select("id").eq("event_type", EMAIL_CHANGE_REQUEST_EVENT).eq("job_id", jobId).eq("details->>message_id", mid).limit(1) : { data: [1] };
+    if (fromOwner && !(open ?? []).length) {
       const subject = str(ev.details["subject"]);
       const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: EMAIL_CHANGE_REQUEST_EVENT, internal: true,
         summary: "Owner emailed — reply needed (matched on the Emails tab)",
@@ -177,6 +206,7 @@ export async function matchEmailToJob(unmatchedEventId: string, jobId: string, a
           from: str(ev.details["from"]), subject, phrase: subject, received_at: str(ev.details["received_at"]), reason: "matched from the Emails tab" } });
       if (error) console.error("matched email not added to Has a job", error.message);
     }
+    return { ...r, fromOwner };
   }
   return r;
 }

@@ -10,6 +10,8 @@ import { AI_SIGN_OFF, finishAiReply } from "./ai-email-reply.core";
 
 export const NO_JOB_DRAFT_EVENT = "email_nojob_ai_draft";
 export const NO_JOB_REPLY_SENT_EVENT = "email_nojob_reply_sent";
+/** Written when a no-job email is matched to a job: its homeowner-page draft is no longer used. */
+export const NO_JOB_DRAFT_CLOSED_EVENT = "email_nojob_ai_draft_closed";
 export const NO_JOB_REPLY_PURPOSE = "nojob_email_ai_reply";
 /** One no-job draft per Outlook message, ever. */
 export const noJobDraftKey = (messageId: string) => `nojob-email-ai-reply:v1:${messageId}`;
@@ -70,6 +72,8 @@ export type JobEmailCard = {
   key: string; requestEventId: string; jobId: string; jobNumber: string | null; name: string | null; at: string;
   subject: string | null; theyWrote: string | null; intent: string | null; label: string | null;
   draft: DraftRef | null;
+  /** A draft for this email was already sent or discarded on the job page — no new draft is asked for. */
+  draftClosed: boolean;
   /** "Done" for a reply-needed email; "Apply" for a change the office makes on the job (cancel, new contact, files). */
   action: "done" | "apply" | "dealt_with";
 };
@@ -81,11 +85,25 @@ export type EmailsTab = { withJob: JobEmailCard[]; noJob: NoJobCard[]; count: nu
 
 const ACTION: Record<string, JobEmailCard["action"]> = { reply: "done", cancel: "apply", contact_change: "apply", attachment: "apply", reschedule: "dealt_with" };
 
+/** Job drafts are keyed by job AND message, so a job card never picks up another job's or a no-job draft. */
+export const jobDraftKey = (jobId: string, messageId: string) => `${jobId}:${messageId}`;
+
+/** Split a list so `.in(...)` request URLs stay short (Outlook ids are ~150 characters). */
+export function chunks<T>(xs: T[], n = 50): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+}
+
 export function buildEmailsTab(i: {
   changes: JobEmailRow[];
   unmatched: UnmatchedRow[];
-  /** Open AI draft per Outlook message id (job drafts and no-job drafts). */
-  draftsByMessage: Map<string, DraftRef>;
+  /** Open job AI drafts, keyed by jobDraftKey(job, message). */
+  jobDrafts: Map<string, DraftRef>;
+  /** Open no-job AI drafts, keyed by message id. */
+  noJobDrafts: Map<string, DraftRef>;
+  /** Job drafts already sent or discarded, keyed by jobDraftKey(job, message). */
+  closedJobDrafts: Set<string>;
   /** What the owner wrote, per Outlook message id (from the job's email history). */
   inboundByMessage: Map<string, string>;
   ownerNameByJob: Map<string, string | null>;
@@ -95,14 +113,15 @@ export function buildEmailsTab(i: {
   const withJob = [...i.changes].sort((a, b) => b.at.localeCompare(a.at)).map((c): JobEmailCard => ({
     key: `job:${c.eventId}`, requestEventId: c.eventId, jobId: c.jobId, jobNumber: c.jobNumber, name: i.ownerNameByJob.get(c.jobId) ?? null, at: c.at,
     subject: c.subject, theyWrote: c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null, intent: c.intent, label: c.label,
-    draft: c.messageId ? (i.draftsByMessage.get(c.messageId) ?? null) : null, action: ACTION[c.intent ?? ""] ?? "dealt_with",
+    draft: c.messageId ? (i.jobDrafts.get(jobDraftKey(c.jobId, c.messageId)) ?? null) : null,
+    draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
   }));
   const noJob = [...i.unmatched].sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
     return {
       key: `nojob:${u.eventId}`, unmatchedEventId: u.eventId, at: u.at, from: u.from, fromName: u.fromName, subject: u.subject, theyWrote: u.snippet,
       guess: g ? { jobId: g.job_id, jobNumber: g.job_number } : null,
-      draft: u.messageId ? (i.draftsByMessage.get(u.messageId) ?? null) : null,
+      draft: u.messageId ? (i.noJobDrafts.get(u.messageId) ?? null) : null,
       alreadyAutoReplied: !!u.from && i.autoRepliedSenders.has(u.from.trim().toLowerCase()),
     };
   });
@@ -111,7 +130,7 @@ export function buildEmailsTab(i: {
 
 /** Which emails still need an AI draft, oldest last, capped per page load. */
 export function missingDrafts(tab: EmailsTab, max = DRAFTS_PER_LOAD): { jobRequests: string[]; unmatched: string[] } {
-  const job = tab.withJob.filter((c) => !c.draft && c.intent === "reply").map((c) => c.requestEventId);
+  const job = tab.withJob.filter((c) => !c.draft && !c.draftClosed && c.intent === "reply").map((c) => c.requestEventId);
   const none = tab.noJob.filter((c) => !c.draft && !c.alreadyAutoReplied).map((c) => c.unmatchedEventId);
   const jobRequests = job.slice(0, max);
   return { jobRequests, unmatched: none.slice(0, Math.max(0, max - jobRequests.length)) };
