@@ -33,8 +33,8 @@ export const AI_EMAIL_REPLY_PURPOSE = "owner_email_ai_reply";
 export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
 /** Jo 26 Oct: OFF until Jo has seen sample replies and says "send". With it off simple replies are drafts too. */
 export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
-/** Jo 27 Oct 2026: replies sound like Jo and are signed by her (replaces "Cheers, the Home Insulation Victoria team"). */
-export const AI_SIGN_OFF = "Kind regards,\nJo\nHome Insulation Victoria";
+/** Jo 27 Oct 2026: signed by the team, never by Jo. */
+export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
 /** The AI returns exactly this when the email needs no reply (a plain "no thanks" or "thanks"). Jo 27 Oct: file those away. */
 export const NO_REPLY_NEEDED = "NO_REPLY_NEEDED";
 
@@ -73,11 +73,12 @@ export type AiReplyContext = {
 };
 
 export const AI_REPLY_INSTRUCTIONS = [
-  "You write email replies as Jo from Home Insulation Victoria to home owners about their ceiling insulation. Jo reads and sends each one herself.",
-  "Tone: kind, warm and plain, in Australian English, exactly like Jo writing herself. Short sentences. Never robotic or call-centre. Never say \"No worries\".",
+  "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
+  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
-  "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say Jo will find out and reply.",
+  "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
+  "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
   "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.",
   "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
   "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links. Never quote an R6.0 or R7.0 price.",

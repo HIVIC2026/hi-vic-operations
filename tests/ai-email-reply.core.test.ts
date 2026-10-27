@@ -41,7 +41,7 @@ describe("AI reply layout (Jo 26 Oct)", () => {
     expect(html).toContain("Change my booking time");
     expect(html).toContain(`href="${MY}?screen=book"`);
   });
-  test("sign-off on its own lines (Jo 27 Oct: signed by Jo)", () => expect(render(out)).toContain("Kind regards,<br />Jo<br />Home Insulation Victoria"));
+  test("sign-off on its own lines", () => expect(render(out)).toContain("Cheers,<br />the Home Insulation Victoria team"));
   test("refreshed look: hosted logo, no embedded image", () => { const h = render(out); expect(h).toContain(MAIL_LOGO_URL); expect(h).not.toContain("data:image"); });
 });
 
@@ -61,7 +61,7 @@ describe("latestDraftEdits (Jo 27 Oct 2026: edits survive a refresh)", () => {
 });
 
 describe("Jo's tone (27 Oct 2026)", () => {
-  test("Jo's own sign-off is replaced, not doubled", async () => {
+  test("an old 'Kind regards, Jo' sign-off is replaced by the team sign-off, not doubled", async () => {
     const { finishAiReply, AI_SIGN_OFF: S } = await import("../src/lib/ai-email-reply.core");
     const out = finishAiReply("Hi Sam,\n\nThanks for asking.\n\nKind regards,\nJo\nHome Insulation Victoria");
     expect(out.split(S).length).toBe(2);
@@ -76,6 +76,7 @@ describe("Jo's tone (27 Oct 2026)", () => {
     const { AI_REPLY_INSTRUCTIONS, AI_BUSINESS_RULES, NO_REPLY_NEEDED } = await import("../src/lib/ai-email-reply.core");
     expect(AI_REPLY_INSTRUCTIONS).toContain("Never say \"No worries\"");
     expect(AI_REPLY_INSTRUCTIONS).toContain(NO_REPLY_NEEDED);
+    expect(AI_REPLY_INSTRUCTIONS).toContain("Keep it relevant");
     expect(AI_BUSINESS_RULES.join(" ")).toContain("$15/m²");
   });
 });

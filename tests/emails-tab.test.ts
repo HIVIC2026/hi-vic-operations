@@ -67,7 +67,7 @@ describe("No-job AI reply", () => {
     expect(s).toContain("How much in Werribee?");
   });
   test("finished reply keeps the link, adds the sign-off; a reply that lost the link falls back to the base", () => {
-    expect(finishNoJobReply(`Hi Sam,\n\nGreat question! Check here: ${HOMEOWNER_ENQUIRY_URL}`, "Sam King")).toMatch(/Kind regards,\nJo\nHome Insulation Victoria$/);
+    expect(finishNoJobReply(`Hi Sam,\n\nGreat question! Check here: ${HOMEOWNER_ENQUIRY_URL}`, "Sam King")).toMatch(/Cheers, the Home Insulation Victoria team$/);
     const fb = finishNoJobReply("Hi Sam, we'll be in touch.", "Sam King");
     expect(fb).toContain(HOMEOWNER_ENQUIRY_URL);
     expect(fb).toContain("Thanks for getting in touch!");
