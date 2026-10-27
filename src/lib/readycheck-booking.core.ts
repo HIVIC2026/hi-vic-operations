@@ -28,13 +28,13 @@ export type InstallerPersonGap = {
 };
 
 export const INSTALLER_GAP = {
-  none: "Can't be offered: the business has no installer person added yet. The installer business must add one.",
-  notice: "Can't be offered: the installer hasn't accepted the ESC privacy notice yet. The installer must open their notice link and accept it.",
-  piisa: "Can't be offered: the installer's PIISA training isn't uploaded and verified yet. The installer must upload it, then the office verifies it.",
-  noCert: "Can't be offered: no EEC certification recorded for the installer. The office must record it.",
-  certNotVerified: "Can't be offered: the installer's EEC certification hasn't been verified. The office must verify it.",
-  notFull: "Can't be offered: the installer's EEC certification isn't recorded as Full. The office must record a Full level.",
-  expired: "Can't be offered: the installer's EEC certification has expired. The installer must send a current one for the office to record.",
+  none: "The business has no installer person added yet. The installer business must add one.",
+  notice: "The installer hasn't accepted the ESC privacy notice yet. The installer must open their notice link and accept it.",
+  piisa: "The installer's PIISA training isn't uploaded and verified yet. The installer must upload it, then the office verifies it.",
+  noCert: "No EEC certification recorded for the installer. The office must record it.",
+  certNotVerified: "The installer's EEC certification hasn't been verified. The office must verify it.",
+  notFull: "The installer's EEC certification isn't recorded as Full. The office must record a Full level.",
+  expired: "The installer's EEC certification has expired. The installer must send a current one for the office to record.",
 } as const;
 
 /** One reason per person, in the order a person would fix them; the business shows the reason of the person
@@ -64,9 +64,9 @@ export function installerCandidate(f: InstallerFacts): RecCandidate & { freeMeas
 
 /** Why an installer cannot be offered this Ready Check (null = eligible). */
 export function installerEligibilityBlocker(c: RecCandidate & { freeMeasureUps?: boolean | null; installerGap?: string | null; credentialsGap?: string | null }): string | null {
-  if (!c.is_active || c.onboarding_status !== "approved") return "Installer business is not approved and active.";
+  if (!c.is_active || c.onboarding_status !== "approved") return "Installer business is not approved and active. The office must approve it.";
   if (c.approved_workers < 1) return c.installerGap ?? "No approved installer with a Full, current EEC certification recorded.";
-  if (c.freeMeasureUps !== true) return "Has not agreed to free Ready Checks for Home Insulation Victoria leads.";
+  if (c.freeMeasureUps !== true) return "Has not agreed to free Ready Checks for Home Insulation Victoria leads. The installer must agree to them in their business settings.";
   if (!c.has_valid_licence) return c.credentialsGap ?? "A required document has expired.";
   return recEligibilityBlocker(c) ? `Not available: ${recEligibilityBlocker(c)!.replace(/^Partner /, "")}` : null;
 }
