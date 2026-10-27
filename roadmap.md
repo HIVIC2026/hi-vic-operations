@@ -1,6 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 03:57 main journey deposit order
-- [ ] Leave A3 Owner name required; pay TEST Demo 10% deposit before install-day offers; arm main journey real-Mitti guard and check M; rerun sending keys removed and archive only its new job.
+- [x] A3 Owner name untouched/required. Main test now pays Demo TEST 10% deposit before install-day offers and booking. Same boundary guard plus hard network refusal as branches; M recorded even if allowlist check fails. Guard, restore and install-day regressions pass; preview build OK.
+- [x] Safe rerun HV-3372 with sending keys removed and verified Demo-only network wrapper: steps 1–6 PASS, 7 FAIL (test ESC consent lacks four required ticks), 8 SKIPPED, 9–10 PASS, M PASS zero real Mitti calls. Deposit paid and install booked before new failure. Only run jobs HV-3371/HV-3372 archived; HV-3274/HV-3239 unchanged; Alpha/Delta paused flags restored. Earlier invocation did not propagate the preload safety wrapper; latest run explicitly verified it ran in the child process. Screenshots for trade pages remain loading, so browser content verification NOT_RUN despite runner PASS labels. No further changes authorised.
 ## Jo 27 Oct 03:52 welcome wording and TEST trades
 - [x] Changed only electrician pay tick/step 5 and both welcome Mitti step 1; actual payout still waits seven days after later of complete form and owner payment, unchanged.
 - [x] Thirteen named dummy trades paused with accepting_new_jobs=false and receives_hivic_leads=false; PGlite proof passed before live transaction, thirteen audit rows verified. Approval, TEST markers, logins and four protected real businesses unchanged. TEST journey snapshot now restores both flags; isolated preparation/cleanup check passed.
@@ -8,7 +9,7 @@
 ## Jo 27 Oct 03:31 A3 Owner name back + reruns
 - [x] Real A3 (GET only): Job Reference ID, Address including postcode, Owner name, Office life support record, Date of inspection; prefill matches all, Owner name required (never made optional).
 - [x] piesa-fixes HV-3366 all pass incl. M; archived.
-- [ ] Main journey HV-3367 fails steps 7–8: test offers install days before the 10% deposit is paid (locked rule blocks it). Awaiting Jo: update the test?
+- [x] Jo authorised main-test deposit ordering correction at 03:57; see latest HV-3372 result above.
 ## Jo 27 Oct 03:23 partner welcome email
 - [x] Welcome sends on approval (guarded, once per business, email only) with Mitti section, store links and checked steps; tests pass; nothing sent, no switches changed.
 ## Jo 27 Oct 03:00 five follow-ups + journey rerun
