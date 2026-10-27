@@ -290,7 +290,7 @@ function melbourneDate(daysAhead: number) {
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
  *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
-async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "install_deposit" | "balance", label: string) {
+async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
   const v = await jobPaymentView(ctx.jobId!);
