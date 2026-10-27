@@ -63,3 +63,10 @@ test("installer page says the job is paused while fixes are open, and not after"
   expect(jobNext(facts).title).toBe(FIXES_PAUSED_TITLE);
   expect(jobNext({ ...(facts as object), stage: "installation_scheduling", installTurn: "installer_to_offer" } as never).title).not.toBe(FIXES_PAUSED_TITLE);
 });
+
+test("installer payout deduction: only installer-pays choices, ex GST", async () => {
+  const { repeatDeductionEx } = await import("../src/lib/repeat-piesa.core");
+  expect(repeatDeductionEx([{ payer: "installer", price_inc_gst: 220 }], 1.1)).toBe(200);
+  expect(repeatDeductionEx([{ payer: "owner", price_inc_gst: 220 }, { payer: "hivic", price_inc_gst: 220 }], 1.1)).toBe(0);
+  expect(repeatDeductionEx([{ payer: "installer", price_inc_gst: null }], 1.1)).toBe(0);
+});

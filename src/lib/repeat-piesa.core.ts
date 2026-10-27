@@ -78,3 +78,9 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   if (s.stage === "owner_pay") return { title: REPEAT_NEEDED_TITLE, body: `Thanks for accepting. Please pay ${money(s.priceIncGst ?? 0)} inc GST for the new safety check. We book it once it's paid.`, price: null, button: null };
   return { title: REPEAT_NEEDED_TITLE, body: "Thanks for accepting. We're arranging your electrician — they'll offer you 3 safety check times.", price: null, button: null };
 }
+
+/** Total (ex GST) to take off an installer's install payout for every repeat PIESA the office charged to the installer. */
+export function repeatDeductionEx(choices: { payer?: string; price_inc_gst?: number | null }[], gst: number): number {
+  const inc = choices.filter((c) => c.payer === "installer" && typeof c.price_inc_gst === "number" && c.price_inc_gst > 0).reduce((a, c) => a + (c.price_inc_gst as number), 0);
+  return inc > 0 ? Math.round((inc / gst) * 100) / 100 : 0;
+}
