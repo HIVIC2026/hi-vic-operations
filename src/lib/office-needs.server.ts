@@ -47,7 +47,7 @@ export type GatheredNeeds = {
 /** Facts for every live job (Needs me) or for `onlyIds` (the Job page). The same derivation feeds both.
  *  Perf 25 Oct 2026: three waves instead of ~40 sequential round trips — (1) the office facts and every Needs-me read
  *  that does not depend on them, (2) the few follow-up reads keyed by what wave 1 found, (3) the pure rules. */
-export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: string[] }): Promise<GatheredNeeds> {
+export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: string[]; testOffice?: boolean }): Promise<GatheredNeeds> {
   const t0 = Date.now();
   const since7 = new Date(t0 - 7 * DAY).toISOString();
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
@@ -104,14 +104,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("fixes quote drafts", (a, b) => scoped(admin.from("quotes").select("id, job_id, created_at")).eq("kind", "rectification").eq("status", "draft").range(a, b)),
     all("fixes quote holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", AUTO_FIXES_QUOTE_HELD_EVENT).order("created_at", { ascending: false }).range(a, b)),
     // Quotes to check — the one shared read (held with reasons, ready drafts, declined by the owner).
-    loadQuotesToCheck({ showTestJobs: false, ...(opts.onlyIds ? { onlyJobIds: opts.onlyIds } : {}) }),
+    opts.onlyIds?.length === 0 ? Promise.resolve({ rows: [], declined: [], notDrafted: [] }) : loadQuotesToCheck({ showTestJobs: !!opts.testOffice, ...(opts.onlyIds ? { onlyJobIds: opts.onlyIds } : {}) }),
     opts.includeTest && listMode ? loadQuotesToCheck({ showTestJobs: true }) : Promise.resolve(null),
     // Decision 272: the ESC Registry robot failed on a job → the office does that submission by hand.
     openRobotFailureRows(opts.onlyIds),
     // F15: the automatic install day (PIISA) form failed with the install today/tomorrow → one row until a form is created.
     all("install day form alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", PIISA_AUTOSEND_OFFICE_EVENT).gte("created_at", since7).range(a, b)),
     // Email rows (decisions 245/247): the backend's open items (email-office.server).
-    openEmailItems(),
+    opts.testOffice ? Promise.resolve({ changes: [], unmatched: [] }) : openEmailItems(),
     // A failed read is named in `unavailable` (the page says so), never shown as nothing.
     listMode ? (async () => (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => { unavailable.push("electrician links to installers"); return []; }))() : Promise.resolve([]),
     // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
@@ -326,8 +326,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
 /** `unavailable` is optional only because older saved copies (decision 382) were made before it existed. */
 export type NeedsMePage = { now: number; groups: Record<"today" | "week" | "watch", NeedsRow[]>; system: SystemRow[]; total: number; unavailable?: string[] };
 
-export async function loadNeedsMePage(includeTest: boolean): Promise<NeedsMePage> {
-  const g = await gatherNeedsFacts({ includeTest });
+export async function loadNeedsMePage(includeTest: boolean, testJobIds?: string[]): Promise<NeedsMePage> {
+  const g = await gatherNeedsFacts({ includeTest, ...(testJobIds ? { onlyIds: testJobIds, testOffice: true } : {}) });
   const groups = buildNeedsRows({ now: g.now, jobs: [...g.facts.values()], emails: g.emails });
   return { now: g.now, groups, system: g.system, total: groups.today.length + groups.week.length + groups.watch.length, unavailable: g.unavailable };
 }

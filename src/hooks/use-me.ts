@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/route-guards";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 
-export type AppRole = "admin" | "electrician" | "installer" | "owner" | "property_manager";
+export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
 // Speed (decision 280): `currentUser()` is the same `supabase.auth.getUser()` answer the signed-in layout's guard already
 // fetched, remembered briefly per tab and forgotten on any auth change — so a page's first paint no longer waits on

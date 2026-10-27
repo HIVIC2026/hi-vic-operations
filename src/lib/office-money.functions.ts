@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { requireOfficeIdentity, officeTestJobIds } from "./qa-office-access.server";
 
 const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -15,8 +16,9 @@ export const getMoneyMargins = createServerFn({ method: "POST" }).middleware([re
 
 export const getMoneyPayouts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await requireAdmin(context.supabase);
-    return plain(await (await import("./office-money.server")).moneyPayouts());
+    const role = await requireOfficeIdentity(context.supabase);
+    const ids = role === "qa_office" ? await officeTestJobIds(context.supabase) : undefined;
+    return plain(await (await import("./office-money.server")).moneyPayouts(ids));
   });
 
 export const getMoneyInvoices = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

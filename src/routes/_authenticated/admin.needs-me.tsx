@@ -141,6 +141,7 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
 }
 
 function NeedsMe() {
+  const { qaOffice } = Route.useRouteContext();
   const { test } = Route.useSearch();
   const includeTest = !!test;
   const qc = useQueryClient();
@@ -208,7 +209,7 @@ function NeedsMe() {
               </section>
             );
           })}
-          <PartnerSystemFold rows={data.system} rowsFailed={!!data.unavailable?.includes("electrician links to installers")} />
+          {!qaOffice && <PartnerSystemFold rows={data.system} rowsFailed={!!data.unavailable?.includes("electrician links to installers")} />}
         </div>
         <section aria-label={shown ? shown.card.title : "Needs me"} className="hidden lg:sticky lg:top-24 lg:block">
           {shown ? (

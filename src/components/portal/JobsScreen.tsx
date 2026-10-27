@@ -8,7 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { getActiveJobsList, bulkCancelOfficeJobs, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { getJobListPage } from "@/lib/portal.functions";
@@ -62,6 +62,8 @@ function Piles() {
 }
 
 export function ActiveJobs({ includeTest = false, initialStage }: { includeTest?: boolean; initialStage?: JobsStage | undefined }) {
+  const { data: me } = useMe();
+  const testOffice = me?.roles.includes("qa_office") ?? false;
   const qc = useQueryClient();
   const navigate = useNavigate();
   const load = useServerFn(getActiveJobsList);
@@ -94,7 +96,7 @@ export function ActiveJobs({ includeTest = false, initialStage }: { includeTest?
   return (
     <div>
       <p className="mb-3 text-sm text-sub">{d ? `${d.all} active · from Choose installer to Final check · every job in one stage.` : "Loading jobs…"} <Link to="/admin/jobs/choose-installer" className="font-semibold text-hiv-blue underline" data-why="decision 378">Choose installer list</Link></p>
-      <Piles />
+      {!testOffice && <Piles />}
       <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Stage" data-why="decision 239 six stages, one pile per job (0218); 31 installers' own jobs">
         <button type="button" aria-pressed={!stage.length} onClick={() => { setStage([]); setPage(1); }} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", !stage.length ? "border-ink bg-ink text-white" : "border-line bg-paper text-sub")}>All {d?.all ?? ""}</button>
         {JOBS_STAGES.map((s) => {

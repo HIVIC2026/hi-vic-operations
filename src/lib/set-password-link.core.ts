@@ -21,6 +21,7 @@ export function afterPasswordPath(next: string | null): "/field/welcome" | "/por
 export type PortalRoleInput = { roles: string[]; hasBusiness: boolean };
 /** Role router used by /portal after sign-in. */
 export function portalDestination(me: PortalRoleInput): "/admin/needs-me" | "/field" | "/owner" | "no-access" | "choose" {
+  if (me.roles.includes("qa_office")) return me.roles.length === 1 ? "/admin/needs-me" : "no-access";
   const trade = me.roles.includes("installer") || me.roles.includes("electrician") || me.hasBusiness;
   if (me.roles.includes("admin")) return trade ? "choose" : "/admin/needs-me"; // decision 218: Needs me is the office home
   if (me.roles.includes("installer") || me.roles.includes("electrician")) return "/field";

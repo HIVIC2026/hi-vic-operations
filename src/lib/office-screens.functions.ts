@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
-import { requireOfficeJob } from "./qa-office-access.server";
+import { requireOfficeJob, requireOfficeIdentity, officeTestJobIds } from "./qa-office-access.server";
 import { HEARD_CHIPS, INSULATION_CHIPS, REGION_CHIPS, SIZE_CHIPS, SOURCE_CHIPS } from "./office-filters.core";
 import { JOBS_STAGE_KEYS } from "./office-jobs.core";
 
@@ -33,7 +33,11 @@ const tell = { tellOwner: z.boolean().default(false), tellInstaller: z.boolean()
 export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ includeTest: z.boolean().default(false), refresh: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase);
+      const { loadNeedsMePage } = await import("./office-needs.server");
+      return { ...await loadNeedsMePage(true, ids), computedAt: new Date().toISOString(), refreshing: false };
+    }
     // Decision 382: served from the saved copy, refreshed after the response (`refresh` = the office just acted).
     const { getNeedsMeSnapshot } = await import("./office-needs-snapshot.server");
     return getNeedsMeSnapshot(data.includeTest, data.refresh);
@@ -42,17 +46,17 @@ export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([req
 export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobPage } = await import("./office-job-page.server");
-    return loadJobPage(data.jobId);
+    return loadJobPage(data.jobId, role === "qa_office");
   });
 
 export const getOfficeJobMoney = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobMoney } = await import("./office-job-page.server");
-    return loadJobMoney(data.jobId);
+    return loadJobMoney(data.jobId, role === "qa_office");
   });
 
 export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -66,7 +70,11 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
     view: z.enum(["active", "all", "replied", "new", "waiting", "failed", "quiet"]).optional(), wantIds: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase);
+      const { loadEnquiriesList } = await import("./office-lists.server");
+      return { ...await loadEnquiriesList(data, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
+    }
     // Decision 383: the default first page comes from the saved copy (`refresh` = the office just acted: work it out now).
     const { getEnquiriesListServed } = await import("./office-needs-snapshot.server");
     const { refresh, ...params } = data;
@@ -79,7 +87,11 @@ export const getActiveJobsList = createServerFn({ method: "POST" }).middleware([
     page: z.number().int().min(1).max(10_000).default(1), filters: chips, includeTest: z.boolean().default(false), refresh: z.boolean().default(false),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase);
+      const { loadActiveJobsList } = await import("./office-lists.server");
+      return { ...await loadActiveJobsList(data, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
+    }
     // Decision 383: the default first page comes from the saved copy (`refresh` = the office just acted: work it out now).
     const { getActiveJobsListServed } = await import("./office-needs-snapshot.server");
     const { refresh, ...params } = data;

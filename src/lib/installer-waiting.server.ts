@@ -35,12 +35,17 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 }
 
 /** Every installer / REC with the facts the coverage rule needs (one read each, no per-job lookups). */
-async function partnerFacts(): Promise<WaitingPartner[]> {
+async function partnerFacts(testBusinessIds?: string[]): Promise<WaitingPartner[]> {
+  type ScopedQuery = { in: (column: string, ids: string[]) => ScopedQuery; range: (from: number, to: number) => Res };
+  const scope = (query: unknown, column: string): ScopedQuery => {
+    const q = query as ScopedQuery;
+    return testBusinessIds ? q.in(column, testBusinessIds.length ? testBusinessIds : ["00000000-0000-0000-0000-000000000000"]) : q;
+  };
   const [bizs, creds, rates, workers] = await Promise.all([
-    all("partners", (a, b) => admin.from("businesses").select("id, name, trading_name, business_type, capabilities, onboarding_status, is_active, service_postcodes, service_regions, coverage_verified_at, accepting_new_jobs, receives_hivic_leads, free_measureups_for_hivic_quote_leads, onboarding_notes, rec_number").range(a, b)),
-    all("partner documents", (a, b) => admin.from("business_credentials").select("business_id, kind, label, expires_at, critical, verification").range(a, b)),
-    all("electrician rates", (a, b) => loose.from("electrician_rates").select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").eq("status", "active").eq("service_type", "piesa").range(a, b)),
-    all("electricians", (a, b) => admin.from("partner_workers").select("business_id").eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null).range(a, b)),
+    all("partners", (a, b) => scope(admin.from("businesses").select("id, name, trading_name, business_type, capabilities, onboarding_status, is_active, service_postcodes, service_regions, coverage_verified_at, accepting_new_jobs, receives_hivic_leads, free_measureups_for_hivic_quote_leads, onboarding_notes, rec_number"), "id").range(a, b)),
+    all("partner documents", (a, b) => scope(admin.from("business_credentials").select("business_id, kind, label, expires_at, critical, verification"), "business_id").range(a, b)),
+    all("electrician rates", (a, b) => scope(loose.from("electrician_rates").select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").eq("status", "active").eq("service_type", "piesa"), "business_id").range(a, b)),
+    all("electricians", (a, b) => scope(admin.from("partner_workers").select("business_id").eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null), "business_id").range(a, b)),
   ]);
   const today = melbourneToday();
   const credsBy = new Map<string, Row[]>();
@@ -60,8 +65,11 @@ async function partnerFacts(): Promise<WaitingPartner[]> {
 
 /** Every installer business with the facts the Ready Check offer rule reads — the same loader the pop-up's candidate
  *  list uses (readycheck-booking.server `installerOfferFacts`), so "Installer ✓" matches what the pop-up can release. */
-async function installerFacts(): Promise<WaitingInstaller[]> {
-  const bizs = await all("installers", (a, b) => admin.from("businesses").select("id, name, is_active, onboarding_status, accepting_new_jobs, receives_hivic_leads, coverage_verified_at, service_postcodes, free_measureups_for_hivic_quote_leads, onboarding_notes").or("business_type.eq.eec_installer,capabilities.cs.{installer}").range(a, b));
+async function installerFacts(testBusinessIds?: string[]): Promise<WaitingInstaller[]> {
+  const bizs = await all("installers", (a, b) => {
+    const q = admin.from("businesses").select("id, name, is_active, onboarding_status, accepting_new_jobs, receives_hivic_leads, coverage_verified_at, service_postcodes, free_measureups_for_hivic_quote_leads, onboarding_notes").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
+    return (testBusinessIds ? q.in("id", testBusinessIds.length ? testBusinessIds : ["00000000-0000-0000-0000-000000000000"]) : q).range(a, b);
+  });
   const ids = bizs.map((b) => ({ ...(b as object), id: String(b["id"]) }));
   const facts = await (await import("./readycheck-booking.server")).installerOfferFacts(ids);
   return ids.map((b) => {
@@ -78,17 +86,18 @@ async function installerFacts(): Promise<WaitingInstaller[]> {
 
 export type InstallerWaitingList = { now: number; rows: InstallerWaitingRow[] };
 
-export async function loadInstallerWaitingList(opts: { includeTest: boolean }): Promise<InstallerWaitingList> {
+export async function loadInstallerWaitingList(opts: { includeTest: boolean }, testJobIds?: string[], testBusinessIds?: string[]): Promise<InstallerWaitingList> {
   const now = Date.now();
   const [jobs, partners, installers] = await Promise.all([
     all("waiting jobs", (a, b) => {
       let q = admin.from("jobs").select("id, job_number, stage, source, channel, created_at, estimated_area_m2, deleted_at, qa_archived_at, owners(full_name), properties(suburb, postcode, answers:enrichment->base44->raw->answers)")
         .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
-      if (!opts.includeTest) q = q.or("source.is.null,source.neq.qa_test");
+      if (testJobIds) q = q.eq("source", "qa_test").in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]);
+      else if (!opts.includeTest) q = q.or("source.is.null,source.neq.qa_test");
       return q.order("created_at").order("id").range(a, b);
     }),
-    partnerFacts(),
-    installerFacts(),
+    partnerFacts(testBusinessIds),
+    installerFacts(testBusinessIds),
   ]);
   const ids = jobs.map((j) => String(j["id"]));
   const [assigned, offers, saved, measured, estimates] = ids.length ? await Promise.all([

@@ -22,7 +22,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
-  if (roles.includes("admin")) return (
+  if (roles.includes("admin") || roles.includes("qa_office")) return (
     <div className="portal-theme min-h-screen bg-background">
       <OfficeTopBar name={me?.profile?.full_name ?? ""} onSignOut={() => void signOut()} />
       <main className={`mx-auto w-full px-4 pb-24 pt-6 sm:px-8 md:pb-10 lg:pt-8 ${wide ? "max-w-[1800px]" : "max-w-[1216px]"}`}>{children}</main>

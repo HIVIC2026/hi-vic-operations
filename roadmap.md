@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 08:04 deny-by-default TEST office
+- [x] Default-denied route/server capability and exact walk-through allowlist; TEST-scoped lists/search/actions and practice RLS/API/storage proof. Admin regression branches preserved. Nested non-allowlisted tools/private evidence remain refused; full mutation journey not claimed.
+- [x] Applied three practice-proven RLS/API layers; exactly one secret-password TEST office login. Read-only 390px proof: five allowed lists, five denied pages, TEST job/Money, real-id refusal and direct API checks; zero real jobs displayed. Screenshots under /tmp/browser/qa-office/screenshots; current coverage in docs/qa/qa-office-27oct-access-coverage.md.
+- [ ] Phase 2 BLOCKED: website-created TEST submission, serving-process no-send/Mitti/Demo proof and full interactive multi-person runner remain unverified/unimplemented. No job created/archived, no TEST trade flags changed; no sends/switch changes/publication/real Mitti.
 ## Jo 27 Oct 07:50 TEST-only office steps A and B only
 - [ ] A: partial. Added separate verified-identity/database/graph server check to job page, job Money card and recorded notes; all other areas remain admin-only. Pending SELECT-only job-graph RLS passes practice checks, NOT APPLIED. 59 focused security checks + 20 existing regressions pass; lists/counts/search/Needs me/Money/Partners/Emails/buttons/exports/views/RPCs remain uncovered, listed in docs/qa/qa-office-27oct-access-coverage.md. No admin alias; full per-area proof NOT_RUN.
 - [ ] B: BLOCKED because A is incomplete, not because a credential is missing. No migration/account/password or screenshots created. No journey, publication, switch changes or sends.
