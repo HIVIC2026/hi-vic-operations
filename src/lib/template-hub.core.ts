@@ -703,7 +703,7 @@ const INVOICES: TemplateEntry[] = [
 const WAITING: TemplateEntry[] = [
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
-    render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST`, signInUrl: `${BASE}/auth` })) }),
+    render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),
   // Decision 386: one automatic reply per standard owner question (wording approved by Jo 27 Oct 2026, decision 406).
   ...ANSWER_TYPES.map((answer) => ENTRY({ id: `owner:${ANSWER_CODES[answer].code}`, section: "owner", step: "any", kind: "email", code: ANSWER_CODES[answer].code, name: `Automatic reply: ${ANSWER_CODES[answer].name}`,
     when: "A matched owner emails info@ with this standard question: ONE reply sent automatically (anything unusual stays a draft + Needs me row)", who: "Owner", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite); decision 386", gate: { kind: "email" },
