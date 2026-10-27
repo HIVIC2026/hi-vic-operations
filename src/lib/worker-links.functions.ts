@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, logEvent } from "./workflow.server";
 import { myBusinesses, requireMember } from "./pilot.server";
 import { WORKER_COLS, isAdminCaller, jobBusinesses } from "./worker-links.server";
+import { hasPrice, jobTextForViewer } from "./crew-no-price.core";
 import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
 
 const uuid = z.string().uuid();
@@ -183,11 +184,12 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
-      job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      // Jo 28 Oct 2026: link holders are staff, never shown a price — the stored next action can hold one (repeat PIESA).
+      job: { ...j, next_action: jobTextForViewer(j.next_action, false), owner_first_name: firstName(j.owner_name), owner_name: undefined },
       ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
       mittiUrl: mittiId ? (await import("./mitti-link.core")).mittiFormUrl(mittiId) : null,
       bookings: books ?? [],
-      timeline: events ?? [],
+      timeline: (events ?? []).filter((e) => !hasPrice(e.summary)), // e.g. "Installer quoted $… inc GST" is not for staff
       messages: (msgs ?? []).map((x) => ({ id: x.id, body: x.body, created_at: x.created_at, mine: x.worker_id === l.worker_id, from: x.sender_label ?? (x.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria" })),
     };
   });

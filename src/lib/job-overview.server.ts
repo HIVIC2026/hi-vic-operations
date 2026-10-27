@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireJobRole } from "./workflow.server";
 import type { JobRole } from "./workflow";
+import { overviewForViewer } from "./crew-no-price.core";
 
 type Sb = SupabaseClient<Database>;
 
@@ -25,10 +26,13 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
       const { data: m } = j?.originating_installer_business_id ? await admin.from("business_members").select("user_id").eq("business_id", j.originating_installer_business_id).eq("user_id", userId).maybeSingle() : { data: null };
       own = !!m;
     }
+    // Jo 28 Oct 2026: installer crew never see a price — next_action / hold_reason can hold one (e.g. the repeat PIESA).
+    const shown = role === "installer" ? overviewForViewer(row, (await (await import("./trade-view.server")).tradeContext(userId))?.boss === true) : row;
     if (!rel && !own) {
       const { data: p } = await admin.from("properties").select("suburb, postcode").eq("id", row.property_id!).maybeSingle();
-      return { role, row: { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" } };
+      return { role, row: { ...shown, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" } };
     }
+    return { role, row: shown };
   }
   if (role === "admin" && row.stage === "cancelled") {
     const { data: c } = await admin.from("jobs").select("cancelled_reason").eq("id", jobId).maybeSingle();

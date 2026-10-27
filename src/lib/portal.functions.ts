@@ -18,6 +18,7 @@ import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
 import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { consentValidityBlockers } from "./consent.core";
+import { assignmentForInstaller } from "./crew-no-price.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { sweepAuthorityExpiry } from "./authority.server";
 import { requireMittiAccess } from "./mitti-membership.server";
@@ -1522,8 +1523,10 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
       declaration: decl ? { id: decl.id, installed_product: decl.installed_product, installed_r_value: decl.installed_r_value, installed_area_m2: decl.installed_area_m2, signed_at: decl.signed_at } : null,
     };
     if (role === "installer") {
-      // Trades never see prices, consent contact details or consumer signature evidence.
-      return { role, agreement: null, consent: null, current: cur ? { id: cur.id, status: cur.status, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2, final_facts: null } : null, history: [], variations: [], ...common };
+      // Trades never see prices, consent contact details or consumer signature evidence. Jo 28 Oct 2026: the rebate
+      // form's amounts are the business owner's only — crew also get no form wording (crew-no-price.core).
+      const boss = (await (await import("./trade-view.server")).tradeContext(context.userId))?.boss === true;
+      return assignmentForInstaller(role, cur, common, boss);
     }
     return { role, agreement, consent: consentView, current: cur, history: history ?? [], variations: v ?? [], ...common };
   });

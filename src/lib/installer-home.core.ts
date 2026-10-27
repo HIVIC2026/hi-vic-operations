@@ -6,6 +6,7 @@ import { NOT_ONBOARDED_NEXT_TITLE, PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUO
 import { isInstallerNotOnboardedNote } from "./rec-onboarded.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { installerStatusLine } from "./installer-screens.core";
+import { jobTextForViewer } from "./crew-no-price.core";
 
 export type HomeGroup = "action" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
@@ -138,7 +139,8 @@ export function doneSub(channel: string | null | undefined, stage: string, ended
 
 /** Three groups, every job in exactly one; offers are shown in the offer panel, not in a group. */
 export function installerHomeGroups(jobs: InstallerHomeJob[]): { action: InstallerHomeRow[]; progress: InstallerHomeRow[]; done: InstallerHomeRow[] } {
-  const rows = jobs.map((j) => ({ ...j, ...installerNext(j) }));
+  // Jo 28 Oct 2026: the returned rows go to the viewer too — crew get the cleaned quote line and a price-free next action.
+  const rows = jobs.map((j) => ({ ...j, quoteLine: quoteLineForViewer(j.quoteLine, j.boss === true), nextAction: jobTextForViewer(j.nextAction, j.boss === true), ...installerNext(j) }));
   return { action: rows.filter((r) => r.group === "action"), progress: rows.filter((r) => r.group === "progress"), done: rows.filter((r) => r.group === "done") };
 }
 

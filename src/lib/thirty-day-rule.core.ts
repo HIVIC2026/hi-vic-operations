@@ -9,6 +9,7 @@ import { INSTALL_WINDOW_DAYS, installDaysLeft } from "./install-days.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { mjThirtyDayClock } from "./safety-check-emails.core";
+import { REPEAT_PIESA_LAPSED } from "./crew-no-price.core";
 
 /** Jo must approve the wording below before this turns on. */
 export const THIRTY_DAY_REMINDER_APPROVED = true as boolean; // Jo 24 Oct 2026 (decision 167): texts and emails approved.
@@ -219,9 +220,9 @@ export function repeatPiesaCharge(d: RepeatPiesaDecision, firstCheck: { cents: n
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
 /** Office next-action line once the window has lapsed. */
 export function repeatPiesaNextAction(c: RepeatPiesaCharge): string {
-  if (c.payer === "undetermined") return "New PIESA needed: 30-day window lapsed — office to decide who pays the repeat PIESA";
-  if (c.payer === "installer") return "New PIESA needed: 30-day window lapsed — repeat PIESA payable by the installer";
+  if (c.payer === "undetermined") return `${REPEAT_PIESA_LAPSED} — office to decide who pays the repeat PIESA`;
+  if (c.payer === "installer") return `${REPEAT_PIESA_LAPSED} — repeat PIESA payable by the installer`;
   return c.ownerChargeIncGst != null
-    ? `New PIESA needed: 30-day window lapsed — repeat PIESA payable by the owner (${money(c.ownerChargeIncGst)} inc GST, same as their first safety check)`
-    : "New PIESA needed: 30-day window lapsed — repeat PIESA payable by the owner (same amount as their first safety check — office to confirm the figure)";
+    ? `${REPEAT_PIESA_LAPSED} — repeat PIESA payable by the owner (${money(c.ownerChargeIncGst)} inc GST, same as their first safety check)`
+    : `${REPEAT_PIESA_LAPSED} — repeat PIESA payable by the owner (same amount as their first safety check — office to confirm the figure)`;
 }
