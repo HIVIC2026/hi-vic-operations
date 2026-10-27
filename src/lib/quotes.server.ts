@@ -8,6 +8,7 @@ import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import { confirmedQuoteDecision, currentEstimateTotal, rectificationQuoteDecision } from "./quote-release.core";
+import { saveFixesQuote } from "./fixes-quote-save.server";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -205,15 +206,8 @@ async function generateA4FixesQuote(jobId: string, actorId: string | null, busin
   const gstRate = Number(settings.gst_rate);
   const built = buildA4FixesQuote({ electricianPriceIncGst: source.electricianPriceIncGst, included: source.included, gstRate, margin });
   const subtotal = built.subtotalIncGst;
-  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
-  const { data: q, error } = await admin
-    .from("quotes")
-    .insert({ job_id: jobId, kind: "rectification", option_label: "electrical fixes", status: "draft", rate_card_id: card?.id ?? null, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / (1 + gstRate)), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
-    .select("id")
-    .single();
-  if (error || !q) throw new Error(error?.message);
-  await admin.from("quote_items").insert(built.lines.map((l) => ({ ...l, quote_id: q.id })));
-  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, rectification_margin_inc_gst: built.marginIncGst, electrician_source: electricianSource, rate_card_version: card?.version ?? null } });
+  const q = await saveFixesQuote(jobId, { option_label: "electrical fixes", rate_card_id: card?.id ?? null, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / (1 + gstRate)), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId }, built.lines, { cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, rectification_margin_inc_gst: built.marginIncGst, electrician_source: electricianSource, rate_card_version: card?.version ?? null } });
+  if (q.already) return q.id;
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({
     hasNonStandardItem: false,
@@ -263,15 +257,8 @@ export async function generateRectificationQuote(jobId: string, actorId: string 
   // Decision 351: no margin with the installer's own electrician (A1 or A2); our electrician → +$100 on both routes.
   const priced = margin > 0 ? applyRectificationMargin(lines, margin) : lines;
   const subtotal = r2(priced.reduce((a, l) => a + l.line_total_inc_gst, 0));
-  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
-  const { data: q, error } = await admin
-    .from("quotes")
-    .insert({ job_id: jobId, kind: "rectification", option_label: "electrical fixes", status: "draft", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
-    .select("id")
-    .single();
-  if (error || !q) throw new Error(error?.message);
-  await admin.from("quote_items").insert(priced.map((l) => ({ ...l, quote_id: q.id })));
-  await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version, rectification_margin_inc_gst: margin, electrician_source: electricianSource } });
+  const q = await saveFixesQuote(jobId, { option_label: "electrical fixes", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId }, priced, { cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version, rectification_margin_inc_gst: margin, electrician_source: electricianSource } });
+  if (q.already) return q.id;
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({
     hasNonStandardItem: items.some((item) => item.is_other),

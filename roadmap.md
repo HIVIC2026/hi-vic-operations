@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 10:28 four safeguards only
+- [x] Keep unreplied enquiries/unanswered owner mail out of Gone quiet; notes excluded and bulk closure freshly rechecked.
+- [x] Newest non-superseded fixes quote gates payment/booking; My job accepts replacements at scheduling/booked stages. Stable quote/line saves recover interruptions; existing single-invoice lock/revision protection retained.
+- [x] Missing/old/wrong-job/replaced/edited A5 summaries block completion before side effects; read failures fail closed.
+- [x] Per-file copy failures join persisted summary blockers; unchanged sync retries, saved bytes checked, missing objects restored without duplicate documents.
+- [x] Focused isolated/practice tests run separately; no live records, automation/text switches, sends or publishing. Hosted multi-user mutation journey not run; no end-to-end claim.
 ## Jo 27 Oct 08:58 browser walkthrough
 - [x] Ran safeguard preflight once: running enquiry endpoint reached, but signed TEST-pass path/credential absent in current code. 0 pass/1 fail/17 blocked; dependent message/Mitti/Demo probes not attempted. Five focused tests pass. No job created/archived or flags changed. Report journey/2026-10-27T09-00-40-screens/report.md in Files.
 - [ ] Full browser-first multi-person runner remains unimplemented and BLOCKED by failed signed TEST intake safeguard; serving-process no-send/job-Mitti/Demo probes depend on that run-owned TEST job. No unsafe substitute, provider actions, switch changes or publication.
