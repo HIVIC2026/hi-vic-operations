@@ -1564,7 +1564,8 @@ async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: S
     answer("stops", st1.stage === "owner_pay" && (offers1 ?? 0) === 0, `after Accept stage=${st1.stage}; pending PIESA offers=${offers1}; Xero line events: ${(ev1 ?? []).map((e) => `${e.event_type}: ${e.summary}`).join(" | ") || "none"}`);
     answer("reason", sees(shots[0], /Please pay \$349 inc GST for the new safety check/), `owner sees the pay-first line=${sees(shots[0], /Please pay \$349 inc GST/)}`);
     const held = (ev1 ?? []).some((e) => e.event_type === "xero_invoice_repeat_piesa_held");
-    answer("office_once", !held || sig.needsMeText.filter((t) => /repeat safety check/i.test(t)).length === 1, held ? `Xero refused the edit (payment on the invoice); Needs me rows: ${sig.needsMeText.join(" | ") || "none"}` : "line added straight away — nothing for the office to do");
+    const heldRows = sig.exceptions.filter((c) => c === "xero_invoice_repeat_piesa_held").length + sig.needsMeText.filter((t) => /repeat safety check/i.test(t)).length;
+    answer("office_once", !held || heldRows === 1, held ? `Xero refused the edit (payment on the invoice); office rows for the held line=${heldRows}; office exceptions: ${sig.exceptions.join(", ") || "none"}` : "line added straight away — nothing for the office to do");
     // Fix as the office would when held: remove the $349 payment in Xero, Sync (the line goes on), re-apply the $349.
     const x = await import("./xero.server");
     if (held) {
