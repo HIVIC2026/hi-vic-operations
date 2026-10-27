@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { INSTALLER_GAP, installerCandidate, installerEligibilityBlocker, installerGapReason, type InstallerFacts } from "../src/lib/readycheck-booking.core";
 
 const today = "2026-10-27";
