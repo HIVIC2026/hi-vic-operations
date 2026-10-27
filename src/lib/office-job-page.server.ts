@@ -87,7 +87,6 @@ export async function loadJobPage(jobId: string) {
   const rcOffer = (offers.data ?? []).find((o) => o.kind === "ready_check" && o.status === "accepted") ?? (offers.data ?? []).find((o) => o.kind === "ready_check");
   const piesaOffer = (offers.data ?? []).find((o) => o.kind === "piesa");
   const book = (k: string) => (bookings.data ?? []).find((b) => b.kind === k)?.scheduled_start ?? null;
-  const instQ = (quotes.data ?? []).find((q) => q.kind === "installation") ?? null;
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const step = (k: string) => pay?.steps.find((x) => x.key === k) ?? null;
   const deadline = officeJob?.facts.installDeadline ?? null;
