@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:57 main journey deposit order
+- [ ] Leave A3 Owner name required; pay TEST Demo 10% deposit before install-day offers; arm main journey real-Mitti guard and check M; rerun sending keys removed and archive only its new job.
 ## Jo 27 Oct 03:52 welcome wording and TEST trades
 - [x] Changed only electrician pay tick/step 5 and both welcome Mitti step 1; actual payout still waits seven days after later of complete form and owner payment, unchanged.
 - [x] Thirteen named dummy trades paused with accepting_new_jobs=false and receives_hivic_leads=false; PGlite proof passed before live transaction, thirteen audit rows verified. Approval, TEST markers, logins and four protected real businesses unchanged. TEST journey snapshot now restores both flags; isolated preparation/cleanup check passed.
