@@ -270,7 +270,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   // Hard stop: current eligibility result "needs review" (missing/conflicting evidence) → one row until a new result replaces it.
   try {
-    const elig = await all("eligibility reviews", (a, b) => scoped((admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("eligibility_verifications").select("job_id, created_at, reason, note")).eq("is_current", true).eq("outcome", "needs_review").range(a, b));
+    const elig = await all("eligibility reviews", (a, b) => { const q = (admin as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: unknown) => { eq: (k: string, v: unknown) => { in: (c: string, v: string[]) => never; range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> } } } } }).from("eligibility_verifications").select("*").eq("is_current", true).eq("outcome", "needs_review"); return (opts.onlyIds ? (q as unknown as { in: (c: string, v: string[]) => typeof q }).in("job_id", opts.onlyIds) : q).range(a, b); });
     for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
   } catch { unavailable.push("eligibility reviews"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
