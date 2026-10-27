@@ -9,7 +9,7 @@ import {
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
-import { accessFlagFromEntries } from "../src/lib/ready-check-answers.core";
+import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
 import { needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
