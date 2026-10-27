@@ -13863,10 +13863,12 @@ export type Database = {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
       }
+      qa_office_api_boundary: { Args: never; Returns: undefined }
       qa_office_business_allowed: {
         Args: { _business: string }
         Returns: boolean
       }
+      qa_office_has_role: { Args: never; Returns: boolean }
       qa_office_job_allowed: { Args: { _job: string }; Returns: boolean }
       qa_office_reserved_email: { Args: { _email: string }; Returns: boolean }
       quote_visible_to_current_user: {
