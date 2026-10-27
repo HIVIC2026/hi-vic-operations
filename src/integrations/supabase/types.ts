@@ -6583,6 +6583,39 @@ export type Database = {
           },
         ]
       }
+      mitti_sim_audits: {
+        Row: {
+          completed: boolean
+          created_at: string
+          header_items: Json
+          id: string
+          items: Json
+          modified_at: string
+          request: Json | null
+          template_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          header_items?: Json
+          id: string
+          items?: Json
+          modified_at?: string
+          request?: Json | null
+          template_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          header_items?: Json
+          id?: string
+          items?: Json
+          modified_at?: string
+          request?: Json | null
+          template_id?: string
+        }
+        Relationships: []
+      }
       mitti_template_dumps: {
         Row: {
           definition: Json | null
