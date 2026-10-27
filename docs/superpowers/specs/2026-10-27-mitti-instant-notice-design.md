@@ -4,8 +4,8 @@
 When an installer finishes (or changes) a Ready Check in Mitti, they should see on their **installer portal job page**
 that it's done — or what's still missing — within about a minute, while they're still on site.
 
-Today it can take up to 15 minutes, because the portal only checks Mitti on the 15-minute timer
-(`src/routes/api/public/hooks/allocation-tick.ts` → `syncPendingMitti`).
+Today it can take up to 15 minutes, because the portal only checks Mitti on the 15-minute Mitti pull
+(`src/routes/api/public/hooks/mitti-pull.ts` → `syncPendingMitti`).
 
 ## Agreed with Jo
 - Use Mitti's instant notices (webhooks: `audit.updated`, `audit.completed`). Chosen over a "Check now" button or a
@@ -36,6 +36,9 @@ Today it can take up to 15 minutes, because the portal only checks Mitti on the 
 The notice and the 15-minute timer may sync the same job at nearly the same time. Before switching on, confirm
 `syncMittiAssessment` cannot send a quote twice when run twice at once (it should already be guarded by the
 existing "no duplicate sends" rule; if not, add a per-job lock).
+
+The switch is a new `workflow_settings` column, added through `docs/pending-migrations/` (PGlite-proven, run live only
+with Jo's OK). Until it exists, the switch reads as off.
 
 ## One-time setup
 - Register the webhook with Mitti using the existing API token: `POST https://api.safetyculture.io/webhooks/v1`

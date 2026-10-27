@@ -4,9 +4,9 @@
 
 **Goal:** When a portal-made Mitti form is updated or completed, the portal re-syncs that one job within seconds, so the installer's job page clears "Needs finishing" within about a minute.
 
-**Architecture:** Mitti webhooks (`audit.updated`, `audit.completed`) POST to a new public route. The route checks a URL token, pulls the audit id, finds the portal job that owns that audit, and — if the new switch is on — calls the existing `syncMittiAssessment(jobId, null)`. The 15-minute tick is unchanged and remains the backup.
+**Architecture:** Mitti webhooks (`audit.updated`, `audit.completed`) POST to a new public route. The route checks a URL token, pulls the audit id, finds the portal job that owns that audit, and — if the new switch is on — calls the existing `syncMittiAssessment(jobId, null)`. The existing 15-minute Mitti pull (`src/routes/api/public/hooks/mitti-pull.ts` → `syncPendingMitti` + `sweepCompletedMittiReadyChecks`) is unchanged and remains the backup. `syncMittiAssessment` already calls `finishMittiReadyCheck` when the form is Complete, so one call covers both changes and completion.
 
-**Tech Stack:** TanStack Start file routes, Supabase (service-role `admin` client), drizzle SQL migrations, `bun:test`.
+**Tech Stack:** TanStack Start file routes, Supabase (service-role `admin` client), `docs/pending-migrations/` SQL proven on PGlite, `bun:test`.
 
 **Spec:** `docs/superpowers/specs/2026-10-27-mitti-instant-notice-design.md`
 
@@ -15,15 +15,16 @@
 - Only forms the portal made. An audit id not on any job → ignore, return 200.
 - The notice body is never trusted for answers; the portal re-reads the form via `syncMittiAssessment`.
 - Always answer Mitti 200 quickly once the token is good, even if the sync fails. Bad/missing token → 403 (same as `twilio/inbound.ts`).
-- Own switch `workflow_settings.mitti_instant_notice_enabled`, default **false**.
+- Own switch `workflow_settings.mitti_instant_notice_enabled`, default **false**. Until the column exists on live, a read error or missing column = **off** (fail closed), so code can ship before the SQL runs.
+- Database change goes in `docs/pending-migrations/` with a rollback file and a PGlite proof; it is run live only with Jo's OK (root `AGENTS.md`).
 - Token env var: `MITTI_WEBHOOK_TOKEN`, passed as URL query `?t=`.
-- No change to any rule: quote holds, matching, one-pile, quiet hours. The 15-minute tick stays as is.
+- No change to any rule: quote holds, matching, one-pile, quiet hours, `AUTO_QUOTE_SEND_ENABLED`. The 15-minute Mitti pull stays as is.
 - TEST Reinsulate job only for live testing; no real owner contacted.
 - Never log owner details; counts and ids only.
 
 ## Review Focus
 
-1. Same job synced twice at once (notice + 15-min tick, or two notices for one Complete) → at most one owner quote send. Test in Task 4.
+1. Same job synced twice at once (notice + 15-min Mitti pull, or two notices for one Complete) → at most one quote draft and at most one owner release. Test in Task 4.
 2. Notice for a cancelled/deleted/archived job → nothing happens (already handled inside `syncMittiAssessment`; pinned by a test in Task 2).
 3. Body shape varies (`audit_id` at top level vs nested in `data`/`event`), or is not JSON → no crash, 200, nothing synced. Test in Task 1.
 4. Mitti or the database is down during the notice → 200, error logged, tick retries. Test in Task 2.
@@ -70,23 +71,27 @@ test("non-string id → null", () => expect(mittiNoticeAuditId(JSON.stringify({ 
 
 **Files:**
 - Create: `src/lib/mitti-webhook.server.ts`
-- Create: `drizzle/migrations/0176_mitti_instant_notice_switch.sql`
+- Create: `docs/pending-migrations/mitti-instant-notice-switch.sql` and `docs/pending-migrations/mitti-instant-notice-switch.rollback.sql`
+- Test: `tests/mitti-instant-notice-switch.pglite.test.ts` (apply → column exists, default false; rollback → gone; re-run apply is safe)
 - Test: `tests/mitti-webhook.server.test.ts` (fake `admin` + mocked `syncMittiAssessment`, same style as `tests/mitti-invite.server.test.ts`)
 
 **Interfaces:**
 - Consumes: `syncMittiAssessment(jobId: string, actorId: string | null)` from `src/lib/mitti.server.ts`
 - Produces: `handleMittiNotice(auditId: string): Promise<{ action: "ignored" | "off" | "synced" | "failed" }>`
 
-- [ ] **Step 1: Migration**
+- [ ] **Step 1: Pending SQL + PGlite proof**
 
 ```sql
+-- mitti-instant-notice-switch.sql
 alter table public.workflow_settings add column if not exists mitti_instant_notice_enabled boolean not null default false;
+-- mitti-instant-notice-switch.rollback.sql
+alter table public.workflow_settings drop column if exists mitti_instant_notice_enabled;
 ```
-Add the column to `src/integrations/supabase/types.ts` (Row/Insert/Update of `workflow_settings`).
+Write the PGlite test using an existing helper in `tests/helpers/pglite-*.ts` that creates `workflow_settings`; run it → PASS. Add the column to `src/integrations/supabase/types.ts` (Row/Insert/Update of `workflow_settings`).
 
 - [ ] **Step 2: Write the failing tests**
   - `unknown audit id → "ignored", sync not called`
-  - `switch off (column false or row missing) → "off", sync not called`
+  - `switch off (column false, row missing, or read error such as column not found) → "off", sync not called`
   - `audit on assessments.external_mitti_id, switch on → "synced", sync called once with (jobId, null)`
   - `audit only on current Mitti ceiling_measurements.external_id (is_current, external_source "mitti") → "synced"`
   - `sync throws → "failed", error logged, no throw`
@@ -128,7 +133,7 @@ Add the column to `src/integrations/supabase/types.ts` (Row/Insert/Update of `wo
 - Consumes: `syncMittiAssessment` (existing)
 - Produces (only if needed): `withMittiSyncClaim<T>(jobId: string, run: () => Promise<T>): Promise<T | { skipped: true }>`
 
-- [ ] **Step 1: Write the test** — fake Mitti returns a Complete A1 form with all quote basics for a TEST job; run `Promise.all([syncMittiAssessment(j, null), syncMittiAssessment(j, null)])` then a third call; assert the owner quote sender was called **exactly once** and only one `quote_sent`-type workflow event exists.
+- [ ] **Step 1: Write the test** — on the PGlite auto-quote helper (`tests/helpers/pglite-auto-quote-release.ts`), with a fake Mitti returning a Complete A1 form with all quote basics for a TEST job and `AUTO_QUOTE_SEND_ENABLED` on for the test: run `Promise.all([syncMittiAssessment(j, null), syncMittiAssessment(j, null)])`, then a third call; assert exactly **one** quote row for the job and `releaseQuoteToOwner` reached the sender **at most once**.
 - [ ] **Step 2: Run it**
   - PASS → existing guards hold; commit the test only and skip Steps 3–4.
   - FAIL → continue.
