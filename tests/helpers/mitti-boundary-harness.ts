@@ -56,14 +56,14 @@ export function createMittiBoundaryHarness(options: {
     "@/integrations/supabase/auth-middleware": { requireSupabaseAuth: {} },
     "./network-timeout.core": { MITTI_FETCH_TIMEOUT_MS: 1000, timeoutSignal: () => new AbortController().signal },
     "./scope.core": {}, "./requirements.server": {}, "./mitti-forms.core": {},
-    "./official-expand.core": {},
+    "./official-forms.core": {}, "./official-short.core": {}, "./official-expand.core": {},
     "./address": {}, "./eligibility.server": {}, "./piesa-date.core": {},
     "./official-forms.server": {}, "./installer-quote.server": {}, "./pilot.server": {},
     ...options.dependencies,
   };
   const cache = new Map<string, Any>();
   // ready-check-lean.core / insulation-product.core: pure wording constants mitti.core reads (decision 222), no I/O.
-  const actual = new Set(["mitti.core", "mitti-identity.core", "mitti-form-health.core", "mitti-form-health.server", "mitti.server", "mitti-forms.functions", "mitti-form-schema.core", "measurement.core", "ready-check-lean.core", "insulation-product.core", "installer-new-jobs.core", "piesa-evidence.core", "official-short.core", "official-forms.core", "sha256.core"]);
+  const actual = new Set(["mitti.core", "mitti-identity.core", "mitti-form-health.core", "mitti-form-health.server", "mitti.server", "mitti-forms.functions", "mitti-form-schema.core", "measurement.core", "ready-check-lean.core", "insulation-product.core"]);
   const load = (name: string): Any => {
     if (cache.has(name)) return cache.get(name);
     if (!actual.has(name)) throw new Error(`Unexpected source module ${name}`);
