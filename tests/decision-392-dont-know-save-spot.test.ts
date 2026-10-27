@@ -57,7 +57,7 @@ describe("selector", () => {
       expect(automaticLeadEmail({ ...base, outcome, declaredInsulation: "unknown" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true }));
   }
   test("no owner size keeps the labelled typical-size flag", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible", declaredInsulation: "unknown", ownerEnteredArea: false }).assumedArea).toBe(true));
-  test("an Office-reviewed don't-know keeps the reviewed path", () => expect(automaticLeadEmail({ ...base, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown", officeReviewed: true }).email).toBe("request_insulation"));
+  test("decision 417: an Office-reviewed don't-know gets Save my spot", () => expect(automaticLeadEmail({ ...base, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown", officeReviewed: true }).email).toBe("offer_spot"));
   test("present is unchanged (no insulationUnknown); unanswered stays with the Office; ineligible stays ineligible", () => {
     expect(automaticLeadEmail({ ...base, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true });
     expect(automaticLeadEmail({ ...base, outcome: "needs_onsite_confirmation", declaredInsulation: null }).email).toBe("none");
@@ -81,11 +81,15 @@ describe("actual router", () => {
     expect(gateOpts).toEqual([{ route: "offer_spot", coverageVerified: true, existingInsulationOffer: true }]);
     expect(events[0]).toMatchObject({ details: { answer: "yes", declaration_type: "present_auto_offer" } });
   });
-  test("an Office review keeps the reviewed request path (no new qualification recorded)", async () => {
+  test("decision 417: an unclear Office review no longer holds — the same existing-insulation Save my spot goes", async () => {
     reviewOutcome = "unclear";
-    expect((await maybeAutoRouteLeadEmail("job")).route).toBe("request_insulation");
+    expect((await maybeAutoRouteLeadEmail("job")).route).toBe("offer_spot");
+    expect(calls).toContain("save_spot_existing");
+  });
+  test("decision 417: photos showing R2 or more still stop it", async () => {
+    reviewOutcome = "over_r2";
+    expect((await maybeAutoRouteLeadEmail("job")).route).not.toBe("offer_spot");
     expect(calls).not.toContain("save_spot_existing");
-    expect(events).toEqual([]);
   });
 });
 

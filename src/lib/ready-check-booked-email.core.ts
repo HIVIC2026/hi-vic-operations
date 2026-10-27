@@ -20,7 +20,7 @@ export type ReadyCheckBookedInput = {
   test?: boolean;
 };
 
-const DISPLAY = "Outfit, Figtree, Arial, Helvetica, sans-serif";
+const DISPLAY = "Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif";
 /** Blue booking box: caps label, day, blue time, address/contact lines (O12, safety check booked). */
 export function mjBookingBox(i: { label: string; day: string; time: string; lines: string[] }): string {
   const lines = i.lines.map(esc).join("<br />");

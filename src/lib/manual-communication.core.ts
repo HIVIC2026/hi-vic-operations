@@ -13,7 +13,7 @@ export const MANUAL_TEMPLATE_LABEL: Record<ManualEmailTemplate, string> = {
   save_my_spot: "Save your spot – likely eligible (approved)",
   ineligible_result: "Preliminary eligibility result – ineligible (approved)",
 };
-export const GROUP_B_MANUAL_BLOCKED = "Group B insulation-details wording is not approved for manual sending. Phone the owner or record the outcome instead.";
+export const GROUP_B_MANUAL_BLOCKED = "The insulation-details email is no longer sent. The owner can save their spot from their Save my spot email."; // decision 417: no phoning
 export const TYPICAL_SIZE_MANUAL_BLOCKED = "The owner gave no ceiling size. The approved typical-size (150 m²) wording may only go as the automatic first reply to a new enquiry – never from an office list – so there is no email to copy.";
 export const GLOBAL_LOCK_MANUAL_BLOCKED = "Customer emails are switched off for the whole portal (global communications lock), so the ineligible email can't be prepared for sending.";
 export const NO_MANUAL_EMAIL = "No approved email applies to this lead – handle it individually.";

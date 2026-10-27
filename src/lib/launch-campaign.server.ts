@@ -11,7 +11,7 @@ import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { effectiveInsulation } from './enquiry-groups.core';
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, officeSpotSavedCount, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, officeSpotSavedCount, campaignSaveDecision, campaignSendCounts, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { whatIfEstimate } from "./estimate.core";
@@ -65,12 +65,8 @@ export async function campaignLink(token: unknown) {
 }
 
 export function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof campaignLink>>>, deskStatus: string | null | undefined) {
-  // Jo 26 Oct 2026 (Matt Purdie HV-2772): a no-insulation owner (group "likely") never needs photos, so an "unclear" photo
-  // review can't block their Save my spot. R2-or-above ("over_r2") still blocks everyone.
-  if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || (c.mediaReview === "unclear" && c.group !== "likely")) return false;
-  if (c.mediaReview === "below_r2" && c.criteriaPassed) return true;
-  if (c.media?.excluded) return (deskStatus === "looks_eligible" || !!c.answeredQuestions) && c.criteriaPassed;
-  return campaignSaveAllowed(c.group, deskStatus, c.ownerQualified);
+  // Decision 416 (Jo 27 Oct 2026): see campaignSaveDecision — replaces the photo/office-review holds (decisions 26 Oct HV-2772 and earlier).
+  return campaignSaveDecision({ group: c.group, mediaReview: c.mediaReview, criteriaPassed: c.criteriaPassed }, deskStatus);
 }
 
 export async function campaignPage(token: unknown, testMode = false) {

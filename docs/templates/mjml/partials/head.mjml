@@ -7,7 +7,7 @@
     <meta name="x-apple-disable-message-reformatting">
   </mj-raw>
   <mj-attributes>
-    <mj-all font-family="Figtree, Arial, Helvetica, sans-serif" />
+    <mj-all font-family="Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" />
     <mj-body background-color="#F2F4FC" width="600px" />
     <mj-wrapper background-color="#FFFFFF" border-radius="24px" padding="26px 16px 22px" />
     <mj-section padding="0" />
@@ -18,16 +18,16 @@
     <mj-divider border-color="#E4E9F5" border-width="1px" padding="6px 12px 18px" />
     <mj-image padding="0" />
 
-    <mj-class name="h1" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="27px" line-height="34px" font-weight="800" padding="18px 12px 10px" />
-    <mj-class name="h2" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="19px" line-height="26px" font-weight="700" padding="10px 12px 6px" />
+    <mj-class name="h1" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="27px" line-height="34px" font-weight="800" padding="18px 12px 10px" />
+    <mj-class name="h2" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="19px" line-height="26px" font-weight="700" padding="10px 12px 6px" />
     <mj-class name="hi" font-size="17px" line-height="26px" font-weight="600" padding="18px 12px 0" />
     <mj-class name="lead" font-size="17px" line-height="26px" />
     <mj-class name="small" font-size="13px" line-height="20px" color="#5A6785" />
     <mj-class name="eyebrow" font-size="12px" line-height="16px" font-weight="700" letter-spacing="1.2px" text-transform="uppercase" padding="0 12px 6px" />
     <mj-class name="center" align="center" />
 
-    <mj-class name="big-green" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="36px" line-height="42px" font-weight="800" color="#057D40" align="center" padding="0 12px 4px" />
-    <mj-class name="big-blue" font-family="Outfit, Figtree, Arial, Helvetica, sans-serif" font-size="40px" line-height="46px" font-weight="800" color="#3C51C4" align="center" padding="0 12px 4px" />
+    <mj-class name="big-green" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="36px" line-height="42px" font-weight="800" color="#057D40" align="center" padding="0 12px 4px" />
+    <mj-class name="big-blue" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="40px" line-height="46px" font-weight="800" color="#3C51C4" align="center" padding="0 12px 4px" />
 
     <mj-class name="panel" padding="6px 0" inner-background-color="#F2F4FC" inner-border-radius="18px" />
     <mj-class name="panel-mint" padding="6px 0" inner-background-color="#E9FBF1" inner-border="2px solid #07BF61" inner-border-radius="18px" />

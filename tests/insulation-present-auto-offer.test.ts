@@ -12,9 +12,10 @@ describe("Jo 23 Oct 4:10pm: insulation present -> existing-insulation Save my sp
     });
   }
   test("likely eligible with insulation present also gets it", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible" }).existingInsulation).toBe(true));
-  test("an Office review keeps the reviewed path", () => expect(automaticLeadEmail({ ...base, officeReviewed: true }).email).toBe("request_insulation"));
+  test("decision 417: an Office review no longer holds the offer", () => expect(automaticLeadEmail({ ...base, officeReviewed: true }).email).toBe("offer_spot"));
+  test("decision 417: photos showing R2 or more stop the offer", () => expect(automaticLeadEmail({ ...base, officeReviewed: true, officeReviewOutcome: "over_r2" })).toEqual({ email: "none", blocker: "Photos show insulation already R2 or more — office review" }));
   test("decision 392: owner unsure whether insulation exists gets the same offer (don't-know wording), not the details request", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true }));
-  test("decision 392: an Office review of an unsure owner keeps the reviewed path", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown", officeReviewed: true }).email).toBe("request_insulation"));
+  test("decision 417: an Office review of an unsure owner gets Save my spot", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown", officeReviewed: true }).email).toBe("offer_spot"));
   test("no-insulation owners are unchanged", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible", declaredInsulation: "none" })).toEqual({ email: "offer_spot", blocker: null }));
   test("TEST enquiries never auto-email", () => expect(automaticLeadEmail({ ...base, source: "qa_test" }).email).toBe("none"));
   test("rules no longer hold present insulation or onsite-confirmation on this route; others unchanged", () => {
