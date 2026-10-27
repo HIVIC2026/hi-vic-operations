@@ -440,17 +440,18 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: res.status === "done" && !!pr?.section_c_signed_at && pr.outcome === "pass", detail: `result=${res.status} (${res.detail ?? "-"}); post-fixes PIESA record outcome=${pr?.outcome ?? "none"}, Section C signed=${pr?.section_c_signed_at ?? "none"}; ${diff(b, a)}`, ids: { piesa_record_id: pr?.id ?? null } };
     }, ["2.5"]);
 
-    await rec.run("2.7", "only now install scheduling opens; installer told once; 30-day clock from Section C, not the PIESA date", async () => {
+    await rec.run("2.7", "only now install scheduling opens; installer told once; 30-day clock from the official PIESA date, not Section C", async () => {
       await J.assertOwnTestJob(ctx);
       const stage = await J.stageOf(ctx);
       const { INSTALL_CLEARANCE_EVENT } = await import("./install-clearance.core");
       const { count: told } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", INSTALL_CLEARANCE_EVENT);
       const { data: dl } = await admin.from("job_piesa_deadlines").select("piesa_date, install_deadline").eq("job_id", ctx.jobId!).maybeSingle();
-      const { data: pr } = await admin.from("piesa_records").select("section_c_signed_at").eq("job_id", ctx.jobId!).eq("kind", "post_rectification").order("created_at", { ascending: false }).limit(1).maybeSingle();
-      const sc = pr?.section_c_signed_at ? String(pr.section_c_signed_at).slice(0, 10) : null;
-      const want = sc ? new Date(Date.parse(`${sc}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10) : null;
+      // Decision 316: read the official initial/reassessment independently of the deadline view.
+      const { data: pr } = await admin.from("piesa_records").select("piesa_completed_at").eq("job_id", ctx.jobId!).in("kind", ["initial", "reassessment"]).order("piesa_completed_at", { ascending: false }).limit(1).maybeSingle();
+      const officialDate = pr?.piesa_completed_at ? String(pr.piesa_completed_at).slice(0, 10) : null;
+      const want = officialDate ? new Date(Date.parse(`${officialDate}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10) : null;
       const got = dl?.install_deadline ? String(dl.install_deadline).slice(0, 10) : null;
-      return { ok: stage === "installation_scheduling" && told === 1 && !!want && got === want, detail: `stage=${stage}; installer clearance notices=${told}; Section C ${sc}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
+      return { ok: stage === "installation_scheduling" && told === 1 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
     await rec.run("2.8", "electrician pay due 7 days after the office approves the completed Mitti form (not the owner's payment)", async () => {

@@ -83,7 +83,7 @@ Owners and the assigned trade may receive each other's contacts for the specific
 Retired: portal-only owner/trade chat as required model; global contact exposure; contact release treated as booking.
 
 ## PIESA 30-day operational rule
-No rectification: clock starts when the initial PIESA is completed and signed. Rectification: when Section C is completed and signed. Installation must **commence** within 30 days; booking within 30 days is not enough. Store separately: first inspection, appointment, completed, submitted, accepted, rectification completion, Section C, timing date used, installation booking, actual commencement, completion. Operational rule pending written confirmation. At PIESA booked, installer sees: "Do not book installation until electrical clearance is complete."
+Decision 316 (Jo reconfirmed 27 Oct 2026): the clock starts from the official PIESA date, even when rectification is needed; Section C does not restart it. A reassessment after expiry is a new official PIESA. Electrical fixes and Section C must still be completed before installation is cleared. Installation must **commence** within 30 days; booking within 30 days is not enough. Store separately: first inspection, appointment, completed, submitted, accepted, rectification completion, Section C, timing date used, installation booking, actual commencement, completion. At PIESA booked, installer sees: "Do not book installation until electrical clearance is complete."
 
 ## Communications
 Sender: Home Insulation Victoria. External sending behind launch controls. Track prepared, queued, sent, delivered, failed, undelivered, suppressed. Failed → Needs attention. Delivered ≠ read; read ≠ accepted; link opened ≠ approved; sent never progresses workflow.
