@@ -56,7 +56,7 @@ describe("match all best guesses", () => {
 
 describe("emails card says what it counts (Enquiries' \"Emails to match\" counts the unmatched ones)", () => {
   test("owner emails on a job and unmatched emails are never one card under one name", () => {
-    expect(NEEDS_CARD_TITLE[cardOf("email_change")]).toBe("Owner emails to act on");
+    expect(NEEDS_CARD_TITLE[cardOf("email_change")]).toBe("Emails to reply to");
     expect(cardOf("email_unmatched")).not.toBe(cardOf("email_change"));
     expect(NEEDS_CARD_TITLE[cardOf("email_unmatched")]).toBe("Emails not matched to a job");
     expect(Object.values(NEEDS_CARD_TITLE)).not.toContain("Emails to sort");

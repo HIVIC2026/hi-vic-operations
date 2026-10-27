@@ -1,5 +1,5 @@
 // Needs me grouped by kind (Jo 26 Oct 2026, design review of the phone layout): inside Today / This week / Watch the
-// rows sit in a few cards ("Quotes to check · 5", "Owner emails to act on · 3"), so the whole day fits on one phone screen.
+// rows sit in a few cards ("Quotes to check · 5", "Emails to reply to · 3"), so the whole day fits on one phone screen.
 // PURE: only regroups the rows office-needs.core already decided and sorted; never adds, drops or reorders a row
 // inside its card. Cards come in the order of their most urgent row.
 
@@ -15,7 +15,7 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
   failed: "Sends and forms that failed",
   // Was "Emails to sort": it read like Enquiries' "Emails to match" but counts something else — owner emails on a job
   // (change asks, replies needed). Emails not matched to a job list on Enquiries, not here (src/AGENTS.md).
-  emails: "Owner emails to act on",
+  emails: "Emails to reply to",
   unmatched: "Emails not matched to a job",
   electrician: "Choose an electrician",
   owner: "Waiting on the owner or electrician",
