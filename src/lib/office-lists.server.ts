@@ -40,11 +40,15 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 }
 
 /** "Last heard from us" per job (decision 216): newest email / text / recorded outbound contact that did not fail. */
-async function lastHeardMap(ids: string[]) {
+async function lastHeardMap(ids: string[], customerOnly = false) {
   const [emails, texts, comms] = await Promise.all([
     byIds("emails sent", ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, sent_at, created_at, purpose, status").in("job_id", c).in("status", ["sent", "delivered"]).range(f, t)),
     byIds("texts sent", ids, (c, f, t) => admin.from("sms_messages").select("job_id, created_at, message_type, status").in("job_id", c).is("business_id", null).in("status", ["sent", "delivered", "accepted", "queued"]).range(f, t)),
-    byIds("recorded contact", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, channel, delivery_status").in("job_id", c).eq("direction", "outbound").in("channel", ["email", "sms", "phone"]).not("sent_at", "is", null).in("delivery_status", ["sent", "delivered", "accepted"]).range(f, t)),
+    byIds("recorded contact", ids, (c, f, t) => {
+      let q = admin.from("job_communications").select("job_id, sent_at, channel, delivery_status").in("job_id", c).not("sent_at", "is", null);
+      q = customerOnly ? q.eq("direction", "outbound").eq("visibility", "customer").in("channel", ["email", "sms", "phone"]).in("delivery_status", ["sent", "delivered", "accepted"]) : q.in("direction", ["outbound", "internal"]).not("delivery_status", "in", "(failed,bounced,undelivered)");
+      return q.range(f, t);
+    }),
   ]);
   const m = new Map<string, { at: string; channel: string }>();
   const put = (id: unknown, at: unknown, channel: string) => { const k = String(id), a = s(at); if (!a) return; const cur = m.get(k); if (!cur || cur.at < a) m.set(k, { at: a, channel }); };
@@ -116,7 +120,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
-    lastHeardMap(ids),
+    lastHeardMap(ids, true),
     byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id, created_at").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
     coveredFn(!!testJobIds),
     estimateMap(ids),
@@ -185,7 +189,7 @@ export async function enquiryCloseBlocker(jobId: string): Promise<string | null>
   if (error) throw new Error("The enquiry could not be rechecked.");
   if (!index || index.office_bucket !== "enquiry") return null; // ordinary Jobs bulk cancellation is unchanged
   const [heard, inbound] = await Promise.all([
-    lastHeardMap([jobId]),
+    lastHeardMap([jobId], true),
     admin.from("job_communications").select("received_at").eq("job_id", jobId).eq("direction", "inbound").not("received_at", "is", null).order("received_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (inbound.error) throw new Error("The owner's email could not be rechecked.");
