@@ -27,10 +27,18 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
   // new-depth photo, geotagged and timed. The Mitti path already holds on them (installCompletionDecision); the office /
   // installer button refuses here too, naming the area. Fails closed on a read error.
   {
-    const { latestInstallEvidence } = await import("./install-evidence.server");
+    const { latestInstallEvidenceRecord } = await import("./install-evidence.server");
     const { rulerPhotoBlockersOf, RULER_LOCK } = await import("./install-evidence.core");
     let lines: string[];
-    try { lines = rulerPhotoBlockersOf(await latestInstallEvidence(jobId)); }
+    try {
+      const evidence = await latestInstallEvidenceRecord(jobId);
+      const { data: current, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const auditId = (current?.details as { audit_id?: string } | null)?.audit_id;
+      if (error || !auditId || evidence?.audit_id !== auditId || evidence.summary?.jobId !== jobId || evidence.summary?.auditId !== auditId) throw new Error("Current A5 summary missing");
+      const { data: failed, error: fe } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "install_evidence_sync_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (fe || (failed && (!evidence.createdAt || failed.created_at >= evidence.createdAt))) throw new Error("A5 refresh failed");
+      lines = rulerPhotoBlockersOf(evidence.summary);
+    }
     catch { throw new WorkflowError("The install day form's ruler photos could not be checked — please try again."); }
     if (lines.length) throw new WorkflowError(`${RULER_LOCK}: ${lines.join("; ")}.`);
   }
