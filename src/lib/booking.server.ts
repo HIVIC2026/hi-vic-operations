@@ -76,10 +76,7 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
   // Jo 27 Oct 2026 (install-days rule): an install day runs 8am–4pm Melbourne; the installer picks the exact arrival
   // time, so scheduled_end is always the day's 4pm end — set on every install booking, create or move.
-  const scheduledEnd = kind === "installation"
-    ? (await import("./install-days.core")).melbourneAtEnd
-    : null;
-  const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, scheduled_end: scheduledEnd ? scheduledEnd(start) : null, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
+  const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, scheduled_end: kind === "installation" ? installEndAt(start) : null, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
   if (insertError || !inserted) throw new Error(`Booking could not be saved: ${insertError?.message ?? "no row returned"}`);
   const nowIso = new Date().toISOString();
   await admin.from("job_assignments").update({ booking_confirmed_at: nowIso }).eq("id", contractor.id).is("booking_confirmed_at", null);
