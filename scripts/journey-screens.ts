@@ -132,8 +132,13 @@ async def main():
             except Exception: pass
             cands = [x for x in await loc.all() if await x.is_visible()]
             how = "role"
+            if scope and not any([await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return true; n = n.parentElement; d++; } return false; }", scope) for x in cands]):
+                # A person would open "Show N more" lists to look for the named card.
+                for more in await page.get_by_role("button", name=re.compile(r"^Show \\d+ more", re.I)).all():
+                    if await more.is_visible(): await more.click(); await page.wait_for_timeout(800); res["runner_notes"].append("opened a Show more list")
+                cands = [x for x in await loc.all() if await x.is_visible()]
             if not cands:
-                t = page.get_by_text(rx)
+                t = page.get_by_text(name, exact=True)
                 cands = [x for x in await t.all() if await x.is_visible()]
                 how = "text"
             if scope and cands:
