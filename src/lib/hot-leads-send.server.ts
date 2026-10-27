@@ -538,6 +538,7 @@ const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com
 /** One provider call. Never throws: a timeout or dropped connection is an UNKNOWN outcome (the request may already have
  *  been accepted), and the HTTP status is classified by classifyProviderStatus (save-spot-delivery.core.ts). */
 export async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null, attachments?: import("./email-kit.core").EmailAttachment[]): Promise<ResendAttempt> {
+  if ((await import("./qa-context.server")).qaContextActive() || (await import("./qa-request.core")).qaPerson(to)) return { outcome: "not_attempted", detail: "TEST preview delivery blocked; no email service called" };
   const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
   if (!key || !gw) return { outcome: "not_attempted", detail: "Email is not connected" };
   let res: Response;

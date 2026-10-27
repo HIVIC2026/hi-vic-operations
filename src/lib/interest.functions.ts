@@ -18,7 +18,7 @@ import {
 
 export type InterestErrors = Partial<Record<keyof InterestDraft | "submit", string>>;
 export type InterestResult =
-  | { ok: true; duplicate: boolean }
+  | { ok: true; duplicate: boolean; qaJobId?: string; qaJobNumber?: string }
   | { ok: false; errors: InterestErrors };
 
 export type InterestRow = {
@@ -67,6 +67,11 @@ export const registerInterest = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<InterestResult> => {
     const parsed = parseInterest(data);
     if (!parsed.ok) return { ok: false, errors: parsed.errors as InterestErrors };
+    const { qaContextActive } = await import("./qa-context.server");
+    if (qaContextActive()) {
+      const result = await (await import("./qa-website.server")).recordQaWebsiteEnquiry(parsed.value);
+      return { ok: true, duplicate: !result.created, qaJobId: result.job_id, qaJobNumber: result.job_number };
+    }
     const supabasePublic = publishableClient();
     const dup = await supabasePublic.rpc("calculator_interest_is_duplicate", {
       _email: parsed.value.email,

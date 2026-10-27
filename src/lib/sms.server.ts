@@ -94,7 +94,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const nowIso = new Date().toISOString();
   // Every policy hold is decided BEFORE the key is touched (decision 165): switches, quiet hours, wording, consent,
   // STOP list, freshness of the triggering event, deleted job. None of these may consume the idempotency key.
-  const blocked = smsBlocker({
+  const blocked = ((await import("./qa-context.server")).qaContextActive() ? "TEST preview delivery blocked; no SMS service called" : null) ?? smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
     adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true, nowIso,

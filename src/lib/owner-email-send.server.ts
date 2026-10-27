@@ -8,6 +8,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void> }): Promise<string> {
+  if ((await import("./qa-context.server")).qaContextActive() || (await import("./qa-request.core")).qaPerson(p.to)) return "blocked — TEST delivery; not sent";
   const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
