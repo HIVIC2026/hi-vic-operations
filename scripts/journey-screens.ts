@@ -98,7 +98,7 @@ const STEPS: Step[] = [
   { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
-  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
+  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
   { step: "Ready Check completion", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", severity: "Fix soon", next: "Mitti", expect: stageIs("ready_check_complete", "measured_estimate_ready", "quote_sent") },
 ];
 const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
@@ -171,9 +171,29 @@ async def main():
             return (cands[0] if cands else None), how
         res["runner_notes"] = []
         if re.search(r"Let's check it's you", text, re.I):
-            # The owner must enter a 6-digit code from their phone/email. Asking for one sends a message, so the runner stops here.
-            res["clicked"] = False; res["runner_error"] = "owner code check shown (Text me a code / Email me a code); the runner can't receive a code without sending a message, so it stopped"
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error")]):
+            # Jo 27 Oct 13:15: press the real "Email me a code" (TEST-redirected to Jo), then read the TEST-only stored copy.
+            cr = cfg.get("codeRead")
+            em = page.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+            if not cr or not await em.count():
+                res["clicked"] = False; res["runner_error"] = "owner code check shown but no Email me a code button / TEST code reader"
+            else:
+                await em.first.click(); await page.wait_for_timeout(2500)
+                import urllib.request
+                code = None
+                for _ in range(20):
+                    rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"], headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                    rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                    if rows_: code = rows_[0]["code"]; break
+                    await asyncio.sleep(1)
+                if not code: res["clicked"] = False; res["missing"] = "a TEST sign-in code (none stored after pressing Email me a code)"
+                else:
+                    await page.get_by_label("Enter code").fill(code)
+                    await page.get_by_role("button", name="Check my code").click()
+                    await page.wait_for_timeout(3000)
+                    sc = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-code.png"; await page.screenshot(path=str(out / sc)); res["shots"].append(sc)
+                    res["runner_notes"] = []; res["codeUsed"] = True
+                    if re.search(r"Let's check it's you|doesn't match", await page.inner_text("body"), re.I): res["clicked"] = False; res["missing"] = "accepted sign-in code (page still asks for a code)"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error") and res.get("clicked") is not False]):
             scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
@@ -186,11 +206,17 @@ async def main():
                     for select in await form.locator("select").all():
                         values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
                         if values: await select.select_option(values[0])
-            el, how = await find(name, scope)
-            label = (name if name != "tick:" else "own acknowledgement tick") + (f" (in {scope})" if scope else "")
+            if name == "time:":
+                # A person taps the first offered time tile inside "Choose your Ready Check time".
+                sec = page.locator("section,div").filter(has_text=re.compile("Choose your Ready Check time")).last
+                tiles = [t for t in await sec.get_by_role("button").all() if re.search(r"\d", await t.inner_text()) and not re.search(r"suggest|code", await t.inner_text(), re.I)]
+                el, how = (tiles[0] if tiles else None), "time tile"
+            else:
+                el, how = await find(name, scope)
+            label = (name if name not in ("tick:", "time:") else ("own acknowledgement tick" if name == "tick:" else "an offered Ready Check time")) + (f" (in {scope})" if scope else "")
             if el is None:
                 body = await page.inner_text("body")
-                if name != "tick:" and re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
+                if name not in ("tick:", "time:") and re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
                 else: res["clicked"] = False; res["missing"] = label
                 break
             if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
@@ -226,7 +252,9 @@ async function browse(o: { n: number; slug: string; path: string; wait: string; 
   const email = people[o.person];
   const session = email ? JSON.stringify(await J.personaSession(email)) : null;
   const cfgFile = `${temp}/cfg-${o.n}.json`, result = `${temp}/res-${o.n}.json`;
-  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session })); chmodSync(cfgFile, 0o600);
+  // TEST code reader only for homeowner steps on this run's qa_test job (service key stays in a 0600 temp file, deleted below).
+  const codeRead = o.person === "homeowner" && ctx?.jobId ? { url: process.env["SUPABASE_URL"], key: process.env["SUPABASE_SERVICE_ROLE_KEY"], job: ctx.jobId } : null;
+  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session, codeRead })); chmodSync(cfgFile, 0o600);
   spawnSync("python3", [`${temp}/walk_step.py`, cfgFile], { encoding: "utf8", timeout: 90_000 });
   rmSync(cfgFile, { force: true });
   return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string; missing?: string; runner_error?: string; runner_notes?: string[] } : null;
@@ -265,6 +293,7 @@ if (!ctx?.jobId || !safe) {
 let archived: string[] = [];
 const { data: communications } = ctx?.jobId ? await admin.from("job_communications").select("subject,recipients,delivery_status,provider_message_id,source_event,source_reference,created_at").eq("job_id", ctx.jobId).eq("channel", "email").order("created_at") : { data: [] };
 const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
+if (ctx?.jobId) await admin.from("qa_owner_codes").delete().eq("job_id", ctx.jobId);
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 

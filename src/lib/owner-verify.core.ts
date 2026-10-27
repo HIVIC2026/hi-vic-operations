@@ -37,3 +37,9 @@ export function sessionUsable(r: { session_expires_at: string | null } | null, n
 }
 
 export const isCode = (v: unknown): v is string => typeof v === "string" && /^\d{6}$/.test(v);
+
+/** Jo 27 Oct 13:15: TEST-only stored code copy for the screen walk-through. Persisted qa_test job + reserved TEST-domain
+ * owner email + email channel only; every real owner returns false, so nothing extra is stored. */
+export function qaOwnerCodeCopyAllowed(persistedSource: string | null | undefined, channel: "sms" | "email", ownerEmail: string | null | undefined): boolean {
+  return persistedSource === "qa_test" && channel === "email" && /^[^@\s]+@(?:[a-z0-9-]+\.)*hivic-test\.example$/i.test((ownerEmail ?? "").trim());
+}

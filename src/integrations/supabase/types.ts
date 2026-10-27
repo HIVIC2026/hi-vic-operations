@@ -10613,6 +10613,33 @@ export type Database = {
           },
         ]
       }
+      qa_owner_codes: {
+        Row: {
+          code: string
+          code_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string
+        }
+        Insert: {
+          code: string
+          code_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          job_id: string
+        }
+        Update: {
+          code?: string
+          code_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+        }
+        Relationships: []
+      }
       quote_adjustments: {
         Row: {
           adjusted_by: string
