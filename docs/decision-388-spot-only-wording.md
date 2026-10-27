@@ -101,7 +101,7 @@ Sent once when the owner saves their spot. Design: `docs/templates/mjml/owner_O1
 
 ### O66 / O67 / O68 estimate reminders — `src/lib/estimate-followup.core.ts`
 
-Designs: `docs/templates/owner/O66…O68`, re-rendered by `scripts/render-decision-238-drafts.ts`.
+Designs: `docs/templates/mjml/owner_O66…O68.mjml`, re-rendered by `scripts/render-decision-238-drafts.ts`.
 
 **Was approved and live (decisions 242/357). Paused in commit 78dedb25 and still HELD** (`ESTIMATE_FOLLOWUP_APPROVED = false`). 264 day-2/day-7 reminders had already gone out.
 
