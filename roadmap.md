@@ -1,8 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 04:18 main journey follow-ups
-- [ ] Read-only audit every HV-3371 email/SMS record and recipient allowlist status.
-- [ ] Update only main journey consent input to the four existing required ticks; test and rerun with verified no-send, simulated Mitti and Demo-only wrapper; archive only this run's jobs.
-- [ ] Wait for installer/electrician page content and distinguish early screenshots from a real hang; report hangs without fixing product pages.
+- [x] HV-3371 read-only audit: customer_email_sends 0, sms_messages 0; all21 job_communications (14 email/7 SMS) blocked_prelaunch, no provider ids. Reserved TEST-domain emails and dummy mobiles are NOT sending-allowlisted. Complete row list in Files journey/HV-3371-message-audit.md.
+- [x] Only main TEST consent input changed: four existing required ticks in shared journey fixture;20 focused tests pass, build OK. Wrapper verified in executing child, all sending keys removed,17 Demo-only Xero calls,zero external/provider refusals; existing M passes. HV-3376 archived;1–6/9/10 PASS,7 FAIL after consent succeeds because ESC notice is configuration required,8 SKIPPED. Report journey/2026-10-27T04-21-11/report.md +json. No rules/settings/publishing changes; TEST flags restored.
+- [x] Existing screenshots were too early (plain Loading your day paragraph not counted as busy). Fresh TEST-role phone waiting check: both home pages load about2s, archived run-job pages resolve to expected assignment-ended access refusal rather than hanging. No product-page fix. Active electrician job-content proof unavailable after archive, not claimed.
 ## Jo 27 Oct 04:08 full journey proof Phases 1–2
 - [x] Saved partial read-only register:47 source-backed gate families plus859 literal candidates; exact messages indexed, untraced callers/notifications/SQL/printed-form branches marked incomplete. journey/block-register.md in Files; exhaustive Phase 1 completion not claimed.
 - [x] Added browser-first --screens preflight, without legacy server mutations or product/look changes;14 focused safety/guard tests pass, preview build OK. Current mode records downstream steps blocked, not a implemented full interactive all-clear journey.
