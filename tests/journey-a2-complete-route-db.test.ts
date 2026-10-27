@@ -86,7 +86,7 @@ const comms = (jobId: string) => q<{ channel: string; source_event: string; deli
 const recent = async (jobId: string, n = 12) => (await q<{ event_type: string; summary: string }>("select event_type, summary from workflow_events where job_id=$1 order by created_at desc limit $2", [jobId, n])).map((e) => `${e.event_type}: ${e.summary}`);
 const debug = (...a: unknown[]) => { if (process.env["JOURNEY_DEBUG"]) console.log(...a); };
 const META = { ip: "127.0.0.1", userAgent: "journey-test" };
-const officeCtx = { userId: OFFICE, supabase: admin, claims: {} };
+const officeCtx = { userId: OFFICE, supabase: asUser(OFFICE), claims: {} };
 const instCtx = { userId: INST, supabase: asUser(INST), claims: {} };
 
 let JOB = "";
