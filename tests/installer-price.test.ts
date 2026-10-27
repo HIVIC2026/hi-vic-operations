@@ -206,7 +206,11 @@ describe("wiring (source facts)", () => {
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("if (!view?.canSet) return null;");
     expect(card).not.toMatch(/Who is doing the electrical safety check\?|ip-electrician|setElectrician|Electrician licence number/);
-    expect(card).toContain("accessFlagLine(view.access)");
+    expect(card).toContain("accessFlagLine(view.readyCheck.access)");
+    // Jo 27 Oct 2026: the Ready Check's install m², removal m² and access show above the price, always.
+    expect(card).toContain("readyCheckPriceLines(view.readyCheck)");
+    for (const label of ['label="Install m²"', 'label="Removal m²"', 'label="Access"']) expect(card, label).toContain(label);
+    expect(card).not.toContain('<Row label="Ready Check"');
     expect(card).toContain("id={PRICE_CARD_ANCHOR}"); // the decision-288 text deep-links here
     // Decision 289: the installer job page's "enter your price" line no longer asks about the electrician.
     expect(read("src/lib/installer-screens.core.ts")).not.toContain("who does the electrical safety check");
