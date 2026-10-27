@@ -431,7 +431,7 @@ describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its 
 describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
     const beforeSends = sent.length;
-    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call);
+    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { electricianChoice: "hivic" });
     const auditId = await auditOf(added.jobId);
     if (!auditId) throw new Error("No fixture audit");
     completeForm(auditId, "Home Insulation Victoria electrician");
