@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:23 partner welcome email
+- [ ] Send welcome automatically on approval (guarded, once per business, email only); add Mitti section + store links; electrician and installer numbered steps checked against portal.
 ## Jo 27 Oct 03:00 five follow-ups + journey rerun
 - [x] Real A3 read-only: no owner-name question under any label; nothing changed (Jo to add in Mitti).
 - [x] Journeys route product Mitti calls to the simulator and refuse any real Mitti call (check M); stray real A4 audit_5f87c528f09144589e0a0380916633ec left in place.
