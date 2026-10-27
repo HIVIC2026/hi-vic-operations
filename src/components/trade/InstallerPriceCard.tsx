@@ -47,7 +47,10 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   return (
     <div id={PRICE_CARD_ANCHOR} data-installer-price className="mt-1.5 scroll-mt-4 border-t border-line pt-1.5">
       <p className="text-[13px] font-bold uppercase tracking-[1.1px] text-hiv-blue">Your price</p>
-      {access && <Row label="Ready Check" value={access} />}
+      {/* Jo 27 Oct 2026: the Ready Check details above the price box — same source the quote uses; missing = "Not on the Ready Check yet". */}
+      <Row label="Install m²" value={view.readyCheck.install} />
+      <Row label="Removal m²" value={view.readyCheck.removal} />
+      <Row label="Access" value={view.readyCheck.access} />
       <Row label="Electrical safety check" value={view.electrician} last={!lines || showForm} />
       {lines && !showForm && (
         <>

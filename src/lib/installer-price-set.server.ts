@@ -19,14 +19,15 @@ async function a1JobOrThrow(jobId: string) {
 
 /** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
  *  (null when there is no current Ready Check at all). Read-only. */
-async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null }> {
-  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null; hasReadyCheck: boolean; installAreaM2: number | null; removalM2: number | null }> {
+  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required, measured_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
   const list = Array.isArray(raw) ? raw : [];
   const entries = (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
-  const { readyCheckRemovalRequired } = await import("./ready-check-answers.core");
+  const { readyCheckRemovalRequired, removalTotalM2 } = await import("./ready-check-answers.core");
   const removalRequired = readyCheckRemovalRequired(entries, m as { removal_required?: boolean | null } | null);
-  return { entries, removalRequired };
+  const measured = (m as { measured_area_m2?: number | null } | null)?.measured_area_m2 ?? null;
+  return { entries, removalRequired, hasReadyCheck: !!m, installAreaM2: measured == null ? null : Number(measured), removalM2: removalTotalM2(entries) };
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
@@ -39,19 +40,24 @@ export async function installerPriceView(jobId: string, userId: string) {
     readInstallerPrice(jobId),
     (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
     (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
-    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null })),
+    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })),
   ]);
   const { entries, removalRequired } = readyCheck;
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const { accessFlagFromEntries } = await import("./ready-check-answers.core");
+  // Jo 27 Oct 2026 (redone): the card's Ready Check rows — same source the quote uses (current measurement + form removal m²).
+  const { readyCheckDetailLines, accessFlagLine, NOT_ON_READY_CHECK } = await import("./installer-price.core");
   const legacy = stored?.record.electrician?.choice ?? contactAnswersFromEntries(entries).electricianChoice;
   const choice = resolveElectricianChoice({ recorded, legacy, usual: usual.electrician });
+  const access = accessFlagFromEntries(entries);
+  const rc = readyCheckDetailLines({ hasReadyCheck: readyCheck.hasReadyCheck, installAreaM2: readyCheck.installAreaM2, removalRequired, removalM2: readyCheck.removalM2 });
   return {
     canSet: true as const, current: stored,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
-    access: accessFlagFromEntries(entries),
+    access,
     removalRequired,
+    readyCheck: { install: rc.install, removal: rc.removal, access: accessFlagLine(access) ?? NOT_ON_READY_CHECK },
   };
 }
 
@@ -61,7 +67,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
   // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
-  const { removalRequired } = await currentReadyCheck(jobId).catch(() => ({ entries: [], removalRequired: null }));
+  const { removalRequired } = await currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null }));
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
