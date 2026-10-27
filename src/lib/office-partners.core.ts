@@ -125,7 +125,10 @@ export function applicationChecks(f: { type: "installer" | "rec"; data: AppData;
     out.push(d.assessment_rate ? { mark: "ok", text: `PIESA rate proposed · $${d.assessment_rate}` } : { mark: "missing", text: "No PIESA rate proposed" });
     // Decision 371(b): number shape checks (a warning for the reviewer; never an approval decision).
     out.push(!d.rec_registration_number ? { mark: "missing", text: "REC number not given" } : recNumberProblem(d.rec_registration_number) ? { mark: "warn", text: `REC ${d.rec_registration_number} · number format looks wrong` } : { mark: "ok", text: `REC ${d.rec_registration_number}` });
-    out.push(!(d.licence_number && d.licence_expiry && d.licence_expiry >= f.today) ? { mark: "missing", text: "Electrical licence or its expiry missing" }
+    // Decision 411: these three block approval (activationBlockers); the wording says which one.
+    out.push(!d.licence_number?.trim() ? { mark: "missing", text: "Electrical licence number not given" }
+      : !d.licence_expiry ? { mark: "missing", text: "Electrical licence expiry not given" }
+      : d.licence_expiry < f.today ? { mark: "missing", text: `Electrical licence expired ${d.licence_expiry}` }
       : licenceNumberProblem(d.licence_number) ? { mark: "warn", text: `Electrical licence ${d.licence_number} · number format looks wrong · to ${d.licence_expiry}` }
       : { mark: "ok", text: `Electrical licence ${d.licence_number} · to ${d.licence_expiry}` });
     // Decision 371(c): the recorded ESV register lookups ("not checked" = check by hand; never a pass).

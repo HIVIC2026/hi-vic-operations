@@ -3,7 +3,7 @@
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
   acknowledgementsFor, agreementText, blockedMandatoryStep, effectiveElectricians, firstIncompleteStep,
-  REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, validBusinessEmail, type RecData,
+  melbourneToday, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, validBusinessEmail, validCalendarDate, type RecData,
 } from "./rec-onboarding.core";
 
 export type RecSignApp = {
@@ -38,6 +38,9 @@ export function recSignBlocker(app: RecSignApp, input: RecSignInput, now = new D
   if (d.works_under_rec !== false) return "Staff join Home Insulation Victoria by private invitation from your REC business.";
   for (const a of acknowledgementsFor(d)) if (input.acknowledgements[a.key] !== true) return "Tick every acknowledgement to sign.";
   if (d.contact_is_licensed_electrician !== true || !(d.licence_number ?? "").trim()) return 'Please confirm you are a licensed electrician and enter your licence number on the "About you" step before signing.';
+  // Decision 411 (Jo 27 Oct 2026): a current licence expiry is required on the server too, never relaxed in test mode.
+  if (!validCalendarDate(d.licence_expiry)) return "Please enter your electrical licence expiry date before signing.";
+  if ((d.licence_expiry as string) < melbourneToday(now)) return "Your electrical licence has expired. Enter the new expiry date before signing.";
   const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: app.allow_incomplete_sign ?? null });
   const missing = blockedMandatoryStep("sign", d, now) ?? (relax ? null : firstIncompleteStep(d, now));
   if (missing) return `Please complete the "${missing.replace(/_/g, " ")}" step before signing.`;

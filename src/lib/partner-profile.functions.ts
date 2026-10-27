@@ -15,7 +15,7 @@ export const getPartnerProfilePreview = createServerFn({ method: "POST" }).middl
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { loadProfileInputs } = await import("./partner-profile.server");
     const inputs = await loadProfileInputs(admin, data.applicationId);
-    const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities);
+    const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities, inputs.credentialChecks);
     // Office-only short-lived file links so Jo can open what the applicant uploaded.
     const { signFile } = await import("./file-links.server");
     if (profile.insurance.has_file && inputs.meta.insurance_certificate_path) {
