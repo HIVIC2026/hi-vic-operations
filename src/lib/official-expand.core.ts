@@ -173,7 +173,9 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
         let t = 0, o = 0;
         rows.forEach((r, i) => {
           const n = i + 1;
-          if (!r.what) flagged.push(`Appliance ${n}: not described.`);
+          // Decision 404: "What is it?" is gone from the form — a typed row is named by its "What type is it?" answer.
+          const name = r.what || r.type || "";
+          if (!name) flagged.push(`Appliance ${n}: not described.`);
           if (r.safe == null) flagged.push(`Appliance ${n}: "safe as it is" not answered.`);
           if (r.legacy) {
             if (t >= 10) { flagged.push(`Appliance ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
@@ -191,17 +193,17 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
           if (r.type === "Other hazard") {
             if (o >= 14) { flagged.push(`Hazard row ${n}: the official other-hazards table has only 14 rows — the office must attach the rest.`); return; }
             const where = r.where ? ` (${r.where})` : "";
-            out[`p7.otherHazard#${o}`] = `${r.what || "(not described)"}${where}${hazard ? `: ${hazard}` : ""}`;
+            out[`p7.otherHazard#${o}`] = `${name || "(not described)"}${where}${hazard ? `: ${hazard}` : ""}`;
             const act = r.safe === "No" ? r.action : r.safe === "Yes" ? "None required" : "";
             if (act) out[`p7.otherAction#${o}`] = act;
             o++;
             return;
           }
           if (t >= 10) { flagged.push(`Hazard row ${n}: the official table has only 10 rows — the office must attach the rest.`); return; }
-          out[`p7.appliance#${t}`] = r.what || "(not described)";
+          out[`p7.appliance#${t}`] = name || "(not described)";
           if (r.where) out[`p7.location#${t}`] = r.where;
           if (hazard) out[`p7.hazard#${t}`] = hazard;
-          if (r.safe === "No" && r.action) actions.push(`${r.what || `Row ${t + 1}`}: ${r.action}`);
+          if (r.safe === "No" && r.action) actions.push(`${name || `Row ${t + 1}`}: ${r.action}`);
           t++;
         });
         const unsafe = rows.filter((r) => r.safe === "No");
