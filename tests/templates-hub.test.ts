@@ -91,14 +91,14 @@ describe("every entry renders EXACTLY from the live code with TEST sample data",
       expect({ id: e.id, sender, uses }).toEqual({ id: e.id, sender, uses: true });
     }
   });
-  test("design files and preview files exist where the page points (docs/templates by who gets it)", () => {
+  test("design files and preview files exist where the page points (current MJML emails and retained pages)", () => {
     for (const e of TEMPLATE_ENTRIES) {
       if (e.design) expect({ id: e.id, design: e.design, exists: existsSync(e.design) }).toEqual({ id: e.id, design: e.design, exists: true });
       const p = e.render();
       if (p.kind === "file") expect({ id: e.id, path: p.path, exists: existsSync(p.path) }).toEqual({ id: e.id, path: p.path, exists: true });
       if (p.kind === "files") for (const f of p.items) if (f.path && !f.path.startsWith("docs/product-warranties/")) expect({ id: e.id, path: f.path, exists: existsSync(f.path) }).toEqual({ id: e.id, path: f.path, exists: true });
     }
-    for (const dir of ["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "drafts"]) expect(existsSync(`docs/templates/${dir}`)).toBe(true);
+    for (const dir of ["mjml", "owner", "installer", "office", "mitti", "compliance"]) expect(existsSync(`docs/templates/${dir}`)).toBe(true);
     for (const old of ["approved", "samples"]) expect(existsSync(`docs/templates/${old}`)).toBe(false);
   });
   test("code-off entries name a real false switch in code", () => {

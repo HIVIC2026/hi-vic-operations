@@ -85,10 +85,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
       await logEvent(job.id, userId, "installer_visit_time_not_saved", "Visit day and time entered on Add a job could not be saved as the Ready Check booking; the job is saved and the time can be entered on the job", { reason: error instanceof Error ? error.message : "Booking checks blocked confirmation", visit: opts.visit }, { internal: true });
     }
   }
-  // Decision 115: the Mitti form is created straight away, booking or not. T3: never wait for Mitti inside the save;
-  // creation runs in the background behind the atomic per-job claim (a booking above may already have started it).
+  // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
+  // the atomic claim; an existing form skips. The tick remains the backup after a failure.
   const { onReadyCheckJobAdded } = await import("./mitti-create.server");
-  const formCreation = booking === "confirmed" ? "skipped" as const : await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
+  const formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
   const state = await onsiteFormFor(job.id, userId, call, false);
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state };
 }

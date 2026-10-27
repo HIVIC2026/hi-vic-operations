@@ -32,7 +32,7 @@ async function currentReadyCheck(jobId: string): Promise<{ entries: { label: str
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
-  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, properties(address_line,suburb,state,postcode)").eq("id", jobId).maybeSingle();
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   const { myBusinesses } = await import("./pilot.server");
   if ((await myBusinesses(userId)).get(j.originating_installer_business_id) !== "business_admin") return null;
@@ -52,12 +52,16 @@ export async function installerPriceView(jobId: string, userId: string) {
   const choice = resolveElectricianChoice({ recorded, legacy, usual: usual.electrician });
   const access = accessFlagFromEntries(entries);
   const rc = readyCheckDetailLines({ hasReadyCheck: readyCheck.hasReadyCheck, installAreaM2: readyCheck.installAreaM2, removalRequired, removalM2: readyCheck.removalM2 });
+  const { resolveMittiProduct } = await import("./insulation-product.core");
+  const { formatPropertyAddress } = await import("./address");
+  const product = resolveMittiProduct(contactAnswersFromEntries(entries).productOption).product;
+  const address = formatPropertyAddress(j.properties);
   return {
     canSet: true as const, current: stored,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
     access,
     removalRequired,
-    readyCheck: { install: rc.install, removal: rc.removal, access: accessFlagLine(access) ?? NOT_ON_READY_CHECK },
+    readyCheck: { address: address || NOT_ON_READY_CHECK, install: rc.install, removal: rc.removal, access: accessFlagLine(access) ?? NOT_ON_READY_CHECK, product: product?.option ?? NOT_ON_READY_CHECK },
   };
 }
 

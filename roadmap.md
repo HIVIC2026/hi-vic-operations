@@ -1,4 +1,13 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:26 stale tests
+- [x] Correct only the three stale test expectations: current MJML templates/folders, retired A3 question and Owner name in the updated-form test; 37 tests pass in three isolated files. No product changes, sends, switches or publication.
+## Jo 27 Oct 07:23 decision 316
+- [x] Align guides, record Jo’s reconfirmation and correct piesa-fixes check 2.7 to use the official PIESA date; portal deadline code unchanged.
+## Jo 27 Oct 07:09 HV-3385 review fixes
+- [x] Refresh changed completed Mitti measurements, audit and redraft held quotes only; issued/accepted quotes unchanged. Practice sweep/readback and unchanged replay checked; verified measurements retain protection.
+- [x] Price is already excluded from Mitti missing-items messages; existing regression checks pass; installer quote amount validation untouched.
+- [x] Add a job starts the existing guarded form create immediately, without delayed retries; booking and tick backups retained; practice immediate readback and duplicate claim checks pass.
+- [x] Price-card rundown includes address, areas, access/notes, product and electrician; removal lock retained; actual isolated 390px/desktop rendering and physical lock tap checked. Hosted user mutation deliberately not run; no real jobs/forms/sends/switches/publication.
 ## Jo 27 Oct 06:02 independent Mitti pull
 - [x] Attempted no-message HV-3385 sync: refused because its measurement was already completed by production at 05:45; current form read confirmed 75m², batts below R2, remove75m², Bradford Gold R5 and easy access. No sends.
 - [x] Separate authenticated Mitti callback and remove only two requested sweeps from preview allocation; retain all other tick behaviour.
