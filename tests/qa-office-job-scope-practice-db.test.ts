@@ -8,7 +8,7 @@ const children = ["job_assignments", "partner_offers", "bookings", "assessments"
 const globals = ["workflow_settings", "admin_config_events"];
 const as = async (user: string) => db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub','${user}',false); SET ROLE authenticated;`);
 beforeAll(async () => {
-  await db.exec(`CREATE ROLE authenticated; CREATE ROLE anon; CREATE ROLE service_role;
+  await db.exec(`CREATE ROLE authenticated; CREATE ROLE anon; CREATE ROLE service_role; CREATE ROLE authenticator;
     CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz);
     GRANT USAGE ON SCHEMA public,auth TO authenticated,service_role;
@@ -46,6 +46,11 @@ beforeAll(async () => {
   await db.exec(readFileSync("docs/pending-migrations/qa-office-foundation.sql", "utf8"));
   await db.exec(`INSERT INTO public.user_roles VALUES('${qa}','qa_office');`);
   await db.exec(readFileSync("docs/pending-migrations/qa-office-job-scope.sql", "utf8"));
+  await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid); GRANT USAGE ON SCHEMA storage TO authenticated;
+    GRANT ALL ON storage.objects TO authenticated; ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY old_storage ON storage.objects FOR ALL TO authenticated USING(true) WITH CHECK(true);
+    INSERT INTO storage.objects VALUES('${id(99)}');`);
+  await db.exec(readFileSync("docs/pending-migrations/qa-office-api-boundary.sql", "utf8"));
 });
 afterAll(async () => db.close());
 test("job capability refuses real and real-owner-linked TEST jobs", async () => {
@@ -79,4 +84,21 @@ test("linking a TEST business to a real job revokes the entire TEST graph", asyn
   await db.exec(`RESET ROLE; UPDATE public.jobs SET originating_installer_business_id='${id(41)}' WHERE id='${realJob}';`);
   await as(qa); expect((await db.query("SELECT * FROM public.jobs")).rows).toEqual([]);
   await db.exec(`RESET ROLE; UPDATE public.jobs SET originating_installer_business_id='${id(42)}' WHERE id='${realJob}';`);
+});
+for (const path of ["/office_enquiry_index", "/office_job_list", "/rpc/has_role", "/rpc/is_job_owner", "/rpc/record_eligibility_verification", "/workflow_settings", "/customer_delivery_settings", "/rpc/set_ready_check_booking_enabled"]) test(`Data API denied by default: ${path}; admin unchanged`, async () => {
+  await as(qa); await db.exec(`SELECT set_config('request.path','${path}',false),set_config('request.method','POST',false);`);
+  await expect(db.exec("SELECT public.qa_office_api_boundary();")).rejects.toThrow("Not available for the TEST office login");
+  await as(admin); await db.exec("SELECT public.qa_office_api_boundary();");
+});
+test("Data API scoped jobs and profile reads allowed; direct writes denied", async () => {
+  await as(qa); await db.exec("SELECT set_config('request.path','/jobs',false),set_config('request.method','GET',false); SELECT public.qa_office_api_boundary();");
+  expect((await db.query("SELECT id FROM public.jobs")).rows).toEqual([{ id: testJob }]);
+  await db.exec("SELECT set_config('request.method','PATCH',false);");
+  await expect(db.exec("SELECT public.qa_office_api_boundary();")).rejects.toThrow("Not available");
+});
+test("qa_office cannot read other roles, assign roles or access private storage; admin unchanged", async () => {
+  await as(qa); expect((await db.query("SELECT user_id FROM public.user_roles")).rows).toEqual([{ user_id: qa }]);
+  await expect(db.exec(`INSERT INTO public.user_roles VALUES('${qa}','admin')`)).rejects.toThrow();
+  expect((await db.query("SELECT * FROM storage.objects")).rows).toEqual([]);
+  await as(admin); expect((await db.query("SELECT count(*)::int n FROM storage.objects")).rows).toEqual([{ n: 1 }]);
 });

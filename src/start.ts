@@ -3,6 +3,7 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
 import { isConnectionTeardown } from "./lib/http-abort";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { testOfficeBoundary } from "./lib/qa-office-boundary";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -35,6 +36,6 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [attachSupabaseAuth, testOfficeBoundary],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));

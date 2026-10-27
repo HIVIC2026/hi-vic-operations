@@ -34,7 +34,7 @@ async function contactRows(jobId: string, job: { created_at: string; source: str
   return mergeContactHistory({ emails: (emails.data ?? []) as EmailSendRow[], comms: (comms.data ?? []) as CommRow[], sms: (sms.data ?? []) as SmsRow[], messages: (messages.data ?? []) as PortalMessageRow[], ownerActions });
 }
 
-export async function loadJobPage(jobId: string) {
+export async function loadJobPage(jobId: string, testOffice = false) {
   const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
   if (error) throw new Error(`This job could not be loaded: ${error.message}`);
   if (!job) throw new Error("Job not found.");
@@ -44,7 +44,7 @@ export async function loadJobPage(jobId: string) {
   const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
 
   const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts] = await Promise.all([
-    gatherNeedsFacts({ includeTest: true, onlyIds: [jobId] }),
+    gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
     admin.from("partner_offers").select("kind, status, offered_at, responded_at, businesses(name)").eq("job_id", jobId).order("offered_at", { ascending: false }),
@@ -139,7 +139,7 @@ export async function loadJobPage(jobId: string) {
 }
 
 /** Money card (decisions 139–144, 152, 209, 230, 240): one invoice, four steps, Xero/Stripe only, office-only margin. */
-export async function loadJobMoney(jobId: string) {
+export async function loadJobMoney(jobId: string, testOffice = false) {
   const { jobPaymentView } = await import("./payments.server");
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg] = await Promise.all([
@@ -150,7 +150,7 @@ export async function loadJobMoney(jobId: string) {
     admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
     db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", jobId).maybeSingle(),
-    db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
+    testOffice ? Promise.resolve({ data: null }) : db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
     admin.from("invoices").select("xero_invoice_number, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
   ]);
@@ -192,7 +192,7 @@ export async function loadJobMoney(jobId: string) {
   }), veecBasis: veec.basis, quoteStatus: q?.status ?? null };
   return {
     invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error } : null,
-    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: view.bank, onlineInvoiceUrl: view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
+    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
     margin, quoteStatus: q?.status ?? null,
   };
 }

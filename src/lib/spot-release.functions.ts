@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withRequestMeta } from "./request-meta";
 import { requireAdmin } from "./workflow.server";
+import { requireOfficeJob, requireOfficeBusiness } from "./qa-office-access.server";
 
 const token = z.string().max(200);
 
@@ -12,7 +13,7 @@ const token = z.string().max(200);
 export const getSpotRelease = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { spotReleaseStateFor } = await import("./spot-release.server");
     const { releaseStatusLine, releasable } = await import("./spot-release.core");
     const s = await spotReleaseStateFor(data.jobId);
@@ -23,7 +24,8 @@ export const getSpotRelease = createServerFn({ method: "POST" }).middleware([req
 export const releaseSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), businessId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeBusiness(context.supabase, data.businessId);
     const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, data.businessId);
     return { mode: r.mode, installer: r.installer };
   });

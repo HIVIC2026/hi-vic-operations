@@ -13786,6 +13786,7 @@ export type Database = {
         Returns: boolean
       }
       is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
+      is_qa_office: { Args: never; Returns: boolean }
       issue_owner_link_code: {
         Args: {
           _channel: string
@@ -13862,6 +13863,14 @@ export type Database = {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
       }
+      qa_office_api_boundary: { Args: never; Returns: undefined }
+      qa_office_business_allowed: {
+        Args: { _business: string }
+        Returns: boolean
+      }
+      qa_office_has_role: { Args: never; Returns: boolean }
+      qa_office_job_allowed: { Args: { _job: string }; Returns: boolean }
+      qa_office_reserved_email: { Args: { _email: string }; Returns: boolean }
       quote_visible_to_current_user: {
         Args: {
           _job_id: string
@@ -14035,6 +14044,7 @@ export type Database = {
         | "installer"
         | "owner"
         | "property_manager"
+        | "qa_office"
       assignment_role: "electrician" | "installer" | "property_manager"
       assignment_status:
         | "draft"
@@ -14295,6 +14305,7 @@ export const Constants = {
         "installer",
         "owner",
         "property_manager",
+        "qa_office",
       ],
       assignment_role: ["electrician", "installer", "property_manager"],
       assignment_status: [

@@ -55,10 +55,10 @@ async function lastHeardMap(ids: string[]) {
 }
 
 /** Approved installers' coverage (same partner facts as Partners › Coverage) → is this postcode covered? */
-async function coveredFn() {
+async function coveredFn(testOnly = false) {
   const [{ data: businesses, error: be }, { data: credentials, error: ce }] = await Promise.all([
-    admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas"),
-    admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
+    (() => { const q = admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas"); return testOnly ? q.ilike("email", "%@hivic-test.example").like("onboarding_notes", "%[TEST PARTNER]%") : q; })(),
+    testOnly ? Promise.resolve({ data: [], error: null }) : admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
   ]);
   if (be || ce) throw new Error(`Coverage could not be loaded: ${(be ?? ce)!.message}`);
   const { tradeCoverage } = await import("./coverage.core");
@@ -94,16 +94,24 @@ async function estimateMap(ids: string[]) {
   return (id: string) => estimateDollars({ websiteTotal: website.get(id) ?? null, quoteTotal: quote.get(id) ?? null });
 }
 
-export async function loadEnquiriesList(p: EnquiryListParams) {
+export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
   const now = Date.now();
-  const index = await all("enquiries", (a, b) => admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone")
-    .eq("office_bucket", "enquiry").in("source", ["base44", "portal", "email"]).eq("channel", "hivic_sourced").order("created_at", { ascending: false }).order("id").range(a, b));
+  const index: Row[] = testJobIds ? await all("TEST enquiries", (a, b) => admin.from("jobs")
+    .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
+    .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
+    .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"]).order("created_at", { ascending: false }).order("id").range(a, b))
+    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null }; }))
+    : await all("enquiries", (a, b) => {
+    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
+    q = q.in("source", ["base44", "portal", "email"]);
+    return q.order("created_at", { ascending: false }).order("id").range(a, b);
+  });
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered, estimateOf] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
     byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
-    coveredFn(),
+    coveredFn(!!testJobIds),
     estimateMap(ids),
   ]);
   const { declaredExtras } = await import("./enquiry.core");
@@ -154,9 +162,15 @@ export type JobsListRow = {
   createdAt: string; lastActivityAt: string | null;
 };
 
-export async function loadActiveJobsList(p: JobsListParams) {
+export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
   const now = Date.now();
-  const base = await all("active jobs", (a, b) => {
+  const base: Row[] = testJobIds ? await all("TEST active jobs", (a, b) => admin.from("jobs")
+    .select("id,job_number,stage,source,channel,life_support,last_activity_at,created_at,owners(full_name,email,phone),properties(address_line),businesses!jobs_originating_installer_business_id_fkey(name)")
+    .eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null)
+    .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
+    .not("stage", "in", "(new_enquiry,eligibility_review,preliminary_estimate_ready,complete,cancelled)").order("created_at", { ascending: false }).order("id").range(a,b))
+    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; const property = r["properties"] as { address_line?: string } | null; const business = r["businesses"] as { name?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, property_address: property?.address_line, originating_business_name: business?.name, installer_name: null }; }))
+    : await all("active jobs", (a, b) => {
     // office_job_list is the shared office bucket view (not in the generated client types).
     const view = (admin as unknown as { from: (t: string) => any }).from("office_job_list"); // eslint-disable-line @typescript-eslint/no-explicit-any
     let q = view.select("id, job_number, stage, source, channel, owner_name, owner_email, owner_phone, property_address, installer_name, originating_business_name, life_support, last_activity_at, created_at").eq("office_bucket", "active");

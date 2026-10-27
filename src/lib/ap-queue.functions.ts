@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { requireOfficeJob } from "./qa-office-access.server";
 
 export const getApQueue = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -14,7 +15,7 @@ export const getApQueue = createServerFn({ method: "GET" }).middleware([requireS
 export const getFinalCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { finalCheckScreen } = await import("./final-check.server");
     return finalCheckScreen(data.jobId, context.userId);
   });
@@ -24,6 +25,6 @@ export const getFinalCheck = createServerFn({ method: "POST" }).middleware([requ
 export const approveApJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), note: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     return (await import("./ap-approve.server")).approveApJobAs(data.jobId, context.userId, data.note);
   });

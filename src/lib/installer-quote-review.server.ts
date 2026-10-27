@@ -24,7 +24,6 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
   // names are read alongside instead of after.
   const batches = [];
   for (let from = 0; from < ids.length; from += 150) batches.push(ids.slice(from, from + 150));
-  const businessesRead = admin.from("businesses").select("id, name");
   const parts = [];
   parts.push(...await Promise.all(batches.map(async batch => {
     const [quotes, held, assigned, basics, forms, declines] = await Promise.all([
@@ -39,7 +38,8 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [], declines: declines.data ?? [] };
   })));
   const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), forms = parts.flatMap(p => p.forms), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
-  const { data: businesses, error: be } = await businessesRead;
+  const businessIds = [...new Set([...jobs.map(j => j.originating_installer_business_id), ...assigned.map(a => a.business_id)].filter((id): id is string => !!id))];
+  const { data: businesses, error: be } = await admin.from("businesses").select("id, name").in("id", businessIds.length ? businessIds : ["00000000-0000-0000-0000-000000000000"]);
   if (be) throw new Error("Installer names could not be read.");
   const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
   const declineEv = parts.flatMap(p => p.declines);
