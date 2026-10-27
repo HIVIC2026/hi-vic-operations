@@ -6,7 +6,7 @@ export function completedRefreshPlan(i: { current: { id: string; status: string 
   // A cleared form answer must not leave the old removal or access facts behind.
   const fields = ["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"];
   const values = Object.fromEntries(fields.map(k => [k, i.values[k] ?? null]));
-  if (values.removal_required === false) values.removal_m2 = null;
+  if (values['removal_required'] === false) values['removal_m2'] = null;
   return { ...values, raw_snapshot: i.snapshot, zones: i.zones ?? [] };
 }
 
