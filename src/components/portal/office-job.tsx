@@ -141,8 +141,8 @@ export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: Car
       </>;
       case "ready-check": return <>
         {!h.ownJob && <ChooseInstallerPanel jobId={jobId} />}
-        {h.ownJob && <p className="text-sm text-sub">The installer arranges the Ready Check directly with their own customer (decision 54).</p>}
-        <JobCoverage jobId={jobId} />
+        {h.ownJob && <p className="text-sm text-sub">The installer does the Ready Check with their own customer.</p>}
+        {!h.ownJob && <JobCoverage jobId={jobId} />}
         <MittiCard jobId={jobId} isAdmin />
         <AreaDiagramCard jobId={jobId} kind="ready_check" />
         <SectionDocuments jobId={jobId} categories={["Ready Check"]} />
@@ -359,7 +359,7 @@ function TellTicks({ owner, installer, set, sends }: { owner: boolean; installer
       <label className="flex items-center gap-2"><input type="checkbox" checked={owner} onChange={(e) => set(e.target.checked, installer)} /> Email the owner</label>
       <label className="flex items-center gap-2"><input type="checkbox" checked={installer} onChange={(e) => set(owner, e.target.checked)} /> Email the installer</label>
       {(owner || installer) && (sends
-        ? <p className="text-xs text-sub">Sends the approved “Job cancelled” email now (decision 291); TEST jobs go to the TEST inbox only.</p>
+        ? <p className="text-xs text-sub">Sends the approved “Job cancelled” email now; TEST jobs go to the TEST inbox only.</p>
         : <p className="text-xs text-rose">Recorded only — nothing is sent until Jo approves the hold wording (decision 233).</p>)}
     </div>
   );
@@ -496,7 +496,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
       <HoldDialog h={h} open={dialog === "hold"} onOpenChange={(v) => setDialog(v ? "hold" : null)} />
       <ReasonDialog title={`Mark ${h.jobNumber} as test`} description="It moves to Jobs › Closed › Removed / test and leaves every live list." action="Mark as test" tone="ink" open={dialog === "test"} onOpenChange={(v) => setDialog(v ? "test" : null)} run={async (reason) => !!(await markTest({ jobId: h.jobId, reason }, "Marked as test"))} />
-      <ReasonDialog title={`Reopen ${h.jobNumber}`} description="Back to the stage it was at; the history is kept (decision 227)." action="Reopen" tone="ink" open={dialog === "reopen"} onOpenChange={(v) => setDialog(v ? "reopen" : null)} run={async (reason) => !!(await reopen({ jobId: h.jobId, reason }, "Reopened"))} />
+      <ReasonDialog title={`Reopen ${h.jobNumber}`} description="Back to the stage it was at; the history is kept." action="Reopen" tone="ink" open={dialog === "reopen"} onOpenChange={(v) => setDialog(v ? "reopen" : null)} run={async (reason) => !!(await reopen({ jobId: h.jobId, reason }, "Reopened"))} />
       <ReasonDialog title={`Delete ${h.jobNumber}`} description="TEST jobs only. Signed or sent records linked to it stop the delete and are kept." action="Delete" tone="rose" open={dialog === "delete"} onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: [h.jobId], action: "delete", reason }); if (r?.failed.length) { toast.error(r.failed[0]!.error ?? "Could not delete"); return false; } if (r) { toast.success("Deleted"); onDeleted(); } return !!r; }} />
       <Dialog open={dialog === "override"} onOpenChange={(v) => setDialog(v ? "override" : null)}>
         <DialogContent data-why="decision 220: one hidden office override for phone bookings, reason required, logged">

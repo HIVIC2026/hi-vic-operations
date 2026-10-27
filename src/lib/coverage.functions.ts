@@ -11,12 +11,26 @@ import { renderCoverageUnavailableEmail } from "./coverage-email";
 
 const uuid = z.string().uuid();
 
-async function loadCoverageData() {
+// One job is read by id; the full list is read in pages (Jo 27 Oct 2026, HV-3385: the database returns at most 1,000 rows,
+// so with 2,000+ open jobs newer ones were "not found" and showed "Coverage could not be checked").
+async function coverageJobs(admin: typeof import("@/integrations/supabase/client.server").supabaseAdmin, jobId?: string) {
+  const cols = "id,job_number,stage,source,properties(address_line,suburb,postcode)";
+  if (jobId) return admin.from("jobs").select(cols).eq("id", jobId);
+  const all: unknown[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("jobs").select(cols).not("stage", "in", "(complete,cancelled)").neq("source", "qa_test").order("id").range(from, from + 999);
+    if (error) return { data: null, error };
+    all.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return { data: all as NonNullable<typeof data>, error: null };
+  }
+}
+
+async function loadCoverageData(jobId?: string) {
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const [{ data: businesses, error: businessesError }, { data: credentials, error: credentialsError }, { data: jobs, error: jobsError }, { data: workers, error: workersError }, { data: members, error: membersError }] = await Promise.all([
     admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas,free_measureups_for_hivic_quote_leads"),
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
-    admin.from("jobs").select("id,job_number,stage,source,properties(address_line,suburb,postcode)").not("stage", "in", "(complete,cancelled)"),
+    coverageJobs(admin, jobId),
     admin.from("partner_workers").select("id,business_id,full_legal_name,trade_role,approval_status,removed_at").is("removed_at", null),
     admin.from("business_members").select("business_id,user_id,member_role,active,profiles!business_members_user_id_fkey(full_name)").eq("active", true),
   ]);
@@ -67,7 +81,7 @@ export const getJobCoverage = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((data) => z.object({ jobId: uuid }).parse(data))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { partners, jobs } = await loadCoverageData();
+    const { partners, jobs } = await loadCoverageData(data.jobId);
     const job = jobs.find((candidate) => candidate.id === data.jobId);
     if (!job) throw new Error("Job not found.");
     const property = job.properties as { suburb: string | null; postcode: string | null } | null;
@@ -81,7 +95,7 @@ export const sendNoCoverageEmail = createServerFn({ method: "POST" }).middleware
   .inputValidator((data) => z.object({ jobId: uuid }).parse(data))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { partners, jobs } = await loadCoverageData();
+    const { partners, jobs } = await loadCoverageData(data.jobId);
     const job = jobs.find((candidate) => candidate.id === data.jobId);
     if (!job) throw new Error("Job not found.");
     if (job.source === "qa_test") throw new Error("Customer email is blocked for TEST journeys. Nothing was sent.");

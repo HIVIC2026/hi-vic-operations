@@ -212,3 +212,12 @@ export function menuOffset(i: { anchorLeft: number; anchorWidth: number; menuWid
   if (i.anchorLeft + left < gutter) left = gutter - i.anchorLeft;
   return Math.round(left);
 }
+
+const NO_OWNER_ANSWER = new Set(["Not answered / unknown", "Not asked (question retired)", "No owner answer stored here", "—", ""]);
+/** One eligibility line (Jo 27 Oct 2026: "messy and dumb" — no "Not answered" filler, and no "Pass" next to "office check
+ *  not done"). What was seen onsite beats what the owner said; the detail is the onsite fact, else the owner's answer. */
+export function eligibilityLine(gateResult: string | null | undefined, ownerSaid: string | null | undefined, onsite: { mark: CheckMark; text: string } | null): { mark: CheckMark; detail: string | null } {
+  if (onsite) return { mark: onsite.mark, detail: onsite.text };
+  const said = (ownerSaid ?? "").trim();
+  return { mark: markOf(gateResult), detail: NO_OWNER_ANSWER.has(said) ? null : said };
+}
