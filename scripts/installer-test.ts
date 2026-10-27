@@ -16,7 +16,10 @@ import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
 import { readyCheckBookingOutcome } from './portal-qa-coverage';
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
-const noBrowser = process.argv.includes("--no-browser");
+const stepIndex = process.argv.indexOf("--step");
+const onlyStep = stepIndex >= 0 ? process.argv[stepIndex + 1] : undefined;
+if (stepIndex >= 0 && onlyStep !== "C16") throw new Error("Only --step C16 is supported.");
+const noBrowser = process.argv.includes("--no-browser") || onlyStep === "C16";
 // Morning operational QA: never run onboarding signing/approval/email steps or mint an office session.
 const installerAppOnly = process.argv.includes("--installer-app-only");
 const BIZ = "17793408-bf5c-4ddd-9bec-64199f64f9fb"; // [TEST PARTNER] Reinsulate
@@ -35,6 +38,7 @@ type Screen = { step: string; persona: string; path: string; mustSee?: string[];
 class Fail extends Error {}
 
 async function step(steps: Step[], key: string, label: string, fn: (c: (name: string, ok: boolean, detail?: string) => void) => Promise<void>) {
+  if (onlyStep && key !== onlyStep) return;
   const s: Step = { key, label, passed: false, checks: [] };
   const c = (name: string, ok: boolean, detail?: string) => { s.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); };
   try { await fn(c); s.passed = s.checks.length > 0 && s.checks.every((x) => x.ok); if (!s.passed) s.error = s.checks.filter((x) => !x.ok).map((x) => `${x.name}${x.detail ? ` (${x.detail})` : ""}`).join("; ") || "no checks ran"; }
@@ -631,7 +635,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
   screens.push({ step: "C14", persona: "staff", path: "/field", mustSee: ["Action needed", "In progress", "Done"], mustNotSee: [...BANNED, "Moving automatically"] });
 
-  await step(steps, "C16", "C16 Add job (current 4 steps): not measured / not quoted -> same job edited later; wrong business + staff refused; quote lines follow electrician payer", async (c) => {
+  await step(steps, "C16", "C16 Add job: preliminary edit allowed; measured area locked to office review; wrong business + staff refused; quote lines follow electrician payer", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
     const ii = await import("../src/lib/installer-intake.server");
     const core = await import("../src/lib/installer-intake.core");
@@ -660,11 +664,22 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
     c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
+    // Decision 421: once measured, only the office measurement review changes area.
+    // Record an onsite measurement on this run's new TEST job, never on an existing job.
+    if (j?.source !== "qa_test" || j.originating_installer_business_id !== BIZ) throw new Fail("SAFETY STOP: measurement fixture must be this run's TEST job.");
+    const { error: measurementError } = await admin.from("ceiling_measurements").insert({ job_id: a.jobId, is_current: true, provenance: "hivic_onsite", measured_area_m2: 118, created_by: ownerId, raw_snapshot: { source: "C16 TEST onsite measurement" } });
+    if (measurementError) throw new Fail(measurementError.message);
+    const measuredBefore = await ii.installerIntakeState(a.jobId);
+    c("TEST ceiling is now measured", measuredBefore.areaM2 === 118, String(measuredBefore.areaM2));
+    const measuredRefusal = "The ceiling has already been measured — the office changes it through the measurement review.";
+    const later = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 119, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [] }).then(() => "accepted", (e) => (e as Error).message);
+    const measuredAfter = await ii.installerIntakeState(a.jobId);
+    c("later edit of measured area refused through measurement review", later === measuredRefusal && measuredAfter.areaM2 === measuredBefore.areaM2 && measuredAfter.quoteIncGst === measuredBefore.quoteIncGst, later);
     // wrong business refused BEFORE any write
-    const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").limit(1).maybeSingle();
+    const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").ilike("name", "[TEST PARTNER]%").limit(1).maybeSingle();
     const wrong = await ii.installerUpdateIntake(a.jobId, ownerId, other?.id ?? "00000000-0000-0000-0000-000000000000", { areaM2: 1, insulation: "none", quoteStatus: "not_quoted", quoteIncGst: null, includes: null, proposedR: null, files: [] }).then(() => "accepted", (e) => (e as Error).message);
     const s2 = await ii.installerIntakeState(a.jobId);
-    c("another business can't edit this job", wrong !== "accepted" && (s2.areaM2 ?? s2.preliminaryAreaM2) === 118, wrong);
+    c("another business can't edit this measured job; area unchanged", (wrong === "Only the installer who supplied this job can update it." || wrong === measuredRefusal) && s2.areaM2 === measuredBefore.areaM2 && s2.quoteIncGst === measuredBefore.quoteIncGst, wrong);
     const staffAdd = await pi.createImportFor(staffId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never).then(() => "accepted", (e) => (e as Error).message);
     c("staff login can't add a job (business owner only)", staffAdd !== "accepted", staffAdd);
     const badFile = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5", proposedR: 5, files: [{ path: "partners/other/x.pdf", name: "x.pdf", type: "application/pdf" }] }).then(() => "accepted", (e) => (e as Error).message);
@@ -673,7 +688,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const lines = async (jobId: string) => { const { data } = await admin.from("quotes").select("status, quote_items(code)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]); return (data ?? []).flatMap((q) => ((q.quote_items as { code: string | null }[]) ?? []).map((i) => i.code)); };
     await ii.recordCommercialEligibility(a.jobId, ownerId, "eligible", "TEST run: owner, property and occupancy checked (fictitious)");
     // Quote after the Ready Check (Gate 3): record the visit + measured area and the quote's price basis/GST first.
-    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { attended: "attended", attendedOn: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" }), areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], commercial: { basis: "before_discount", gst: "inc_gst", inclusions: "R5 batts to 118 m2", exclusions: null, originalStatus: "prepared", removalPricing: null, removalAmountIncGst: null, extras: [] }, feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } } as never);
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { attended: "attended", attendedOn: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" }), areaM2: null, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], commercial: { basis: "before_discount", gst: "inc_gst", inclusions: "R5 batts to 118 m2", exclusions: null, originalStatus: "prepared", removalPricing: null, removalAmountIncGst: null, extras: [] }, feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic") ?? "" } } as never);
     const hq = await ii.draftQuoteFromIntake(a.jobId, ownerId).then(() => "drafted", (e) => (e as Error).message);
     const hl = await lines(a.jobId);
     c("HIV-arranged electrician: drafted quote carries the PIESA line", hq === "drafted" ? hl.includes("PIESA") : false, `${hq} / ${hl.join(",")}`);
@@ -711,10 +726,10 @@ for (let run = 1; run <= RUNS; run++) {
   const snap = await snapshot(); saveSnap(snap); active = snap;
   const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] } = {};
   try {
-    if (!installerAppOnly) await sectionA(steps, tag, screens, ctx);
-    await sectionB(steps, screens, { owner: ownerId, staff: staffId });
+    if (!installerAppOnly && !onlyStep) await sectionA(steps, tag, screens, ctx);
+    if (!onlyStep) await sectionB(steps, screens, { owner: ownerId, staff: staffId });
     const fx = `/tmp/installer-test/${tag}`;
-    spawnSync("python3", [new URL("../e2e/installer-test/fixtures.py", import.meta.url).pathname, fx, tag], { encoding: "utf8" });
+    if (!onlyStep) spawnSync("python3", [new URL("../e2e/installer-test/fixtures.py", import.meta.url).pathname, fx, tag], { encoding: "utf8" });
     await sectionC(steps, tag, ownerId, fx, screens);
     if (!noBrowser) {
       const sessions: Record<string, unknown> = { ...(!installerAppOnly ? { office: await sessionFor(JOURNEY_ACTOR_EMAIL) } : {}), owner: await sessionFor(OWNER_EMAIL), staff: await sessionFor(STAFF_EMAIL) };
