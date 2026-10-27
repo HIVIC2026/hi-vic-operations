@@ -91,7 +91,8 @@ describe("wiring", () => {
   test("office Approve: admin only, one shared write, refused while the form gate holds it, the button on held rows", () => {
     const fn = readFileSync("src/lib/office.functions.ts", "utf8");
     const at = fn.indexOf("export const approveElectricianForm");
-    expect(fn.slice(at, at + 600)).toContain("await requireAdmin(context.supabase)");
+    // requireOfficeJob falls through to requireAdmin for everyone who is not the isolated TEST office login.
+    expect(fn.slice(at, at + 600)).toContain("await requireOfficeJob(context.supabase, data.jobId)");
     expect(fn.slice(at, at + 600)).toContain("recordElectricianFormApproval(data.jobId, data.kind, context.userId)");
     const w = readFileSync("src/lib/electrician-form-approval.server.ts", "utf8");
     expect(w).toContain("if (!gate || blockers.length) throw");
