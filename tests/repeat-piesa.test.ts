@@ -76,3 +76,17 @@ test("installer page is paused at piesa_complete when the PIESA found fixes and 
   expect(jobNext(facts).title).toBe(FIXES_PAUSED_TITLE);
   expect(jobNext({ ...(facts as object), fixesOpen: false } as never).title).not.toBe(FIXES_PAUSED_TITLE);
 });
+
+test("TEST jobs only ever use STRIPE_TEST_SECRET_KEY; real jobs only STRIPE_SECRET_KEY", async () => {
+  const { stripeKeyFor } = await import("../src/lib/stripe.server");
+  const save = { t: process.env["STRIPE_TEST_SECRET_KEY"], l: process.env["STRIPE_SECRET_KEY"] };
+  process.env["STRIPE_SECRET_KEY"] = "sk_live_x"; delete process.env["STRIPE_TEST_SECRET_KEY"];
+  expect(stripeKeyFor("qa_test")).toBeNull();
+  process.env["STRIPE_TEST_SECRET_KEY"] = "sk_live_wrong";
+  expect(stripeKeyFor("qa_test")).toBeNull();
+  process.env["STRIPE_TEST_SECRET_KEY"] = "sk_test_ok";
+  expect(stripeKeyFor("qa_test")).toBe("sk_test_ok");
+  expect(stripeKeyFor("website")).toBe("sk_live_x");
+  if (save.t === undefined) delete process.env["STRIPE_TEST_SECRET_KEY"]; else process.env["STRIPE_TEST_SECRET_KEY"] = save.t;
+  if (save.l === undefined) delete process.env["STRIPE_SECRET_KEY"]; else process.env["STRIPE_SECRET_KEY"] = save.l;
+});

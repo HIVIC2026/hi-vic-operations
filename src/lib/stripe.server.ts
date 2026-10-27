@@ -70,7 +70,7 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
 /** Audit R02: the charge id of a PaymentIntent (Xero's Stripe feed may reference the charge). Read-only, best-effort:
  *  no key, a mode mismatch or any failure → null (the PaymentIntent id still identifies the receipt). */
 async function stripeChargeFor(paymentIntentId: string, livemode: boolean): Promise<string | null> {
-  const key = process.env["STRIPE_SECRET_KEY"] ?? null;
+  const key = livemode ? process.env["STRIPE_SECRET_KEY"] ?? null : process.env["STRIPE_TEST_SECRET_KEY"] ?? process.env["STRIPE_SECRET_KEY"] ?? null;
   const { stripeKeyMode } = await import("./stripe.core");
   if (!key || stripeKeyMode(key) !== (livemode ? "live" : "test")) return null;
   try {

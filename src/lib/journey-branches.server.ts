@@ -643,7 +643,7 @@ async function p3Payment(rec: Recorder, jobs: BranchResult["jobs"], setup: StepR
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
     const pay = await import("./payments.server");
     const v0 = await pay.jobPaymentView(ctx.jobId!);
-    const card = process.env["STRIPE_SECRET_KEY"] ? "Stripe test key present" : "no Stripe test key in this project — card fail and card retry NOT RUN";
+    const card = process.env["STRIPE_TEST_SECRET_KEY"] ? "Stripe test key present" : "no Stripe test key in this project — card fail and card retry NOT RUN";
     // Reverse the $349 Demo Company payment as a person would in Xero.
     const b = await counts(ctx.jobId!);
     let rev = "reversed";
@@ -669,7 +669,7 @@ async function p3Payment(rec: Recorder, jobs: BranchResult["jobs"], setup: StepR
     try { await (await import("./allocation.server")).startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }); alloc2 = "offered"; } catch (e) { alloc2 = `refused: ${(e as Error).message.slice(0, 200)}`; }
     await shoot("p3-repaid", [ownerPage(ctx)]);
     answer("carries_on", st2 === "paid" && alloc2 === "offered", `re-pay ${repay}; PIESA fee step=${st2}; PIESA offer ${alloc2}`);
-    if (!process.env["STRIPE_SECRET_KEY"]) rec.checks.push({ n: "3.card", name: "card fails, owner retries (Stripe test mode)", status: "blocked", detail: "BLOCKED: no Stripe test key (STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET) in this project", ids: {} });
+    if (!process.env["STRIPE_TEST_SECRET_KEY"]) rec.checks.push({ n: "3.card", name: "card fails, owner retries (Stripe test mode)", status: "blocked", detail: "BLOCKED: no Stripe test key (STRIPE_TEST_SECRET_KEY) in this project", ids: {} });
   } finally { await finish(ctx, jobs); }
 }
 
