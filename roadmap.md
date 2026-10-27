@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:50 TEST-only office steps A and B only
+- [ ] A: partial. Added separate verified-identity/database/graph server check to job page, job Money card and recorded notes; all other areas remain admin-only. Pending SELECT-only job-graph RLS passes practice checks, NOT APPLIED. 59 focused security checks + 20 existing regressions pass; lists/counts/search/Needs me/Money/Partners/Emails/buttons/exports/views/RPCs remain uncovered, listed in docs/qa/qa-office-27oct-access-coverage.md. No admin alias; full per-area proof NOT_RUN.
+- [ ] B: BLOCKED because A is incomplete, not because a credential is missing. No migration/account/password or screenshots created. No journey, publication, switch changes or sends.
 ## Jo 27 Oct 07:33 TEST-only office and Phase 2
 - [ ] Complete qa_office office access: inactive pure scope checks and quarantine SQL only are built; no production permissions or route changes. Remaining server readers/actions, views/RPCs, storage/exports and scoped list caches are NOT implemented; never widen requireAdmin/is_admin.
 - [x] Practice foundation only: 24 focused checks pass, including two-user quarantine real-id/table/settings denial and unchanged admin. This does NOT prove full office list/action isolation or authenticated end-to-end access.

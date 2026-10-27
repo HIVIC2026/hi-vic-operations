@@ -10,6 +10,7 @@ async function as(user: string) { await db.exec(`RESET ROLE; SELECT set_config('
 beforeAll(async () => {
   await db.exec(`CREATE ROLE authenticated; CREATE ROLE anon; CREATE ROLE service_role;
     CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz);
     GRANT USAGE ON SCHEMA public, auth TO authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated, service_role;
     CREATE TYPE public.app_role AS ENUM ('admin','owner','installer','electrician','property_manager');
@@ -21,6 +22,7 @@ beforeAll(async () => {
     CREATE POLICY self_role ON public.user_roles FOR SELECT TO authenticated USING (user_id=(SELECT auth.uid()));
     CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=(SELECT auth.uid()) AND role::text='admin') $$;
     INSERT INTO public.profiles VALUES ('${qa}','qa.office@hivic-test.example'),('${admin}','office@example.com');
+    INSERT INTO auth.users VALUES ('${qa}','qa.office@hivic-test.example',now()),('${admin}','office@example.com',now());
     INSERT INTO public.user_roles VALUES ('${admin}','admin');`);
   for (const table of tables) await db.exec(`CREATE TABLE public.${table}(id integer PRIMARY KEY, source text, value text);
     GRANT SELECT, INSERT, UPDATE, DELETE ON public.${table} TO authenticated;
