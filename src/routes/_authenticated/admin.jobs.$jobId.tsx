@@ -13,12 +13,11 @@ import { getOfficeJobPage } from "@/lib/office-screens.functions";
 import { AiReplyDrafts } from "@/components/portal/AiReplyDrafts";
 import { parseJobSection } from "@/lib/job-section.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
-import { landingTarget, type FoldKey } from "@/lib/job-page-layout.core";
+import { CLOSED_VIEW, goTo, landingView, showFull, tapRow, toggleFold, type FoldKey, type JobView } from "@/lib/job-page-layout.core";
 import { ContactHistory, FileList, JobMoreMenu, LogNoteDialog, MoneyCard, StageWorkspace } from "@/components/portal/office-job";
 import { Fold, JobTop, NextBox, StageRows } from "@/components/portal/job-page-parts";
 
 const CARD_KEYS: CardKey[] = ["enquiry", "ready-check", "quote", "piesa", "install", "final-check"];
-const isFold = (k: string): k is FoldKey => k === "money" || k === "contact" || k === "file";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Office" }, { name: "description", content: "One job: next step, six stages, money, contact history and file." }, { property: "og:title", content: "Job – Home Insulation Victoria Office" }, { property: "og:description", content: "One job: next step, six stages, money, contact history and file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }] }),
@@ -35,23 +34,18 @@ function JobPageRoute() {
   const navigate = Route.useNavigate();
   const load = useServerFn(getOfficeJobPage);
   const { data, error, refetch } = useQuery({ queryKey: ["office-job-page", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 15_000 });
-  const [open, setOpen] = useState<CardKey | null>(null);
-  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ money: false, contact: false, file: false });
+  const [view, setView] = useState<JobView>(CLOSED_VIEW);
   const [logOpen, setLogOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(act === "cancel");
-  // Open the row or fold first, then scroll to its always-present header (#stage-<key>).
-  const go = (k: CardKey | FoldKey) => {
-    if (isFold(k)) setFolds((f) => ({ ...f, [k]: true }));
-    else setOpen(k);
-    window.setTimeout(() => document.getElementById(`stage-${k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-  };
-  const toggleFold = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
-  // Needs me buttons and old links land on the right row or fold: #stage-<key> or ?section=.
+  const scrollTo = (k: CardKey | FoldKey) => window.setTimeout(() => document.getElementById(`stage-${k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  // Links (Next button, See installers, onGo from a stage's tools) open the stage WITH its full tools, or open the
+  // fold, then scroll to its always-present header (#stage-<key>). A plain row tap shows only the row's lines.
+  const go = (k: CardKey | FoldKey) => { setView((v) => goTo(v, k)); scrollTo(k); };
+  // Needs me buttons and old links land the same way: #stage-<key> or ?section=.
   useEffect(() => {
     if (!data) return;
-    const t = landingTarget(window.location.hash, section);
-    const want = t.card ?? t.fold;
-    if (want) go(want);
+    const l = landingView(window.location.hash, section);
+    if (l.scrollTo) { setView(l.view); scrollTo(l.scrollTo); }
   }, [!!data]); // eslint-disable-line react-hooks/exhaustive-deps
   if (error) return <AppShell><div role="alert" className="rounded-[14px] border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted. {(error as Error).message} <button type="button" className="ml-2 font-semibold underline" onClick={() => void refetch()}>Try again</button></div></AppShell>;
   if (!data) return <AppShell><p role="status" className="text-sub">Loading…</p></AppShell>;
@@ -61,10 +55,10 @@ function JobPageRoute() {
       <JobTop h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/active" })} />} />
       <NextBox jobId={jobId} next={data.next} onGo={(k) => go(k)} />
       <AiReplyDrafts jobId={jobId} />
-      <StageRows cards={data.cards} open={open} onToggle={(k) => setOpen(open === k ? null : k)} workspace={(k) => <StageWorkspace jobId={jobId} k={k} page={data} onGo={go} />} />
-      <Fold id="money" title="Money" open={folds.money} onToggle={() => toggleFold("money")}><MoneyCard jobId={jobId} anchor={false} /></Fold>
-      <Fold id="contact" title="Contact history" hint={String(data.contacts.length)} open={folds.contact} onToggle={() => toggleFold("contact")}><ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} anchor={false} /></Fold>
-      <Fold id="file" title="File" open={folds.file} onToggle={() => toggleFold("file")}><FileList jobId={jobId} /></Fold>
+      <StageRows cards={data.cards} open={view.open} full={view.full} onToggle={(k) => setView((v) => tapRow(v, k))} onFull={() => setView(showFull)} workspace={(k) => <StageWorkspace jobId={jobId} k={k} page={data} onGo={go} />} />
+      <Fold id="money" title="Money" open={view.folds.money} onToggle={() => setView((v) => toggleFold(v, "money"))}><MoneyCard jobId={jobId} anchor={false} /></Fold>
+      <Fold id="contact" title="Contact history" hint={String(data.contacts.length)} open={view.folds.contact} onToggle={() => setView((v) => toggleFold(v, "contact"))}><ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} anchor={false} /></Fold>
+      <Fold id="file" title="File" open={view.folds.file} onToggle={() => setView((v) => toggleFold(v, "file"))}><FileList jobId={jobId} /></Fold>
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />
     </AppShell>
   );

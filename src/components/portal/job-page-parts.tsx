@@ -95,8 +95,8 @@ export function NextBox({ jobId, next, onGo }: { jobId: string; next: JobPage["n
 }
 
 /* ---------------- Stages as one-line rows ---------------- */
-export function StageRows({ cards, open, onToggle, workspace }: { cards: StageCard[]; open: CardKey | null; onToggle: (k: CardKey) => void; workspace: (k: CardKey) => ReactNode }) {
-  const [full, setFull] = useState<CardKey | null>(null);
+// `open`/`full` live in the route (job-page-layout.core JobView): a row tap shows only the lines; links open the tools.
+export function StageRows({ cards, open, full, onToggle, onFull, workspace }: { cards: StageCard[]; open: CardKey | null; full: boolean; onToggle: (k: CardKey) => void; onFull: () => void; workspace: (k: CardKey) => ReactNode }) {
   return (
     <ul aria-label="Stages" className={cn(card, "mb-4 divide-y divide-line overflow-hidden")}>
       {cards.map((c) => {
@@ -104,7 +104,7 @@ export function StageRows({ cards, open, onToggle, workspace }: { cards: StageCa
         const now = c.state === "now";
         return (
           <li key={c.key}>
-            <button type="button" id={`stage-${c.key}`} aria-expanded={isOpen} onClick={() => { setFull(null); onToggle(c.key); }} className={cn("flex min-h-[52px] w-full scroll-mt-24 items-center gap-3 px-4 py-2 text-left", now && "bg-pink/40")}>
+            <button type="button" id={`stage-${c.key}`} aria-expanded={isOpen} onClick={() => onToggle(c.key)} className={cn("flex min-h-[52px] w-full scroll-mt-24 items-center gap-3 px-4 py-2 text-left", now && "bg-pink/40")}>
               <span aria-hidden className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold", c.state === "done" ? "bg-mint text-hiv-green" : now ? "bg-rose text-white" : "bg-mist text-sub")}>{c.state === "done" ? "✓" : c.n}</span>
               <span className="min-w-0 flex-1">
                 <span className="block break-words font-display text-[15px] font-bold text-ink">{c.title}</span>
@@ -118,9 +118,9 @@ export function StageRows({ cards, open, onToggle, workspace }: { cards: StageCa
                 <dl className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[13px]">
                   {c.lines.map((l) => <div key={l.label} className="contents"><dt className="text-sub">{l.label}</dt><dd className="min-w-0 break-words text-ink">{l.value}</dd></div>)}
                 </dl>
-                {full === c.key
+                {full
                   ? <div className="mt-3">{workspace(c.key)}</div>
-                  : <button type="button" className={btnClass("secondary", cn(tap, "mt-3"))} onClick={() => setFull(c.key)}>Open full details</button>}
+                  : <button type="button" className={btnClass("secondary", cn(tap, "mt-3"))} onClick={onFull}>Open full details</button>}
               </div>
             )}
           </li>
