@@ -330,6 +330,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     });
 
     // Case 3 first (before the electrician gives fixes times): one check fails → held with the reason, nothing sent.
+    if (P2_HOOK) await P2_HOOK("stopped", ctx).catch(() => undefined);
     await rec.run("2.3", "one check fails → held with the reason, nothing sent", async () => {
       await J.assertOwnTestJob(ctx);
       const b = await counts(ctx.jobId!);
@@ -457,6 +458,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: stage === "installation_scheduling" && told === 1 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
+    if (P2_HOOK) await P2_HOOK("carried-on", ctx).catch(() => undefined);
     await rec.run("2.8", "electrician pay due 7 days after the office approves the completed Mitti form (not the owner's payment)", async () => {
       const { payoutGateFacts } = await import("./trade-payout-gate.server");
       const ep = await import("./electrician-pay.core");
@@ -477,6 +479,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
 }
 
 let guardRouted: string[] = [];
+/** Phase 3 path 2: screens + office signals at the stop and after Section C (null outside Phase 3). */
+let P2_HOOK: ((moment: "stopped" | "carried-on", ctx: JourneyCtx) => Promise<void>) | null = null;
 /** Jo 27 Oct: a TEST journey must never reach real Mitti. Any network call to Mitti is refused and fails the run. */
 export async function runJourneyBranch(branch: BranchName): Promise<BranchResult> {
   const rec = new Recorder();
@@ -611,13 +615,22 @@ async function p1Screens(rec: Recorder, jobs: BranchResult["jobs"], setup: StepR
 
 // ---------- Path 2 — PIESA needs fixes, then Section C (screens) ----------
 async function p2Screens(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
-  await piesaFixes(rec, jobs, setup); // existing 2.1–2.8, unchanged; screens are taken from its archived job's final state below
+  const seen: Record<string, { shots: Shot[]; sig: Awaited<ReturnType<typeof officeSignals>> }> = {};
+  P2_HOOK = async (moment, ctx) => {
+    const sig = await officeSignals(ctx.jobId!);
+    const shots = await shoot(`p2-${moment}`, moment === "stopped"
+      ? [ownerPage(ctx), { who: "electrician", email: ELEC, path: `/field/day/${ctx.jobId}` }, { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]
+      : [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, officePages(ctx)[0]!]);
+    seen[moment] = { shots, sig };
+  };
+  try { await piesaFixes(rec, jobs, setup); } finally { P2_HOOK = null; } // existing 2.1–2.8, unchanged
   const c = (n: string) => rec.checks.find((x) => x.n === n)?.status === "passed";
+  const st = seen["stopped"];
   answer("stops", c("2.1"), "install scheduling closed while fixes needed (check 2.1)");
-  answer("reason", c("2.2"), "owner got the fixes quote with the price (check 2.2); see screenshots for wording");
-  const sig = jobs.at(-1)?.jobId ? await officeSignals(jobs.at(-1)!.jobId!) : null;
-  answer("office_once", null, `not observed at the stop: the fixes job is archived at the end of the run; Needs me rows on the archived job now=${sig?.needsMe ?? "-"}`);
-  answer("carries_on", c("2.6") && c("2.7"), "Section C recorded and install scheduling opened (checks 2.6, 2.7)");
+  const inst = st?.shots.find((x) => x.who === "installer"), off = st?.shots.find((x) => x.who === "office-job");
+  answer("reason", c("2.1") && (sees(inst, /fix|electrical|safety check/i) || sees(off, /fix|electrical/i)), `installer page names the electrical fixes=${sees(inst, /fix|electrical/i)}; office job page=${sees(off, /fix|electrical/i)}; owner gets the fixes quote email (check 2.2)=${c("2.2")}`);
+  answer("office_once", st ? st.sig.needsMe + st.sig.exceptions.length === 1 : null, st ? `at the stop: Needs me=${st.sig.needsMe} (${st.sig.needsMeText.join(" | ") || "none"}), exceptions=${st.sig.exceptions.join(",") || "none"}` : "stop screens not taken");
+  answer("carries_on", c("2.6") && c("2.7"), `Section C recorded and install scheduling opened (checks 2.6, 2.7); after: Needs me=${seen["carried-on"]?.sig.needsMe ?? "-"}`);
 }
 
 // ---------- Path 3 — payment reversed (Xero Demo Company); card fail/retry needs Stripe test keys ----------
