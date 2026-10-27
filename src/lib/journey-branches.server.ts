@@ -162,14 +162,16 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
       return { ok: refused && mentions && (offers ?? 0) === 0, detail: `${res}; PIESA offers saved=${offers}; ${diff(b, a)}` };
     }, ["1.1"]);
 
-    await rec.run("1.4", "exactly one automatic not-eligible email held while customer messages are off", async () => {
+    await rec.run("1.4", "exactly one automatic not-eligible email row on the job (sent to TEST, or held/blocked with the reason)", async () => {
       const e = await emailsSince(ctx.jobId!, since);
       const notElig = e.ces.filter((x) => x.purpose === "preliminary_ineligible");
-      const { customerCommsEnabled } = await import("./comms.server");
-      const { data: held } = await admin.from("customer_email_sends").select("error").eq("job_id", ctx.jobId!).eq("purpose", "preliminary_ineligible").maybeSingle();
+      const { data: row } = await admin.from("customer_email_sends").select("id, status, error").eq("job_id", ctx.jobId!).eq("purpose", "preliminary_ineligible").maybeSingle();
+      const { count: notes } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "verified_ineligible_email_not_sent");
       const prices = e.comm.filter((x) => /\$\s?\d/.test(`${x.subject} ${x.body}`));
       const toTest = e.comm.every((x) => JSON.stringify(x.recipients ?? "").includes(J.TEST_DOMAIN) || JSON.stringify(x.recipients ?? "") === "[]");
-      return { ok: !(await customerCommsEnabled()) && notElig.length === 1 && notElig[0]?.status === "failed" && held?.error?.startsWith("held:") === true && e.comm.length === 0 && prices.length === 0 && toTest, detail: `email records=${notElig.length}; status=${notElig[0]?.status}; ${held?.error ?? "no hold"}; outbound history=${e.comm.length}; prices=${prices.length}`, ids: { email_row: notElig[0]?.id ?? null } };
+      const refused = row?.status === "failed" && /^(held|blocked): /.test(row.error ?? "");
+      const kind = row?.status === "sent" ? "sent to the TEST address" : refused ? `recorded as ${row!.error!.split(":")[0]} — ${row!.error!.replace(/^(held|blocked): /, "")}` : `unexpected (${row?.status ?? "no row"})`;
+      return { ok: notElig.length === 1 && (row?.status === "sent" ? toTest : refused && notes === 1 && e.comm.length === 0) && prices.length === 0, detail: `email rows=${notElig.length}; ${kind}; office note rows=${notes}; outbound history=${e.comm.length}; prices=${prices.length}`, ids: { email_row: row?.id ?? null } };
     }, ["1.1"]);
 
     await rec.run("1.5", "no \"call the owner\" task created", async () => {
@@ -290,6 +292,9 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       users: [{ id: "sim-mitti-electrician", email: el!.email! }, { id: "sim-mitti-test-assignee", email: TEST_MITTI_ASSIGNEE }],
     });
     const fetchMedia = async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" });
+    // Jo 27 Oct: product code that calls Mitti on its own (booking the fixes visit makes the A4) goes to this simulator.
+    const guard = (await import("./mitti.server")).armJourneyMittiGuard(mitti.call);
+    guardRouted = guard.routed;
     let rectQuoteId: string | null = null;
 
     // Book the PIESA exactly as the default step 6 does, then the A3 with a priced repair.
@@ -335,7 +340,9 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const e = await emailsSince(ctx.jobId!, since);
       const { data: q } = o.quoteId ? await admin.from("quotes").select("status, sent_at").eq("id", o.quoteId).single() : { data: null };
       const { count: held } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "auto_fixes_quote_held").gte("created_at", since);
-      return { ok: o.result === "held" && !!o.reason && e.ces.length + e.comm.length === 0 && q?.status === "draft", detail: `result=${o.result} reason=${o.reason ?? "-"}; quote status=${q?.status ?? "none"}; held events=${held}; owner emails=${e.ces.length + e.comm.length}; ${diff(b, a)}. Failing check used: no fixes times from the electrician yet`, ids: { quote_id: o.quoteId } };
+      // Decision 315: "Waiting for the electrician's fixes times" is the portal's hold reason before the windows exist.
+      const heldWithReason = (o.result === "held" && !!o.reason) || (o.result === "waiting" && o.reason === "Waiting for the electrician's fixes times");
+      return { ok: heldWithReason && e.ces.length + e.comm.length === 0 && q?.status === "draft", detail: `result=${o.result} reason=${o.reason ?? "-"}; quote status=${q?.status ?? "none"}; held events=${held}; owner emails=${e.ces.length + e.comm.length}; ${diff(b, a)}. Failing check used: no fixes times from the electrician yet`, ids: { quote_id: o.quoteId } };
     }, ["2.1"]);
 
     await rec.run("2.2", "maybeAutoSendFixesQuote sent when every check passes; one owner email; price = electrician's price + margin by whose electrician", async () => {
@@ -376,10 +383,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       // Decision 366: the owner accepts now and picks one of the electrician's times on My job once the fixes are paid (2.5).
       await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, pickLater: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
         { userId: ownerUser, ip: "127.0.0.1", userAgent: "journey-test", authorize: async () => {}, isOwner: async () => true } as never);
-      const x = await import("./xero.server");
-      await x.createInvoiceForQuote(q!.id, ctx.actorId).catch(() => null);
-      const { data: inv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (inv && !inv.xero_invoice_id) await x.pushInvoiceToXero(inv.id, ctx.actorId).catch(() => null);
+      // ONE invoice per job: the fixes go onto the existing invoice through the product's own acceptance path (no second invoice).
+      const { data: inv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
       const r: StepResult = { key: "s6_electrician", label: "fixes pay", passed: false, checks: [] };
       let pay = "paid";
       try { await J.payStep(ctx, r, "fixes", "Electrical fixes payment (TEST payment, Demo Company)"); } catch (e) { pay = `not paid: ${(e as Error).message}`; }
@@ -464,8 +469,29 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
   }
 }
 
+let guardRouted: string[] = [];
+/** Jo 27 Oct: a TEST journey must never reach real Mitti. Any network call to Mitti is refused and fails the run. */
 export async function runJourneyBranch(branch: BranchName): Promise<BranchResult> {
   const rec = new Recorder();
+  const ms = await import("./mitti.server");
+  ms.armJourneyMittiGuard(null);
+  const refused: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (/mitti\.com/i.test(url)) { refused.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`); throw new Error(`SAFETY STOP: real Mitti call refused for a qa_test journey (${url.split("?")[0]})`); }
+    return realFetch(input as never, init);
+  }) as typeof fetch;
+  try { return await runBranchInner(branch, rec); }
+  finally {
+    globalThis.fetch = realFetch; ms.disarmJourneyMittiGuard();
+    rec.checks.push(refused.length
+      ? { n: "M", name: "no real Mitti call", status: "failed", detail: `REAL MITTI CALLS REFUSED: ${refused.join("; ")}`, ids: {} }
+      : { n: "M", name: "no real Mitti call", status: "passed", detail: `0 real Mitti calls; product calls sent to the simulator: ${guardRouted.length ? guardRouted.join("; ") : "none"}`, ids: {} });
+    guardRouted = [];
+  }
+}
+async function runBranchInner(branch: BranchName, rec: Recorder): Promise<BranchResult> {
   const jobs: BranchResult["jobs"] = [];
   const setup: StepResult[] = [];
   if (branch === "not-eligible") await notEligible(rec, jobs, setup);
