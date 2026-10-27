@@ -87,6 +87,16 @@ export const snoozeNeedsItem = createServerFn({ method: "POST" }).middleware([re
     return { until };
   });
 
+/** Decision 410 (Jo 27 Oct 2026): someone in the office approves the electrician's completed Mitti form (A3 / A4);
+ *  their pay falls due 7 days later. Refused while the form gate holds it; a second Approve records nothing. */
+export const approveElectricianForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind: z.enum(["assessment", "rectification"]) }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
+    return recordElectricianFormApproval(data.jobId, data.kind, context.userId);
+  });
+
 /** Office records that a trade has been paid (no money moves automatically). */
 export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional() }).parse(d))
@@ -107,9 +117,12 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
     // Decision 318: no payment until the matching Mitti form is Complete and its evidence checks pass (fails closed).
     const { payoutBlockersFor } = await import("./trade-payout-gate.server");
     const held = await payoutBlockersFor(data.jobId, data.kind ?? "installation");
-    // Decision 355 (Jo 27 Oct 2026): an electrician payout needs only the complete, approved Mitti form above — it never
-    // waits for the owner to pay.
-    if (data.kind !== "assessment" && data.kind !== "rectification") {
+    // Decision 410 (Jo 27 Oct 2026): an electrician payout also needs the office's Approve on that form — it never waits
+    // for the owner to pay.
+    if (data.kind === "assessment" || data.kind === "rectification") {
+      const [{ payoutGateFacts }, { electricianPayTiming }] = await Promise.all([import("./trade-payout-gate.server"), import("./electrician-pay.core")]);
+      held.push(...electricianPayTiming(data.kind, (await payoutGateFacts([data.jobId])).get(data.jobId)).waiting);
+    } else {
       // Review R09 / audit F19: installer pay — the SAME rule the Payouts tab shows (AP approval; for installer-supplied
       // A1 jobs also the owner's payment in full), enforced here so a direct call can't mark a held payout paid.
       const { installerPayHeldReasonsFor } = await import("./installer-pay-timing.server");

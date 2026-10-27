@@ -114,19 +114,19 @@ export function installerPayHeldReasons(f: { installerSupplied: boolean; apAppro
   return out;
 }
 
-/** Decision 355 (Jo 25 Oct 2026), corrected by Jo 27 Oct 2026: electricians are paid for the safety check (A3) and the
- *  fixes (A4) within 7 days of their Mitti form being complete and approved (Complete pressed, every check passed — the
- *  decision-318 gate). It does NOT wait for the owner to pay. Installer pay is unchanged (`payState`). */
+/** Decision 410 (Jo 27 Oct 2026, replaces 355 for electricians): electricians are paid for the safety check (A3) and the
+ *  fixes (A4) within 7 days of someone in the office pressing Approve on their completed Mitti form (Approve is offered
+ *  once the decision-318 gate passes). It does NOT wait for the owner to pay. Installer pay is unchanged (`payState`). */
 export type ElectricianPayKind = "assessment" | "rectification";
-/** Electrician Money page "How pay works" line (decision 355, Jo 27 Oct 2026). */
-export const ELECTRICIAN_PAY_RULE_LINE = "Paid within 7 days of your Mitti form being complete and approved";
-export function electricianPayState(f: { paidAt: string | null; formCompleteAt: string | null }): PayState {
+/** Electrician Money page "How pay works" line (decision 410, Jo 27 Oct 2026). */
+export const ELECTRICIAN_PAY_RULE_LINE = "Paid within 7 days of us approving your completed Mitti form";
+export function electricianPayState(f: { paidAt: string | null; approvedAt: string | null }): PayState {
   if (f.paidAt) return { kind: "paid", on: f.paidAt };
-  if (!f.formCompleteAt) return { kind: "checking" };
-  return { kind: "coming", on: new Date(Date.parse(f.formCompleteAt) + 7 * 86_400_000).toISOString() };
+  if (!f.approvedAt) return { kind: "checking" };
+  return { kind: "coming", on: new Date(Date.parse(f.approvedAt) + 7 * 86_400_000).toISOString() };
 }
-/** When an electrician payout falls due (null = not yet: the form is not complete and approved). */
-export const electricianPayDueAt = (f: { formCompleteAt: string | null }): string | null => {
+/** When an electrician payout falls due (null = not yet: the office hasn't approved the completed form). */
+export const electricianPayDueAt = (f: { approvedAt: string | null }): string | null => {
   const s = electricianPayState({ paidAt: null, ...f });
   return s.kind === "coming" ? s.on : null;
 };

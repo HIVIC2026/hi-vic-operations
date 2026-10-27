@@ -28,7 +28,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   ]);
   const settings: DueSettings | null = ws ? { tradeWarnHours: Number(ws.due_trade_reply_warn_hours ?? 24), tradeExceptionHours: Number(ws.due_trade_reply_exception_hours ?? 48), ownerReminderDays: Number(ws.due_owner_reminder_days ?? 3), ownerFlagDays: Number(ws.due_owner_flag_days ?? 7) } : null;
   const now = new Date();
-  // Decision 355 (Jo 27 Oct 2026): an electrician's pay follows their own approved Mitti form only (not AP, not the owner).
+  // Decision 410 (Jo 27 Oct 2026): an electrician's pay follows the office's Approve on their form only (not AP, not the owner).
   const realIds = (jobs ?? []).map((j) => j.id);
   const elecPay = c.kind === "electrician" && realIds.length ? await Promise.all([
     (await import("./trade-payout-gate.server")).payoutGateFacts(realIds),
@@ -75,7 +75,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
       payout: !workDone ? null : elecPay ? (() => {
         const kind = bs.some((b) => b.mine && b.kind === "rectification" && b.status === "completed") ? "rectification" as const : "assessment" as const;
         const t = elecPay[1].electricianPayTiming(kind, elecPay[0].get(j.id));
-        return electricianPayState({ paidAt: paidOut, formCompleteAt: t.formCompleteAt });
+        return electricianPayState({ paidAt: paidOut, approvedAt: t.approvedAt });
       })() : payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }),
       settings,
     });

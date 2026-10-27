@@ -453,14 +453,18 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: stage === "installation_scheduling" && told === 1 && !!want && got === want, detail: `stage=${stage}; installer clearance notices=${told}; Section C ${sc}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
-    await rec.run("2.8", "electrician pay due 7 days after the complete, approved Mitti form (not the owner's payment)", async () => {
+    await rec.run("2.8", "electrician pay due 7 days after the office approves the completed Mitti form (not the owner's payment)", async () => {
       const { payoutGateFacts } = await import("./trade-payout-gate.server");
       const ep = await import("./electrician-pay.core");
-      const facts = await payoutGateFacts([ctx.jobId!]);
-      const t = ep.electricianPayTiming("rectification" as never, facts.get(ctx.jobId!));
-      const want = t.formCompleteAt ? new Date(Date.parse(t.formCompleteAt) + 7 * 86_400_000).toISOString().slice(0, 10) : null;
+      // Decision 410: complete but not yet approved → not due, and the office is offered Approve.
+      const before = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+      const waitingOk = !!before.formCompleteAt && !before.dueAt && before.approvable;
+      const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
+      const { approvedAt } = await recordElectricianFormApproval(ctx.jobId!, "rectification", ctx.actorId);
+      const t = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+      const want = new Date(Date.parse(approvedAt) + 7 * 86_400_000).toISOString().slice(0, 10);
       const got = t.dueAt ? String(t.dueAt).slice(0, 10) : null;
-      return { ok: !!t.formCompleteAt && got === want, detail: `form complete ${t.formCompleteAt ?? "none"}; due ${got ?? "none"}; expected ${want ?? "-"}` };
+      return { ok: waitingOk && got === want, detail: `form complete ${before.formCompleteAt ?? "none"}; before Approve due ${before.dueAt ?? "none"} (approvable ${before.approvable}); approved ${approvedAt}; due ${got ?? "none"}; expected ${want}` };
     }, ["2.6"]);
   } finally {
     await cleanupJourney(ctx).catch(() => undefined);
