@@ -373,7 +373,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
       const ownerUser = (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
       const { respondToQuoteImpl } = await import("./portal.functions");
-      await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
+      // Decision 366: the owner accepts now and picks one of the electrician's times on My job once the fixes are paid (2.5).
+      await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, pickLater: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
         { userId: ownerUser, ip: "127.0.0.1", userAgent: "journey-test", authorize: async () => {}, isOwner: async () => true } as never);
       const x = await import("./xero.server");
       await x.createInvoiceForQuote(q!.id, ctx.actorId).catch(() => null);
