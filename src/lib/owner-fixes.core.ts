@@ -45,5 +45,15 @@ export const OWNER_FIXES_COPY = {
   homeButton: "See your electrical fixes",
 } as const;
 
+/** Block #11 (Jo 28 Oct): the plain pay-first reason when the owner tries to book while the fixes are unpaid. */
+export const FIXES_PAY_FIRST = "Please pay for the electrical fixes before booking your install day.";
+/** Why the owner can't pick a fixes time right now (null = they can). */
+export function ownerFixesPickRefusal(step: OwnerFixesStep): string | null {
+  if (step === "pay") return FIXES_PAY_FIRST;
+  if (step === "approve") return "Please approve the electrical fixes first.";
+  if (step === "pick") return null;
+  return "There's no electrical fixes time to pick right now.";
+}
+
 /** The Home card shows a button to the fixes screen only while the owner has something to do there. */
 export const ownerFixesNeedsOwner = (s: OwnerFixesStep) => s === "approve" || s === "pay" || s === "pick";

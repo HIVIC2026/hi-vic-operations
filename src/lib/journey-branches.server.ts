@@ -1221,14 +1221,16 @@ async function m11FixesPayment(rec: Recorder, jobs: BranchResult["jobs"], setup:
     const st = await of.ownerFixesState(ctx.jobId!);
     const stage0 = await J.stageOf(ctx);
     let pick = "not tried";
-    if (st.windows.length) { try { await of.ownerPickFixesTime(ctx.jobId!, st.windows[0]!.id, await ownerUserId(ctx)); pick = "NOT refused"; } catch (e) { pick = `refused: ${(e as Error).message.slice(0, 250)}`; } }
-    else pick = `no times offered (step=${st.step})`;
+    // The owner tries to book one of the electrician's offered times while the fixes are unpaid (as a person would).
+    const { data: offered } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("kind", "rectification").eq("electrician_window", true).eq("status", "proposed").limit(1).maybeSingle();
+    const tryId = st.windows[0]?.id ?? offered?.id ?? "00000000-0000-0000-0000-000000000000";
+    try { await of.ownerPickFixesTime(ctx.jobId!, tryId, await ownerUserId(ctx)); pick = "NOT refused"; } catch (e) { pick = `refused: ${(e as Error).message.slice(0, 250)}`; }
     const { count: booked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "rectification");
     const stage1 = await J.stageOf(ctx);
     const told = await officeToldOnce(ctx, (await shoot("m11-blocked", [ownerPage(ctx), { who: "electrician", email: ELEC, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]))[2], /fix|payment|pay/i);
     const shots = SHOTS.filter((x) => x.moment === "m11-blocked");
     answer("stops", pick.startsWith("refused") && (booked ?? 0) === 0 && stage1 === stage0, `owner fixes step=${st.step}; picking a time ${pick}; fixes bookings=${booked}; stage ${stage0}→${stage1}`);
-    answer("reason", sees(shots[0], /fix|pay|payment/i), `owner My job page mentions the fixes payment=${sees(shots[0], /fix|pay|payment/i)}; plain refusal: ${pick.slice(0, 200)}`);
+    answer("reason", pick.includes("Please pay for the electrical fixes before booking") && sees(shots[0], /fix|pay|payment/i), `owner My job page mentions the fixes payment=${sees(shots[0], /fix|pay|payment/i)}; plain refusal: ${pick.slice(0, 200)}`);
     answer("office_once", told.ok, told.detail);
     // Fix: the owner pays the fixes in full (TEST payment, Demo Company) — then the same pick books the visit.
     let pay = "paid";
