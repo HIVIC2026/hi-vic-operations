@@ -109,13 +109,12 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
           if (lookupError) throw new Error(lookupError.message);
           if (ex) {
             const check = ex.storage_path ? await admin.storage.from("job-files").download(ex.storage_path) : null;
-            if (check?.error || !check?.data?.size) throw new Error("saved photo is missing from job files");
-            continue;
+            if (!check?.error && check?.data?.size) continue;
           }
           const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
           if (!bytes.length) throw new Error("empty media");
           const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : contentType.includes("heic") ? "heic" : "bin";
-          const path = `${jobId}/mitti/ruler-photos/${auditId}-${file.mediaId}.${ext}`;
+          const path = ex?.storage_path || `${jobId}/mitti/ruler-photos/${auditId}-${file.mediaId}.${ext}`;
           const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
           if (up.error) {
             if (!/exists|duplicate/i.test(up.error.message)) throw new Error("storage upload failed");
@@ -123,7 +122,7 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
             if (check.error || !check.data?.size) throw new Error("stored photo could not be verified");
           }
           const label = which === "existing" ? "existing insulation depth" : "new insulation depth after install";
-          const { error } = await admin.from("documents").insert({ job_id: jobId, kind: RULER_PHOTO_DOC_KIND, title: `Ruler photo – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
+          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: RULER_PHOTO_DOC_KIND, title: `Ruler photo – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
           if (error) {
             if (error.code !== "23505") throw new Error(error.message);
             const check = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
