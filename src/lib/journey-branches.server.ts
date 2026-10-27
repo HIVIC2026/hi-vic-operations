@@ -161,25 +161,14 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
       return { ok: refused && mentions && (offers ?? 0) === 0, detail: `${res}; PIESA offers saved=${offers}; ${diff(b, a)}` };
     }, ["1.1"]);
 
-    // Jo 27 Oct: the approved not-eligible email (decision 73, T7) is only sent when the office presses
-    // "Not eligible – close" (SpotPhotoCheck → reviewLeadMedia close + the reviewed-ineligible send). Press it as the office would.
-    let closeResult = "not pressed";
-    await rec.run("1.4a", "office presses \"Not eligible – close\" with a reason (TEST job)", async () => {
-      await J.assertOwnTestJob(ctx);
-      const b = await counts(ctx.jobId!);
-      await (await import("./enquiry-groups.server")).reviewLeadMedia(ctx.jobId!, "over_r2", ctx.actorId, reason, true);
-      const r = await (await import("./followups.server")).sendPreliminaryIneligibleEmail(ctx.jobId!, ctx.actorId);
-      closeResult = r.sent ? "sent" : `not sent: ${r.reason}`;
-      const a = await counts(ctx.jobId!);
-      return { ok: true, detail: `close saved; not-eligible email ${closeResult}; stage now ${await J.stageOf(ctx)}; ${diff(b, a)}` };
-    }, ["1.1"]);
-
-    await rec.run("1.4", "exactly one not-eligible owner email row (TEST address, simulated), no prices", async () => {
+    await rec.run("1.4", "exactly one automatic not-eligible email held while customer messages are off", async () => {
       const e = await emailsSince(ctx.jobId!, since);
-      const notElig = [...e.ces.filter((x) => /not.?eligible|ineligible/i.test(x.purpose ?? "")), ...e.comm.filter((x) => /not.?eligible|doesn.t appear eligible|does not appear eligible/i.test(`${x.subject} ${x.body}`))];
+      const notElig = e.ces.filter((x) => x.purpose === "preliminary_ineligible");
+      const { customerCommsEnabled } = await import("./comms.server");
+      const { data: held } = await admin.from("customer_email_sends").select("error").eq("job_id", ctx.jobId!).eq("purpose", "preliminary_ineligible").maybeSingle();
       const prices = e.comm.filter((x) => /\$\s?\d/.test(`${x.subject} ${x.body}`));
       const toTest = e.comm.every((x) => JSON.stringify(x.recipients ?? "").includes(J.TEST_DOMAIN) || JSON.stringify(x.recipients ?? "") === "[]");
-      return { ok: notElig.length === 1 && prices.length === 0 && toTest, detail: `owner email rows since not-eligible: log ${e.ces.length} (${e.ces.map((x) => `${x.purpose}/${x.status}`).join(", ") || "none"}), history ${e.comm.length}; not-eligible ones=${notElig.length}; with prices=${prices.length}`, ids: { email_row: (notElig[0] as { id?: string } | undefined)?.id ?? null } };
+      return { ok: !(await customerCommsEnabled()) && notElig.length === 1 && notElig[0]?.status === "failed" && held?.error?.startsWith("held:") === true && e.comm.length === 0 && prices.length === 0 && toTest, detail: `email records=${notElig.length}; status=${notElig[0]?.status}; ${held?.error ?? "no hold"}; outbound history=${e.comm.length}; prices=${prices.length}`, ids: { email_row: notElig[0]?.id ?? null } };
     }, ["1.1"]);
 
     await rec.run("1.5", "no \"call the owner\" task created", async () => {
