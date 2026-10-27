@@ -7,13 +7,28 @@ let tables: Record<string, Row[]> = {};
 let readError: { message: string } | null = null;
 const reads: string[] = [];
 const writes: string[] = [];
+// "jobs.x" filters read the joined job (jobs!inner: a row with no job is dropped).
+const val = (r: Row, k: string) => {
+  if (!k.startsWith("jobs.")) return r[k];
+  const j = (tables.jobs ?? []).find((x) => x.id === r.job_id);
+  return j ? (j[k.slice(5)] ?? null) : undefined;
+};
+const hasJob = (r: Row) => (tables.jobs ?? []).some((x) => x.id === r.job_id);
 function from(t: string) {
   reads.push(t);
   let rows = [...(tables[t] ?? [])];
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => q,
-    eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; },
+    select: (cols: string) => { if (/jobs!inner/.test(cols ?? "")) rows = rows.filter(hasJob); return q; },
+    eq: (k: string, v: unknown) => { rows = rows.filter((r) => val(r, k) === v); return q; },
+    neq: (k: string, v: unknown) => { rows = rows.filter((r) => val(r, k) !== v); return q; },
+    is: (k: string, v: unknown) => { rows = rows.filter((r) => (val(r, k) ?? null) === v); return q; },
+    not: (k: string, op: string, v: unknown) => {
+      if (op !== "in") throw new Error(`fake: not ${op}`);
+      const list = String(v).replace(/^\(|\)$/g, "").split(",");
+      rows = rows.filter((r) => !list.includes(String(val(r, k))));
+      return q;
+    },
     limit: () => q,
     insert: () => { writes.push(t); return q; },
     update: () => { writes.push(t); return q; },
@@ -34,12 +49,13 @@ beforeEach(() => {
   reads.length = 0; writes.length = 0; syncCalls.length = 0; syncThrows = null; readError = null;
   tables = {
     workflow_settings: [{ id: 1, mitti_instant_notice_enabled: true }],
-    assessments: [{ job_id: "job-a", external_mitti_id: "audit_a" }],
+    assessments: [{ job_id: "job-a", external_mitti_id: "audit_a", status: "in_progress" }],
     ceiling_measurements: [
-      { job_id: "job-m", external_source: "mitti", is_current: true, external_id: "audit_m" },
-      { job_id: "job-old", external_source: "mitti", is_current: false, external_id: "audit_old" },
-      { job_id: "job-x", external_source: "other", is_current: true, external_id: "audit_x" },
+      { job_id: "job-m", external_source: "mitti", is_current: true, external_id: "audit_m", status: "draft" },
+      { job_id: "job-old", external_source: "mitti", is_current: false, external_id: "audit_old", status: "draft" },
+      { job_id: "job-x", external_source: "other", is_current: true, external_id: "audit_x", status: "draft" },
     ],
+    jobs: ["job-a", "job-m", "job-old", "job-x"].map((id) => ({ id, business_unit: "hivic", stage: "ready_check", deleted_at: null, qa_archived_at: null })),
   };
 });
 
@@ -87,10 +103,40 @@ describe("handleMittiNotice", () => {
     } finally { console.error = orig; }
     expect(logged).toEqual([["mitti notice: sync failed", "job-a", "Mitti is down"]]);
   });
-  test("a deleted or archived job still reaches sync (its own guard does nothing); the notice writes nothing", async () => {
-    tables.jobs = [{ id: "job-a", deleted_at: "2026-10-01T00:00:00Z", qa_archived_at: null }];
-    expect(await handleMittiNotice("audit_a")).toEqual({ action: "synced" });
-    expect(syncCalls).toEqual([["job-a", null]]);
+  // Same scope as the 15-minute pull (syncPendingMitti): a job it never syncs is ignored by the notice too.
+  const setJob = (id: string, patch: Row) => { tables.jobs = tables.jobs!.map((j) => (j.id === id ? { ...j, ...patch } : j)); };
+  test("a deleted or archived job is ignored; nothing synced, nothing written", async () => {
+    setJob("job-a", { deleted_at: "2026-10-01T00:00:00Z" });
+    expect(await handleMittiNotice("audit_a")).toEqual({ action: "ignored" });
+    setJob("job-a", { deleted_at: null, qa_archived_at: "2026-10-01T00:00:00Z" });
+    expect(await handleMittiNotice("audit_a")).toEqual({ action: "ignored" });
+    expect(syncCalls).toEqual([]);
     expect(writes).toEqual([]);
+  });
+  for (const stage of ["cancelled", "on_hold", "complete", "ready_for_veec"]) {
+    test(`a ${stage} job is ignored (assessment and measurement lookups)`, async () => {
+      setJob("job-a", { stage });
+      setJob("job-m", { stage });
+      expect(await handleMittiNotice("audit_a")).toEqual({ action: "ignored" });
+      expect(await handleMittiNotice("audit_m")).toEqual({ action: "ignored" });
+      expect(syncCalls).toEqual([]);
+    });
+  }
+  test("a job outside the hivic business unit is ignored", async () => {
+    setJob("job-a", { business_unit: "canberra" });
+    expect((await handleMittiNotice("audit_a")).action).toBe("ignored");
+    expect(syncCalls).toEqual([]);
+  });
+  test("a complete assessment or measurement row is ignored", async () => {
+    tables.assessments = [{ job_id: "job-a", external_mitti_id: "audit_a", status: "complete" }];
+    tables.ceiling_measurements = [{ job_id: "job-m", external_source: "mitti", is_current: true, external_id: "audit_m", status: "complete" }];
+    expect((await handleMittiNotice("audit_a")).action).toBe("ignored");
+    expect((await handleMittiNotice("audit_m")).action).toBe("ignored");
+    expect(syncCalls).toEqual([]);
+  });
+  test("a normal open job is still synced", async () => {
+    setJob("job-a", { stage: "quote" });
+    expect((await handleMittiNotice("audit_a")).action).toBe("synced");
+    expect(syncCalls).toEqual([["job-a", null]]);
   });
 });
