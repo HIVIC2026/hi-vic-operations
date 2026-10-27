@@ -110,15 +110,19 @@ export const cancelOfficeJob = createServerFn({ method: "POST" }).middleware([re
 
 /** Decision 227: Cancel under Actions on Jobs and Enquiries (single or bulk). Each job on its own; one failure never hides the rest. */
 export const bulkCancelOfficeJobs = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobIds: z.array(uuid).min(1).max(200), reason, note: z.string().trim().max(500).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobIds: z.array(uuid).min(1).max(200), reason, note: z.string().trim().max(500).optional(), closeAll: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { cancelJobFully } = await import("./office-actions.server");
     const results: { jobId: string; ok: boolean; error?: string }[] = [];
     for (const jobId of data.jobIds) {
       try {
-        const blocker = await (await import("./office-lists.server")).enquiryCloseBlocker(jobId);
-        if (blocker) throw new WorkflowError(blocker);
+        // The unreplied-lead recheck guards only the "Close all" sweep (Jo 27 Oct: unreplied leads are never swept away).
+        // The manual Actions ▾ Cancel carries an explicit, audited reason and must keep working for any enquiry.
+        if (data.closeAll) {
+          const blocker = await (await import("./office-lists.server")).enquiryCloseBlocker(jobId);
+          if (blocker) throw new WorkflowError(blocker);
+        }
         await cancelJobFully(jobId, data.reason, context.userId, { note: data.note ?? null, bulk: true }); results.push({ jobId, ok: true });
       }
       catch (e) { results.push({ jobId, ok: false, error: e instanceof Error ? e.message : "Failed" }); }
