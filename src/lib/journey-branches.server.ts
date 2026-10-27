@@ -1136,6 +1136,7 @@ async function m8QuotePayment(rec: Recorder, jobs: BranchResult["jobs"], setup: 
       const { count } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", c.jobId!).eq("kind", "piesa");
       offersBefore = count ?? 0;
       const stage1 = await J.stageOf(c);
+      const diag = (await scopeDiag(c.jobId!)).join(" | ");
       const told = await officeToldOnce(c, (await shoot("m8-blocked", [ownerPage(c), ...officePages(c)]))[1], /quote|payment|approve|accept/i);
       answer("stops", allocBefore.startsWith("refused") && offersBefore === 0 && stage1 === stage0, `PIESA allocation ${allocBefore}; PIESA offers=${offersBefore}; stage ${stage0}→${stage1}`);
       const shots = SHOTS.filter((x) => x.moment === "m8-blocked");
