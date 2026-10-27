@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 10:46 TEST Bravo and browser rerun
+- [ ] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; leave Alpha/HV-1554 untouched.
+- [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
+- [ ] Simulated fixes-day template includes canonical real questions; test creation/readback without network.
+- [ ] Run screens, continue independent page checks after failures; report unreached work honestly, Jo-only emails, archive run job and restore trades.
 ## Jo 27 Oct 10:28 four safeguards only
 - [x] Keep unreplied enquiries/unanswered owner mail out of Gone quiet; notes excluded and bulk closure freshly rechecked.
 - [x] Newest non-superseded fixes quote gates payment/booking; My job accepts replacements at scheduling/booked stages. Stable quote/line saves recover interruptions; existing single-invoice lock/revision protection retained.
