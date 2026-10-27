@@ -3,11 +3,11 @@
  *
  * PURE module: no database, no network, no email sending, no pricing calculation. Every outcome workflow asks the single
  * canonical selector (`selectJoTemplate`) which template applies, then renders through `renderJoOutcomeEmail`:
- *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/owner/O1-save-my-spot.html
- *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/owner/O2-save-my-spot-some-insulation.html
- *   new website enquirer, "don't know" (decision 392)   → Save my spot, some    docs/templates/owner/O2-save-my-spot-dont-know.html
- *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/owner/O2-save-my-spot-questions.html
- *   T7 (ineligible)                                     → Not eligible          docs/templates/owner/O6-not-eligible.html
+ *   T1/T2 (eligible, no insulation)                     → Save my spot          docs/templates/mjml/owner_O1.mjml
+ *   T3/T4 (reviewed below R2) and declared thin/patchy  → Save my spot, some    docs/templates/mjml/owner_O2-some.mjml
+ *   new website enquirer, "don't know" (decision 392)   → Save my spot, some    docs/templates/mjml/owner_O2-dont-know.mjml
+ *   T5/T6 (insulation unconfirmed)                      → Insulation questions  docs/templates/mjml/owner_O2-questions.mjml
+ *   T7 (ineligible)                                     → Not eligible          docs/templates/mjml/owner_O6.mjml
  * Template ids, CTA sets, link binding and fail-closed rules are unchanged; the body follows the approved MJML designs
  * (docs/templates/mjml/owner_O1, owner_O2-*, owner_O6; Jo 27 Oct 2026) through `mjEmail` (mail-mjml.core.ts). T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.

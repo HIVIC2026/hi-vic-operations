@@ -40,10 +40,10 @@ describe("Templates navigation", () => {
   });
   test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {
-      "owner:O74": ["owner", "docs/templates/owner/O74-visit-new-times.html"], "owner:O74b": ["owner", "docs/templates/owner/O74b-visit-new-times-on-the-way.html"],
-      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/owner/O75-signed-paperwork-copy.html"],
-      "electrician:E14": ["electrician", "docs/templates/electrician/E14-piesa-times-reminder.html"], "electrician:sms-piesa_times_reminder": ["electrician", null],
-      "installer:I71": ["installer", "docs/templates/installer/I71-installer-planning-notice.html"], "installer:sms-installer_planning_notice": ["installer", null],
+      "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],
+      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/mjml/owner_O75.mjml"],
+      "electrician:E14": ["electrician", "docs/templates/mjml/electrician_E14.mjml"], "electrician:sms-piesa_times_reminder": ["electrician", null],
+      "installer:I71": ["installer", "docs/templates/mjml/installer_I71.mjml"], "installer:sms-installer_planning_notice": ["installer", null],
     };
     for (const [id, [section, design]] of Object.entries(where)) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);

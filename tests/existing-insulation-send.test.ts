@@ -30,7 +30,7 @@ beforeEach(()=>{
   Object.assign(data.jobs as Record<string, unknown>, {estimated_area_m2:150,estimated_area_unknown:false});
 });
 // P1-S77 + decision 67 (Jo 24 Oct): the reviewed below-R2 follow-up renders the approved "some insulation" Save my spot
-// (docs/templates/owner/O2-save-my-spot-some-insulation.html) — "you may qualify for $X off" heading and the
+// (docs/templates/mjml/owner_O2-some.mjml) — "you may qualify for $X off" heading and the
 // "Your existing insulation" card with the $15/m² removal line. No separate follow-up copy.
 test("office below-R2 preview renders the approved some-insulation Save my spot despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);

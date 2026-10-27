@@ -80,7 +80,7 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
     expect(installNoAccessKeys("b1")).toEqual({ email: "install-no-access:v1:b1:email", sms: "install-no-access:v1:b1:sms" });
   });
   test("draft design is filed", () => {
-    const html = readFileSync("docs/templates/owner/O65-install-no-access.html", "utf8");
+    const html = readFileSync("docs/templates/mjml/owner_O65.mjml", "utf8");
     expect(html).toContain("couldn't get in today");
     expect(html).toContain("DRAFT");
   });
