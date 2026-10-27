@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:31 A3 Owner name back + reruns
+- [x] Real A3 (GET only): Job Reference ID, Address including postcode, Owner name, Office life support record, Date of inspection; prefill matches all, Owner name required (never made optional).
+- [x] piesa-fixes HV-3366 all pass incl. M; archived.
+- [ ] Main journey HV-3367 fails steps 7–8: test offers install days before the 10% deposit is paid (locked rule blocks it). Awaiting Jo: update the test?
 ## Jo 27 Oct 03:23 partner welcome email
 - [x] Welcome sends on approval (guarded, once per business, email only) with Mitti section, store links and checked steps; tests pass; nothing sent, no switches changed.
 ## Jo 27 Oct 03:00 five follow-ups + journey rerun
