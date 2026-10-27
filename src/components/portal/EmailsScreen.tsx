@@ -73,7 +73,7 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
       {c.intent !== "reply" && c.label && <p className="text-sm font-semibold text-ink">{c.label}</p>}
       <TheyWrote text={c.theyWrote} />
       {c.stillOpenDecline && <p className="text-sm font-semibold text-danger">Still open — Close job or Keep open</p>}
-      {c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
       <div className="grid grid-cols-2 gap-2 md:flex">
         {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job")}>{busy ? "Working…" : "Send"}</button>}
         {c.stillOpenDecline ? <>
