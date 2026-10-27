@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 08:58 browser walkthrough
+- [ ] Probe signed website TEST intake, job-bound held messages, simulated Mitti and Demo Xero in the running preview; stop only on a safeguard failure.
+- [ ] Implement browser-first per-person main journey at 390px, simulated webhook completions explicitly labelled, per-step evidence and role isolation; run once, archive only its job and restore temporary TEST trade flags.
 ## Jo 27 Oct 08:04 deny-by-default TEST office
 - [x] Default-denied route/server capability and exact walk-through allowlist; TEST-scoped lists/search/actions and practice RLS/API/storage proof. Admin regression branches preserved. Nested non-allowlisted tools/private evidence remain refused; full mutation journey not claimed.
 - [x] Applied three practice-proven RLS/API layers; exactly one secret-password TEST office login. Read-only 390px proof: five allowed lists, five denied pages, TEST job/Money, real-id refusal and direct API checks; zero real jobs displayed. Screenshots under /tmp/browser/qa-office/screenshots; current coverage in docs/qa/qa-office-27oct-access-coverage.md.
