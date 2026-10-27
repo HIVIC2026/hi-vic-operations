@@ -341,7 +341,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     await rec.run("2.2", "maybeAutoSendFixesQuote sent when every check passes; one owner email; price = electrician's price + margin by whose electrician", async () => {
       await J.assertOwnTestJob(ctx);
       const rs = await import("./rectification.server");
-      const days = [3, 4, 5].map((d) => J.melbourneDate(d));
+      // Business days at least 2 business days away (calendar +3..+5 hit weekends on some dates).
+      const days = (await import("./piesa-times.core")).allowedPiesaTimeDays().slice(1, 4);
       await rs.recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
