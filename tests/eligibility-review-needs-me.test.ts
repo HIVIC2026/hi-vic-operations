@@ -34,3 +34,12 @@ describe("payment reversed → one Money row until paid again", () => {
     expect(openPaymentReversal([{ event_type: "owner_payment_reversed", created_at: "2026-10-27T02:00:00Z" }, { event_type: "owner_payment_recorded", created_at: "2026-10-27T03:00:00Z" }])).toBeNull();
   });
 });
+
+describe("refused Mitti form → one Needs me row", () => {
+  test("wrong job number shows once with the reason", () => {
+    const rows = buildNeedsRows({ now: Date.now(), jobs: [{ ...base, mittiFormProblem: { at: "2026-10-27T16:00:00Z", error: "Mitti Portal Job Number (HV-0001) does not match HV-3461." } }] });
+    const r = Object.values(rows).flat().filter((x) => x.kind === "mitti_form_problem");
+    expect(r.length).toBe(1);
+    expect(r[0]!.line).toBe("Mitti form refused · Mitti Portal Job Number (HV-0001) does not match HV-3461.");
+  });
+});
