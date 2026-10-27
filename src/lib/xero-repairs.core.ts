@@ -58,6 +58,8 @@ export function repairsAmendDecision(i: {
   recorded: RecordedRepairs[];
   baseTotalCents: number;
   xero: XeroInvoiceForRepairs | null;
+  /** Line tag override (repeat PIESA line, Jo 28 Oct); default = the fixes quote tag. */
+  tag?: string;
 }): RepairsDecision {
   if (!i.repairs || i.repairs.amountCents <= 0 || !i.key) return { action: "none" };
   if (i.recorded.some((r) => r.key === i.key)) return { action: "already", basis: "recorded" };
@@ -67,7 +69,7 @@ export function repairsAmendDecision(i: {
   const x = i.xero;
   if (!x) return { action: "hold", reason: "The Xero invoice could not be read" };
   if (!x.Reference?.startsWith(XERO_REFERENCE_PREFIX)) return { action: "hold", reason: "The Xero invoice reference is not a Home Insulation Victoria reference" };
-  const tag = repairsTag(i.repairs.rectQuoteId);
+  const tag = i.tag ?? repairsTag(i.repairs.rectQuoteId);
   if ((x.LineItems ?? []).some((l) => (l.Description ?? "").includes(tag))) return { action: "already", basis: "line_on_invoice" };
   const xeroTotal = cents(x.Total);
   // The office varied the invoice by hand (e.g. removed a payment, added the fixes, re-applied it): adopt it.
@@ -89,12 +91,12 @@ export function invoiceTracking(lines: XeroLine[]): { Name: string; Option: stri
 
 /** POST /Invoices/{id}: every existing line sent back exactly as Xero returned it (LineItemID kept, so nothing is
  *  changed or dropped), plus ONE repairs line. Idempotency-Key = the repairs revision. */
-export function buildRepairsAmendment(a: { xero: XeroInvoiceForRepairs; jobNumber: string; rectQuoteId: string; amountCents: number; key: string; mode: XeroMode }) {
+export function buildRepairsAmendment(a: { xero: XeroInvoiceForRepairs; jobNumber: string; rectQuoteId: string; amountCents: number; key: string; mode: XeroMode; description?: string }) {
   const x = a.xero;
   if (!x.InvoiceID) throw new Error("Xero invoice id missing.");
   assertHivicReference(x.Reference);
   const existing = x.LineItems ?? [];
-  const line: XeroLine = { Description: repairsLineDescription(x.Reference!, a.rectQuoteId), Quantity: 1, UnitAmount: a.amountCents / 100, AccountCode: REPAIRS_ACCOUNT_CODE };
+  const line: XeroLine = { Description: a.description ?? repairsLineDescription(x.Reference!, a.rectQuoteId), Quantity: 1, UnitAmount: a.amountCents / 100, AccountCode: REPAIRS_ACCOUNT_CODE };
   const tracking = invoiceTracking(existing);
   if (tracking) line.Tracking = tracking;
   const body = { Invoices: [{ InvoiceID: x.InvoiceID, Reference: x.Reference!, ...(x.LineAmountTypes ? { LineAmountTypes: x.LineAmountTypes } : {}), LineItems: [...existing, line] }] };
@@ -103,13 +105,13 @@ export function buildRepairsAmendment(a: { xero: XeroInvoiceForRepairs; jobNumbe
 }
 
 /** Xero's answer must hold every original line, the repairs line and the varied total — otherwise the write is not trusted. */
-export function verifyRepairsAmendment(before: XeroInvoiceForRepairs, after: XeroInvoiceForRepairs | null | undefined, rectQuoteId: string, expectedTotalCents: number): string | null {
+export function verifyRepairsAmendment(before: XeroInvoiceForRepairs, after: XeroInvoiceForRepairs | null | undefined, rectQuoteId: string, expectedTotalCents: number, tag?: string): string | null {
   if (!after) return "Xero returned no invoice after the edit";
   if (after.InvoiceID !== before.InvoiceID) return "Xero returned a different invoice";
   if (cents(after.Total) !== expectedTotalCents) return `Xero invoice total is ${aud(cents(after.Total))}, expected ${aud(expectedTotalCents)}`;
   const ids = new Set((after.LineItems ?? []).map((l) => l.LineItemID));
   if ((before.LineItems ?? []).some((l) => !ids.has(l.LineItemID))) return "An original invoice line is missing after the edit";
-  if (!(after.LineItems ?? []).some((l) => (l.Description ?? "").includes(repairsTag(rectQuoteId)))) return "The electrical fixes line is missing after the edit";
+  if (!(after.LineItems ?? []).some((l) => (l.Description ?? "").includes(tag ?? repairsTag(rectQuoteId)))) return "The added line is missing after the edit";
   return null;
 }
 
