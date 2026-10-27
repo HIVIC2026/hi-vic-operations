@@ -9,6 +9,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
+import { btnClass } from "@/components/portal/kit";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
 
@@ -25,6 +26,18 @@ export function ChooseInstallerPanel({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const d = q.data;
+  if (!d && (q.isPending || q.isError)) return (
+    <div id="choose-installer">
+      <Section title="Choose installer">
+        {q.isPending
+          ? <p role="status" className="text-sm text-sub">Loading installers…</p>
+          : <div role="alert" className="flex flex-wrap items-center gap-3 rounded-md bg-pink px-3 py-2 text-sm text-rose">
+              <span>Couldn't load installers.</span>
+              <button type="button" className={btnClass("secondary")} onClick={() => void q.refetch()}>Try again</button>
+            </div>}
+      </Section>
+    </div>
+  );
   if (!d || d.channel !== "hivic_sourced" || d.stage !== "ready_check_ready_to_schedule" || d.hasInstaller) return null;
   const pick = async (id: string, name: string) => {
     if (busy) return;
