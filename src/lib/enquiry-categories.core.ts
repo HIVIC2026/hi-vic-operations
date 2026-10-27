@@ -6,7 +6,9 @@
 // No questions step (Jo 26 Oct 2026: "we don't ask for answers"; decision 392): an older lead that once got the 3
 // questions email is simply "Offered a spot" here, like everyone else waiting on Save my spot.
 // Gone quiet = nothing either way for 4 weeks: the day 2 / 7 / 21 reminders plus the 7-day close (decision 242) would
-// have closed it, so these are the enquiries the automation never reached (older than the reminder windows).
+// have closed it, so these are leads we did reach and then heard nothing back from. A lead the automation never
+// reached at all (no first response) is never Gone quiet, whatever its age (Jo 27 Oct 2026) — it stays "Email didn't
+// send", where the office can still chase it.
 // PURE: no I/O.
 
 export type EnquiryCategory = "offered" | "not_sent" | "opted_out" | "quiet";
@@ -45,9 +47,11 @@ const t = (s: string | null) => (s ? Date.parse(s) : NaN);
 export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory {
   if (f.optedOut) return "opted_out";
   if (f.sendFailed) return "not_sent";
+  // Jo 27 Oct 2026: a lead that never got a first response is never "Gone quiet", whatever its age — it stays an
+  // email to chase, so "Close all" (Gone quiet / Opted out only) can never close it.
+  if (f.noResponseYet) return "not_sent";
   const last = Math.max(...[t(f.lastOwnerAt), t(f.lastOutboundAt), t(f.createdAt)].filter(Number.isFinite));
   if (Number.isFinite(last) && now - last > QUIET_AFTER_DAYS * DAY) return "quiet";
-  if (f.noResponseYet) return "not_sent";
   return "offered";
 }
 
