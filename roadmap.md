@@ -558,4 +558,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [ ] Journey piesa-fixes 2.1–2.8 — simulation added; BLOCKED: Xero Demo Company not connected
 - [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
-- [ ] Mitti Ready Check form switch is OFF — waiting on Jo to say turn it on
+- [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
+- [ ] Silver Spirit: Chris Lowe installer — waiting on Jo for his CII number and expiry

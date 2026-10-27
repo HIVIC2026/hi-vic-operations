@@ -1,6 +1,6 @@
 // Jo 27 Oct: on Add a job, a mobile/email typed while the address lookup is still finishing must stay.
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-GlobalRegistrator.register();
+if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register();
 import { afterEach, expect, test } from "bun:test";
 const { act, cleanup, fireEvent, render } = await import("@testing-library/react");
 const React = await import("react");
