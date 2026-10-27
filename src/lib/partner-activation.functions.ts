@@ -88,9 +88,12 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
       const w = await sendTestWelcome({ businessId: r.business_id, name: d.primary_contact_name ?? app.signer_name ?? null, role: type === "installer" ? "installer" : "electrician", actorId: context.userId, appId: app.id });
       return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome: `TEST welcome email ${w.status === "sent" ? "sent" : `not sent (${w.detail})`} to ${w.to}` };
     }
-    // Real partners: the approval message is queued for the office, never sent here (until Jo approves wording and turns sending on).
+    // Real partners: queued, then sent once below through the guarded office sender (blocked → stays queued).
     await queueApprovalMessage(admin, r.business_id);
-    return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome: null as string | null };
+    // Jo 27 Oct 2026: the welcome email sends as part of approval, through the normal guarded sender, once per business.
+    const welcome = await sendWelcomeOnApproval(context.supabase, context.userId, app.id, r.business_id, (application as { business_email?: string }).business_email ?? null)
+      .catch((e) => `Welcome email not sent (stays queued): ${(e as Error).message}`);
+    return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome };
   });
 
 /** Office records a CII certification check for one nominated installer. Append-only; latest decision wins. */
@@ -187,6 +190,31 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
     return { email: data.email, link, name, businessId: act.business_id, businessName: bz?.name ?? "Your business", role };
 }
 
+/** Claim the queued approval message (once per business), create the login and send the welcome through sendOfficeEmail
+ *  (master switch + office email rules). Blocked → back to queued with the reason recorded; an uncertain send is never retried. */
+async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], actorId: string, applicationId: string, businessId: string, businessEmail: string | null): Promise<string> {
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const email = (businessEmail ?? "").trim().toLowerCase().replace(/[.,;]+$/, "");
+  const note = async (summary: string) => { await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_welcome_on_approval", summary, details: { business_id: businessId, application_id: applicationId } }); return summary; };
+  if (!email) return note("Welcome email stays queued: no business email on the signed application.");
+  const { data: claimed } = await admin.from("businesses").update({ approval_message_status: "sent" }).eq("id", businessId).eq("approval_message_status", "queued").select("id");
+  if (!claimed?.length) return note("Welcome email not sent: it was already sent or is in progress for this business.");
+  try {
+    const r = await makePartnerLogin(sb, actorId, { applicationId, email });
+    const { sendOfficeEmail } = await import("./office-email.server");
+    const { partnerWelcomeEmail } = await import("./partner-email.core");
+    const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
+    const res = await sendOfficeEmail({ actorId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.text, html: m.html, text: m.text, label: "partner_welcome_on_approval", record: { applicationId, businessId } });
+    // The claim already set "sent" (allowed values: queued/sent/cancelled). Only a definite block goes back to queued;
+    // an uncertain send stays "sent" so it is never sent twice.
+    if (res.status === "blocked") await admin.from("businesses").update({ approval_message_status: "queued" }).eq("id", businessId).eq("approval_message_status", "sent");
+    return note(res.status === "sent" ? `Welcome email sent to ${r.email}.` : res.status === "blocked" ? `Welcome email stays queued: ${res.detail}` : `Welcome email may not have sent (not retried): ${res.detail}`);
+  } catch (e) {
+    await admin.from("businesses").update({ approval_message_status: "queued" }).eq("id", businessId).eq("approval_message_status", "sent");
+    return note(`Welcome email stays queued: ${(e as Error).message}`);
+  }
+}
+
 /** Office creates the business boss's sign-in. Sends nothing: returns a set-password link for the office to pass on. */
 export const createPartnerLogin = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().email().max(320) }).parse(d))
@@ -199,6 +227,12 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
 export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().transform((e) => e.replace(/[.,;]+$/, "")).pipe(z.string().email().max(320)) }).parse(d))
   .handler(async ({ data, context }) => {
+    {
+      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+      const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
+      const { data: b } = act ? await admin.from("businesses").select("approval_message_status").eq("id", act.business_id).maybeSingle() : { data: null };
+      if (b?.approval_message_status && b.approval_message_status === "sent") throw new WorkflowError("The welcome email was already sent for this business, so it isn't sent again. Use Create login to get a fresh link.");
+    }
     const r = await makePartnerLogin(context.supabase, context.userId, data);
     const { sendOfficeEmail } = await import("./office-email.server");
     const { partnerWelcomeEmail } = await import("./partner-email.core");
