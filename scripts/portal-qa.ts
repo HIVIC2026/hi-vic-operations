@@ -337,7 +337,9 @@ try {
       else if (error) add({ area: "emails (live log)", route_or_action: "customer_email_sends last 24h", persona: "-", status: "blocked", detail: error.message, steps: "read-only select", environment: ENV_DB });
       else {
         const rows = data ?? [];
-        const bad = rows.filter((r) => /fail|error|unrecorded/i.test(r.status) || r.error);
+        // A TEST-mode send refused by the allowlist guard is the guard working, not a delivery failure (27 Oct: HV-3361).
+        const guarded = (r: { error: string | null }) => /^blocked: Recipient is not on the test allowlist/i.test(r.error ?? "");
+        const bad = rows.filter((r) => !guarded(r) && (/fail|error|unrecorded/i.test(r.status) || r.error));
         const by: Record<string, number> = {}; for (const r of rows) { const k = `${r.purpose}/${r.status}/${r.provider_message_id ? "provider id" : "no provider id"}`; by[k] = (by[k] ?? 0) + 1; }
         add({ area: "emails (live log)", route_or_action: "customer_email_sends last 24h", persona: "-", status: bad.length ? "failed" : "passed", detail: `${rows.length} records ${JSON.stringify(by)}; ${bad.length} failed/uncertain. Recorded status only — provider delivery is not confirmed by this read`, steps: "read-only select", environment: ENV_DB });
       }
