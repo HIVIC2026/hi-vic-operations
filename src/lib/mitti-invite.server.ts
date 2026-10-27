@@ -41,7 +41,7 @@ async function isTestPerson(email: string | null, biz: { name?: string | null; o
 }
 
 async function loadPerson(workerId: string) {
-  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
+  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, approval_status, removed_at, profile_id, business_id, worker_role").eq("id", workerId).maybeSingle();
   if (error) throw new WorkflowError(`This person could not be read: ${error.message}`);
   if (!w) throw new WorkflowError("Partner person not found.");
   const [{ data: b }, { data: p }] = await Promise.all([
@@ -61,7 +61,7 @@ async function loadPerson(workerId: string) {
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const person: InvitePerson = {
     workerId: w.id, tradeRole: w.trade_role, approvalStatus: w.approval_status, removedAt: w.removed_at, email, ciiCleared,
-    mittiAccess: p ? mittiAccessOf(p) : null, isTest: await isTestPerson(email, b ?? null),
+    mittiAccess: p ? mittiAccessOf(p) : null, isTest: await isTestPerson(email, b ?? null), workerRole: (w as { worker_role?: string | null }).worker_role ?? null,
   };
   return { person, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string, profileId: w.profile_id as string | null };
 }
