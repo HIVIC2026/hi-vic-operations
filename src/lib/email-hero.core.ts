@@ -200,11 +200,6 @@ export function renderAmountArt(text: string, bg = "#F3F6FF"): Uint8Array {
   return cv.png();
 }
 
-/** Back-compat: Group A header. */
-export function renderEmailHeroPng(firstName: string | null, rebate: string): Uint8Array {
-  return renderHeaderArt(campaignHeroSpec("likely", firstName, rebate));
-}
-
 /** Header art copy for each campaign email; the HTML renderers use the same specs for alt text. */
 export function campaignHeroSpec(kind: "likely" | "onsite" | "spot", firstName: string | null, rebate: string): HeroSpec {
   const name = firstName?.trim().replace(/\s+/g, " ").slice(0, 40) || null;
