@@ -161,6 +161,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // 30-day window lapsed with no install (decision 1/2): watch.
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
   }
+  // Jo 28 Oct (decision 158, OFFICE CHOOSES): a lapsed window with no office payer choice for that deadline → one Today row.
+  const lapsedIds = [...facts.values()].filter((x) => x.lapsedWindow).map((x) => x.jobId);
+  if (lapsedIds.length) {
+    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired"]).range(a, b));
+    for (const id of lapsedIds) {
+      const x = f(id)!; const dl = x.lapsedWindow!.deadline;
+      const mine = ev.filter((e) => String(e["job_id"]) === id && String((e["details"] as { deadline?: string } | null)?.deadline) === dl);
+      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) continue;
+      const sp = String((mine.find((e) => e["event_type"] === "install_window_expired")?.["details"] as { payer?: string } | null)?.payer ?? "");
+      x.repeatPiesaChoice = { deadline: dl, suggested: sp && sp !== "undetermined" ? sp : null };
+    }
+  }
 
   // Wave 2: follow-up reads keyed by what wave 1 found, all at once.
   type Guess = { job_id: string; job_number: string; why?: string[] };
