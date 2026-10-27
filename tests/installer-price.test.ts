@@ -156,7 +156,8 @@ describe("wiring (source facts)", () => {
     expect(s).toContain("logEvent(jobId, userId, INSTALLER_PRICE_EVENT");
     expect(s).not.toMatch(/sendRealSms|sendGuardedOwnerEmail|releaseQuoteToOwner|\.update\(\{ *price/);
     // Decision 289: the card never validates an electrician; the view shows the job's recorded choice read-only.
-    expect(s).toContain("const v = validateInstallerPrice(input);");
+    // Jo 27 Oct 2026: the same pure check also receives the current Ready Check's removal flag.
+    expect(s).toContain("const v = validateInstallerPrice({ ...input, removalRequired });");
     expect(s).toContain("readElectricianChoice(jobId)");
     expect(s).toContain("access: accessFlagFromEntries(entries)");
     // The READ module is on the autoAdvance graph: never Mitti, never a sender (tests/comms.test.ts).
@@ -233,6 +234,7 @@ describe("removal tick refused when the Ready Check says no removal (Jo 27 Oct 2
     expect(readyCheckRemovalRequired([{ label: "How much existing insulation needs to be removed? (m²)", value: "0" }], { removal_required: false })).toBe(false);
   });
   test("wiring: the card blocks the tap and shows the note under the tickbox; the server passes the flag into the same check", () => {
+    const read = (f: string) => readFileSync(f, "utf8");
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("view?.removalRequired === false");
     expect(card).toContain("setRemovalNote(true)");
