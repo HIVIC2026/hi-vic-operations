@@ -146,12 +146,22 @@ describe("2. a slow Mitti never blocks the installer", () => {
     expect((await onsiteFormFor(JOB, INSTALLER, m.call, false)).kind).toBe("open");
     expect(m.creates()).toBe(1);
   });
-  test("Add a job schedules creation (decision 115: straight away, no booking) instead of awaiting it; status reads stay read-only", () => {
+  test("Add a job starts guarded creation immediately; status reads stay read-only", () => {
     const src = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
     expect(src).toContain("await onReadyCheckJobAdded(job.id, userId, call)");
     expect(src).toContain("const state = await onsiteFormFor(job.id, userId, call, false);");
     expect(src).not.toMatch(/await createAssignMittiAudit\(/);
     expect(src).toContain("scheduleReadyCheckFormCreation(");
+  });
+  test("Add a job creates immediately even when background lifecycle is unavailable; duplicate call skips", async () => {
+    T.bookings = [];
+    const m = fakeMitti();
+    expect(await C.onReadyCheckJobAdded(JOB, INSTALLER, m.call)).toBe("scheduled");
+    expect(storedAudit()).toBe("audit_1");
+    expect(m.creates()).toBe(1);
+    expect(await C.onReadyCheckJobAdded(JOB, INSTALLER, m.call)).toBe("skipped");
+    expect(m.creates()).toBe(1);
+    expect(events(CLAIM_EVENT).length).toBe(1);
   });
 });
 

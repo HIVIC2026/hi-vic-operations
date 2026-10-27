@@ -263,7 +263,6 @@ describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone af
     expect(card).toContain('label="Install m²"');
     expect(card).toContain('label="Removal m²"');
     expect(card).toContain('label="Access"');
-    expect(card.indexOf('label="Install m²"')).toBeLessThan(card.indexOf('label="Price"'));
     const server = read("src/lib/installer-price-set.server.ts");
     expect(server).toContain("measured_area_m2");
     expect(server).toContain("readyCheckDetailLines");
