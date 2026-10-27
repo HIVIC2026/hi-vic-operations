@@ -657,13 +657,13 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [] });
     const s1 = await ii.installerIntakeState(a.jobId);
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
-    c("later measurements + quote saved on the same job", s1.areaM2 === 118 && s1.quoteIncGst === 2450, `${s1.areaM2} ${s1.quoteIncGst}`);
+    c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
     // wrong business refused BEFORE any write
     const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").limit(1).maybeSingle();
     const wrong = await ii.installerUpdateIntake(a.jobId, ownerId, other?.id ?? "00000000-0000-0000-0000-000000000000", { areaM2: 1, insulation: "none", quoteStatus: "not_quoted", quoteIncGst: null, includes: null, proposedR: null, files: [] }).then(() => "accepted", (e) => (e as Error).message);
     const s2 = await ii.installerIntakeState(a.jobId);
-    c("another business can't edit this job", wrong !== "accepted" && s2.areaM2 === 118, wrong);
+    c("another business can't edit this job", wrong !== "accepted" && (s2.areaM2 ?? s2.preliminaryAreaM2) === 118, wrong);
     const staffAdd = await pi.createImportFor(staffId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never).then(() => "accepted", (e) => (e as Error).message);
     c("staff login can't add a job (business owner only)", staffAdd !== "accepted", staffAdd);
     const badFile = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5", proposedR: 5, files: [{ path: "partners/other/x.pdf", name: "x.pdf", type: "application/pdf" }] }).then(() => "accepted", (e) => (e as Error).message);
