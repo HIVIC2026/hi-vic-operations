@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { insulationOnly } from "../src/lib/enquiry-groups.core";
 import { declarationCriteriaPassed } from "../src/lib/insulation-review.core";
-import { GATE1_RULESET_VERSION } from "../src/lib/gate1.core";
+import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 const audit = (age: string) => ({ ruleset_version: GATE1_RULESET_VERSION, rules: [
   { key: "location", result: "pass" }, { key: "residential", result: "pass" }, { key: "ceiling_age", result: age },
   { key: "previous_activity", result: "pass" }, { key: "roof_access", result: "pass" }, { key: "existing_insulation", result: "onsite" },
