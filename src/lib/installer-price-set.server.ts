@@ -50,11 +50,14 @@ export async function installerPriceView(jobId: string, userId: string) {
   const { readyCheckDetailLines, accessFlagLine, NOT_ON_READY_CHECK } = await import("./installer-price.core");
   const legacy = stored?.record.electrician?.choice ?? contactAnswersFromEntries(entries).electricianChoice;
   const choice = resolveElectricianChoice({ recorded, legacy, usual: usual.electrician });
+  const access = accessFlagFromEntries(entries);
+  const rc = readyCheckDetailLines({ hasReadyCheck: readyCheck.hasReadyCheck, installAreaM2: readyCheck.installAreaM2, removalRequired, removalM2: readyCheck.removalM2 });
   return {
     canSet: true as const, current: stored,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
-    access: accessFlagFromEntries(entries),
+    access,
     removalRequired,
+    readyCheck: { install: rc.install, removal: rc.removal, access: accessFlagLine(access) ?? NOT_ON_READY_CHECK },
   };
 }
 
