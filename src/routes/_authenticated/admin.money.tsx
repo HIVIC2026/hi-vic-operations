@@ -17,6 +17,7 @@ import { markPayoutPaid } from "@/lib/office.functions";
 import { getMoneyInvoices, getMoneyMargins, getMoneyPayouts, getMoneyVeecs, saveVeecSpotPrice } from "@/lib/office-money.functions";
 import { getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
 import { INSTALL_DEPOSIT_RATE } from "@/lib/payments.core";
+import { tileText } from "@/lib/read-state.core";
 
 type Tab = "overview" | "payouts" | "invoices" | "veecs" | "prices";
 const TAB_KEYS: Tab[] = ["overview", "payouts", "invoices", "veecs", "prices"];
@@ -67,14 +68,17 @@ function Overview({ payouts, invoices, veecs }: { payouts: Q<PayoutsData>; invoi
   const [open, setOpen] = useState<string | null>(null);
   const month = new Date().toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "Australia/Melbourne" });
   const nextDue = payouts.data?.due[0]?.dueAt;
+  const rd = (x: { data: unknown; error: unknown }) => ({ hasData: !!x.data, failed: !!x.error });
+  const failedReads = ([["VEECs lodged", veecs], ["Owners owe", invoices], ["We owe trades", payouts]] as const).filter(([, x]) => !x.data && x.error);
   return (
     <section data-why="audit §6 Overview (margin, VEECs lodged, owners owe, we owe trades); decision 230">
       <TabCaption>{month} · what we earn and owe · office only</TabCaption>
+      {failedReads.map(([what, x]) => <div key={what} className="mb-3"><LoadError what={what} error={x.error} retry={() => void x.refetch()} /></div>)}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div data-why="VEECs lodged this month (decisions 28–29)"><StatTile label={`VEECs lodged · ${month.split(" ")[0]}`} value={veecs.data ? `${veecs.data.lodgedMonth.jobs} jobs · ${veecs.data.lodgedMonth.veecs}` : "…"} sub={veecs.data ? `${dollars(veecs.data.lodgedMonth.value)} at the price on the day` : undefined} /></div>
-        <div data-why="decisions 139–144: one Xero invoice per job"><StatTile label="Owners owe" value={invoices.data ? dollars(invoices.data.owedCents / 100) : "…"} sub={invoices.data ? `${invoices.data.openCount} invoices · ${invoices.data.overdue} overdue` : undefined} /></div>
-        <div data-why="decisions 30/109 payouts"><StatTile label="We owe trades" value={payouts.data ? dollars(payouts.data.owedEx) : "…"} sub={payouts.data ? (payouts.data.due.length ? `ex GST · next due ${fmtDay(nextDue)}${payouts.data.unknownAmounts ? ` · ${payouts.data.unknownAmounts} amount unknown` : ""}${payouts.data.held.length ? ` · ${payouts.data.held.length} held` : ""}` : payouts.data.held.length ? `nothing payable · ${payouts.data.held.length} held` : "nothing due") : undefined} /></div>
-        <div data-why="decision 230 monthly margin total"><StatTile label={`Margin · ${month.split(" ")[0]}`} value={m.data ? dollars(m.data.month.total) : "…"} sub={m.data ? `${m.data.month.jobs} jobs complete${m.data.month.pct != null ? ` · ${m.data.month.pct}% average` : ""}${m.data.month.unknown ? ` · ${m.data.month.unknown} not worked out` : ""}` : undefined} /></div>
+        <div data-why="VEECs lodged this month (decisions 28–29)"><StatTile label={`VEECs lodged · ${month.split(" ")[0]}`} value={tileText(rd(veecs), () => `${veecs.data!.lodgedMonth.jobs} jobs · ${veecs.data!.lodgedMonth.veecs}`)} sub={veecs.data ? `${dollars(veecs.data.lodgedMonth.value)} at the price on the day` : undefined} /></div>
+        <div data-why="decisions 139–144: one Xero invoice per job"><StatTile label="Owners owe" value={tileText(rd(invoices), () => dollars(invoices.data!.owedCents / 100))} sub={invoices.data ? `${invoices.data.openCount} invoices · ${invoices.data.overdue} overdue` : undefined} /></div>
+        <div data-why="decisions 30/109 payouts"><StatTile label="We owe trades" value={tileText(rd(payouts), () => dollars(payouts.data!.owedEx))} sub={payouts.data ? (payouts.data.due.length ? `ex GST · next due ${fmtDay(nextDue)}${payouts.data.unknownAmounts ? ` · ${payouts.data.unknownAmounts} amount unknown` : ""}${payouts.data.held.length ? ` · ${payouts.data.held.length} held` : ""}` : payouts.data.held.length ? `nothing payable · ${payouts.data.held.length} held` : "nothing due") : undefined} /></div>
+        <div data-why="decision 230 monthly margin total"><StatTile label={`Margin · ${month.split(" ")[0]}`} value={tileText(rd(m), () => dollars(m.data!.month.total))} sub={m.data ? `${m.data.month.jobs} jobs complete${m.data.month.pct != null ? ` · ${m.data.month.pct}% average` : ""}${m.data.month.unknown ? ` · ${m.data.month.unknown} not worked out` : ""}` : undefined} /></div>
       </div>
       {m.error ? <LoadError what="Margins" error={m.error} retry={() => void m.refetch()} /> : m.isPending ? <Loading what="margins" /> : (
         <OfficeTable why="decision 230 per-job margin column (one pure rule: job-margin.core)" isEmpty={!m.data!.rows.length} empty="No accepted quotes yet."
