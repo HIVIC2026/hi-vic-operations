@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:52 welcome wording and TEST trades
+- [x] Changed only electrician pay tick/step 5 and both welcome Mitti step 1; actual payout still waits seven days after later of complete form and owner payment, unchanged.
+- [x] Thirteen named dummy trades paused with accepting_new_jobs=false and receives_hivic_leads=false; PGlite proof passed before live transaction, thirteen audit rows verified. Approval, TEST markers, logins and four protected real businesses unchanged. TEST journey snapshot now restores both flags; isolated preparation/cleanup check passed.
+- [x] Five real businesses remain enabled by offer preferences: All Powered Electrical PTY LTD, RAPID INSULATION, Reinsulate, Silver Spirit Investments, Western Suburbs Electrical. Four lack verified coverage; Reinsulate's only verified installer certificate has no recorded Full level/expiry, so new-offer candidate gates currently block all five. No sends, global switch changes or publication; preview build OK.
 ## Jo 27 Oct 03:31 A3 Owner name back + reruns
 - [x] Real A3 (GET only): Job Reference ID, Address including postcode, Owner name, Office life support record, Date of inspection; prefill matches all, Owner name required (never made optional).
 - [x] piesa-fixes HV-3366 all pass incl. M; archived.
