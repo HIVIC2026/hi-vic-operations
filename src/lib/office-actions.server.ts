@@ -41,7 +41,7 @@ async function installerRecipientFor(jobId: string, originatingBusinessId: strin
  * keeps history (nothing deleted). Decision 291: when ticked, the owner gets email O69 and the installer email I70
  * through the guarded senders (`cancel-notice.server.ts`), one event per send, never twice for the same cancellation.
  */
-export async function cancelJobFully(jobId: string, reason: string, actorId: string, opts: { note?: string | null; tell?: TellTicks; bulk?: boolean } = {}) {
+export async function cancelJobFully(jobId: string, reason: string, actorId: string | null, opts: { note?: string | null; tell?: TellTicks; bulk?: boolean } = {}) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
   const { data: job, error } = await admin.from("jobs").select("stage, job_number, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (error || !job) throw new WorkflowError("Job not found.");
