@@ -1,7 +1,7 @@
 ## Jo 28 Oct 20:08 decisions
 - [x] 1. HV-1554 marked qa_test (one record, audited admin_override event); safeguard unchanged. Confirm TEST office opens Alpha jobs.
 - [x] 2. PIESA fixes: one Needs me row, installer "paused" wording, clears after fixes + Section C (p2 PASS).
-- [x] 3. 30-day lapse: office chooses payer; owner wording; Accept; price setting (m158 PASS installer-pays). Owner-pays: office records the Xero payment by hand; no automatic Xero line yet (needs Jo: new invoice vs. one-invoice rule).
+- [x] 3. 30-day lapse: office chooses payer; owner wording; Accept; price setting (m158 PASS installer-pays). Owner-pays: line on the ONE Xero invoice, paid before offer (m158-owner-pays PASS).
 - [ ] 4. TEST installer ABNs set; ESC step passes. Block 24 BLOCKED: no approved Activity 48 installer declaration template (admin-approved wording only).
 - [ ] 5. Code reads STRIPE_TEST_SECRET_KEY for TEST jobs only. Waiting on Jo to add the key; path 3 card check then.
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)

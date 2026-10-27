@@ -79,6 +79,18 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   return { title: REPEAT_NEEDED_TITLE, body: "Thanks for accepting. We're arranging your electrician — they'll offer you 3 safety check times.", price: null, button: null };
 }
 
+// ---- Owner pays (Jo 28 Oct, decision 233): the repeat price goes on the job's ONE Xero invoice as one line ----
+export const REPEAT_XERO_ADDED_EVENT = "xero_invoice_repeat_piesa_added";
+export const REPEAT_XERO_HELD_EVENT = "xero_invoice_repeat_piesa_held";
+/** Tag printed on the Xero line so a lost response is recognised on the invoice itself (one per lapsed deadline). */
+export const repeatLineTag = (deadline: string) => `repeat PIESA ${deadline}`;
+export const repeatLineKey = (invoiceId: string, deadline: string, cents: number) => `xero-repeat-piesa:v1:${invoiceId}:${deadline}:${Math.round(cents)}`;
+export const repeatLineDescription = (reference: string, deadline: string) => `${reference} – New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+/** Paid = Xero/card payments on the invoice grew by at least the repeat price since the line went on. */
+export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: number; priceCents: number }): boolean {
+  return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;
+}
+
 /** Total (ex GST) to take off an installer's install payout for every repeat PIESA the office charged to the installer. */
 export function repeatDeductionEx(choices: { payer?: string; price_inc_gst?: number | null }[], gst: number): number {
   const inc = choices.filter((c) => c.payer === "installer" && typeof c.price_inc_gst === "number" && c.price_inc_gst > 0).reduce((a, c) => a + (c.price_inc_gst as number), 0);
