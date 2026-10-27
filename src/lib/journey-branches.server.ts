@@ -1041,7 +1041,7 @@ async function payFixes(ctx: JourneyCtx) {
 
 /** Owner picks the offered fixes time, then the A4 form is created (Phase 3 checks 2.5), then completed (2.6).
  *  Returns the booking id and the fixes audit id. */
-async function bookAndCompleteFixes(ctx: JourneyCtx, mitti: { call: unknown; audits: Map<string, { completed?: boolean }>; seed: (id: string, tpl: string) => void; fill: (id: string, items: unknown[], opts?: { complete?: boolean }) => void }, fetchMedia: () => Promise<{ bytes: unknown; contentType: string }>, el: { full_name: string | null } | null, tplFixes: string) {
+async function bookAndCompleteFixes(ctx: JourneyCtx, mitti: Awaited<ReturnType<(typeof import("./journey-sim.core"))["simulatedMitti"]>>, fetchMedia: () => Promise<{ bytes: unknown; contentType: string }>, el: { full_name: string | null } | null, tplFixes: string) {
   const fd = await import("./fixes-day.core");
   const sim = await import("./journey-sim.core");
   const of = await import("./owner-fixes.server");
