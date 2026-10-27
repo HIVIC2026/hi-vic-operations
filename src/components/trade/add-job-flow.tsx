@@ -102,7 +102,7 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
       </fieldset>
       <VisitField value={visit} onChange={setVisit} disabled={busy} error={errors.visit} />
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err ? "Retry submission" : SAVE_LABEL}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? "Retry submission" : SAVE_LABEL}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{summary ? ADD_JOB_OFFLINE_NOTE : WHAT_HAPPENS_NEXT}</p>
     </div>
   );
