@@ -34,6 +34,8 @@ async def main():
   try:
    await page.goto('http://localhost:8080/calculator',wait_until='domcontentloaded')
    await page.get_by_role('button',name='Register my interest',exact=True).first.wait_for(timeout=30000)
+   # Vite may reload once while the newly served function transform initialises; wait before the read-only check.
+   await page.wait_for_timeout(2500)
    result['safety']=await page.evaluate("async()=>{const m=await import('/src/lib/interest.functions.ts');return await m.previewJourneySafety()}")
    if not all(result['safety'].get(k) is True for k in ['qa','unattributedRefused','deliveryAdapterAbsent','demoConnected']):raise Exception('Running preview safety check failed; no submission')
    await page.get_by_role('button',name='Register my interest',exact=True).first.click()
