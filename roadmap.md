@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 05:33 running-portal TEST safety and Phase 2
+- [ ] Read-only real installation end-time count and booking write trace; decision 410 re-read at end. Section C code unchanged.
+- [ ] Persisted qa_test Mitti simulation for all job calls, request-scoped refusal for unattributed TEST calls, real-call regression tests.
+- [ ] Server-authenticated preview website TEST intake; no public email-only TEST designation; sending/Demo boundaries verified.
+- [ ] Run full isolated suite and browser-first Phase 2 once, archive only its job, report honest counts and remaining blockers.
 ## Jo 27 Oct 05:16 interrupted Save my spot — one bug only
 - [x] Atomic save/event/stage applied after practice rollback/retry/access tests; both save handlers resume confirmation, secure next visit repairs only that recorded job without messages. Regression tests pass; no sends/settings/publication.
 ## Jo 27 Oct 04:18 main journey follow-ups
