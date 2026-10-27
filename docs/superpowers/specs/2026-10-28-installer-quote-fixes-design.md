@@ -43,6 +43,9 @@ difficult-access fee Jo never entered.
     ours on their jobs without permission from them").
   - When their electrician finishes onboarding, the quote is built at the agreed rate on the next rebuild.
   - In the installer's job list, a job stuck like this sits under "Action needed" (Jo 28 Oct), not "In progress".
+  - Crew (installer workers who aren't the business owner) never see any price ("The crew shouldn't see the price!!!",
+    Jo 28 Oct). On a stuck job they see only "Waiting on your electrician to sign up", with no note, no button and no
+    $ amount, in both the job page and the job list. For crew it is not an action; it sits under "In progress".
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).
