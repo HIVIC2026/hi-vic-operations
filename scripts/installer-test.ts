@@ -667,7 +667,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     // Decision 421: once measured, only the office measurement review changes area.
     // Record an onsite measurement on this run's new TEST job, never on an existing job.
     if (j?.source !== "qa_test" || j.originating_installer_business_id !== BIZ) throw new Fail("SAFETY STOP: measurement fixture must be this run's TEST job.");
-    const { error: measurementError } = await admin.from("ceiling_measurements").insert({ job_id: a.jobId, is_current: true, provenance: "hivic_onsite", measured_area_m2: 118, created_by: ownerId, raw_snapshot: { source: "C16 TEST onsite measurement" } });
+    const { error: measurementError } = await admin.from("ceiling_measurements").insert({ job_id: a.jobId, is_current: true, source_role: "installer", confidence: "high", provenance: "hivic_onsite", measured_area_m2: 118, created_by: ownerId, raw_snapshot: { source: "C16 TEST onsite measurement" } });
     if (measurementError) throw new Fail(measurementError.message);
     const measuredBefore = await ii.installerIntakeState(a.jobId);
     c("TEST ceiling is now measured", measuredBefore.areaM2 === 118, String(measuredBefore.areaM2));
