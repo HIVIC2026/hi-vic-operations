@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 16:48 follow-up
+- [ ] Path 6: one-job-only coordination sweep, filter regression test, 24h/48h office readback and no texts.
+- [ ] Path 5: diagnose old Ready Check installer view; repair only a real cause.
+- [ ] Cancel run-owned pending TEST Ready Check offers and make clean-up permanent.
+- [ ] Fill/Complete simulated Mitti through TEST browser controls; rerun main screens, record unreached stages honestly.
+- [ ] Phase 4 if time remains: uncovered register blocks, separate TEST jobs, four checks each.
 ## Jo 27 Oct 14:04 simulated Bravo invitation and remaining QA
 - [x] TEST Bravo linked with existing verifyMittiMember/setMittiInvited office helpers; sim_ identity read back, check M zero real Mitti calls. No create-user API/email; persistent simulator already models TEST membership.
 - [x] Two browser runs at 390px; final HV-3438:12 pass/0 fail/8 blocked/1 runner error. Actual prestart ticks and Start reach form handoff. Both HV-3437/HV-3438 archived; Bravo/Delta offer flags false restored.
