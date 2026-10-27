@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 02:14 Xero connections
+- [x] Show connected organisations: Home Insulation Victoria on Joannah's Xero (1); DC Construction Solutions Pty Ltd and Demo Company (AU) on Joannah's Xero.
+- [ ] Verify test Demo Company access; reconnect only if access requires re-authorisation. No invoices, switches or publication.
 ## Jo 26 Oct 10:48 three approved fixes
 - [x] Removed "call us"/office phone from owner quote + cancelled emails and an owner error message.
 - [x] Eligibility labels now "Likely Eligible" / "Needs Onsite Confirmation" / "Does Not Appear Eligible"; Gate 1 logic untouched.
