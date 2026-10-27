@@ -39,7 +39,9 @@ const out: { code: keyof typeof D376_FILES; mail: { subject: string; html: strin
 ];
 
 for (const o of out) {
-  writeFileSync(`${TEMPLATES}${D376_FILES[o.code]}`, o.mail.html);
+  const target = `${TEMPLATES}${D376_FILES[o.code]}`;
+  mkdirSync(target.slice(0, target.lastIndexOf("/")), { recursive: true });
+  writeFileSync(target, o.mail.html);
   if (import.meta.main) console.log(`--- ${o.code} — subject: ${o.mail.subject}\n${o.mail.text}\n${o.sms ? `--- ${o.code} text: Home Insulation Victoria: ${o.sms}\n` : ""}`);
 }
 
