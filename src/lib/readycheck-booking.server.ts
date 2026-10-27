@@ -74,28 +74,16 @@ export async function ownerReadyCheckWindowState(jobId: string) {
   return { bookingAllowed: access.allowed, canPick, moreTimes: access.allowed && w.round === 1 && !!asked, round: w.round, windows: w.all.map((r) => ({ starts_at: r.starts_at, ends_at: r.ends_at, status: r.status })) };
 }
 
-/** Approved installer businesses judged for this Ready Check. Price is never loaded. */
-export async function installerCandidatesFor(jobId: string) {
-  const { data: job } = await admin.from("jobs").select("id, source, properties(postcode)").eq("id", jobId).single();
-  const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
-  const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
-  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
-  const ids = (bizs ?? []).map((b) => b.id);
+/** Business-level facts behind the Ready Check offer rule — documents (H3 / decision 371) and Full-certified installers
+ *  (decision 153, PIISA, collection notice). Shared by `installerCandidatesFor` and the Choose installer list's
+ *  "Installer ✓" so the two can never disagree (HV-1509). Read-only. */
+export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ credentialsOk: (b: { id: string }) => boolean; fullCertified: (businessId: string) => number }> {
+  const ids = bizs.map((b) => b.id);
   const inIds = ids.length ? ids : NONE;
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const w = await readyCheckWindowRound(jobId);
-  const windows = w.open.map((r) => ({ s: Date.parse(r.starts_at), e: Date.parse(r.ends_at), day: melbourneYmd(new Date(r.starts_at)) }));
-  const windowDays = new Set(windows.map((x) => x.day));
-  const [{ data: creds }, { data: workers }, { data: offers }, { data: bks }] = await Promise.all([
+  const [{ data: creds }, { data: workers }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
     // Decision 153: clearance is derived below from the verified certification + recorded level/expiry; approval_status (logins only) is not a filter.
     admin.from("partner_workers").select("id, business_id, email, full_legal_name, removed_at, trade_role, piisa_status, piisa_certificate_path, piisa_verified_at").eq("trade_role", "installer").is("removed_at", null).in("business_id", inIds),
-    admin.from("partner_offers").select("business_id, status, offered_at, responded_at").eq("kind", "ready_check").gte("offered_at", since).in("business_id", inIds),
-    windows.length
-      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs!inner(deleted_at, properties(postcode))").is("jobs.deleted_at", null).eq("status", "confirmed").in("business_id", inIds)
-          .gte("scheduled_start", new Date(Math.min(...windows.map((x) => x.s)) - 86_400_000).toISOString())
-          .lte("scheduled_start", new Date(Math.max(...windows.map((x) => x.e)) + 86_400_000).toISOString())
-      : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   // Certification: latest record per worker (by id or email) + latest office-recorded level.
   // PIISA: installers who said No (or uploaded but not yet verified) can't be offered jobs.
@@ -118,6 +106,37 @@ export async function installerCandidatesFor(jobId: string) {
     const l = (levels ?? []).find((r) => r.certification_id === c.id);
     return fullCurrentCert({ status: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null }, today);
   };
+  const credsOf = (id: string) => (creds ?? []).filter((x) => x.business_id === id);
+  const docs = (id: string) => credsOf(id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
+  return {
+    credentialsOk: (b) => !partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
+      && !publicLiabilityBlocker(latestExpiry(docs(b.id), "public_liability_insurance"), today)
+      && !expiredBusinessDocsBlocker(docs(b.id), today, ["public_liability_insurance", "installer_certification"]),
+    fullCertified: (businessId) => wk.filter((x) => x.business_id === businessId && fullWorker(x)).length,
+  };
+}
+
+/** Approved installer businesses judged for this Ready Check. Price is never loaded. */
+export async function installerCandidatesFor(jobId: string) {
+  const { data: job } = await admin.from("jobs").select("id, source, properties(postcode)").eq("id", jobId).single();
+  const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
+  const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
+  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
+  const ids = (bizs ?? []).map((b) => b.id);
+  const inIds = ids.length ? ids : NONE;
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const w = await readyCheckWindowRound(jobId);
+  const windows = w.open.map((r) => ({ s: Date.parse(r.starts_at), e: Date.parse(r.ends_at), day: melbourneYmd(new Date(r.starts_at)) }));
+  const windowDays = new Set(windows.map((x) => x.day));
+  const [facts, { data: offers }, { data: bks }] = await Promise.all([
+    installerOfferFacts(bizs),
+    admin.from("partner_offers").select("business_id, status, offered_at, responded_at").eq("kind", "ready_check").gte("offered_at", since).in("business_id", inIds),
+    windows.length
+      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs!inner(deleted_at, properties(postcode))").is("jobs.deleted_at", null).eq("status", "confirmed").in("business_id", inIds)
+          .gte("scheduled_start", new Date(Math.min(...windows.map((x) => x.s)) - 86_400_000).toISOString())
+          .lte("scheduled_start", new Date(Math.max(...windows.map((x) => x.e)) + 86_400_000).toISOString())
+      : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
+  ]);
   const rel = await (await import("./visit-events.server")).reliabilityFor(ids);
   const { acceptanceWithCancellations } = await import("./visit-events.core");
   const candidates = (bizs ?? []).map((b) => {
@@ -138,10 +157,8 @@ export async function installerCandidatesFor(jobId: string) {
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
       // H3 (24 Oct 2026): a lapsed public liability certificate blocks new offers like an expired CII, whatever its `critical` flag.
       // Decision 371: so does a lapsed business installer certificate (latest stored date per document).
-      credentialsOk: !partnerWorkBlocker(b as unknown as BusinessLike, (creds ?? []).filter((x) => x.business_id === b.id))
-        && !publicLiabilityBlocker(latestExpiry((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), "public_liability_insurance"), today)
-        && !expiredBusinessDocsBlocker((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), today, ["public_liability_insurance", "installer_certification"]),
-      fullCertifiedInstallers: wk.filter((x) => x.business_id === b.id && fullWorker(x)).length,
+      credentialsOk: facts.credentialsOk(b),
+      fullCertifiedInstallers: facts.fullCertified(b.id),
       freeMeasureUps: b.free_measureups_for_hivic_quote_leads ?? null,
       weekly_capacity: null, open_jobs: 0, recent_offers_30d: mine.length,
       acceptance_rate: acceptanceWithCancellations(answered.filter((o) => o.status === "accepted").length, answered.length, rel.get(b.id)?.trade_cancellations ?? 0),

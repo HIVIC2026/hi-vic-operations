@@ -7,7 +7,7 @@ import { Fragment, useEffect, useState } from "react";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
 import { getRecOnboardingRecord } from "@/lib/rec-onboarding-admin.functions";
-import { PARTNER_STATUSES, PARTNER_TYPE_LABEL, partnerIssues, type PartnerType } from "@/lib/partner.core";
+import { PARTNER_STATUSES, PARTNER_TYPE_LABEL, partnerIssues, signedRecRates, type PartnerType } from "@/lib/partner.core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,17 +33,23 @@ export function ApplicationDetail({ row, recordOnly = false }: { row: Row; recor
     await update({ id: row.id, ...p }, msg);
     await qc.invalidateQueries({ queryKey: ["partner_enquiries"] });
   };
+  // Fees come from the signed REC rate card (same as the profile's "Rates (inc GST)"), falling back to the old enquiry columns.
+  const recAppId = row.enquiry_type === "electrician_rec" ? (row.raw_payload as { rec_onboarding_id?: string } | null)?.rec_onboarding_id ?? null : null;
+  const recQ = useQuery({ queryKey: ["rec-onboarding", recAppId], enabled: !!recAppId, queryFn: () => getRecOnboardingRecord({ data: { id: recAppId! } }) });
+  const signedRates = recQ.data ? signedRecRates(recQ.data.data) : null;
+  const piesaFee = signedRates?.piesa ?? row.estimated_piesa_fee_inc_gst;
+  const returnFee = signedRates?.return_visit ?? row.estimated_return_visit_fee_inc_gst;
   const f: [string, React.ReactNode][] = [
     ["Type", PARTNER_TYPE_LABEL[row.enquiry_type as PartnerType]], ["Company", row.company], ["Name", row.name], ["Email", row.email], ["Phone", row.phone],
     ["Submitted", date(row.source_created_at ?? row.created_at)], ["Website status", row.source_status], ["Source", row.source], ["Reference", row.external_id ?? row.submission_id],
     ["Service areas", row.service_areas?.join(", ")],
     ...(row.enquiry_type === "installer" ? [["CII certification", row.cii_certification_status], ["CII details", row.cii_certification_details], ["Indicative R5 rate", row.estimated_r5_install_rate_per_sqm_inc_gst == null ? null : `$${row.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`], ["R6.0 rate", (() => { const v = (row.raw_payload as { r6_rate?: number | null } | null)?.r6_rate; return v == null ? "Not offered" : `$${v}/m² inc GST`; })()], ["R7.0 rate", (() => { const v = (row.raw_payload as { r7_rate?: number | null } | null)?.r7_rate; return v == null ? "Not offered" : `$${v}/m² inc GST`; })()], ["Top up to R5.0 rate", (() => { const v = (row.raw_payload as { topup_r5_rate?: number | null } | null)?.topup_r5_rate; return v == null ? "Not offered" : `$${v}/m² inc GST`; })()], ["Dust / vermin vacuum only rate", (() => { const v = (row.raw_payload as { vacuum_only_rate?: number | null } | null)?.vacuum_only_rate; return v == null ? "Not offered" : `$${v}/m² inc GST`; })()], ["Batts removal rate", row.estimated_batts_removal_rate_per_sqm_inc_gst == null ? null : `$${row.estimated_batts_removal_rate_per_sqm_inc_gst}/m² inc GST`], ["Loose fill removal rate", row.estimated_loose_fill_removal_rate_per_sqm_inc_gst == null ? null : `$${row.estimated_loose_fill_removal_rate_per_sqm_inc_gst}/m² inc GST`], ["Free quotes for Home Insulation Victoria leads", row.free_quotes_for_hivic_leads == null ? null : row.free_quotes_for_hivic_leads ? "Yes" : "No"], ["Free Ready Checks for qualified quote leads", row.free_measureups_for_hivic_quote_leads == null ? null : row.free_measureups_for_hivic_quote_leads ? "Yes" : "No"]] as [string, React.ReactNode][] : []),
-    ...(row.enquiry_type === "electrician_rec" ? [["REC number", row.rec_registration_number], ["ESV-licensed electricians confirmed", row.esv_licensed_electricians_confirmed == null ? null : row.esv_licensed_electricians_confirmed ? "Yes" : "No"], ["Services", row.services?.join(", ")], ["Indicative PIESA fee", money(row.estimated_piesa_fee_inc_gst)], ["Indicative return visit fee", money(row.estimated_return_visit_fee_inc_gst)], ["Booking lead time", row.booking_lead_time], ["Weekly capacity", row.weekly_capacity]] as [string, React.ReactNode][] : []),
+    ...(row.enquiry_type === "electrician_rec" ? [["REC number", row.rec_registration_number], ["ESV-licensed electricians confirmed", row.esv_licensed_electricians_confirmed == null ? null : row.esv_licensed_electricians_confirmed ? "Yes" : "No"], ["Services", row.services?.join(", ")], ["Indicative PIESA fee", money(piesaFee)], ["Indicative return visit fee", money(returnFee)], ["Booking lead time", row.booking_lead_time], ["Weekly capacity", row.weekly_capacity]] as [string, React.ReactNode][] : []),
     ["Their message", row.notes],
   ];
   return (
     <div className="space-y-4">
-        {(() => { const issues = partnerIssues(row); return issues.length > 0 && (
+        {(() => { const issues = recAppId && recQ.isLoading ? [] : partnerIssues({ ...row, signed_rates: signedRates }); return issues.length > 0 && (
           <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
             <div className="mb-1 text-sm font-semibold text-amber-700 dark:text-amber-400">Review flags</div>
             <ul className="list-inside list-disc text-sm text-amber-700 dark:text-amber-400">
@@ -199,7 +205,8 @@ export function PartnerLogin({ applicationId, defaultEmail, autoResult }: { appl
         <Button size="sm" variant="outline" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) { setLink(r.link); await navigator.clipboard.writeText(r.link).catch(() => {}); toast.success("New link copied"); } }}>Copy link</Button>
       </div>
       {result && <p role="status" className={`mt-2 rounded p-2 text-sm font-semibold ${result.ok ? "bg-success-soft text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
-      {link && <textarea readOnly aria-label="Set-password link" className="mt-2 w-full break-all rounded border p-2 text-xs" rows={2} value={link} onFocus={(e) => e.currentTarget.select()} />}
+      {/* The set-password link is a live credential: never print it on screen, only copy it. */}
+      {link && <p className="mt-2 text-sm" data-testid="partner-login-link">Link ready · <button type="button" className="font-semibold text-primary underline" onClick={async () => { await navigator.clipboard.writeText(link).catch(() => {}); toast.success("Link copied"); }}>Copy link</button></p>}
     </div>
   );
 }

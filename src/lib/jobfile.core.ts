@@ -256,6 +256,16 @@ export function buildTimeline(p: { events: Row[]; correspondence: Correspondence
   return out.filter((i) => i.at).sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
 }
 
+/** What one timeline row shows: a line, plus the note/body only when it adds something. A message with no subject has
+ *  its body cut to 140 characters as the summary, so showing both printed the same text twice — the full text is the line. */
+export function timelineText(t: { summary: string; detail: unknown }): { line: string; quote: string | null } {
+  const d = t.detail && typeof t.detail === "object" ? (t.detail as Record<string, unknown>) : null;
+  const note = d && "note" in d ? String(d["note"] ?? "") : d && "body" in d ? String(d["body"] ?? "") : "";
+  if (!note.trim() || note === t.summary) return { line: t.summary, quote: null };
+  if (note.startsWith(t.summary)) return { line: note, quote: null };
+  return { line: t.summary, quote: note };
+}
+
 export function filterTimeline(items: TimelineItem[], f: TimelineFilter) { return f === "all" ? items : items.filter((i) => i.tags.includes(f)); }
 
 // ---------- Retention ----------

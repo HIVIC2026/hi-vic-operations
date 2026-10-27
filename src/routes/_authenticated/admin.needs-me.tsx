@@ -14,7 +14,7 @@ import { checkedLabel } from "@/lib/office-needs-snapshot.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { BulkMatch, EmailActions } from "@/components/portal/email-match";
 import { ageLabel, NEEDS_GROUPS, type JobSection, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
-import { bulkMatchable, needsCards, needsHeadline, type NeedsCard, type NeedsCardId } from "@/lib/needs-cards.core";
+import { bulkMatchable, needsCards, needsHeadline, systemFoldLabel, unavailableNote, type NeedsCard, type NeedsCardId } from "@/lib/needs-cards.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
 import { ContactHistory, JobHeader, MoneyCard, NextPanel, StageWorkspace } from "@/components/portal/office-job";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -137,34 +137,37 @@ function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard
         <span aria-hidden className="text-lg text-sub">{open ? <><span className="lg:hidden">▾</span><span className="hidden lg:inline">›</span></> : "›"}</span>
       </button>
       {open && <div className="border-t border-line lg:hidden">
-        {card.id === "emails" && <BulkMatch rows={bulkMatchable(card.rows)} onDone={onDone} />}
+        {card.id === "unmatched" && <BulkMatch rows={bulkMatchable(card.rows)} onDone={onDone} />}
         <ul>{card.rows.map((r) => <Row key={r.key} row={r} now={now} onDone={() => onDone([r.key])} />)}</ul>
       </div>}
     </div>
   );
 }
 
-/** Partner & system items as one fold line (decision 221). Mitti rows share the Jobs pile cache. */
-function PartnerSystemFold({ rows }: { rows: SystemRow[] }) {
+/** Partner & system items as one fold line (decision 221). Mitti rows share the Jobs pile cache. They load with the page
+ *  (not on opening) so the line's number is the full count before opening and never changes when it is opened. */
+function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed: boolean }) {
   const [open, setOpen] = useState(false);
   const pickupsFn = useServerFn(getMittiPickups);
   const syncFn = useServerFn(getMittiSyncProblems);
-  const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1, enabled: open });
-  const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, enabled: open });
+  const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1 });
+  const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, retry: 1 });
   const mitti: SystemRow[] = [
     ...(pickups.data?.rows ?? []).map((p) => ({ key: `pickup:${p.auditId}`, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/active" })),
     ...(sync.data?.rows ?? []).map((p) => ({ key: `sync:${p.jobId}`, tag: "Mitti", who: `${p.jobNumber} ${p.owner ?? ""}`.trim(), line: `Mitti sync problem · ${p.message}`, since: p.since, button: "Open job", href: `/admin/jobs/${p.jobId}`, jobId: p.jobId })),
   ];
   const all = [...rows, ...mitti];
+  const label = systemFoldLabel([{ status: rowsFailed ? "error" : "success", count: rows.length }, { status: pickups.status, count: pickups.data?.rows.length ?? 0 }, { status: sync.status, count: sync.data?.rows.length ?? 0 }]);
+  const failed = pickups.isError || sync.isError;
   return (
     <div className="mt-6" data-why="decision 221: partner & system items as one fold line">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-sm font-semibold text-hiv-blue">
-        {rows.length}{open && mitti.length ? ` + ${mitti.length}` : ""} partner &amp; system item{rows.length === 1 ? "" : "s"} {open ? "▾" : "›"}
+        {label} {open ? "▾" : "›"}
       </button>
       {open && (
         <ul className="mt-2 rounded-[14px] border border-line bg-paper px-4">
-          {pickups.isError && <li className="py-3 text-sm text-danger">Mitti could not be checked just now — this does not mean nothing is waiting.</li>}
-          {all.length === 0 && <li className="py-3 text-sm text-sub">Nothing from partners or the system.</li>}
+          {failed && <li role="alert" className="py-3 text-sm text-danger">{pickups.isError && sync.isError ? "Mitti forms and Mitti sync problems" : pickups.isError ? "Mitti forms" : "Mitti sync problems"} couldn't be checked just now — this does not mean nothing is waiting. <button type="button" className="font-semibold underline" onClick={() => { if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</button></li>}
+          {all.length === 0 && !failed && !rowsFailed && <li className="py-3 text-sm text-sub">Nothing from partners or the system.</li>}
           {all.map((r) => (
             <li key={r.key} className="grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 border-b border-line py-3 last:border-b-0 md:grid-cols-[90px_minmax(0,180px)_minmax(0,1fr)_auto] md:items-center">
               <span className="text-xs font-bold uppercase text-sub">{r.tag}</span>
@@ -220,6 +223,8 @@ function NeedsMe() {
       {error ? (
         <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>
       ) : isPending || !data ? <p role="status" className="text-sub">Checking every job…</p> : (
+        <>
+        {unavailableNote(data.unavailable) && <div role="alert" className="mb-4 rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">{unavailableNote(data.unavailable)} <button type="button" className="font-semibold underline" onClick={() => refresh()}>Try again</button></div>}
         <div className="lg:grid lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-6">
         <div>
           {groups.map((g) => {
@@ -231,11 +236,11 @@ function NeedsMe() {
                 {chooseInstaller.length > 0 && (
                   <Link to={INSTALLER_WAITING_PATH} data-why="decision 378: one link, no duplicated rows (one pile per job)" className="flex min-h-14 items-center gap-3 rounded-[14px] border border-line bg-paper px-4 py-2.5 hover:bg-mist">
                     <span className="grid h-7 min-w-8 shrink-0 place-items-center rounded-full bg-mist px-2 text-sm font-bold text-hiv-blue">{chooseInstaller.length}</span>
-                    <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">Choose installers</span><span className="text-xs text-sub">Spots saved, waiting for an installer · longest {ageLabel(chooseInstaller.reduce((a, r) => (r.since < a ? r.since : a), chooseInstaller[0]!.since), data.now)}</span></span>
+                    <span className="grid min-w-0 flex-1"><span className="font-semibold text-ink">Choose installers</span><span className="text-xs text-sub">Spots saved, ready for you to choose (released ones not counted) · longest {ageLabel(chooseInstaller.reduce((a, r) => (r.since < a ? r.since : a), chooseInstaller[0]!.since), data.now)}</span></span>
                     <span aria-hidden className="text-lg text-sub">›</span>
                   </Link>
                 )}
-                {total === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}.</p> : null}
+                {total === 0 ? <p className="rounded-[14px] border border-line bg-paper px-4 py-3 text-sm text-sub">Nothing {g.key === "watch" ? "to watch" : g.key === "week" ? "this week" : "today"}{data.unavailable?.length ? " that loaded — some checks couldn't load (see above)" : ""}.</p> : null}
                 {needsCards(rows).map((c) => {
                   const id = `${g.key}:${c.id}`;
                   // Phone: an accordion (tap again to close). Desktop: a list that picks what the right-hand panel shows.
@@ -245,18 +250,19 @@ function NeedsMe() {
               </section>
             );
           })}
-          <PartnerSystemFold rows={data.system} />
+          <PartnerSystemFold rows={data.system} rowsFailed={!!data.unavailable?.includes("electrician links to installers")} />
         </div>
         <section aria-label={shown ? shown.card.title : "Needs me"} className="hidden lg:sticky lg:top-24 lg:block">
           {shown ? (
             <div className="overflow-hidden rounded-[14px] border border-line bg-paper">
               <h2 className="border-b border-line px-4 py-3 font-display text-lg font-bold text-ink">{shown.card.title} · {shown.card.rows.length}</h2>
-              {shown.card.id === "emails" && <BulkMatch rows={bulkMatchable(shown.card.rows)} onDone={refresh} />}
+              {shown.card.id === "unmatched" && <BulkMatch rows={bulkMatchable(shown.card.rows)} onDone={refresh} />}
               <ul>{shown.card.rows.map((r) => <DeskRow key={r.key} row={r} now={data.now} onDone={() => refresh([r.key])} onPeek={setPeek} />)}</ul>
             </div>
-          ) : <p className="rounded-[14px] border border-line bg-paper px-4 py-6 text-sm text-sub">Nothing needs you right now.</p>}
+          ) : <p className="rounded-[14px] border border-line bg-paper px-4 py-6 text-sm text-sub">{data.unavailable?.length ? "Nothing else needs you — but some checks couldn't load (see above)." : "Nothing needs you right now."}</p>}
         </section>
         </div>
+        </>
       )}
       <JobPeek peek={peek} onClose={() => { setPeek(null); refresh(); }} />
     </AppShell>

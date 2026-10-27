@@ -1,6 +1,6 @@
 // Persistence for the tidy partner profile. Server-only.
 import { WorkflowError } from "./workflow.server";
-import { normaliseEmail, normaliseMobile, type AppMeta, type CiiCheck, type PartnerProfile } from "./partner-profile.core";
+import { normaliseEmail, normaliseMobile, type AppMeta, type CiiCheck, type ElectricianCredentialChecks, type PartnerProfile } from "./partner-profile.core";
 
 type AdminDb = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -40,8 +40,17 @@ export async function loadProfileInputs(admin: AdminDb, applicationId: string) {
     const { data: b } = await admin.from("businesses").select("approval_message_status").eq("id", act.business_id).maybeSingle();
     approvalMessage = b?.approval_message_status ?? null;
   }
+  // Real office verification of the approved business's REC / ESV licence (same number), if any — never assumed.
+  const credentialChecks: ElectricianCredentialChecks = {};
+  if (act?.business_id && app.partner_type !== "installer") {
+    const { data: creds } = await admin.from("business_credentials").select("kind, number, verification").eq("business_id", act.business_id).in("kind", ["electrical_licence", "rec_registration"]);
+    const same = (a: unknown, b: unknown) => String(a ?? "").replace(/\s/g, "").toUpperCase() === String(b ?? "").replace(/\s/g, "").toUpperCase();
+    const pick = (kind: string, number: unknown) => (creds ?? []).find((c) => c.kind === kind && c.verification === "verified" && same(c.number, number))?.verification ?? null;
+    credentialChecks.esv_licence = pick("electrical_licence", data["licence_number"]);
+    credentialChecks.rec_registration = pick("rec_registration", data["rec_registration_number"] ?? data["host_rec_number"]);
+  }
   return {
-    meta: app as unknown as AppMeta, data, cii, existingCapabilities, existingBusinessId,
+    meta: app as unknown as AppMeta, data, cii, existingCapabilities, existingBusinessId, credentialChecks,
     activatedBusinessId: act?.business_id ?? null, approvalMessage,
     isTest: !!app.test_mode || !!mark,
     peers: {

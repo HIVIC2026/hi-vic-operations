@@ -32,13 +32,17 @@ const statusWord = (s: string) => {
   return s.replace(/_/g, " ");
 };
 
-/** One list, newest first. job_communications rows that mirror a customer_email_sends row are shown once (the send). */
+/** One list, newest first. job_communications rows that mirror a customer_email_sends or sms_messages row are shown once (the send). */
 export function mergeContactHistory(i: { emails: EmailSendRow[]; comms: CommRow[]; sms: SmsRow[]; messages: PortalMessageRow[]; ownerActions: OwnerActionRow[] }): ContactRow[] {
   const out: ContactRow[] = [];
   const mirrored = new Set(i.emails.map((e) => e.communication_id).filter(Boolean) as string[]);
+  // Every real text writes an sms_messages row (the send, with Twilio's status) AND a job_communications copy
+  // (source_event "sms:<type>", same body, seconds later). Show the send once.
+  const smsCopy = (c: CommRow) => c.channel === "sms" && c.direction === "outbound" && !!c.source_event?.startsWith("sms:")
+    && i.sms.some((s) => `sms:${s.message_type}` === c.source_event && s.body === c.body && Math.abs(Date.parse(s.created_at) - Date.parse(c.created_at)) <= 10 * 60_000);
   for (const e of i.emails) out.push({ id: `email:${e.id}`, at: e.sent_at ?? e.created_at, direction: "sent", channel: "Email", what: sendLabel(e.purpose, "email") + (e.error && FAILED.has(e.status) ? ` — ${clip(e.error, 80)}` : ""), status: statusWord(e.status), failed: FAILED.has(e.status), byOffice: false });
   for (const c of i.comms) {
-    if (mirrored.has(c.id)) continue;
+    if (mirrored.has(c.id) || smsCopy(c)) continue;
     const outbound = c.direction === "outbound";
     const ch: ContactChannel = c.provider === "outlook" ? "Outlook" : c.channel === "sms" ? "Text" : c.channel === "phone" || c.channel === "call" ? "Phone" : c.channel === "note" ? "Phone" : "Email";
     const direction: ContactDirection = c.channel === "phone" || c.channel === "call" ? "call" : c.channel === "note" ? "note" : outbound ? "sent" : "received";

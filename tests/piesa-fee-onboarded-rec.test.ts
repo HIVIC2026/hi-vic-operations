@@ -101,7 +101,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(read("src/lib/owner-myjob.server.ts")).toContain("safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })");
     expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst)");
     expect(read("src/components/portal/office-job.tsx")).toContain("`${safetyCheckShort(s.amountCents)} safety check`");
-    expect(read("src/lib/office-stage-cards.core.ts")).toContain("label: safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
+    expect(read("src/lib/office-stage-cards.core.ts")).toContain("safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
   });
 });
 

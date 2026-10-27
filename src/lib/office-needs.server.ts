@@ -40,6 +40,8 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 export type GatheredNeeds = {
   now: number; jobs: OfficeJob[]; facts: Map<string, NeedsFacts>; emails: EmailRowInput[];
   system: SystemRow[];
+  /** Plain names of reads that failed without stopping the page — the page says they couldn't load. */
+  unavailable: string[];
 };
 
 /** Facts for every live job (Needs me) or for `onlyIds` (the Job page). The same derivation feeds both.
@@ -56,6 +58,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
   const { openEmailItems } = await import("./email-office.server");
   const { CHANGE_LINE } = await import("./office-needs.core");
+  const unavailable: string[] = [];
 
   // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
   // one row each until the fact is recorded. Started alongside wave 1 (rare events, then their closing events by job id).
@@ -109,7 +112,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("install day form alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", PIISA_AUTOSEND_OFFICE_EVENT).gte("created_at", since7).range(a, b)),
     // Email rows (decisions 245/247): the backend's open items (email-office.server).
     openEmailItems(),
-    listMode ? (async () => (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => []))() : Promise.resolve([]),
+    // A failed read is named in `unavailable` (the page says so), never shown as nothing.
+    listMode ? (async () => (await import("./rec-auto-link.server")).recentRecLinkItems().catch(() => { unavailable.push("electrician links to installers"); return []; }))() : Promise.resolve([]),
     // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
     listMode ? all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(t0 - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b)) : Promise.resolve([] as Row[]),
     // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it from 12pm the day before).
@@ -169,7 +173,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     aIds.length ? byIds("install day forms created", aIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).eq("event_type", PIISA_AUDIT_CREATED_EVENT).range(a, b)) : Promise.resolve([] as Row[]),
     // Install deposit (10%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
     provisionalBookings.length && provisionalBookings.length <= 40
-      ? import("./payments.server").then(({ jobPaymentView }) => Promise.all(provisionalBookings.map((b) => (f(String(b["job_id"])) ? jobPaymentView(String(b["job_id"]), new Date(now)).catch(() => null) : Promise.resolve(null)))))
+      ? import("./payments.server").then(({ jobPaymentView }) => Promise.all(provisionalBookings.map((b) => (f(String(b["job_id"])) ? jobPaymentView(String(b["job_id"]), new Date(now)).catch(() => { if (!unavailable.includes("install deposits")) unavailable.push("install deposits"); return null; }) : Promise.resolve(null)))))
       : Promise.resolve(null),
     finalIds.length ? byIds("final check flags", finalIds, (chunk, a, b) => admin.from("compliance_checks").select("job_id, status").in("job_id", chunk).eq("status", "fail").range(a, b)) : Promise.resolve([] as Row[]),
     askJobIds.length ? byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
@@ -316,13 +320,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
     }
   }
-  return { now, jobs, facts, emails, system };
+  return { now, jobs, facts, emails, system, unavailable };
 }
 
-export type NeedsMePage = { now: number; groups: Record<"today" | "week" | "watch", NeedsRow[]>; system: SystemRow[]; total: number };
+/** `unavailable` is optional only because older saved copies (decision 382) were made before it existed. */
+export type NeedsMePage = { now: number; groups: Record<"today" | "week" | "watch", NeedsRow[]>; system: SystemRow[]; total: number; unavailable?: string[] };
 
 export async function loadNeedsMePage(includeTest: boolean): Promise<NeedsMePage> {
   const g = await gatherNeedsFacts({ includeTest });
   const groups = buildNeedsRows({ now: g.now, jobs: [...g.facts.values()], emails: g.emails });
-  return { now: g.now, groups, system: g.system, total: groups.today.length + groups.week.length + groups.watch.length };
+  return { now: g.now, groups, system: g.system, total: groups.today.length + groups.week.length + groups.watch.length, unavailable: g.unavailable };
 }

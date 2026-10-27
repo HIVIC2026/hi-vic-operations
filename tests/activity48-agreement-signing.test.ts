@@ -8,7 +8,7 @@ import { performRecSign, type RecSignApp } from '../src/lib/rec-sign.core';
 const date = '2026-10-09T20:13:00Z';
 const hash = (s: string) => new Bun.CryptoHasher('sha256').update(s).digest('hex');
 const ia: InstallerSignApp = { id: 'isolated-inst', status: 'draft', data: { works_for_business: false, wants_hivic_leads: false, agreement_reviewed: true }, insurance_certificate_path: null, created_at: date, updated_at: date, test_mode: true, allow_incomplete_sign: true };
-const rd: rec.RecData = { works_under_rec: false, contact_is_licensed_electrician: true, licence_number: 'SAMPLE123', services_all_confirmed: true, agreement_reviewed: true };
+const rd: rec.RecData = { works_under_rec: false, contact_is_licensed_electrician: true, licence_number: 'SAMPLE123', licence_expiry: '2030-01-01', services_all_confirmed: true, agreement_reviewed: true };
 const ra: RecSignApp = { ...ia, id: 'isolated-rec', data: rd };
 const it = inst.agreementText(signedData(ia));
 const rt = rec.agreementText({ ...rd, insurance_uploaded: false });

@@ -20,6 +20,8 @@ import { HEARD_CHIPS, INSULATION_CHIPS, INSULATION_LABEL, LAST_HEARD_LABEL, REGI
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { NewFromInstallers } from "@/components/portal/NewFromInstallers";
+import { LoadError } from "@/components/portal/office-tabs";
+import { pileCount } from "@/lib/read-state.core";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { ActionsMenu, ChipGroup, FilterPanel, Pager, ReasonDialog, SortHead, heardLabel } from "@/components/portal/office-lists";
 
@@ -42,20 +44,19 @@ function Piles() {
   const fresh = useQuery({ queryKey: ["new-from-installers", false], queryFn: () => newFn({ data: { showTestJobs: false } }), staleTime: 60_000 });
   const picks = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickFn(), staleTime: 60_000, retry: 1 });
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000 });
-  const n = (x: number | undefined) => (x == null ? "…" : String(x));
   const line = (k: "new" | "mitti" | "sync", label: string, count: string) => (
     <button type="button" aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)} className={cn("text-sm font-semibold", open === k ? "text-ink" : "text-hiv-blue")}>{label} · {count} {open === k ? "▾" : "›"}</button>
   );
   return (
     <div className="mb-4" data-why="audit §3 blocks: New from installers (31), Mitti pick-ups (Mitti-first rule), sync problems">
       <div className="flex flex-wrap gap-x-5 gap-y-1">
-        {line("new", "New from installers", n(fresh.data ? (fresh.data.attention?.length ?? 0) + (fresh.data.fresh?.length ?? 0) : undefined))}
-        {line("mitti", "Ready Checks started in Mitti", picks.isError ? "?" : n(picks.data?.rows.length))}
-        {line("sync", "Mitti sync problems", n(sync.data?.rows.length))}
+        {line("new", "New from installers", pileCount({ count: fresh.data ? (fresh.data.attention?.length ?? 0) + (fresh.data.fresh?.length ?? 0) : undefined, failed: fresh.isError }))}
+        {line("mitti", "Ready Checks started in Mitti", pileCount({ count: picks.data?.rows.length, failed: picks.isError }))}
+        {line("sync", "Mitti sync problems", pileCount({ count: sync.data?.rows.length, failed: sync.isError }))}
       </div>
-      {open === "new" && <div className="mt-3"><NewFromInstallers /></div>}
-      {open === "mitti" && <div className="mt-3">{picks.data?.rows.length === 0 ? <p className="text-sm text-sub">No Ready Checks waiting to be linked.</p> : <MittiPickupsToLink />}</div>}
-      {open === "sync" && <div className="mt-3">{sync.data?.rows.length === 0 ? <p className="text-sm text-sub">No Mitti sync problems.</p> : <MittiSyncProblems />}</div>}
+      {open === "new" && <div className="mt-3">{fresh.isError && !fresh.data ? <LoadError what="New from installers" error={fresh.error} retry={() => void fresh.refetch()} /> : <NewFromInstallers />}</div>}
+      {open === "mitti" && <div className="mt-3">{picks.isError && !picks.data ? <LoadError what="Ready Checks started in Mitti" error={picks.error} retry={() => void picks.refetch()} /> : picks.data?.rows.length === 0 ? <p className="text-sm text-sub">No Ready Checks waiting to be linked.</p> : <MittiPickupsToLink />}</div>}
+      {open === "sync" && <div className="mt-3">{sync.isError && !sync.data ? <LoadError what="Mitti sync problems" error={sync.error} retry={() => void sync.refetch()} /> : sync.data?.rows.length === 0 ? <p className="text-sm text-sub">No Mitti sync problems.</p> : <MittiSyncProblems />}</div>}
     </div>
   );
 }
@@ -170,7 +171,7 @@ export function ClosedJobs() {
         </div>
         <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "mark_test", label: "Mark as test" }, { key: "delete", label: "Delete (test jobs only)", danger: true }]} />
       </div>
-      {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Closed jobs could not be loaded. {(q.error as Error).message}</div> : (
+      {q.isError ? <LoadError what="Closed jobs" error={q.error} retry={() => void q.refetch()} /> : (
         <div className="overflow-hidden rounded-[14px] border border-line bg-paper">
           <div className="hidden grid-cols-[28px_80px_minmax(0,140px)_minmax(0,1fr)_110px_minmax(0,1.4fr)_90px_80px] gap-x-3 border-b border-line bg-mist px-3 py-2 md:grid">
             <span />

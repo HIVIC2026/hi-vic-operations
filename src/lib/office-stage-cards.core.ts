@@ -60,7 +60,8 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Sent", value: q.sentAt ? `${dayTime(q.sentAt)}` : q.held ? `Held · ${q.held}` : "Prepared when the Ready Check form is complete" },
       { label: "Amount", value: q.subtotal != null ? `${money(q.subtotal)} inc GST${q.incentive ? ` · VEEC incentive −${money(q.incentive)}` : ""}${q.ownerPays != null ? ` · owner pays ${money(q.ownerPays)}` : ""}` : dash },
       { label: "Accepted", value: q.acceptedAt ? `${dayTime(q.acceptedAt)}${q.signer ? ` · agreement signed by ${q.signer}` : ""}` : q.declined ? `Declined · ${q.declined}` : dash },
-      { label: safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS), value: q.safetyPaidAt ? `Paid ${day(q.safetyPaidAt)}` : q.acceptedAt ? "Not paid yet" : dash },
+      // The amount was the label, so the card read "$349  —" with nothing saying what it was. Label it; amount in the value.
+      { label: "Safety check", value: `${safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)} · ${q.safetyPaidAt ? `paid ${day(q.safetyPaidAt)}` : q.acceptedAt ? "not paid yet" : "due when the owner accepts"}` },
     ] },
     { key: "piesa", n: 4, title: "PIESA", state: st.piesa, lines: [
       { label: "Electrician", value: p.electrician ?? "Not chosen yet" },

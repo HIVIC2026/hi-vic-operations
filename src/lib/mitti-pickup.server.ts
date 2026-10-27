@@ -261,15 +261,19 @@ export type MittiSyncProblem = { jobId: string; jobNumber: string; owner: string
 /** Office list: jobs whose Mitti sync last failed (assessment error recorded on the row, or a Ready Check
  *  sync failure event with no later successful sync for the same audit). Read-only. */
 export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[] }> {
-  const [{ data: aerr }, { data: fails }, { data: okays }] = await Promise.all([
+  const [{ data: aerr, error: e1 }, { data: fails, error: e2 }, { data: okays, error: e3 }] = await Promise.all([
     admin.from("assessments").select("job_id, mitti_last_error, mitti_synced_at, jobs!inner(job_number, business_unit, stage, deleted_at, owners(full_name), properties(address_line, suburb))")
       .not("mitti_last_error", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).limit(100),
     admin.from("workflow_events").select("job_id, summary, created_at, details").eq("event_type", "mitti_measureup_sync_failed").order("created_at", { ascending: false }).limit(200),
     admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(500),
   ]);
+  // A failed read must say so (Needs me / Jobs show "couldn't be checked"), never look like "no sync problems".
+  const readErr = e1 ?? e2 ?? e3;
+  if (readErr) throw new Error(`Could not check Mitti sync problems: ${readErr.message}`);
   const jobInfo = async (ids: string[]) => {
     if (!ids.length) return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>();
-    const { data } = await admin.from("jobs").select("id, job_number, stage, deleted_at, qa_archived_at, owners(full_name), properties(address_line, suburb)").in("id", ids);
+    const { data, error } = await admin.from("jobs").select("id, job_number, stage, deleted_at, qa_archived_at, owners(full_name), properties(address_line, suburb)").in("id", ids);
+    if (error) throw new Error(`Could not check Mitti sync problems: ${error.message}`);
     return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>((data ?? []).map((j) => [j.id, {
       job_number: j.job_number,
       owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null,

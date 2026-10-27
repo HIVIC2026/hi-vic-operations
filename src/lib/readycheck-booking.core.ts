@@ -32,6 +32,12 @@ export function installerEligibilityBlocker(c: RecCandidate & { freeMeasureUps?:
   return recEligibilityBlocker(c) ? `Not available: ${recEligibilityBlocker(c)!.replace(/^Partner /, "")}` : null;
 }
 
+/** ONE rule for "this installer can be offered this job here": no blocker AND its verified area covers the job.
+ *  The Choose installer pop-up's nearby list and the Choose installer list's "Installer ✓" both use it. */
+export function installerOfferable(c: RecCandidate & { freeMeasureUps?: boolean | null }): boolean {
+  return !installerEligibilityBlocker(c) && (c.covers_postcode || c.exact_postcode);
+}
+
 /** Eligible installers for the office's "Choose installer" list, in the shared matching order (nearby that day →
  *  reliability → fewest recent Ready Checks → speed). Jo 24 Oct 2026: the office picks ONE; nothing is batch-offered. */
 export function rankedInstallers(cands: (RecCandidate & { freeMeasureUps?: boolean | null })[]): RecCandidate[] {

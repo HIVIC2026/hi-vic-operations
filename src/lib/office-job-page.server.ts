@@ -142,16 +142,17 @@ export async function loadJobPage(jobId: string) {
 export async function loadJobMoney(jobId: string) {
   const { jobPaymentView } = await import("./payments.server");
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [view, job, quote, rect, offers, payouts, lodg, ws, inv] = await Promise.all([
+  const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg] = await Promise.all([
     jobPaymentView(jobId),
     admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
     admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("partner_offers").select("kind, summary").eq("job_id", jobId).eq("status", "accepted"),
+    admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
     db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", jobId).maybeSingle(),
     db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
     admin.from("invoices").select("xero_invoice_number, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
   ]);
   const q = quote.data;
   const paidOut = (kind: string | null) => (payouts.data ?? []).map((p) => p.details as { kind?: string; amount?: number }).find((d) => (d?.kind ?? null) === kind && d?.amount != null)?.amount ?? null;
@@ -163,7 +164,18 @@ export async function loadJobMoney(jobId: string) {
   const installerPayEx = ex(paidOut(null) ?? paidOut("installation") ?? sum("ready_check").installer_pay_inc_gst ?? sum("installation").installer_pay_inc_gst) ?? (Number.isFinite(costEx) && costEx > 0 ? costEx : null);
   const { electricalBillingSource } = await import("./installer-led.core");
   const piesaOwnerDirect = electricalBillingSource({ channel: job.data?.channel ?? null, choice: job.data?.electrician_choice ?? null, committedLineOnAcceptedQuote: q && q.status === "accepted" ? ((q.quote_items as { code: string | null }[] | null) ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
-  const piesaCostEx = piesaOwnerDirect ? 0 : ex(paidOut("assessment") ?? sum("piesa").electrician_rate_inc_gst ?? null);
+  // The chosen electrician = the active electrician assignment, else the accepted PIESA offer's business. Their rate card
+  // (electrician_rates PIESA, active/approved, newest — the same read as the Money screen) is used when no payout or offer
+  // rate is recorded; with nobody chosen the margin says "No electrician chosen yet".
+  // A failed read must not read as "No electrician chosen yet" (review 27 Oct): the Money card shows its error instead.
+  if (elecAsg.error) throw new Error(`Could not read the electrician: ${elecAsg.error.message}`);
+  const electricianId = (elecAsg.data?.business_id as string | null | undefined) ?? ((offers.data ?? []) as { kind: string; business_id: string | null }[]).find((o) => o.kind === "piesa")?.business_id ?? null;
+  const electricianChosen = !!electricianId;
+  const rateRes = electricianId ? await db.from("electrician_rates").select("rate_inc_gst").eq("business_id", electricianId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1).maybeSingle() : { data: null, error: null };
+  if (rateRes.error) throw new Error(`Could not read the electrician's rate card: ${rateRes.error.message}`);
+  const rateRow = rateRes.data;
+  const { piesaCostExFor } = await import("./job-margin.core");
+  const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: rateRow?.rate_inc_gst != null ? Number(rateRow.rate_inc_gst) : null });
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
   // The $100 on fixes stays ours (decision 142) — only with OUR electrician (decision 349: the installer's own electrician
   // is passed through, margin 0). Without a recorded payout the electrician's cost is the price less the margin the
@@ -176,7 +188,7 @@ export async function loadJobMoney(jobId: string) {
   const veec = veecValueReceived({ lodgedQty: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null, salePrice: lodg.data?.sale_price_per_veec != null ? Number(lodg.data.sale_price_per_veec) : null, quoteCount: q?.veec_count != null ? Number(q.veec_count) : null, spotPrice: ws.data?.current_veec_price != null ? Number(ws.data.current_veec_price) : null });
   const margin = { ...jobMargin({
     ownerPriceInc: q ? Number(q.subtotal_inc_gst) + (fixesPrice ?? 0) : null,
-    installerPayEx, piesaCostEx, fixesCostEx, veecValue: veec.value, veecIncentive: q ? Number(q.veec_discount_inc_gst) : 0,
+    installerPayEx, piesaCostEx, electricianChosen, fixesCostEx, veecValue: veec.value, veecIncentive: q ? Number(q.veec_discount_inc_gst) : 0,
   }), veecBasis: veec.basis, quoteStatus: q?.status ?? null };
   return {
     invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error } : null,

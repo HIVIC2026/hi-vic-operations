@@ -8,7 +8,7 @@ import { crewClearance, eecState, whiteCardOf, whiteCardState } from "./worker-c
 import { mittiAccessOf } from "./mitti-membership.core";
 import { maskBank, personRow, postcodeSummary, rateCardLine } from "./office-partners.core";
 import { credentialState, isElectricianBiz } from "./pilot.core";
-import { partnerIssues } from "./partner.core";
+import { partnerIssues, signedRecRates } from "./partner.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }) => /^TEST/i.test(b.name ?? "") || (b.onboarding_notes ?? "").includes("[TEST PARTNER]");
@@ -60,7 +60,7 @@ export async function peopleFor(businessIds: string[]) {
 /** Partners page: Applications · Approved · People · Rates · Coverage, one read. */
 export async function partnersBoard() {
   const [apps, bizR] = await Promise.all([
-    db.from("partner_enquiries").select("id, enquiry_type, status, company, name, email, phone, source, service_areas, cii_certification_status, cii_certification_details, rec_registration_number, created_at, source_created_at, raw_payload, notes, estimated_r5_install_rate_per_sqm_inc_gst, esv_licensed_electricians_confirmed").order("created_at", { ascending: false }).limit(500),
+    db.from("partner_enquiries").select("id, enquiry_type, status, company, name, email, phone, source, service_areas, cii_certification_status, cii_certification_details, rec_registration_number, created_at, source_created_at, raw_payload, notes, estimated_r5_install_rate_per_sqm_inc_gst, esv_licensed_electricians_confirmed, estimated_piesa_fee_inc_gst, estimated_return_visit_fee_inc_gst").order("created_at", { ascending: false }).limit(500),
     db.from("businesses").select("id, name, trading_name, business_type, capabilities, onboarding_status, onboarding_notes, is_active, accepting_new_jobs, approved_at, service_regions, service_postcodes, coverage_verified_at, base_suburb, declared_service_origin, declared_travel_radius_km, rec_number").neq("business_type", "property_manager"),
   ]);
   const enquiries = must<Record<string, unknown>[]>(apps, "applications");
@@ -107,11 +107,15 @@ export async function partnersBoard() {
     })),
     ...((changeReqs.data ?? []) as { id: string; business_id: string; kind: string; message: string; created_at: string }[]).filter((c) => c.kind === "rates").map((c) => ({ id: c.id, source: "change" as const, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", requestedAt: c.created_at, says: c.message })),
   ];
+  // "What they sent" reads the signed REC rate card (same source as the profile's Rates), not only the old enquiry columns.
+  const recAppIds = enquiries.filter((r) => r["enquiry_type"] === "electrician_rec").map((r) => (r["raw_payload"] as { rec_onboarding_id?: string } | null)?.rec_onboarding_id).filter((x): x is string => !!x);
+  const recApps = recAppIds.length ? must<{ id: string; data: unknown }[]>(await db.from("rec_onboarding_applications").select("id, data").in("id", recAppIds), "signed REC rates") : [];
+  const signedRatesOf = (r: Record<string, unknown>) => { const id = (r["raw_payload"] as { rec_onboarding_id?: string } | null)?.rec_onboarding_id; const a = id ? recApps.find((x) => x.id === id) : null; return a ? signedRecRates(a.data) : null; };
   const waiting = enquiries.filter((r) => ["new", "contacted", "onboarding"].includes(String(r["status"])) && !isTestEnquiry(r));
   const appRow = (r: Record<string, unknown>) => ({
     id: String(r["id"]), name: String(r["company"] || r["name"] || "Unnamed"), type: r["enquiry_type"] === "installer" ? "Installer" : r["enquiry_type"] === "electrician_rec" ? "Electrician" : String(r["enquiry_type"] ?? ""),
     area: ((r["service_areas"] as string[] | null) ?? []).slice(0, 2).join(", ") || "—", status: String(r["status"]),
-    signed: String(r["source"] ?? "").startsWith("portal_"), sent: partnerIssues(r as never).join(" · ") || (String(r["source"] ?? "").startsWith("portal_") ? "Signed application" : "Website enquiry"),
+    signed: String(r["source"] ?? "").startsWith("portal_"), sent: partnerIssues({ ...r, signed_rates: signedRatesOf(r) } as never).join(" · ") || (String(r["source"] ?? "").startsWith("portal_") ? "Signed application" : "Website enquiry"),
     received: String(r["source_created_at"] ?? r["created_at"] ?? ""),
   });
   return {
