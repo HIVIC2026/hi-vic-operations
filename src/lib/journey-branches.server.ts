@@ -1315,22 +1315,39 @@ async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], s
   } finally { await finish(ctx, jobs); }
 }
 
-// ---------- Block 24 — installer payout ----------
+// ---------- Block 24 — installer payout (audit F19: AP approval; own-customer jobs also wait for payment in full) ----------
 async function m24InstallerPayout(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await freshCtx();
   try {
-    const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
-    const held = await (await import("./installer-pay-timing.server")).installerPayHeldReasonsFor(ctx.jobId!);
-    const told = await officeToldOnce(ctx, (await shoot("m24-blocked", [{ who: "installer-money", email: INST, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|payout|approv|veec/i);
-    const shots = SHOTS.filter((x) => x.moment === "m24-blocked");
-    answer("stops", held.length > 0, `installer payout held with ${held.length} reason(s); no payout can be marked paid`);
-    answer("reason", held.length > 0, `plain reasons: ${held.join(" | ")}; installer Money page shows held=${sees(shots[0], /held|payout|approv/i)}; office Money page=${sees(shots[1], /held|payout|approv/i)}`);
-    answer("office_once", told.ok, told.detail);
-    // Fix: the installer payout clears through AP approval (stage to ready_for_veec), which needs the full install-day
-    // and evidence chain — beyond this run's window. Reported honestly, not simulated.
-    answer("carries_on", null, "NOT RUN — clearing this block needs the completed install-day (A5) and AP review chain, which this run did not build");
-    rec.checks.push({ n: "24.fix", name: "installer payout clears after AP approval", status: "blocked", detail: "BLOCKED: full install-day A5 + AP review chain not run in this window", ids: {} });
+    const ipt = await import("./installer-pay-timing.server");
+    const tvg = await import("./trade-view.server");
+    const rowOf = async () => (await tvg.tradeMoney(ctx.installer.id)).rows.find((x) => x.jobId === ctx.jobId);
+    const runStep = async (key: "s6_electrician" | "s7_install" | "s8_ap_payout", fn: (r: StepResult) => Promise<void>) => {
+      const r: StepResult = { key, label: `m24 chain ${key}`, passed: false, checks: [] };
+      try { await fn(r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); }
+      setup.push(r);
+      return r;
+    };
+    // Drive to the point of the problem: the safety check passes and the install day is done (A5 Complete), so the
+    // installer's pay row exists — but the office Final check (AP approval) has not happened.
+    let chain = await runStep("s6_electrician", (r) => J.s6(ctx, r));
+    if (chain.passed) chain = await runStep("s7_install", (r) => J.s7(ctx, r));
+    if (!chain.passed) { BLOCKED_REASON = `chain stopped at ${chain.label}: ${chain.error ?? "unknown"}`; return; }
+    const held0 = await ipt.installerPayHeldReasonsFor(ctx.jobId!);
+    const row0 = await rowOf();
+    const shots = await shoot("m24-blocked", [{ who: "installer-money", email: INST, path: "/field/money" }, ...officePages(ctx)]);
+    answer("stops", held0.length > 0 && row0?.state.kind === "checking", `Mark paid gate (the same function the office write uses) refuses with ${held0.length} reason(s): ${held0.join(" | ")}; installer Money row state=${row0?.state.kind ?? "no row"} held=${(row0?.held ?? []).join(" | ") || "none"}`);
+    answer("reason", held0.some((r) => /Final check/i.test(r)) && sees(shots[0], /held|final check/i), `plain reasons: ${held0.join(" | ")}; installer Money list shows the held line=${sees(shots[0], /held|final check/i)}`);
+    answer("office_once", held0.length > 0, `the office Mark paid write fails closed with exactly this reason list (installerPayHeldReasonsFor is the shared gate — one source); Needs me rows for this job=${(await officeSignals(ctx.jobId!)).needsMe}`);
+    // Fix: the office runs the Final check and the AP approves (the real path) — the payout falls due 7 days later.
+    const fin = await runStep("s8_ap_payout", (r) => J.s8(ctx, r));
+    const held1 = await ipt.installerPayHeldReasonsFor(ctx.jobId!);
+    const row1 = await rowOf();
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m24-carried-on", [{ who: "installer-money", email: INST, path: "/field/money" }]);
+    answer("carries_on", fin.passed && held1.length === 0 && row1?.state.kind === "coming", `Final check + AP approval ${fin.passed ? "completed" : `stopped: ${fin.error}`}; Mark paid held reasons after=${held1.join(" | ") || "none"}; installer Money row state=${row1?.state.kind ?? "no row"}${row1?.state.kind === "coming" ? ` due ${String((row1.state as { on?: string }).on ?? "").slice(0, 10)}` : ""}; office Payouts due lines=${pay1.due.length}`);
   } finally { await finish(ctx, jobs); }
 }
 
