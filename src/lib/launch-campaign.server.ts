@@ -329,21 +329,25 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
  */
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
-  if (done) return { queued: false as const };
+  const { data: completed } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_completed").limit(1).maybeSingle();
+  if (completed) return { queued: false as const };
   const { buildSpotSavedMessages, sendSpotSavedConfirmation } = await import("./spot-saved-send.server");
   const msgs = await buildSpotSavedMessages(jobId, token);
   if (!msgs) return { queued: false as const };
   const { job, owner, sms, email } = msgs;
   // Record the attempt FIRST so a second tap/device can never send twice (per-owner keys also block duplicates).
-  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email prepared", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
+  if (!done) await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email prepared", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
   // TEST homes only: deliver the confirmation email to Jo's allowlisted inbox via the test sender.
   if (job.source === "qa_test") {
+    // Historical TEST attempts lack delivery idempotency: never replay an uncertain attempt.
+    if (done) return { queued: false as const };
     if (owner?.email) {
       const { sendTestEmail } = await import("./test-send.server");
       const html = email.html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
       const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
       await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
     }
+    await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved confirmation attempt completed", {}, { internal: true });
     return { queued: true as const };
   }
   // Real homes (Jo 23 Oct): the approved email + text really go, through the live email service and Twilio,
@@ -356,6 +360,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
       sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: `spot_saved:${ch}`, source_reference: `Not sent: ${res.detail}`.slice(0, 200),
     } as never);
   }
+  await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved confirmation attempt completed", {}, { internal: true });
   return { queued: true as const };
 }
 

@@ -38,7 +38,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
       return { data: estimateReady ? estimate() : null, error: null };
     }
     if (table === "workflow_settings") return { data: { customer_comms_enabled: true, sms_message_switches: { spot_saved_email: false, spot_saved: true } }, error: null };
-    if (table === "workflow_events") return { data: events.includes("spot_saved_confirmation_queued") ? { id: "queued" } : null, error: null };
+    if (table === "workflow_events") return { data: events.includes(String(filters.event_type)) ? { id: "event" } : null, error: null };
     if (table === "job_communications" && op === "insert") {
       builtEmails.push({ subject: payload.subject, html: "", text: payload.body });
     }
@@ -119,6 +119,17 @@ test('retry finishes the stage and confirmation even when the original save was 
   expect(builtEmails).toHaveLength(1);
   expect(preparations).toBe(0);
   expect(events.filter(e => e === 'campaign_spot_saved')).toHaveLength(1);
+  await savePreliminarySpot(token);
+  expect(builtEmails).toHaveLength(1);
+  expect(sends).toBe(0);
+});
+test('retry resumes a prepared but unfinished confirmation through existing send guards', async () => {
+  response = { saved_total: 4098, saved_gross_total: 5498, saved_veu_discount: 1400, saved_area_m2: 100, saved_estimate_id: 'saved-estimate', estimate_link_id: 'estimate-link', spot_saved_at: '2026-10-22T00:00:00Z' };
+  events.push('campaign_spot_saved', 'spot_saved_confirmation_queued');
+  await savePreliminarySpot(token);
+  expect(events.filter(e => e === 'spot_saved_confirmation_queued')).toHaveLength(1);
+  expect(events.filter(e => e === 'spot_saved_confirmation_completed')).toHaveLength(1);
+  expect(builtEmails).toHaveLength(1);
   await savePreliminarySpot(token);
   expect(builtEmails).toHaveLength(1);
   expect(sends).toBe(0);

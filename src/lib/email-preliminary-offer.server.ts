@@ -113,9 +113,11 @@ export async function savePreliminarySpot(token: unknown) {
 /** Normal saved-estimate email for this path. Queued once; TEST homes go to the allowlist. */
 async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
-  if (done) return;
+  const { data: completed } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_completed").limit(1).maybeSingle();
+  if (completed) return;
   const { data: job } = await admin.from("jobs").select("source, owners(full_name, phone, email)").eq("id", jobId).maybeSingle();
   if (!job) return;
+  if (done && job.source === 'qa_test') return; // do not replay uncertain historical TEST sends
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   // /my-job only accepts the estimate link purpose, so link it only when the owner already has one;
   // the preliminary token itself would 404 there. Never invent a working link.
@@ -128,9 +130,10 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   const now = new Date().toISOString();
   // Retain this path's email-only delivery and every existing confirmation safeguard.
   if (job.source !== "qa_test") {
-    await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email prepared", { email: !!owner?.email, preliminary_email: true }, { internal: true });
+    if (!done) await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email prepared", { email: !!owner?.email, preliminary_email: true }, { internal: true });
     const r = await (await import("./spot-saved-send.server")).sendSpotSavedConfirmation(jobId, { token: usable ?? undefined, emailOnly: true }).catch((e) => ({ email: { status: "failed", detail: (e as Error).message } }));
     if (r.email.status === "skipped") await admin.from("job_communications").insert({ job_id: jobId, direction: "outbound", channel: "email", recipients: owner?.email ? [owner.email] : [], subject: email.subject, body: email.text, provider: "not_sent", sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: "spot_saved:email", source_reference: `Not sent: ${r.email.detail}`.slice(0, 200), created_at: now } as never);
+    await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved email confirmation attempt completed", {}, { internal: true });
     return;
   }
   const { testSendBlocker } = await import("./test-send.core");
@@ -146,6 +149,7 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
     await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
   }
   await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email queued (sending is off)", { email: !!owner?.email, preliminary_email: true }, { internal: true });
+  await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved email confirmation attempt completed", {}, { internal: true });
 }
 
 void timeoutSignal; // kept for the shared timeout module's import discipline
