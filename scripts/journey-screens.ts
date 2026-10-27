@@ -5,6 +5,7 @@
 // Only the job this run created is archived; TEST trades are restored by cleanupJourney.
 import { mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { acceptedTestEmail } from "./journey-email-evidence.core";
 
 const removed: string[] = [];
 for (const key of Object.keys(process.env)) if (/RESEND|TWILIO|SMS.*(?:KEY|TOKEN)|EMAIL.*(?:KEY|TOKEN)|SMTP|SENDGRID|MAILGUN|POSTMARK|CUSTOMER_EMAIL|DELIVERY.*(?:KEY|SECRET)|MITTI_API_TOKEN/i.test(key)) { delete process.env[key]; removed.push(key); }
@@ -21,13 +22,14 @@ const add = (r: Partial<Row> & Pick<Row, "step" | "person" | "status" | "detail"
 const J = await import("../src/lib/journey.server");
 const { supabaseAdmin: admin } = await import("../src/integrations/supabase/client.server");
 const ms = await import("../src/lib/mitti.server");
+const installerEmail = "qa.installer.bravo@hivic-test.example";
 
 // ---- setup: existing journey s1 (qa_test, TEST-domain owner), command process with real Mitti refused ----
 ms.armJourneyMittiGuard(null);
 let ctx: Awaited<ReturnType<typeof J.newJourneyCtx>> | null = null;
 let setupError: string | null = null;
 try {
-  ctx = await J.newJourneyCtx();
+  ctx = await J.newJourneyCtx({ installerEmail, preparePeople: false });
   ctx.notes["address_line"] = `${Date.now()} Journey Test Street`;
   const r = { key: "s1_calculator", label: "setup", passed: false, checks: [] as { name: string; ok: boolean; detail?: string }[] };
   await J.journeyInternals.s1(ctx, r as never);
@@ -55,9 +57,9 @@ if (ctx?.jobId) {
   globalThis.fetch = (async () => { net++; throw new Error("network refused in probe"); }) as never;
   let simOk = false, simDetail = "";
   try {
-    const call = await ms.mittiCallFor(ms.realMittiCall, J.TEST_INSTALLER_EMAIL);
-    const users = await call("POST", "/users/search", { email: [J.TEST_INSTALLER_EMAIL] }) as { id: string }[];
-    const viaBoundary = await ms.realMittiCall("POST", "/users/search", { email: [J.TEST_INSTALLER_EMAIL] }) as { id: string }[];
+    const call = await ms.mittiCallFor(ms.realMittiCall, installerEmail);
+    const users = await call("POST", "/users/search", { email: [installerEmail] }) as { id: string }[];
+    const viaBoundary = await ms.realMittiCall("POST", "/users/search", { email: [installerEmail] }) as { id: string }[];
     simOk = net === 0 && !!users[0]?.id.startsWith("sim_") && !!viaBoundary[0]?.id.startsWith("sim_");
     simDetail = `TEST installer resolved to ${users[0]?.id ?? "nothing"}; ${net} network calls. Same source file the preview serves; the preview process itself is not separately instrumented.`;
   } catch (e) { simDetail = e instanceof Error ? e.message : String(e); }
@@ -73,7 +75,7 @@ if (ctx?.jobId) {
 // ---- browser steps ----
 const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
-const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": J.TEST_INSTALLER_EMAIL, "installer staff": J.TEST_WORKER_EMAIL, electrician: J.TEST_ELECTRICIAN_EMAIL };
+const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
 type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
 const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
@@ -83,7 +85,8 @@ const STEPS: Step[] = [
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
   { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", severity: "Stop launch", next: "Choose installer",
-    expect: async () => (offer = await offerId()) ? null : "no installer offer created" },
+    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
+  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
@@ -122,11 +125,37 @@ async def main():
         res["leaks"] = [m for m in cfg.get("mustNot", []) if m and m.lower() in text.lower()]
         res["clicked"] = None
         for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
+            if name == "Release":
+                bravo = page.get_by_text("TEST Bravo Insulation", exact=True).first
+                if await bravo.count():
+                    row = bravo.locator("xpath=ancestor::li[1]")
+                    if await row.count():
+                        release = row.get_by_role("button", name="Release", exact=True)
+                        if await release.count():
+                            if not await release.is_enabled(): res["clicked"] = False; res["missing"] = "enabled TEST Bravo Release"; break
+                            await release.click(); res["clicked"] = True
+                            await page.wait_for_timeout(2000)
+                            s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
+                            continue
+                res["clicked"] = False; res["missing"] = "TEST Bravo Release"; break
+            if name == "Accept this job":
+                form = page.locator("[data-ready-check-times-form]")
+                if await form.count():
+                    days = form.get_by_role("button")
+                    picked = 0
+                    for day in await days.all():
+                        if await day.is_enabled() and (await day.inner_text()) != "Accept this job":
+                            await day.click(); picked += 1
+                            if picked == 3: break
+                    for select in await form.locator("select").all():
+                        values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
+                        if values: await select.select_option(values[0])
             rx = re.compile(re.escape(name), re.I); btn = page.get_by_role("button", name=rx)
             try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=35000)
             except Exception: pass
             btn = btn.or_(page.get_by_role("link", name=rx))
             if not await btn.count(): res["clicked"] = False; res["missing"] = name; break
+            if not await btn.first.is_enabled(): res["clicked"] = False; res["missing"] = "enabled " + name; break
             await btn.first.click(); res["clicked"] = True
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
@@ -141,7 +170,7 @@ writeFileSync(`${temp}/walk_step.py`, py);
 const otherHomes = async (n: number, actor: string) => {
   // Other roles' home screens must not show this job's owner details before they are involved.
   const leaks: string[] = [];
-  for (const [person, home] of [["installer staff", "/field"], ["electrician", "/field"]] as const) {
+  for (const [person, home] of [["electrician", "/field"]] as const) {
     if (person === actor) continue;
     const r = await browse({ n: 900 + n, slug: `home-${person.replace(/\s/g, "-")}`, path: home, wait: "", person, next: "", mustNot: [ctx!.ownerEmail, String(ctx!.notes["address_line"] ?? "")] });
     if (r?.leaks?.length) leaks.push(`${person} home shows ${r.leaks.length} owner detail(s)`);
@@ -165,7 +194,7 @@ if (!ctx?.jobId || !safe) {
   let broken = false; let n = 1;
   for (const s of STEPS) {
     const path = s.path();
-    if (broken || !path) { add({ step: s.step, person: s.person, status: "blocked", detail: broken ? "An earlier step did not reach its expected result." : "Prerequisite record missing (no offer)." }); n++; continue; }
+    if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, person: s.person, next: s.next });
     const st = await jobState();
     const why = !r ? "browser step crashed" : !r.loaded ? `page content "${s.wait}" never appeared (${r.url})` : r.clicked === false ? `no "${(r as { missing?: string }).missing ?? s.button}" button/link on the page (${r.url})` : s.expect ? await s.expect() : null;
@@ -175,16 +204,24 @@ if (!ctx?.jobId || !safe) {
     if (why) broken = true;
     n++;
   }
-  for (const s of LATER) add({ step: s, person: "-", status: broken ? "blocked" : "not_run", detail: broken ? "An earlier step did not reach its expected result." : "NOT RUN: page-driven script for this step is not written yet." });
+  for (const s of LATER) {
+    const person = /Owner|payment|deposit/i.test(s) ? "homeowner" : /Install day/i.test(s) ? "installer owner" : "office";
+    const path = person === "homeowner" ? `/my-job/${ctx.token}` : person === "installer owner" ? `/field/day/${ctx.jobId}` : `/admin/jobs/${ctx.jobId}`;
+    const r = await browse({ n: n++, slug: s.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: person === "office" ? ctx.jobNumber ?? "HV-" : person === "homeowner" ? "Your progress" : "Install", person, next: s });
+    const st = await jobState();
+    add({ step: s, person, status: broken ? "blocked" : "not_run", detail: `Page inspected (${r?.url ?? "browser failed"}); ${broken ? "required earlier workflow state not reached" : "this step's page controls are not implemented in the runner"}. No downstream state manufactured.`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails });
+  }
 }
 
 // ---- cleanup: archive only this run's job, restore TEST trades ----
 let archived: string[] = [];
+const { data: communications } = ctx?.jobId ? await admin.from("job_communications").select("subject,recipients,delivery_status,provider_message_id,source_event,source_reference,created_at").eq("job_id", ctx.jobId).eq("channel", "email").order("created_at") : { data: [] };
+const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 
 const totals = { pass: rows.filter(r => r.status === "pass").length, fail: rows.filter(r => r.status === "fail").length, blocked: rows.filter(r => r.status === "blocked").length, not_run: rows.filter(r => r.status === "not_run").length };
-writeFileSync(`${out}/report.json`, JSON.stringify({ mode: "screens", startedAt: stamp, job: ctx?.jobNumber ?? null, archived, totals, rows, sendingKeysRemoved: removed.length, published: false, switchesChanged: false }, null, 2));
+writeFileSync(`${out}/report.json`, JSON.stringify({ mode: "screens", startedAt: stamp, job: ctx?.jobNumber ?? null, archived, totals, rows, sentEmails, sendingKeysRemoved: removed.length, published: false, switchesChanged: false }, null, 2));
 writeFileSync(`${out}/report.md`, [`# Phone walk-through ${stamp}`, "", `Job ${ctx?.jobNumber ?? "none"} (qa_test). PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}`, "", "Website step skipped (covered by portal-qa). Viewport 390x844.", "", "| Step | Person | Result | Severity | Stage | Events | Email rows | Next visible | Detail | Screens |", "|---|---|---|---|---|---|---|---|---|---|",
   ...rows.map(r => `| ${r.step} | ${r.person} | ${r.status.toUpperCase()} | ${r.severity ?? ""} | ${r.stage ?? ""} | ${r.events ?? ""} | ${r.emailRows ?? ""} | ${r.nextVisible ?? ""} | ${r.detail.replace(/\|/g, "\\|")} | ${r.screenshot.join(" ")} |`), "", `Archived: ${archived.join(", ") || "nothing"}. TEST trades restored by journey cleanup.`].join("\n"));
 console.log(`PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}. Report: ${out}/report.md`);

@@ -3,6 +3,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { MittiCall } from "./mitti.core";
 import { SIM_ID_PREFIX, auditIdOfPath, isTestMittiEmail } from "./mitti-test-route.core";
+import { FIXES_DAY_QUESTIONS } from "./fixes-day.core";
+import { simulatedInstallDayTemplate } from "./journey-sim.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -12,6 +14,9 @@ const db = () => (admin as Any).from("mitti_sim_audits");
 /** Office fields every portal form create needs; the simulator serves these as plain text questions. */
 const SIM_TEMPLATE_ITEMS: Item[] = ["Portal Job Number", "Property Address", "Owner name", "Assessor"]
   .map((label, i) => ({ item_id: `sim_tpl_${i}`, id: `sim_tpl_${i}`, label, type: "textsingle" }));
+const SIM_FIXES_TEMPLATE = simulatedInstallDayTemplate(FIXES_DAY_QUESTIONS);
+// Canonical questions, not completed answers. Only TEST flows enter this store.
+const SIM_ITEMS: Item[] = [...SIM_TEMPLATE_ITEMS, ...SIM_FIXES_TEMPLATE.items];
 
 const simUserId = (email: string) => `${SIM_ID_PREFIX}user_${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 const newAuditId = () => `${SIM_ID_PREFIX}audit_${crypto.randomUUID().replaceAll("-", "")}`;
@@ -28,17 +33,17 @@ export async function isStoredSimAudit(id: string): Promise<boolean> {
 }
 
 export const persistentSimMittiCall: MittiCall = async (method, path, body) => {
-  const p = path.split("?")[0]!;
+  const p = path.split("?")[0] ?? path;
   if (method === "POST" && p === "/users/search") {
     const want = ((body as { email?: string[] } | undefined)?.email ?? []).filter(isTestMittiEmail);
     return want.map((email) => ({ id: simUserId(email), email }));
   }
   const t = /^\/templates\/v1\/templates\/([^/]+)$/.exec(p);
-  if (method === "GET" && t) return { template: { template_id: decodeURIComponent(t[1]!), name: "Simulated TEST form", items: SIM_TEMPLATE_ITEMS } };
+  if (method === "GET" && t?.[1]) return { template: { template_id: decodeURIComponent(t[1]), name: "Simulated TEST form", items: SIM_ITEMS, response_sets: SIM_FIXES_TEMPLATE.response_sets } };
   if (method === "POST" && p === "/audits") {
     const b = (body ?? {}) as { template_id: string; items?: Item[]; header_items?: Item[] };
     const given = new Map([...(b.items ?? []), ...(b.header_items ?? [])].map((i) => [i.item_id, i]));
-    const items = SIM_TEMPLATE_ITEMS.map((x) => ({ ...x, ...(given.get(x.item_id) ?? {}) }));
+    const items = SIM_ITEMS.map((x) => ({ ...x, ...(given.get(x.item_id) ?? {}) }));
     for (const g of b.items ?? []) if (!items.some((i) => i.item_id === g.item_id)) items.push(g);
     const id = newAuditId(); const now = new Date().toISOString();
     const { error } = await db().insert({ id, template_id: b.template_id, items, header_items: [], completed: false, request: body ?? null, created_at: now, modified_at: now });
