@@ -58,6 +58,7 @@ class Recorder {
       this.checks.push({ n, name, status: r.ok ? "passed" : "failed", detail: r.detail, ids: r.ids ?? {} });
       return r.ok;
     } catch (e) {
+      if (process.env["JOURNEY_DEBUG"]) console.error(e);
       this.checks.push({ n, name, status: "failed", detail: `error: ${e instanceof Error ? e.message : String(e)}`, ids: {} });
       return false;
     }
@@ -284,7 +285,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     const { data: a0 } = await admin.from("assessments").select("id, external_mitti_id, mitti_template_id").eq("job_id", ctx.jobId!).maybeSingle();
     tpl.a3 = a0?.mitti_template_id ?? String((ws as Record<string, unknown> | null)?.["mitti_piesa_template_id"] ?? "").trim();
     const mitti = sim.simulatedMitti({
-      templates: { [tpl.a3]: sim.templateOfItems(items as never), ...(tpl.fixes ? { [tpl.fixes]: { items: fixesTemplateItems as never } } : {}) },
+      // The simulated A3 template carries the office prefill fields the real A3 has (mandatory: Property Address, Owner name).
+      templates: { [tpl.a3]: sim.templateOfItems([{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle" }, { item_id: "sim_a3_office_addr", label: "Property Address", type: "textsingle" }, { item_id: "sim_a3_office_owner", label: "Owner name", type: "textsingle" }, ...(items as never[] as { item_id: string; label: string; type: string }[])]), ...(tpl.fixes ? { [tpl.fixes]: { items: fixesTemplateItems as never } } : {}) },
       users: [{ id: "sim-mitti-electrician", email: el!.email! }, { id: "sim-mitti-test-assignee", email: TEST_MITTI_ASSIGNEE }],
     });
     const fetchMedia = async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" });
@@ -339,7 +341,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     await rec.run("2.2", "maybeAutoSendFixesQuote sent when every check passes; one owner email; price = electrician's price + margin by whose electrician", async () => {
       await J.assertOwnTestJob(ctx);
       const rs = await import("./rectification.server");
-      const days = [3, 4, 5].map((d) => J.melbourneDate(d));
+      // Business days at least 2 business days away (calendar +3..+5 hit weekends on some dates).
+      const days = (await import("./piesa-windows.core")).allowedPiesaDays().slice(0, 3);
       await rs.recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
@@ -370,7 +373,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
       const ownerUser = (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
       const { respondToQuoteImpl } = await import("./portal.functions");
-      await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
+      // Decision 366: the owner accepts now and picks one of the electrician's times on My job once the fixes are paid (2.5).
+      await respondToQuoteImpl({ quoteId: q!.id, accept: true, consent: true, pickLater: true, expectedVersion: q!.version, signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
         { userId: ownerUser, ip: "127.0.0.1", userAgent: "journey-test", authorize: async () => {}, isOwner: async () => true } as never);
       const x = await import("./xero.server");
       await x.createInvoiceForQuote(q!.id, ctx.actorId).catch(() => null);
