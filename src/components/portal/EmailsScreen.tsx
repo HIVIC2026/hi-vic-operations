@@ -13,6 +13,7 @@ import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/em
 import { getEmailsTab, matchEmailToJob, sendJobEmailReply, sendNoJobEmailReply, writeEmailDrafts } from "@/lib/emails-tab.functions";
 import type { JobEmailCard, NoJobCard } from "@/lib/emails-tab.core";
 import { EMAILS_TAB_KEY } from "@/components/portal/emails-count";
+import { saveStateText, useDraftAutosave, type SaveState } from "@/components/portal/use-draft-autosave";
 
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -43,12 +44,13 @@ function TheyWrote({ text }: { text: string | null }) {
   );
 }
 
-function Reply({ body, setBody, busy, waiting }: { body: string | null; setBody: (s: string) => void; busy: boolean; waiting: boolean }) {
+function Reply({ body, setBody, busy, waiting, saved = "idle" }: { body: string | null; setBody: (s: string) => void; busy: boolean; waiting: boolean; saved?: SaveState }) {
   if (body === null) return <p className="text-sm text-sub">{waiting ? "AI reply is being written — check back in a minute." : "No AI reply for this one."}</p>;
   return (
     <label className="grid gap-1">
       <span className="text-xs text-sub">AI reply (edit if you like):</span>
       <textarea aria-label="Reply text" value={body} onChange={(e) => setBody(e.target.value)} rows={Math.min(14, body.split("\n").length + 2)} disabled={busy} className="w-full rounded-[10px] border border-line bg-paper p-2 text-sm text-ink" />
+      {saveStateText(saved) && <span className={`text-xs ${saved === "failed" ? "text-danger" : "text-sub"}`} aria-live="polite">{saveStateText(saved)}</span>}
     </label>
   );
 }
@@ -59,6 +61,7 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
   const ignore = useServerFn(ignoreEmailChange);
   const [body, setBody] = useState<string | null>(c.draft?.body ?? null);
   useEffect(() => { if (c.draft && body === null) setBody(c.draft.body); }, [c.draft, body]);
+  const saved = useDraftAutosave(c.draft?.eventId ?? null, body, c.draft?.body ?? null);
   const { busy, run } = useRun(onDone);
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3" data-testid="email-card-job">
@@ -69,11 +72,17 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
       {c.subject && <p className="text-sm text-sub">{c.subject}</p>}
       {c.intent !== "reply" && c.label && <p className="text-sm font-semibold text-ink">{c.label}</p>}
       <TheyWrote text={c.theyWrote} />
-      {c.draftClosed && !c.draft ? <p className="text-sm text-sub">A reply was already sent or discarded on the job page — press Done if it's sorted.</p> : <Reply body={body} setBody={setBody} busy={busy} waiting={c.intent === "reply"} />}
+      {c.stillOpenDecline && <p className="text-sm font-semibold text-danger">Still open — Close job or Keep open</p>}
+      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
       <div className="grid grid-cols-2 gap-2 md:flex">
         {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job")}>{busy ? "Working…" : "Send"}</button>}
+        {c.stillOpenDecline ? <>
+          <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId, close: c.intent === "reply" } }), "Job closed")}>Close job</button>
+          <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => ignore({ data: { eventId: c.requestEventId } }), "Kept open")}>Keep open</button>
+        </> : <>
         <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId } }), c.action === "done" ? "Marked done" : c.intent === "cancel" ? "Job cancelled" : "Applied")}>{c.action === "done" ? "Done" : c.action === "apply" ? "Apply" : "Dealt with"}</button>
         <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => ignore({ data: { eventId: c.requestEventId } }), "Ignored")}>Ignore</button>
+        </>}
       </div>
     </li>
   );
@@ -85,6 +94,7 @@ function NoJobCardView({ c, onDone }: { c: NoJobCard; onDone: () => void }) {
   const notCustomer = useServerFn(matchOutlookEmail);
   const [body, setBody] = useState<string | null>(c.draft?.body ?? null);
   useEffect(() => { if (c.draft && body === null) setBody(c.draft.body); }, [c.draft, body]);
+  const saved = useDraftAutosave(c.draft?.eventId ?? null, body, c.draft?.body ?? null);
   const [picking, setPicking] = useState(false);
   const { busy, run } = useRun(onDone);
   return (
@@ -97,7 +107,7 @@ function NoJobCardView({ c, onDone }: { c: NoJobCard; onDone: () => void }) {
       <TheyWrote text={c.theyWrote} />
       {c.alreadyAutoReplied
         ? <p className="text-sm text-sub">They already got a reply with the website link.</p>
-        : <Reply body={body} setBody={setBody} busy={busy} waiting />}
+        : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting />}
       <div className="grid grid-cols-2 gap-2 md:flex">
         {c.draft && body !== null && !c.alreadyAutoReplied && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { unmatchedEventId: c.unmatchedEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>}
         {c.guess && !picking

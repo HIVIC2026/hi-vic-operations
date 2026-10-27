@@ -63,7 +63,7 @@ async def main():
     await page.get_by_text('Open answer and evidence').nth(1).click()
     await page.wait_for_function("document.activeElement?.id === 'target-intake-consent'", timeout=3000)
     assert await page.locator('#target-intake-consent').is_visible()
-    assert await page.locator('#target-intake-consent').get_by_text('Contact consent evidence').is_visible()
+    assert await page.locator('#target-intake-consent').get_by_text('Owner agreed to be contacted').is_visible()
     assert await page.evaluate("document.activeElement && document.activeElement.id") == 'target-intake-consent'
     await page.get_by_role('button', name='Ready Check').click()
     draft=page.get_by_label('Draft note'); await draft.fill('Unsaved inspection note')

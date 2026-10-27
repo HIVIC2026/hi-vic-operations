@@ -55,6 +55,13 @@ async function idemKey(to: string, subject: string, html: string) {
 }
 
 export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string, opts: { attachments?: import("./email-kit.core").EmailAttachment[] } = {}): Promise<SendResult> {
+  // Jo 27 Oct 08:58: a persisted qa_test job's email is redirected to the TEST inbox with the original-recipient marker.
+  const route = await (await import("./qa-inbox.server")).qaInboxRouteForJob(ctx.jobId, to);
+  if (route) {
+    const m = (await import("./qa-inbox.core")).markTestEmail(route, { subject, html, text });
+    subject = m.subject; html = m.html; text = m.text; to = route.to;
+    await (await import("./qa-inbox.server")).auditQaInbox(ctx.jobId!, route, ctx.label, null);
+  }
   const norm = normaliseEmail(to);
   const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;

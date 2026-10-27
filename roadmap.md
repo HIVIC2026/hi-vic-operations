@@ -1,4 +1,19 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 10:46 TEST Bravo and browser rerun
+- [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
+- [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
+- [x] Simulated fixes-day template includes canonical real questions; 7 routing tests and form creation/readback pass without network.
+- [x] Screens ran through final page inspection: 6 pass/4 fail/9 blocked; HV-3420 archived. One Spot saved email provider-accepted to Jo; original recipient verified by redirect audit. Release selector failed; later workflow not completed, not claimed. TEST trades restored.
+- [ ] Full workflow through payout blocked at Release. Runner used table selector on list rows (corrected for future runs); actual Release/confirmation/booking and downstream mutation controls remain unverified. No bypass or new run performed.
+## Jo 27 Oct 10:28 four safeguards only
+- [x] Keep unreplied enquiries/unanswered owner mail out of Gone quiet; notes excluded and bulk closure freshly rechecked.
+- [x] Newest non-superseded fixes quote gates payment/booking; My job accepts replacements at scheduling/booked stages. Stable quote/line saves recover interruptions; existing single-invoice lock/revision protection retained.
+- [x] Missing/old/wrong-job/replaced/edited A5 summaries block completion before side effects; read failures fail closed.
+- [x] Per-file copy failures join persisted summary blockers; unchanged sync retries, saved bytes checked, missing objects restored without duplicate documents.
+- [x] Focused isolated/practice tests run separately; no live records, automation/text switches, sends or publishing. Hosted multi-user mutation journey not run; no end-to-end claim.
+## Jo 27 Oct 08:58 browser walkthrough
+- [x] Ran safeguard preflight once: running enquiry endpoint reached, but signed TEST-pass path/credential absent in current code. 0 pass/1 fail/17 blocked; dependent message/Mitti/Demo probes not attempted. Five focused tests pass. No job created/archived or flags changed. Report journey/2026-10-27T09-00-40-screens/report.md in Files.
+- [ ] Full browser-first multi-person runner remains unimplemented and BLOCKED by failed signed TEST intake safeguard; serving-process no-send/job-Mitti/Demo probes depend on that run-owned TEST job. No unsafe substitute, provider actions, switch changes or publication.
 ## Jo 27 Oct 08:04 deny-by-default TEST office
 - [x] Default-denied route/server capability and exact walk-through allowlist; TEST-scoped lists/search/actions and practice RLS/API/storage proof. Admin regression branches preserved. Nested non-allowlisted tools/private evidence remain refused; full mutation journey not claimed.
 - [x] Applied three practice-proven RLS/API layers; exactly one secret-password TEST office login. Read-only 390px proof: five allowed lists, five denied pages, TEST job/Money, real-id refusal and direct API checks; zero real jobs displayed. Screenshots under /tmp/browser/qa-office/screenshots; current coverage in docs/qa/qa-office-27oct-access-coverage.md.

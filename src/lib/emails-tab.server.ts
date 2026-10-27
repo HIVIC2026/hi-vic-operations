@@ -11,7 +11,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, aiSendQuietReason, replySubject } from "./ai-email-reply.core";
+import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
@@ -48,18 +48,19 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const [drafts, inbound, owners, replied] = await Promise.all([
     many<{ id: string; job_id: string | null; event_type: string; details: Det }>(ids, (part) => loose.from("workflow_events").select("id, job_id, event_type, details").in("event_type", [AI_EMAIL_DRAFT_EVENT, NO_JOB_DRAFT_EVENT]).in("details->>message_id", part).order("created_at", { ascending: false })),
     many<{ provider_message_id: string | null; body: string | null }>(ids, (part) => admin.from("job_communications").select("provider_message_id, body").eq("channel", "email").eq("direction", "inbound").in("provider_message_id", part)),
-    many<{ id: string; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, owners(full_name)").in("id", part)),
+    many<{ id: string; stage: string; deleted_at: string | null; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, stage, deleted_at, owners(full_name)").in("id", part)),
     many<{ details: { from?: string; mode?: string } | null }>(senders, (part) => loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).in("details->>from", part)),
   ]);
   // Review fix 6: resolutions are looked up for exactly these drafts, not the newest N across all jobs.
   const done = await many<{ details: { draft_event_id?: string } | null }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT, NO_JOB_DRAFT_CLOSED_EVENT]).in("details->>draft_event_id", part));
   const closed = new Set(done.map((r) => r.details?.draft_event_id).filter(Boolean));
+  const edits = await (await import("./ai-email-reply.server")).draftEditsFor(drafts.map((d) => d.id));
   // Review fix 1: job drafts by job + message, no-job drafts by message — never mixed.
   const jobDrafts = new Map<string, DraftRef>(), noJobDrafts = new Map<string, DraftRef>(), closedJobDrafts = new Set<string>();
   for (const r of drafts) {
     const mid = str(r.details["message_id"]);
     if (!mid) continue;
-    const ref = { eventId: r.id, body: String(r.details["body"] ?? "") };
+    const ref = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? "") };
     if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
       const k = jobDraftKey(r.job_id, mid);
       if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
@@ -71,7 +72,8 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const ownerNameByJob = new Map<string, string | null>();
   for (const r of owners) ownerNameByJob.set(r.id, r.owners?.full_name ?? null);
   const autoRepliedSenders = new Set(replied.filter((r) => r.details?.mode !== "test").map((r) => (r.details?.from ?? "").toLowerCase()));
-  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders });
+  const openJobIds = new Set(owners.filter((r) => !r.deleted_at && r.stage !== "cancelled" && r.stage !== "complete").map((r) => r.id));
+  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, openJobIds });
 }
 
 async function eventOf(id: string, type: string) {
@@ -139,8 +141,8 @@ export async function sendJobEmailReply(requestEventId: string, draftEventId: st
 
 /** Send the no-job reply to the sender, then the email leaves the tab (recorded as replied, left in Outlook). */
 export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId: string, body: string, actorId: string, now = new Date()) {
-  const quiet = aiSendQuietReason(now.toISOString());
-  if (quiet) throw new WorkflowError(quiet);
+  // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
+  void now;
   const problems = noJobReplyProblems(body);
   if (problems.length) throw new WorkflowError(problems.join(" "));
   const ev = await eventOf(unmatchedEventId, EMAIL_UNMATCHED_EVENT);
@@ -177,6 +179,7 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: EMAIL_UNMATCHED_DISMISSED_EVENT, internal: true,
     summary: `Email from ${to} answered with the homeowner page link — left in Outlook`, details: { unmatched_event_id: ev.id, message_id: str(ev.details["message_id"]), reason: NO_JOB_REPLIED_REASON } })
     .then(({ error: e }) => { if (e) console.error("no-job reply sent; row not cleared", e.message); });
+  await (await import("./outlook-sync.server")).archiveOutlookMessage(str(ev.details["message_id"]), null, actorId);
   return { status };
 }
 

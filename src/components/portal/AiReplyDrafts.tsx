@@ -8,6 +8,7 @@ import { btnClass } from "@/components/portal/kit";
 import { aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 import { panelLoad } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
+import { saveStateText, useDraftAutosave } from "@/components/portal/use-draft-autosave";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -16,6 +17,7 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
   const discard = useServerFn(discardAiReplyDraft);
   const [body, setBody] = useState(d.body);
   const [busy, setBusy] = useState(false);
+  const saved = useDraftAutosave(d.eventId, body, d.body);
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try { await fn(); toast.success(ok); onDone(); } catch (e) { toast.error((e as Error).message || "That didn't work. Try again."); } finally { setBusy(false); }
@@ -27,6 +29,7 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
         <span>{d.kind === "simple" ? "Simple email" : "Needs a check"} · {new Date(d.at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
       </div>
       <textarea aria-label="Reply text" value={body} onChange={(e) => setBody(e.target.value)} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
+      {saveStateText(saved) && <span className={`text-xs ${saved === "failed" ? "text-danger" : "text-sub"}`} aria-live="polite">{saveStateText(saved)}</span>}
       <details className="text-sm">
         <summary className="cursor-pointer font-semibold text-hiv-blue">How the owner will see it</summary>
         <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />

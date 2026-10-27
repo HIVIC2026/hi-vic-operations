@@ -410,11 +410,18 @@ export async function recordChangeRequests(jobIds: string[], m: MailMessage, att
   let raised = 0;
   try {
     const partner = await fromPartner(m.from);
-    const changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
+    let changes = proposedChanges({ subject: m.subject, body: m.body, direction: m.direction, from: m.from, hasAttachments: m.hasAttachments,
       attachments: (attachments.length ? attachments : m.attachments).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })), fromPartner: partner });
     // Decision 337: a date/time change or cancel from the matched owner gets ONE automatic reply with their My job link;
     // the Apply/Ignore row is then raised only for a cancel the owner can't do themselves (or when the reply didn't go).
     const replied = new Map<string, { sent: boolean; keepOfficeRow: boolean }>();
+    // Jo 27 Oct 2026: a clear decline on an unbooked, unpaid enquiry closes the job itself — no reply, no Apply card.
+    if (changes.some((c) => c.intent === "cancel")) {
+      try {
+        const r = await (await import("./email-decline-close.server")).closeOnDeclineEmail({ jobIds, message: m, fromPartner: partner });
+        if (r.closed) changes = changes.filter((c) => c.intent !== "cancel");
+      } catch (e) { console.error("decline auto-close skipped", e instanceof Error ? e.message : e); } // the Apply card is raised as before
+    }
     for (const c of changes) {
       if (c.intent !== "reschedule" && c.intent !== "cancel") continue;
       try {
@@ -454,6 +461,9 @@ async function changeReplied(jobId: string, messageId: string): Promise<boolean>
 async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
   if (m.direction !== "inbound" || !jobIds.length) return false;
   try {
+    // Jo 27 Oct 2026: a plain decline that closed the job gets no reply and no AI draft.
+    const closedByDecline = jobIds.length === 1 ? await (async () => { try { return await (await import("./email-decline-close.server")).declineClosedFor(jobIds[0]!, m.providerMessageId); } catch { return false; } })() : false;
+    if (closedByDecline) return true;
     const r = await (await import("./owner-email-auto-reply.server")).autoReplyToOwner({ jobIds, message: m, mailbox });
     if (r.status === "sent" && counts) bump(counts, "ownerAutoReplies");
     // Jo 26 Oct: anything not sent gets ONE fresh AI reply draft saved on the job for Jo to approve and send.
@@ -810,4 +820,39 @@ export async function setCatchupFrom(from: string | null): Promise<void> {
     catchup_inbound_cursor: null, catchup_inbound_next_link: null,
     catchup_outbound_cursor: null, catchup_outbound_next_link: null,
   });
+}
+
+
+/**
+ * Jo 27 Oct 2026: once an owner email has been answered (Send) or dealt with (Done), move it out of the
+ * Outlook inbox into Archive. Immutable ids mean the portal still recognises it there. Never throws: a failure
+ * is logged on the job so the office can see it, and the email simply stays in the inbox.
+ */
+export async function archiveOutlookMessage(messageId: string | null | undefined, jobId: string | null, actorId: string | null): Promise<"archived" | "skipped" | "failed"> {
+  if (!messageId || !outlookConfigured()) return "skipped";
+  const loose = admin as unknown as SupabaseClient;
+  try {
+    const { data: already } = await loose.from("workflow_events").select("id").eq("event_type", "email_archived_in_outlook").eq("details->>message_id", messageId).limit(1);
+    if ((already ?? []).length) return "archived";
+    const mailbox = normaliseMailbox((await readOutlookSyncState()).expected_mailbox);
+    if (!mailbox) return "skipped";
+    const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/move`), {
+      method: "POST", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(20_000),
+      headers: {
+        Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
+        "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
+        Prefer: 'IdType="ImmutableId"',
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ destinationId: "archive" }),
+    });
+    if (!res.ok) throw new Error(`Outlook move failed (HTTP ${res.status})`);
+    await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: "email_archived_in_outlook", internal: true, summary: "Email moved to the Outlook Archive after it was dealt with", details: { message_id: messageId } });
+    return "archived";
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    console.error("Outlook archive failed", why);
+    await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: "email_archive_failed", internal: true, summary: "Couldn't move the email to the Outlook Archive — it's still in the inbox", details: { message_id: messageId, error: why.slice(0, 300) } });
+    return "failed";
+  }
 }

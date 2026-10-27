@@ -3,7 +3,7 @@
 // `setVeecSpotPrice` (the ONE place the VEEC spot price is entered, audited). TEST (qa_test) and deleted jobs never count.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
-import { jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
+import { installerPayExFor, jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
 import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
@@ -80,6 +80,9 @@ export async function moneyMargins(now = new Date()) {
   const fallbackPiesa = num(pricing.data?.piesa_rec_cost_ex_gst);
   // Jo 26 Oct 2026: on Reinsulate's jobs with their own electrician we pay Reinsulate the flat safety check price.
   const installerPaid = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(ids.map((id) => jobs.get(id)!));
+  // Installer's own jobs: the portal price is their pay when the quote has no agreed cost (Jo 27 Oct 2026, HV-3385).
+  const { readInstallerPrices } = await import("./installer-price.server");
+  const portalPrices = await readInstallerPrices(ids.filter((id) => jobs.get(id)?.channel === "installer_sourced"));
   const rows: MarginRow[] = ids.map((id) => {
     const j = jobs.get(id)!;
     const qs = ((quotes ?? []) as { id: string; job_id: string; kind: string; subtotal_inc_gst: number; veec_discount_inc_gst: number; veec_count: number | null }[]).filter((q) => q.job_id === id);
@@ -100,7 +103,7 @@ export async function moneyMargins(now = new Date()) {
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
       ownerPriceInc: qs.reduce((a, q) => a + Number(q.subtotal_inc_gst ?? 0), 0) || null, gstRate,
-      installerPayEx: inst ? cost(inst.id) : null, piesaCostEx: piesaCostEx == null ? null : Math.round(piesaCostEx * 100) / 100,
+      installerPayEx: installerPayExFor({ recordedInc: null, quoteCostEx: inst ? cost(inst.id) : null, portalPriceInc: portalPrices.get(id)?.price_inc_gst ?? null, installerSourced: j.channel === "installer_sourced", gstRate }), piesaCostEx: piesaCostEx == null ? null : Math.round(piesaCostEx * 100) / 100,
       fixesCostEx: rect ? cost(rect.id) ?? Number(rect.subtotal_inc_gst) / (1 + gstRate) : 0,
       veecValue: v.value, veecIncentive: inst ? Number(inst.veec_discount_inc_gst ?? 0) : 0,
     });

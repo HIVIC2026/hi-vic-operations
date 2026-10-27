@@ -160,8 +160,13 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   const internals = (q?.quote_internals as unknown as { cost_ex_gst: number | null } | { cost_ex_gst: number | null }[] | null);
   const costEx = Number((Array.isArray(internals) ? internals[0] : internals)?.cost_ex_gst);
   const ex = (inc: number | null | undefined) => (inc == null ? null : Math.round((Number(inc) / 1.1) * 100) / 100);
-  // Installer pay ex GST: recorded payout, else the accepted offer's pay, else the accepted quote's agreed-rate cost.
-  const installerPayEx = ex(paidOut(null) ?? paidOut("installation") ?? sum("ready_check").installer_pay_inc_gst ?? sum("installation").installer_pay_inc_gst) ?? (Number.isFinite(costEx) && costEx > 0 ? costEx : null);
+  // Installer pay ex GST: recorded payout, else the accepted offer's pay, else the quote's agreed-rate cost, else the portal price.
+  // On the installer's own job, the price they entered in the portal is their pay (Jo 27 Oct 2026, HV-3385).
+  const { priceFromPortal } = await import("./installer-price.core");
+  const installerSourced = priceFromPortal(job.data?.channel ?? null);
+  const portalPrice = installerSourced ? await (await import("./installer-price.server")).readInstallerPrice(jobId) : null;
+  const { installerPayExFor } = await import("./job-margin.core");
+  const installerPayEx = installerPayExFor({ recordedInc: paidOut(null) ?? paidOut("installation") ?? sum("ready_check").installer_pay_inc_gst ?? sum("installation").installer_pay_inc_gst, quoteCostEx: Number.isFinite(costEx) ? costEx : null, portalPriceInc: portalPrice?.record.price_inc_gst ?? null, installerSourced });
   const { electricalBillingSource } = await import("./installer-led.core");
   const piesaOwnerDirect = electricalBillingSource({ channel: job.data?.channel ?? null, choice: job.data?.electrician_choice ?? null, committedLineOnAcceptedQuote: q && q.status === "accepted" ? ((q.quote_items as { code: string | null }[] | null) ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
   // The chosen electrician = the active electrician assignment, else the accepted PIESA offer's business. Their rate card

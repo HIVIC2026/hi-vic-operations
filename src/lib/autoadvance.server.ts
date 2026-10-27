@@ -22,7 +22,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const [elec, rect, rqi, rqa, iqi, iqa, inv, ab, rb, ib, veec] = await Promise.all([
     count(admin.from("job_assignments").select("id", head).eq("job_id", jobId).eq("role", "electrician").eq("active", true)),
     count(admin.from("rectification_items").select("id", head).eq("job_id", jobId).eq("status", "required")),
-    q("rectification", "issued"), q("rectification", "accepted"), q("installation", "issued"), q("installation", "accepted"),
+    (await import("./fixes-quote-current.server")).currentFixesQuote(jobId).then(q => q?.status === "issued" ? 1 : 0), (await import("./fixes-quote-current.server")).currentFixesQuote(jobId).then(q => q?.status === "accepted" ? 1 : 0), q("installation", "issued"), q("installation", "accepted"),
     count(admin.from("invoices").select("id", head).eq("job_id", jobId).eq("kind", "installation")),
     booking("assessment"), booking("rectification"), booking("installation"),
     count(admin.from("veec_lodgements").select("id", head).eq("job_id", jobId).in("status", ["submitted", "approved"])),

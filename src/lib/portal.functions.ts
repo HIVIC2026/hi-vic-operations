@@ -668,6 +668,15 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
     if (!q) throw new WorkflowError("Quote not found");
     await context.authorize(q.job_id);
+    if (q.kind === "rectification") {
+      const latest = await (await import("./fixes-quote-current.server")).currentFixesQuote(q.job_id);
+      if (latest?.id !== q.id) throw new WorkflowError("This fixes quote has been replaced. Please review the newest quote on My job.");
+      if (data.accept && q.status === "accepted") {
+        if (data.expectedVersion != null && data.expectedVersion !== q.version) throw new WorkflowError("Please review the newest fixes quote.");
+        await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId);
+        return { ok: true };
+      }
+    }
     if (q.status === "expired") throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
     // A held or queued installation quote is not the owner's to action (it was never released to them).
@@ -686,7 +695,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     // Installation quotes: the Ready Check path (office-released measured quote at measured_estimate_ready, Jo 7 Oct)
     // and the older awaiting_quote_acceptance path both accept. Every other guard below still applies to both.
     // Decision 366: a fixes quote is answered at the stages it is sent from (decision 354 AUTO_FIXES_STAGES) as well.
-    const expected: Stage[] = q.kind === "rectification" ? ["awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required"] : ["awaiting_quote_acceptance", "measured_estimate_ready"];
+    const expected: Stage[] = q.kind === "rectification" ? ["awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required", "rectification_scheduling", "rectification_booked"] : ["awaiting_quote_acceptance", "measured_estimate_ready"];
     const measuredPath = q.kind === "installation" && stage === "measured_estimate_ready";
     if (!expected.includes(stage)) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
@@ -754,7 +763,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     if (!pickedWindow) {
       // Only a still-open quote can become accepted: a quote superseded/expired meanwhile is never flipped back.
-      const { data: won, error: ae } = await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id).eq("status", "issued").select("id");
+      const { data: won, error: ae } = await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id).eq("status", "issued").eq("version", q.version).select("id");
       if (ae) throw new Error(ae.message);
       if (!won?.length) { const { QUOTE_CHANGED_WHILE_ACCEPTING } = await import("./owner-quote-visibility.core"); throw new WorkflowError(QUOTE_CHANGED_WHILE_ACCEPTING); }
     }

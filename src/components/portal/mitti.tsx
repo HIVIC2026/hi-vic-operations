@@ -56,15 +56,14 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
     return (
       <Section title="Ready Check (Mitti)" action={<Pill t={mDone ? "good" : "warn"}>{mDone ? "Complete" : "In progress in Mitti"}</Pill>}>
         <dl className="grid grid-cols-2 gap-1 text-sm">
-          <dt className="text-muted-foreground">Form ID</dt><dd className="break-all">{mAudit}</dd>
           <dt className="text-muted-foreground">Measured area</dt><dd>{data.m?.verified_area_m2 ?? data.m?.measured_area_m2 ?? "—"}{data.m?.verified_area_m2 ?? data.m?.measured_area_m2 ? " m²" : ""}</dd>
           <dt className="text-muted-foreground">Removal</dt><dd>{data.m?.removal_required == null ? "—" : data.m.removal_required ? "Required" : "Not required"}</dd>
         </dl>
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
           <MittiFormLink auditId={mAudit} className="font-medium text-primary underline">Open this form in Mitti</MittiFormLink>
-          <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
+          {!mDone && <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>}
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">The Ready Check is done in Mitti. Sync brings the answers onto this job — nothing is sent to the owner from here.</p>
+        {!mDone && <p className="mt-2 text-sm text-muted-foreground">The Ready Check is done in Mitti. Sync brings the answers onto this job — nothing is sent to the owner from here.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size={isAdmin ? "sm" : "field"} variant="outline" className={isAdmin ? "" : "w-full"} disabled={busy} onClick={() => run(() => sync({ jobId }, "Synced from Mitti"))}><RefreshCw /> {isAdmin ? "Sync from Mitti" : "Refresh from Mitti"}</Button>
         </div>

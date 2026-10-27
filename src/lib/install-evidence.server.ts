@@ -60,10 +60,14 @@ export async function installStartDate(jobId: string, a3StartDate?: string | nul
   return melbourneDateOf(job?.installation_completed_at);
 }
 
+export async function latestInstallEvidenceRecord(jobId: string) {
+  const { data, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", INSTALL_EVIDENCE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error("Install-day evidence could not be read.");
+  const d = data?.details as { audit_id?: string; summary?: InstallEvidenceSummary } | null;
+  return d ? { ...d, createdAt: data?.created_at } : null;
+}
 export async function latestInstallEvidence(jobId: string): Promise<InstallEvidenceSummary | null> {
-  const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALL_EVIDENCE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const d = data?.details as { summary?: InstallEvidenceSummary } | null;
-  return d?.summary ?? null;
+  return (await latestInstallEvidenceRecord(jobId))?.summary ?? null;
 }
 
 /** Facts from the job + the audit itself (crew names and Part answers come from the same form, never guessed). */
@@ -93,27 +97,41 @@ export const RULER_PHOTO_DOC_KIND = "install_ruler_photo";
  */
 export async function saveRulerPhotoFiles(jobId: string, actorId: string | null, auditId: string, summary: InstallEvidenceSummary, fetchMedia: MittiMediaFetch): Promise<string[]> {
   const saved: string[] = [];
+  summary.copyFailures = [];
   const captured: { area: string; which: "existing" | "new"; media_id: string; captured_at: string | null; geotagged: boolean }[] = [];
   for (const a of summary.rulerPhotos ?? []) {
     for (const [which, files] of [["existing", a.existing], ["new", a.after]] as const) {
       for (const file of files) {
-        if (!file.mediaId) continue;
         const key = `${auditId}:${file.mediaId}`;
         try {
-          const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-          if (ex) continue;
+          if (!file.mediaId) throw new Error("media id missing");
+          const { data: ex, error: lookupError } = await admin.from("documents").select("id, storage_path").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+          if (lookupError) throw new Error(lookupError.message);
+          if (ex) {
+            const check = ex.storage_path ? await admin.storage.from("job-files").download(ex.storage_path) : null;
+            if (!check?.error && check?.data?.size) continue;
+          }
           const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
           if (!bytes.length) throw new Error("empty media");
           const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : contentType.includes("heic") ? "heic" : "bin";
-          const path = `${jobId}/mitti/ruler-photos/${auditId}-area${a.zone}-${which}-${file.mediaId}.${ext}`;
+          const path = ex?.storage_path || `${jobId}/mitti/ruler-photos/${auditId}-${file.mediaId}.${ext}`;
           const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
-          if (up.error && !/exists/i.test(up.error.message)) throw new Error("storage upload failed");
+          if (up.error) {
+            if (!/exists|duplicate/i.test(up.error.message)) throw new Error("storage upload failed");
+            const check = await admin.storage.from("job-files").download(path);
+            if (check.error || !check.data?.size) throw new Error("stored photo could not be verified");
+          }
           const label = which === "existing" ? "existing insulation depth" : "new insulation depth after install";
-          const { error } = await admin.from("documents").insert({ job_id: jobId, kind: RULER_PHOTO_DOC_KIND, title: `Ruler photo – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
-          if (error) throw new Error(error.message);
+          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: RULER_PHOTO_DOC_KIND, title: `Ruler photo – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
+          if (error) {
+            if (error.code !== "23505") throw new Error(error.message);
+            const check = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+            if (check.error || !check.data) throw new Error(error.message);
+          }
           saved.push(path);
           captured.push({ area: a.name, which, media_id: file.mediaId, captured_at: file.capturedAt ?? null, geotagged: file.lat != null && file.lng != null });
         } catch (e) {
+          summary.copyFailures.push({ mediaId: file.mediaId ?? "", area: a.name, which, reason: e instanceof Error ? e.message : "error" });
           await logEvent(jobId, actorId, "install_ruler_photo_failed", `Ruler photo (${a.name}, ${which}) could not be saved – sync again to retry`, { audit_id: auditId, media_id: file.mediaId, reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined);
         }
       }
@@ -126,16 +144,32 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
 /** Read the audit, evaluate, and record the result when it changed. Returns the summary. `fetchMedia` = also keep the
  *  ruler photos on the job file (decision 396). */
 export async function syncInstallEvidence(jobId: string, actorId: string | null, auditId: string, audit: unknown, fetchMedia?: MittiMediaFetch): Promise<InstallEvidenceSummary> {
+  const { parseAudit } = await import("./mitti.core");
+  const parsed = parseAudit(audit);
+  const { data: job, error: je } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+  if (je || !job || parsed.auditId !== auditId || parsed.jobNumber?.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) throw new Error("The A5 form does not match this job.");
   const ctx = await installEvidenceContext(jobId, audit);
   const { data: pre } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_prestart_captured").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const workStartAt = (pre?.details as { snapshot?: { signature?: { signed_at?: string } } } | null)?.snapshot?.signature?.signed_at ?? null;
   const summary = evaluateInstallEvidence(readInstallEvidence(audit), ctx, workStartAt);
-  const prev = await latestInstallEvidence(jobId);
-  if (JSON.stringify(prev) !== JSON.stringify(summary)) {
+  summary.jobId = jobId;
+  summary.auditId = auditId;
+  summary.auditFingerprint = await (await import("./mitti-create-claim.core")).stableUuid(JSON.stringify(audit));
+  if (summary.rulerPhotos?.length) {
+    if (fetchMedia) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
+    else summary.copyFailures = summary.rulerPhotos.flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" })));
+    const copyLines = (summary.copyFailures ?? []).map(f => `${f.area}: ${f.which} ruler photo ${f.mediaId || "(missing id)"} could not be saved — sync again to retry`);
+    summary.blockers = [...new Set([...summary.blockers, ...copyLines])];
+    summary.rulerBlockers = [...new Set([...(summary.rulerBlockers ?? []), ...copyLines])];
+    for (const item of summary.items) if (item.id.startsWith("ruler_") && copyLines.length) { item.state = "review"; item.problems.push(...copyLines); }
+  }
+  const prev = await latestInstallEvidenceRecord(jobId);
+  const { data: lastFailure, error: failureError } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "install_evidence_sync_failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (failureError) throw new Error("Evidence retry history could not be checked.");
+  if (prev?.audit_id !== auditId || JSON.stringify(prev?.summary ?? null) !== JSON.stringify(summary) || (lastFailure && (!prev?.createdAt || lastFailure.created_at >= prev.createdAt))) {
     const n = summary.blockers.length;
     await logEvent(jobId, actorId, INSTALL_EVIDENCE_EVENT, !summary.applies ? (n ? `Install-day evidence: ${n} ruler photo item(s) outstanding (decision 396; the rest of the new rule does not apply before the effective date)` : "Install-day evidence: new rule does not apply (install before the effective date)") : n ? `Install-day evidence: ${n} item(s) outstanding` : "Install-day evidence: every item present, SWMS complete, sign-off done", { audit_id: auditId, summary } as unknown as Record<string, unknown>, { internal: true });
   }
-  if (fetchMedia && summary.rulerPhotos?.length) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
   return summary;
 }
 

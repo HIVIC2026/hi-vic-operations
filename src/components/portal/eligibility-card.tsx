@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getGate1Evidence, getIntakeSummary } from "@/lib/portal.functions";
 import { getVerifiedEligibility } from "@/lib/verified-eligibility.functions";
 import { readyCheckPresent, VERIFIED_LABEL, R_VALUE_LIMIT, type ReadyCheckEvidence, type VerifiedOutcome } from "@/lib/verified-eligibility.core";
-import { CHECK_MARK_LABEL, markOf, onsiteMarkFor, ownerAnswerForGate1, type CheckMark } from "@/lib/portal-presentation.core";
+import { eligibilityLine, onsiteMarkFor, ownerAnswerForGate1, type CheckMark } from "@/lib/portal-presentation.core";
 import { Pill } from "./badges";
 
 const CHECKS: [string, string][] = [
@@ -14,6 +14,7 @@ const CHECKS: [string, string][] = [
   ["ceiling_age", "Over 5 years old"], ["previous_activity", "No previous Activity 48"], ["existing_insulation", "Existing insulation"],
 ];
 const TONE: Record<CheckMark, "good" | "bad" | "warn"> = { pass: "good", fail: "bad", confirm: "warn" };
+const ROW_LABEL: Record<CheckMark, string> = { pass: "OK", fail: "Fail", confirm: "To check" };
 const OVERALL: Record<string, [string, "good" | "bad" | "warn"]> = {
   likely_eligible: ["Likely Eligible", "good"], needs_onsite_confirmation: ["Needs Onsite Confirmation", "warn"], does_not_appear_eligible: ["Does Not Appear Eligible", "bad"],
 };
@@ -43,25 +44,23 @@ export function EligibilityCard({ jobId, override, verifiedControls }: { jobId: 
         {ls === "yes" ? <Pill t="bad">Life support</Pill> : ls === "no" ? <Pill>No life support</Pill> : <Pill t="warn">Life support unknown</Pill>}
         <button type="button" className="ml-auto text-xs font-semibold text-primary underline" onClick={() => setOpen((o) => !o)}>{open ? "Close" : "Change result"}</button>
       </div>
-      <table className="w-full text-sm">
-        <thead className="sr-only sm:not-sr-only"><tr className="text-left text-[11px] uppercase text-muted-foreground"><th className="px-4 py-1 font-semibold">Check</th><th className="px-2 font-semibold">Owner said</th><th className="px-2 font-semibold">Result</th>{ev && <th className="px-2 font-semibold">Onsite</th>}</tr></thead>
-        <tbody className="divide-y">
-          {CHECKS.map(([key, label]) => {
-            const r = live.rules.find((x) => x.key === key);
-            const m = markOf(r?.result);
-            const said = key === "location" ? (r?.fact ?? "—") : ownerAnswerForGate1(key, intake.data);
-            const on = onsiteMarkFor(key, ev, R_VALUE_LIMIT);
-            return (
-              <tr key={key} className="align-top" data-check={key}>
-                <td className="px-4 py-1.5 font-medium">{label}</td>
-                <td className="px-2 py-1.5 text-muted-foreground">{said}</td>
-                <td className="px-2 py-1.5"><Pill t={TONE[m]}>{CHECK_MARK_LABEL[m]}</Pill></td>
-                {ev && <td className="px-2 py-1.5">{on ? <span className={on.mark === "fail" ? "text-danger" : on.mark === "confirm" ? "text-muted-foreground" : ""}>{on.text}</span> : <span className="text-muted-foreground">—</span>}</td>}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* One line per check: name, one result, one short fact under it (Jo 27 Oct 2026). Same on phone and computer. */}
+      <ul className="divide-y text-sm">
+        {CHECKS.map(([key, label]) => {
+          const r = live.rules.find((x) => x.key === key);
+          const said = key === "location" ? (r?.fact ?? "—") : ownerAnswerForGate1(key, intake.data);
+          const line = eligibilityLine(r?.result, said, onsiteMarkFor(key, ev, R_VALUE_LIMIT));
+          return (
+            <li key={key} className="flex items-center gap-3 px-4 py-2" data-check={key}>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{label}</div>
+                {line.detail && <div className={line.mark === "fail" ? "text-danger" : "text-muted-foreground"}>{line.detail}</div>}
+              </div>
+              <Pill t={TONE[line.mark]}>{ROW_LABEL[line.mark]}</Pill>
+            </li>
+          );
+        })}
+      </ul>
       {open && <div className="space-y-3 border-t p-4">{override}{ev && verifiedControls}</div>}
     </section>
   );

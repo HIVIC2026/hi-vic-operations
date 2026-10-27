@@ -14,12 +14,29 @@ import { smsQuietReason } from "./quote-hold.core";
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
 export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";
+/** Jo 27 Oct 2026: her edits to a draft are saved as she types (append-only), so a refresh keeps them. */
+export const AI_EMAIL_DRAFT_EDITED_EVENT = "email_ai_draft_edited";
+
+/** Newest saved edit per draft (rows in any order). */
+export function latestDraftEdits(rows: { created_at: string; details: { draft_event_id?: string; body?: string } | null }[]): Map<string, string> {
+  const best = new Map<string, { at: string; body: string }>();
+  for (const r of rows) {
+    const id = r.details?.draft_event_id; const body = r.details?.body;
+    if (!id || typeof body !== "string") continue;
+    const cur = best.get(id);
+    if (!cur || r.created_at >= cur.at) best.set(id, { at: r.created_at, body });
+  }
+  return new Map([...best].map(([k, v]) => [k, v.body]));
+}
 export const AI_EMAIL_REPLY_PURPOSE = "owner_email_ai_reply";
 /** Master switch for writing AI drafts on jobs. */
 export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
 /** Jo 26 Oct: OFF until Jo has seen sample replies and says "send". With it off simple replies are drafts too. */
 export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
+/** Jo 27 Oct 2026: signed by the team, never by Jo. */
 export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
+/** The AI returns exactly this when the email needs no reply (a plain "no thanks" or "thanks"). Jo 27 Oct: file those away. */
+export const NO_REPLY_NEEDED = "NO_REPLY_NEEDED";
 
 export type AiReplyKind = "simple" | "other";
 
@@ -56,17 +73,37 @@ export type AiReplyContext = {
 };
 
 export const AI_REPLY_INSTRUCTIONS = [
-  "You write email replies for Home Insulation Victoria to home owners about their ceiling insulation job.",
-  "Tone: friendly and relaxed, like a local who's happy to help. Short and simple, plain Australian English.",
-  "Answer their question first, then say the next step. Two to five short sentences.",
-  "Start with \"Hi <first name>!\" (or \"Hi there!\" if no name).",
-  "Only use facts and links given below. Never invent dates, prices, times, people or links. If you don't know, say we'll check and get back to them.",
+  "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
+  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
+  "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
+  "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
+  "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
+  "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.",
+  "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
+  "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links. Never quote an R6.0 or R7.0 price.",
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
   "Never ask them to call, never give a phone number. They can just reply to this email.",
   "If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself.",
+  `If their email is only a plain "no thanks", "not going ahead", "thanks" or similar and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
   "Return only the email body text, no subject line.",
 ].join("\n");
+
+/** Jo's standing answers (27 Oct 2026), given to the AI with every job reply. */
+export const AI_BUSINESS_RULES = [
+  "We only do ceiling insulation (no underfloor or walls).",
+  "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.",
+  "R6.0 and R7.0 are available; the installer confirms the price at the free Ready Check (never quote it).",
+  "Old insulation is removed only where needed, at $15/m²; the installer checks how much at the Ready Check.",
+  "Extras like cleaning the roof cavity: the installer can quote them at the Ready Check.",
+  "The free Ready Check: a certified installer comes to the home, measures the ceilings, checks the existing insulation and confirms the job, then the owner gets their final quote. They see the exact price before agreeing to anything.",
+  "The rebate needs any existing insulation to be below R2.0, and it has to be checked at the Ready Check — age alone isn't enough. Owners never need to go into the roof or send photos.",
+  "Spots are released in the order they were saved, so we can't give install dates before that. When it's their turn an installer texts and emails a few times for the Ready Check.",
+  "After they accept the quote, a licensed electrician does a safety check before any insulation goes in, then the installer puts the insulation in. We look after all the paperwork and the rebate.",
+  "The price includes: the free Ready Check; R5.0 batts supplied and installed by a certified installer; the electrician's safety check ($349); our Accredited Person fee for the paperwork and rebate claim ($349). Electrical repairs aren't included — if needed they get a separate quote first.",
+  "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding",
+];
 
 export function buildAiReplyInput(c: AiReplyContext): string {
   const hist = c.history.slice(-15).map((h) => `[${h.direction === "inbound" ? "Owner" : "Us"} ${h.at.slice(0, 16)}] ${h.subject ?? ""}\n${h.body.slice(0, 1200)}`).join("\n\n");
@@ -74,6 +111,7 @@ export function buildAiReplyInput(c: AiReplyContext): string {
     `Job ${c.jobNumber ?? "(no number)"} · owner first name: ${c.ownerFirstName ?? "unknown"}`,
     `Current stage: ${c.stageLabel}`,
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
+    `Business rules:\n- ${AI_BUSINESS_RULES.join("\n- ")}`,
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
     c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,
@@ -93,7 +131,7 @@ const CALL_US = /[^.!?\n]*\b(call|ring|phone)\s+(us|the office|our office)\b[^.!
 /** Tidies the AI's text against Jo's rules and adds the sign-off exactly once. */
 export function finishAiReply(raw: string): string {
   let t = raw.replace(/\r/g, "").trim();
-  t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
+  t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n(?:jo\s*\n)?[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
   for (const [re, to] of JARGON) t = t.replace(re, to);
   t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ");
   // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
@@ -108,6 +146,8 @@ export function finishAiReply(raw: string): string {
 export function aiLinkLabel(url: string): string {
   if (/\/my-job\/[^?#\s]+\?screen=book\b/.test(url)) return "Change my booking time";
   if (/\/my-job\//.test(url)) return "Open my job page";
+  if (/\/estimate\/[^/\s]+\/campaign\b/.test(url)) return "Save my free spot";
+  if (/\/electrician-onboarding\b/.test(url)) return "Sign up as an electrician";
   if (/\/estimate\/[^/\s]+\/video\b/.test(url)) return "Save my spot";
   if (/homeinsulationvictoria\.com\.au\/homeowner\b/.test(url)) return "Check my eligibility"; // decision 414
   return "Open link";
@@ -123,7 +163,7 @@ export function aiReplyEmailHtml(body: string, o: { subject: string; unsubscribe
   const out: string[] = [];
   paras.forEach((para, i) => {
     if (i === 0 && /^(hi|hey|hello|g'day)\b[^\n]{0,40}[!,]$/i.test(para)) { out.push(`<mj-text mj-class="hi" padding="18px 12px 12px">${esc(para)}</mj-text>`); return; }
-    if (para === AI_SIGN_OFF || /^cheers,/i.test(para) && i === paras.length - 1) {
+    if (/^cheers,/i.test(para) && i === paras.length - 1) {
       const [a, ...rest] = para.split(/,\s*/);
       out.push(`<mj-text padding="8px 12px 0">${esc(`${a},`)}<br />${esc(rest.join(", "))}</mj-text>`);
       return;
