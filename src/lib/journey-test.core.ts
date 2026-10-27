@@ -1,13 +1,23 @@
 // Full-journey test: the step list, the expected maths and the result shape. Pure, shared by the
 // browser runner (e2e/journey) and the server runner (journey.server.ts). TEST data only.
 
+/** Main TEST journey signs the same four declarations as the real owner page. */
+export const JOURNEY_INSTALL_CONSENT = {
+  signatoryName: "Test Journey", authorityType: "owner" as const,
+  accept: true, signatureName: "Test Journey",
+  declarations: {
+    owner_or_authorised: true, details_accurate: true,
+    consent_ap_sends: true, consent_commission_shares: true,
+  },
+};
+
 export const JOURNEY_STEPS = [
   { key: "s1_calculator", label: "1. Public calculator: register and whole-VEEC price" },
   { key: "s2_owner_links", label: "2. Owner email links: Save my spot (double tap), owner calculator, My job" },
   { key: "s3_office_offer", label: "3. Office: Spot saved / Hot leads, offered to TEST installer" },
   { key: "s4_ready_check", label: "4. TEST installer: Ready Check and quote maths" },
   { key: "s5_owner_accept", label: "5. Owner: accepts quote and paperwork" },
-  { key: "s6_electrician", label: "6. TEST electrician: PIESA (all clear, and with fixes), certificate" },
+  { key: "s6_electrician", label: "6. TEST electrician: PIESA (all clear), certificate" },
   { key: "s7_install", label: "7. Installer: install booking (deadline rules), install day, evidence" },
   { key: "s8_ap_payout", label: "8. Office: AP sign-off, payout Coming in 7 days" },
   { key: "s9_visibility", label: "9. Who sees what (prices, owner details, Money)" },

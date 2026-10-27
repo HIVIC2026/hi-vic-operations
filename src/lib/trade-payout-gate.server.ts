@@ -32,12 +32,16 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
   const ids = [...new Set(jobIds)];
   const out = new Map<string, TradePayoutFacts>();
   if (!ids.length) return out;
-  const [assess, fixEv, decl, ieEv] = await Promise.all([
+  const { ELECTRICIAN_FORM_APPROVED_EVENT } = await import("./electrician-pay.core");
+  const [assess, fixEv, decl, ieEv, apprEv] = await Promise.all([
     inJobs<{ job_id: string; external_mitti_id: string | null; mitti_completed: boolean | null; mitti_raw_snapshot: unknown; mitti_synced_at: string | null; mitti_modified_at: string | null }>("assessments", "job_id, external_mitti_id, mitti_completed, mitti_raw_snapshot, mitti_synced_at, mitti_modified_at", ids),
     inJobs<FixesFormEvent & { job_id: string }>("workflow_events", "job_id, event_type, created_at, summary, details", ids, (q) => q.in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false })),
     inJobs<{ job_id: string }>("installer_declarations", "job_id", ids, (q) => q.eq("status", "signed")),
     inJobs<{ job_id: string; details: { summary?: InstallEvidenceSummary } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "install_evidence_synced").order("created_at", { ascending: false })),
+    // Decision 410: the office's Approve on the electrician's form (earliest one per form counts).
+    inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", ELECTRICIAN_FORM_APPROVED_EVENT).order("created_at", { ascending: true })),
   ]);
+  const approvedAt = (id: string, kind: string) => apprEv.find((e) => e.job_id === id && e.details?.kind === kind)?.created_at ?? null;
   const { installStartDate } = await import("./install-evidence.server");
   for (const id of ids) {
     const a = assess.find((x) => x.job_id === id);
@@ -62,6 +66,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
       piesa,
       fixes: { sameVisitOnPiesa, outcome: fo.outcome, detail: fo.detail, completedAt: fixesDoneAt },
       install: { formCompleted: declared, evidence: !declared && !summary ? [] : installEvidenceGateLines(summary, installDate) },
+      electricianApprovedAt: { assessment: approvedAt(id, "assessment"), rectification: approvedAt(id, "rectification") },
     });
   }
   return out;

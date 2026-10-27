@@ -101,7 +101,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(read("src/lib/owner-myjob.server.ts")).toContain("safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })");
     expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst)");
     expect(read("src/components/portal/office-job.tsx")).toContain("`${safetyCheckShort(s.amountCents)} safety check`");
-    expect(read("src/lib/office-stage-cards.core.ts")).toContain("label: safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
+    expect(read("src/lib/office-stage-cards.core.ts")).toContain("safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
   });
 });
 
@@ -221,7 +221,7 @@ describe("decision 303 — only onboarded electricians", () => {
 
   test("source guards: pipeline records the hold, only the tick sends the invite, approval/rate activation trigger the auto-link", () => {
     const pipe = read("src/lib/usual-electrician.server.ts");
-    expect(pipe).toContain("onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates })");
+    expect(pipe).toContain("onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null })");
     expect(pipe).toContain("ELECTRICIAN_ONBOARDING_NEEDED_EVENT");
     expect(pipe).not.toMatch(/sendElectricianInvite|office-email\.server|rec-onboarding-invite\.server/);
     expect(read("src/lib/installer-quote.server.ts")).toContain("electrician_not_onboarded: notOnboarded");

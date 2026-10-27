@@ -71,7 +71,7 @@ export async function ensureTestCredentials(actorId: string, businessId: string,
 /** Coverage + offer preferences the Ready Check / PIESA matching reads. Returns the fields as they were (for cleanup). */
 export async function ensureTestBusinessReady(actorId: string, businessId: string, role: "installer" | "electrician", log: SetupLog) {
   const b = await assertTestBusiness(businessId);
-  const before = { id: businessId, service_postcodes: b.service_postcodes ?? [], coverage_verified_at: b.coverage_verified_at, free_measureups_for_hivic_quote_leads: b.free_measureups_for_hivic_quote_leads };
+  const before = { id: businessId, service_postcodes: b.service_postcodes ?? [], coverage_verified_at: b.coverage_verified_at, free_measureups_for_hivic_quote_leads: b.free_measureups_for_hivic_quote_leads, receives_hivic_leads: b.receives_hivic_leads, accepting_new_jobs: b.accepting_new_jobs };
   const pcs = b.service_postcodes ?? [];
   const patch: Record<string, unknown> = {};
   if (!pcs.includes(JOURNEY_POSTCODE)) patch["service_postcodes"] = [...pcs, JOURNEY_POSTCODE];

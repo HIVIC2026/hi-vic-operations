@@ -32,25 +32,28 @@ export type ApprovedRecCandidate = UsualMatchCandidate & {
   piesa_rate: { id: string; rate_inc_gst: number | string } | null;
 };
 
-export type OnboardedRec = { businessId: string; businessName: string | null; rateId: string; piesaRateIncGst: number };
+export type OnboardedRec = { businessId: string; businessName: string | null; rateId: string | null; piesaRateIncGst: number };
 
-/** Why a matched business is NOT an approved REC we may quote (null = fine). Fails closed on every missing fact. */
-export function approvedRecBlocker(c: ApprovedRecCandidate): string | null {
+/** Why a matched business is NOT an approved REC we may quote (null = fine). Fails closed on every missing fact.
+ *  `rateNotNeeded`: the installer pays its own electricians (installer-paid-electricians.core), so no rate is held. */
+export function approvedRecBlocker(c: ApprovedRecCandidate, opts: { rateNotNeeded?: boolean } = {}): string | null {
   if (c.onboarding_status !== "approved" || c.is_active === false) return "not an approved, active REC on the portal";
   if (c.approved_electricians < 1) return "no approved electrician on the portal";
-  if (!c.piesa_rate || !(Number(c.piesa_rate.rate_inc_gst) > 0)) return "no active onboarded PIESA rate";
+  if (!opts.rateNotNeeded && (!c.piesa_rate || !(Number(c.piesa_rate.rate_inc_gst) > 0))) return "no active onboarded PIESA rate";
   if (c.blocker) return c.blocker;
   return null;
 }
 
-/** The approved REC that IS the declared electrician, or why there is none. Never borrows another REC's rate. */
-export function approvedRecFor(declared: { name: string | null; licence: string | null }, candidates: ApprovedRecCandidate[]): { rec: OnboardedRec | null; reason: string | null } {
+/** The approved REC that IS the declared electrician, or why there is none. Never borrows another REC's rate.
+ *  `flatPiesaIncGst`: the installer pays its own electricians, so the owner line is that flat price, not a REC rate. */
+export function approvedRecFor(declared: { name: string | null; licence: string | null }, candidates: ApprovedRecCandidate[], flatPiesaIncGst: number | null = null): { rec: OnboardedRec | null; reason: string | null } {
   const name = (declared.name ?? "").trim();
   if (!name && !normaliseLicence(declared.licence)) return { rec: null, reason: "no electrician named" };
   const m = matchUsualElectrician({ name, licence: declared.licence ?? "", priceIncGst: 0 }, candidates) as ApprovedRecCandidate | null;
   if (!m) return { rec: null, reason: "not on the portal" };
-  const blocker = approvedRecBlocker(m);
+  const blocker = approvedRecBlocker(m, { rateNotNeeded: flatPiesaIncGst != null });
   if (blocker) return { rec: null, reason: blocker };
+  if (flatPiesaIncGst != null) return { rec: { businessId: m.business_id, businessName: m.trading_name ?? m.name ?? null, rateId: null, piesaRateIncGst: flatPiesaIncGst }, reason: null };
   return { rec: { businessId: m.business_id, businessName: m.trading_name ?? m.name ?? null, rateId: m.piesa_rate!.id, piesaRateIncGst: Math.round(Number(m.piesa_rate!.rate_inc_gst) * 100) / 100 }, reason: null };
 }
 
@@ -60,14 +63,14 @@ export function approvedRecFor(declared: { name: string | null; licence: string 
  * "Electrician not onboarded: <name>" with the declared identity kept for the invite. A usual electrician that is not
  * saved at all keeps the legacy `needsProfile` hold (My business reminder path).
  */
-export function onboardedElectricianResolution(i: { legacy: MittiElectricianResolution; usual: UsualElectrician | null; candidates: ApprovedRecCandidate[] }): MittiElectricianResolution {
+export function onboardedElectricianResolution(i: { legacy: MittiElectricianResolution; usual: UsualElectrician | null; candidates: ApprovedRecCandidate[]; flatPiesaIncGst?: number | null }): MittiElectricianResolution {
   const { legacy } = i;
   if (legacy.choice === "hivic" || legacy.choice == null) return legacy;
   if (legacy.choice === "usual" && legacy.needsProfile) return legacy;
   const name = (legacy.name ?? (legacy.choice === "usual" ? i.usual?.name : null) ?? "").trim();
   const licence = (legacy.licence ?? (legacy.choice === "usual" ? i.usual?.licence : null) ?? "").trim() || null;
   if (!name) return { ...legacy, ready: false, priceIncGst: null, reasons: legacy.reasons.length ? legacy.reasons : ["Electrician name is required"], notOnboarded: null };
-  const { rec } = approvedRecFor({ name, licence }, i.candidates);
+  const { rec } = approvedRecFor({ name, licence }, i.candidates, i.flatPiesaIncGst ?? null);
   if (rec) return { ...legacy, ready: true, name, licence, priceIncGst: rec.piesaRateIncGst, source: "approved_rec", reasons: [], needsProfile: false, recBusinessId: rec.businessId, rateId: rec.rateId, notOnboarded: null };
   const email = legacy.choice === "usual" ? i.usual?.email ?? null : null;
   return { ...legacy, ready: false, name, licence, priceIncGst: null, reasons: [notOnboardedReason(name)], needsProfile: false, recBusinessId: null, rateId: null, notOnboarded: { name, licence, email } };

@@ -51,6 +51,14 @@ export function removalTotalM2(entries: E[]): number | null {
   return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100 : null;
 }
 
+/** Jo 27 Oct 2026: does the job's CURRENT Ready Check say removal is needed? The same sources the quote uses — the
+ *  current measurement's removal flag and the form's per-area removal m². No current Ready Check → null (unknown;
+ *  nothing is blocked or guessed from it). */
+export function readyCheckRemovalRequired(entries: E[], measurement: { removal_required?: boolean | null } | null | undefined): boolean | null {
+  if (!measurement) return null;
+  return measurement.removal_required === true || (removalTotalM2(entries) ?? 0) > 0;
+}
+
 /** LEGACY forms only (decision 290, Jo 25 Oct 2026: the charge/fee pair is deleted from A1 and A2). Old A1 forms that
  *  still carry "Is there a difficult access charge?" Yes + an amount are read so the installer line can say the total
  *  includes it; the A2 quote no longer reads a fee from the form (the office decides any access charge from the rating). */

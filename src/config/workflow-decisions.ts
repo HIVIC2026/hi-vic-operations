@@ -9,10 +9,10 @@ export const WORKFLOW_DECISIONS = {
   brand: { name: "Home Insulation Victoria", retiredVisibleNames: ["HI VIC!", "HI VIC", "HIVIC"] },
   eligibility: {
     preliminaryLabels: [
-      "Preliminary: likely eligible",
-      "Looking good - needs onsite confirmation",
-      "Not eligible",
-      "Needs office review",
+      "Likely Eligible",
+      "Needs Onsite Confirmation",
+      "Does Not Appear Eligible",
+      "Needs office review", // internal (office) only
     ],
     verifiedValues: ["pending", "eligible", "not_eligible", "needs_review"],
     rules: {
@@ -41,12 +41,8 @@ export const WORKFLOW_DECISIONS = {
     ],
     options: ["safety_check_paid", "paid_in_full"] as const,
     safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, fixes if approved, 10% to book, balance on install day)" },
-    deposit: {
-      thresholdIncGst: 20_000,
-      belowThresholdPct: 10,
-      atOrAboveThresholdPct: 5,
-      status: "pending_legal_confirmation",
-    },
+    // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
+    deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },
     noApprovedRule: "block_piesa_payment_rule_exception",
   },
   routes: {
@@ -76,7 +72,8 @@ export const WORKFLOW_DECISIONS = {
   piesaTiming: {
     windowDays: 30,
     clockStartsNoRectification: "initial_piesa_completed_and_signed",
-    clockStartsWithRectification: "section_c_completed_and_signed",
+    // Decision 316 (Jo 25 Oct 2026): the 30 days always run from the official PIESA, never the fixes (Section C).
+    clockStartsWithRectification: "official_piesa_not_fixes",
     mustBe: "installation_commenced_within_window",
     status: "operational_rule_pending_written_confirmation",
   },
@@ -114,8 +111,7 @@ export const WORKFLOW_DECISIONS = {
 
 export type HardStopCode = (typeof WORKFLOW_DECISIONS.hardStops)[number];
 
-/** Deposit % for a confirmed quote total (inc GST). Pending legal confirmation. */
-export function depositPctFor(totalIncGst: number): number {
-  const d = WORKFLOW_DECISIONS.payment.deposit;
-  return totalIncGst >= d.thresholdIncGst ? d.atOrAboveThresholdPct : d.belowThresholdPct;
+/** Install deposit % (Jo 26 Oct): flat 10% at any price. */
+export function depositPctFor(_totalIncGst: number): number {
+  return WORKFLOW_DECISIONS.payment.deposit.installPct;
 }

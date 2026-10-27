@@ -5,7 +5,9 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
-export type OwnerEmailFacts = { firstName: string | null; ownerName: string | null; address: string | null; myJobUrl: string; installerName: string | null; installerPhone: string | null; test: boolean };
+export type OwnerEmailFacts = { firstName: string | null; ownerName: string | null; address: string | null; myJobUrl: string; installerName: string | null; installerPhone: string | null; test: boolean;
+  /** Real sends only: the owner's secure unsubscribe link (the guarded sender makes it). Null on TEST sends. */
+  unsubscribeUrl?: string | null };
 
 export async function sendOwnerTemplateEmail(p: {
   jobId: string; purpose: string; key: string; approved: boolean; label: string; notSentEvent: string;
@@ -52,5 +54,5 @@ export async function sendOwnerTemplateEmail(p: {
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   try { await assertCustomerDeliveryAllowed(p.jobId, p.label); } catch (e) { return `not sent — ${(e as Error).message}`; }
-  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: () => ({ ...p.render({ ...facts, test: false }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }), ...(p.retryAfterDefiniteFailure ? { retryAfterDefiniteFailure: true } : {}) });
+  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: (unsubscribeUrl) => ({ ...p.render({ ...facts, test: false, unsubscribeUrl }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }), ...(p.retryAfterDefiniteFailure ? { retryAfterDefiniteFailure: true } : {}) });
 }

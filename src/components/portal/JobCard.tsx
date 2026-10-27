@@ -33,9 +33,9 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5"><SourceBadge channel={job.channel} business={job.originating_business_name} /><Pill t={step.tone}>{step.label}</Pill>
         {job.eligibility_review_required && step.label !== "Review required" ? <Pill t="warn">Review required</Pill>
-          : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Ineligible</Pill>
-            : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>
-              : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely eligible</Pill>
+          : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Does Not Appear Eligible</Pill>
+            : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs Onsite Confirmation</Pill>
+              : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely Eligible</Pill>
                 : null}
         {job.comms_status && <Pill t={job.comms_status.tone}>{job.comms_status.label}</Pill>}
         {coverage && <Pill t={coverage === "serviceable" ? "good" : coverage === "unserviceable" ? "bad" : "warn"}>{coverage === "serviceable" ? <><CheckCircle2 className="mr-1 h-3 w-3" /> SERVICE COVERAGE</> : coverage === "unserviceable" ? <><XCircle className="mr-1 h-3 w-3" /> NO SERVICE COVERAGE</> : "COVERAGE TO CONFIRM"}</Pill>}

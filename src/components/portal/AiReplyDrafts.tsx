@@ -5,6 +5,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { discardAiReplyDraft, getAiReplyDrafts, sendAiReplyDraft } from "@/lib/ai-email-reply.functions";
 import { btnClass } from "@/components/portal/kit";
+import { aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
+import { panelLoad } from "@/lib/panel-load.core";
+import { LoadFailed } from "@/components/portal/load-failed";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -24,6 +27,10 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
         <span>{d.kind === "simple" ? "Simple email" : "Needs a check"} · {new Date(d.at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
       </div>
       <textarea aria-label="Reply text" value={body} onChange={(e) => setBody(e.target.value)} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
+      <details className="text-sm">
+        <summary className="cursor-pointer font-semibold text-hiv-blue">How the owner will see it</summary>
+        <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
+      </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
         <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>
         <button type="button" disabled={busy} className={btnClass("secondary", "min-h-[44px]")} onClick={() => void run(() => discard({ data: { eventId: d.eventId } }), "Draft discarded")}>Discard</button>
@@ -37,6 +44,7 @@ export function AiReplyDrafts({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ai-reply-drafts", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 15_000 });
   const waiting = (q.data ?? []).filter((d) => d.status === "waiting");
+  if (panelLoad(q) === "failed") return <section aria-label="Email replies to check" className="mb-4 rounded-[14px] border border-danger p-4"><LoadFailed what="Email replies to check" onRetry={() => void q.refetch()} /></section>;
   if (!waiting.length) return null;
   return (
     <section id="stage-email-drafts" aria-label="Email replies to check" className="mb-4 grid gap-2 rounded-[14px] border border-hiv-blue/30 bg-mist p-4">

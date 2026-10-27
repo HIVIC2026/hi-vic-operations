@@ -38,18 +38,12 @@ export function requiredDepositCents(totalIncGst: number | string, safetyFee?: n
 }
 
 /** Balance after the safety check payment, split into two halves. First half rounds DOWN to the cent; second takes the remainder. */
-export function balanceSplit(totalIncGst: number | string, safetyFee?: number | string | null) {
+/** Invoice split (Jo 26 Oct 2026: no half-and-half balance, no instalments). The `deposit` field is the PIESA fee
+ *  (stored in the invoice's legacy deposit_* columns that mirror Xero) — shown to people as "PIESA fee", never "deposit". */
+export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
   const t = cents(totalIncGst);
   const fee = requiredDepositCents(totalIncGst, safetyFee);
-  const bal = t - fee;
-  const first = Math.floor(bal / 2);
-  return { total: t / 100, fee: fee / 100, balance: bal / 100, firstHalf: first / 100, secondHalf: (bal - first) / 100 };
-}
-
-/** Invoice split kept under its old name: deposit = safety check payment, balance = the rest. */
-export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
-  const b = balanceSplit(totalIncGst, safetyFee);
-  return { depositPct: b.total > 0 ? Math.round((b.fee / b.total) * 10000) / 10000 : 0, deposit: b.fee, balance: b.balance, firstHalf: b.firstHalf, secondHalf: b.secondHalf };
+  return { depositPct: t > 0 ? Math.round((fee / t) * 10000) / 10000 : 0, deposit: fee / 100, balance: (t - fee) / 100 };
 }
 
 export type RefundOutcome = "none" | "refund_all" | "refund_except_safety_fee" | "keep_safety_fee";
@@ -234,4 +228,4 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 export const paymentOptionSummary = (safetyCheckIncGst: number) => `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.`;
 export const PAYMENT_OPTION_SUMMARY =
   "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.";
-export const PAYMENT_DECISION_STATUS = WORKFLOW_DECISIONS.payment.deposit.status;
+export const PAYMENT_DECISION_STATUS = "decided_2026_10_26_flat_10_pct" as const;

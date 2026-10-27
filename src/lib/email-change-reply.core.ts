@@ -5,8 +5,10 @@
 // "or reply to this email and we'll sort it out with you". Pure rules + wording only: nothing is read, sent or written here.
 // Wording (approved route, Jo 25 Oct 2026): subject "Re: {their subject}"; body "Hi {first name}, no problem. You can
 // change your {visit} here and {who} will be told straight away: {link}. If you'd rather cancel, you can do that on the
-// same page{cancel_note}. — Home Insulation Victoria".
+// same page{cancel_note}. — Home Insulation Victoria". Design (MJML refresh, Jo 26 Oct 2026): the same words in short
+// sentences with a "Change my {visit}" button and the full link under it (docs/templates/mjml/owner_change-reply.mjml).
 import * as K from "./email-kit.core";
+import { mjEmail, esc } from "./mail-mjml.core";
 import { newSenderFirstName, newSenderReplySubject } from "./new-sender-reply.core";
 import type { OwnerScreen } from "./owner-myjob.core";
 
@@ -80,30 +82,36 @@ export function changeReplyFirstName(ownerFullName: string | null | undefined, f
 
 const SIGN_OFF = "— Home Insulation Victoria";
 
+/** The approved route's words in the design's short sentences (docs/templates/mjml/owner_change-reply.mjml). The
+ *  {cancel_note} ", or reply to this email…" becomes its own sentence: "Or reply to this email…". */
 export function changeReplyParagraphs(f: ChangeReplyFacts) {
   const v = CHANGE_VISIT[f.visit];
+  const or = /^,\s*or\s+(.*)$/i.exec(f.cancelNote);
   return {
-    greeting: `Hi ${f.firstName ?? "there"}, no problem.`,
-    change: `You can change your ${v.visit} here and ${v.who} will be told straight away: ${f.link}.`,
-    cancel: `If you'd rather cancel, you can do that on the same page${f.cancelNote}.`,
+    greeting: `Hi ${f.firstName ?? "there"},`,
+    headline: "No problem",
+    change: `You can change your ${v.visit} on your job page. ${v.who.charAt(0).toUpperCase()}${v.who.slice(1)} will be told straight away.`,
+    button: `Change my ${v.visit}`,
+    cancel: or ? `If you'd rather cancel, you can do that on the same page. Or ${or[1]}.` : `If you'd rather cancel, you can do that on the same page${f.cancelNote}.`,
     signOff: SIGN_OFF,
   };
 }
 
-/** The approved words as one plain-text body. */
+/** The approved words as the plain-text body (same order as the email). */
 export function changeReplyText(f: ChangeReplyFacts): string {
   const p = changeReplyParagraphs(f);
-  return `${p.greeting} ${p.change} ${p.cancel} ${p.signOff}`;
+  return [p.greeting, "", p.headline, "", p.change, `${p.button}: ${f.link}`, "", p.cancel, "", p.signOff].join("\n");
 }
 
 export function renderChangeReplyEmail(i: ChangeReplyFacts & { theirSubject: string | null; unsubscribe?: string | null; test?: boolean }) {
   const p = changeReplyParagraphs(i);
-  const at = p.change.indexOf(i.link);
-  const changeHtml = `${K.esc(p.change.slice(0, at))}${K.link(i.link, i.link)}${K.esc(p.change.slice(at + i.link.length))}`;
-  const body = [K.greeting(p.greeting), K.p(changeHtml, "0 0 16px", true), K.p(p.cancel), K.p(p.signOff, "0")].join("\n");
+  const v = CHANGE_VISIT[i.visit];
+  const preview = `You can change your ${v.visit} on your job page, and ${v.who} is told straight away.`;
+  const subject = changeReplySubject(i.theirSubject);
+  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(p.greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(p.headline)}</mj-text><mj-text>${esc(p.change)}</mj-text><mj-button href="${esc(i.link)}">${esc(p.button)}</mj-button><mj-text mj-class="small" padding="0 12px 14px">Or open this link: <a href="${esc(i.link)}" style="color:#3C51C4;font-weight:700;word-break:break-all;">${esc(i.link)}</a></mj-text><mj-text>${esc(p.cancel)}</mj-text><mj-text padding="0 12px 0">${esc(p.signOff)}</mj-text></mj-column></mj-section>`;
   return {
-    subject: changeReplySubject(i.theirSubject),
-    html: K.emailShell({ body, previewText: null, testLabel: i.test === true, unsubscribe: i.unsubscribe ?? null }),
+    subject,
+    html: mjEmail({ subject, preview, body, unsubscribe: i.unsubscribe ?? null, testLabel: i.test === true }),
     text: K.plainText([changeReplyText(i)], { testLabel: i.test === true, unsubscribe: i.unsubscribe ?? null }),
   };
 }

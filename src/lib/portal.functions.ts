@@ -493,6 +493,29 @@ export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requ
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    // Jo 27 Oct (HV-3385): a Ready Check already Complete in Mitti used to fail with "No Mitti assessment has been
+    // created". Tapping Sync now re-reads the completed form through the same steps the 15-minute completed sweep uses
+    // (installer draft quote + finish step). The quote is never sent from here (sendEnabled: false).
+    const [{ data: m }, { data: a }, { data: job }] = await Promise.all([
+      admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
+      admin.from("assessments").select("external_mitti_id").eq("job_id", data.jobId).maybeSingle(),
+      admin.from("jobs").select("channel, stage").eq("id", data.jobId).maybeSingle(),
+    ]);
+    if (m?.external_source === "mitti" && m.external_id && m.status === "complete" && (!a?.external_mitti_id || a.external_mitti_id === m.external_id)) {
+      const { mittiApi, parseAudit } = await import("./mitti.core");
+      const { realMittiCall } = await import("./mitti.server");
+      const audit = await mittiApi(realMittiCall).getAudit(String(m.external_id));
+      const modifiedAt = audit?.modified_at ?? audit?.audit_data?.date_modified ?? null;
+      const entries = parseAudit(audit).snapshot as { label: string; value: string | null }[];
+      const issues: string[] = [];
+      if (job?.channel === "installer_sourced" && entries.length && job.stage !== "awaiting_quote_acceptance") {
+        const d = await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(data.jobId, context.userId, entries, String(m.external_id)).catch(() => null);
+        if (d && !d.ready) issues.push(...d.blockers);
+      }
+      const { finishMittiReadyCheck } = await import("./mitti-complete.server");
+      await finishMittiReadyCheck(data.jobId, { auditId: String(m.external_id), completed: true, modifiedAt, entries, ourLead: job?.channel !== "installer_sourced", sendEnabled: false }).catch(() => undefined);
+      return { locked: false, completed: true, issues };
+    }
     const { syncMittiAssessment } = await import("./mitti.server");
     return syncMittiAssessment(data.jobId, context.userId);
   });
@@ -876,7 +899,7 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ invoiceId: uuid, amountPaid: z.number().min(0) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    if (process.env["XERO_API_KEY_1"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
+    if (process.env["XERO_API_KEY"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
     const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
     // Testing tool: never writes a fake payment onto a real customer job (production shares this database).
@@ -1792,7 +1815,7 @@ export const getXeroConnection = createServerFn({ method: "GET" }).middleware([r
     const { xeroConnectionStatus } = await import("./xero.server");
     const { describeXeroRouting } = await import("./xero.core");
     try { return { ...(await xeroConnectionStatus()), error: null as string | null }; }
-    catch (e) { return { configured: Boolean(process.env["LOVABLE_API_KEY"] && process.env["XERO_API_KEY_1"]), connected: false, checkedAt: new Date().toISOString(), routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[], error: e instanceof Error ? e.message : "The Xero connection could not be checked." }; }
+    catch (e) { return { configured: Boolean(process.env["LOVABLE_API_KEY"] && process.env["XERO_API_KEY"]), connected: false, checkedAt: new Date().toISOString(), routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[], error: e instanceof Error ? e.message : "The Xero connection could not be checked." }; }
   });
 
 export const recordXeroTestPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

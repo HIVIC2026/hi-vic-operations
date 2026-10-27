@@ -1,0 +1,32 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your Home Insulation Victoria application – a quick change needed</mj-title>
+    <mj-preview>One thing to check, then update your application and sign again.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam, thanks for applying.</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">A quick change needed</mj-text>
+          <mj-text>Before we can approve your application, please check this:</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column mj-class="panel-amber">
+          <mj-text padding="18px 18px 18px">[The office's typed message appears here]</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text padding="14px 12px 14px">Then use the button below to update your application and sign again.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/installer-onboarding?resume=TEST">Update my application</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

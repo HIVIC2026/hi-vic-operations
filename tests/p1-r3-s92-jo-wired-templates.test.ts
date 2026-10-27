@@ -10,6 +10,7 @@
  * PostgREST shim. The email provider is a MOCK that counts calls: no real provider is ever contacted.
  */
 import { describe, expect, mock, test, beforeAll, afterEach } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
@@ -162,7 +163,7 @@ describe("A6. the correct pricing values reach the renderer", () => {
   test("the saved figures appear verbatim in both parts of the email", () => {
     const mail = renderJoOutcomeEmail(base({}))!;
     expect(mail.plainText).toContain("You save $1,482");
-    expect(mail.plainText).toContain("You pay after the rebate: $3,697 incl. GST (full price before rebate $5,179)");
+    expect(mail.plainText).toContain("You pay after the rebate: $3,697 incl. GST (full price $5,179)");
     expect(mail.html).toContain("$1,482");
     expect(mail.html).toContain("$3,697");
     expect(mail.html).toContain("$5,179");
@@ -172,7 +173,7 @@ describe("A6. the correct pricing values reach the renderer", () => {
     expect(belowR2.plainText).toContain("If some needs removing: $15/m², only the areas that need it.");
     expect(belowR2.plainText).toContain("If it can stay: $0.");
     // It is never added to the quoted total.
-    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price before rebate $5,179)");
+    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price $5,179)");
   });
   test("the included card states the customer price and rebate supplied, and no unsupplied figure is invented", () => {
     const mail = renderJoOutcomeEmail(base({}))!;
@@ -240,8 +241,7 @@ describe("B. Template 8 is retired", () => {
     for (const f of ["src/lib/ready-check-invitation.core.ts", "src/lib/ready-check-invitation.server.ts", "src/lib/ready-check-invitation.functions.ts"]) {
       expect(existsSync(f)).toBe(false);
     }
-    const route = readFileSync("src/routes/_authenticated/admin.ready-check.tsx", "utf8");
-    expect(route).toContain('redirect({ to: "/admin/enquiries"');
+    expect(officeLegacyTarget("ready-check")).toEqual({ to: "/admin/enquiries" });
     expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toContain("Ready Check invitations");
     expect(readFileSync("src/lib/jo-outcome-email.core.ts", "utf8")).not.toContain("renderJoReadyCheckInvitationEmail");
   });

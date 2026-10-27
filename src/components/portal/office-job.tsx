@@ -46,6 +46,8 @@ import { AdminBookingOverride } from "@/components/portal/partner";
 import { manualVisitKind } from "@/lib/pilot.core";
 import { AssessmentView, Compliance, ComplianceRecords, EligibilityForm, JobCoverage, Veec } from "@/components/portal/office-job-parts";
 import { FinalCheckScreen } from "@/components/portal/final-check";
+import { panelLoad, readOrThrow } from "@/lib/panel-load.core";
+import { LoadFailed } from "@/components/portal/load-failed";
 
 export type JobPage = Awaited<ReturnType<typeof import("@/lib/office-job-page.server").loadJobPage>>;
 type Header = JobPage["header"];
@@ -197,7 +199,8 @@ export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: Car
 /** Jo 24 Oct: a quote the owner said "Not for me" to can be reopened by the office for Send (reopenDeclinedQuote). */
 function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
   const reopen = useAction(reopenDeclinedQuote);
-  const { data } = useQuery({ queryKey: ["declined-quote", jobId], queryFn: async () => (await supabase.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation").neq("status", "superseded").order("created_at", { ascending: false }).limit(1).maybeSingle()).data });
+  const { data, error, refetch } = useQuery({ queryKey: ["declined-quote", jobId], queryFn: async () => readOrThrow(await supabase.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation").neq("status", "superseded").order("created_at", { ascending: false }).limit(1).maybeSingle()) });
+  if (panelLoad({ error, data }) === "failed") return <LoadFailed what="The quote status" onRetry={() => void refetch()} />;
   if (data?.status !== "declined") return null;
   return (
     <div className="rounded-[12px] border border-rose/30 bg-pink p-3 text-sm">
@@ -209,7 +212,7 @@ function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
 
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
-const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "To book the install · bank transfer · held 48h", balance: "On install day · bank transfer" };
+const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · bank transfer", balance: "On install day · bank transfer" };
 export function MoneyCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);
@@ -309,17 +312,19 @@ export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: stri
 
 /* ---------------- File (6-year record) ---------------- */
 export function FileList({ jobId }: { jobId: string }) {
-  const { data } = useJobFile(jobId);
+  const { data, error, refetch } = useJobFile(jobId);
   const open = useServerFn(openJobDocument);
   const [more, setMore] = useState<"none" | "docs" | "timeline">("none");
   const rows = fileChecklist(data?.documents ?? []);
   const onFile = rows.filter((r) => r.doc).length;
+  // A failed read showed "File · 0 documents" with every item missing; say it could not load instead.
+  const load = panelLoad({ error, data });
   return (
     <section aria-label="File" className={cn(card, "mb-4")} data-why="6-year ESC record: documents, area diagram (219), PIESA/PIISA/SWMS (206), VEEC form (119), consent (123); export pack for audit">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-bold text-ink">File · {onFile} document{onFile === 1 ? "" : "s"}{data?.retention ? ` · retain until ${new Date(data.retention.retainUntil).toLocaleDateString("en-AU", { month: "short", year: "numeric" })}` : ""}</h2>
+        <h2 className="font-display text-lg font-bold text-ink">File{load === "ready" ? ` · ${onFile} document${onFile === 1 ? "" : "s"}` : ""}{data?.retention ? ` · retain until ${new Date(data.retention.retainUntil).toLocaleDateString("en-AU", { month: "short", year: "numeric" })}` : ""}</h2>
       </div>
-      <ul className="divide-y divide-line">
+      {load === "failed" ? <LoadFailed what="The file list" onRetry={() => void refetch()} /> : load === "loading" ? <p className="text-sm text-sub">Loading the file list…</p> : <ul className="divide-y divide-line">
         {rows.map((r) => (
           <li key={r.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-2 text-[13px]">
             <span className="font-semibold">{r.label}</span>
@@ -329,7 +334,7 @@ export function FileList({ jobId }: { jobId: string }) {
               : <span className="text-sub">— {r.when}</span>}
           </li>
         ))}
-      </ul>
+      </ul>}
       <div className="mt-3 flex flex-wrap gap-3 text-sm">
         <button type="button" className="font-semibold text-hiv-blue" onClick={() => setMore(more === "docs" ? "none" : "docs")}>All documents {more === "docs" ? "▴" : "▾"}</button>
         <button type="button" className="font-semibold text-hiv-blue" onClick={() => setMore(more === "timeline" ? "none" : "timeline")}>Timeline {more === "timeline" ? "▴" : "▾"}</button>

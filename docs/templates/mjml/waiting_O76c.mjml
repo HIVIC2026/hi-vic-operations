@@ -1,0 +1,25 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Re: Is my spot saved?</mj-title>
+    <mj-preview>There's nothing more you need to do right now.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Helen,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Yes, your spot is saved</mj-text>
+          <mj-text>There's nothing more you need to do right now.</mj-text>
+          <mj-text>Thousands of Victorians have registered. Spots are released in the order they were saved. We'll be in touch when yours is released.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See where you're up to</mj-button>
+          <mj-text padding="0 12px 6px">Cheers,<br />the Home Insulation Victoria team</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

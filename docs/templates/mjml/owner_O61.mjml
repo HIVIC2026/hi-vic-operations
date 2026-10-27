@@ -1,0 +1,24 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, your rebate form still needs your signature</mj-title>
+    <mj-preview>It's the last step, and it takes a minute on your phone.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, your rebate form still needs your signature</mj-text>
+          <mj-text>We can't claim your $1,850 Victorian Energy Upgrades rebate until you've signed it. The rebate has already come off your price, so this is the last step.</mj-text>
+          <mj-text>It takes a minute on your phone. The form shows your installer, what was installed and the price.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=done">Sign your rebate form</mj-button>
+          <mj-text mj-class="small" padding="0 12px">Something on the form look wrong? Reply to this email before signing.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -4,12 +4,12 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Inbox, LogOut, Search } from "lucide-react";
+import { ChevronDown, LogOut, Search } from "lucide-react";
 import { searchOffice } from "@/lib/office.functions";
 import { MORE_SECTIONS, OFFICE_HEADINGS, OFFICE_HOME, sectionFor } from "@/config/office-nav";
 import { cn } from "@/lib/utils";
-import { useInboxEmails } from "@/hooks/use-inbox";
 import { MenuPanel } from "@/components/portal/kit";
+import { useEmailsCount } from "@/components/portal/emails-count";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 /** One search for the whole office: job number, owner or address (top bar, decision 218). */
@@ -93,22 +93,11 @@ function Initials({ name, onSignOut }: { name: string; onSignOut: () => void }) 
   );
 }
 
-/** The office Inbox (Jo 26 Oct 2026): emails waiting for a home, with the count. A failed count shows no number. */
-function InboxButton({ active }: { active: boolean }) {
-  const { data } = useInboxEmails();
-  const n = data?.length ?? 0;
-  return (
-    <Link to="/admin/inbox" aria-current={active ? "page" : undefined} aria-label={n ? `Inbox, ${n} email${n === 1 ? "" : "s"} to sort` : "Inbox"} className={cn("relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-[10px] px-2.5 text-sm font-semibold", active ? "bg-ink text-white" : "bg-mist text-ink hover:bg-mist/70")}>
-      <Inbox className="h-5 w-5" aria-hidden />
-      <span className="hidden md:inline">Inbox</span>
-      {n > 0 && <span aria-hidden className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose px-1 text-[11px] font-bold text-white md:static md:h-[22px]">{n}</span>}
-    </Link>
-  );
-}
-
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
+  const emails = useEmailsCount();
+  const badge = (key: string) => key === "emails" && emails ? <span className="ml-1 rounded-full bg-red-100 px-1.5 text-[11px] font-semibold text-red-800" aria-label={`${emails} emails waiting`}>{emails}</span> : null;
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-line bg-paper">
@@ -119,14 +108,13 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
           <nav aria-label="Office" className="hidden min-w-0 items-center gap-1 md:flex">
             {OFFICE_HEADINGS.map((h) => (
               <Link key={h.key} to={h.to} search={(h.search ?? {}) as never} aria-current={section === h.key ? "page" : undefined} className={cn("whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-semibold", section === h.key ? "bg-mist text-ink" : "text-sub hover:text-ink")}>
-                {h.label}
+                {h.label}{badge(h.key)}
               </Link>
             ))}
             <MoreMenu active={section === "more"} />
           </nav>
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <div className="hidden w-64 lg:block"><OfficeSearch /></div>
-            <InboxButton active={section === "inbox"} />
             <div className="md:hidden"><MoreMenu active={section === "more"} /></div>
             <Initials name={name} onSignOut={onSignOut} />
           </div>
@@ -134,10 +122,10 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
         <div className="border-t border-line px-4 py-2 lg:hidden"><OfficeSearch /></div>
       </header>
       <nav aria-label="Office menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {OFFICE_HEADINGS.map((h) => (
             <Link key={h.key} to={h.to} search={(h.search ?? {}) as never} aria-current={section === h.key ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center px-1 text-center text-[11px] font-semibold", section === h.key ? "text-hiv-blue" : "text-sub")}>
-              {h.label}
+              <span>{h.label}{badge(h.key)}</span>
             </Link>
           ))}
         </div>

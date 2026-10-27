@@ -28,7 +28,7 @@ export const NEW_SENDER_REPLY_TEMPLATE_TITLE = "O70 – New sender: homeowner en
 /** Decision 387 (Jo 25 Oct 2026: "they all go through the homeowner enquiry webpage on the website"): the ONLY link this
  *  reply carries. (Name kept from decision 292 so callers don't change.) */
 export const WEBSITE_CALCULATOR_URL = HOMEOWNER_ENQUIRY_URL;
-export const NEW_SENDER_REPLY_SIGN_OFF = "— Home Insulation Victoria";
+export const NEW_SENDER_REPLY_SIGN_OFF = "the Home Insulation Victoria team";
 
 /** "Re: {their subject}" (never "Re: Re: …"); no subject → "Re: Your email". */
 export function newSenderReplySubject(subject: string | null | undefined): string {
@@ -49,14 +49,14 @@ export function newSenderFirstName(fromName: string | null | undefined): string 
   return w[0]!.toUpperCase() + w.slice(1).toLowerCase();
 }
 
-/** The approved wording (decision 292, link and wording changed by decision 387), verbatim; {first name or "there"} and {link} filled. */
+/** The approved wording (decision 292; link decision 387; wording Jo 27 Oct 2026, decision 413), verbatim; {first name or "there"} filled. */
 export function newSenderReplyParagraphs(firstName: string | null) {
   return {
     greeting: `Hi ${firstName ?? "there"},`,
-    thanks: "Thanks for getting in touch with Home Insulation Victoria.",
-    calculator: `To get started, please submit your home on our website: ${WEBSITE_CALCULATOR_URL}.`,
-    questions: "There are thousands of people on the list, and spots are released in the order they're saved.",
-    reply: "If you have any questions, just reply to this email.",
+    thanks: "Thanks for getting in touch!",
+    linkLead: "You can check if your home is eligible for the insulation rebate and get a price estimate here:",
+    next: "Once you've done that, we'll take it from there and be in touch about next steps.",
+    cheers: "Cheers,",
     signOff: NEW_SENDER_REPLY_SIGN_OFF,
   } as const;
 }
@@ -64,7 +64,7 @@ export function newSenderReplyParagraphs(firstName: string | null) {
 /** Plain-text body exactly as approved (greeting … sign-off). */
 export function newSenderReplyText(firstName: string | null): string {
   const p = newSenderReplyParagraphs(firstName);
-  return [p.greeting, "", `${p.thanks} ${p.calculator}`, "", p.questions, "", p.reply, "", p.signOff].join("\n");
+  return [p.greeting, "", p.thanks, "", `${p.linkLead} ${WEBSITE_CALCULATOR_URL}`, "", p.next, "", p.cheers, p.signOff].join("\n");
 }
 
 export const normaliseSender = (raw: string | null | undefined) => (raw ?? "").trim().toLowerCase();

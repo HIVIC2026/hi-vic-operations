@@ -7,10 +7,33 @@
 // TEST only: never touches real jobs; nothing is sent to anyone outside the allowlist.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURNEY_ACTOR_EMAIL, TEST_INSTALLER_EMAIL, TEST_ELECTRICIAN_EMAIL, TEST_WORKER_EMAIL } from "../src/lib/journey.server";
 import { summarise, publishVerdict, type StepResult } from "../src/lib/journey-test.core";
 
+// Screens proof must not invoke legacy setup or server-driven actions before its safety preflight.
+if (process.argv.includes("--screens")) {
+  await import("./journey-screens");
+  process.exit(process.exitCode ?? 1);
+}
+const { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURNEY_ACTOR_EMAIL, TEST_INSTALLER_EMAIL, TEST_ELECTRICIAN_EMAIL, TEST_WORKER_EMAIL } = await import("../src/lib/journey.server");
+
 const keep = process.argv.includes("--keep");
+// Opt-in hard cases (Jo 27 Oct 2026): --branch not-eligible | --branch piesa-fixes. Without --branch nothing below changes.
+const branchArg = process.argv.includes("--branch") ? process.argv[process.argv.indexOf("--branch") + 1] : null;
+if (branchArg) {
+  if (branchArg !== "not-eligible" && branchArg !== "piesa-fixes") { console.error("--branch must be not-eligible or piesa-fixes"); process.exit(2); }
+  const { runJourneyBranch } = await import("../src/lib/journey-branches.server");
+  const res = await runJourneyBranch(branchArg);
+  const dir = `/mnt/documents/journey/${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}-${branchArg}`;
+  mkdirSync(dir, { recursive: true });
+  const md = [`# Journey hard case: ${branchArg}`, "", ...res.jobs.map((j) => `TEST job ${j.jobNumber ?? "-"} (${j.jobId ?? "-"}) — ${j.archived ? "archived" : "NOT archived"}`), "",
+    "## Setup (default steps, same code)", ...res.setup.map((s) => `- ${s.passed ? "ok" : "FAILED"} — ${s.label}${s.error ? `: ${s.error}` : ""}`), "",
+    "## Checks", ...res.checks.map((c) => `- **${c.n} ${c.status.toUpperCase()}** — ${c.name}: ${c.detail}${Object.keys(c.ids).length ? ` · ids ${JSON.stringify(c.ids)}` : ""}`)].join("\n");
+  writeFileSync(`${dir}/report.md`, md);
+  writeFileSync(`${dir}/report.json`, JSON.stringify(res, null, 2));
+  for (const c of res.checks) console.log(`${c.status.toUpperCase().padEnd(7)} ${c.n} ${c.name} — ${c.detail}`);
+  console.log(`\nReport: ${dir}/report.md`);
+  process.exit(res.checks.length && res.checks.every((c) => c.status === "passed" || c.status === "simulated") ? 0 : 1);
+}
 const noBrowser = process.argv.includes("--no-browser");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const outDir = `/mnt/documents/journey/${stamp}`;

@@ -4,12 +4,12 @@ import { jobProfitBreakdown } from "../src/lib/job-profit.core";
 
 const inst = { channel: "installer_sourced", committedLineOnAcceptedQuote: null, hivPaidAt: null };
 describe("electrical billing source", () => {
-  test("installer's own electrician → owner direct", () => expect(electricalBillingSource({ ...inst, choice: "installer_own" })).toBe("owner_direct"));
+  test("installer's own electrician → HIV payable (Jo 26 Oct: always billed through us)", () => expect(electricalBillingSource({ ...inst, choice: "installer_own" })).toBe("hivic"));
   test("HIV-arranged electrician → HIV payable", () => expect(electricalBillingSource({ ...inst, choice: "hivic_organise" })).toBe("hivic"));
   test("HIV lead never owner direct, whatever the choice", () => expect(electricalBillingSource({ ...inst, channel: "hivic_sourced", choice: "installer_own" })).toBe("hivic"));
   test("accepted quote with PIESA line stays HIV payable (history kept)", () => expect(electricalBillingSource({ ...inst, choice: "installer_own", committedLineOnAcceptedQuote: true })).toBe("hivic"));
   test("recorded HIV payment is never reinterpreted", () => expect(electricalBillingSource({ ...inst, choice: "installer_own", hivPaidAt: "2026-10-01" })).toBe("hivic"));
-  test("accepted quote without PIESA line + own → owner direct", () => expect(electricalBillingSource({ ...inst, choice: "installer_own", committedLineOnAcceptedQuote: false })).toBe("owner_direct"));
+  test("accepted quote without PIESA line + own → still HIV payable", () => expect(electricalBillingSource({ ...inst, choice: "installer_own", committedLineOnAcceptedQuote: false })).toBe("hivic"));
 });
 
 const base = { hivJob: false, postcode: "3000", estimateAreaM2: 100, measuredAreaM2: null, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 10, installerR5IncPerM2: null, installerRemovalIncPerM2: null, apFeeInc: 349, piesaCustomerInc: 349, electricianPiesaRateInc: null, veecBuyPrice: 30, currentVeecPrice: 83, acceptedQuoteMarkupInc: null, acceptedQuoteLegacy: false, lodgedVeecs: null, saleVeecPrice: null };

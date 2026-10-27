@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { automaticLeadEmail, classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
 import { captureLinkState, parseCapturePath, validateVideo, validateCaptureFile, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
-import { renderEstimateEmail } from "../src/lib/estimate-email";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 
 const passes = ["location", "residential", "ceiling_age", "previous_activity"].map((key) => ({ key, result: "pass" }));
@@ -117,11 +116,6 @@ describe("homeowner video capture", () => {
     { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" }, { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" },
     { kind: "intake_media", mime_type: "image/jpeg", storage_path: "b" }, { kind: "evidence", mime_type: "video/mp4", storage_path: "c" },
   ])).toBe(1));
-  test("approved estimate renderer still renders a $0-now assumed-area draft", () => {
-    const m = renderEstimateEmail({ estimateUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", outcome: "likely", firstName: "Sam", reference: "HV-1", estimatedTotal: 900, veuDiscount: 1949, areaM2: 150, installationPrice: 2500, installationRatePerM2: 16.67, assessmentFee: 0, apFee: 349, grossProjectTotal: 2849, amountPayableNow: 0, estimatedRemainingBalance: 900, areaIsTypical: true });
-    expect(m.subject.length).toBeGreaterThan(5);
-    expect(m.html).toContain("150");
-  });
 });
 
 import { enquiryStatus, STATUS_ORDER } from "../src/lib/enquiry-groups.core";
@@ -142,7 +136,7 @@ describe("one automatic email route", () => {
   test("eligible no-insulation owner with entered size gets the spot offer", () => expect(automaticLeadEmail(baseRoute)).toEqual({ email: "offer_spot", blocker: null }));
   test("existing insulation gets the existing-insulation offer (Jo 23 Oct)", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true }));
   test("decision 392: unsure insulation gets the same existing-insulation Save my spot, never the questions email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true }));
-  test("decision 392: an Office-reviewed unsure owner keeps the reviewed request path", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown", officeReviewed: true })).toEqual({ email: "request_insulation", blocker: null }));
+  test("decision 417: an Office-reviewed unsure owner gets Save my spot (no office hold)", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown", officeReviewed: true })).toMatchObject({ email: "offer_spot", blocker: null, existingInsulation: true }));
   test("official ineligible gets the ineligible email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "does_not_appear_eligible", declaredInsulation: "unknown" })).toEqual({ email: "ineligible", blocker: null }));
   test.each([
     [{ source: "qa_test" }, "TEST"], [{ reviewRequired: true }, "office review"], [{ intakeWorkActive: true }, "still running"], [{ decisionSource: null }, "missing"],

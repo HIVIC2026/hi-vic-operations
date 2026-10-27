@@ -1,6 +1,6 @@
 import { ACTIVATABLE_INSTALLER_VERSIONS, INSTALLER_AGREEMENT_VERSION, normaliseInstallerDraft, type InstData, EXTRA_ITEMS } from "./installer-onboarding.core";
 import { validCalendarDate } from "./rec-onboarding.core";
-import { ACTIVATABLE_REC_VERSIONS, REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
+import { ACTIVATABLE_REC_VERSIONS, MIN_REC_PL_COVER, REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
 
 export type PartnerType = "rec" | "installer";
 
@@ -82,7 +82,23 @@ export function activationBlockers(type: PartnerType, data: RecData | InstData, 
   if (!signedAt) blockers.push("The agreement has not been signed.");
   if (type === "rec" ? !ACTIVATABLE_REC_VERSIONS.includes(agreementVersion ?? "") : !ACTIVATABLE_INSTALLER_VERSIONS.includes(agreementVersion ?? "")) blockers.push(`Agreement ${type === "rec" ? REC_AGREEMENT_VERSION : INSTALLER_AGREEMENT_VERSION} must be accepted before activation.`);
   if (!validCalendarDate(data.public_liability_expiry) || (data.public_liability_expiry as string) < melbourneToday(now)) blockers.push("Public liability insurance is expired or missing.");
+  if (type === "rec") blockers.push(...electricianApprovalBlockers(data as RecData, now));
   return blockers;
+}
+
+/** Decision 415 (Jo 27 Oct 2026): an electrician is stopped at approval for a missing/expired licence, no REC number,
+ *  cover under $5m (skipped when they work under another REC, which holds the insurance) or a PIESA price over $349
+ *  inc GST. Like insurance, the office may still approve with a written override reason. */
+export const PIESA_PRICE_LIMIT_INC_GST = 349;
+export function electricianApprovalBlockers(d: RecData, now = new Date()): string[] {
+  const out: string[] = [];
+  const underHost = d.works_under_rec === true;
+  if (!(d.licence_number ?? "").trim()) out.push("Electrical licence is missing.");
+  else if (!validCalendarDate(d.licence_expiry) || (d.licence_expiry as string) < melbourneToday(now)) out.push("Electrical licence is expired or has no expiry date.");
+  if (!((underHost ? d.host_rec_number : d.rec_registration_number) ?? "").trim()) out.push("REC number is missing.");
+  if (!underHost && !(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_REC_PL_COVER)) out.push("Public liability cover is under $5,000,000.");
+  if (typeof d.assessment_rate === "number" && d.assessment_rate > PIESA_PRICE_LIMIT_INC_GST) out.push(`PIESA price $${d.assessment_rate} is over the $${PIESA_PRICE_LIMIT_INC_GST} limit.`);
+  return out;
 }
 
 /** Work preferences that decide whether a business may be offered new Home Insulation Victoria leads. */

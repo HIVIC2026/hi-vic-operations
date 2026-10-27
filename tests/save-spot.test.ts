@@ -57,8 +57,8 @@ describe("save my spot", () => {
     test(`status at ${stage}`, () => {
       const f = (c: JobFacts["campaign"]): JobFacts => ({ id: "j", stage, createdAt: "2026-10-01T00:00:00Z", lastActivityAt: null, enteredStageAt: "2026-10-02T00:00:00Z", ownerContactedAt: "2026-10-02T00:00:00Z", campaign: c });
       const now = Date.parse("2026-10-05T00:00:00Z");
-      expect(officeStatus(f(camp()), now)).toMatchObject({ label: "Spot saved, needs an installer", waitingOn: "Us" });
-      expect(officeStatus(f(camp({ videoRequested: true, mediaReceivedAt: "2026-10-04T01:00:00Z", deskCheckStatus: "pending", queuePriority: "video" })), now)?.label).toBe("Spot saved · video sent");
+      expect(officeStatus(f(camp()), now)).toMatchObject({ label: "Spot saved", action: "Choose installer", waitingOn: "Us" });
+      expect(officeStatus(f(camp({ videoRequested: true, mediaReceivedAt: "2026-10-04T01:00:00Z", deskCheckStatus: "pending", queuePriority: "video" })), now)).toMatchObject({ key: "enquiry.spot_saved_video", label: "Spot saved" });
       expect(officeStatus(f(camp({ spotSavedAt: null, optedOutAt: "2026-10-04T00:00:00Z" })), now)?.label).not.toMatch(/Spot saved/);
     });
   }

@@ -50,12 +50,12 @@ describe("owner price by R-value (Jo 22 Oct 2026)", () => {
     expect(q.holdReasons).toEqual([]);
     expect(q.installerMarkup.markupInc).toBe(r(150 * (32 - 22)));
   });
-  test("R7.0 uses $33/m²", () => { expect(priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 20 }).lines[0]!.unit_price_inc_gst).toBe(33); });
+  test("R7.0 uses $35/m² (Jo 27 Oct)", () => { expect(priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 20 }).lines[0]!.unit_price_inc_gst).toBe(35); });
   test("removal, access loading and fees unchanged at R7.0", () => {
     const q = priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 20, removalM2: 40, accessRating: "Difficult" });
-    expect(q.lines.map((l) => [l.code, l.unit_price_inc_gst])).toEqual([["R7_BATTS", 33], ["REMOVAL", 15], ["PIESA", 349], ["AP_FEE", 349]]);
+    expect(q.lines.map((l) => [l.code, l.unit_price_inc_gst])).toEqual([["R7_BATTS", 35], ["REMOVAL", 15], ["PIESA", 349], ["AP_FEE", 349]]);
   });
-  test("Hic-style R6 $35 / R7 $40 inc GST above owner $32 / $33 → held for office review", () => {
+  test("Hic-style R6 $35 / R7 $40 inc GST above owner $32 / $35 → held for office review", () => {
     expect(priceHivQuote({ ...base, rValue: "R6.0", installerRExPerM2: 35 / 1.1 }).holdReasons).toEqual(["This installer's agreed R6.0 rate is above the owner price – office review needed."]);
     expect(priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 40 / 1.1 }).holdReasons).toEqual(["This installer's agreed R7.0 rate is above the owner price – office review needed."]);
   });

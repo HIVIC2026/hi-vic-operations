@@ -62,7 +62,7 @@ Some messages were already approved, were going out, and have an approval switch
 
 ### O1 / O2 Save my spot (estimate email) — `src/lib/jo-outcome-email.core.ts` + shared cards in `src/lib/email-kit.core.ts`
 
-Shown in the first estimate email, the 3 questions reminder email (O2 questions) and the media-received version. Sample designs: `docs/templates/owner/O1-save-my-spot.html`, `O2-save-my-spot-some-insulation.html`, `O2-save-my-spot-questions.html`, all re-rendered.
+Shown in the first estimate email, the 3 questions reminder email (O2 questions) and the media-received version. Sample designs: `docs/templates/mjml/owner_O1.mjml`, `O2-save-my-spot-some-insulation.html`, `O2-save-my-spot-questions.html`, all re-rendered.
 
 **Was approved and live (decisions 66–69, 172, 180). Now HELD** by `SAVE_SPOT_REAL_SEND_APPROVED`, `INSULATION_DETAILS_REAL_SEND_APPROVED` and `INSULATION_QUESTIONS_SEND_APPROVED`.
 
@@ -80,7 +80,7 @@ Shown in the first estimate email, the 3 questions reminder email (O2 questions)
 
 ### O10 Spot saved email — `src/lib/spot-saved-messages.core.ts`
 
-Sent once when the owner saves their spot. Design: `docs/templates/owner/O10-spot-saved.html`, re-rendered.
+Sent once when the owner saves their spot. Design: `docs/templates/mjml/owner_O10.mjml`, re-rendered.
 
 **Was approved and live (decision 70). There is no code flag (only the Settings switch `spot_saved_email`), so it was CHANGED DIRECTLY — NO FLAG.**
 
@@ -101,7 +101,7 @@ Sent once when the owner saves their spot. Design: `docs/templates/owner/O10-spo
 
 ### O66 / O67 / O68 estimate reminders — `src/lib/estimate-followup.core.ts`
 
-Designs: `docs/templates/owner/O66…O68`, re-rendered by `scripts/render-decision-238-drafts.ts`.
+Designs: `docs/templates/mjml/owner_O66…O68.mjml`, re-rendered by `scripts/render-decision-238-drafts.ts`.
 
 **Was approved and live (decisions 242/357). Paused in commit 78dedb25 and still HELD** (`ESTIMATE_FOLLOWUP_APPROVED = false`). 264 day-2/day-7 reminders had already gone out.
 
@@ -136,7 +136,7 @@ Designs: `docs/templates/owner/O66…O68`, re-rendered by `scripts/render-decisi
 
 ### O7 Not in your area yet — `src/lib/coverage-email.ts:18`
 
-The office presses Send. **Approved (decision 74), no flag: CHANGED DIRECTLY — NO FLAG.** Design `docs/templates/owner/O7-not-in-area.html` updated.
+The office presses Send. **Approved (decision 74), no flag: CHANGED DIRECTLY — NO FLAG.** Design `docs/templates/mjml/owner_O7.mjml` updated.
 
 - **Current:** We're adding installers across Victoria. As soon as one covers your area, we'll email you.
 - **Proposed:** We're adding installers across Victoria. When one covers your area, we'll email you.
@@ -295,7 +295,7 @@ Two descriptions mentioned a Ready Check: the campaign page and the preliminary 
 ## 4. How this is kept in sync
 
 - Sample designs: `bun scripts/render-decision-388-samples.ts` rewrites O1, O2 (some insulation), O2 (questions), O10, O66–O68 and O76a–j from the live code.
-- `docs/templates/owner/O7-not-in-area.html` and `P1-questions-page.html` were edited by hand to match.
+- `docs/templates/mjml/owner_O7.mjml` and `P1-questions-page.html` were edited by hand to match.
 - Test: `tests/decision-388-spot-only.test.ts` checks:
   - every pre-release message, constant and page string against the banned words
   - the held flags

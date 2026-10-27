@@ -1,36 +1,57 @@
-# Repair owner saving and optional closure emails
+# Team workers: full details, Mitti for lead installers, install-day text and safety documents
 
-## Confirmed findings
-- **Owner saving:** the three-question page is shown to real owners, but its save action is deliberately restricted to TEST enquiries in preview. It fails before Save my spot runs. The required answer-saving database function is still in pending migration 0222; removing the restriction alone is not a safe fix.
-- **Optional closure email:** “Not eligible – close” cancels the enquiry without recording an official Office ineligible decision. The existing email sender correctly refuses to send an ineligible explanation when that decision is absent.
-- **Baseline verification:** 17 focused isolated and practice-database tests passed. No application code or live records changed; nothing sent or published.
+Plan only. Nothing is built until Jo approves it. Updated with Jo's answers from 27 Oct, 04:31.
 
-## Proposed changes
-### 1. Restore the owner save journey
-- Keep all three required questions, optional photos, current wording, quote figures and shared ranking.
-- Prepare a complete, guarded answer-save → canonical spot-save journey in preview. Retain immutable website history and existing consent, opt-out, link, stage and five-year checks.
-- Do not substitute the old below-R2 declaration: that would invent an answer for thicker or unknown insulation.
-- Keep real-owner answer persistence inactive until separately approved. Do not apply migration 0222 or silently bypass it with direct writes.
-- Confirm success only after the spot actually saves, including repeat submissions and recovery when the answers save but the spot-save step fails.
+## What already exists
+- **Worker records** already hold: full legal name, mobile, email, trade, a certificate number and expiry, and approval status. Workers can't see jobs until the office approves them. Approval stays exactly as it is today.
+- **Mitti invite on approval** is already built. It finds an existing Mitti user by email and links them, and never invites anyone twice. It asks for a Lite seat, paid by Home Insulation Victoria. It is switched OFF, and creating new Mitti users is locked until it is tested once.
+- **Install-day text** already goes to the mobile of the person the job is allocated to, and is never sent after 8pm.
+- **Safety plan (SWMS)** is written by the portal from the job's facts and shown on the install-day page.
 
-### 2. Correct the explicit closure action
-- Record the reason, Office actor, time and previous eligibility decision when the office explicitly closes an enquiry as not eligible.
-- Reuse the official decision-recording behavior without its automatic email, stage progression or quote preparation side effects.
-- Keep all four photo rank buttons strictly rank-only: no eligibility change and no email.
-- Leave email delivery as the separate checkbox-selected action through the existing guarded ineligible sender. Preserve consent, STOP/opt-out, TEST exclusion, suppression and duplicate checks.
+## What changes
 
-## Verification
-- Add isolated tests for complete valid answers, recent-home ineligibility, expired links, missing consent, repeated saves, save-step failure and successful saved-spot readback.
-- Prove any pending database adjustment on PGlite only.
-- Add tests that explicit closure records an official ineligible decision and preserves history; unticked closure never reaches delivery, and rank-only review never changes eligibility.
-- Verify the checkbox-selected path with an isolated fake delivery adapter and ensure blocked recipients remain blocked.
-- Exercise both screens using isolated TEST fixtures and blocked external delivery; no hosted sender scripts or real-owner mutations.
-- Check automatic preview build/type-check results and resolve each monitoring finding only after its repaired behavior is verified.
+### 1. Full worker details (Team / Your staff)
+- Required for every installer worker, Lead installer **and** Crew: full legal name, mobile, email, role, CII number, CII expiry and CII certificate file.
+- Adds a role (Lead installer / Crew) and a CII certificate file. Reuses the existing number and expiry boxes.
+- Existing approved installer workers with no role show **"Role needed"** until their business sets one. The business is asked to choose on its Team page, and the office sees the to-do.
+
+### 2. Mitti for Lead installers only
+- First, one real "create user" test on a real lead installer's email. This uses one paid Lite seat. After it passes, the auto-invite is turned **ON for Lead installers only**.
+- When the office approves a Lead installer, the portal links their existing Mitti user, or invites them if they don't have one. Their Mitti login is saved on their record.
+- Crew are never added to Mitti.
+- The Team list shows Mitti status: Invited / Joined / Failed. If an invite fails, the office is told in Needs me.
+
+### 3. Who's doing the install
+- Only approved Lead installers can be picked under "Who's doing this". The Mitti form goes to that lead's Mitti login.
+- Crew are picked on the crew list for that install. They also feed the PIISA crew list.
+- **Everyone on the install**, the lead and each picked crew member, gets the 6:30am install-day text on their own mobile. Each person gets it once only. No texts after 8pm still applies.
+
+### 4. Safety documents
+- The install-day text includes a link to a page that shows:
+  - the SWMS
+  - the PIESA result
+  - the Ready Check hazards
+- The lead and every crew member on that install can open it. Nobody else can. It shows no prices, rates or bank details.
+
+## Mitti limits
+- Linking existing users works today.
+- Creating users needs the one real test first.
+- Each lead uses one paid Lite seat. Crew use none.
+
+## Questions for Jo
+None left. One thing Jo needs to confirm before the Mitti test: which lead installer's real email to use.
 
 ## Technical details
-- Preserve `insulationDraftSaveAllowed` until separate activation approval. Keep token-bound answer persistence in the pending SQL and canonical Save my spot handling rather than introducing parallel storage or delivery paths.
-- The existing `setEligibility` action calls `maybeAutoRouteLeadEmail` and `autoAdvanceJob`; do not invoke it unchanged from photo closure. Isolate its audited decision-write behavior from those side effects.
-- Closing must leave `eligibility_outcome=does_not_appear_eligible`, an admin decision source, a recorded reason/actor/time and no unresolved eligibility-review flag, while keeping the cancellation history. Do not weaken `officialOutcomeForDelivery`.
-
-## Boundaries and release
-This approval authorises preview implementation and isolated tests only. No live database changes, emails, texts, publication or activation. Restoring real-owner saving on the published site will still need separately approved persistence activation and publication; report that limitation explicitly.
+- Add `worker_role` (lead / crew / null = "Role needed") and `cii_certificate_path` to `partner_workers`, proven on the practice database first. RLS and grants stay unchanged.
+- Require the CII fields for installer workers on the Team form. Office approval logic is unchanged.
+- `mitti-invite.server.ts`: skip anyone whose role isn't lead. Set `MITTI_USER_API_VERIFIED` only after the probe passes. Jo has approved switching the auto-invite on for leads.
+- Allocation: the lead picker shows leads only. Add a crew list per install. The install-day text goes to each person, with its own send-once key, the existing 8pm guard, and the page link.
+- The safety page is reachable by the allocated lead and crew only (role-checked).
+- Tests:
+  - Crew are refused without CII details.
+  - Only leads are invited to Mitti.
+  - Only leads can be picked.
+  - The lead and the crew each get one text.
+  - No text after 8pm.
+  - Crew on the job can open the safety page; others can't.
+- Add these tasks to the roadmap when the build starts.

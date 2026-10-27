@@ -84,6 +84,14 @@ async def main(manifest_path):
                     }''', timeout=15000)
                     if s.get('readinessSelector'):
                         await page.locator(s['readinessSelector']).wait_for(state='visible', timeout=15000)
+                    # Pages that show a plain "Loading…" paragraph (no role=status) look ready too early:
+                    # give each expected marker time to appear; a marker that never shows is still reported below.
+                    if not s.get('verifyContent'):
+                        for marker in s.get('mustSee') or []:
+                            try:
+                                await page.wait_for_function('''marker => document.body.innerText.toLowerCase().includes(marker.toLowerCase())''', arg=marker, timeout=20000)
+                            except Exception:
+                                pass
                     if s.get('verifyContent'):
                         await healthy_panel(page.locator('main').first)
                         for marker in s.get('mustSee') or []:

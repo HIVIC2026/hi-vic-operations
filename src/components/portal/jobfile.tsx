@@ -18,6 +18,8 @@ import { fmtDate } from "@/lib/workflow";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { CleanEmailConversation } from "./OwnerEmailConversation";
 import { isHumanOwnerEmail } from "@/lib/owner-email-presentation.core";
+import { panelLoad } from "@/lib/panel-load.core";
+import { LoadFailed } from "@/components/portal/load-failed";
 
 type JobFile = Awaited<ReturnType<typeof import("@/lib/jobfile.server").buildJobFile>>;
 type JobRow = import("@/integrations/supabase/types").Database["public"]["Views"]["job_overview"]["Row"];
@@ -93,20 +95,24 @@ function DocRow({ jobId, d }: { jobId: string; d: DocItem }) {
 
 /** Documents for one Job File section, filed automatically. */
 export function SectionDocuments({ jobId, categories, title = "Documents in this section" }: { jobId: string; categories: DocCategory[]; title?: string }) {
-  const { data } = useJobFile(jobId);
+  const { data, error, refetch } = useJobFile(jobId);
   const [hasOpened, setHasOpened] = useState(false);
   const docs = useMemo(() => { const all = (data?.documents ?? []) as DocItem[]; const set = new Map<string, DocItem>(); categories.forEach((c) => inCategory(all, c).forEach((d) => set.set(d.id, d))); return [...set.values()]; }, [data, categories]);
+  if (panelLoad({ error, data }) === "failed") return <LoadFailed what="The documents" onRetry={() => void refetch()} />;
   if (!docs.length) return null;
   return <details className="rounded-xl border p-3" onToggle={(e) => { if (e.currentTarget.open) setHasOpened(true); }}><summary className="cursor-pointer text-sm font-medium">{title} ({docs.length})</summary>{hasOpened && <ul className="mt-2 divide-y">{docs.map((d) => <DocRow key={d.id} jobId={jobId} d={d} />)}</ul>}</details>;
 }
 
 export function AllDocuments({ jobId }: { jobId: string }) {
-  const { data } = useJobFile(jobId);
+  const { data, error, refetch } = useJobFile(jobId);
   const [q, setQ] = useState(""); const [cat, setCat] = useState<DocCategory | "all">("all"); const [showOld, setShowOld] = useState(false);
   const docs = (data?.documents ?? []) as DocItem[];
   const filtered = searchItems(cat === "all" ? docs : inCategory(docs, cat), q, (d) => [d.title, d.category, d.docType, d.fileName, d.at, d.sourceSystem])
     .filter((d) => showOld || !["superseded", "historical"].includes(d.status));
   const counts = Object.fromEntries(DOC_CATEGORIES.map((c) => [c, inCategory(docs, c).length]));
+  const load = panelLoad({ error, data });
+  if (load === "failed") return <Section title="All documents"><LoadFailed what="The documents" onRetry={() => void refetch()} /></Section>;
+  if (load === "loading") return <Section title="All documents"><p className="text-sm text-muted-foreground">Loading documents…</p></Section>;
   return (
     <Section title="All documents">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -212,8 +218,9 @@ function TimelineDetail({ item: t }: { item: JobFile["timeline"][number] }) {
   </details>;
 }
 export function JobTimeline({ jobId }: { jobId: string }) {
-  const { data } = useJobFile(jobId);
+  const { data, error, refetch } = useJobFile(jobId);
   const [f, setF] = useState<TimelineFilter>("all"); const [q, setQ] = useState("");
+  const load = panelLoad({ error, data });
   const items = searchItems((data?.timeline ?? []).filter((t) => f === "all" || t.tags.includes(f as never)), q, (t) => [t.summary, t.source, t.actor, t.at]);
   return (
     <Section title="Timeline / audit">
@@ -224,7 +231,7 @@ export function JobTimeline({ jobId }: { jobId: string }) {
       <ol className="space-y-1">{[...items].reverse().map((t) => (
         <li key={t.id}><TimelineDetail item={t} /></li>))}
       </ol>
-      {!items.length && <p className="text-sm text-muted-foreground">No events for this filter.</p>}
+      {load === "failed" ? <LoadFailed what="The audit history" onRetry={() => void refetch()} /> : load === "loading" ? <p className="text-sm text-muted-foreground">Loading…</p> : !items.length && <p className="text-sm text-muted-foreground">No events for this filter.</p>}
     </Section>
   );
 }

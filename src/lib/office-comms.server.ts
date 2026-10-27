@@ -16,7 +16,9 @@ const FOLLOWUP_LABEL: Record<string, string> = { estimate_unopened_3d: "Your est
 async function jobFacts(ids: string[]) {
   const out = new Map<string, { number: string; owner: string | null; live: boolean }>();
   for (const part of chunks([...new Set(ids)])) {
-    const { data } = await db.from("jobs").select("id, job_number, source, deleted_at, owners(full_name)").in("id", part);
+    const { data, error } = await db.from("jobs").select("id, job_number, source, deleted_at, owners(full_name)").in("id", part);
+    // A failed lookup must fail the read: an empty map would drop every row as "not live" and show "Nothing failed".
+    if (error) throw new Error(`Could not read jobs: ${error.message}`);
     for (const j of (data ?? []) as { id: string; job_number: string; source: string | null; deleted_at: string | null; owners: { full_name: string | null } | null }[])
       out.set(j.id, { number: j.job_number, owner: j.owners?.full_name ?? null, live: j.source !== "qa_test" && !j.deleted_at });
   }
@@ -51,7 +53,7 @@ export async function heldAndQueued(now = new Date()) {
   const heldRows = ((sms.data ?? []) as { id: string; message_type: string; idempotency_key: string; job_id: string | null; business_id: string | null; to_number: string; detail: string | null; created_at: string }[]).filter((r) => isHeldAttemptKey(r.idempotency_key));
   const claimKeys = [...new Set(heldRows.map((r) => claimKeyOf(r.idempotency_key)))];
   const went = new Set<string>();
-  for (const part of chunks(claimKeys, 200)) { const { data } = await db.from("sms_messages").select("idempotency_key").in("idempotency_key", part); for (const r of (data ?? []) as { idempotency_key: string }[]) went.add(r.idempotency_key); }
+  for (const part of chunks(claimKeys, 200)) { const { data, error } = await db.from("sms_messages").select("idempotency_key").in("idempotency_key", part); if (error) throw new Error(`Could not read sent texts: ${error.message}`); for (const r of (data ?? []) as { idempotency_key: string }[]) went.add(r.idempotency_key); }
   const latest = new Map<string, (typeof heldRows)[number]>();
   for (const r of heldRows) { const k = claimKeyOf(r.idempotency_key); if (!went.has(k) && !latest.has(k)) latest.set(k, r); }
   const smsRows = [...latest.values()];

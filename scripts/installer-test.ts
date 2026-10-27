@@ -494,11 +494,11 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   });
   await step(steps, "C11", "C11 Add one job: price exact, site check, attached to installer, nothing sent", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
-    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 ${tag} One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
     c("draft created", !!imp.id);
     const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measurement_method: "Tape measure on site", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measurement_method: "Tape measure on site", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: `9 ${tag} One Job Rd`, suburb: "Fraser Rise", postcode: "3336", measurement_method: "Tape measure on site", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));
@@ -517,7 +517,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const path = `partners/${BIZ}/imports/${crypto.randomUUID()}-ceiling-1.jpg`;
     const up = await admin.storage.from("job-files").upload(path, readFileSync(`${fixtures}/ceiling-1.jpg`), { contentType: "image/jpeg" });
     c("photo uploaded privately", !up.error, up.error?.message);
-    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Photo, 14 Photo St, Fraser Rise VIC 3336, 0412 999 014, qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, csvRow: 0, files: [] });
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Photo, 14 ${tag} Photo St, Fraser Rise VIC 3336, 0412 999 014, qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, csvRow: 0, files: [] });
     const added = await pi.addImportFilesFor(ownerId, imp.id, [{ path, name: "ceiling-1.jpg", type: "image/jpeg" }]);
     c("photo attached to the draft", added.files.length === 1);
     const { visitedFromEvidence } = await import("../src/lib/job-electrician.core");
@@ -530,7 +530,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const inv = await (await import("../src/lib/job-electrician-invite.server")).sendElectricianInvite({ actorId: ownerId, nominationId: nom!.id, installerBusinessId: BIZ, inviteToken: "testtoken_".padEnd(40, "x"), to: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, name: `TEST ${tag} Sparky`, dryRun: true });
     c("invite for a TEST business goes only to Jo's test inbox", inv.to === "jolowexo@hotmail.com", inv.to);
     c("invite links to the electrician application", "message" in inv && String(inv.message).includes("/electrician-onboarding?invite="));
-    const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: "14 Photo St", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
+    const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: `14 ${tag} Photo St`, suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
     const noConsent = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: false }, electrician: { mode: "mine", nomination_id: nom!.id } }).then(() => "accepted", (e) => (e as Error).message);
     c("job can't be added without the owner consent tick", noConsent !== "accepted" && /permission to contact/.test(noConsent), noConsent);
     const noPick = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true }, electrician: { mode: "mine" } }).then(() => "accepted", (e) => (e as Error).message);
@@ -620,7 +620,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
   });
-  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Customer", "permission for Home Insulation Victoria to contact them", "Next"], mustNotSee: [...BANNED, "I'm at the property now", "Add a job for later", "Where is it from"] });
+  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Owner", "Home Insulation Victoria permission to contact them", "Add job"], mustNotSee: [...BANNED.filter((t) => t !== "optional"), // decisions 115/116: basics only, "Add job" button, one approved "(optional)" visit field
+    "I'm at the property now", "Add a job for later", "Where is it from"] });
 
   await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
     const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
@@ -657,13 +658,13 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [] });
     const s1 = await ii.installerIntakeState(a.jobId);
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
-    c("later measurements + quote saved on the same job", s1.areaM2 === 118 && s1.quoteIncGst === 2450, `${s1.areaM2} ${s1.quoteIncGst}`);
+    c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
     // wrong business refused BEFORE any write
     const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").limit(1).maybeSingle();
     const wrong = await ii.installerUpdateIntake(a.jobId, ownerId, other?.id ?? "00000000-0000-0000-0000-000000000000", { areaM2: 1, insulation: "none", quoteStatus: "not_quoted", quoteIncGst: null, includes: null, proposedR: null, files: [] }).then(() => "accepted", (e) => (e as Error).message);
     const s2 = await ii.installerIntakeState(a.jobId);
-    c("another business can't edit this job", wrong !== "accepted" && s2.areaM2 === 118, wrong);
+    c("another business can't edit this job", wrong !== "accepted" && (s2.areaM2 ?? s2.preliminaryAreaM2) === 118, wrong);
     const staffAdd = await pi.createImportFor(staffId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never).then(() => "accepted", (e) => (e as Error).message);
     c("staff login can't add a job (business owner only)", staffAdd !== "accepted", staffAdd);
     const badFile = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5", proposedR: 5, files: [{ path: "partners/other/x.pdf", name: "x.pdf", type: "application/pdf" }] }).then(() => "accepted", (e) => (e as Error).message);
@@ -671,7 +672,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     // server quote lines follow recorded electrician payer (office eligibility recorded on the TEST job only)
     const lines = async (jobId: string) => { const { data } = await admin.from("quotes").select("status, quote_items(code)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]); return (data ?? []).flatMap((q) => ((q.quote_items as { code: string | null }[]) ?? []).map((i) => i.code)); };
     await ii.recordCommercialEligibility(a.jobId, ownerId, "eligible", "TEST run: owner, property and occupancy checked (fictitious)");
-    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } });
+    // Quote after the Ready Check (Gate 3): record the visit + measured area and the quote's price basis/GST first.
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { attended: "attended", attendedOn: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" }), areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], commercial: { basis: "before_discount", gst: "inc_gst", inclusions: "R5 batts to 118 m2", exclusions: null, originalStatus: "prepared", removalPricing: null, removalAmountIncGst: null, extras: [] }, feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } } as never);
     const hq = await ii.draftQuoteFromIntake(a.jobId, ownerId).then(() => "drafted", (e) => (e as Error).message);
     const hl = await lines(a.jobId);
     c("HIV-arranged electrician: drafted quote carries the PIESA line", hq === "drafted" ? hl.includes("PIESA") : false, `${hq} / ${hl.join(",")}`);

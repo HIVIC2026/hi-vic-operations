@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { officeSpotSavedCount, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, LAUNCH_BATCH_SIZE, LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
+import { officeSpotSavedCount, campaignSaveAllowed, campaignSaveDecision, campaignSendCounts, deskCheckReasonError, launchGroup, LAUNCH_BATCH_SIZE, LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { readFileSync } from "node:fs";
 
 describe("existing leads launch campaign", () => {
@@ -29,11 +29,23 @@ describe("existing leads launch campaign", () => {
     expect(campaignSendCounts(rows)).toEqual({ spotsOffered: 3, insulationDetails: 2 });
   });
   test("Group B media waits for positive review; explicit qualifying declaration opens the spot", () => {
-    for (const status of [null, undefined, "pending", "not_needed", "not_eligible", "needs_onsite_check"]) expect(campaignSaveAllowed("onsite", status)).toBe(false);
+    // Decision 416 (Jo 27 Oct 2026, "Let them save now"): owners with existing/unknown insulation can save straight away —
+    // the installer checks the insulation at the Ready Check. Only an office "not eligible" / "needs onsite check" stops them.
+    for (const status of [null, undefined, "pending", "not_needed"]) expect(campaignSaveAllowed("onsite", status)).toBe(true);
+    for (const status of ["not_eligible", "needs_onsite_check"]) expect(campaignSaveAllowed("onsite", status)).toBe(false);
     expect(campaignSaveAllowed("onsite", "looks_eligible")).toBe(true);
     expect(campaignSaveAllowed("likely", null)).toBe(true);
     expect(campaignSaveAllowed("onsite", "not_needed", true)).toBe(true);
     expect(campaignSaveAllowed("onsite", "not_eligible", true)).toBe(false);
+  });
+  test("decision 416: unchecked, unclear or set-aside photos can save; R2+ photos and office not-eligible cannot", () => {
+    for (const mediaReview of [null, "unclear", "pending", "below_r2"]) expect(campaignSaveDecision({ group: "onsite", mediaReview, criteriaPassed: true }, null)).toBe(true);
+    expect(campaignSaveDecision({ group: "onsite", mediaReview: null, criteriaPassed: false }, null)).toBe(false); // official eligibility not settled
+    expect(campaignSaveDecision({ group: "likely", mediaReview: null }, null)).toBe(true);
+    expect(campaignSaveDecision({ group: "onsite", mediaReview: "over_r2", criteriaPassed: true }, null)).toBe(false);
+    expect(campaignSaveDecision({ group: "likely", mediaReview: "over_r2" }, null)).toBe(false);
+    expect(campaignSaveDecision({ group: "onsite", mediaReview: null, criteriaPassed: true }, "not_eligible")).toBe(false);
+    expect(campaignSaveDecision({ group: "onsite", mediaReview: null, criteriaPassed: true }, "needs_onsite_check")).toBe(false);
   });
   test("segments the two approved groups and excludes ineligible leads", () => {
     expect(launchGroup("likely_eligible", "none")).toBe("likely");

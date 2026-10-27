@@ -13,10 +13,11 @@ import { OfficeTabs, OfficeTable, Loading, LoadError, TabCaption, dollars, fmtDa
 import { LogCallDialog } from "@/components/portal/office-actions";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { useAction } from "@/hooks/use-me";
-import { markPayoutPaid } from "@/lib/office.functions";
+import { approveElectricianForm, markPayoutPaid } from "@/lib/office.functions";
 import { getMoneyInvoices, getMoneyMargins, getMoneyPayouts, getMoneyVeecs, saveVeecSpotPrice } from "@/lib/office-money.functions";
 import { getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
-import { INSTALL_DEPOSIT_RATE, PROVISIONAL_HOLD_HOURS } from "@/lib/payments.core";
+import { INSTALL_DEPOSIT_RATE } from "@/lib/payments.core";
+import { tileText } from "@/lib/read-state.core";
 
 type Tab = "overview" | "payouts" | "invoices" | "veecs" | "prices";
 const TAB_KEYS: Tab[] = ["overview", "payouts", "invoices", "veecs", "prices"];
@@ -67,14 +68,17 @@ function Overview({ payouts, invoices, veecs }: { payouts: Q<PayoutsData>; invoi
   const [open, setOpen] = useState<string | null>(null);
   const month = new Date().toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "Australia/Melbourne" });
   const nextDue = payouts.data?.due[0]?.dueAt;
+  const rd = (x: { data: unknown; error: unknown }) => ({ hasData: !!x.data, failed: !!x.error });
+  const failedReads = ([["VEECs lodged", veecs], ["Owners owe", invoices], ["We owe trades", payouts]] as const).filter(([, x]) => !x.data && x.error);
   return (
     <section data-why="audit §6 Overview (margin, VEECs lodged, owners owe, we owe trades); decision 230">
       <TabCaption>{month} · what we earn and owe · office only</TabCaption>
+      {failedReads.map(([what, x]) => <div key={what} className="mb-3"><LoadError what={what} error={x.error} retry={() => void x.refetch()} /></div>)}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div data-why="VEECs lodged this month (decisions 28–29)"><StatTile label={`VEECs lodged · ${month.split(" ")[0]}`} value={veecs.data ? `${veecs.data.lodgedMonth.jobs} jobs · ${veecs.data.lodgedMonth.veecs}` : "…"} sub={veecs.data ? `${dollars(veecs.data.lodgedMonth.value)} at the price on the day` : undefined} /></div>
-        <div data-why="decisions 139–144: one Xero invoice per job"><StatTile label="Owners owe" value={invoices.data ? dollars(invoices.data.owedCents / 100) : "…"} sub={invoices.data ? `${invoices.data.openCount} invoices · ${invoices.data.overdue} overdue` : undefined} /></div>
-        <div data-why="decisions 30/109 payouts"><StatTile label="We owe trades" value={payouts.data ? dollars(payouts.data.owedEx) : "…"} sub={payouts.data ? (payouts.data.due.length ? `ex GST · next due ${fmtDay(nextDue)}${payouts.data.unknownAmounts ? ` · ${payouts.data.unknownAmounts} amount unknown` : ""}${payouts.data.held.length ? ` · ${payouts.data.held.length} held` : ""}` : payouts.data.held.length ? `nothing payable · ${payouts.data.held.length} held` : "nothing due") : undefined} /></div>
-        <div data-why="decision 230 monthly margin total"><StatTile label={`Margin · ${month.split(" ")[0]}`} value={m.data ? dollars(m.data.month.total) : "…"} sub={m.data ? `${m.data.month.jobs} jobs complete${m.data.month.pct != null ? ` · ${m.data.month.pct}% average` : ""}${m.data.month.unknown ? ` · ${m.data.month.unknown} not worked out` : ""}` : undefined} /></div>
+        <div data-why="VEECs lodged this month (decisions 28–29)"><StatTile label={`VEECs lodged · ${month.split(" ")[0]}`} value={tileText(rd(veecs), () => `${veecs.data!.lodgedMonth.jobs} jobs · ${veecs.data!.lodgedMonth.veecs}`)} sub={veecs.data ? `${dollars(veecs.data.lodgedMonth.value)} at the price on the day` : undefined} /></div>
+        <div data-why="decisions 139–144: one Xero invoice per job"><StatTile label="Owners owe" value={tileText(rd(invoices), () => dollars(invoices.data!.owedCents / 100))} sub={invoices.data ? `${invoices.data.openCount} invoices · ${invoices.data.overdue} overdue` : undefined} /></div>
+        <div data-why="decisions 30/109 payouts"><StatTile label="We owe trades" value={tileText(rd(payouts), () => dollars(payouts.data!.owedEx))} sub={payouts.data ? (payouts.data.due.length ? `ex GST · next due ${fmtDay(nextDue)}${payouts.data.unknownAmounts ? ` · ${payouts.data.unknownAmounts} amount unknown` : ""}${payouts.data.held.length ? ` · ${payouts.data.held.length} held` : ""}` : payouts.data.held.length ? `nothing payable · ${payouts.data.held.length} held` : "nothing due") : undefined} /></div>
+        <div data-why="decision 230 monthly margin total"><StatTile label={`Margin · ${month.split(" ")[0]}`} value={tileText(rd(m), () => dollars(m.data!.month.total))} sub={m.data ? `${m.data.month.jobs} jobs complete${m.data.month.pct != null ? ` · ${m.data.month.pct}% average` : ""}${m.data.month.unknown ? ` · ${m.data.month.unknown} not worked out` : ""}` : undefined} /></div>
       </div>
       {m.error ? <LoadError what="Margins" error={m.error} retry={() => void m.refetch()} /> : m.isPending ? <Loading what="margins" /> : (
         <OfficeTable why="decision 230 per-job margin column (one pure rule: job-margin.core)" isEmpty={!m.data!.rows.length} empty="No accepted quotes yet."
@@ -106,6 +110,7 @@ function Overview({ payouts, invoices, veecs }: { payouts: Q<PayoutsData>; invoi
 
 function Payouts({ q }: { q: Q<PayoutsData> }) {
   const mark = useServerFn(markPayoutPaid);
+  const approve = useServerFn(approveElectricianForm);
   const qc = useQueryClient();
   const reason = useReasonDialog();
   const [busy, setBusy] = useState<string | null>(null);
@@ -121,10 +126,21 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't mark paid"); }
     finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
   };
+  // Decision 410: someone in the office approves the electrician's completed Mitti form; pay is due 7 days later.
+  const approveForm = async (h: PayoutsData["held"][number]) => {
+    if (h.kind === "installation") return;
+    const key = `approve:${h.jobId}:${h.kind}`;
+    setBusy(key);
+    try {
+      await approve({ data: { jobId: h.jobId, kind: h.kind } });
+      toast.success(`${h.jobNumber} form approved · ${h.business} paid within 7 days`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't approve the form"); }
+    finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
+  };
   const forText = (g: PayoutsData["due"][number]) => g.trade === "installer" ? `${g.jobs.length} install${g.jobs.length === 1 ? "" : "s"} complete · installer pay` : `${g.jobs.filter((j) => j.kind === "assessment").length} PIESAs · ${g.jobs.filter((j) => j.kind === "rectification").length} fixes at cost`;
   return (
     <section data-why="decisions 30/109 Mark paid">
-      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318: no complete form, no payment)</TabCaption>
+      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318: no complete form, no payment) · electricians: press Approve on their completed form, pay is due 7 days later (decision 410; never waits for the owner)</TabCaption>
       <OfficeTable why="decisions 30/109" isEmpty={!q.data.due.length && !q.data.held.length && !q.data.paid.length} empty="No payouts yet." head={["Business", "Jobs", "For", "Amount", "Due", ""]}>
         {q.data.due.map((g) => (
           <tr key={g.key}>
@@ -143,7 +159,9 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
             <td className="text-xs text-sub">{h.kind === "installation" ? "Install · installer pay" : h.kind === "assessment" ? "PIESA" : "Fixes at cost"}<span className="mt-1 block text-rose">{h.reasons.map((r) => <span key={r} className="block">{r}</span>)}</span></td>
             <td className="font-semibold">{h.amountEx == null ? "to confirm" : `${dollars(h.amountEx)} ex GST`}</td>
             <td>{fmtDay(h.dueAt)}</td>
-            <td><Pill tone="rose">Held</Pill></td>
+            <td>{h.approvable && h.kind !== "installation"
+              ? <Btn tone="secondary" data-approve-electrician-form disabled={busy === `approve:${h.jobId}:${h.kind}`} onClick={() => void approveForm(h)}>{busy === `approve:${h.jobId}:${h.kind}` ? "Saving…" : "Approve form"}</Btn>
+              : <Pill tone="rose">Held</Pill>}</td>
           </tr>
         ))}
         {q.data.paid.map((g) => (
@@ -249,8 +267,8 @@ function Prices() {
           <td className="text-xs">v{c.version}{lastChange ? ` · ${fmtDay(lastChange.created_at)}` : ""}</td>
           <td><Btn tone="secondary" onClick={() => setEdit((e) => !e)}>{edit ? "Close" : "Edit"}</Btn></td>
         </tr>
-        <tr data-why="decisions 139/140: $349 at acceptance, card or bank"><td className="font-semibold">Safety check</td><td>${c.piesa} at acceptance · card or bank transfer · no card fee is ever shown</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
-        <tr data-why="decision 141: 10% deposit, provisional 48h"><td className="font-semibold">Install deposit</td><td>{Math.round(INSTALL_DEPOSIT_RATE * 100)}% of (quote total − ${c.piesa}) · bank transfer / PayID · provisional {PROVISIONAL_HOLD_HOURS} hours</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
+        <tr data-why="decisions 139/140: $349 at acceptance, card or bank"><td className="font-semibold">PIESA fee</td><td>${c.piesa} inc GST after acceptance · unlocks the PIESA booking only · card or bank transfer · no card fee is ever shown</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
+        <tr data-why="Jo 26 Oct: 10% deposit paid before the install is booked"><td className="font-semibold">Install deposit</td><td>{Math.round(INSTALL_DEPOSIT_RATE * 100)}% of the install price (not the PIESA fee or fixes) · bank transfer / PayID · paid before the install is booked · balance on install day</td><td className="text-xs">26 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="decision 142: electrician price + $100 inc GST"><td className="font-semibold">Electrical fixes</td><td>Electrician's price + $100 inc GST spread across lines · paid in full at approval</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="decision 107/AP fee: owner only may change"><td className="font-semibold">AP fee on installer jobs</td><td>${c.apFee} · the installer's own price is never marked up</td><td className="text-xs">v{c.version}</td><td>{q.data?.canChangeApFee ? <Btn tone="secondary" onClick={() => setEdit(true)}>Edit</Btn> : <Pill>Jo only</Pill>}</td></tr>
         <tr data-why="decision 157: electrician rate card lives under Partners › Rates"><td className="font-semibold">Electrician rates</td><td>PIESA and fixes by item · per approved REC</td><td /><td><Link to="/admin/partners" search={{ tab: "rates" }} className="text-sm font-semibold text-hiv-blue hover:underline">Partners › Rates ›</Link></td></tr>

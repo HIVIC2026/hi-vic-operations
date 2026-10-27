@@ -7,6 +7,7 @@
 //   never a phone number; sign-off "Cheers, the Home Insulation Victoria team" (AI replies only).
 // - Booking change asks get the owner's own My job link on the right screen for the visit (PIESA → electrician,
 //   install → installer), via email-change-reply.core `changeVisitLink`.
+import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
 
@@ -94,8 +95,50 @@ export function finishAiReply(raw: string): string {
   let t = raw.replace(/\r/g, "").trim();
   t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
   for (const [re, to] of JARGON) t = t.replace(re, to);
-  t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ");
+  // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
+  t = t.replace(/^((?:hi|hey|hello|g'day)\b[^\n!,.]{0,40}[!,])[ \t]*\n?(?=\S)/i, "$1\n\n");
+  // Each link on its own line so it can show as a button.
+  t = t.replace(/[ \t]*\(?(https?:\/\/[^\s<>"]*[^\s<>".,!?;:)])[.,!?;:)]*/g, "\n\n$1\n\n");
+  t = t.split("\n").map((l) => l.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return `${t}\n\n${AI_SIGN_OFF}`;
+}
+
+/** Button wording for a link in an AI reply, from where it goes. */
+export function aiLinkLabel(url: string): string {
+  if (/\/my-job\/[^?#\s]+\?screen=book\b/.test(url)) return "Change my booking time";
+  if (/\/my-job\//.test(url)) return "Open my job page";
+  if (/\/estimate\/[^/\s]+\/video\b/.test(url)) return "Save my spot";
+  if (/homeinsulationvictoria\.com\.au\/homeowner\b/.test(url)) return "Check my eligibility"; // decision 414
+  return "Open link";
+}
+
+/**
+ * The AI reply as an email in the refreshed look (Jo 27 Oct 2026: same frame and layout as the O76 automatic replies):
+ * greeting line, short paragraphs, each link as a green button, sign-off on its own lines.
+ */
+export function aiReplyEmailHtml(body: string, o: { subject: string; unsubscribe: string | null; test?: boolean }): string {
+  const URL_RE = /https?:\/\/[^\s<>"]+/g;
+  const paras = body.replace(/\r/g, "").trim().split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  const out: string[] = [];
+  paras.forEach((para, i) => {
+    if (i === 0 && /^(hi|hey|hello|g'day)\b[^\n]{0,40}[!,]$/i.test(para)) { out.push(`<mj-text mj-class="hi" padding="18px 12px 12px">${esc(para)}</mj-text>`); return; }
+    if (para === AI_SIGN_OFF || /^cheers,/i.test(para) && i === paras.length - 1) {
+      const [a, ...rest] = para.split(/,\s*/);
+      out.push(`<mj-text padding="8px 12px 0">${esc(`${a},`)}<br />${esc(rest.join(", "))}</mj-text>`);
+      return;
+    }
+    const urls = para.match(URL_RE) ?? [];
+    const text = para.replace(URL_RE, "").split("\n").map((l) => l.trim()).filter((l) => l && !/^[.,!?;:)]+$/.test(l)).join("\n");
+    if (text) out.push(`<mj-text${urls.length ? ' padding="0 12px 4px"' : ""}>${esc(text).replace(/\n/g, "<br />")}</mj-text>`);
+    for (const u of urls) out.push(`<mj-button href="${esc(u)}" padding="10px 12px 18px">${esc(aiLinkLabel(u))}</mj-button>`);
+  });
+  return mjEmail({ subject: o.subject, body: `<mj-section><mj-column>${out.join("")}</mj-column></mj-section>`, unsubscribe: o.unsubscribe, testLabel: o.test === true });
+}
+
+/** Plain-text version: same paragraphs, each link on its own line with its label. */
+export function aiReplyText(body: string): string[] {
+  return body.replace(/\r/g, "").trim().replace(/(https?:\/\/[^\s<>"]+)/g, (u) => `${aiLinkLabel(u)}: ${u}`).split("\n");
 }
 
 /** Problems that stop a draft being sent as written (checked again at send). */

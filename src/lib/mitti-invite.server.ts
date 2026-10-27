@@ -8,7 +8,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import {
-  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_TRADES_GROUP_ENV, MITTI_USER_API, MITTI_USER_API_VERIFIED,
+  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_TRADES_GROUP_ENV, MITTI_USER_API, MITTI_USER_API_VERIFIED,
   addToGroupBody, autoInviteEnabled, createUserBody, createdUserId, groupPath, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
   priorInviteFor, userPath, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
 } from "./mitti-invite.core";
@@ -94,7 +94,8 @@ export const realInviteMessenger: InviteMessenger = async (p) => {
       return `text ${r.status}: ${r.detail}`;
     }
     const { sendOfficeEmail } = await import("./office-email.server");
-    const r = await sendOfficeEmail({ actorId: p.actorId, recipient: "partner", to: p.to.email, contactName: p.name, subject: MITTI_INVITE_SUBJECT, message: MITTI_INVITE_MESSAGE, label: mittiInviteMessageKey(p.workerId), record: { businessId: p.businessId } });
+    const mail = renderMittiInviteEmail({ name: p.name, test: false });
+    const r = await sendOfficeEmail({ actorId: p.actorId, recipient: "partner", to: p.to.email, contactName: p.name, subject: MITTI_INVITE_SUBJECT, message: MITTI_INVITE_MESSAGE, html: mail.html, text: mail.text, label: mittiInviteMessageKey(p.workerId), record: { businessId: p.businessId } });
     return `email ${r.status}: ${r.detail}`;
   } catch (e) { return `message not sent — ${(e as Error).message}`; }
 };

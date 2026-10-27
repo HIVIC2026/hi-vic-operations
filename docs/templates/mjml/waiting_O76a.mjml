@@ -1,0 +1,25 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Re: How do I save my spot?</mj-title>
+    <mj-preview>Three quick taps, then one button. No payment needed.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Helen,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">It only takes a few seconds</mj-text>
+          <mj-text>Answer three quick questions about your ceiling (just tap, no typing), then press Save my spot.</mj-text>
+          <mj-text>Thousands of Victorians have registered. Spots are released in the order they were saved. No payment, no obligation.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/video">Answer &amp; save my spot</mj-button>
+          <mj-text padding="0 12px 6px">Cheers,<br />the Home Insulation Victoria team</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

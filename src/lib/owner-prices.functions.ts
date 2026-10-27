@@ -54,7 +54,7 @@ export const setOwnerPrices = createServerFn({ method: "POST" })
     }
     if (!Object.keys(changes).length) throw new Error("Nothing changed.");
     if ("ap_management_inc_gst" in changes && !canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])))
-      throw new Error("Only the Home Insulation Victoria owner can change the Accredited Provider fee.");
+      throw new Error("Only the Home Insulation Victoria owner can change the Accredited Person fee.");
     const { data: v, error } = await admin.rpc("publish_owner_prices", { _actor: context.userId, _prices: changes, _reason: data.reason });
     if (error) throw new Error(error.message);
     return { version: v };

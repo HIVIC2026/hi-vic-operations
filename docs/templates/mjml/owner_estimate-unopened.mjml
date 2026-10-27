@@ -1,0 +1,49 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Just checking you received your Home Insulation Victoria estimate</mj-title>
+    <mj-preview>Your estimate is saved and ready whenever you are. No payment, no obligation.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="eyebrow" padding="18px 12px 6px">Your preliminary estimate</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Just checking you got your estimate</mj-text>
+          <mj-text>A few days ago we sent a preliminary ceiling insulation estimate for your home. It includes your estimated VEU rebate and what's included.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="h2" padding="18px 18px 10px">What your estimate shows</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="34" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;">Your estimated VEU rebate</td></tr>
+            <tr><td width="34" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;">Your estimated cost, including GST</td></tr>
+            <tr><td width="34" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;">What the quote includes</td></tr>
+            <tr><td width="34" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">Your next step: save your spot (free, no obligation)</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Take a look when it suits you</mj-text>
+          <mj-text>Your estimate is saved and ready. Open it any time to see the details.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST">View my estimate &rarr;</mj-button>
+          <mj-text mj-class="small" padding="0 12px 0">Your secure estimate link is personal to your property. No payment needed. No obligation to go ahead with installation.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">You're getting this because you asked for a ceiling insulation estimate. <a href="https://homeinsulationvictoria.com.au/contact" style="color:#3C51C4;font-weight:700;">Contact us</a> · <a href="https://estimate.homeinsulationvictoria.com.au/privacy" style="color:#3C51C4;font-weight:700;">Privacy</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

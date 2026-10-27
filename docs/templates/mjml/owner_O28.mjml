@@ -1,0 +1,43 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Signed electrical safety check (PIESA) – HV-TEST</mj-title>
+    <mj-preview>All clear, safe to insulate. Please keep this copy – you need it at least 24 hours before your install.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, your electrical safety check: all clear</mj-text>
+          <mj-text>Here's your copy of the completed Pre Insulation Electrical Safety Assessment (PIESA) for your home. The VEU program says you must have it at least 24 hours before your install, so please keep this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow" padding="18px 18px 4px">Safety check result</mj-text>
+          <mj-text font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" color="#057D40" padding="0 18px 10px">Safe to insulate &#10003;</mj-text>
+          <mj-table padding="0 18px 8px" font-size="14px" line-height="20px">
+            <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Checked on</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>Thursday 5 November 2026</strong></td></tr>
+            <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Electrician</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>Spark Electrical · Lic. 12345 · REC 67890</strong></td></tr>
+            <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Repairs needed</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>None</strong></td></tr>
+            <tr><td width="38%" valign="top" style="border-top:1px solid #CDEBD9;padding:10px 10px 10px 0;color:#5A6785;">Your install</td><td valign="top" style="border-top:1px solid #CDEBD9;padding:10px 0;"><strong>Wednesday 11 November, arriving 7:30am</strong></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="14px 12px 14px"><strong>Your signed safety check is attached to this email (PDF).</strong></mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST" padding="0 12px 18px">See my job</mj-button>
+          <mj-text>Your installer has the same copy. One thing to know: <strong>please don't let anyone into the ceiling before the install.</strong> If anything changes up there, the check may need to be done again.</mj-text>
+          <mj-text mj-class="small" padding="0 12px 0">Questions about the safety check? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

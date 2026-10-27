@@ -26,7 +26,24 @@ import { MITTI_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
+/** QA journey guard (Jo 27 Oct): while a TEST journey has armed it, every Mitti call that product code makes through this
+ *  boundary goes to that run's simulated Mitti instead; armed without a simulator, the call is refused loudly. Never armed
+ *  by the running portal. */
+type JourneyMittiGuard = { sim: MittiCall | null; routed: string[] };
+const JOURNEY_GUARD = "__hivJourneyMittiGuard";
+const journeyGuard = () => (globalThis as Record<string, unknown>)[JOURNEY_GUARD] as JourneyMittiGuard | undefined;
+export function armJourneyMittiGuard(sim: MittiCall | null): JourneyMittiGuard {
+  const g: JourneyMittiGuard = { sim, routed: [] }; (globalThis as Record<string, unknown>)[JOURNEY_GUARD] = g; return g;
+}
+export function disarmJourneyMittiGuard() { delete (globalThis as Record<string, unknown>)[JOURNEY_GUARD]; }
+
 export const realMittiCall: MittiCall = async (method, path, body) => {
+  const g = journeyGuard();
+  if (g) {
+    if (!g.sim) throw new MittiError(`SAFETY STOP: real Mitti call refused during a TEST journey (${method} ${path.split("?")[0]})`, { code: "unavailable" });
+    g.routed.push(`${method} ${path.split("?")[0]}`);
+    return g.sim(method, path, body);
+  }
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.", { code: "not_configured" });
   let res: Response;
@@ -56,6 +73,7 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
 /** Binary media download (supported audit media route). Used only to store the PIISA signature image itself. */
 export type MittiMediaFetch = (auditId: string, mediaId: string) => Promise<{ bytes: Uint8Array; contentType: string }>;
 export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
+  if (journeyGuard()) throw new MittiError("SAFETY STOP: real Mitti media download refused during a TEST journey");
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.");
   const res = await fetch(`${MITTI_BASE_URL}/audits/${encodeURIComponent(auditId)}/media/${encodeURIComponent(mediaId)}`, { headers: { Authorization: `Bearer ${token}` }, signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS) }).catch(() => null);

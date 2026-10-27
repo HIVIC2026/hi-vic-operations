@@ -1,0 +1,23 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Re: Ceiling insulation quote</mj-title>
+    <mj-preview>Check if your home is eligible for the insulation rebate and get a price estimate.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Hi Sam, thanks for getting in touch</mj-text>
+          <mj-text>You can check if your home is eligible for the insulation rebate and get a price estimate here: <a href="https://homeinsulationvictoria.com.au/homeowner" style="color:#3C51C4;font-weight:700;">homeinsulationvictoria.com.au/homeowner</a></mj-text>
+          <mj-text>Once you've done that, we'll take it from there and be in touch about next steps.</mj-text>
+          <mj-text>Cheers,<br>the Home Insulation Victoria team</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -53,6 +53,8 @@ const dataSchema = z.object({
   coes_fee_choice: z.enum(["included", "separate", ""]).optional(), coes_fee: n,
   bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
+  // Server-set from the installer's invite (Jo 26 Oct 2026); accepted back from the browser but never trusted (see save).
+  paid_by_installer: z.boolean().nullable().optional(), paid_by_installer_name: s(200).nullable(),
 }).strict();
 
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean; updated_at?: string | null }) {
@@ -98,7 +100,9 @@ export const saveRecOnboarding = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
-    const next = applyMaterialReset(app.data as RecData, data.data as RecData);
+    const prev = app.data as RecData;
+    // Only the invite sets "paid by installer" — the browser can never switch off the rates or bank details itself.
+    const next = { ...applyMaterialReset(prev, data.data as RecData), paid_by_installer: prev?.paid_by_installer === true ? true : null, paid_by_installer_name: prev?.paid_by_installer === true ? prev.paid_by_installer_name ?? null : null };
     if (blockedMandatoryStep(data.step_key, next)) throw new Error("Confirm your REC can provide all three electrical services.");
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "rec");

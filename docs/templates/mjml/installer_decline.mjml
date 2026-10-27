@@ -1,0 +1,24 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your Home Insulation Victoria application</mj-title>
+    <mj-preview>An update on your application to work with Home Insulation Victoria.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Sam,</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your application</mj-text>
+          <mj-text>Thank you for applying to work with Home Insulation Victoria.</mj-text>
+          <mj-text>Unfortunately we're unable to approve your application at this time.</mj-text>
+          <mj-text>If your circumstances change, you're welcome to apply again.</mj-text>
+          <mj-text>Kind regards,<br />Jo<br />Home Insulation Victoria</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

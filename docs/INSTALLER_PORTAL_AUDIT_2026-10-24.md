@@ -373,7 +373,7 @@ All paths are under the repository root as extracted from `origin/installer-mitt
 
 **Installer texts and emails**
 - Offer text/email: `src/lib/ready-check-times.core.ts` (`readyCheckOfferText`), `src/lib/ready-check-offer-email.core.ts`
-- Accepted/declined: `src/lib/installer-accepted-email.core.ts`, `src/lib/installer-declined-email.server.ts` (approved: `docs/templates/installer/I23-owner-accepted.html`, `I24-owner-declined.html`)
+- Accepted/declined: `src/lib/installer-accepted-email.core.ts`, `src/lib/installer-declined-email.server.ts` (approved: `docs/templates/mjml/installer_I23.mjml`, `I24-owner-declined.html`)
 - Welcome / application received: `src/lib/partner-email.core.ts`, `src/lib/application-review.core.ts` (`I54-welcome.html`, `I53-application-received.html`)
 - Privacy notice: `src/lib/esc-collection-notice.core.ts` (`I60-privacy-notice-link.html`, `I62-notice-copy.html`)
 - 30-day: `src/lib/thirty-day-rule.core.ts`

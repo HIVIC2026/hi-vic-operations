@@ -73,7 +73,7 @@ export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
 /** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
  *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. TEST partners use the test senders. */
 export const COLLECTION_NOTICE_SEND_APPROVED = true;
-/** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/installer/I62-notice-copy.html). */
+/** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/mjml/installer_I62.mjml). */
 export const COLLECTION_NOTICE_EMAIL_APPROVED = true;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;
 /** Reminder schedule (decision 130): first send, then 3 and 7 days after the first send while not acknowledged. */
@@ -216,15 +216,16 @@ export function noticeAckSubmissionErrors(i: { ticked: boolean; typedName: strin
 export const noticeLinkSmsBody = (firstName: string | null, url: string) =>
   `Home Insulation Victoria: Hi ${firstName?.trim() || "there"}, one quick step: read and tick the ESC privacy notice so we can register you as a VEU installer: ${url} Reply STOP to opt out.`;
 export function noticeLinkEmail(i: { firstName: string | null; businessName: string; url: string; reminder: boolean }): { subject: string; heading: string; blocks: PartnerBlock[] } {
-  // Approved by Jo 24 Oct 2026 (decision 147; docs/templates/installer/I60-privacy-notice-link.html).
+  // Approved by Jo 24 Oct 2026 (decision 147; docs/templates/mjml/installer_I60.mjml).
   return {
     subject: `${i.reminder ? "Reminder: " : ""}One quick step: the ESC privacy notice`,
     heading: `One quick step, ${i.firstName?.trim() || "there"}`,
     blocks: [
+      { kind: "preview", text: "It takes a minute and you don't need to sign in." },
       { kind: "p", text: "Before we can register you as a VEU installer, the Essential Services Commission requires us to give you their privacy notice." },
       { kind: "p", text: "Read it and tick. It takes a minute and you don't need to sign in." },
       { kind: "button", label: "Read and tick the notice", url: i.url },
-      { kind: "p", text: `Until it's done, you can't be put on a job for ${i.businessName}.` },
+      { kind: "box", text: `Until it's done, you can't be put on a job for ${i.businessName}.` },
     ],
   };
 }
@@ -249,7 +250,8 @@ export function noticeSendPlan(history: readonly { attempt: number; at: string }
   return null;
 }
 
-/** Emailed copy of the notice on acknowledgement (decision 170 wording; rendered by partnerEmailLayout like I60/I54; sent only when
+/** Emailed copy of the notice on acknowledgement (decision 170 wording; rendered by partnerEmailLayout like I60/I54, design
+ *  docs/templates/mjml/installer_I62.mjml: the notice in its own card; sent only when
  *  `COLLECTION_NOTICE_EMAIL_APPROVED`, or to TEST partners via the test sender). The notice itself is verbatim. */
 export const COLLECTION_NOTICE_COPY_SUBJECT = "Your copy of the ESC privacy collection notice";
 export function collectionNoticeEmail(i: { firstName: string | null; acknowledgedAt: string }): { subject: string; heading: string; blocks: PartnerBlock[] } {
@@ -263,11 +265,11 @@ export function collectionNoticeEmail(i: { firstName: string | null; acknowledge
     if (last && last.kind === "list") last.items.push(text); else notice.push({ kind: "list", items: [text] });
   }
   const blocks: PartnerBlock[] = [
-    { kind: "p", text: `Hi ${i.firstName?.trim() || "there"},` },
+    { kind: "preview", text: `The notice you acknowledged on ${when}, for your records.` },
+    { kind: "hi", text: `Hi ${i.firstName?.trim() || "there"},` },
     { kind: "p", text: `Here is your copy of the Essential Services Commission's ${COLLECTION_NOTICE_TITLE}, which you acknowledged on ${when}. Your details may be disclosed to the commission and shared with the Energy Efficiency Council.` },
-    { kind: "sign", lines: [COLLECTION_NOTICE_TITLE, COLLECTION_NOTICE_VERSION_LINE] },
-    ...notice,
-    { kind: "p", text: "Just reply to this email if you have any questions." },
+    { kind: "card", title: COLLECTION_NOTICE_TITLE, subtitle: COLLECTION_NOTICE_VERSION_LINE, blocks: notice },
+    { kind: "small", text: "Just reply to this email if you have any questions." },
   ];
   return { subject: COLLECTION_NOTICE_COPY_SUBJECT, heading: COLLECTION_NOTICE_COPY_SUBJECT, blocks };
 }

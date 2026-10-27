@@ -16,7 +16,7 @@ export async function saveInsulationTapAnswers(token:string,answers:InsulationTa
     return { ok: true as const, route: prior ? insulationTapRoute(prior.answers) : route, alreadySaved: true };
   }
   const result=await (admin as SupabaseClient).rpc("save_owner_insulation_details",{p_token:token,p_answers:answers});
-  if(result.error) { console.error("save_owner_insulation_details failed", c.job.id, result.error.message); throw new Error("We couldn't save your answers just now. Please try again in a minute, or call us."); }
+  if(result.error) { console.error("save_owner_insulation_details failed", c.job.id, result.error.message); throw new Error("We couldn't save your answers just now. Please try again in a minute."); }
   // Jo 23 Oct 08:14 UTC: everyone who answers gets Save my spot automatically — OFF until Jo approves wording and says go.
   const { INSULATION_QUESTIONS_SEND_APPROVED } = await import("./insulation-questions-campaign.core");
   if (route !== "ineligible" && INSULATION_QUESTIONS_SEND_APPROVED && !preview) {

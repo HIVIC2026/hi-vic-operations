@@ -46,7 +46,6 @@ The good news: the hard parts are already built and well guarded. Eligibility, M
 - **Needs legal sign-off:**
   - Direct billing by an own electrician or installer, when the tax invoice must name the AP.
   - Taking the $349 during a cooling-off period.
-  - Whether the 30-day clock restarts at Section C.
   - The "Reg 23A" citation.
 
 ---
@@ -103,7 +102,7 @@ Two ways in, then the same automatic path for both:
 4. **Owner quote email and texts.** Approve the wording I draft.
 5. **Messages to trades** (offer, acceptance, PIESA booked): approve the wording.
 6. **Automatic quote sending.** Confirm the checks, then turn it on after a TEST run.
-7. **Legal questions** for your lawyer or the ESC: direct billing vs the AP tax invoice; $349 during cooling-off; the 30-day clock after Section C.
+7. **Legal questions** for your lawyer or the ESC: direct billing vs the AP tax invoice; $349 during cooling-off; the 30-day clock is settled by decision 316 (Jo reconfirmed 27 Oct): official PIESA date + 30 days, never Section C.
 8. **Clean-up.** OK to delete the "needs decision" items in section 7 (old redirect pages break old bookmarks).
 9. **Mitti-started forms.** Keep accepting forms installers start in Mitti (matched by owner details), or require Add a job first?
 

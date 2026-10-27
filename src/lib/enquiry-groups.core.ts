@@ -12,8 +12,8 @@ export type AreaSource = "measured" | "estimated" | "declared" | "assumed" | "no
 
 export const GROUP_ORDER: EnquiryGroup[] = ["likely_size", "likely_no_size", "insulation_check", "other"];
 export const GROUP_LABEL: Record<EnquiryGroup, string> = {
-  likely_size: "Likely eligible – size provided",
-  likely_no_size: "Likely eligible – size needed",
+  likely_size: "Likely Eligible – size provided",
+  likely_no_size: "Likely Eligible – size needed",
   insulation_check: "Existing insulation – check needed",
   other: "Other enquiries",
 };
@@ -290,6 +290,8 @@ export function automaticLeadEmail(x: {
   insulationDetailRoute?: "likely_save_spot" | "more_photos" | null;
   /** A recorded Office photo review exists; it always outranks the owner's own answers. */
   officeReviewed?: boolean;
+  /** That review's outcome (decision 417: only "over_r2" stops the offer). */
+  officeReviewOutcome?: string | null;
   /** Jo 23 Oct 6:13pm: hard red flag (life support yes, built in last 5 years, outside VIC, not a house/townhouse). */
   redFlag?: string | null;
   /** Code switch ALL_NEW_ENQUIRIES_OFFER_APPROVED (passed by the router; OFF until Jo says go). */
@@ -324,8 +326,12 @@ export function automaticLeadEmail(x: {
   if (openOutcome && x.declaredInsulation === "unknown" && !x.officeReviewed) {
     return { email: "offer_spot", blocker: null, existingInsulation: true, insulationUnknown: true, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
-  // Office-reviewed present/unknown: the existing reviewed follow-up (request_insulation path re-reads the review).
-  if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
+  // Decision 417 (Jo 27 Oct 2026): no office photo hold. An office-reviewed present/unknown owner gets the same
+  // existing-insulation Save my spot email; only photos showing insulation already R2 or more stop it.
+  if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) {
+    if (x.officeReviewOutcome === "over_r2") return { email: "none", blocker: "Photos show insulation already R2 or more — office review" };
+    return { email: "offer_spot", blocker: null, existingInsulation: true, ...(x.declaredInsulation === "unknown" ? { insulationUnknown: true as const } : {}), ...(x.ownerEnteredArea ? {} : { assumedArea: true as const }) };
+  }
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }
 

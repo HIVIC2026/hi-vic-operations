@@ -1,7 +1,7 @@
 // Renders the decision 376 messages (Jo 25 Oct 2026 — the four moments F13 left record-only; Jo APPROVED all four as
 // drafted in decision 384) into their who-folders in docs/templates (owner/, electrician/, installer/) with fixed sample
 // data, prints every subject + text + SMS body, and with --jpg also saves a 640px-wide JPG preview of each design into
-// docs/designs (Playwright Chromium, local files only). Pure renderers; nothing is sent. Flags (all true since decision
+// /tmp/designs (Playwright Chromium, local files only). Pure renderers; nothing is sent. Flags (all true since decision
 // 384): O74/O74b VISIT_NEW_TIMES_APPROVED + SMS type `visit_new_times`; O75 OWNER_PAPERWORK_COPY_APPROVED; E14
 // PIESA_TIMES_REMINDER_APPROVED + `piesa_times_reminder`; I71 INSTALLER_PLANNING_NOTICE_APPROVED + `installer_planning_notice`.
 // Run: bun scripts/render-decision-376-drafts.ts [--jpg]
@@ -11,8 +11,8 @@ import { renderPaperworkCopyEmail } from "../src/lib/paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "../src/lib/piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "../src/lib/installer-planning-notice.core";
 
-const TEMPLATES = new URL("../docs/templates/", import.meta.url).pathname;
-const DESIGNS = new URL("../docs/designs/", import.meta.url).pathname;
+const TEMPLATES = "/tmp/email-drafts/";
+const DESIGNS = "/tmp/designs/";
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const FIELD = "https://estimate.homeinsulationvictoria.com.au/field/job-1";
 
@@ -39,7 +39,9 @@ const out: { code: keyof typeof D376_FILES; mail: { subject: string; html: strin
 ];
 
 for (const o of out) {
-  writeFileSync(`${TEMPLATES}${D376_FILES[o.code]}`, o.mail.html);
+  const target = `${TEMPLATES}${D376_FILES[o.code]}`;
+  mkdirSync(target.slice(0, target.lastIndexOf("/")), { recursive: true });
+  writeFileSync(target, o.mail.html);
   if (import.meta.main) console.log(`--- ${o.code} — subject: ${o.mail.subject}\n${o.mail.text}\n${o.sms ? `--- ${o.code} text: Home Insulation Victoria: ${o.sms}\n` : ""}`);
 }
 
@@ -52,7 +54,7 @@ if (import.meta.main && process.argv.includes("--jpg")) {
   for (const o of out) {
     await page.setContent(o.mail.html, { waitUntil: "load" });
     await page.screenshot({ path: `${DESIGNS}${o.code}.jpg`, type: "jpeg", quality: 85, fullPage: true });
-    console.log(`JPG: docs/designs/${o.code}.jpg`);
+    console.log(`JPG: /tmp/designs/${o.code}.jpg`);
   }
   await browser.close();
 }

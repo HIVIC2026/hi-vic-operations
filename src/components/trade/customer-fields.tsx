@@ -1,4 +1,4 @@
-import { useState, type InputHTMLAttributes } from "react";
+import { useRef, useState, type InputHTMLAttributes } from "react";
 import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
@@ -20,11 +20,13 @@ export function FieldError({ children, id }: { children: string | undefined; id?
   return children ? <p id={id} role="alert" className="mt-1.5 text-[13px] font-semibold" style={{ color: ERR }} data-field-error>{children}</p> : null;
 }
 
-export function CustomerFields({ value, onChange, consentLabel, offline = false, errors = {} }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
+export function CustomerFields({ value, onChange, consentLabel, offline = false, errors = {}, addressProvider }: { addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
   // Jo 24 Oct: the address is picked from the Google list, so street number, suburb and postcode always match.
   // Typing afterwards clears the pick; the suburb/postcode are shown, never typed.
   const [text, setText] = useState(() => addressText(value));
   const [resolved, setResolved] = useState<ResolvedAddress | null>(null);
+  // The address lookup answers after a delay; merge into the LATEST details so a mobile/email typed meanwhile is kept.
+  const latest = useRef(value); latest.current = value;
   const field = (key: "full_name" | "phone" | "email" | "address_line" | "suburb" | "postcode", label: string, props: InputHTMLAttributes<HTMLInputElement> = {}, err?: string) => (
     <div>
       <label className={FIELD_LABEL}>{label}<input className={FIELD_INPUT} style={{ borderColor: err ? ERR : undefined }} aria-invalid={err ? true : undefined} value={value[key]} onChange={(e) => onChange({ ...value, [key]: e.target.value })} {...props} /></label>
@@ -39,13 +41,13 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
       : <div>
         <label className={FIELD_LABEL} htmlFor="customer-address">Address</label>
         <div className="mt-1.5" data-address-field data-invalid={errors.address ? "true" : undefined}>
-          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785"
-            onChange={(next) => { setText(next); if (value.address_verified) onChange({ ...value, address_verified: false }); }}
+          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785" {...(addressProvider ? { provider: addressProvider } : {})}
+            onChange={(next) => { setText(next); if (latest.current.address_verified) onChange({ ...latest.current, address_verified: false }); }}
             onSelect={(d) => {
               setResolved(d);
               if (!d) return;
               const street = (d.street ?? d.label.split(",")[0] ?? "").trim();
-              onChange({ ...value, address_line: street, suburb: (d.suburb ?? "").trim(), postcode: (d.postcode ?? "").trim(), address_verified: true });
+              onChange({ ...latest.current, address_line: street, suburb: (d.suburb ?? "").trim(), postcode: (d.postcode ?? "").trim(), address_verified: true });
             }} />
         </div>
         <FieldError>{errors.address}</FieldError>

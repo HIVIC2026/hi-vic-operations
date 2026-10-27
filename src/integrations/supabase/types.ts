@@ -8992,6 +8992,7 @@ export type Database = {
           trade_role: Database["public"]["Enums"]["assignment_role"]
           used_at: string | null
           worker_id: string | null
+          worker_role: string | null
         }
         Insert: {
           business_id: string
@@ -9011,6 +9012,7 @@ export type Database = {
           trade_role: Database["public"]["Enums"]["assignment_role"]
           used_at?: string | null
           worker_id?: string | null
+          worker_role?: string | null
         }
         Update: {
           business_id?: string
@@ -9030,6 +9032,7 @@ export type Database = {
           trade_role?: Database["public"]["Enums"]["assignment_role"]
           used_at?: string | null
           worker_id?: string | null
+          worker_role?: string | null
         }
         Relationships: [
           {
@@ -9079,6 +9082,7 @@ export type Database = {
           source_application_id: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at: string
+          worker_role: string | null
         }
         Insert: {
           account_status?: string
@@ -9110,6 +9114,7 @@ export type Database = {
           source_application_id?: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
+          worker_role?: string | null
         }
         Update: {
           account_status?: string
@@ -9141,6 +9146,7 @@ export type Database = {
           source_application_id?: string | null
           trade_role?: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
+          worker_role?: string | null
         }
         Relationships: [
           {
@@ -12710,6 +12716,7 @@ export type Database = {
       }
       workflow_settings: {
         Row: {
+          ai_email_auto_send_enabled: boolean
           authority_validity_months: number
           auto_electrician_offers: boolean
           auto_installer_offers: boolean
@@ -12765,6 +12772,7 @@ export type Database = {
           urgency_red_days: number
         }
         Insert: {
+          ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean
           auto_installer_offers?: boolean
@@ -12820,6 +12828,7 @@ export type Database = {
           urgency_red_days?: number
         }
         Update: {
+          ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean
           auto_installer_offers?: boolean
@@ -13911,6 +13920,7 @@ export type Database = {
         Args: { _actor: string; _file: Json; _row: string }
         Returns: string
       }
+      repair_campaign_spot_stage: { Args: { p_job: string }; Returns: boolean }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
@@ -13928,6 +13938,17 @@ export type Database = {
       save_bulk_import_analysis: {
         Args: { _actor: string; _batch: string; _rows: Json; _summary: Json }
         Returns: undefined
+      }
+      save_campaign_spot_atomic: {
+        Args: {
+          p_details: Json
+          p_job: string
+          p_link: string
+          p_onsite: boolean
+          p_snapshot: Json
+          p_summary: string
+        }
+        Returns: boolean
       }
       save_owner_insulation_details: {
         Args: { p_answers: Json; p_token: string }

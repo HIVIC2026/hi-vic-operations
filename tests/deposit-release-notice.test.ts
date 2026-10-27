@@ -19,11 +19,16 @@ describe("wording (decision 170)", () => {
   test("email: headline, same message, bank details and See my job", () => {
     const m = renderDepositReleasedEmail({ firstName: "Helen", day: "Tuesday 11 November", link: LINK, depositAmount: "$185.10", bankLines: bankDetailLines(HIV_BANK_DETAILS, "Home Insulation Victoria HV-3117") });
     expect(m.subject).toBe("Helen, your install day was released");
-    expect(m.html).toContain("Helen, your install day was released");
+    expect(m.html).toContain("Hi Helen,");
+    expect(m.html).toContain("Your install day was released");
     expect(m.html).toContain("so Tuesday 11 November has been released. Your installer will offer new days once it's paid.");
     expect(m.html).toContain("Pay your $185.10 deposit by bank transfer or PayID");
-    expect(m.html).toContain("BSB 082-902 · Account 777966349");
-    expect(m.html).toContain("Reference: Home Insulation Victoria HV-3117");
+    // O64 design: bank details as label/value rows.
+    expect(m.html).toContain("<strong>082-902</strong>");
+    expect(m.html).toContain("<strong>777966349</strong>");
+    expect(m.html).toContain('Home Insulation Victoria <span style="white-space:nowrap;">HV-3117</span>');
+    expect(m.text).toContain("BSB 082-902 · Account 777966349");
+    expect(m.text).toContain("Reference: Home Insulation Victoria HV-3117");
     expect(m.html).toContain(">See my job<");
     expect(m.text).toContain("Account name: Home Insulation Victoria");
     expect(m.text).toContain(`See my job: ${LINK}`);

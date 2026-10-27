@@ -44,6 +44,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { chooseWarnings, distanceKm, officePicks } = await import("./offer-dispatch.core");
+    const { installerOfferable } = await import("./readycheck-booking.core");
     const { melbourneToday } = await import("./melbourne-time.core");
     const { dispatchMode } = await import("./offer-dispatch.server");
     const isRc = data.kind === "ready_check";
@@ -101,7 +102,9 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
           insuranceExpiresOn: (creds ?? []).filter((x) => x.business_id === c.business_id && /insurance/.test(x.kind)).map((x) => x.expires_at),
           certExpiresOn: [...(creds ?? []).filter((x) => x.business_id === c.business_id && /cert|licen/.test(x.kind)).map((x) => x.expires_at), ...(workers ?? []).filter((w) => w.business_id === c.business_id).map((w) => w.licence_expires_on)],
         }),
-        blocker: c.blocker, matching: !c.blocker && (c.covers_postcode || c.exact_postcode), alreadyOffered: offered.get(c.business_id) ?? null,
+        // Choose installer: `installerOfferable` is the one rule the Choose installer list's "Installer ✓" also uses (HV-1509).
+        blocker: c.blocker, matching: isRc ? installerOfferable(c as never) : !c.blocker && (c.covers_postcode || c.exact_postcode),
+        inArea: c.covers_postcode || c.exact_postcode, alreadyOffered: offered.get(c.business_id) ?? null,
       };
     });
     if (isRc) { // "Choose installer": shared matching order (nearby that day → reliability → fewest recent → speed)

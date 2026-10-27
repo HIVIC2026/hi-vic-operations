@@ -10,6 +10,7 @@ import {
 } from "../src/lib/warranty-followup.core";
 import { WARRANTY_VIA_LABEL } from "../src/lib/completion-pack.core";
 import { FOOTER_TEXT } from "../src/lib/email-kit.core";
+import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
 
 const due: WarrantyFollowupFacts = { installCompleted: true, deleted: false, missingRecorded: true, provided: false, alreadySent: false, products: ["Bradford Gold R5"], allOnFile: true };
 
@@ -34,10 +35,12 @@ describe("decision 363: warranty follow-up rules and the O73 draft", () => {
     expect(m.subject).toBe("Your insulation warranty");
     expect(m.text).toContain("Hi Helen,");
     expect(m.text).toContain("Attached is the manufacturer's warranty for the Bradford Gold insulation we installed in your ceiling.");
-    expect(m.text).toContain("just reply to this email");
+    expect(m.text).toContain("Any questions? Just reply to this email.");
     expect(m.text).toContain(FOOTER_TEXT);
-    const draft = readFileSync("docs/templates/owner/O73-warranty-followup.html", "utf8");
-    expect(draft).toBe(m.html);
+    // MJML refresh (design docs/templates/mjml/owner_O73.mjml): hosted logo, no embedded images.
+    expect(m.html).toContain(MAIL_LOGO_URL);
+    expect(m.html).not.toContain("data:image");
+    expect(readFileSync("docs/templates/mjml/owner_O73.mjml", "utf8")).toContain("Attached is the manufacturer's warranty for the Bradford Gold insulation we installed in your ceiling.");
   });
 });
 

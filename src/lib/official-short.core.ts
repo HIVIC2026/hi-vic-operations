@@ -280,7 +280,9 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   // action when not safe — mapped row by row to Part 7 (official-expand). Repeats arrive as applianceWhat, applianceWhat#1, … (see
   // shortAnswersFromEntries). The old single description + self-grading question are read only from old forms.
   { id: "applianceType", label: APPLIANCE_Q.type, type: "choice", required: true, choices: [...APPLIANCE_TYPES], when: "appliancesPresent = Yes", source: "short onsite form (decision 336)" },
-  { id: "applianceWhat", label: APPLIANCE_Q.what, type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form (decision 336)" },
+  // Decision 404 (Jo 27 Oct 2026): "What is it?" deleted from the A3 form (it repeated "What type is it?"). LEGACY: still read
+  // from older forms; Part 7 otherwise names the row from "What type is it?".
+  { id: "applianceWhat", label: APPLIANCE_Q.what, type: "text", required: false, portalOnly: true, when: "appliancesPresent = Yes", source: "LEGACY (deleted by decision 404) – read from old forms only" },
   // Decision 295's combined question (old forms only): read as both What and Where.
   { id: "applianceWhatWhere", label: APPLIANCE_WHAT_WHERE_LEGACY_LABEL, type: "text", required: false, portalOnly: true, when: "appliancesPresent = Yes", source: "LEGACY (decision 295, split by decision 336) – read from old forms only" },
   { id: "applianceWhere", label: APPLIANCE_Q.where, type: "text", required: true, when: "appliancesPresent = Yes", source: "short onsite form (decision 336)" },

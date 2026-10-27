@@ -1,0 +1,87 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, you may qualify for $1,610 off ceiling insulation</mj-title>
+    <mj-preview>If there's none, or it's thin or patchy, your price could be $2,188 after the rebate.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, you may qualify for $1,610 off ceiling insulation</mj-text>
+          <mj-text>You weren't sure if there's insulation in your ceiling. If there's none, or it's thin or patchy (below R2.0), you can still get the Victorian Energy Upgrades (VEU) rebate. You need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your potential rebate</mj-text>
+          <mj-text mj-class="big-green" padding="0 12px 18px">You save $1,610</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your cost if eligible</mj-text>
+          <mj-text mj-class="big-blue">$2,188</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">$3,798</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">Based on what you told us: 137 m² ceiling, existing insulation not known yet.<br /><a href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/calculator" style="color:#3C51C4;font-weight:700;">Try a different ceiling size</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 2px">Your existing insulation</mj-text>
+          <mj-text padding="0 18px 10px">Good news: <strong>it may be able to stay.</strong></mj-text>
+          <mj-table padding="0 18px 4px">
+            <tr><td width="32" valign="top" style="padding:12px 0;"><span class="tick">&#10003;</span></td><td valign="top" style="padding:10px 0;"><strong>If it can stay</strong><br /><span class="muted">New batts go straight over the top.</span></td><td valign="top" align="right" style="padding:10px 0 10px 10px;white-space:nowrap;font-weight:700;color:#057D40;">$0</td></tr>
+            <tr><td width="32" valign="top" style="padding:12px 0;border-top:1px solid #E4E9F5;"><span class="plus">+</span></td><td valign="top" style="padding:10px 0;border-top:1px solid #E4E9F5;"><strong>If some needs removing</strong><br /><span class="muted">Only the areas that need it. Up to $2,055 for your 137 m² ceiling.</span></td><td valign="top" align="right" style="padding:10px 0 10px 10px;white-space:nowrap;font-weight:700;color:#3C51C4;border-top:1px solid #E4E9F5;">$15/m²</td></tr>
+          </mj-table>
+          <mj-text mj-class="small" padding="0 18px 14px">Prices incl. GST. You'll know the exact cost before you agree to anything.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Save your spot – it's free</mj-text>
+          <mj-text>Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/campaign">Save my free spot</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">What's included in $2,188</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Licensed electrician safety check</strong><br /><span class="muted">Done before any insulation goes in, to make sure wiring, downlights and cables are safe.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Premium R5.0 ceiling batts</strong><br /><span class="muted">VEU-approved and made to Australian Standard AS/NZS 4859.1.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 14px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 14px;"><strong>Fitted by an EEC-certified installer</strong><br /><span class="muted">A Certified Insulation Installer, working to Australian Standard AS 3999.</span></td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;"><strong>We handle the rebate</strong><br /><span class="muted">As a VEU Accredited Person (A003654), we do the paperwork. The $1,610 comes straight off your price.</span></td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Removing old insulation</strong>, only if it can't stay ($15 per m², see above)</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Ceiling access fee</strong>, if your ceiling is hard to get into</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>Electrical fixes</strong>, if the safety check finds any</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="plus">+</span></td><td style="padding:0 0 12px;"><strong>A bigger ceiling</strong> than you told us</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="14px 12px 0">If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll see your exact price before you agree to anything. <a href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST" style="color:#3C51C4;font-weight:700;">See your full estimate</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -15,13 +15,13 @@ const exportsName = (file: string, name: string) => new RegExp(`export (?:async 
 
 describe("Templates navigation", () => {
   test("Templates sits under More (decision 218), not in the top bar", () => {
-    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["needs", "enquiries", "jobs", "partners", "money"]);
+    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["needs", "enquiries", "emails", "jobs", "partners", "money"]); // decision 414
     expect(sectionFor("/admin/templates", { cat: "mitti" })).toBe("more");
     expect(OFFICE_HEADINGS.filter((h) => h.label === "Templates").length).toBe(0);
   });
   test("sections are who-gets-it (Jo's choice) with drafts kept apart; old ?cat= bookmarks fall back to Owner", () => {
     expect(TEMPLATE_SECTIONS.map((s) => s.key)).toEqual(["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "waiting"]);
-    for (const s of TEMPLATE_SECTIONS) expect(entriesFor(s.key).length).toBeGreaterThan(0);
+    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" is empty since decision 406 (its tab hides when empty)
     expect(parseTemplateSearch({ cat: "email" })).toEqual({ cat: "owner" });
     expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A5" })).toEqual({ cat: "mitti", t: "mitti:A5" });
     expect(selectTemplate("mitti", "owner:O18").section).toBe("mitti");
@@ -40,10 +40,10 @@ describe("Templates navigation", () => {
   });
   test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {
-      "owner:O74": ["owner", "docs/templates/owner/O74-visit-new-times.html"], "owner:O74b": ["owner", "docs/templates/owner/O74b-visit-new-times-on-the-way.html"],
-      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/owner/O75-signed-paperwork-copy.html"],
-      "electrician:E14": ["electrician", "docs/templates/electrician/E14-piesa-times-reminder.html"], "electrician:sms-piesa_times_reminder": ["electrician", null],
-      "installer:I71": ["installer", "docs/templates/installer/I71-installer-planning-notice.html"], "installer:sms-installer_planning_notice": ["installer", null],
+      "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],
+      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/mjml/owner_O75.mjml"],
+      "electrician:E14": ["electrician", "docs/templates/mjml/electrician_E14.mjml"], "electrician:sms-piesa_times_reminder": ["electrician", null],
+      "installer:I71": ["installer", "docs/templates/mjml/installer_I71.mjml"], "installer:sms-installer_planning_notice": ["installer", null],
     };
     for (const [id, [section, design]] of Object.entries(where)) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
@@ -91,14 +91,14 @@ describe("every entry renders EXACTLY from the live code with TEST sample data",
       expect({ id: e.id, sender, uses }).toEqual({ id: e.id, sender, uses: true });
     }
   });
-  test("design files and preview files exist where the page points (docs/templates by who gets it)", () => {
+  test("design files and preview files exist where the page points (current MJML emails and retained pages)", () => {
     for (const e of TEMPLATE_ENTRIES) {
       if (e.design) expect({ id: e.id, design: e.design, exists: existsSync(e.design) }).toEqual({ id: e.id, design: e.design, exists: true });
       const p = e.render();
       if (p.kind === "file") expect({ id: e.id, path: p.path, exists: existsSync(p.path) }).toEqual({ id: e.id, path: p.path, exists: true });
       if (p.kind === "files") for (const f of p.items) if (f.path && !f.path.startsWith("docs/product-warranties/")) expect({ id: e.id, path: f.path, exists: existsSync(f.path) }).toEqual({ id: e.id, path: f.path, exists: true });
     }
-    for (const dir of ["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "drafts"]) expect(existsSync(`docs/templates/${dir}`)).toBe(true);
+    for (const dir of ["mjml", "owner", "installer", "office", "mitti", "compliance"]) expect(existsSync(`docs/templates/${dir}`)).toBe(true);
     for (const old of ["approved", "samples"]) expect(existsSync(`docs/templates/${old}`)).toBe(false);
   });
   test("code-off entries name a real false switch in code", () => {
@@ -119,7 +119,7 @@ describe("nothing live is missing from the page", () => {
   });
   test("every email builder in src/lib is on the page or explicitly not listed (with a reason)", () => {
     // Helpers whose name ends in "Email" but that build no message.
-    const NOT_BUILDERS = new Set(["normaliseEmail", "normaliseLoginEmail", "validBusinessEmail", "cleanOwnerEmail", "isHumanOwnerEmail", "guessJobsForEmail", "simpleEmail"]);
+    const NOT_BUILDERS = new Set(["normaliseEmail", "normaliseLoginEmail", "validBusinessEmail", "cleanOwnerEmail", "isHumanOwnerEmail", "guessJobsForEmail", "simpleEmail", "mjEmail"]);
     const found: string[] = [];
     for (const f of readdirSync("src/lib").filter((x) => /\.tsx?$/.test(x) && !/\.(server|functions)\.tsx?$/.test(x))) {
       for (const m of read(`src/lib/${f}`).matchAll(/export (?:async )?(?:function|const) ([A-Za-z]\w*Email)\b/g)) found.push(m[1]!);

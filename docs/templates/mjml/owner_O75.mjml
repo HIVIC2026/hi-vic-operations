@@ -1,0 +1,41 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your signed paperwork</mj-title>
+    <mj-preview>Thanks for signing. Your copies are attached as PDFs for your records.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="hi">Hi Helen, thanks for signing.</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your signed paperwork</mj-text>
+          <mj-text>Here's a copy of what you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150, for your records.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-card">
+          <mj-text mj-class="h2" padding="18px 18px 10px">What you signed</mj-text>
+          <mj-table padding="0 18px 6px">
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">The agreement</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">Payment</td></tr>
+            <tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">Your rebate form</td></tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text padding="16px 12px 14px">The signed copies are attached as PDFs.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST">See my job</mj-button>
+          <mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

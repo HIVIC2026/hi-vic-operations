@@ -56,9 +56,9 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
   test("DRAFT email O65: not charged, end date of the 30-day window, days when offered, otherwise 'will send'", () => {
     const e = renderInstallNoAccessEmail(f);
     expect(e.subject).toBe("Helen, we couldn't get in today");
-    expect(e.text).toContain("nothing is charged for today");
+    expect(e.text).toContain("Nothing is charged for today");
     expect(e.text).toContain("by 21 November");
-    expect(e.text).toContain("will send you three new days shortly");
+    expect(e.text).toContain("will send you three new days soon");
     const d = renderInstallNoAccessEmail({ ...f, newDays: [{ day: "Thursday 29 October", time: "8am", href: f.link }] });
     expect(d.text).toContain("PICK A NEW INSTALL DAY");
     expect(d.html).toContain("Thursday 29 October");
@@ -80,8 +80,7 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
     expect(installNoAccessKeys("b1")).toEqual({ email: "install-no-access:v1:b1:email", sms: "install-no-access:v1:b1:sms" });
   });
   test("draft design is filed", () => {
-    const html = readFileSync("docs/templates/owner/O65-install-no-access.html", "utf8");
+    const html = readFileSync("docs/templates/mjml/owner_O65.mjml", "utf8");
     expect(html).toContain("couldn't get in today");
-    expect(html).toContain("DRAFT");
   });
 });

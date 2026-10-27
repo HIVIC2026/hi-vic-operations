@@ -98,6 +98,7 @@ export async function autoLinkApprovedRec(recBusinessId: string, actorId: string
 /** Recent auto-link outcomes for the Needs me Partner & system fold (office line, one per installer). */
 export async function recentRecLinkItems(days = 14): Promise<{ key: string; recName: string; line: string; since: string; conflict: boolean }[]> {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
-  const { data } = await admin.from("admin_config_events").select("id, event_type, summary, created_at, details").in("event_type", [REC_AUTO_LINKED_EVENT, REC_LINK_CONFLICT_EVENT]).gte("created_at", since).order("created_at", { ascending: false }).limit(50);
+  const { data, error } = await admin.from("admin_config_events").select("id, event_type, summary, created_at, details").in("event_type", [REC_AUTO_LINKED_EVENT, REC_LINK_CONFLICT_EVENT]).gte("created_at", since).order("created_at", { ascending: false }).limit(50);
+  if (error) throw new Error(`Could not load electrician links: ${error.message}`); // never "nothing" on a failed read
   return (data ?? []).map((r) => ({ key: `reclink:${r.id}`, recName: String((r.details as { rec_name?: string } | null)?.rec_name ?? "REC"), line: r.summary ?? "", since: r.created_at, conflict: r.event_type === REC_LINK_CONFLICT_EVENT }));
 }

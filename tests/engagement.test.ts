@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { publicLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { CUSTOMER_BASE, PIXEL_GIF, clickUrl, dedupe, estimateUrl, newTrackingToken, pixelResponse, pixelToken, pixelUrl, planFollowup, planInitialFollowups, redirectResponse, safeMetadata, sendBlocker, summarize, type EngagementEvent } from "../src/lib/engagement.core";
 import { base44BridgeConfig } from "../src/lib/delivery.core";
-import { renderEstimateEmail } from "../src/lib/estimate-email";
 import { renderFollowupEmail } from "../src/lib/followup-email";
 
 const T0 = Date.parse("2026-10-01T00:00:00Z");
@@ -168,16 +168,6 @@ describe("email renderers", () => {
   const link = `${CUSTOMER_BASE}/estimate/${newTrackingToken()}`;
   const tok = newTrackingToken();
   const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
-  test("tracked CTA + pixel only when supplied", () => {
-    const plain = renderEstimateEmail({ estimateUrl: link, ...quote });
-    expect(plain.html).toContain(`href="${link}#confirm"`);
-    expect(plain.html).not.toContain("/t/o/");
-    const tracked = renderEstimateEmail({ estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok), ...quote });
-    expect(tracked.html).toContain(`href="${clickUrl(tok)}"`);
-    expect(tracked.html).toContain(`src="${pixelUrl(tok)}"`);
-    expect(tracked.plainText).toContain(clickUrl(tok));
-    expect(() => renderEstimateEmail({ estimateUrl: link, trackingClickUrl: "https://evil.example/t/e/x", ...quote })).toThrow();
-  });
   test("only the unopened three-day follow-up remains renderable", () => {
     const m = renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
     expect(m.html).toContain("#3C51C4");
@@ -196,7 +186,7 @@ describe("email renderers", () => {
     expect(delivery).toBeGreaterThan(guard);
   });
   test("sample preview never calls live tracking", () => {
-    const p = src("src/routes/step3-email-preview.tsx");
-    expect(p).not.toMatch(/tracking(Click|Pixel)Url|\/t\/e\/|\/t\/o\//);
+    // The preview page is retired: its old address only redirects to Templates (legacy-links.core.ts).
+    expect(publicLegacyTarget("step3-email-preview")).toEqual({ to: "/admin/templates", search: { cat: "owner" } });
   });
 });

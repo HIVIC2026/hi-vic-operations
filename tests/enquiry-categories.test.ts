@@ -36,11 +36,9 @@ test("views and counts: the opening view leaves out opted out and gone quiet", (
   expect(categoryCounts(["offered", "quiet", "quiet", "opted_out", "not_sent"])).toEqual({ offered: 1, not_sent: 1, opted_out: 1, quiet: 2, active: 2, all: 5 });
 });
 
-test("Jo 26 Oct: emails live in the Inbox, not on Enquiries", () => {
+test("emails live on the office Emails tab (decision 414), not on Enquiries", () => {
   const screen = readFileSync("src/components/portal/EnquiriesScreen.tsx", "utf8");
   expect(screen).not.toMatch(/EmailsToMatch|emails-to-match/);
-  expect(readFileSync("src/routes/_authenticated/admin.inbox.tsx", "utf8")).toMatch(/InboxScreen/);
-  expect(readFileSync("src/components/portal/office.tsx", "utf8")).toMatch(/InboxButton/);
 });
 
 test("Wrote to us: the owner emailed in the last 14 days and we haven't written since", () => {
@@ -49,10 +47,4 @@ test("Wrote to us: the owner emailed in the last 14 days and we haven't written 
   expect(ownerWrote({ inboundAt: ago(2), lastOutboundAt: ago(1) }, NOW)).toBeNull();
   expect(ownerWrote({ inboundAt: ago(20), lastOutboundAt: null }, NOW)).toBeNull();
   expect(ownerWrote({ inboundAt: null, lastOutboundAt: ago(1) }, NOW)).toBeNull();
-});
-
-test("Jo 26 Oct: owner requests from email live in the Inbox, not on Needs me", () => {
-  const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
-  expect(needs).not.toMatch(/type: "change"/);
-  expect(readFileSync("src/lib/email-unmatched-rows.server.ts", "utf8")).toMatch(/type: "change"/);
 });

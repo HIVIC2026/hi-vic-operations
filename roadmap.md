@@ -1,4 +1,74 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:50 TEST-only office steps A and B only
+- [ ] A: partial. Added separate verified-identity/database/graph server check to job page, job Money card and recorded notes; all other areas remain admin-only. Pending SELECT-only job-graph RLS passes practice checks, NOT APPLIED. 59 focused security checks + 20 existing regressions pass; lists/counts/search/Needs me/Money/Partners/Emails/buttons/exports/views/RPCs remain uncovered, listed in docs/qa/qa-office-27oct-access-coverage.md. No admin alias; full per-area proof NOT_RUN.
+- [ ] B: BLOCKED because A is incomplete, not because a credential is missing. No migration/account/password or screenshots created. No journey, publication, switch changes or sends.
+## Jo 27 Oct 07:33 TEST-only office and Phase 2
+- [ ] Complete qa_office office access: inactive pure scope checks and quarantine SQL only are built; no production permissions or route changes. Remaining server readers/actions, views/RPCs, storage/exports and scoped list caches are NOT implemented; never widen requireAdmin/is_admin.
+- [x] Practice foundation only: 24 focused checks pass, including two-user quarantine real-id/table/settings denial and unchanged admin. This does NOT prove full office list/action isolation or authenticated end-to-end access.
+- [ ] Create exactly one reserved-domain qa_office login with project-secret-only password; BLOCKED until the complete access surface is implemented/proven. No role/account/password or live migration created.
+- [ ] Complete browser-first 390px Phase 2 website-to-payout; latest safe preflight run is 0 pass/0 fail/73 blocked. Calculator and registration content loaded with no page errors; no job created, no archive or trade-flag restoration needed. BLOCKED on isolated website submission, serving-process no-send/Mitti/Demo proof and role integration; no providers/switches/publication.
+## Jo 27 Oct 07:26 stale tests
+- [x] Correct only the three stale test expectations: current MJML templates/folders, retired A3 question and Owner name in the updated-form test; 37 tests pass in three isolated files. No product changes, sends, switches or publication.
+## Jo 27 Oct 07:23 decision 316
+- [x] Align guides, record Jo’s reconfirmation and correct piesa-fixes check 2.7 to use the official PIESA date; portal deadline code unchanged.
+## Jo 27 Oct 07:09 HV-3385 review fixes
+- [x] Refresh changed completed Mitti measurements, audit and redraft held quotes only; issued/accepted quotes unchanged. Practice sweep/readback and unchanged replay checked; verified measurements retain protection.
+- [x] Price is already excluded from Mitti missing-items messages; existing regression checks pass; installer quote amount validation untouched.
+- [x] Add a job starts the existing guarded form create immediately, without delayed retries; booking and tick backups retained; practice immediate readback and duplicate claim checks pass.
+- [x] Price-card rundown includes address, areas, access/notes, product and electrician; removal lock retained; actual isolated 390px/desktop rendering and physical lock tap checked. Hosted user mutation deliberately not run; no real jobs/forms/sends/switches/publication.
+## Jo 27 Oct 06:02 independent Mitti pull
+- [x] Attempted no-message HV-3385 sync: refused because its measurement was already completed by production at 05:45; current form read confirmed 75m², batts below R2, remove75m², Bradford Gold R5 and easy access. No sends.
+- [x] Separate authenticated Mitti callback and remove only two requested sweeps from preview allocation; retain all other tick behaviour.
+- [ ] Activate production five-minute schedule only with deployed callback; blocked pending explicit publication authorisation. Do not point a live timer at a nonexistent route or alter unmanaged allocation authentication.
+## Jo 27 Oct 05:16 interrupted Save my spot — one bug only
+- [x] Atomic save/event/stage applied after practice rollback/retry/access tests; both save handlers resume confirmation, secure next visit repairs only that recorded job without messages. Regression tests pass; no sends/settings/publication.
+## Jo 27 Oct 04:18 main journey follow-ups
+- [x] HV-3371 read-only audit: customer_email_sends 0, sms_messages 0; all21 job_communications (14 email/7 SMS) blocked_prelaunch, no provider ids. Reserved TEST-domain emails and dummy mobiles are NOT sending-allowlisted. Complete row list in Files journey/HV-3371-message-audit.md.
+- [x] Only main TEST consent input changed: four existing required ticks in shared journey fixture;20 focused tests pass, build OK. Wrapper verified in executing child, all sending keys removed,17 Demo-only Xero calls,zero external/provider refusals; existing M passes. HV-3376 archived;1–6/9/10 PASS,7 FAIL after consent succeeds because ESC notice is configuration required,8 SKIPPED. Report journey/2026-10-27T04-21-11/report.md +json. No rules/settings/publishing changes; TEST flags restored.
+- [x] Existing screenshots were too early (plain Loading your day paragraph not counted as busy). Fresh TEST-role phone waiting check: both home pages load about2s, archived run-job pages resolve to expected assignment-ended access refusal rather than hanging. No product-page fix. Active electrician job-content proof unavailable after archive, not claimed.
+## Jo 27 Oct 04:08 full journey proof Phases 1–2
+- [x] Saved partial read-only register:47 source-backed gate families plus859 literal candidates; exact messages indexed, untraced callers/notifications/SQL/printed-form branches marked incomplete. journey/block-register.md in Files; exhaustive Phase 1 completion not claimed.
+- [x] Added browser-first --screens preflight, without legacy server mutations or product/look changes;14 focused safety/guard tests pass, preview build OK. Current mode records downstream steps blocked, not a implemented full interactive all-clear journey.
+- [x] Ran once:0 pass/2 fail/71 blocked, two390px screenshots inspected. No job created, no archive required, HV-3274/HV-3239 untouched. Command sending keys removed; browser GET/static only, no providers/invoices/sends/switches/publication. Report journey/2026-10-27T04-10-57-screens/report.md +json.
+- [ ] Full interactive Phase 2 BLOCKED: no isolated Base44 website-to-qa_test page, no verified server-wide simulated-Mitti/no-send/Demo guard for browser requests, no verified TEST-domain office actor; existing helper would re-enable paused trade flags. Requires isolated execution boundary, not rule/switch bypass. Phase 1 exhaustive notification/SQL/printed-form tracing remains incomplete.
+- [x] Phases 3–4 deferred by Jo; not implemented.
+## Jo 27 Oct 04:05 electrician payout rule replaces 355
+- [ ] BLOCKED on Jo's choice of approval mechanism: current portal records A3/A4 completion, not a separate HIV form approval. Do not silently treat completion as approval or add a new Office step without Jo's choice. New rule saved; payout code untouched.
+- [x] Read-only confirmed welcome tick/step 5 and manual Mitti invitation already use Jo's exact wording; all thirteen dummy trades have both offer flags false. No switches/data changed.
+- [x] 27 Oct (GitHub PR, not yet in Lovable): electrician-only clock built; owner-payment waiting removed from trade Money, office Payouts, status line and Mark paid; installer rules unchanged. Jo chose office approval (04:28): Money › Payouts has Approve form once the A3/A4 passes its checks; the 7 days start from that Approve.
+## Jo 27 Oct 03:57 main journey deposit order
+- [x] A3 Owner name untouched/required. Main test now pays Demo TEST 10% deposit before install-day offers and booking. Same boundary guard plus hard network refusal as branches; M recorded even if allowlist check fails. Guard, restore and install-day regressions pass; preview build OK.
+- [x] Safe rerun HV-3372 with sending keys removed and verified Demo-only network wrapper: steps 1–6 PASS, 7 FAIL (test ESC consent lacks four required ticks), 8 SKIPPED, 9–10 PASS, M PASS zero real Mitti calls. Deposit paid and install booked before new failure. Only run jobs HV-3371/HV-3372 archived; HV-3274/HV-3239 unchanged; Alpha/Delta paused flags restored. Earlier invocation did not propagate the preload safety wrapper; latest run explicitly verified it ran in the child process. Screenshots for trade pages remain loading, so browser content verification NOT_RUN despite runner PASS labels. No further changes authorised.
+## Jo 27 Oct 03:52 welcome wording and TEST trades
+- [x] Changed only electrician pay tick/step 5 and both welcome Mitti step 1; actual payout still waits seven days after later of complete form and owner payment, unchanged.
+- [x] Thirteen named dummy trades paused with accepting_new_jobs=false and receives_hivic_leads=false; PGlite proof passed before live transaction, thirteen audit rows verified. Approval, TEST markers, logins and four protected real businesses unchanged. TEST journey snapshot now restores both flags; isolated preparation/cleanup check passed.
+- [x] Five real businesses remain enabled by offer preferences: All Powered Electrical PTY LTD, RAPID INSULATION, Reinsulate, Silver Spirit Investments, Western Suburbs Electrical. Four lack verified coverage; Reinsulate's only verified installer certificate has no recorded Full level/expiry, so new-offer candidate gates currently block all five. No sends, global switch changes or publication; preview build OK.
+## Jo 27 Oct 03:31 A3 Owner name back + reruns
+- [x] Real A3 (GET only): Job Reference ID, Address including postcode, Owner name, Office life support record, Date of inspection; prefill matches all, Owner name required (never made optional).
+- [x] piesa-fixes HV-3366 all pass incl. M; archived.
+- [x] Jo authorised main-test deposit ordering correction at 03:57; see latest HV-3372 result above.
+## Jo 27 Oct 03:23 partner welcome email
+- [x] Welcome sends on approval (guarded, once per business, email only) with Mitti section, store links and checked steps; tests pass; nothing sent, no switches changed.
+## Jo 27 Oct 03:00 five follow-ups + journey rerun
+- [x] Real A3 read-only: no owner-name question under any label; nothing changed (Jo to add in Mitti).
+- [x] Journeys route product Mitti calls to the simulator and refuse any real Mitti call (check M); stray real A4 audit_5f87c528f09144589e0a0380916633ec left in place.
+- [x] 2.3 accepts decision-315 hold reason; 1.4 refused emails leave one held/blocked row + office note, once only.
+- [x] Xero duplicate was the test making a second invoice; removed from the test, reference unchanged.
+- [x] Reruns: not-eligible HV-3361/3362 all pass; piesa-fixes HV-3363 all pass; archived.
+## Jo 27 Oct 02:24 DC Xero switch (clarified 02:25)
+- [x] Preview selects already-linked DC Xero; actual status configured/connected, DC live and Demo-only TEST routing confirmed; 53 tests pass, build OK. No messages, switches or publication.
+- [x] Jo 02:29 tracking fix: DC Projects → Home Insulation Victoria resolved against actual Xero read-only; 56 tests pass, build OK. Wrong-business/missing-tracking guards and Demo isolation retained; no invoices sent or publication.
+## Jo 27 Oct 02:15 guarded not-eligible email and journey rerun
+- [x] Actual portal xeroConnectionStatus normal environment: configured/connected true; only Home Insulation Victoria, no TEST Demo route. Separate workspace connection has Demo, but no connection/secret changed.
+- [x] Preview once-only approved T7 after current final not_eligible, durable held retry with normal customer/TEST guards; 10 new isolated tests and 39 existing eligibility/retry/practice checks pass; decision 407/source of truth recorded; build OK. Hosted flow unverified; no publish.
+- [ ] Both branch reruns BLOCKED: customer_comms_enabled is ON and selected XERO_API_KEY_1 has no Demo Company. No switch/secret changes, no jobs created/archived or messages sent. All 1.1–1.6 / 2.1–2.8 recorded blocked in Files journey/2026-10-27-guarded-rerun/report.md.
+## Jo 27 Oct 02:14 Xero connections
+- [x] Show connected organisations: Home Insulation Victoria on Joannah's Xero (1); DC Construction Solutions Pty Ltd and Demo Company (AU) on Joannah's Xero.
+- [x] Verified test Demo Company access: Xero Organisation read returned HTTP 200, ACTIVE and IsDemoCompany=true; already connected, no re-authorisation needed. No invoices, switches or publication changed.
+## Jo 26 Oct 10:48 three approved fixes
+- [x] Removed "call us"/office phone from owner quote + cancelled emails and an owner error message.
+- [x] Eligibility labels now "Likely Eligible" / "Needs Onsite Confirmation" / "Does Not Appear Eligible"; Gate 1 logic untouched.
+- [x] 5% deposit tier removed; flat 10% on install price only.
 ## Jo 25 Oct 09:28 read-only counts
 - [x] Read-only counts complete: all 1,331 leads paged; 256 send decisions / 254 unique real owners; 0 real tomorrow daily-text recipients; booking switch alone sends 0 while auto-installer offers remain OFF. GET/HEAD guard blocked writes/providers; temporary script deleted.
 - [ ] Finish the interrupted Outlook archive action after fresh checks; last read batch was cancelled before execution and no messages have been moved.
@@ -540,3 +610,19 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] AI email replies on each job (Jo 26 Oct): drafts on job, auto-send off, unmatched on Enquiries
 - [ ] Turn on AI auto-send for simple replies — waits for Jo to see samples and say "send"
+## 26 Oct (Jo) — 10:24 QA release fixes
+- [x] Office write journey updated to redesigned screens (More ▾ menu gating, Settings › Deleted restore, Enquiry › Eligibility › Change result); office-only retest 27 passed
+- [x] save-spot + existing-insulation-send tests passing (tests updated to current approved wording; follow-up re-send guard restored)
+- [x] Installer add-a-job addresses tagged per run; HV-3265/HV-3266 (qa_test) soft-deleted
+- [x] 9 "failed/uncertain" emails = sent emails with "Accepted" in the error box (fixed earlier today); report only
+- [ ] Job page More ▾ "Delete (test jobs only)" is a permanent delete (not restorable) — awaiting Jo's choice
+
+## Email looks back to Jo's approved pictures (Jo 27 Oct) — one at a time, Jo checks each
+- [x] O12 You're booked
+- [x] Superseded (Jo 27 Oct, decision 406): the MJML email refresh is the correct set; the move back to the pictures was undone
+- [x] URGENT (Jo 27 Oct 21:45): stop all automatic emails until templates fixed
+
+- [ ] Journey piesa-fixes 2.1–2.8 — simulation added; BLOCKED: Xero Demo Company not connected
+- [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
+- [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
+- [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it

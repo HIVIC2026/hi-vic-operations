@@ -62,8 +62,11 @@ export const respondTeamInvite = createServerFn({ method: "POST" })
       if (app.status === "draft") {
         const cur = recData.parse(app.data ?? {});
         const fill = { primary_contact_name: n.contact_name, business_email: n.email, business_phone: n.phone, trading_name: n.business_name };
-        const merged = { ...cur };
+        const merged: Record<string, unknown> = { ...cur };
         for (const [k, v] of Object.entries(fill)) if (v && !cur[k]) merged[k] = v;
+        // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) — no safety check rate or bank details.
+        const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians((n as { nominating_business_id?: string | null }).nominating_business_id);
+        if (paysOwn) { merged["paid_by_installer"] = true; merged["paid_by_installer_name"] = paysOwn.name; }
         await d.from("rec_onboarding_applications").update({ data: merged as never }).eq("id", app.id);
       }
     }

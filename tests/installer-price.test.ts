@@ -4,12 +4,12 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
-import { accessFlagFromEntries } from "../src/lib/ready-check-answers.core";
+import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
 import { needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
@@ -31,7 +31,7 @@ describe("validateInstallerPrice (pure, fails closed) — price + what is includ
     expect(validateInstallerPrice({ ...ok, included: ["Removal of existing insulation"] }).issues).toEqual([PRICE_ISSUES.base]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"] }).issues).toEqual([PRICE_ISSUES.other]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Not an option"] }).ok).toBe(true); // unknown ticks are dropped, never invented
-    expect(Object.keys(PRICE_ISSUES)).toEqual(["price", "included", "base", "other"]);
+    expect(Object.keys(PRICE_ISSUES)).toEqual(["price", "included", "base", "other", "noRemoval"]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"], includedOther: "Whirlybird" }).record?.included_other).toBe("Whirlybird");
   });
   test("the stored event reads back; malformed events are never a price; a legacy electrician block is kept, a bad one dropped", () => {
@@ -156,9 +156,10 @@ describe("wiring (source facts)", () => {
     expect(s).toContain("logEvent(jobId, userId, INSTALLER_PRICE_EVENT");
     expect(s).not.toMatch(/sendRealSms|sendGuardedOwnerEmail|releaseQuoteToOwner|\.update\(\{ *price/);
     // Decision 289: the card never validates an electrician; the view shows the job's recorded choice read-only.
-    expect(s).toContain("const v = validateInstallerPrice(input);");
+    // Jo 27 Oct 2026: the same pure check also receives the current Ready Check's removal flag.
+    expect(s).toContain("const v = validateInstallerPrice({ ...input, removalRequired });");
     expect(s).toContain("readElectricianChoice(jobId)");
-    expect(s).toContain("access: accessFlagFromEntries(entries)");
+    expect(s).toContain("const access = accessFlagFromEntries(entries)");
     // The READ module is on the autoAdvance graph: never Mitti, never a sender (tests/comms.test.ts).
     const r = read("src/lib/installer-price.server.ts");
     expect(r).not.toMatch(/mitti\.server|auto-quote-send|installer-quote\.server|pilot\.server|logEvent/);
@@ -203,5 +204,68 @@ describe("wiring (source facts)", () => {
     // Decision 341: the only access line is the installer's agreed DIFFICULT_ACCESS rate on a "Difficult" rating.
     expect(a2).toContain('installerDifficultAccessExGst: rate("DIFFICULT_ACCESS")');
     expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
+  });
+});
+
+// Jo 27 Oct 2026: when the job's current Ready Check says there is no removal, the installer can't tick "Removal of
+// existing insulation" — the screen refuses the tap (with the reason under it) and the server check refuses it too.
+describe("removal tick refused when the Ready Check says no removal (Jo 27 Oct 2026)", () => {
+  const withRemoval = { ...ok, included: ["Ceiling insulation - supply & install", "Removal of existing insulation"] };
+  test("Ready Check positively says no removal → removal tick refused, with Jo's exact wording", () => {
+    const r = validateInstallerPrice({ ...withRemoval, removalRequired: false });
+    expect(r.ok).toBe(false);
+    expect(r.record).toBeNull();
+    expect(r.issues).toEqual([PRICE_ISSUES.noRemoval]);
+    expect(PRICE_ISSUES.noRemoval).toBe("Your Ready Check in Mitti says there's no removal on this job. If there is, add the removal area to the Mitti form first, then you can include it here.");
+  });
+  test("removal on the Ready Check → nothing changes; unknown (no Ready Check / old callers) → nothing changes", () => {
+    expect(validateInstallerPrice({ ...withRemoval, removalRequired: true }).ok).toBe(true);
+    expect(validateInstallerPrice({ ...withRemoval, removalRequired: null }).ok).toBe(true);
+    expect(validateInstallerPrice(withRemoval).ok).toBe(true); // field absent: never blocked, never guessed
+    expect(validateInstallerPrice({ ...ok, removalRequired: false }).ok).toBe(true); // no removal tick anyway
+  });
+  test("readyCheckRemovalRequired: current measurement + per-area removal m², null when no current Ready Check", () => {
+    const removalEntry = { label: "How much existing insulation needs to be removed? (m²)", value: "40" };
+    expect(readyCheckRemovalRequired([], null)).toBeNull(); // no current Ready Check → unknown
+    expect(readyCheckRemovalRequired([], undefined)).toBeNull();
+    expect(readyCheckRemovalRequired([], { removal_required: false })).toBe(false);
+    expect(readyCheckRemovalRequired([removalEntry], { removal_required: false })).toBe(true); // form m² wins over the flag
+    expect(readyCheckRemovalRequired([], { removal_required: true })).toBe(true);
+    expect(readyCheckRemovalRequired([{ label: "How much existing insulation needs to be removed? (m²)", value: "0" }], { removal_required: false })).toBe(false);
+  });
+  test("wiring: the card blocks the tap and shows the note under the tickbox; the server passes the flag into the same check", () => {
+    const read = (f: string) => readFileSync(f, "utf8");
+    const card = read("src/components/trade/InstallerPriceCard.tsx");
+    expect(card).toContain("view?.removalRequired === false");
+    expect(card).toContain("setRemovalNote(true)");
+    expect(card).toContain("data-removal-note");
+    expect(card).toContain("removalRequired: view.removalRequired");
+    const server = read("src/lib/installer-price-set.server.ts");
+    expect(server).toContain("removal_required");
+    expect(server).toContain("validateInstallerPrice({ ...input, removalRequired })");
+  });
+});
+
+describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone after the 06:07 push)", () => {
+  test("install m² from the current measurement; removal 'None' when the Ready Check says no removal", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: 75, removalRequired: false, removalM2: null })).toEqual({ install: "75 m²", removal: "None" });
+  });
+  test("removal m² shown when there is removal; missing values read 'Not on the Ready Check yet'", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: 140, removalRequired: true, removalM2: 32 })).toEqual({ install: "140 m²", removal: "32 m²" });
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: null, removalRequired: true, removalM2: null })).toEqual({ install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK });
+  });
+  test("no current Ready Check at all = both rows 'Not on the Ready Check yet'", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: false, installAreaM2: null, removalRequired: null, removalM2: null })).toEqual({ install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK });
+  });
+  test("the card shows the three rows above the price, from the server's readyCheck view", () => {
+    const read = (f: string) => readFileSync(f, "utf8");
+    const card = read("src/components/trade/InstallerPriceCard.tsx");
+    expect(card).toContain('label="Install m²"');
+    expect(card).toContain('label="Removal m²"');
+    expect(card).toContain('label="Access"');
+    const server = read("src/lib/installer-price-set.server.ts");
+    expect(server).toContain("measured_area_m2");
+    expect(server).toContain("readyCheckDetailLines");
+    expect(server).toContain("removalTotalM2");
   });
 });

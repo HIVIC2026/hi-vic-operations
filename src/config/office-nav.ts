@@ -1,11 +1,11 @@
-// Office navigation (decision 218, approved mock-ups O1–O7): top bar Needs me · Enquiries · Jobs · Partners · Money,
+// Office navigation (decision 218, approved mock-ups O1–O7; Emails added by Jo 27 Oct 2026, decision 414): top bar Needs me · Enquiries · Emails · Jobs · Partners · Money,
 // the rest under More (Communications · Templates · Settings · Test Centre · Sign out); phone bottom tabs mirror the
-// five headings. Presentation only: every legacy route still resolves (it redirects or stays a detail view), so
+// six headings. Presentation only: every legacy route still resolves (it redirects or stays a detail view), so
 // bookmarks and internal links keep working. Owned by office build A; Partners/Money/Communications/Settings pages are build B's
 // (/admin/workers redirects to /admin/partners?tab=people).
 import type { LinkProps } from "@tanstack/react-router";
 
-export type OfficeSection = "needs" | "enquiries" | "jobs" | "partners" | "money" | "inbox" | "more";
+export type OfficeSection = "needs" | "enquiries" | "emails" | "jobs" | "partners" | "money" | "more";
 export type OfficeTab = {
   label: string;
   to: NonNullable<LinkProps["to"]>;
@@ -15,10 +15,11 @@ export type OfficeTab = {
 /** The home: Needs me (decision 218 "Needs me is the home grouped by office action"). */
 export const OFFICE_HOME = "/admin/needs-me" as const;
 
-/** The five primary destinations. Nothing else belongs in the top bar. */
+/** The six primary destinations. Nothing else belongs in the top bar. */
 export const OFFICE_HEADINGS: (OfficeTab & { key: Exclude<OfficeSection, "more"> })[] = [
   { key: "needs", label: "Needs me", to: "/admin/needs-me" },
   { key: "enquiries", label: "Enquiries", to: "/admin/enquiries" },
+  { key: "emails", label: "Emails", to: "/admin/emails" },
   { key: "jobs", label: "Jobs", to: "/admin/jobs/active" },
   { key: "partners", label: "Partners", to: "/admin/partners" },
   { key: "money", label: "Money", to: "/admin/money" },
@@ -26,6 +27,7 @@ export const OFFICE_HEADINGS: (OfficeTab & { key: Exclude<OfficeSection, "more">
 
 const NEEDS_PATHS = ["/admin/needs-me", "/admin/today", "/admin/todo"];
 const ENQUIRY_PATHS = ["/admin/enquiries", "/admin/enquiry-groups", "/admin/ready-check", "/admin/hot-leads"];
+const EMAIL_PATHS = ["/admin/emails"];
 const JOB_PATHS = ["/admin/board", "/admin/ap-queue", "/admin/list", "/admin/pipeline", "/admin/quotes", "/admin/operations", "/admin/operations-preview"];
 const PARTNER_PATHS = ["/admin/partners", "/admin/businesses", "/admin/workers", "/admin/coverage", "/admin/partners-overview", "/admin/team-ups", "/admin/electrician-rates"];
 const MONEY_PATHS = ["/admin/money", "/admin/pricing", "/admin/veec"];
@@ -35,11 +37,10 @@ export function sectionFor(pathname: string, search: Record<string, unknown> = {
   const p = pathname.replace(/\/$/, "") || "/";
   void search;
   if (p === "/admin") return "needs";
-  // The Inbox (Jo 26 Oct 2026) is the envelope button beside the initials, not a sixth heading.
-  if (p === "/admin/inbox") return "inbox";
   if (NEEDS_PATHS.includes(p)) return "needs";
   if (p === "/admin/jobs" || p.startsWith("/admin/jobs/") || JOB_PATHS.includes(p)) return "jobs";
   if (ENQUIRY_PATHS.includes(p)) return "enquiries";
+  if (EMAIL_PATHS.includes(p)) return "emails";
   if (PARTNER_PATHS.includes(p) || p.startsWith("/admin/partners/")) return "partners";
   if (MONEY_PATHS.includes(p) || p.startsWith("/admin/money/")) return "money";
   return "more";

@@ -2,10 +2,12 @@
 // in ONE table with the Enquiries interaction (decisions 281/283/285/286): every heading sorts AND filters, one search
 // box, no chip panel. Columns Job · Owner · Suburb (postcode) · Size · Insulation · Estimate · Waiting since · Coverage,
 // then the "Choose installer" button (the existing flow, unchanged). Default sort: waiting longest first.
-// Coverage (added to 378 the same day): per job postcode, is there an approved INSTALLER and an approved ELECTRICIAN
-// (REC with an active PIESA rate) covering it — the same area rules the offer / automatic-offer readers apply
-// (approved + active, current verified documents, verified coverage incl. the postcode, not paused, takes our leads,
-// TEST partners only for TEST jobs). Per-day availability and crew clearance are still checked when an offer is made.
+// Coverage (added to 378 the same day): per job postcode, "Installer ✓" = the Choose installer pop-up has at least one
+// installer it can Release to (`installerCanBeOffered` → readycheck-booking.core `installerOfferable`, the pop-up's own
+// rule: approved + active, documents, a Full-certified installer, free Ready Checks, takes work, verified coverage).
+// "Electrician ✓" = an approved REC with an active PIESA rate and an approved electrician covers it (approved + active,
+// current verified documents, verified coverage incl. the postcode, not paused, takes our leads) — information for the
+// later PIESA step only; it never affects choosing an installer. TEST partners only for TEST jobs.
 // Membership is the Needs me "Choose installer" rule (`readyCheckOfficeItem`): our lead at ready_check_ready_to_schedule,
 // no installer, no offer pending/accepted. Needs me folds those rows into ONE link to this list (one pile per job).
 // PURE: no I/O.
@@ -13,6 +15,7 @@ import { has, inRange, textHit, type ListColumn, type Range } from "./enquiry-co
 import { INSULATION_LABEL, type InsulationChip, type SortDir } from "./office-filters.core";
 import { coveragePartnerBlocker, type CoveragePartner } from "./coverage.core";
 import { isElectricianBiz, isInstallerBiz, verifiedServiceAreaMatch } from "./pilot.core";
+import { installerCandidate, installerOfferable } from "./readycheck-booking.core";
 import { partnerAllowedForJob } from "./test-send.core";
 import { readyCheckOfficeItem, type OfficeOfferRow } from "./ready-check-times.core";
 import type { NeedsRow } from "./office-needs.core";
@@ -200,24 +203,73 @@ export function partnerCoversJob(p: WaitingPartner, trade: "installer" | "electr
   return p.piesaRate === true && (p.approvedElectricians ?? 0) > 0;
 }
 
-/** One pass for every postcode on the page (cached per postcode + TEST/live). */
-export function coverageLookup(partners: WaitingPartner[], now = new Date()): (postcode: string | null, isTest: boolean) => WaitingCoverage {
+/** An installer business with the facts the Ready Check offer rule reads (readycheck-booking.server `installerOfferFacts`). */
+export type WaitingInstaller = {
+  id: string; name: string; is_active: boolean; onboarding_status: string;
+  accepting_new_jobs: boolean | null; receives_hivic_leads: boolean | null; coverage_verified_at: string | null;
+  service_postcodes: string[] | null; free_measureups_for_hivic_quote_leads: boolean | null; onboarding_notes: string | null;
+  credentialsOk: boolean; fullCertifiedInstallers: number;
+};
+/** "Installer ✓" = the Choose installer pop-up has at least one installer it can Release to here — the same
+ *  `installerOfferable` rule the pop-up uses (HV-1509). Per-day availability is not known before the owner's times. */
+export function installerCanBeOffered(i: WaitingInstaller, site: { postcode: string | null; isTest: boolean }): boolean {
+  if (!partnerAllowedForJob(i, site.isTest ? "qa_test" : null)) return false;
+  const pc = site.postcode;
+  return installerOfferable(installerCandidate({
+    business_id: i.id, name: i.name, is_active: i.is_active, onboarding_status: i.onboarding_status,
+    accepting_new_jobs: i.accepting_new_jobs, receives_hivic_leads: i.receives_hivic_leads,
+    coverage_verified: !!i.coverage_verified_at, covers_postcode: verifiedServiceAreaMatch(i, pc), exact_postcode: !!pc && !!i.service_postcodes?.includes(pc),
+    credentialsOk: i.credentialsOk, fullCertifiedInstallers: i.fullCertifiedInstallers, freeMeasureUps: i.free_measureups_for_hivic_quote_leads,
+    weekly_capacity: null, open_jobs: 0, recent_offers_30d: 0, acceptance_rate: null, free_in_window: null,
+  }));
+}
+
+/** One pass for every postcode on the page (cached per postcode + TEST/live). Installer = `installerCanBeOffered`. */
+export function coverageLookup(partners: WaitingPartner[], now = new Date(), installers: WaitingInstaller[] = []): (postcode: string | null, isTest: boolean) => WaitingCoverage {
   const cache = new Map<string, WaitingCoverage>();
   return (postcode, isTest) => {
     const k = `${postcode ?? ""}|${isTest ? 1 : 0}`;
     let c = cache.get(k);
     if (!c) {
-      c = { installer: partners.some((p) => partnerCoversJob(p, "installer", { postcode, isTest }, now)), electrician: partners.some((p) => partnerCoversJob(p, "electrician", { postcode, isTest }, now)) };
+      c = { installer: installers.some((i) => installerCanBeOffered(i, { postcode, isTest })), electrician: partners.some((p) => partnerCoversJob(p, "electrician", { postcode, isTest }, now)) };
       cache.set(k, c);
     }
     return c;
   };
 }
 
-/** Button / note when no installer covers the job (the Choose installer list would otherwise be empty). */
-export const NO_INSTALLER_NOTE = "No installer covers this area";
+/** Button / note when no installer can be offered the job (the Choose installer list would otherwise be empty). */
+export const NO_INSTALLER_NOTE = "No installer can take this area";
 export const noInstallerExplain = (r: { suburb: string; postcode: string }) =>
-  `No approved installer has verified coverage for ${suburbLabel(r) === "—" ? "this address" : suburbLabel(r)}. Add the postcode to an installer's coverage in Partners › Coverage, or onboard an installer there; you can still look at installers outside their listed area.`;
+  `No installer can be offered ${suburbLabel(r) === "—" ? "this address" : suburbLabel(r)} right now: none covers it, or the ones that do are blocked (for example no Full-certified installer, a document out of date, or not taking work). Fix it in Partners › Coverage, or show installers anyway to see each one's reason.`;
+
+// ---- header count ---------------------------------------------------------------------------------------------------
+
+/** Every row is on this list; only `toChoose` is on Needs me's "Choose installers" link. Released (waiting for the
+ *  owner, decision 389) and came-back (offer declined / not answered, or owner didn't confirm) jobs have their own Needs me
+ *  row or none, so Needs me doesn't count them there (one pile per job). */
+export function waitingCounts(rows: InstallerWaitingRow[]): { all: number; toChoose: number; released: number; cameBack: number } {
+  let released = 0, cameBack = 0;
+  for (const r of rows) {
+    if (r.release && !r.release.releasable) released++;
+    else if (r.lastOffer || r.release?.state === "lapsed") cameBack++;
+  }
+  return { all: rows.length, toChoose: rows.length - released - cameBack, released, cameBack };
+}
+export function waitingCountLine(c: ReturnType<typeof waitingCounts>): string {
+  const n = (x: number) => x.toLocaleString("en-AU");
+  return [
+    `${n(c.all)} waiting for an installer`, `${n(c.toChoose)} to choose (the Needs me count)`,
+    c.released ? `${n(c.released)} released, waiting for the owner` : null, c.cameBack ? `${n(c.cameBack)} came back` : null,
+  ].filter(Boolean).join(" · ");
+}
+
+// ---- Choose installer pop-up ----------------------------------------------------------------------------------------
+
+export const CHOOSE_LOAD_FAILED = "Couldn't load installers";
+/** The pop-up never goes blank: a failed read says so (with Try again) instead of showing nothing. */
+export const choosePanelState = (q: { isError: boolean; hasData: boolean }): "error" | "loading" | "ready" =>
+  q.hasData ? "ready" : q.isError ? "error" : "loading";
 
 // ---- Needs me link -------------------------------------------------------------------------------------------------
 

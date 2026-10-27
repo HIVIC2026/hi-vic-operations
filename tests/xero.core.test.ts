@@ -150,7 +150,7 @@ describe("full detailed invoice payload", () => {
     { description: "Electrical rectification: Downlight upgrade to IC-4 LED", quantity: 6, unit_price_inc_gst: 165, line_total_inc_gst: 990 },
     { description: "Electrical rectification: Install RCD", quantity: 1, unit_price_inc_gst: 216, line_total_inc_gst: 216 },
   ];
-  const tracking = { categoryName: "Business Unit", optionName: "Home Insulation Victoria" };
+  const tracking = { categoryName: "Projects", optionName: "Home Insulation Victoria" };
   test("every line once + VEEC incentive negative, inclusive GST, totals exact, tracking and reference", () => {
     const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecIncentive: 1180, tracking }).Invoices[0]!;
     expect(inv.Reference).toBe("Home Insulation Victoria HV-1007");
@@ -162,7 +162,7 @@ describe("full detailed invoice payload", () => {
     for (const l of inv.LineItems.slice(0, -1)) expect("TaxType" in l).toBe(false);
     expect(inv.LineItems.at(-1)!.Description).toBe("Home Insulation Victoria HV-1007 – VEEC incentive"); // decision 209: never "discount"
     expect(inv.LineItems.reduce((s, l) => s + l.Quantity * l.UnitAmount, 0)).toBe(3330);
-    for (const l of inv.LineItems) expect(l.Tracking).toEqual([{ Name: "Business Unit", Option: "Home Insulation Victoria" }]);
+    for (const l of inv.LineItems) expect(l.Tracking).toEqual([{ Name: "Projects", Option: "Home Insulation Victoria" }]);
   });
   test("decision 209: first line carries the installation address; the locked reference is unchanged; totals still exact", () => {
     const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecIncentive: 1180, tracking, installationAddress: "824 High Street Road, Glen Waverley VIC 3150" }).Invoices[0]!;
@@ -181,7 +181,7 @@ describe("full detailed invoice payload", () => {
     const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-3117", dueDate: "2026-11-11", total: 1251, items: it.items, veecIncentive: 1850, tracking, installationAddress: "824 High Street Road, Glen Waverley VIC 3150" }).Invoices[0]!;
     expect(inv.LineItems.map((l) => l.Description)).toEqual([
       "Home Insulation Victoria HV-3117 – Installation address: 824 High Street Road, Glen Waverley VIC 3150 – Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m²",
-      "Home Insulation Victoria HV-3117 – Accredited Provider fee (Home Insulation Victoria)",
+      "Home Insulation Victoria HV-3117 – Accredited Person fee (Home Insulation Victoria)",
       "Home Insulation Victoria HV-3117 – VEEC incentive",
     ]);
     expect(inv.LineItems[0]).toMatchObject({ Quantity: 137.6, UnitAmount: 20 });
@@ -203,7 +203,7 @@ function mockXero(state: { contacts?: any[]; invoices?: any[]; loseNextInvoiceRe
   const contacts = state.contacts ?? [];
   const invoices = state.invoices ?? [];
   const idem = new Map<string, any>();
-  const tracking = [{ Name: "Business Unit", Status: "ACTIVE", Options: [{ TrackingOptionID: "o2", Name: "Home Insulation Victoria", Status: "ACTIVE" }] }];
+  const tracking = [{ Name: "Projects", Status: "ACTIVE", Options: [{ TrackingOptionID: "o2", Name: "Home Insulation Victoria", Status: "ACTIVE" }] }];
   const call: XeroCall = async (path, init = {}) => {
     const method = init.method ?? "GET";
     reqs.push({ path, method, headers: init.headers, body: init.body });
@@ -305,15 +305,15 @@ describe("HI VIC business-unit barrier", () => {
     await expect(assertHivicInvoice("invOrphan", load)).rejects.toThrow(NOT_HIVIC_ERROR);
     await expect(assertHivicInvoice("unknown", load)).rejects.toThrow(NOT_HIVIC_ERROR);
   });
-  const tr = [{ Name: "Business Unit", Option: "Home Insulation Victoria" }];
+  const tr = [{ Name: "Projects", Option: "Home Insulation Victoria" }];
   test("payload guard: good HI VIC payload passes", () => {
-    const p = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1", dueDate: "d", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecIncentive: 0, tracking: { categoryName: "Business Unit", optionName: "Home Insulation Victoria" } });
+    const p = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1", dueDate: "d", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecIncentive: 0, tracking: { categoryName: "Projects", optionName: "Home Insulation Victoria" } });
     expect(() => assertHivicPayload(p)).not.toThrow();
   });
   test("payload guard fails closed on wrong reference or tracking", () => {
     expect(() => assertHivicPayload({ Invoices: [{ Reference: "DC 123", LineItems: [{ Tracking: tr }] }] })).toThrow("Home Insulation Victoria");
     expect(() => assertHivicPayload({ Invoices: [{ Reference: undefined, LineItems: [{ Tracking: tr }] }] })).toThrow("Home Insulation Victoria");
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [{ Tracking: [{ Name: "Projects", Option: "Home Insulation Victoria" }] }] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [{ Tracking: [{ Name: "Business Unit", Option: "Home Insulation Victoria" }] }] }] })).toThrow("Home Insulation Victoria");
     expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [{ Tracking: tr }, {}] }] })).toThrow("Home Insulation Victoria");
     expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [] }] })).toThrow();
   });
@@ -333,17 +333,17 @@ describe("HI VIC business-unit barrier", () => {
   });
 });
 
-describe("Business Unit tracking fail-closed", () => {
-  test("does not fall back to Projects when Business Unit is missing", async () => {
-    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Projects", Status: "ACTIVE", Options: [{ Name: "Home Insulation Victoria", Status: "ACTIVE" }] }] });
-    await expect(findTrackingOption(call)).rejects.toThrow("Business Unit");
+describe("Projects tracking fail-closed", () => {
+  test("does not fall back to Business Unit when Projects is missing", async () => {
+    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Business Unit", Status: "ACTIVE", Options: [{ Name: "Home Insulation Victoria", Status: "ACTIVE" }] }] });
+    await expect(findTrackingOption(call)).rejects.toThrow("Projects");
   });
-  test("blocks when Business Unit option is archived", async () => {
-    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Business Unit", Status: "ACTIVE", Options: [{ Name: "Home Insulation Victoria", Status: "ARCHIVED" }] }] });
-    await expect(findTrackingOption(call)).rejects.toThrow("Business Unit");
+  test("blocks when Projects option is archived", async () => {
+    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Projects", Status: "ACTIVE", Options: [{ Name: "Home Insulation Victoria", Status: "ARCHIVED" }] }] });
+    await expect(findTrackingOption(call)).rejects.toThrow("Projects");
   });
-  test("blocks when Business Unit category is archived", async () => {
-    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Business Unit", Status: "ARCHIVED", Options: [{ Name: "Home Insulation Victoria", Status: "ACTIVE" }] }] });
-    await expect(findTrackingOption(call)).rejects.toThrow("Business Unit");
+  test("blocks when Projects category is archived", async () => {
+    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Projects", Status: "ARCHIVED", Options: [{ Name: "Home Insulation Victoria", Status: "ACTIVE" }] }] });
+    await expect(findTrackingOption(call)).rejects.toThrow("Projects");
   });
 });

@@ -11,7 +11,7 @@ import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail } from "../src/lib/jo-outcome-
 import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
-import { answerText, decideOwnerAutoReply, LONG_LIST, OWNER_EMAIL_AUTO_REPLY_APPROVED, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
+import { answerText, decideOwnerAutoReply, LONG_LIST, OWNER_EMAIL_AUTO_REPLY_APPROVED, renderOwnerAutoReplyEmail, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
 import { SPOT_SAVED_BODY } from "../src/lib/save-spot-offer.core";
 import { PRELIMINARY_READY_CHECK } from "../src/lib/preliminary-save-spot.core";
 import { READY_CHECK_BOOKING_CLOSED, SPOT_HELD_MESSAGE } from "../src/lib/ready-check-booking-access.core";
@@ -98,7 +98,11 @@ describe("pre-release emails and texts are spot-only", () => {
   });
   test("O76 auto-replies before release: wording and routing (a waiting owner asking for the quote gets the spot-saved answer)", () => {
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) clean(a, answerText(a, { firstName: "Helen", link: "https://x/my-job/t" }));
-    expect(LONG_LIST).toBe("Thousands of Victorians have registered, and spots are released in the order they were saved.");
+    expect(LONG_LIST).toBe("Thousands of Victorians have registered. Spots are released in the order they were saved.");
+    for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) {
+      const m = renderOwnerAutoReplyEmail({ answer: a, facts: { firstName: "Helen", link: "https://x/my-job/t" }, theirSubject: "Quote" });
+      clean(`${a} html`, m.html.replace(/<[^>]+>/g, " "));
+    }
     const f: OwnerJobFacts = { stage: "spot_saved", ownerFullName: "Helen Yang", spotSaved: true, questionsAnswered: false, nextVisit: null, quoteStatus: null, myJobLink: "https://x/my-job/t", questionsLink: "https://x/estimate/t/video" };
     const d = decideOwnerAutoReply({ subject: "Quote", body: "Where is my quote?", fromName: "Helen", hasAttachments: false, attachments: [], jobCount: 1, senderIsOwner: true, senderIsPartnerOrStaff: false, job: f });
     expect(d).toMatchObject({ kind: "send", answer: "spot_saved" });
@@ -141,7 +145,7 @@ describe("approval flags: reworded live messages with a flag are held; nothing e
     expect(INSULATION_DETAILS_REAL_SEND_APPROVED).toBe(true); // decision 393: Jo approved the 3-questions email for the backlog 25 Oct 2026
     expect(INSULATION_QUESTIONS_SEND_APPROVED).toBe(true); // Jo switched it back on 25 Oct 2026
     expect(ESTIMATE_FOLLOWUP_APPROVED).toBe(true); // Jo re-approved O66–O68 spot-only 25 Oct 2026
-    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
+    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(true); // decision 406
     expect(SMS_MESSAGE_TYPES.spot_saved.wordingApproved).toBe(true); // Jo approved the spot-only texts 25 Oct 2026
     expect(SMS_MESSAGE_TYPES.save_spot_reminder.wordingApproved).toBe(true);
   });

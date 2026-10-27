@@ -12,7 +12,8 @@ export const UNFINISHED_IDLE_MS = 6 * 3_600_000;
 export function installerMissing(f: ReadyCheckFacts): string[] {
   const out: string[] = [];
   if (!f.formComplete) out.push("finish and submit the form");
-  if (!f.priceKnown) out.push("your total quoted price (inc GST)");
+  // Jo 27 Oct 2026 (HV-3385): the installer's price is never on the Mitti form any more — it is entered by the business
+  // owner in the portal ("Your price" card, decision 278). The form chase must never ask Mitti for it.
   if (!f.electricianDecided) out.push("who is doing the electrical safety check");
   // Photos are optional in Mitti (Jo 23 Oct; access hatch photo optional, Jo 26 Oct) — never chased here (decision 396).
   if (f.contactPermission === null) out.push("whether the homeowner agrees to be contacted");

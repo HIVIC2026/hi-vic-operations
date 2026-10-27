@@ -1,8 +1,10 @@
 // Pure Xero logic (no database). Every Xero call goes through the injected `XeroCall`,
 // so tests can mock it and never hit the live Xero API.
+import { currentFeeWording } from "./hiv-quote.core";
+
 export type XeroCall = (path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => Promise<any>;
 
-export const TRACKING_CATEGORY = "Business Unit"; // never fall back to the legacy "Projects" category
+export const TRACKING_CATEGORY = "Projects"; // Jo 27 Oct: DC Xero uses Projects → Home Insulation Victoria, no fallback category
 export const TRACKING_OPTION = "Home Insulation Victoria";
 export const LOCK_STALE_MS = 2 * 60 * 1000;
 
@@ -22,12 +24,12 @@ export function assertHivicJob(job: { business_unit?: string | null } | null | u
 export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (id: string) => Promise<{ business_unit?: string | null } | null>) {
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
-/** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Business Unit = Home Insulation Victoria on every line. */
+/** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Projects = Home Insulation Victoria on every line. */
 export function assertHivicPayload(payload: { Invoices: { Reference?: string | undefined; LineItems: { Tracking?: { Name: string; Option: string }[] | undefined }[] }[] }, mode: XeroMode = "live") {
   for (const inv of payload.Invoices) {
     if (!inv.Reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error(`Xero write blocked: invoice reference must start with '${XERO_REFERENCE_PREFIX}'.`);
     if (!inv.LineItems.length) throw new Error("Xero write blocked: invoice has no lines.");
-    if (mode === "test") continue; // Demo Company TEST invoices only: Business Unit tracking not required
+    if (mode === "test") continue; // Demo Company TEST invoices only: Projects tracking not required
     if (!inv.LineItems.every((l) => l.Tracking?.some((t) => t.Name === TRACKING_CATEGORY && t.Option === TRACKING_OPTION)))
       throw new Error(`Xero write blocked: every line must be tracked ${TRACKING_CATEGORY} = ${TRACKING_OPTION}.`);
   }
@@ -115,8 +117,8 @@ export function buildInvoicePayload(a: {
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
     const head = `${ref}${n === 0 ? address : ""}`;
     return exact
-      ? { Description: `${head} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
-      : { Description: `${head} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
+      ? { Description: `${head} – ${currentFeeWording(i.description)}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
+      : { Description: `${head} – ${currentFeeWording(i.description)} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
   });
   if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: VEEC_INCENTIVE_ACCOUNT_CODE, TaxType: VEEC_INCENTIVE_TAX_TYPE, Tracking });
   const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);
@@ -179,7 +181,7 @@ export const XERO_LIVE_CALLS_ENABLED = true;
 export type XeroMode = "test" | "live";
 export type XeroTenant = { tenantId: string; tenantName?: string | null };
 const DEMO = /demo company/i;
-const LIVE = /^home insulation victoria$/i;
+const LIVE = /^dc construction solutions pty ltd$/i;
 /** Read-only description of the existing routes. Availability does not enable a route. */
 export function describeXeroRouting(conns: XeroTenant[]) {
   const testOrganisation = conns.find(c => DEMO.test(c.tenantName ?? ""))?.tenantName ?? null;
@@ -191,7 +193,7 @@ export function describeXeroRouting(conns: XeroTenant[]) {
   catch (error) { liveBlocker = error instanceof Error ? error.message : "The real-job Xero route could not be verified."; }
   return { liveCallsEnabled: XERO_LIVE_CALLS_ENABLED, testOrganisation, liveOrganisation, liveCandidates, liveBlocker };
 }
-/** TEST (qa_test) jobs only ever reach the Xero Demo Company; live jobs only ever reach Home Insulation Victoria. Never "first org". */
+/** Jo 27 Oct: TEST jobs use Demo; real Home Insulation Victoria work uses DC's books with the existing business-unit barrier. Never "first org". */
 export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant {
   const name = (t: XeroTenant) => t.tenantName ?? "";
   if (mode === "test") {
@@ -201,6 +203,6 @@ export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant 
   }
   if (!XERO_LIVE_CALLS_ENABLED) throw new Error("Xero is switched off for real jobs.");
   const t = conns.find((c) => LIVE.test(name(c)) && !DEMO.test(name(c)));
-  if (!t) throw new Error("Home Insulation Victoria Xero organisation is not connected.");
+  if (!t) throw new Error("DC Construction Solutions Xero organisation is not connected.");
   return t;
 }

@@ -25,6 +25,9 @@ export type InstallerPriceInput = {
   priceIncGst: number | string | null | undefined;
   included: string[];
   includedOther?: string | null | undefined;
+  /** Jo 27 Oct 2026: does the current Ready Check say removal is needed? false = it positively says none, so the
+   *  "Removal of existing insulation" tick is refused. true/null/undefined = allowed (nothing changes). */
+  removalRequired?: boolean | null;
 };
 /** Legacy electrician block on records saved before 25 Oct 2026 (decision 289); new records store null. */
 export type LegacyPriceElectrician = { choice: PriceElectricianChoice; name: string | null; licence: string | null; price_inc_gst: number | null };
@@ -44,12 +47,15 @@ const money = (v: unknown): number | null => {
 };
 const nrm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9&]+/g, " ").trim();
 const INCLUDED_BASE = INCLUDED_OPTIONS[0]; // "Ceiling insulation - supply & install"
+const INCLUDED_REMOVAL = INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 
 export const PRICE_ISSUES = {
   price: "Enter your price inc GST (more than $0).",
   included: "Tick what the price includes.",
   base: `"${INCLUDED_BASE}" must be ticked.`,
   other: "Say what else is included.",
+  // Jo 27 Oct 2026 (exact wording, shown under the tickbox and refused by the server check alike).
+  noRemoval: "Your Ready Check in Mitti says there's no removal on this job. If there is, add the removal area to the Mitti form first, then you can include it here.",
 } as const;
 
 /** Fails closed: any issue = nothing saved. Price + what is included only (decision 289). */
@@ -66,6 +72,8 @@ export function validateInstallerPrice(i: InstallerPriceInput): { ok: boolean; i
   else if (!included.includes(INCLUDED_BASE)) issues.push(PRICE_ISSUES.base);
   const other = String(i.includedOther ?? "").trim();
   if (included.includes("Other") && !other) issues.push(PRICE_ISSUES.other);
+  // Jo 27 Oct 2026: the Ready Check positively says no removal → the removal tick is refused (server-side, not only the screen).
+  if (i.removalRequired === false && included.includes(INCLUDED_REMOVAL)) issues.push(PRICE_ISSUES.noRemoval);
   if (issues.length || price == null) return { ok: false, issues, record: null };
   return { ok: true, issues: [], record: { price_inc_gst: r2(price), included, included_other: included.includes("Other") ? other : null, electrician: null } };
 }
@@ -142,4 +150,16 @@ export function priceCardLines(r: InstallerPriceRecord): { price: string; includ
 export function accessFlagLine(f: { rating: string | null; issues: string[] }): string | null {
   if (!f.rating && !f.issues.length) return null;
   return [f.rating ? `Ceiling access: ${f.rating}` : null, f.issues.length ? `Issues: ${f.issues.join("; ")}` : null].filter(Boolean).join(" · ");
+}
+
+/** Jo 27 Oct 2026 (redone): the Ready Check details the boss's price card shows above the price box, from the SAME
+ *  source the quote uses — the current ceiling measurement (install m²) and the form's per-area removal m². Removal
+ *  "None" when the Ready Check positively says there is no removal; anything missing reads "Not on the Ready Check yet". */
+export const NOT_ON_READY_CHECK = "Not on the Ready Check yet";
+export function readyCheckDetailLines(d: { hasReadyCheck: boolean; installAreaM2: number | null; removalRequired: boolean | null; removalM2: number | null }): { install: string; removal: string } {
+  if (!d.hasReadyCheck) return { install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK };
+  return {
+    install: d.installAreaM2 != null && d.installAreaM2 > 0 ? `${Math.round(d.installAreaM2)} m²` : NOT_ON_READY_CHECK,
+    removal: d.removalRequired === false ? "None" : d.removalM2 != null && d.removalM2 > 0 ? `${Math.round(d.removalM2)} m²` : NOT_ON_READY_CHECK,
+  };
 }

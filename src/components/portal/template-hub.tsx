@@ -43,7 +43,7 @@ export function TemplatesHub({ cat, t }: { cat: TemplateSection; t?: string }) {
         <p className="mt-1 text-sm text-sub">Only what the portal sends or shows today, exactly as people see it — rendered from the live code with TEST sample data. Viewing never sends, saves or connects anything.</p>
       </header>
       <nav aria-label="Who gets it" className="mb-3 flex flex-wrap gap-1 border-b border-line">
-        {TEMPLATE_SECTIONS.map((c) => (
+        {TEMPLATE_SECTIONS.filter((c) => c.key !== "waiting" || entriesFor(c.key).length > 0).map((c) => (
           <Link key={c.key} to="/admin/templates" search={{ cat: c.key }} aria-current={c.key === cat ? "page" : undefined}
             className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-semibold", c.key === cat ? "border-hiv-blue text-ink" : "border-transparent text-sub hover:text-ink", c.key === "waiting" && "text-rose")}>
             {c.label} <span className="text-xs font-normal text-sub">{entriesFor(c.key).length}</span>

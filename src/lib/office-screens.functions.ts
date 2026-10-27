@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
+import { requireOfficeJob } from "./qa-office-access.server";
 import { HEARD_CHIPS, INSULATION_CHIPS, REGION_CHIPS, SIZE_CHIPS, SOURCE_CHIPS } from "./office-filters.core";
 import { JOBS_STAGE_KEYS } from "./office-jobs.core";
 
@@ -41,7 +42,7 @@ export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([req
 export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobPage } = await import("./office-job-page.server");
     return loadJobPage(data.jobId);
   });
@@ -49,7 +50,7 @@ export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([r
 export const getOfficeJobMoney = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobMoney } = await import("./office-job-page.server");
     return loadJobMoney(data.jobId);
   });
@@ -138,7 +139,7 @@ export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware
     party: z.string().trim().max(200).optional(), said: z.string().trim().min(2).max(5000), waitingFor: z.enum(["us", "owner", "installer", "electrician", "nothing"]),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     const { logCallOrNote } = await import("./office-actions.server");
     return logCallOrNote(data.jobId, context.userId, { what: data.what, who: data.who, party: data.party ?? null, said: data.said, waitingFor: data.waitingFor });
   });

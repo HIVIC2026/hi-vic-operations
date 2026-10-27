@@ -10,7 +10,8 @@ import {
 } from "../src/lib/new-sender-reply.core";
 import { renderNewSenderReplyEmail } from "../src/lib/new-sender-reply-email.core";
 import { CUSTOMER_BASE } from "../src/lib/engagement.core";
-import { FOOTER_TEXT, LOGO_DATA_URI } from "../src/lib/email-kit.core";
+import { FOOTER_TEXT } from "../src/lib/email-kit.core";
+import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
 import { REPLY_TEST_ALLOWLIST } from "../src/lib/outlook-reply-drafts.core";
 import { looksLikeNewEnquiry } from "../src/lib/email-intent.core";
 
@@ -27,10 +28,10 @@ describe("the approved wording (decision 292)", () => {
     expect(WEBSITE_CALCULATOR_URL).toBe("https://homeinsulationvictoria.com.au/homeowner"); // decision 387
     expect(newSenderReplyText("Sam")).toBe([
       "Hi Sam,", "",
-      "Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: https://homeinsulationvictoria.com.au/homeowner.", "",
-      "There are thousands of people on the list, and spots are released in the order they're saved.", "",
-      "If you have any questions, just reply to this email.", "",
-      "— Home Insulation Victoria",
+      "Thanks for getting in touch!", "",
+      "You can check if your home is eligible for the insulation rebate and get a price estimate here: https://homeinsulationvictoria.com.au/homeowner", "",
+      "Once you've done that, we'll take it from there and be in touch about next steps.", "",
+      "Cheers,", "the Home Insulation Victoria team",
     ].join("\n"));
     expect(newSenderReplyText(null).startsWith("Hi there,\n")).toBe(true);
     expect((newSenderReplyText(null).match(/https?:\/\//g) ?? []).length).toBe(1);
@@ -129,29 +130,30 @@ describe("send mode: approved flag, TEST allow-list, customer_comms_enabled", ()
   });
 });
 
-describe("the O70 email (plain, kit design)", () => {
+describe("the O70 email (plain, MJML design docs/templates/mjml/owner_O70)", () => {
   const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /50 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
   test("shell, wording, the one link, no unsubscribe (no job), no retired words", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
     expect(m.subject).toBe("Re: Ceiling insulation quote");
     expect(m.html.startsWith("<!doctype html")).toBe(true);
-    expect(m.html).toContain(`<img src="${LOGO_DATA_URI}" width="116" alt="Home Insulation Victoria"`);
+    expect(m.html).toContain(`alt="Home Insulation Victoria" src="${MAIL_LOGO_URL}"`);
+    expect(m.html).not.toContain("data:image");
     expect(m.html).toContain("ABN 44 671 613 979");
-    expect(m.html).toContain(">Hi Sam,</p>");
-    expect(m.html).toContain(`Thanks for getting in touch with Home Insulation Victoria. To get started, please submit your home on our website: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
-    expect(m.html).toContain("There are thousands of people on the list");
-    expect(m.html).toContain("If you have any questions, just reply to this email.");
-    expect(m.html).toContain(">— Home Insulation Victoria</p>");
+    expect(m.html).toContain(">Hi Sam, thanks for getting in touch</div>");
+    expect(m.html).toContain(`You can check if your home is eligible for the insulation rebate and get a price estimate here: <a href="${WEBSITE_CALCULATOR_URL}" style="color:`);
+    expect(m.html).toContain("Once you've done that, we'll take it from there and be in touch about next steps.");
+    expect(m.html).toContain(">Cheers,<br>the Home Insulation Victoria team</div>");
+    expect(m.html).not.toContain("thousands of people");
     expect(m.html).not.toContain(">Unsubscribe</a>");
     expect(m.html).not.toContain("TEST — only sent to Jo");
     expect(m.html).not.toMatch(/display:\s*flex|<script|\son[a-z]+=|<h1/i);
-    const hrefs = [...m.html.matchAll(/href="([^"]+)"/g)].map((x) => x[1]);
+    const hrefs = [...m.html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((x) => x[1]);
     expect(hrefs).toEqual([WEBSITE_CALCULATOR_URL]);
-    expect(m.text).toContain(newSenderReplyText("Sam"));
+    expect(m.text).toContain(["Hi Sam, thanks for getting in touch", "", `You can check if your home is eligible for the insulation rebate and get a price estimate here: ${WEBSITE_CALCULATOR_URL}`, "", "Once you've done that, we'll take it from there and be in touch about next steps.", "", "Cheers,", "the Home Insulation Victoria team"].join("\n"));
     expect(m.text).toContain(FOOTER_TEXT);
     expect(m.text).not.toContain("Unsubscribe");
     for (const re of RETIRED) { expect(m.html).not.toMatch(re); expect(m.text).not.toMatch(re); }
-    expect(renderNewSenderReplyEmail({ theirSubject: null, firstName: null }).html).toContain(">Hi there,</p>");
+    expect(renderNewSenderReplyEmail({ theirSubject: null, firstName: null }).html).toContain(">Hi there, thanks for getting in touch</div>");
   });
   test("names and subjects are escaped", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "<b>Quote</b>", firstName: null });
@@ -163,8 +165,10 @@ describe("the O70 email (plain, kit design)", () => {
     expect(m.html).toContain("TEST — only sent to Jo");
     expect(m.text).toContain("TEST — only sent to Jo.");
   });
-  test("the approved sample file is exactly what the renderer writes (scripts/render-decision-292-sample.ts)", () => {
-    expect(renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" }).html).toBe(readFileSync("docs/templates/owner/O70-new-sender-calculator.html", "utf8"));
+  test("renders the approved MJML design (docs/templates/mjml/owner_O70.mjml): same heading, lines and link", () => {
+    const design = readFileSync("docs/templates/mjml/owner_O70.mjml", "utf8");
+    const html = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" }).html;
+    for (const m of design.matchAll(/<mj-text[^>]*>([\s\S]*?)<\/mj-text>/g)) if (!/Accredited Person A003654/.test(m[1]!)) expect(html).toContain(m[1]!.replace(/;"/g, '"'));
   });
 });
 

@@ -1,0 +1,35 @@
+-- Undo for rls-initplan-speed.sql: unwrap the helper sub-selects and drop the added indexes.
+DO $rls$
+DECLARE
+  r record;
+  q text;
+  c text;
+  stmt text;
+BEGIN
+  FOR r IN SELECT tablename, policyname, qual, with_check FROM pg_policies WHERE schemaname = 'public' LOOP
+    q := r.qual;
+    c := r.with_check;
+    IF q IS NOT NULL THEN
+      q := regexp_replace(q, '\( SELECT is_admin\(\) AS is_admin\)', 'is_admin()', 'g');
+      q := regexp_replace(q, '\( SELECT has_role\(\( SELECT auth\.uid\(\) AS uid\), (''[a-z_]+''::app_role)\) AS has_role\)', 'has_role(( SELECT auth.uid() AS uid), \1)', 'g');
+      q := regexp_replace(q, '\( SELECT auth\.uid\(\) AS uid\)', 'auth.uid()', 'g');
+    END IF;
+    IF c IS NOT NULL THEN
+      c := regexp_replace(c, '\( SELECT is_admin\(\) AS is_admin\)', 'is_admin()', 'g');
+      c := regexp_replace(c, '\( SELECT has_role\(\( SELECT auth\.uid\(\) AS uid\), (''[a-z_]+''::app_role)\) AS has_role\)', 'has_role(( SELECT auth.uid() AS uid), \1)', 'g');
+      c := regexp_replace(c, '\( SELECT auth\.uid\(\) AS uid\)', 'auth.uid()', 'g');
+    END IF;
+    IF q IS DISTINCT FROM r.qual OR c IS DISTINCT FROM r.with_check THEN
+      stmt := format('ALTER POLICY %I ON public.%I', r.policyname, r.tablename);
+      IF q IS NOT NULL THEN stmt := stmt || format(' USING (%s)', q); END IF;
+      IF c IS NOT NULL THEN stmt := stmt || format(' WITH CHECK (%s)', c); END IF;
+      EXECUTE stmt;
+    END IF;
+  END LOOP;
+END
+$rls$;
+DROP INDEX IF EXISTS public.appointment_proposals_job_kind_created_idx;
+DROP INDEX IF EXISTS public.contact_releases_job_idx;
+DROP INDEX IF EXISTS public.jobs_property_id_idx;
+DROP INDEX IF EXISTS public.jobs_last_activity_idx;
+DROP INDEX IF EXISTS public.rectification_items_job_idx;

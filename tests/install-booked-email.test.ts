@@ -21,7 +21,7 @@ test("day and time, installer with phone, what to do, link", () => {
   expect(m.html).toContain(">Tuesday 27 October<");
   expect(m.html).toContain(">Arriving 7:30am<");
   expect(m.html).toContain("Your power will be off");
-  expect(m.html).toContain("<strong>Change day</strong>");
+  expect(m.html).toContain("Use Change day on your job page");
 });
 
 test("removal jobs warn about dust", () => {
@@ -42,5 +42,5 @@ test("approved (decisions 98/151); sent after booking behind customer comms, bes
   const srv = readFileSync("src/lib/install-booked-email.server.ts", "utf8");
   expect(srv).toContain("assertCustomerDeliveryAllowed");
   expect(srv).toContain("install-booked:v1:${jobId}:${startIso}");
-  expect(readFileSync("src/lib/install-days.server.ts", "utf8")).toMatch(/emailOwnerInstallBooked\(jobId, startsAt\)\.catch/);
+  expect(readFileSync("src/lib/install-days.server.ts", "utf8")).toMatch(/emailOwnerInstallBooked\(jobId, startsAt, \{ depositReceived: true \}\)\.catch/);
 });

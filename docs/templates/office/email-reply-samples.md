@@ -1,7 +1,7 @@
 # Inbox reply drafts — 5 samples for approval (decision 244)
 
 Drafts only: the portal writes these into info@ as Outlook drafts in the same thread; Jo or Chris presses Send. Nothing is sent automatically (each type stays manual until Jo switches it on).
-Matched owners' replies point to their own homeowner page, never the calculator. Decision 292 (replaces 255 for new senders): a NEW sender with no job is not drafted for and no enquiry is created from their email — they are sent the one website reply (O70, docs/templates/owner/O70-new-sender-calculator.html) pointing to the calculator; every other unmatched email waits on Needs me › Match this email.
+Matched owners' replies point to their own homeowner page, never the calculator. Decision 292 (replaces 255 for new senders): a NEW sender with no job is not drafted for and no enquiry is created from their email — they are sent the one website reply (O70, docs/templates/mjml/owner_O70.mjml) pointing to the calculator; every other unmatched email waits on Needs me › Match this email.
 Every name, address, job number, link and email below is invented. Figures follow the approved O18 quote example.
 
 ## Where is my job — Owner asking when their free Ready Check is

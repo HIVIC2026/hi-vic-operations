@@ -11,7 +11,7 @@ import { COMPLETION_PACK_EMAIL_KEY } from "./completion-pack.core";
 export async function emailOwnerQuoteReminder(jobId: string, quoteId: string, kind: "day3" | "expiry", quote: Omit<import("./owner-quote-email.core").OwnerQuoteEmailInput, "firstName" | "unsubscribeUrl" | "test">) {
   const { QUOTE_REMINDER_EMAIL_APPROVED, renderQuoteReminderEmail } = await import("./owner-quote-email.core");
   return sendOwnerTemplateEmail({ jobId, purpose: "quote_reminder", key: ownerEmailKey.quoteReminder(quoteId, kind), approved: QUOTE_REMINDER_EMAIL_APPROVED, label: "Quote reminder", notSentEvent: "quote_reminder_email_not_sent",
-    render: (f) => renderQuoteReminderEmail({ ...quote, kind, firstName: f.firstName, unsubscribeUrl: null, test: f.test }) });
+    render: (f) => renderQuoteReminderEmail({ ...quote, kind, firstName: f.firstName, unsubscribeUrl: f.unsubscribeUrl ?? null, test: f.test }) });
 }
 
 export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<import("./acceptance-email.core").AcceptanceEmailInput, "firstName" | "installerName" | "myJobUrl" | "test" | "factsheetAttached">, attachments: import("./email-kit.core").EmailAttachment[] = []) {

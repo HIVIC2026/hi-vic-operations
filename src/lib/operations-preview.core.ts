@@ -101,7 +101,7 @@ export function classifyOperation(input: OperationInput, now: number): Operation
     : input.eligibility === "likely_eligible" ? "Preliminary likely eligible"
     : input.eligibility === "needs_onsite_confirmation" ? input.insulationOnlyPassed ? "Preliminary — insulation confirmation needed" : "Preliminary — other eligibility checks need review" : "Eligibility not recorded";
   const eligibilityGroup = reviewedUnsuitable ? "Reviewed unsuitable insulation" : ineligible ? "Other ineligible"
-    : input.insulation === "none" && input.eligibility === "likely_eligible" ? "Likely eligible / no insulation"
+    : input.insulation === "none" && input.eligibility === "likely_eligible" ? "Likely Eligible / no insulation"
     : input.mediaReview === "below_r2" ? "Reviewed below R2"
     : input.eligibility === "needs_onsite_confirmation" && input.insulation && input.insulationOnlyPassed ? "Otherwise eligible / existing or unknown insulation pending review" : "Other / unmapped eligibility";
   const mediaState = input.mediaReview === "unclear" ? "Reviewed — clearer pictures needed"

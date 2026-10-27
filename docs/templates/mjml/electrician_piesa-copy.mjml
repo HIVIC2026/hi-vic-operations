@@ -1,0 +1,21 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your safety check for 824 High Street Road, Glen Waverley (HV-TEST)</mj-title>
+    <mj-preview>The official PIESA as filed for this job. Keep it with your records.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Your safety check for <span style="white-space:nowrap;">HV-TEST</span></mj-text>
+          <mj-text>Here's the official Pre Insulation Electrical Safety Assessment (PIESA) for 824 High Street Road, Glen Waverley, as filed for this job.</mj-text>
+          <mj-text>Keep it with your records.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-trade.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

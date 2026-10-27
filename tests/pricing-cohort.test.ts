@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { PricingCohortUnknownError, customerBreakdown, installRateLabel, mayReprice, protectedSavedTotals, readyCheckFeeLabel, resolveCustomerPricing, scopeDifference, type CohortSnapshot, type PricingRates } from "../src/lib/pricing-cohort.core";
 import { readyCheckRemaining, effectiveReadyCheckFee } from "../src/lib/readycheck.core";
-import { applyReadyCheckFee, renderEstimateEmail } from "../src/lib/estimate-email";
+import { applyReadyCheckFee } from "../src/lib/estimate-email";
 
 const LEGACY: PricingRates = { settingsId: "l", settingsVersion: 2, r5InstallIncGstPerM2: 30, removalIncGstPerM2: 15, piesaIncGst: 349, apIncGst: 349, readyCheckFeeIncGst: 0 };
 const NEW: PricingRates = { ...LEGACY, settingsId: "n", settingsVersion: 3, r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99 };
@@ -72,19 +72,6 @@ const legacyInput = { estimateUrl: LINK, outcome: "likely" as const, firstName: 
 const newInput = { ...legacyInput, estimatedTotal: 4247, installationPrice: 4950, installationRatePerM2: 33, grossProjectTotal: 5648, amountPayableNow: 0, estimatedRemainingBalance: 4148, estimatedTotal: 4148, readyCheckFeeIncGst: 99, pricingCohort: "current" as const, areaIsTypical: true };
 
 describe("emails", () => {
-  test("legacy/protected email is byte-identical with or without explicit fee 0", () => {
-    expect(renderEstimateEmail({ ...legacyInput, readyCheckFeeIncGst: 0 })).toEqual(renderEstimateEmail(legacyInput));
-    expect(renderEstimateEmail(legacyInput).html).toContain(">FREE<");
-  });
-  test("new cohort email (stale fee 99) keeps the Ready Check FREE and shows $33/m² prices", () => {
-    const m = renderEstimateEmail(newInput);
-    expect(m.html).not.toContain("$99"); expect(m.html).toContain(">FREE<"); expect(m.html).toContain("4,950");
-    expect(m.html).toContain("150 m²");
-  });
-  test("stale totals that include a $99 fee are refused, never rendered", () => {
-    expect(() => renderEstimateEmail({ ...newInput, amountPayableNow: 99, estimatedRemainingBalance: 4148, grossProjectTotal: 5747, estimatedTotal: 4247 })).toThrow();
-    expect(() => renderEstimateEmail({ ...newInput, grossProjectTotal: 5747, estimatedTotal: 4247, estimatedRemainingBalance: 4247 })).toThrow();
-  });
   test("fee transform with 99 returns the free email untouched", () => {
     const m = { subject: "x", previewText: "x", html: "Book your free measure-up now", plainText: "" };
     expect(applyReadyCheckFee(m, { readyCheckFeeIncGst: 99 }, false)).toBe(m);
@@ -251,11 +238,6 @@ describe("stale $99 at every direct boundary becomes free", () => {
     const p = { total: 3698, gross: 5198, discount: 1500 }; expect(withReadyCheckFee(p, 99)).toEqual(p);
   });
   test("readyCheckRemaining(cost, 99) never deducts a fee (no payment collected)", () => { expect(readyCheckRemaining(4247, 99)).toBe(4247); });
-  test("email with readyCheckFeeIncGst 99 renders free, no $99", () => {
-    const m = renderEstimateEmail({ ...newInput, amountPayableNow: 0, grossProjectTotal: 5648, estimatedRemainingBalance: 4148, estimatedTotal: 4148 });
-    expect(m.html).not.toContain("$99"); expect(m.plainText).not.toContain("$99");
-    const same = applyReadyCheckFee(m, { readyCheckFeeIncGst: 99 }, false); expect(same).toBe(m);
-  });
   test("negative/invalid fee still rejected", () => { expect(() => effectiveReadyCheckFee(-1)).toThrow(); expect(() => effectiveReadyCheckFee(NaN)).toThrow(); });
 });
 

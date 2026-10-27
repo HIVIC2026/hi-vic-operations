@@ -3,6 +3,7 @@
  * Pure/static only: no database, no sending.
  */
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { isNewEnquiry } from "../src/lib/enquiry-groups.core";
 
@@ -42,16 +43,12 @@ describe("D4 — legacy routes", () => {
     expect(src).toContain('=== "/admin/jobs"');
     expect(src).toContain("<Outlet />");
   });
-  test("/admin/quotes redirects to the existing quote queue", () => {
-    const src = read("src/routes/_authenticated/admin.quotes.tsx");
-    expect(src).toContain('to: "/admin/board"');
-    expect(src).toContain('tab: "quotes"');
+  test("/admin/quotes redirects to Jobs › Quote", () => {
+    expect(officeLegacyTarget("quotes")).toEqual({ to: "/admin/jobs/active", search: { stage: "quote" } });
   });
-  test("/admin/board only keeps the Quote approvals queue", () => {
-    const src = read("src/routes/_authenticated/admin.board.tsx");
-    expect(src).toContain('if (tab === "quotes") return;');
-    expect(src).toContain('to: "/admin/jobs/active"');
-    expect(src).not.toContain("LEGACY JOB BOARD");
+  test("/admin/board lands on Jobs; its old Quote approvals tab lands on Jobs › Quote", () => {
+    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/active" });
+    expect(officeLegacyTarget("board", { tab: "quotes" })).toEqual({ to: "/admin/jobs/active", search: { stage: "quote" } });
   });
 });
 

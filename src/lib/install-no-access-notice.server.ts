@@ -3,6 +3,7 @@
 // cancelled install booking before sending, so a retry never texts or emails twice. TEST jobs → test-send only; real
 // owners → the guarded owner-email path and the one real SMS sender (type `install_no_access`), both behind
 // customer_comms_enabled and, until Jo approves the wording, held by INSTALL_NO_ACCESS_NOTICE_APPROVED / wordingApproved.
+import { myJobScreen } from "./mail-mjml.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { INSTALL_NO_ACCESS_NOTICE_APPROVED, INSTALL_NO_ACCESS_NOTICE_EVENT, INSTALL_NO_ACCESS_SMS_TYPE, installNoAccessKeys, installNoAccessText, renderInstallNoAccessEmail } from "./install-no-access-notice.core";
@@ -39,7 +40,7 @@ export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): 
   const installBy = ctx.deadline ? new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", day: "numeric", month: "long" }).format(new Date(`${ctx.deadline}T12:00:00Z`)) : null;
   const facts = {
     firstName: firstName(owner?.full_name ?? null), installerName: (biz?.trading_name ?? biz?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null,
-    day: formatInstallDay(p.wasStart, false), newDays: (p.newDayStarts ?? []).map((s) => ({ ...splitDayTime(formatInstallDay(s)), href: link })), installBy, link,
+    day: formatInstallDay(p.wasStart, false), newDays: (p.newDayStarts ?? []).map((s) => ({ ...splitDayTime(formatInstallDay(s)), href: myJobScreen(link, "book") })), installBy, link,
   };
   const keys = installNoAccessKeys(p.bookingId);
   if (job.source === "qa_test") {

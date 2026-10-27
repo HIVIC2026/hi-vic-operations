@@ -100,7 +100,7 @@ describe("decision 386 classifier: send only the standard answers", () => {
     expect(decide(body, facts(WAITING), { subject: "Re: Save my spot — price inside" }).kind).toBe("none");
   });
   test("mode: TEST → test-send; real owners need the approved flag AND customer comms", () => {
-    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(false);
+    expect(OWNER_EMAIL_AUTO_REPLY_APPROVED).toBe(true); // Jo approved the O76 wording 27 Oct 2026 (decision 406)
     expect(autoReplyMode({ testJob: true, approved: false, commsEnabled: null })).toEqual({ mode: "test_send" });
     expect(autoReplyMode({ testJob: false, approved: false, commsEnabled: true }).mode).toBe("held");
     expect(autoReplyMode({ testJob: false, approved: true, commsEnabled: false }).mode).toBe("held");
@@ -123,12 +123,19 @@ describe("decision 386 wording (DRAFT O76a–O76j)", () => {
     const m = renderOwnerAutoReplyEmail({ answer: "spot_saved", facts: { firstName: "Helen", link: MY_JOB }, theirSubject: "Is my spot saved?" });
     expect(m.subject).toBe("Re: Is my spot saved?");
     expect(m.text).toContain("Hi Helen,");
-    expect(m.text).toContain("The Home Insulation Victoria team");
+    expect(m.text).toContain("Cheers, the Home Insulation Victoria team");
+    expect(m.html).toContain("Cheers,<br />the Home Insulation Victoria team");
     expect(m.html).toContain(`href="${MY_JOB}"`);
+    expect(m.html).toContain("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
+    expect(m.html).not.toContain("data:image");
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as AnswerType[]) expect(answerText(a, { firstName: null, link: MY_JOB })).toContain(LONG_LIST);
-    expect(LONG_LIST).toBe("Thousands of Victorians have registered, and spots are released in the order they were saved."); // decision 388
-    expect(answerText("visit_booked", { firstName: null, link: MY_JOB, visit: RC })).toContain("Your free Ready Check is booked for Wednesday 28 October at 8am.");
-    expect(answerText("quote_ready", { firstName: "Helen", link: `${MY_JOB}?x=1` })).toContain(`See your quote here: ${quoteScreenLink(MY_JOB)}`);
+    expect(LONG_LIST).toBe("Thousands of Victorians have registered. Spots are released in the order they were saved."); // decision 388
+    const booked = answerText("visit_booked", { firstName: null, link: MY_JOB, visit: RC });
+    expect(booked).toContain("Your free Ready Check is booked");
+    expect(booked).toContain("It's on Wednesday 28 October at 8am.");
+    expect(renderOwnerAutoReplyEmail({ answer: "visit_booked", facts: { firstName: null, link: MY_JOB, visit: RC }, theirSubject: null }).html).toContain("<strong>Wednesday 28 October at 8am</strong>");
+    expect(answerText("quote_ready", { firstName: "Helen", link: `${MY_JOB}?x=1` })).toContain(`See your quote: ${quoteScreenLink(MY_JOB)}`);
+    expect(renderOwnerAutoReplyEmail({ answer: "quote_ready", facts: { firstName: "Helen", link: `${MY_JOB}?x=1` }, theirSubject: null }).html).toContain(`href="${quoteScreenLink(MY_JOB)}"`);
     expect(renderOwnerAutoReplyEmail({ answer: "how_to_pay", facts: { firstName: null, link: MY_JOB }, theirSubject: null, test: true }).html).toContain("TEST — only sent to Jo");
   });
   test("one draft file per answer, rendered HTML equals the file (bun scripts/render-decision-386-drafts.ts)", () => {
@@ -281,9 +288,9 @@ const run = (o: Parameters<typeof msg>[0] = {}, jobIds = ["job-real"], switches:
   autoReplyToOwner({ jobIds, message: msg(o), mailbox: MAILBOX, ...(switches ? { switches } : {}) });
 
 describe("server (mocked): guards, idempotency, TEST routing, approval gate, filing", () => {
-  test("unapproved (the code constant) → draft + ONE Needs me row, nothing claimed, nothing sent, nothing filed", async () => {
+  test("unapproved → draft + ONE Needs me row, nothing claimed, nothing sent, nothing filed", async () => {
     reset();
-    const r = await run({}, ["job-real"], null);
+    const r = await run({}, ["job-real"], { approved: false, archive: true });
     expect(r).toMatchObject({ status: "held", suppressDraft: false, officeRow: true });
     expect(r.detail).toContain("waiting for Jo's approval");
     expect(calls.owner.length + calls.testEmail.length + calls.archive.length).toBe(0);
@@ -318,7 +325,7 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
   });
   test("TEST job → test-send only once approved, never the real sender", async () => {
     reset();
-    expect((await run({ from: "jo@test.test", id: "mt0" }, ["job-test"], null)).status).toBe("held"); // Jo 26 Oct: unapproved = draft, TEST too
+    expect((await run({ from: "jo@test.test", id: "mt0" }, ["job-test"], { approved: false, archive: false })).status).toBe("held"); // Jo 26 Oct: unapproved = draft, TEST too
     calls.testEmail = []; db.workflow_events = db.workflow_events!.filter((e) => e["details"]?.message_id !== "mt0");
     const r = await run({ from: "jo@test.test" }, ["job-test"], { approved: true, archive: false });
     expect(r.status).toBe("sent");

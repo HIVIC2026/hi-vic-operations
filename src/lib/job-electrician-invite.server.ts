@@ -19,7 +19,9 @@ export async function sendElectricianInvite(p: { actorId: string | null; nominat
   const to = officeEmailTo(p.to, test);
   if (p.dryRun) return { status: "dry_run" as const, to, subject: mail.subject, message: mail.message, test };
   const { sendOfficeEmail } = await import("./office-email.server");
-  const r = await sendOfficeEmail({ actorId: p.actorId, recipient: "partner", to, contactName: p.name, subject: mail.subject, message: mail.message, label: "electrician_invite", record: { nominationId: p.nominationId, businessId: p.installerBusinessId, test } as never });
+  const { electricianInviteLayout } = await import("./office-email.core");
+  const laid = electricianInviteLayout({ electricianName: p.name, installerName, link, test: false });
+  const r = await sendOfficeEmail({ actorId: p.actorId, recipient: "partner", to, contactName: p.name, subject: mail.subject, message: mail.message, html: laid.html, text: laid.text, label: "electrician_invite", record: { nominationId: p.nominationId, businessId: p.installerBusinessId, test } as never });
   if (r.status === "sent") {
     const now = new Date().toISOString();
     await admin.from("electrician_nominations").update({ status: "invited", invite_sent_at: now, invite_link_issued_at: now, updated_at: now }).eq("id", p.nominationId);

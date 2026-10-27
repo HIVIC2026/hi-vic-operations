@@ -1,11 +1,11 @@
 // Needs me grouped by kind (Jo 26 Oct 2026, design review of the phone layout): inside Today / This week / Watch the
-// rows sit in a few cards ("Quotes to check · 5", "Emails to sort · 23"), so the whole day fits on one phone screen.
+// rows sit in a few cards ("Quotes to check · 5", "Emails to reply to · 3"), so the whole day fits on one phone screen.
 // PURE: only regroups the rows office-needs.core already decided and sorted; never adds, drops or reorders a row
 // inside its card. Cards come in the order of their most urgent row.
 
 import type { NeedsKind, NeedsRow } from "./office-needs.core";
 
-export type NeedsCardId = "offers" | "deadlines" | "quotes" | "final" | "failed" | "emails" | "electrician" | "owner" | "veec" | "payments" | "clock" | "other";
+export type NeedsCardId = "offers" | "deadlines" | "quotes" | "final" | "failed" | "emails" | "unmatched" | "electrician" | "owner" | "veec" | "payments" | "clock" | "other";
 
 export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
   offers: "Offers to send again",
@@ -13,7 +13,10 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
   quotes: "Quotes to check",
   final: "Final check",
   failed: "Sends and forms that failed",
-  emails: "Emails to sort",
+  // Was "Emails to sort": it read like Enquiries' "Emails to match" but counts something else — owner emails on a job
+  // (change asks, replies needed). Emails not matched to a job list on Enquiries, not here (src/AGENTS.md).
+  emails: "Emails to reply to",
+  unmatched: "Emails not matched to a job",
   electrician: "Choose an electrician",
   owner: "Waiting on the owner or electrician",
   veec: "Rebate forms",
@@ -28,7 +31,7 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   quote_check: "quotes", fixes_quote_check: "quotes",
   final_check: "final",
   send_failed: "failed", robot_failed: "failed", piisa_form_failed: "failed", piesa_form_failed: "failed",
-  email_change: "emails", email_unmatched: "emails",
+  email_change: "emails", email_unmatched: "unmatched",
   choose_installer: "other", choose_electrician: "electrician",
   piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner",
   veec_a_held: "veec", veec_day_10: "veec",
@@ -74,3 +77,22 @@ export function confidentGuess(row: Pick<NeedsRow, "kind" | "jobId" | "guessWhy"
 }
 
 export const bulkMatchable = (rows: NeedsRow[]): NeedsRow[] => rows.filter(confidentGuess);
+
+/** One part of the partner & system fold: the server's rows, Mitti pickups, Mitti sync problems. */
+export type FoldPart = { status: "pending" | "error" | "success"; count: number };
+
+/**
+ * The fold's line. Its number counts every part, Mitti included, so it never changes on opening: "…" until every part
+ * is known; a part that failed is said, never counted as nothing.
+ */
+export function systemFoldLabel(parts: FoldPart[]): string {
+  if (parts.some((p) => p.status === "pending")) return "… partner & system items";
+  const n = parts.reduce((a, p) => a + (p.status === "success" ? p.count : 0), 0);
+  const items = `partner & system item${n === 1 ? "" : "s"}`;
+  return parts.some((p) => p.status === "error") ? `At least ${n} ${items} · some couldn't be checked` : `${n} ${items}`;
+}
+
+/** Needs me reads that failed without stopping the page (names from office-needs.server): said plainly, never hidden. */
+export function unavailableNote(names: string[] | undefined): string | null {
+  return names?.length ? `Some checks couldn't load: ${names.join(", ")}. This does NOT mean nothing needs you there.` : null;
+}

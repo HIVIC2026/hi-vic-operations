@@ -2,7 +2,7 @@
 // source='qa_test', every person is on the TEST domain, and each step re-checks that before acting.
 // Shared by the daily endpoint and the browser runner (which adds screenshots on top of the same steps).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
+import { JOURNEY_INSTALL_CONSENT, JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
 
 export const JOURNEY_ACTOR_EMAIL = "admin@hivic.test";
 export const TEST_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
@@ -81,7 +81,7 @@ const s1: StepFn = async (ctx, r) => {
   const { upsertEnquiry } = await import("./enquiry.server");
   const res = await upsertEnquiry({
     external_enquiry_id: `qa-journey-${ctx.runId}`, full_name: `Test Journey`, email: ctx.ownerEmail, phone: ins!.mobile,
-    address_line: `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
+    address_line: (ctx.notes["address_line"] as string | undefined) ?? `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
     estimated_area_m2: 120, life_support: false, life_support_status: "no", declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no",
     contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), age_confirmed: true,
     base44_answers: { existing_insulation: "none", property_type: "house" },
@@ -290,7 +290,7 @@ function melbourneDate(daysAhead: number) {
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
  *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
-async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "install_deposit" | "balance", label: string) {
+async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
   const v = await jobPaymentView(ctx.jobId!);
@@ -397,6 +397,19 @@ const s6: StepFn = async (ctx, r) => {
   const pt = await import("./piesa-times.server");
   const { allowedPiesaTimeDays, allowedPiesaTimes } = await import("./piesa-times.core");
   const tdays = allowedPiesaTimeDays().slice(1, 4);
+  // Arm the same simulator guard as the branches BEFORE booking can automatically create A3.
+  const now = new Date().toISOString();
+  const sim = await import("./journey-sim.core");
+  const { data: ws } = await admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle();
+  const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
+  if (!el?.email || !ws?.mitti_piesa_template_id) throw new StepFail("TEST PIESA simulator requires template and electrician email");
+  const tpl = ws.mitti_piesa_template_id.trim();
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician" });
+  const office = ["Portal Job Number", "Property Address", "Owner name"].map((label, i) => ({ item_id: `sim_a3_office_${i}`, label, type: "textsingle" }));
+  const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems([...office, ...pass.items]) }, users: [{ id: "sim-mitti-electrician", email: el.email }] });
+  const ms = await import("./mitti.server");
+  const guard = ms.armJourneyMittiGuard(mitti.call);
+  (ctx.notes["mitti_guard_routes"] as string[][]).push(guard.routed);
   await act(r, "electrician accepts and offers the owner 3 safety check times", () => pt.acceptPiesaOfferWithTimes(mine!.id, ctx.electrician.id, tdays.map((day) => { const ok = allowedPiesaTimes(day); return { day, time: ok.includes("10:00" as never) ? "10:00" : ok[0]! }; })));
   const ost = await pt.ownerPiesaTimesState(ctx.jobId!);
   check(r, "owner sees the electrician's 3 times", ost.turn === "owner_to_answer" && ost.open.length === 3, ost.turn);
@@ -407,14 +420,7 @@ const s6: StepFn = async (ctx, r) => {
   // makes it here. Either way the electrician's answers are filled in an in-memory Mitti and read by the REAL Mitti sync
   // (evidence rule, decision 178); the real Mitti is never read or written.
   r.simulated = ["Mitti A3 PIESA form (a completed pass, filled in a simulated Mitti and read by the real Mitti sync)"];
-  const now = new Date().toISOString();
-  const sim = await import("./journey-sim.core");
-  const { data: ws } = await admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle();
-  const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
   const { data: a0 } = await admin.from("assessments").select("id, external_mitti_id, mitti_template_id").eq("job_id", ctx.jobId!).maybeSingle();
-  const tpl = a0?.mitti_template_id ?? ws?.mitti_piesa_template_id?.trim() ?? "";
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician" });
-  const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems(pass.items) }, users: [{ id: "sim-mitti-electrician", email: el!.email! }] });
   let auditId = a0?.external_mitti_id ?? null;
   if (auditId) mitti.seed(auditId, tpl);
   else auditId = (await act(r, "office backup: the A3 form is made for the electrician", () => import("./mitti.server").then((m) => m.createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })))).auditId;
@@ -441,6 +447,8 @@ const s7: StepFn = async (ctx, r) => {
   if ((await stageOf(ctx)) !== "installation_scheduling") await act(r, "install scheduling opens after the PIESA pass", () => transition(ctx.jobId!, "installation_scheduling", ctx.actorId, "TEST journey: install scheduling"));
   // Decision 296: the owner confirms the safety check on their secure link before an install day can be booked.
   await act(r, "owner confirms the safety check (PIESA) on the secure link", () => import("./piesa-owner-confirm.server").then((m) => m.signOwnerPiesaConfirmation({ jobId: ctx.jobId!, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" })));
+  // Locked rule: Demo TEST payment first, then install-day offers and booking.
+  await payStep(ctx, r, "install_deposit", "10% install deposit paid (TEST payment, Demo Company)");
   // The installer's own allowed days (business days, 24h+ ahead, inside the PIESA window); the earliest three, so the booked
   // day sits inside the ESC notice window (24 hours to 5 days before the start) whatever weekday the run starts on.
   const idays = await import("./install-days.server");
@@ -453,13 +461,11 @@ const s7: StepFn = async (ctx, r) => {
   await act(r, "owner takes one of the installer's days", () => idays.ownerTakeDay(ctx.jobId!, st.open[0]!.id, ctx.actorId));
   check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
   for (const c of ["installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
-  // Decision 367: the 10% install deposit (bank transfer) — a TEST payment in the Xero Demo Company.
-  await payStep(ctx, r, "install_deposit", "10% install deposit paid (TEST payment, Demo Company)");
   // Before the install day, the same real paths the office, electrician and owner use (no check bypassed):
   {
     const cs = await import("./consent.server");
     const rec = await import("./job-records.server");
-    await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
+    await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId ?? "", actorId: ctx.actorId, input: JOURNEY_INSTALL_CONSENT, ip: "127.0.0.1", userAgent: "journey-test" }));
     // Decision 370: the AP part normally signs itself right after the owner; the office path runs only if it was held.
     if ((await cs.currentConsent(ctx.jobId!))?.status === "awaiting_ap") await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
     const esc = await import("./esc.server");
@@ -509,6 +515,8 @@ const s7: StepFn = async (ctx, r) => {
   const tplId = ws?.mitti_piisa_template_id?.trim() ?? "";
   const { data: boss } = await admin.from("profiles").select("email").eq("id", ctx.installer.id).single();
   const mitti = sim.simulatedMitti({ templates: { [tplId]: sim.simulatedInstallDayTemplate(idc.INSTALL_DAY_QUESTIONS) }, users: [{ id: "sim-mitti-user", email: boss!.email! }] });
+  const guard = (await import("./mitti.server")).armJourneyMittiGuard(mitti.call);
+  (ctx.notes["mitti_guard_routes"] as string[][]).push(guard.routed);
   const created = await act(r, "install day form (A5) created for the lead installer", () => import("./mitti.server").then((m) => m.createPiisaMittiAudit(ctx.jobId!, ctx.actorId, mitti.call)));
   const zones = await (await import("./install-evidence.server")).jobUpgradeZones(ctx.jobId!);
   const a5 = sim.simulatedCompletedA5({ q: idc.INSTALL_DAY_Q as unknown as Record<string, string>, ruler: idc.INSTALL_DAY_RULER_Q, capturedAt: new Date(startMs + 2 * 3_600_000).toISOString(), seed: `${ctx.runId}-a5`, lead: lead!.name, areas: zones.length });
@@ -690,8 +698,9 @@ async function allowlist(ctx: JourneyCtx, r: StepResult) {
 export async function cleanupJourney(ctx: JourneyCtx) {
   const now = new Date().toISOString();
   if (ctx.jobId) {
-    const { data: j } = await admin.from("jobs").select("source").eq("id", ctx.jobId).maybeSingle();
-    if (j?.source === "qa_test") {
+    const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
+    // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
+    if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
       await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
@@ -719,21 +728,42 @@ export async function newJourneyCtx(): Promise<JourneyCtx> {
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */
-export async function runServerJourney(opts: { cleanup?: boolean; afterStep?: (ctx: JourneyCtx, r: StepResult) => Promise<void> } = {}): Promise<{ ctx: JourneyCtx; result: JourneyResult }> {
+async function runServerJourneyInner(opts: { cleanup?: boolean; afterStep?: (ctx: JourneyCtx, r: StepResult) => Promise<void> }, refused: string[]): Promise<{ ctx: JourneyCtx; result: JourneyResult }> {
   const ctx = await newJourneyCtx();
+  ctx.notes["address_line"] = `${Date.now()} Journey Test Street`;
+  ctx.notes["mitti_guard_routes"] = [] as string[][];
   const steps: StepResult[] = [];
   let broken = false;
   for (const s of JOURNEY_STEPS) {
     const r: StepResult = { key: s.key, label: s.label, passed: false, checks: [] };
     const always = s.key === "s9_visibility" || s.key === "s10_allowlist";
     if (broken && !always) { r.error = "skipped — an earlier step failed"; steps.push(r); continue; }
-    try { await STEP_FNS[s.key](ctx, r); r.passed = true; }
+    try {
+      if (s.key === "s10_allowlist") check(r, "M: no real Mitti call", refused.length === 0, refused.length ? `REAL MITTI CALLS REFUSED: ${refused.join("; ")}` : `0 real Mitti calls; simulated routes: ${(ctx.notes["mitti_guard_routes"] as string[][]).flat().join("; ") || "none"}`);
+      await STEP_FNS[s.key](ctx, r);
+      r.passed = true;
+    }
     catch (e) { r.error = e instanceof Error ? e.message : String(e); if (!always) broken = true; }
     if (opts.afterStep) await opts.afterStep(ctx, r).catch((e) => { r.passed = false; r.error = `browser check: ${e instanceof Error ? e.message : e}`; });
     steps.push(r);
   }
   if (opts.cleanup !== false) await cleanupJourney(ctx).catch((e) => console.error("journey cleanup", e));
   return { ctx, result: summarise(steps) };
+}
+
+/** Same hard network refusal as the branches, armed before any main-journey setup. */
+export async function runServerJourney(opts: { cleanup?: boolean; afterStep?: (ctx: JourneyCtx, r: StepResult) => Promise<void> } = {}): Promise<{ ctx: JourneyCtx; result: JourneyResult }> {
+  const ms = await import("./mitti.server");
+  ms.armJourneyMittiGuard(null);
+  const refused: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (/mitti\.com/i.test(url)) { refused.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`); throw new Error("SAFETY STOP: real Mitti call refused for a qa_test journey"); }
+    return realFetch(input, init);
+  }) as typeof fetch;
+  try { return await runServerJourneyInner(opts, refused); }
+  finally { globalThis.fetch = realFetch; ms.disarmJourneyMittiGuard(); }
 }
 
 export async function storeJourneyRun(mode: "browser" | "server", ctx: JourneyCtx, result: JourneyResult) {
@@ -746,3 +776,6 @@ export async function latestJourneyRun() {
   const { data } = await admin.from("journey_runs").select("id, mode, started_at, finished_at, passed, failing_step, failing_reason").order("started_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
+
+/** Test-only access for the opt-in hard-case branches (journey-branches.server.ts). Same functions, no behaviour change. */
+export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, melbourneDate, TINY_JPEG, payStep };

@@ -1,0 +1,57 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Helen, we'll close your estimate in a week</mj-title>
+    <mj-preview>Save your spot now to stay on the list with your $1,610 rebate.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h1" css-class="email-heading">Helen, we'll close your estimate in a week</mj-text>
+          <mj-text>We sent your ceiling insulation estimate three weeks ago and haven't heard back. So we'll close it in a week to keep our list accurate.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel-mint">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated rebate</mj-text>
+          <mj-text mj-class="big-green" padding="0 12px 18px">You save $1,610</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column mj-class="panel">
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay after the rebate</mj-text>
+          <mj-text mj-class="big-blue">$2,188</mj-text>
+          <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">$3,798</span></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">Based on what you told us: 137 m² ceiling, no existing insulation.<br /><a href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/calculator" style="color:#3C51C4;font-weight:700;">Try a different ceiling size</a></mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Want to keep your spot? Save it now</mj-text>
+          <mj-text>Save your spot and you stay on the list with your $1,610 rebate. No payment, no obligation.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/campaign">Save my free spot</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text>If now isn't the right time, that's fine. You can come back any time: reply to this email or visit <a href="https://homeinsulationvictoria.com.au/homeowner" style="color:#3C51C4;font-weight:700;">homeinsulationvictoria.com.au/homeowner</a> and we'll pick up where we left off.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section>
+        <mj-column>
+          <mj-text mj-class="small" padding="4px 12px 0">Questions? Just reply to this email.</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

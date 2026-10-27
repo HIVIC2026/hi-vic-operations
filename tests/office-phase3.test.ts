@@ -6,8 +6,9 @@ import { buildOperationsPreview, type OperationInput } from "../src/lib/operatio
 const now = Date.parse("2026-10-08T08:35:00Z");
 const make = (id: string): OperationInput => ({ id, jobNumber: `TEST-${id}`, owner: "TEST", address: "TEST address", source: "website", channel: "hivic_sourced", businessUnit: "hivic", originatingInstaller: null, assignedInstaller: null, eligibility: "likely_eligible", eligibilityReason: null, verifiedEligibility: null, insulation: "none", mediaCount: 0, mediaReview: null, actualHandoff: false, evidence: [], communications: [], failures: [], facts: { id, stage: "preliminary_estimate_ready", createdAt: "2026-09-01T00:00:00Z", lastActivityAt: null, enteredStageAt: null } });
 describe("phase 3 presentation mapping", () => {
-  test("decision 218 top bar: Needs me · Enquiries · Jobs · Partners · Money, the rest under More", () => {
-    expect(OFFICE_HEADINGS.map((h) => h.label)).toEqual(["Needs me", "Enquiries", "Jobs", "Partners", "Money"]);
+  test("decision 218 top bar (+ Emails, decision 414): Needs me · Enquiries · Emails · Jobs · Partners · Money, the rest under More", () => {
+    expect(OFFICE_HEADINGS.map((h) => h.label)).toEqual(["Needs me", "Enquiries", "Emails", "Jobs", "Partners", "Money"]);
+    expect(sectionFor("/admin/emails")).toBe("emails");
     expect(sectionFor("/admin")).toBe("needs");
     expect(sectionFor("/admin/needs-me")).toBe("needs");
     expect(sectionFor("/admin/enquiries")).toBe("enquiries");
@@ -37,7 +38,7 @@ describe("phase 3 presentation mapping", () => {
     a.channel = "installer_sourced"; a.originatingInstaller = "TEST supplying business"; a.mediaCount = 2;
     a.facts.campaign = { spotSavedAt: "2026-09-01T00:00:00Z", optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-09-01T00:00:00Z" };
     const data = buildOperationsPreview([a,b], [], now);
-    for (const flag of ["spot", "media"]) expect(filterOperations(data.rows, { category: "leads", flag, source: "installer_sourced", eligibility: "Likely eligible / no insulation", q: "supplying" }).map(r => r.id)).toEqual([a.id]);
+    for (const flag of ["spot", "media"]) expect(filterOperations(data.rows, { category: "leads", flag, source: "installer_sourced", eligibility: "Likely Eligible / no insulation", q: "supplying" }).map(r => r.id)).toEqual([a.id]);
     expect(data.rows[0]?.process).toBe("Insulation review");
     expect(data.rows[0]?.tasks.every(t => !t.dueAt && !t.overdue)).toBe(true);
   });

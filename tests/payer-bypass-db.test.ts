@@ -142,7 +142,8 @@ describe("send/accept re-check quote lines against the CURRENT payer (any path)"
     await draftQuoteFromIntake(JOB, U);
     const q = (await current())[0]!;
     await db.query("update jobs set electrician_choice='preferred'");
-    expect(await quoteBillingBlocker(q.id)).toMatch(/invoices them directly/);
+    // Jo 26 Oct 2026: an own electrician is billed through us too, so a quote with a PIESA line is not blocked.
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
     await db.query("update jobs set electrician_choice=null");
     expect(await quoteBillingBlocker(q.id)).toMatch(/not decided/);
     await db.query("update quotes set status='accepted' where id=$1", [q.id]);
