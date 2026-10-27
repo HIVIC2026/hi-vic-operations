@@ -165,9 +165,13 @@ export async function loadJobMoney(jobId: string) {
   // The chosen electrician = the active electrician assignment, else the accepted PIESA offer's business. Their rate card
   // (electrician_rates PIESA, active/approved, newest — the same read as the Money screen) is used when no payout or offer
   // rate is recorded; with nobody chosen the margin says "No electrician chosen yet".
+  // A failed read must not read as "No electrician chosen yet" (review 27 Oct): the Money card shows its error instead.
+  if (elecAsg.error) throw new Error(`Could not read the electrician: ${elecAsg.error.message}`);
   const electricianId = (elecAsg.data?.business_id as string | null | undefined) ?? ((offers.data ?? []) as { kind: string; business_id: string | null }[]).find((o) => o.kind === "piesa")?.business_id ?? null;
   const electricianChosen = !!electricianId;
-  const { data: rateRow } = electricianId ? await db.from("electrician_rates").select("rate_inc_gst").eq("business_id", electricianId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  const rateRes = electricianId ? await db.from("electrician_rates").select("rate_inc_gst").eq("business_id", electricianId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1).maybeSingle() : { data: null, error: null };
+  if (rateRes.error) throw new Error(`Could not read the electrician's rate card: ${rateRes.error.message}`);
+  const rateRow = rateRes.data;
   const { piesaCostExFor } = await import("./job-margin.core");
   const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: rateRow?.rate_inc_gst != null ? Number(rateRow.rate_inc_gst) : null });
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
