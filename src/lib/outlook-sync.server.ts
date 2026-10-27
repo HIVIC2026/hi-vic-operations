@@ -95,16 +95,24 @@ async function attachmentBytes(mailbox: string, messageId: string, attachmentId:
   return res.arrayBuffer();
 }
 
-/** Account identity. Mail-only connections (no profile permission) cannot read /me; then the identity is
- *  the shared mailbox itself, and access is still proven by reading its Inbox and Sent Items. */
-async function accountIdentity(mailbox: string | null): Promise<{ id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null }> {
-  try { return await graph("/me?$select=id,mail,userPrincipalName,displayName"); }
-  catch (e) {
-    const target = normaliseMailbox(mailbox);
-    if (!target || !(e instanceof Error) || !/HTTP 403/.test(e.message)) throw e;
-    await verifyMailboxReadAccess(target);
-    return { id: `mailbox:${target}`, mail: target, displayName: null };
-  }
+type Identity = { id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null };
+/** Account identity and shared-mailbox read access, read ONCE and in parallel (one round trip, not three or five).
+ *  Mail-only connections (no profile permission) cannot read /me; then the identity is the shared mailbox itself,
+ *  and access is still proven by reading its Inbox and Sent Items. `accessError` is the mailbox check's failure
+ *  (null when readable, or when no mailbox was given). */
+async function identityAndAccess(mailbox: string | null): Promise<{ me: Identity; accessError: Error | null }> {
+  const target = normaliseMailbox(mailbox);
+  const [meR, accessR] = await Promise.allSettled([
+    graph<Identity>("/me?$select=id,mail,userPrincipalName,displayName"),
+    target ? verifyMailboxReadAccess(target) : Promise.resolve(),
+  ]);
+  const accessError = accessR.status === "rejected"
+    ? (accessR.reason instanceof Error ? accessR.reason : new Error("Outlook mailbox access check failed.")) : null;
+  if (meR.status === "fulfilled") return { me: meR.value, accessError };
+  const e = meR.reason;
+  if (!target || !(e instanceof Error) || !/HTTP 403/.test(e.message)) throw e;
+  if (accessError) throw accessError;
+  return { me: { id: `mailbox:${target}`, mail: target, displayName: null }, accessError: null };
 }
 
 export async function readOutlookSyncState(): Promise<SyncState> {
@@ -123,10 +131,10 @@ export async function checkOutlookConnection(candidateMailbox?: string): Promise
   const target = normaliseMailbox(candidateMailbox ?? state.expected_mailbox);
   let health: OutlookHealth = { ...unchecked, targetMailbox: target, checkedAt };
   try {
-    const me = await accountIdentity(target);
+    const { me, accessError } = await identityAndAccess(target);
     health = checkedOutlookHealth(configured, state.expected_mailbox ?? null, me, checkedAt);
     if (!target) return health;
-    await verifyMailboxReadAccess(target);
+    if (accessError) throw accessError;
     return checkedOutlookHealth(configured, state.expected_mailbox ?? null, me, checkedAt, target);
   } catch (e) {
     return { ...health, targetMailbox: target, status: "failed", readyForSync: false, mailboxReadable: false,
@@ -136,11 +144,11 @@ export async function checkOutlookConnection(candidateMailbox?: string): Promise
 
 async function verifyMailboxReadAccess(mailbox: string): Promise<void> {
   // /me identifies the delegate; it is not necessarily the shared mailbox. Read and discard one
-  // message per required folder to check message/body access, including on empty mailboxes.
-  for (const folder of ["inbox", "sentitems"]) {
+  // message per required folder to check message/body access, including on empty mailboxes (both in parallel).
+  await Promise.all(["inbox", "sentitems"].map(async (folder) => {
     const response = await graph<{ value?: unknown[] }>(`${outlookMailboxPath(mailbox)}/mailFolders/${folder}/messages?$top=1&$select=id,body`);
     if (!Array.isArray(response.value)) throw new Error(`Outlook could not verify ${folder} access for the selected shared mailbox.`);
-  }
+  }));
 }
 
 /** Explicit Office configuration, separate from both the read-only health check and the sync action. */
@@ -589,16 +597,57 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
   }
 }
 
+/** Stops a run from starting new work once its time budget is spent; everything left is durable for the next run. */
+export type SyncBudget = { exhausted: () => boolean };
+const NO_BUDGET: SyncBudget = { exhausted: () => false };
+
+/** Existing durable work rows for these provider ids, in one query (not one per message). */
+async function existingWork(ids: string[]): Promise<Map<string, Work & { status: string }>> {
+  const found = new Map<string, Work & { status: string }>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await syncAdmin.from("outlook_message_work").select("*").in("provider_message_id", ids.slice(i, i + 100));
+    if (error || !data) throw new Error(`Outlook processing history unavailable: ${error?.message ?? "rows missing"}`);
+    for (const row of data as (Work & { status: string })[]) found.set(row.provider_message_id, row);
+  }
+  return found;
+}
+
+/** Stored Outlook rows sharing these immutable internetMessageIds, in one query: source_reference → rows. */
+async function aliasRows(internetIds: string[]): Promise<Map<string, { job_id: string; provider_message_id: string }[]>> {
+  const found = new Map<string, { job_id: string; provider_message_id: string }[]>();
+  for (let i = 0; i < internetIds.length; i += 100) {
+    const { data, error } = await syncAdmin.from("job_communications").select("job_id,provider_message_id,source_reference")
+      .eq("provider", "outlook").in("source_reference", internetIds.slice(i, i + 100));
+    if (error) throw new Error(`Outlook identity history unavailable: ${error.message}`);
+    for (const r of (data ?? []) as { job_id: string; provider_message_id: string; source_reference: string }[])
+      found.set(r.source_reference, [...(found.get(r.source_reference) ?? []), { job_id: String(r.job_id), provider_message_id: r.provider_message_id }]);
+  }
+  return found;
+}
+
 export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts,
-  window: ClosureWindow = { inboxCompleteThrough: null }) {
+  window: ClosureWindow = { inboxCompleteThrough: null }, budget: SyncBudget = NO_BUDGET) {
   const normalised = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m);
-  const msgs = normalised.filter((m) => isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
-  bump(counts, "junk", normalised.length - msgs.length);
-  if (!msgs.length) return;
-  if (msgs.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
+  const human = normalised.filter((m) => isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
+  bump(counts, "junk", normalised.length - human.length);
+  if (!human.length) return;
+  if (human.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
     throw new Error("Outlook returned a message without a usable identity or timestamp.");
-  const { byNumber, byEmail, byThread, byId } = await loadCandidates(msgs, mailbox);
+  // Already-completed work (re-listed after a move, an equal-timestamp cursor, or a repeated page) is a duplicate:
+  // no matching, lookups, Graph calls or RPCs. Pending work is finished below, never reserved twice.
+  const known = await existingWork([...new Set(human.map((m) => m.providerMessageId))]);
   const work: Work[] = [];
+  const msgs: MailMessage[] = [];
+  for (const m of human) {
+    const existing = known.get(m.providerMessageId);
+    if (!existing) { msgs.push(m); continue; }
+    if (existing.mailbox !== mailbox) throw new Error("Outlook message belongs to a different mailbox.");
+    if (existing.status === "pending") { if (!work.some((w) => w.provider_message_id === existing.provider_message_id)) work.push(existing); }
+    else counts.duplicate++;
+  }
+  const { byNumber, byEmail, byThread, byId } = msgs.length ? await loadCandidates(msgs, mailbox)
+    : { byNumber: new Map<string, CandidateJob>(), byEmail: new Map<string, CandidateJob[]>(), byThread: new Map<string, CandidateJob[]>(), byId: new Map<string, CandidateJob>() };
+  const aliasesByRef = await aliasRows([...new Set(msgs.map((m) => m.internetMessageId).filter((x): x is string => !!x))]);
   const recordOnly = true;
   // Reserve the entire page before decisions, so a later reply on this page is visible to earlier declines.
   for (const m of msgs) {
@@ -606,10 +655,8 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
     // original under a changed id; its files are repaired idempotently. Distinct emails keep distinct
     // internetMessageIds and are never merged.
     if (m.internetMessageId) {
-      const { data: aliases, error: ae } = await syncAdmin.from("job_communications").select("job_id")
-        .eq("provider", "outlook").eq("source_reference", m.internetMessageId).neq("provider_message_id", m.providerMessageId).limit(20);
-      if (ae) throw new Error(`Outlook identity history unavailable: ${ae.message}`);
-      const aliasIds = [...new Set((aliases ?? []).map((a) => String(a.job_id)))];
+      const aliases = (aliasesByRef.get(m.internetMessageId) ?? []).filter((a) => a.provider_message_id !== m.providerMessageId);
+      const aliasIds = [...new Set(aliases.map((a) => a.job_id))];
       if (aliasIds.length) {
         counts.duplicate++;
         if (m.hasAttachments) {
@@ -644,14 +691,6 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       if (!remaining.length) { counts.portalDuplicate++; continue; }
       route = { ...route, jobIds: remaining };
     }
-    const { data: existing, error: ee } = await syncAdmin.from("outlook_message_work").select("*")
-      .eq("provider_message_id", m.providerMessageId).maybeSingle();
-    if (ee) throw new Error(`Outlook processing history unavailable: ${ee.message}`);
-    if (existing) {
-      if (existing.mailbox !== mailbox) throw new Error("Outlook message belongs to a different mailbox.");
-      if (existing.status === "pending") work.push(existing as Work); else counts.duplicate++;
-      continue;
-    }
     const { data, error } = await syncAdmin.rpc("begin_outlook_message", { _mailbox: mailbox, _message: m, _route: route, _record_only: recordOnly });
     if (error || !data) throw new Error(`Outlook message could not be reserved: ${error?.message ?? "result missing"}`);
     if (data.state === "pending") {
@@ -672,49 +711,84 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       }
     }
   }
-  for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) await finishWork(item, counts, window);
+  // Every message on the page is now durably reserved; past the budget the rest stay pending for the next run.
+  for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) {
+    if (budget.exhausted()) break;
+    await finishWork(item, counts, window);
+  }
 }
 
 /** Retry only explicitly pending new imports, never unmarked legacy correspondence. No mailbox reread required. */
-async function resumePending(mailbox: string, counts: SyncCounts, window: ClosureWindow): Promise<void> {
+async function resumePending(mailbox: string, counts: SyncCounts, window: ClosureWindow, budget: SyncBudget = NO_BUDGET): Promise<void> {
+  if (budget.exhausted()) return;
   const { data, error } = await syncAdmin.from("outlook_message_work").select("*")
     .eq("mailbox", mailbox).eq("status", "pending").order("created_at").limit(200);
   if (error || !data) throw new Error(`Outlook retry queue unavailable: ${error?.message ?? "rows missing"}`);
   // This queue is independent of timestamp cursors: unresolved old work is never silently skipped.
-  for (const work of data as Work[]) await finishWork(work, counts, window);
+  // Only pending rows are read, so completed work is never re-processed; past the budget the rest wait.
+  for (const work of data as Work[]) {
+    if (budget.exhausted()) break;
+    await finishWork(work, counts, window);
+  }
 }
 
-/** A failed/concurrent status save is an error, never a successful sync. */
+/** A failed/concurrent status save is an error, never a successful sync. On success the in-memory state carries the
+ *  new version, so one run can save progress several times while a concurrent run is still refused. */
 async function saveSyncState(state: SyncState, patch: Record<string, unknown>): Promise<void> {
+  const updatedAt = new Date(Math.max(Date.now(), Date.parse(state.updated_at) + 1)).toISOString();
   const { data, error } = await syncAdmin.from("outlook_sync_state")
-    .update({ ...patch, updated_at: new Date(Math.max(Date.now(), Date.parse(state.updated_at) + 1)).toISOString() })
-    .eq("id", 1).eq("updated_at", state.updated_at).select("id");
+    .update({ ...patch, updated_at: updatedAt })
+    .eq("id", 1).eq("updated_at", state.updated_at).select("id,updated_at");
   if (error || data?.length !== 1) throw new Error(`Outlook sync state was not saved: ${error?.message ?? "another run changed it; retry from its saved cursor"}`);
+  const saved = (data[0] as { updated_at?: string }).updated_at;
+  Object.assign(state, patch, { updated_at: saved ?? updatedAt });
 }
 
-/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages. */
-export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
+/** Default run budget: stop STARTING new pages/messages after this, so a run (plus its final save) ends well
+ *  inside the scheduler's 55 s request limit. Whatever is left is durable (cursor, continuation, pending work). */
+export const OUTLOOK_SYNC_BUDGET_MS = 35_000;
+export type SyncTimings = { identity: number; inbound: number; outbound: number; resume: number; total: number };
+
+/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages.
+ *  Progress (cursor + continuation) is saved after every finished page, so a run cut short later keeps it. */
+export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number; budgetMs?: number; clock?: () => number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts; partial: boolean; timingsMs: SyncTimings }> {
   const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 };
+  const clock = opts.clock ?? (() => Date.now());
+  const started = clock();
+  const budgetMs = Math.max(1, opts.budgetMs ?? OUTLOOK_SYNC_BUDGET_MS);
+  let stopped = false;
+  const budget: SyncBudget = { exhausted: () => (stopped ||= clock() - started >= budgetMs) };
+  const timingsMs: SyncTimings = { identity: 0, inbound: 0, outbound: 0, resume: 0, total: 0 };
+  const timed = async <T>(k: keyof SyncTimings, fn: () => Promise<T>): Promise<T> => {
+    const t = clock();
+    try { return await fn(); } finally { timingsMs[k] += clock() - t; }
+  };
+  const finish = () => { timingsMs.total = clock() - started; return timingsMs; };
   let state: SyncState | null = null;
   const now = new Date().toISOString();
   try {
     state = await readOutlookSyncState();
     if (!outlookConfigured()) throw new Error("Outlook credentials are not configured for this project.");
     if (!state.expected_mailbox) throw new Error("Enter, check and confirm the intended shared business mailbox address before importing correspondence.");
-    const me = await accountIdentity(state.expected_mailbox);
-    await verifyMailboxReadAccess(state.expected_mailbox);
+    const expected = state.expected_mailbox;
+    const { me, accessError } = await timed("identity", () => identityAndAccess(expected));
+    if (accessError) throw accessError;
     const health = checkedOutlookHealth(true, state.expected_mailbox, me, now, state.expected_mailbox);
     if (!health.readyForSync || !health.targetMailbox) throw new Error(health.problem ?? "Shared mailbox access could not be verified.");
     const mailbox = health.targetMailbox;
     const maxPages = Math.max(1, Math.min(10, Math.floor(opts.maxPages ?? 10)));
     const pageSize = Math.max(1, Math.min(50, Math.floor(opts.pageSize ?? 50)));
     const cursors: Record<string, string | null> = {};
+    const unsaved = Symbol("budget");
 
     // One folder-agnostic pull per direction: mail moved to Archive or a custom folder is still listed,
     // so a move between runs can never create a gap (already-imported messages dedupe by provider id).
+    // Returns the continuation still to read (null = stream finished; `unsaved` = budget spent before any page).
     const pull = async (field: "receivedDateTime" | "sentDateTime", cursorKey: keyof SyncState, nextKey: keyof SyncState,
-      since: string, window: ClosureWindow, completeWhenFresh: string | null) => {
+      since: string, window: ClosureWindow, completeWhenFresh: string | null): Promise<string | null | typeof unsaved> => {
       if (!Number.isFinite(Date.parse(since))) throw new Error("Outlook has an invalid saved timestamp; Office must review the cursor.");
+      // Nothing read: this stream's saved place is left exactly as it was for the next run.
+      if (budget.exhausted()) return unsaved;
       const savedNext = state![nextKey] as string | null;
       const freshUrl = `${outlookMailboxPath(mailbox)}/messages?$select=${SELECT}&$filter=${field} ge ${new Date(since).toISOString()} and ${field} le ${now}&$orderby=${field} asc&$top=${pageSize}`;
       let url: string | null = savedNext ? outlookGatewayUrl(savedNext) : freshUrl;
@@ -723,6 +797,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       let last = since;
       const visited = new Set<string>();
       for (let page = 0; url && page < maxPages; page++) {
+        if (page > 0 && budget.exhausted()) break;
         const canonical = outlookGatewayUrl(url);
         if (visited.has(canonical)) throw new Error("Outlook repeated a continuation; the cursor was not advanced.");
         visited.add(canonical);
@@ -742,7 +817,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         // Inbound is processed first, so outbound and pending retries receive the same proven window.
         const win: ClosureWindow = completeWhenFresh && !usingSavedNext && !next ? { ...window, inboxCompleteThrough: completeWhenFresh } : window;
         counts.fetched += response.value.length;
-        await processMessages(response.value, mailbox, counts, win);
+        await processMessages(response.value, mailbox, counts, win, budget);
         if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
         const tail = response.value.at(-1);
         const tailAt = tail ? (field === "receivedDateTime" ? tail.receivedDateTime : tail.sentDateTime) : null;
@@ -751,6 +826,9 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
           if (Date.parse(tailAt) > Date.parse(last)) last = tailAt;
         }
         url = next;
+        // Every message on this page is complete or durably pending, so the place is safe to keep now:
+        // a later page failure or a request cut short never repeats this page's work.
+        await saveSyncState(state!, { [cursorKey]: last, [nextKey]: url, mailbox, last_run_at: now });
       }
       cursors[cursorKey as string] = last;
       cursors[nextKey as string] = url;
@@ -766,35 +844,37 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         ["sentDateTime", "catchup_outbound_cursor", "catchup_outbound_next_link"],
       ] as const;
       for (const [field, cursorKey, nextKey] of streams) {
-        const since = (state[cursorKey] as string | null) ?? state.catchup_from;
-        const remaining = await pull(field, cursorKey, nextKey, since, historyWindow, null);
+        const since = (state[cursorKey] as string | null) ?? state.catchup_from!;
+        const remaining = await timed(field === "receivedDateTime" ? "inbound" : "outbound", () => pull(field, cursorKey, nextKey, since, historyWindow, null));
         if (!remaining) done++;
       }
-      if (done === 2) {
+      // A run stopped by its budget may leave catch-up work pending; keep catch-up on so it is finished as history.
+      if (done === 2 && !stopped) {
         cursors["catchup_from"] = null;
         cursors["catchup_inbound_cursor"] = null; cursors["catchup_inbound_next_link"] = null;
         cursors["catchup_outbound_cursor"] = null; cursors["catchup_outbound_next_link"] = null;
       }
-      await resumePending(mailbox, counts, historyWindow);
+      await timed("resume", () => resumePending(mailbox, counts, historyWindow, budget));
     } else {
       let inboxCompleteThrough: string | null = null;
-      const inboundRemaining = await pull("receivedDateTime", "all_inbound_cursor", "all_inbound_next_link",
-        state.all_inbound_cursor ?? state.backfill_from, { inboxCompleteThrough: null }, now);
-      if (!state.all_inbound_next_link && !inboundRemaining) inboxCompleteThrough = now;
-      await pull("sentDateTime", "all_outbound_cursor", "all_outbound_next_link",
-        state.all_outbound_cursor ?? state.backfill_from, { inboxCompleteThrough }, null);
-      await resumePending(mailbox, counts, { inboxCompleteThrough });
+      const startedWithNext = !!state.all_inbound_next_link;
+      const inboundRemaining = await timed("inbound", () => pull("receivedDateTime", "all_inbound_cursor", "all_inbound_next_link",
+        state!.all_inbound_cursor ?? state!.backfill_from, { inboxCompleteThrough: null }, now));
+      if (!startedWithNext && inboundRemaining === null) inboxCompleteThrough = now;
+      await timed("outbound", () => pull("sentDateTime", "all_outbound_cursor", "all_outbound_next_link",
+        state!.all_outbound_cursor ?? state!.backfill_from, { inboxCompleteThrough }, null));
+      await timed("resume", () => resumePending(mailbox, counts, { inboxCompleteThrough }, budget));
     }
     if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
     await saveSyncState(state, { ...cursors, mailbox, last_run_at: now, last_ok_at: now, last_error: null, last_counts: counts });
-    return { ok: true, counts };
+    return { ok: true, counts, partial: stopped, timingsMs: finish() };
   } catch (e) {
     let problem = e instanceof Error ? e.message : "Outlook sync failed.";
     if (state) {
       try { await saveSyncState(state, { last_run_at: now, last_error: problem.slice(0, 500), last_counts: counts }); }
       catch (saveError) { problem += ` ${saveError instanceof Error ? saveError.message : "The failure status could not be saved."}`; }
     }
-    return { ok: false, blocker: problem, counts };
+    return { ok: false, blocker: problem, counts, partial: stopped, timingsMs: finish() };
   }
 }
 
