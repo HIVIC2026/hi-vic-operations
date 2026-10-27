@@ -59,3 +59,24 @@ describe("latestDraftEdits (Jo 27 Oct 2026: edits survive a refresh)", () => {
     expect(m.has("c")).toBe(false);
   });
 });
+
+describe("Jo's tone (27 Oct 2026)", () => {
+  test("an old 'Kind regards, Jo' sign-off is replaced by the team sign-off, not doubled", async () => {
+    const { finishAiReply, AI_SIGN_OFF: S } = await import("../src/lib/ai-email-reply.core");
+    const out = finishAiReply("Hi Sam,\n\nThanks for asking.\n\nKind regards,\nJo\nHome Insulation Victoria");
+    expect(out.split(S).length).toBe(2);
+    expect(out.endsWith(S)).toBe(true);
+  });
+  test("save link and electrician link get clear buttons", async () => {
+    const { aiLinkLabel } = await import("../src/lib/ai-email-reply.core");
+    expect(aiLinkLabel("https://estimate.homeinsulationvictoria.com.au/estimate/abc/campaign")).toBe("Save my free spot");
+    expect(aiLinkLabel("https://portal.homeinsulationvictoria.com.au/electrician-onboarding")).toBe("Sign up as an electrician");
+  });
+  test("instructions carry Jo's rules", async () => {
+    const { AI_REPLY_INSTRUCTIONS, AI_BUSINESS_RULES, NO_REPLY_NEEDED } = await import("../src/lib/ai-email-reply.core");
+    expect(AI_REPLY_INSTRUCTIONS).toContain("Never say \"No worries\"");
+    expect(AI_REPLY_INSTRUCTIONS).toContain(NO_REPLY_NEEDED);
+    expect(AI_REPLY_INSTRUCTIONS).toContain("Keep it relevant");
+    expect(AI_BUSINESS_RULES.join(" ")).toContain("$15/m²");
+  });
+});

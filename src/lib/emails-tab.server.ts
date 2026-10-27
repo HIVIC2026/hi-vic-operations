@@ -178,6 +178,7 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: EMAIL_UNMATCHED_DISMISSED_EVENT, internal: true,
     summary: `Email from ${to} answered with the homeowner page link — left in Outlook`, details: { unmatched_event_id: ev.id, message_id: str(ev.details["message_id"]), reason: NO_JOB_REPLIED_REASON } })
     .then(({ error: e }) => { if (e) console.error("no-job reply sent; row not cleared", e.message); });
+  await (await import("./outlook-sync.server")).archiveOutlookMessage(str(ev.details["message_id"]), null, actorId);
   return { status };
 }
 

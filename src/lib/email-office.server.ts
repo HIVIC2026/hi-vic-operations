@@ -129,6 +129,8 @@ export async function applyEmailChange(eventId: string, actorId: string) {
       throw new WorkflowError("This change can't be applied automatically.");
   }
   await logEvent(jobId, actorId, EMAIL_CHANGE_APPLIED_EVENT, `Email change applied by the office: ${outcome.replace(/_/g, " ")}`, { request_event_id: ev.id, intent: d.intent, message_id: d.message_id ?? null, outcome, ...detail }, { internal: true });
+  // Jo 27 Oct 2026: dealt with, so it leaves the Outlook inbox (moved to Archive).
+  await (await import("./outlook-sync.server")).archiveOutlookMessage(d.message_id ?? null, jobId, actorId);
   return { ok: true as const, outcome, ...detail };
 }
 
