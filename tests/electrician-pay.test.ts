@@ -2,7 +2,7 @@
 // fixes (A4) within 7 days of someone in the office approving their completed Mitti form. It never waits for the owner.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ELECTRICIAN_PAY_RULE_LINE, electricianPayDueAt, electricianPayState, payPill, payState } from "../src/lib/trade-view.core";
+import { ELECTRICIAN_PAY_RULE_LINE, INSTALLER_PAY_WAITING_AP, electricianPayDueAt, electricianPayState, payPill, payState } from "../src/lib/trade-view.core";
 import { electricianFormCompleteAt, PAYOUT_FORM_NOT_COMPLETE, type TradePayoutFacts } from "../src/lib/trade-payout-gate.core";
 import { approvalKindFor, ELECTRICIAN_FORM_AWAITING_APPROVAL, electricianPayTiming } from "../src/lib/electrician-pay.core";
 
