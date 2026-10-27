@@ -75,10 +75,7 @@ export function NextBox({ jobId, next, onGo }: { jobId: string; next: JobPage["n
   return (
     <section aria-label="Next" className={cn("mb-4 rounded-[18px] border p-4 md:p-5", next.who === "us" ? "border-hiv-green/30 bg-mint" : "border-line bg-mist")} data-why="decision 218: one Next panel, one button">
       <p className="text-[11px] font-bold uppercase tracking-wide text-sub">Next · {next.who === "nobody" ? "nothing to do" : next.who}</p>
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 flex-1 break-words text-base font-semibold text-ink">{next.sentence}</p>
-        {next.button && <button type="button" className={btnClass(inst.blocked ? "secondary" : "primary", tap)} onClick={() => onGo(next.button!.section as CardKey)}>{next.button.label}</button>}
-      </div>
+      <p className="mt-1 break-words text-base font-semibold text-ink">{next.sentence}</p>
       {isChoose && q.isPending && <p role="status" className="mt-2 text-sm text-sub">Checking installers…</p>}
       {isChoose && q.isError && <p role="status" className="mt-2 text-sm text-sub">Couldn't check installers</p>}
       {reasons.length > 0 && (
@@ -90,6 +87,8 @@ export function NextBox({ jobId, next, onGo }: { jobId: string; next: JobPage["n
           {inst.blocked && <button type="button" className={cn(tap, "mt-1 font-semibold text-hiv-blue underline")} onClick={() => onGo("ready-check")}>See installers ›</button>}
         </div>
       )}
+      {/* Mock-up order: sentence, then what is blocking it, then the one button (full width on a phone). */}
+      {next.button && <button type="button" className={btnClass(inst.blocked ? "secondary" : "primary", cn(tap, "mt-3 w-full sm:w-auto"))} onClick={() => onGo(next.button!.section as CardKey)}>{next.button.label}</button>}
     </section>
   );
 }
