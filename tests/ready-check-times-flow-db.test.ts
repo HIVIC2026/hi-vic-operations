@@ -168,3 +168,12 @@ describe("installer offers 3 times; owner taps one → booked through the canoni
     await expect(rc.ownerTakeReadyCheckTime(JOB, p!.id, OWNER)).rejects.toThrow();
   });
 });
+
+test("one-job timing filter never expires another TEST offer or closes its windows", async () => {
+  await db.query("insert into partner_offers (job_id,business_id,kind,status,offered_at,expires_at) values ($1,$3,'ready_check','pending',now()-interval '25 hours',now()-interval '1 hour'),($2,$3,'ready_check','pending',now()-interval '25 hours',now()-interval '1 hour')", [JOB, OWN, BIZ]);
+  await db.query("insert into ready_check_windows(job_id,status,starts_at) values ($1,'open',now()-interval '1 hour'),($2,'open',now()-interval '1 hour')", [JOB, OWN]);
+  expect((await rc.sweepOfficePickedOffers(null, new Date(), JOB)).expired).toBe(1);
+  expect((await rc.sweepOfficePickedOffers(null, new Date(), JOB)).expired).toBe(0);
+  expect(await q("select status from partner_offers where job_id=$1 and status='pending'", [OWN])).toHaveLength(1);
+  expect(await q("select status from ready_check_windows where job_id=$1 and status='open'", [OWN])).toHaveLength(1);
+});
