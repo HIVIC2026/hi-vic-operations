@@ -1,9 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Jo 27 Oct 04:08 full journey proof Phases 1–2
-- [ ] Phase 1 read-only inventory: all job/person blocks with source, rule, exact text, notification and clearing condition; save journey/block-register.md in Files.
-- [ ] Add browser-first --screens mode without changing product rules/look; fail closed on missing TEST safety, provider isolation or rule conflicts; capture 390px step/person proof and data/email counts.
-- [ ] Run once with sending keys removed, real Mitti refused/check M, Demo-only; archive only newly created run jobs, preserve HV-3274/HV-3239; report honest pass/fail/blocked and screenshots.
-- [ ] Phases 3–4 deferred by Jo; do not implement.
+- [x] Saved partial read-only register:47 source-backed gate families plus859 literal candidates; exact messages indexed, untraced callers/notifications/SQL/printed-form branches marked incomplete. journey/block-register.md in Files; exhaustive Phase 1 completion not claimed.
+- [x] Added browser-first --screens preflight, without legacy server mutations or product/look changes;14 focused safety/guard tests pass, preview build OK. Current mode records downstream steps blocked, not a implemented full interactive all-clear journey.
+- [x] Ran once:0 pass/2 fail/71 blocked, two390px screenshots inspected. No job created, no archive required, HV-3274/HV-3239 untouched. Command sending keys removed; browser GET/static only, no providers/invoices/sends/switches/publication. Report journey/2026-10-27T04-10-57-screens/report.md +json.
+- [ ] Full interactive Phase 2 BLOCKED: no isolated Base44 website-to-qa_test page, no verified server-wide simulated-Mitti/no-send/Demo guard for browser requests, no verified TEST-domain office actor; existing helper would re-enable paused trade flags. Requires isolated execution boundary, not rule/switch bypass. Phase 1 exhaustive notification/SQL/printed-form tracing remains incomplete.
+- [x] Phases 3–4 deferred by Jo; not implemented.
 ## Jo 27 Oct 04:05 electrician payout rule replaces 355
 - [ ] BLOCKED on Jo's choice of approval mechanism: current portal records A3/A4 completion, not a separate HIV form approval. Do not silently treat completion as approval or add a new Office step without Jo's choice. New rule saved; payout code untouched.
 - [x] Read-only confirmed welcome tick/step 5 and manual Mitti invitation already use Jo's exact wording; all thirteen dummy trades have both offer flags false. No switches/data changed.
