@@ -139,10 +139,18 @@ export async function declineReadyCheckOffer(offerId: string, userId: string, re
 
 /** 15-minute timer: pending Ready Check offers past 24 hours close and go back to the office (once each). Passed owner
  *  windows (history only) are closed. Stops while owner Ready Check booking is switched off, like every Ready Check timer. */
-export async function sweepOfficePickedOffers(actorId: string | null = null, now = new Date()) {
+export async function sweepOfficePickedOffers(actorId: string | null = null, now = new Date(), testJobId?: string) {
+  if (testJobId !== undefined) {
+    if (!testJobId.trim()) throw new WorkflowError("A TEST job id is required.");
+    const { data: job, error } = await admin.from("jobs").select("source").eq("id", testJobId).maybeSingle();
+    if (error || job?.source !== "qa_test") throw new WorkflowError("Offer timing QA requires one TEST job.");
+  }
   const { data: gate, error: gateError } = await admin.from("workflow_settings").select("ready_check_booking_enabled").eq("id", 1).maybeSingle();
   if (gateError || gate?.ready_check_booking_enabled !== true) return { expired: 0, started: 0 };
-  const { data: pending } = await admin.from("partner_offers").select("id, job_id, business_id, offered_at, expires_at").eq("kind", "ready_check").eq("status", "pending");
+  let pendingQuery = admin.from("partner_offers").select("id, job_id, business_id, offered_at, expires_at").eq("kind", "ready_check").eq("status", "pending");
+  if (testJobId !== undefined) pendingQuery = pendingQuery.eq("job_id", testJobId);
+  const { data: pending, error: pendingError } = await pendingQuery;
+  if (pendingError) throw new WorkflowError(pendingError.message);
   let expired = 0;
   for (const o of (pending ?? []).filter((x) => readyCheckOfferOverdue(x, now))) {
     const { data: u } = await admin.from("partner_offers").update({ status: "expired" }).eq("id", o.id).eq("status", "pending").select("id").maybeSingle();
@@ -151,7 +159,10 @@ export async function sweepOfficePickedOffers(actorId: string | null = null, now
     await logEvent(o.job_id, actorId, "partner_offer_expired", "An installer Ready Check offer closed after 24 hours without times", { kind: "ready_check", business_id: o.business_id }, { internal: true });
     await offerReturned(o.job_id, actorId, "expired", o.business_id);
   }
-  await admin.from("ready_check_windows").update({ status: "closed" }).eq("status", "open").lt("starts_at", now.toISOString());
+  let windowsQuery = admin.from("ready_check_windows").update({ status: "closed" }).eq("status", "open").lt("starts_at", now.toISOString());
+  if (testJobId !== undefined) windowsQuery = windowsQuery.eq("job_id", testJobId);
+  const { error: windowsError } = await windowsQuery;
+  if (windowsError) throw new WorkflowError(windowsError.message);
   return { expired, started: 0 };
 }
 

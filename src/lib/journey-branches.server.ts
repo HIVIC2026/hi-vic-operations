@@ -772,11 +772,15 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     await J.assertOwnTestJob(ctx);
     const { data: o0 } = await admin.from("partner_offers").select("offered_at, expires_at, status").eq("id", offerId).eq("job_id", ctx.jobId!).single();
     await admin.from("partner_offers").update({ offered_at: ago(25), ...(o0?.expires_at ? { expires_at: ago(1) } : {}) }).eq("id", offerId).eq("job_id", ctx.jobId!);
+    const timer = await import("./ready-check-times.server");
+    const firstSweep = await timer.sweepOfficePickedOffers(ctx.actorId, new Date(), ctx.jobId ?? undefined);
+    const replaySweep = await timer.sweepOfficePickedOffers(ctx.actorId, new Date(), ctx.jobId ?? undefined);
+    rec.checks.push({ n: "6.24", name: "one-job offer timer and replay", status: firstSweep.expired === 1 && replaySweep.expired === 0 ? "passed" : "failed", detail: `expired=${firstSweep.expired}; replay=${replaySweep.expired}; only job=${ctx.jobId}`, ids: {} });
     const sig25 = await officeSignals(ctx.jobId!);
     const at25 = await shoot("p6-24h-no-times", [{ who: "installer-offer", email: INST, path: `/field/offer/${offerId}` }, ownerPage(ctx), ...officePages(ctx)]);
     const { count: props25 } = await admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
     // Put the offer back as it was, then the installer offers 3 times (the fix for (a)).
-    await admin.from("partner_offers").update({ offered_at: o0?.offered_at ?? new Date().toISOString(), expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
+    await admin.from("partner_offers").update({ status: "pending", offered_at: o0?.offered_at ?? new Date().toISOString(), expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
     const tv = await import("./trade-view.server");
     const rct = await import("./ready-check-times.core");
     const days = rct.allowedReadyCheckDays().slice(0, 3);
@@ -784,13 +788,17 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     try { await tv.tradeOfferReadyCheckTimes(offerId, ctx.installer.id, days.map((day) => { const ok = rct.allowedReadyCheckTimes(day); return { day, time: ok.includes("10:00") ? "10:00" : ok[0]! }; })); } catch (e) { offered = `refused: ${(e as Error).message.slice(0, 200)}`; }
     // (b) 48h: times offered but the owner has not taken one — move those proposals 49h back.
     await admin.from("appointment_proposals").update({ created_at: ago(49) } as never).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
+    await admin.from("contact_releases").update({ released_at: ago(49) }).eq("job_id", ctx.jobId!).eq("visit_kind", "ready_check").is("revoked_at", null);
+    const coordination = await import("./allocation.server");
+    await coordination.sweepCoordination(ctx.actorId, ctx.jobId ?? undefined);
+    await coordination.sweepCoordination(ctx.actorId, ctx.jobId ?? undefined);
     const sig49 = await officeSignals(ctx.jobId!);
     const at49 = await shoot("p6-48h-not-booked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]);
     const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
     answer("stops", (props25 ?? 0) === 0 && (rcBooked ?? 0) === 0, `24h: times offered=${props25}; installer then ${offered}; 48h: Ready Check bookings=${rcBooked} (the all-jobs reminder sweep was NOT RUN: it would touch real jobs)`);
     answer("reason", sees(at25[0], /offer|times|accept|decline|expired|closed/i) && sees(at49[0], /pick|choose|time|Ready Check/i), `installer offer page at 24h: "${at25[0]?.text.slice(0, 160) ?? "-"}"; owner page at 48h asks to pick a time=${sees(at49[0], /pick|choose/i)}`);
     // The 24h/48h alerts are written by the all-jobs background sweeps (offer expiry, coordination); a TEST run must not start them.
-    answer("office_once", sig25.needsMe + sig25.exceptions.length === 1 && sig49.needsMe + sig49.exceptions.length === 1 ? true : null, `NOT RUN unless already shown — the alert comes from the all-jobs background sweep, not started on a TEST run. 24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}), exceptions=${sig25.exceptions.join(",") || "none"}; 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}), exceptions=${sig49.exceptions.join(",") || "none"}`);
+    answer("office_once", sig25.needsMe === 1 && sig49.needsMe === 1, `One-job timers ran twice. 24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}); 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}). Scoped coordination never calls any sender.`);
     // Fix for (b): the owner takes one of the times → booked.
     let fix = "booked";
     try {
