@@ -17,12 +17,16 @@ async function a1JobOrThrow(jobId: string) {
   return j as { id: string; channel: string; originating_installer_business_id: string; stage: string | null };
 }
 
-/** The current Ready Check snapshot's entries (empty when no Mitti form yet). Read-only. */
-async function currentFormEntries(jobId: string): Promise<{ label: string; value: string | null }[]> {
-  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+/** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
+ *  (null when there is no current Ready Check at all). Read-only. */
+async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null }> {
+  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
   const list = Array.isArray(raw) ? raw : [];
-  return (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+  const entries = (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+  const { readyCheckRemovalRequired } = await import("./ready-check-answers.core");
+  const removalRequired = readyCheckRemovalRequired(entries, m as { removal_required?: boolean | null } | null);
+  return { entries, removalRequired };
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
@@ -31,12 +35,13 @@ export async function installerPriceView(jobId: string, userId: string) {
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   const { myBusinesses } = await import("./pilot.server");
   if ((await myBusinesses(userId)).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [stored, usual, recorded, entries] = await Promise.all([
+  const [stored, usual, recorded, readyCheck] = await Promise.all([
     readInstallerPrice(jobId),
     (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
     (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
-    currentFormEntries(jobId).catch(() => [] as { label: string; value: string | null }[]),
+    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null })),
   ]);
+  const { entries, removalRequired } = readyCheck;
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const { accessFlagFromEntries } = await import("./ready-check-answers.core");
@@ -46,6 +51,7 @@ export async function installerPriceView(jobId: string, userId: string) {
     canSet: true as const, current: stored,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
     access: accessFlagFromEntries(entries),
+    removalRequired,
   };
 }
 
@@ -54,7 +60,9 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
-  const v = validateInstallerPrice(input);
+  // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
+  const { removalRequired } = await currentReadyCheck(jobId).catch(() => ({ entries: [], removalRequired: null }));
+  const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
   const stored = await readInstallerPrice(jobId);
