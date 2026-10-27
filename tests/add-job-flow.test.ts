@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { partnerLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { ADD_JOB_LEAD, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
@@ -54,7 +55,7 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later", "A different electrician"]) expect(ui).not.toContain(gone);
     expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={businessId}");
   });
-  test("old /partner/add still redirects", () => expect(readFileSync("src/routes/_authenticated/partner.add.tsx", "utf8")).toContain('redirect({ to: "/partner/import"'));
+  test("old /partner/add still redirects", () => expect(partnerLegacyTarget("add")).toEqual({ to: "/partner/import" }));
 });
 
 import { OWNER_CONTACT_PERMISSION } from "../src/lib/job-electrician.core";

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { movedFromTodo, MITTI_FORMS } from "../src/lib/needs-me.core";
 
 const nav = readFileSync(new URL("../src/lib/office-nav.ts", import.meta.url), "utf8");
-const route = readFileSync(new URL("../src/routes/_authenticated/admin.todo.tsx", import.meta.url), "utf8");
 
 describe("old To action list retired (Jo 7 Oct)", () => {
   test("tab is gone from the office menu", () => {
@@ -11,7 +11,7 @@ describe("old To action list retired (Jo 7 Oct)", () => {
     expect(nav).not.toMatch(/to: "\/admin\/todo"/);
   });
   test("/admin/todo redirects to /admin/needs-me (the office home)", () => {
-    expect(route).toContain('redirect({ to: "/admin/needs-me"');
+    expect(officeLegacyTarget("todo")).toEqual({ to: "/admin/needs-me" });
   });
   test("Needs me now shows unconnected Mitti forms", () => {
     const rows = movedFromTodo({ formIds: { mitti_ready_check_template_id: "a", mitti_ready_check_priced_template_id: "b", mitti_piesa_template_id: null, mitti_piisa_template_id: "" }, pendingWorkers: [] });

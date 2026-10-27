@@ -2,6 +2,7 @@
 // version of each homeowner enquiry email. The send, the Office copy, the Jo TEST copy and the Templates preview all
 // render through renderJoOutcomeEmail(); the Step 3 preview page and the campaign copy editor are retired.
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget, publicLegacyTarget } from "../src/lib/legacy-links.core";
 import { existsSync, readFileSync } from "node:fs";
 import { renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
@@ -26,8 +27,8 @@ describe("Jo's template is the only Save my spot email", () => {
     expect(readFileSync("src/lib/manual-communication.server.ts", "utf8")).toContain("joFactsForSaveSpotVariant(");
   });
   test("the Step 3 preview page and the campaign copy editor are retired to Templates", () => {
-    expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
-    expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
+    expect(publicLegacyTarget("step3-email-preview")?.to).toBe("/admin/templates");
+    expect(officeLegacyTarget("campaign-emails")?.to).toBe("/admin/templates");
     expect(existsSync("src/lib/campaign-emails.functions.ts")).toBe(false);
     expect(existsSync("src/lib/step3-emails.ts")).toBe(false);
   });

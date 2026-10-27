@@ -10,20 +10,19 @@ export function uiRouteInventory(source: string): RouteCoverage[] {
 }
 export const READ_ONLY_PATHS = [
   '/', '/calculator', '/privacy', '/auth',
-  '/admin/jobs/active', '/admin/jobs/closed', '/admin/enquiries', '/admin/enquiry-groups',
-  '/admin/board', '/admin/pipeline', '/admin/operations', '/admin/operations-preview',
-  '/admin/partners-overview', '/admin/businesses', '/admin/workers', '/admin/templates',
-  '/admin/quotes', '/admin/money', '/admin/ap-queue', '/admin/owner-paperwork', '/admin/veec',
+  '/admin/jobs/active', '/admin/jobs/closed', '/admin/enquiries',
+  '/admin/templates',
+  '/admin/money',
   '/field', '/field/money', '/field/business', '/field/business/details', '/field/business/insurance',
   '/field/business/rates', '/field/business/bank', '/field/business/agreement', '/field/business/team',
-  '/partner', '/partner/add', '/partner/import', '/partner/bulk-import', '/partner/payments', '/partner/workers',
-  '/admin', '/admin/campaign-emails', '/admin/communications', '/admin/compliance', '/admin/coverage',
-  '/admin/deleted', '/admin/electrician-rates', '/admin/hot-leads', '/admin/interests', '/admin/jobs',
-  '/admin/launch-campaign', '/admin/list', '/admin/needs-me', '/admin/partners', '/admin/pricing',
-  '/admin/ready-check', '/admin/save-my-spot-rules', '/admin/team-ups', '/admin/test-centre',
-  '/admin/today', '/admin/todo', '/admin/users', '/admin/settings', '/field/setup', '/field/welcome', '/home', '/portal',
-  '/partner/profile', '/campaign-preview', '/electrician-onboarding', '/installer-onboarding',
-  '/reset-password', '/step3-email-preview',
+  '/partner', '/partner/import', '/partner/bulk-import', '/partner/workers',
+  '/admin', '/admin/communications',
+  '/admin/electrician-rates', '/admin/interests', '/admin/jobs',
+  '/admin/needs-me', '/admin/partners',
+  '/admin/save-my-spot-rules', '/admin/test-centre',
+  '/admin/users', '/admin/settings', '/field/setup', '/field/welcome', '/home', '/portal',
+  '/electrician-onboarding', '/installer-onboarding',
+  '/reset-password',
 ];
 export function uncoveredReason(route: RouteCoverage, attempted: Set<string>): string | null {
   if (attempted.has(route.path)) return null;

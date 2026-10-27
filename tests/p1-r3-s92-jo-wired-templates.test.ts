@@ -10,6 +10,7 @@
  * PostgREST shim. The email provider is a MOCK that counts calls: no real provider is ever contacted.
  */
 import { describe, expect, mock, test, beforeAll, afterEach } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
@@ -240,8 +241,7 @@ describe("B. Template 8 is retired", () => {
     for (const f of ["src/lib/ready-check-invitation.core.ts", "src/lib/ready-check-invitation.server.ts", "src/lib/ready-check-invitation.functions.ts"]) {
       expect(existsSync(f)).toBe(false);
     }
-    const route = readFileSync("src/routes/_authenticated/admin.ready-check.tsx", "utf8");
-    expect(route).toContain('redirect({ to: "/admin/enquiries"');
+    expect(officeLegacyTarget("ready-check")).toEqual({ to: "/admin/enquiries" });
     expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toContain("Ready Check invitations");
     expect(readFileSync("src/lib/jo-outcome-email.core.ts", "utf8")).not.toContain("renderJoReadyCheckInvitationEmail");
   });
