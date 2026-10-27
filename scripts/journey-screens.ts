@@ -76,7 +76,7 @@ if (ctx?.jobId) {
 const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
 const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
-type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
+type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
 const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
 let offer: string | undefined;
@@ -84,7 +84,7 @@ const STEPS: Step[] = [
   { step: "Save my spot", person: "homeowner", path: () => `/estimate/${ctx!.token}/campaign`, wait: "Save my spot", button: "Save my spot", severity: "Stop launch", next: "spot",
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
-  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", severity: "Stop launch", next: "Choose installer",
+  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
     expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
   { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
@@ -124,39 +124,52 @@ async def main():
         res["next"] = bool(re.search(re.escape(cfg["next"]), text, re.I))
         res["leaks"] = [m for m in cfg.get("mustNot", []) if m and m.lower() in text.lower()]
         res["clicked"] = None
+        async def find(name, scope):
+            # Find a control the way a person would: its visible label, inside the card/row/item that shows `scope`, whatever the layout.
+            rx = re.compile(re.escape(name), re.I)
+            loc = page.get_by_role("button", name=rx).or_(page.get_by_role("link", name=rx))
+            try: await loc.first.wait_for(state="visible", timeout=35000)
+            except Exception: pass
+            cands = [x for x in await loc.all() if await x.is_visible()]
+            how = "role"
+            if not cands:
+                t = page.get_by_text(rx)
+                cands = [x for x in await t.all() if await x.is_visible()]
+                how = "text"
+            if scope and cands:
+                scored = []
+                for x in cands:
+                    d = await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return d; n = n.parentElement; d++; } return 99; }", scope)
+                    scored.append((d, x))
+                scored = [z for z in scored if z[0] < 99]; scored.sort(key=lambda z: z[0])
+                cands = [z[1] for z in scored]
+            return (cands[0] if cands else None), how
+        res["runner_notes"] = []
         for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
-            if name == "Release":
-                bravo = page.get_by_text("TEST Bravo Insulation", exact=True).first
-                if await bravo.count():
-                    row = bravo.locator("xpath=ancestor::li[1]")
-                    if await row.count():
-                        release = row.get_by_role("button", name="Release", exact=True)
-                        if await release.count():
-                            if not await release.is_enabled(): res["clicked"] = False; res["missing"] = "enabled TEST Bravo Release"; break
-                            await release.click(); res["clicked"] = True
-                            await page.wait_for_timeout(2000)
-                            s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
-                            continue
-                res["clicked"] = False; res["missing"] = "TEST Bravo Release"; break
+            scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
                 if await form.count():
-                    days = form.get_by_role("button")
                     picked = 0
-                    for day in await days.all():
+                    for day in await form.get_by_role("button").all():
                         if await day.is_enabled() and (await day.inner_text()) != "Accept this job":
                             await day.click(); picked += 1
                             if picked == 3: break
                     for select in await form.locator("select").all():
                         values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
                         if values: await select.select_option(values[0])
-            rx = re.compile(re.escape(name), re.I); btn = page.get_by_role("button", name=rx)
-            try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=35000)
-            except Exception: pass
-            btn = btn.or_(page.get_by_role("link", name=rx))
-            if not await btn.count(): res["clicked"] = False; res["missing"] = name; break
-            if not await btn.first.is_enabled(): res["clicked"] = False; res["missing"] = "enabled " + name; break
-            await btn.first.click(); res["clicked"] = True
+            el, how = await find(name, scope)
+            label = name + (f" (in {scope})" if scope else "")
+            if el is None:
+                body = await page.inner_text("body")
+                if re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
+                else: res["clicked"] = False; res["missing"] = label
+                break
+            if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
+            if not await el.is_enabled(): res["clicked"] = False; res["missing"] = "enabled " + label; break
+            try: await el.click(timeout=10000)
+            except Exception as e: res["clicked"] = False; res["runner_error"] = f'"{label}" visible but click failed: {str(e)[:100]}'; break
+            res["clicked"] = True
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
             await page.wait_for_timeout(2000)
@@ -178,14 +191,14 @@ const otherHomes = async (n: number, actor: string) => {
   return leaks;
 };
 
-async function browse(o: { n: number; slug: string; path: string; wait: string; button?: string; person: string; next: string; mustNot?: string[] }) {
+async function browse(o: { n: number; slug: string; path: string; wait: string; button?: string; scope?: Record<string, string>; person: string; next: string; mustNot?: string[] }) {
   const email = people[o.person];
   const session = email ? JSON.stringify(await J.personaSession(email)) : null;
   const cfgFile = `${temp}/cfg-${o.n}.json`, result = `${temp}/res-${o.n}.json`;
   writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session })); chmodSync(cfgFile, 0o600);
   spawnSync("python3", [`${temp}/walk_step.py`, cfgFile], { encoding: "utf8", timeout: 90_000 });
   rmSync(cfgFile, { force: true });
-  return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string } : null;
+  return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string; missing?: string; runner_error?: string; runner_notes?: string[] } : null;
 }
 
 if (!ctx?.jobId || !safe) {
@@ -195,10 +208,13 @@ if (!ctx?.jobId || !safe) {
   for (const s of STEPS) {
     const path = s.path();
     if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
-    const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, person: s.person, next: s.next });
+    const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
-    const why = !r ? "browser step crashed" : !r.loaded ? `page content "${s.wait}" never appeared (${r.url})` : r.clicked === false ? `no "${(r as { missing?: string }).missing ?? s.button}" button/link on the page (${r.url})` : s.expect ? await s.expect() : null;
+    const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;
+    const why = runnerErr ? null : !r!.loaded ? `page content "${s.wait}" never appeared (${r!.url})` : r!.clicked === false ? `a person could not find "${r!.missing ?? s.button}" on the page (${r!.url})` : s.expect ? await s.expect() : null;
     const leaks = await otherHomes(n, s.person);
+    if (runnerErr) { add({ step: s.step, person: s.person, status: "runner_error", detail: runnerErr, screenshot: r?.shots ?? [] }); broken = true; n++; continue; }
+    if (r?.runner_notes?.length) add({ step: `${s.step}: runner note`, person: "runner", status: "runner_error", detail: r.runner_notes.join("; ") + " — runner fallback used, step continued." });
     add({ step: s.step, person: s.person, status: why ? "fail" : "pass", severity: why ? s.severity : null, detail: why ?? `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
