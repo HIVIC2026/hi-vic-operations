@@ -108,7 +108,7 @@ describe("approved owner email designs", () => {
   test("O11 Ready Check times", () => {
     const m = renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Deep Insulation", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
     shell(m.html, m.text, false);
-    has(m.html, ["Helen, pick a time for your free Ready Check", "a certified installer near Glen Waverley is ready for you", ">Tuesday 28 October<", "8:00am &rsaquo;", "12:30pm &rsaquo;", "Suggest other days", "At your Ready Check", "VEU rebate", "You pay about", "Free Ready Check", "What's included in $2,188"]);
+    has(m.html, ["Helen, pick a time for your free Ready Check", "a certified installer near Glen Waverley is ready for you", ">Tuesday 28 October<", "8:00am &rsaquo;", "12:30pm &rsaquo;", "Suggest other days", "At your Ready Check", "You save $1,610", "What's included in $2,188"]);
     expect(READY_CHECK_TIMES_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O12 Ready Check booked", () => {
