@@ -1,4 +1,4 @@
--- Performance only (Jo approved 27 Oct 2026). Same rows for every role; NOT APPLIED until Jo says go.
+-- Performance only (Jo approved 27 Oct 2026). Same rows for every role; APPLIED on live 27 Oct 2026 ~23:40 Melbourne with Jo's OK (16/16 policies wrapped; admin jobs read 4 ms, workflow_events 18 ms).
 -- Why: Postgres ORs a table's permissive SELECT policies with admin_all LAST, so for an admin the per-row helper
 -- (can_access_job, is_job_owner, ...) runs once per row before the admin check is reached (jobs 300 ms, owners
 -- 370 ms, properties 600 ms, workflow_events 5.6 s as admin on live 27 Oct). The RESTRICTIVE qa_office_scope
