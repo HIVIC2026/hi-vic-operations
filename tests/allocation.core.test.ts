@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   anonymisedOffer, buildNeedsHivic, coordinationState, electricalClearance, installationCoordinationBlocker,
   installerUnavailableOutcome, isConfirmedBooking, nextOfferBatch, offerExpiry, piesaOfferBlockers, rankRecCandidates,
-  rectificationSendBlocker, rectificationVisitBlocker, INSTALLER_PLANNING_NOTICE, type RecCandidate,
+  rectificationSendBlocker, rectificationVisitBlocker, INSTALLER_PLANNING_NOTICE, readyCheckOverdueApplies, type RecCandidate,
 } from "../src/lib/allocation.core";
 
 const okPay = { ok: true, blockers: [] } as never;
@@ -202,5 +202,36 @@ describe("48h escalation covers every direct-contact visit", () => {
   });
   test("Ready Check gets its own office entry", () => {
     expect(buildNeedsHivic(input("ready_check", null)).map((i) => i.code)).toEqual(["ready_check_booking_overdue"]);
+  });
+});
+
+describe("Ready Check 48h flag scope", () => {
+  const now = new Date("2026-10-10T00:00:00Z");
+  const ago = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+  const input = (k: "ready_check" | "piesa" | "rectification" | "installation", stage: string, channel: string | null) => ({
+    now, jobs: [{ id: "j", job_number: "HV-T", stage, channel }], coverageExhausted: [], failedComms: [], rectDeclined: [], rectPricing: [], installerUnavailable: [],
+    piesaTiming: [], escTiming: [], evidenceRejected: [], registryQueries: [], officeOverdue: [],
+    releases: [{ job_id: "j", visit_kind: k, released_at: ago(49), confirmed_at: null }],
+  });
+  test("installer jobs never get the Ready Check time check", () => {
+    expect(readyCheckOverdueApplies("ready_check", { stage: "ready_check_scheduled", channel: "installer_sourced" })).toBe(false);
+  });
+  test("website jobs (and unknown channel) still do", () => {
+    expect(readyCheckOverdueApplies("ready_check", { stage: "ready_check_scheduled", channel: "hivic_sourced" })).toBe(true);
+    expect(readyCheckOverdueApplies("ready_check", { stage: "ready_check_scheduled", channel: null })).toBe(true);
+  });
+  test("a done Ready Check is never waiting on a time", () => {
+    for (const stage of ["ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"])
+      expect(readyCheckOverdueApplies("ready_check", { stage, channel: "hivic_sourced" })).toBe(false);
+  });
+  test("PIESA, fixes and install visits on installer jobs are unchanged", () => {
+    for (const v of ["piesa", "rectification", "installation"])
+      expect(readyCheckOverdueApplies(v, { stage: "ready_check_scheduled", channel: "installer_sourced" })).toBe(true);
+  });
+  test("older office queue follows the same rule", () => {
+    expect(buildNeedsHivic(input("ready_check", "ready_check_scheduled", "installer_sourced"))).toEqual([]);
+    expect(buildNeedsHivic(input("ready_check", "measured_estimate_ready", "hivic_sourced"))).toEqual([]);
+    expect(buildNeedsHivic(input("ready_check", "ready_check_scheduled", "hivic_sourced")).map((i) => i.code)).toEqual(["ready_check_booking_overdue"]);
+    expect(buildNeedsHivic(input("piesa", "piesa_and_install_window_pending", "installer_sourced")).map((i) => i.code)).toEqual(["piesa_booking_overdue"]);
   });
 });

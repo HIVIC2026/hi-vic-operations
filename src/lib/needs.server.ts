@@ -112,7 +112,7 @@ export async function loadNeedsHivic() {
   const items = buildNeedsHivic({
     readyCheckReturned,
     recNoLongerApproved,
-    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
+    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
     coverageExhausted: coverage,
     releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active && !(r.visit_kind === "ready_check" && rcTalking.has(r.job_id))).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
     failedComms: ok(comms, "communications"),
