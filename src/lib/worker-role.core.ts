@@ -84,3 +84,14 @@ export function installDayTextDue(startIso: string, nowIso: string, sendTime = "
   const hm = new Date(nowIso).toLocaleTimeString("en-GB", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false });
   return hm >= sendTime && hm < "20:00";
 }
+
+// ---- Team list Mitti status (from the append-only Mitti invite records, mitti-invite.core MITTI_INVITE_EVENTS) ----
+export type MittiTeamStatus = "Invited" | "Joined" | "Failed" | null;
+export function mittiTeamStatus(latestType: string | null | undefined): MittiTeamStatus {
+  switch (latestType) {
+    case "mitti_user_invited": case "mitti_user_reactivated": return "Invited";
+    case "mitti_user_linked": case "mitti_invite_linked": case "mitti_invite_office_done": return "Joined";
+    case "mitti_access_failed": case "mitti_invite_needed": return "Failed";
+    default: return null;
+  }
+}

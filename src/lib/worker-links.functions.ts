@@ -28,7 +28,13 @@ export const listMyWorkers = createServerFn({ method: "GET" }).middleware([requi
       admin.from("partner_workers").select(WORKER_COLS).eq("business_id", bizId).is("removed_at", null).order("created_at"),
     ]);
     if (e1 || e2) throw new Error(`Could not load workers: ${(e1 ?? e2)!.message}`);
-    return { business: biz, canManage: mine.get(bizId) === "business_admin", workers: workers ?? [] };
+    // Decision 411: Mitti status per person from the Mitti invite records (latest wins).
+    const { mittiTeamStatus } = await import("./worker-role.core");
+    const ids = (workers ?? []).map((w) => w.id);
+    const { data: ev } = ids.length ? await admin.from("admin_config_events").select("event_type, created_at, details").like("event_type", "mitti_%").order("created_at", { ascending: false }).limit(1000) : { data: [] };
+    const latest = new Map<string, string>();
+    for (const r of ev ?? []) { const id = String((r.details as { worker_id?: unknown } | null)?.worker_id ?? ""); if (ids.includes(id) && !latest.has(id)) latest.set(id, r.event_type); }
+    return { business: biz, canManage: mine.get(bizId) === "business_admin", workers: (workers ?? []).map((w) => ({ ...w, mitti_status: mittiTeamStatus(latest.get(w.id)) })) };
   });
 
 export const saveWorker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -69,6 +75,26 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
     if (w.profile_id) await admin.from("business_members").update({ active: false } as never).eq("business_id", w.business_id).eq("user_id", w.profile_id).neq("member_role", "business_admin");
     // Decision 331: removed person → deactivate the Mitti user the portal invited/linked (switch off = no-op). Never fails the removal.
     await import("./mitti-invite.server").then((m) => m.onPartnerPersonRemoved(w.id, context.userId)).catch((e) => console.error("Mitti deactivate skipped", (e as Error).message));
+    return { ok: true };
+  });
+
+/** Decision 411: the business owner sets an installer's role (Lead installer / Crew). Not an identity change, so approval
+ *  stays as it is. An approved person newly set to Lead goes through the same Mitti step as approval (never invited twice). */
+export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid, role: z.enum(["lead", "crew"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, business_id, trade_role, worker_role, approval_status, removed_at").eq("id", data.id).maybeSingle();
+    if (!w || w.removed_at) throw new Error("Worker not found.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
+    if (w.trade_role !== "installer") throw new Error("Only installers have a Lead installer or Crew role.");
+    if (w.worker_role === data.role) return { ok: true };
+    const { error } = await admin.from("partner_workers").update({ worker_role: data.role }).eq("id", w.id);
+    if (error) throw new Error(error.message);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "worker_role_set", summary: `Worker role set to ${data.role === "lead" ? "Lead installer" : "Crew"}`, details: { worker_id: w.id, business_id: w.business_id, from: w.worker_role, to: data.role } });
+    if (data.role === "lead" && w.approval_status === "approved") {
+      await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(w.id, context.userId)).catch((e) => console.error("Mitti invite skipped", (e as Error).message));
+    }
     return { ok: true };
   });
 
