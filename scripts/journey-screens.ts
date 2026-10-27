@@ -171,9 +171,29 @@ async def main():
             return (cands[0] if cands else None), how
         res["runner_notes"] = []
         if re.search(r"Let's check it's you", text, re.I):
-            # The owner must enter a 6-digit code from their phone/email. Asking for one sends a message, so the runner stops here.
-            res["clicked"] = False; res["runner_error"] = "owner code check shown (Text me a code / Email me a code); the runner can't receive a code without sending a message, so it stopped"
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error")]):
+            # Jo 27 Oct 13:15: press the real "Email me a code" (TEST-redirected to Jo), then read the TEST-only stored copy.
+            cr = cfg.get("codeRead")
+            em = page.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+            if not cr or not await em.count():
+                res["clicked"] = False; res["runner_error"] = "owner code check shown but no Email me a code button / TEST code reader"
+            else:
+                await em.first.click(); await page.wait_for_timeout(2500)
+                import urllib.request
+                code = None
+                for _ in range(20):
+                    rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"], headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                    rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                    if rows_: code = rows_[0]["code"]; break
+                    await asyncio.sleep(1)
+                if not code: res["clicked"] = False; res["missing"] = "a TEST sign-in code (none stored after pressing Email me a code)"
+                else:
+                    await page.get_by_label("Enter code").fill(code)
+                    await page.get_by_role("button", name="Check my code").click()
+                    await page.wait_for_timeout(3000)
+                    sc = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-code.png"; await page.screenshot(path=str(out / sc)); res["shots"].append(sc)
+                    res["runner_notes"] = []; res["codeUsed"] = True
+                    if re.search(r"Let's check it's you|doesn't match", await page.inner_text("body"), re.I): res["clicked"] = False; res["missing"] = "accepted sign-in code (page still asks for a code)"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error") and res.get("clicked") is not False]):
             scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
@@ -226,7 +246,9 @@ async function browse(o: { n: number; slug: string; path: string; wait: string; 
   const email = people[o.person];
   const session = email ? JSON.stringify(await J.personaSession(email)) : null;
   const cfgFile = `${temp}/cfg-${o.n}.json`, result = `${temp}/res-${o.n}.json`;
-  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session })); chmodSync(cfgFile, 0o600);
+  // TEST code reader only for homeowner steps on this run's qa_test job (service key stays in a 0600 temp file, deleted below).
+  const codeRead = o.person === "homeowner" && ctx?.jobId ? { url: process.env["SUPABASE_URL"], key: process.env["SUPABASE_SERVICE_ROLE_KEY"], job: ctx.jobId } : null;
+  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session, codeRead })); chmodSync(cfgFile, 0o600);
   spawnSync("python3", [`${temp}/walk_step.py`, cfgFile], { encoding: "utf8", timeout: 90_000 });
   rmSync(cfgFile, { force: true });
   return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string; missing?: string; runner_error?: string; runner_notes?: string[] } : null;
