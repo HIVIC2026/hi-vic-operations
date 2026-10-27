@@ -282,6 +282,10 @@ export type InstallEvidenceCtx = {
 
 export type InstallEvidenceItem = { id: string; zone: number | null; label: string; state: "met" | "missing" | "review" | "not_required"; count: number; problems: string[] };
 export type InstallEvidenceSummary = {
+  jobId?: string;
+  auditId?: string;
+  auditFingerprint?: string;
+  copyFailures?: { mediaId: string; area: string; which: string; reason: string }[];
   rule: typeof INSTALL_EVIDENCE_RULE; applies: boolean; installDate: string | null; zoneCount: number;
   items: InstallEvidenceItem[];
   /** Everything outstanding, plain words, one line per item. */
@@ -398,10 +402,11 @@ export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zon
   return { items, blockers, files };
 }
 
-/** Decision 396: the ruler photo lines of a stored summary (null/old A3 summary = none). The Installation complete
+/** Decision 396: missing or old summaries are not proof that ruler photos passed. The Installation complete
  *  button path refuses on these, naming the area. */
 export function rulerPhotoBlockersOf(summary: Pick<InstallEvidenceSummary, "rulerBlockers"> | null | undefined): string[] {
-  return [...new Set(summary?.rulerBlockers ?? [])];
+  if (!Array.isArray(summary?.rulerBlockers)) return ["Sync the current A5 Install day form — its ruler photos have not been checked yet"];
+  return [...new Set(summary.rulerBlockers)];
 }
 
 /**
@@ -573,6 +578,10 @@ export function installCompletionDecision(i: InstallCompletionInput): InstallCom
   if (i.allFilledInTicked === false) return { record: false, reason: "Final tick not ticked on the Install day form", nextLine: `Install day form: ${FINAL_TICK_MISSING}`, outstanding: [FINAL_TICK_MISSING] };
   if (!i.declarationSaved) return { record: false, reason: "Signed installer declaration not saved yet", nextLine: "Sign the safety form (PIISA) in Mitti — the portal has not got a signed copy yet", outstanding: [] };
   if (!i.summary) return { record: false, reason: "Install-day evidence not read yet", nextLine: "Sync the Install day form — the evidence has not been read yet", outstanding: [] };
+  if (!Array.isArray(i.summary.rulerBlockers)) {
+    const outstanding = rulerPhotoBlockersOf(i.summary);
+    return { record: false, reason: "Current A5 ruler summary not read yet", nextLine: outstanding[0] ?? null, outstanding };
+  }
   // Decision 396: before the effective date the summary's blockers are the ruler photos only — they still hold completion.
   if (!i.summary.applies) {
     const ruler = rulerPhotoBlockersOf(i.summary);

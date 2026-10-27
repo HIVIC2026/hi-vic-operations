@@ -41,6 +41,41 @@ describe("AI reply layout (Jo 26 Oct)", () => {
     expect(html).toContain("Change my booking time");
     expect(html).toContain(`href="${MY}?screen=book"`);
   });
-  test("sign-off on its own lines", () => expect(render(out)).toContain("Cheers,<br />the Home Insulation Victoria team"));
+  test("sign-off on its own lines (Jo 27 Oct: signed by Jo)", () => expect(render(out)).toContain("Kind regards,<br />Jo<br />Home Insulation Victoria"));
   test("refreshed look: hosted logo, no embedded image", () => { const h = render(out); expect(h).toContain(MAIL_LOGO_URL); expect(h).not.toContain("data:image"); });
+});
+
+describe("latestDraftEdits (Jo 27 Oct 2026: edits survive a refresh)", () => {
+  test("keeps the newest edit per draft", async () => {
+    const { latestDraftEdits } = await import("../src/lib/ai-email-reply.core");
+    const m = latestDraftEdits([
+      { created_at: "2026-10-27T11:00:00Z", details: { draft_event_id: "a", body: "first" } },
+      { created_at: "2026-10-27T11:05:00Z", details: { draft_event_id: "a", body: "second" } },
+      { created_at: "2026-10-27T11:02:00Z", details: { draft_event_id: "b", body: "only" } },
+      { created_at: "2026-10-27T11:09:00Z", details: { draft_event_id: "c" } },
+    ]);
+    expect(m.get("a")).toBe("second");
+    expect(m.get("b")).toBe("only");
+    expect(m.has("c")).toBe(false);
+  });
+});
+
+describe("Jo's tone (27 Oct 2026)", () => {
+  test("Jo's own sign-off is replaced, not doubled", async () => {
+    const { finishAiReply, AI_SIGN_OFF: S } = await import("../src/lib/ai-email-reply.core");
+    const out = finishAiReply("Hi Sam,\n\nThanks for asking.\n\nKind regards,\nJo\nHome Insulation Victoria");
+    expect(out.split(S).length).toBe(2);
+    expect(out.endsWith(S)).toBe(true);
+  });
+  test("save link and electrician link get clear buttons", async () => {
+    const { aiLinkLabel } = await import("../src/lib/ai-email-reply.core");
+    expect(aiLinkLabel("https://estimate.homeinsulationvictoria.com.au/estimate/abc/campaign")).toBe("Save my free spot");
+    expect(aiLinkLabel("https://portal.homeinsulationvictoria.com.au/electrician-onboarding")).toBe("Sign up as an electrician");
+  });
+  test("instructions carry Jo's rules", async () => {
+    const { AI_REPLY_INSTRUCTIONS, AI_BUSINESS_RULES, NO_REPLY_NEEDED } = await import("../src/lib/ai-email-reply.core");
+    expect(AI_REPLY_INSTRUCTIONS).toContain("Never say \"No worries\"");
+    expect(AI_REPLY_INSTRUCTIONS).toContain(NO_REPLY_NEEDED);
+    expect(AI_BUSINESS_RULES.join(" ")).toContain("$15/m²");
+  });
 });

@@ -116,7 +116,11 @@ export const bulkCancelOfficeJobs = createServerFn({ method: "POST" }).middlewar
     const { cancelJobFully } = await import("./office-actions.server");
     const results: { jobId: string; ok: boolean; error?: string }[] = [];
     for (const jobId of data.jobIds) {
-      try { await cancelJobFully(jobId, data.reason, context.userId, { note: data.note ?? null, bulk: true }); results.push({ jobId, ok: true }); }
+      try {
+        const blocker = await (await import("./office-lists.server")).enquiryCloseBlocker(jobId);
+        if (blocker) throw new WorkflowError(blocker);
+        await cancelJobFully(jobId, data.reason, context.userId, { note: data.note ?? null, bulk: true }); results.push({ jobId, ok: true });
+      }
       catch (e) { results.push({ jobId, ok: false, error: e instanceof Error ? e.message : "Failed" }); }
     }
     return { results, done: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok) };

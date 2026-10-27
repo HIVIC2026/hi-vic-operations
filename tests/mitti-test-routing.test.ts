@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { fixesDayMissingQuestions, fixesDayPrefillItems, readFixesDay } from "../src/lib/fixes-day.core";
 
 // In-memory stand-in for the mitti_sim_audits table (service-role client).
 const rows = new Map<string, Record<string, unknown>>();
@@ -85,7 +86,15 @@ test("practice database: simulator table applies, rejects non-sim ids", async ()
 
 test("fixes-day TEST flow: template read goes to the simulator, never the network", async () => {
   const call = await ms.mittiCallFor(ms.realMittiCall, "jo@actpropertyinspections.com.au");
-  await call("GET", "/templates/v1/templates/template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  const template = await call("GET", "/templates/v1/templates/template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  expect(fixesDayMissingQuestions(template)).toEqual([]);
+  const items = fixesDayPrefillItems(template, { jobNumber: "HV-TEST", address: "TEST Frankston 3199", electricianName: "TEST Delta", licence: "TEST-L", recName: "TEST REC", recNo: "TEST-R", phone: "0400000201", repairList: ["TEST repair"] });
+  const created = await call("POST", "/audits", { template_id: "template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", items }) as { audit_id: string };
+  expect(created.audit_id.startsWith("sim_")).toBe(true);
+  const saved = await ms.realMittiCall("GET", `/audits/${created.audit_id}`);
+  expect(fixesDayMissingQuestions(saved)).toEqual([]);
+  expect(readFixesDay(saved).jobNumber).toBe("HV-TEST");
+  expect(readFixesDay(saved).done).toBeNull();
   expect(calls.length).toBe(0);
   const src = readFileSync("src/lib/fixes-day.server.ts", "utf8");
   expect(src).toContain("call ?? await mittiCallFor(realMittiCall, email)");

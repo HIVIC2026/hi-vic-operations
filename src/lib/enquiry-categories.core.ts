@@ -31,7 +31,7 @@ export type CategoryFacts = {
   createdAt: string;
   /** office_enquiry_index.enquiry_status (enquiry-groups.core EnquiryStatus). */
   enquiryStatus: string | null;
-  /** Last thing we sent or logged (email, text, call, note). */
+  /** Last confirmed customer contact; internal notes never count. */
   lastOutboundAt: string | null;
   /** Last time the owner reached us: an email matched to the job, or an older lead's answers. */
   lastOwnerAt: string | null;
@@ -40,9 +40,21 @@ export type CategoryFacts = {
   sendFailed: boolean;
   /** No first response recorded yet (a recent lead waits for the sweep; an old one never got it). */
   noResponseYet: boolean;
+  /** Latest owner email, separately from answers submitted on the website. */
+  inboundAt?: string | null;
 };
 
 const t = (s: string | null) => (s ? Date.parse(s) : NaN);
+export function unansweredOwnerEmail(inboundAt: string | null, repliedAt: string | null): boolean {
+  const inbound = t(inboundAt), replied = t(repliedAt);
+  return Number.isFinite(inbound) && (!Number.isFinite(replied) || replied <= inbound);
+}
+
+export function enquiryBulkCloseBlocker(f: CategoryFacts, now: number): string | null {
+  if (f.noResponseYet) return "This enquiry has no confirmed first reply and cannot be bulk closed.";
+  if (unansweredOwnerEmail(f.inboundAt ?? null, f.lastOutboundAt)) return "The owner's email has not been answered and cannot be bulk closed.";
+  return CLOSABLE[enquiryCategory(f, now)] ? null : "This enquiry is no longer Gone quiet or Opted out.";
+}
 
 export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory {
   if (f.optedOut) return "opted_out";
@@ -50,6 +62,7 @@ export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory 
   // Jo 27 Oct 2026: a lead that never got a first response is never "Gone quiet", whatever its age — it stays an
   // email to chase, so "Close all" (Gone quiet / Opted out only) can never close it.
   if (f.noResponseYet) return "not_sent";
+  if (unansweredOwnerEmail(f.inboundAt ?? null, f.lastOutboundAt)) return "offered";
   const last = Math.max(...[t(f.lastOwnerAt), t(f.lastOutboundAt), t(f.createdAt)].filter(Number.isFinite));
   if (Number.isFinite(last) && now - last > QUIET_AFTER_DAYS * DAY) return "quiet";
   return "offered";
