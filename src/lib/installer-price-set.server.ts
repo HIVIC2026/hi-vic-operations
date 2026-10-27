@@ -25,6 +25,20 @@ async function currentFormEntries(jobId: string): Promise<{ label: string; value
   return (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
 }
 
+/** The current Ready Check measurement's figures — the same ones the owner's quote prices from (the office-verified area
+ *  when there is one, else the installer's). A figure that isn't recorded stays null; nothing is guessed. */
+async function currentMeasurementNumbers(jobId: string): Promise<{ measuredM2: number | null; removalRequired: boolean | null; removalM2: number | null }> {
+  const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required, removal_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const row = m as { measured_area_m2: unknown; verified_area_m2: unknown; removal_required: boolean | null; removal_m2: unknown } | null;
+  const area = (v: unknown) => { const n = Number(v); return v == null || v === "" || !Number.isFinite(n) || n <= 0 ? null : n; };
+  const amount = (v: unknown) => { const n = Number(v); return v == null || v === "" || !Number.isFinite(n) || n < 0 ? null : n; };
+  return {
+    measuredM2: row ? area(row.verified_area_m2 ?? row.measured_area_m2) : null,
+    removalRequired: row?.removal_required ?? null,
+    removalM2: row ? amount(row.removal_m2) : null,
+  };
+}
+
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
   const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();

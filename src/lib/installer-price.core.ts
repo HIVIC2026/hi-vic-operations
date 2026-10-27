@@ -143,3 +143,26 @@ export function accessFlagLine(f: { rating: string | null; issues: string[] }): 
   if (!f.rating && !f.issues.length) return null;
   return [f.rating ? `Ceiling access: ${f.rating}` : null, f.issues.length ? `Issues: ${f.issues.join("; ")}` : null].filter(Boolean).join(" · ");
 }
+
+/** Jo 27 Oct 2026: the Ready Check facts shown above the price box so the boss can see what they are pricing.
+ *  A fact that isn't on the Ready Check yet says so plainly — nothing is guessed. */
+export const READY_CHECK_MISSING = "Not on the Ready Check yet";
+
+/** The current Ready Check measurement's figures (the same ones the owner's quote prices from) plus the access flag. */
+export type ReadyCheckFacts = {
+  measuredM2: number | null;
+  removalRequired: boolean | null;
+  removalM2: number | null;
+  access: { rating: string | null; issues: string[] };
+};
+
+/** The three lines the card shows: install m², removal m² ("None" when no removal is needed), access (rating + notes). */
+export function readyCheckPriceLines(f: ReadyCheckFacts): { install: string; removal: string; access: string } {
+  const m2 = (n: number | null) => (n == null ? null : `${Math.round(n * 100) / 100} m²`);
+  const access = [f.access.rating, f.access.issues.length ? f.access.issues.join("; ") : null].filter(Boolean).join(" · ");
+  return {
+    install: m2(f.measuredM2) ?? READY_CHECK_MISSING,
+    removal: f.removalRequired === false || f.removalM2 === 0 ? "None" : m2(f.removalM2) ?? READY_CHECK_MISSING,
+    access: access || READY_CHECK_MISSING,
+  };
+}
