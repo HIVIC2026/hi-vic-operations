@@ -3,20 +3,37 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { qaOfficeIdentityBlocker, qaOfficeJobBlocker, qaOfficeReservedEmail, type QaOfficeBusiness } from "./qa-office.core";
 import { requireAdmin } from "./workflow.server";
+import { officeIdentityFor } from "./office-identity";
 
 type Client = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
 const text = (value: unknown): string | null => typeof value === "string" ? value : null;
 
-/** Lists choose their scope on the server; a browser includeTest flag is never authorization. */
-export async function requireOfficeIdentity(sb: Client): Promise<"admin" | "qa_office"> {
+type Identity = { roles: string[]; email: string | null; emailVerified: boolean };
+
+/** Verified user + persisted roles: reused from this server call's boundary read, else read now (scripts, ticks, tests). */
+async function officeCaller(sb: Client): Promise<Identity & { reused: boolean }> {
+  const known = officeIdentityFor(sb);
+  if (known) return { roles: [...known.roles], email: known.email, emailVerified: known.emailVerified, reused: true };
   const { data: auth, error } = await sb.auth.getUser();
   if (error || !auth.user) throw new Error("Office sign-in required.");
   const { data: rows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
   if (roleError) throw new Error("Office permissions could not be checked.");
-  const roles = (rows ?? []).map(row => String(row.role));
-  if (!roles.includes("qa_office")) { await requireAdmin(sb); return "admin"; }
-  const blocked = qaOfficeIdentityBlocker({ roles, email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at });
+  return { roles: (rows ?? []).map(row => String(row.role)), email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at, reused: false };
+}
+
+/** is_admin() is has_role(auth.uid(), 'admin'): a reused persisted admin role is the same fact. Refusals keep requireAdmin's exact error. */
+async function requireOfficeAdmin(sb: Client, caller: { roles: string[]; reused: boolean }): Promise<void> {
+  if (caller.reused && caller.roles.includes("admin")) return;
+  await requireAdmin(sb);
+}
+
+/** Lists choose their scope on the server; a browser includeTest flag is never authorization. */
+export async function requireOfficeIdentity(sb: Client): Promise<"admin" | "qa_office"> {
+  const caller = await officeCaller(sb);
+  const { roles } = caller;
+  if (!roles.includes("qa_office")) { await requireOfficeAdmin(sb, caller); return "admin"; }
+  const blocked = qaOfficeIdentityBlocker({ roles, email: caller.email, emailVerified: caller.emailVerified });
   if (blocked) throw new Error(blocked);
   return "qa_office";
 }
@@ -49,16 +66,13 @@ export async function officeTestBusinessIds(sb: Client): Promise<string[]> {
 }
 
 export async function requireOfficeJob(sb: Client, jobId: string): Promise<"admin" | "qa_office"> {
-  const { data: auth, error: authError } = await sb.auth.getUser();
-  if (authError || !auth.user) throw new Error("Office sign-in required.");
-  const { data: roleRows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
-  if (roleError) throw new Error("Office permissions could not be checked.");
-  const roles = (roleRows ?? []).map(row => String(row.role));
+  const caller = await officeCaller(sb);
+  const { roles } = caller;
   if (!roles.includes("qa_office")) {
-    await requireAdmin(sb);
+    await requireOfficeAdmin(sb, caller);
     return "admin";
   }
-  const identity = { roles, email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at };
+  const identity = { roles, email: caller.email, emailVerified: caller.emailVerified };
   const identityBlock = qaOfficeIdentityBlocker(identity);
   if (identityBlock) throw new Error(identityBlock);
   // RLS must authorize the graph before privileged helpers can run. An unapplied policy is a loud refusal.

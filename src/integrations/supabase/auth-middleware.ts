@@ -3,6 +3,7 @@ import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
+import { bindOfficeIdentity, trustedOfficeIdentity, verifiedTokenClaims } from '@/lib/office-identity'
 
 
 
@@ -32,7 +33,7 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
-  async ({ next }) => {
+  async ({ next, context }) => {
     
     const SUPABASE_URL = process.env['SUPABASE_URL'];
     const SUPABASE_PUBLISHABLE_KEY = process.env['SUPABASE_PUBLISHABLE_KEY'];
@@ -91,20 +92,30 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
-      throw new Error('Unauthorized: Invalid token');
-    }
+    // Speed fix #1: when the global TEST-office boundary already verified this exact token with the auth
+    // server during this call, reuse that result instead of a second auth round trip.
+    const identity = trustedOfficeIdentity((context as Record<string, unknown> | undefined)?.['officeIdentity'], token);
+    let claims: { sub: string } & Record<string, unknown>;
+    if (identity) {
+      claims = verifiedTokenClaims(token, identity);
+      bindOfficeIdentity(supabase, identity);
+    } else {
+      const { data, error } = await supabase.auth.getClaims(token);
+      if (error || !data?.claims) {
+        throw new Error('Unauthorized: Invalid token');
+      }
 
-    if (!data.claims.sub) {
-      throw new Error('Unauthorized: No user ID found in token');
+      if (!data.claims.sub) {
+        throw new Error('Unauthorized: No user ID found in token');
+      }
+      claims = data.claims as typeof claims;
     }
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId: claims.sub,
+        claims: claims as NonNullable<Awaited<ReturnType<typeof supabase.auth.getClaims>>['data']>['claims'],
       },
     });
   },
