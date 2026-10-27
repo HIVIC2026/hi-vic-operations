@@ -197,7 +197,7 @@ async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], act
   const email = (businessEmail ?? "").trim().toLowerCase().replace(/[.,;]+$/, "");
   const note = async (summary: string) => { await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_welcome_on_approval", summary, details: { business_id: businessId, application_id: applicationId } }); return summary; };
   if (!email) return note("Welcome email stays queued: no business email on the signed application.");
-  const { data: claimed } = await admin.from("businesses").update({ approval_message_status: "sending" }).eq("id", businessId).eq("approval_message_status", "queued").select("id");
+  const { data: claimed } = await admin.from("businesses").update({ approval_message_status: "sent" }).eq("id", businessId).eq("approval_message_status", "queued").select("id");
   if (!claimed?.length) return note("Welcome email not sent: it was already sent or is in progress for this business.");
   try {
     const r = await makePartnerLogin(sb, actorId, { applicationId, email });
@@ -205,11 +205,12 @@ async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], act
     const { partnerWelcomeEmail } = await import("./partner-email.core");
     const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
     const res = await sendOfficeEmail({ actorId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.text, html: m.html, text: m.text, label: "partner_welcome_on_approval", record: { applicationId, businessId } });
-    const status = res.status === "sent" ? "sent" : res.status === "blocked" ? "queued" : "send_uncertain";
-    await admin.from("businesses").update({ approval_message_status: status }).eq("id", businessId).eq("approval_message_status", "sending");
+    // The claim already set "sent" (allowed values: queued/sent/cancelled). Only a definite block goes back to queued;
+    // an uncertain send stays "sent" so it is never sent twice.
+    if (res.status === "blocked") await admin.from("businesses").update({ approval_message_status: "queued" }).eq("id", businessId).eq("approval_message_status", "sent");
     return note(res.status === "sent" ? `Welcome email sent to ${r.email}.` : res.status === "blocked" ? `Welcome email stays queued: ${res.detail}` : `Welcome email may not have sent (not retried): ${res.detail}`);
   } catch (e) {
-    await admin.from("businesses").update({ approval_message_status: "queued" }).eq("id", businessId).eq("approval_message_status", "sending");
+    await admin.from("businesses").update({ approval_message_status: "queued" }).eq("id", businessId).eq("approval_message_status", "sent");
     return note(`Welcome email stays queued: ${(e as Error).message}`);
   }
 }
@@ -230,7 +231,7 @@ export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middlewar
       const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
       const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
       const { data: b } = act ? await admin.from("businesses").select("approval_message_status").eq("id", act.business_id).maybeSingle() : { data: null };
-      if (b?.approval_message_status && ["sent", "sending", "send_uncertain"].includes(b.approval_message_status)) throw new WorkflowError("The welcome email was already sent (or may have sent) for this business, so it isn't sent again. Use Create login to get a fresh link.");
+      if (b?.approval_message_status && b.approval_message_status === "sent") throw new WorkflowError("The welcome email was already sent for this business, so it isn't sent again. Use Create login to get a fresh link.");
     }
     const r = await makePartnerLogin(context.supabase, context.userId, data);
     const { sendOfficeEmail } = await import("./office-email.server");
