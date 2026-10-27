@@ -284,7 +284,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     const { data: a0 } = await admin.from("assessments").select("id, external_mitti_id, mitti_template_id").eq("job_id", ctx.jobId!).maybeSingle();
     tpl.a3 = a0?.mitti_template_id ?? String((ws as Record<string, unknown> | null)?.["mitti_piesa_template_id"] ?? "").trim();
     const mitti = sim.simulatedMitti({
-      templates: { [tpl.a3]: sim.templateOfItems(items as never), ...(tpl.fixes ? { [tpl.fixes]: { items: fixesTemplateItems as never } } : {}) },
+      // The simulated A3 template carries the office prefill fields the real A3 has (mandatory: Property Address, Owner name).
+      templates: { [tpl.a3]: sim.templateOfItems([{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle" }, { item_id: "sim_a3_office_addr", label: "Property Address", type: "textsingle" }, { item_id: "sim_a3_office_owner", label: "Owner name", type: "textsingle" }, ...(items as never[] as { item_id: string; label: string; type: string }[])]), ...(tpl.fixes ? { [tpl.fixes]: { items: fixesTemplateItems as never } } : {}) },
       users: [{ id: "sim-mitti-electrician", email: el!.email! }, { id: "sim-mitti-test-assignee", email: TEST_MITTI_ASSIGNEE }],
     });
     const fetchMedia = async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" });
