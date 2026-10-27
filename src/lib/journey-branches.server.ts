@@ -108,6 +108,8 @@ async function readyCheckWith(ctx: JourneyCtx, m: { insulation_present: boolean 
 // =====================================================================================================================
 async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await newJourneyCtx();
+  // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
+  ctx.notes["address_line"] = `${parseInt(ctx.runId.slice(0, 8), 16)} Journey Branch Street`;
   try {
     const s = await setupSteps(ctx, 3);
     setup.push(...s.out);
@@ -178,6 +180,8 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
 
   // Second case: missing/conflicting evidence → needs_review (not not_eligible), job stays in office review, owner not told.
   const c2 = await newJourneyCtx();
+  // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
+  c2.notes["address_line"] = `${parseInt(c2.runId.slice(0, 8), 16)} Journey Branch Street`;
   try {
     const s = await setupSteps(c2, 3);
     setup.push(...s.out);
@@ -224,6 +228,8 @@ const FIXES_PRICE = 880;
 
 async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await newJourneyCtx();
+  // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
+  ctx.notes["address_line"] = `${parseInt(ctx.runId.slice(0, 8), 16)} Journey Branch Street`;
   try {
     const s = await setupSteps(ctx, 5, defaultReadyCheck);
     setup.push(...s.out);

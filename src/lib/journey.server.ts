@@ -81,7 +81,7 @@ const s1: StepFn = async (ctx, r) => {
   const { upsertEnquiry } = await import("./enquiry.server");
   const res = await upsertEnquiry({
     external_enquiry_id: `qa-journey-${ctx.runId}`, full_name: `Test Journey`, email: ctx.ownerEmail, phone: ins!.mobile,
-    address_line: `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
+    address_line: (ctx.notes["address_line"] as string | undefined) ?? `${ctx.runId.slice(0, 2).replace(/\D/g, "") || "7"} Journey Test Street`, suburb: "Frankston", postcode: "3199", state: "VIC", occupancy: "owner_occupied",
     estimated_area_m2: 120, life_support: false, life_support_status: "no", declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no",
     contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), age_confirmed: true,
     base44_answers: { existing_insulation: "none", property_type: "house" },
@@ -690,8 +690,9 @@ async function allowlist(ctx: JourneyCtx, r: StepResult) {
 export async function cleanupJourney(ctx: JourneyCtx) {
   const now = new Date().toISOString();
   if (ctx.jobId) {
-    const { data: j } = await admin.from("jobs").select("source").eq("id", ctx.jobId).maybeSingle();
-    if (j?.source === "qa_test") {
+    const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
+    // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
+    if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
       await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
