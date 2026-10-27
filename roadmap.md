@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:50 TEST-only office steps A and B only
+- [ ] A: finish scoped office RLS, server readers/actions, lists/counts/search/Needs me/Money/exports and per-area TEST/admin proof; forbidden global administration stays refused. Record every uncovered entrypoint; no admin alias.
+- [ ] B: only after all A tests pass, create exactly one reserved-domain login with project-secret password and read-only browser screenshots of each office page. BLOCKED until A is complete; no journey, publication, switch changes or sends.
 ## Jo 27 Oct 07:33 TEST-only office and Phase 2
 - [ ] Complete qa_office office access: inactive pure scope checks and quarantine SQL only are built; no production permissions or route changes. Remaining server readers/actions, views/RPCs, storage/exports and scoped list caches are NOT implemented; never widen requireAdmin/is_admin.
 - [x] Practice foundation only: 24 focused checks pass, including two-user quarantine real-id/table/settings denial and unchanged admin. This does NOT prove full office list/action isolation or authenticated end-to-end access.
