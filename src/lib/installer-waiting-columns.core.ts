@@ -12,7 +12,7 @@
 // no installer, no offer pending/accepted. Needs me folds those rows into ONE link to this list (one pile per job).
 // PURE: no I/O.
 import { has, inRange, textHit, type ListColumn, type Range } from "./enquiry-columns.core";
-import { INSULATION_LABEL, type InsulationChip, type SortDir } from "./office-filters.core";
+import { INSULATION_LABEL, REGION_CHIPS, regionChip, type InsulationChip, type RegionChip, type SortDir } from "./office-filters.core";
 import { coveragePartnerBlocker, type CoveragePartner } from "./coverage.core";
 import { isElectricianBiz, isInstallerBiz, verifiedServiceAreaMatch } from "./pilot.core";
 import { installerCandidate, installerOfferable } from "./readycheck-booking.core";
@@ -262,6 +262,46 @@ export function waitingCountLine(c: ReturnType<typeof waitingCounts>): string {
     `${n(c.all)} waiting for an installer`, `${n(c.toChoose)} to choose (the Needs me count)`,
     c.released ? `${n(c.released)} released, waiting for the owner` : null, c.cameBack ? `${n(c.cameBack)} came back` : null,
   ].filter(Boolean).join(" · ");
+}
+
+// ---- tabs, areas and recruiting (Jo 26–27 Oct 2026) ------------------------------------------------------------------
+// Jo: "filter by suburb etc so we can group jobs together" (on Jobs, "because it's only applicable once they save a
+// spot"); "tell which jobs we have an installer and electrician available in so saved spots without them in the area can
+// be flagged and we can onboard some people"; released spots get their own tab ("Its own tab", 27 Oct).
+
+/** To release = everything not released and waiting for the owner; Waiting for owner = released, not confirmed yet. */
+export type WaitingTab = "to_release" | "waiting_owner";
+export const isWaitingOwner = (r: InstallerWaitingRow) => !!r.release && !r.release.releasable;
+export const inWaitingTab = (r: InstallerWaitingRow, t: WaitingTab) => (t === "waiting_owner") === isWaitingOwner(r);
+
+/** The area a job sits in, from its postcode (the same areas as Jobs › Active's Suburb / area filter). */
+export const areaOf = (r: { postcode: string }): RegionChip | null => regionChip(r.postcode || null);
+export type WaitingArea = RegionChip | "everywhere";
+export const inArea = (r: InstallerWaitingRow, a: WaitingArea) => a === "everywhere" || areaOf(r) === a;
+/** How many jobs in each area, in the usual area order; areas with none are left out. */
+export function areaCounts(rows: InstallerWaitingRow[]): { area: RegionChip; n: number }[] {
+  const n = new Map<RegionChip, number>();
+  for (const r of rows) { const a = areaOf(r); if (a) n.set(a, (n.get(a) ?? 0) + 1); }
+  return REGION_CHIPS.filter((a) => n.has(a)).map((a) => ({ area: a, n: n.get(a)! }));
+}
+
+/** What a job is missing nearby, in words; null when an approved installer AND electrician both cover it. */
+export function coverageGap(c: WaitingCoverage): string | null {
+  if (c.installer && c.electrician) return null;
+  return !c.installer && !c.electrician ? "No installer or electrician" : !c.installer ? "No installer" : "No electrician";
+}
+/** Areas to recruit in: saved spots with a coverage gap, one line per suburb (postcode), most jobs first. */
+export function recruitAreas(rows: InstallerWaitingRow[]): { place: string; n: number; missing: string }[] {
+  const by = new Map<string, { place: string; n: number; installer: boolean; electrician: boolean }>();
+  for (const r of rows) {
+    if (!coverageGap(r.coverage)) continue;
+    const place = suburbLabel(r) === "—" ? "Address not known" : [r.suburb.trim(), r.postcode.trim()].filter(Boolean).join(" ");
+    const g = by.get(place) ?? { place, n: 0, installer: false, electrician: false };
+    g.n++; g.installer ||= !r.coverage.installer; g.electrician ||= !r.coverage.electrician;
+    by.set(place, g);
+  }
+  return [...by.values()].sort((a, b) => b.n - a.n || a.place.localeCompare(b.place))
+    .map((g) => ({ place: g.place, n: g.n, missing: coverageGap({ installer: !g.installer, electrician: !g.electrician })! }));
 }
 
 // ---- Choose installer pop-up ----------------------------------------------------------------------------------------

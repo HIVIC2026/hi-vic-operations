@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight } from "lucide-react";
+import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAction } from "@/hooks/use-me";
@@ -26,15 +26,14 @@ import { createEnquiry } from "@/lib/portal.functions";
 import { tidyEnquiryDetails } from "@/lib/name-address-tidy.core";
 import { INSULATION_LABEL, type InsulationChip, type SortDir } from "@/lib/office-filters.core";
 import { ENQUIRY_COLUMNS, activeColumnFilters, estimateLabel, sizeLabel, type ColumnFilters } from "@/lib/enquiry-columns.core";
-import { CLOSABLE, ENQUIRY_CATEGORIES, type CategoryCounts, type EnquiryCategory, type EnquiryView } from "@/lib/enquiry-categories.core";
+import { CLOSABLE, ENQUIRY_CATEGORIES, type CategoryCounts, type EnquiryView } from "@/lib/enquiry-categories.core";
 import { INSTALLER_WAITING_PATH } from "@/lib/installer-waiting-columns.core";
 import { ActionsMenu, ColumnHead, Pager, ReasonDialog, heardLabel, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { JobPeek, type Peek } from "@/components/portal/job-peek";
-import { Pill, btnClass } from "@/components/portal/kit";
+import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
 import { ageLabel } from "@/lib/office-needs.core";
 
 const INSULATION_WORDS: Record<InsulationChip, string> = { no: "no insulation", some: "some insulation", not_sure: "insulation not sure" };
-const CATEGORY_DOT: Record<EnquiryCategory, string> = { offered: "bg-hiv-blue", not_sent: "bg-rose", opted_out: "border-2 border-sub/50 bg-transparent", quiet: "border-2 border-sub/50 bg-transparent" };
 
 /** New enquiry (phone) — the existing guarded createEnquiry (moved here from the retired Pipeline board). */
 function NewEnquiryDialog() {
@@ -75,36 +74,22 @@ function NewEnquiryDialog() {
   );
 }
 
-/** One category button: a count and a name. A failed read shows "–", never 0. */
-function CategoryButton({ view, label, count, on, tone = "plain", onPick }: { view: EnquiryView; label: string; count: number | null; on: boolean; tone?: "plain" | "rose" | "quiet"; onPick: (v: EnquiryView) => void }) {
-  const dot = view === "active" || view === "all" ? null : CATEGORY_DOT[view];
-  return (
-    <button type="button" aria-pressed={on} onClick={() => onPick(view)} className={cn(
-      "flex min-h-12 w-full items-center gap-2.5 rounded-[12px] border px-3 py-2 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue",
-      on ? "border-hiv-blue bg-mist text-ink" : "border-transparent text-ink hover:bg-mist/60",
-      tone === "rose" && !on && count ? "text-rose" : "", tone === "quiet" && !on ? "text-sub" : "",
-    )}>
-      {dot ? <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-full", dot)} /> : <span aria-hidden className="w-2.5 shrink-0" />}
-      <span className="min-w-0 flex-1">{label}</span>
-      <span className="font-display text-base font-bold tabular-nums">{count == null ? "–" : count.toLocaleString("en-AU")}</span>
-    </button>
-  );
-}
-
-function Categories({ view, counts, onPick }: { view: EnquiryView; counts: CategoryCounts | null; onPick: (v: EnquiryView) => void }) {
+/** The groups as one row of pill tabs (Jo 27 Oct 2026): In play first (what's still moving), then each group, then
+ *  every open enquiry. Saved spots and not-eligible leads are links into Jobs. A failed read shows "–", never 0. */
+function Groups({ view, counts, onPick }: { view: EnquiryView; counts: CategoryCounts | null; onPick: (v: EnquiryView) => void }) {
   const c = (k: keyof CategoryCounts) => (counts ? counts[k] : null);
-  const journey = ENQUIRY_CATEGORIES.filter((x) => x.active), off = ENQUIRY_CATEGORIES.filter((x) => !x.active);
   return (
-    <nav aria-label="Enquiry groups" className="grid gap-1 rounded-[18px] border border-line bg-paper p-2">
-      <CategoryButton view="active" label="In play" count={c("active")} on={view === "active"} onPick={onPick} />
-      {journey.map((x) => <CategoryButton key={x.key} view={x.key} label={x.label} count={c(x.key)} on={view === x.key} tone={x.key === "not_sent" ? "rose" : "plain"} onPick={onPick} />)}
-      <div aria-hidden className="mx-2 my-1 h-px bg-line" />
-      {off.map((x) => <CategoryButton key={x.key} view={x.key} label={x.label} count={c(x.key)} on={view === x.key} tone="quiet" onPick={onPick} />)}
-      <CategoryButton view="all" label="Every open enquiry" count={c("all")} on={view === "all"} tone="quiet" onPick={onPick} />
-      <div aria-hidden className="mx-2 my-1 h-px bg-line" />
-      <Link to={INSTALLER_WAITING_PATH} className="flex min-h-12 items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm font-semibold text-hiv-blue hover:bg-mist/60"><span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-hiv-green" /><span className="flex-1">Spot saved · now in Jobs</span><ChevronRight className="h-4 w-4" aria-hidden /></Link>
-      <Link to="/admin/jobs/closed" className="flex min-h-12 items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm font-semibold text-hiv-blue hover:bg-mist/60"><span aria-hidden className="w-2.5 shrink-0" /><span className="flex-1">Not eligible · in Jobs › Closed</span><ChevronRight className="h-4 w-4" aria-hidden /></Link>
-    </nav>
+    <div className="grid gap-2 lg:flex lg:items-center lg:justify-between lg:gap-4">
+      <PillTabs label="Enquiry groups" value={view} onChange={onPick} options={[
+        { value: "active" as EnquiryView, label: "In play", count: c("active") },
+        ...ENQUIRY_CATEGORIES.map((x) => ({ value: x.key as EnquiryView, label: x.label, count: c(x.key), ...(x.key === "not_sent" ? { tone: "rose" as const } : {}) })),
+        { value: "all" as EnquiryView, label: "All open", count: c("all") },
+      ]} />
+      <span className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
+        <Link to={INSTALLER_WAITING_PATH} className="text-hiv-blue hover:underline">Saved spots are in Jobs ›</Link>
+        <Link to="/admin/jobs/closed" className="text-sub hover:underline">Not eligible ›</Link>
+      </span>
+    </div>
   );
 }
 
@@ -150,36 +135,24 @@ export function EnquiriesScreen() {
   const cols = "lg:grid-cols-[24px_76px_minmax(0,1.3fr)_minmax(0,1.4fr)_76px_92px_92px_minmax(0,1fr)]";
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[30px] font-extrabold leading-tight text-ink">Enquiries</h1>
           <p className="text-sm text-sub">Website leads, by where they're up to · saving a spot makes it a job</p>
         </div>
         <NewEnquiryDialog />
       </div>
-      <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
-        <aside className="grid gap-3 lg:sticky lg:top-24">
-          <Categories view={view} counts={counts} onPick={pick} />
-          {counts && counts.quiet > 0 && view !== "quiet" && (
-            <button type="button" onClick={() => pick("quiet")} className="hidden rounded-[18px] border border-mist-line bg-mist p-4 text-left text-sm lg:block">
-              <strong className="block font-display text-base text-ink">{counts.quiet.toLocaleString("en-AU")} have gone quiet</strong>
-              <span className="mt-1 block text-sub">No reply in 4 weeks. Most came in before the automatic reminders started, so they never closed. Tidy them away in one go.</span>
-            </button>
-          )}
-        </aside>
-        <section aria-label={meta.label} className="min-w-0">
-          <div className="mb-3 grid gap-1">
-            <h2 className="font-display text-[21px] font-bold text-ink">{meta.label}</h2>
-            <p className="text-sm text-sub">{meta.hint}</p>
-          </div>
+      <Groups view={view} counts={counts} onPick={pick} />
+      <section aria-label={meta.label} className="mt-4 min-w-0">
           {closeReason && !!viewCount && (
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[14px] border border-mist-line bg-mist p-3 text-sm">
               <span className="min-w-0 flex-1 text-ink">Close all {viewCount.toLocaleString("en-AU")}? They move to Jobs › Closed with “{closeReason}”, reminders stop, history is kept and any can be reopened.</span>
               <button type="button" className={btnClass("secondary")} onClick={() => setDialog("close-all")}>Close all {viewCount.toLocaleString("en-AU")}</button>
             </div>
           )}
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2" data-why="decision 285 one search box; 286 headings sort and filter; 283 no priority number; Jo 26 Oct groups">
-            <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-10 w-full bg-paper sm:max-w-[360px]" />
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-why="decision 285 one search box; 286 headings sort and filter; 283 no priority number; Jo 26-27 Oct groups and look">
+            <p className="w-full text-[13px] text-sub lg:w-auto lg:flex-1">{meta.hint}</p>
+            <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-11 w-full rounded-[12px] bg-paper sm:max-w-[320px]" />
             <div className="flex items-center gap-3">
               <span className="text-sm text-sub">{d ? `${d.total.toLocaleString("en-AU")} · showing ${d.rows.length}` : "Loading…"}{d?.fromCopy ? ` · checked ${checkedLabel(d.computedAt, false)}` : ""}{(q.isFetching || d?.refreshing) && d ? " · updating…" : ""}</span>
               {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
@@ -187,8 +160,8 @@ export function EnquiriesScreen() {
             </div>
           </div>
           {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Enquiries could not load — this does not mean there are none. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
-            <div className="overflow-hidden rounded-[18px] border border-line bg-paper">
-              <div className={cn("hidden gap-x-3 border-b border-line bg-table-head px-4 py-2 lg:grid", cols)}>
+            <div className={listCard}>
+              <div className={cn("hidden gap-x-3 border-b border-line bg-table-head px-5 py-2.5 lg:grid", cols)}>
                 <input type="checkbox" className="h-4 w-4 self-center accent-[var(--hiv-blue)]" aria-label="Select all on this page" checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
                 {ENQUIRY_COLUMNS.map((c) => <ColumnHead key={c.key} col={c} sort={sort.k} dir={sort.d} value={filters[c.key]} onSort={(k, dd) => { setSort({ k, d: dd }); setPage(1); }} onFilter={onFilter} />)}
               </div>
@@ -197,32 +170,33 @@ export function EnquiriesScreen() {
                   {d.rows.map((r) => {
                     const open = () => setPeek({ jobId: r.id });
                     // The owner emailed and we haven't written since: the email is on the job (open it to reply).
-                    const wrote = r.ownerWroteAt ? <Pill tone="green" className="shrink-0">Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill> : null;
+                    const wrote = r.ownerWroteAt ? <Pill tone="green" className="shrink-0 gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill> : null;
+                    const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
                     const sel = (
                       <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--hiv-blue)] lg:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
                     );
                     return (
-                      <li key={r.id} className="border-b border-line last:border-b-0">
-                        {/* Phone: one tappable card row, three short lines. */}
-                        <div className="flex gap-3 px-4 py-3 lg:hidden">
+                      <li key={r.id} className="border-b border-[#eef1f6] last:border-b-0">
+                        {/* Phone: name and price, where and what, then where it's up to; the tag only when they wrote. */}
+                        <div className="flex gap-3 px-4 py-3.5 lg:hidden">
                           {sel}
                           <button type="button" onClick={open} className="grid min-w-0 flex-1 gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">
-                            <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] text-ink">{r.ownerName || r.jobNumber}</strong>{wrote}<span className="ml-auto shrink-0 font-bold text-ink">{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span></span>
+                            <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] font-semibold text-ink">{r.ownerName || r.jobNumber}</strong><span className="ml-auto shrink-0 font-display text-[16px] font-bold text-ink">{est}</span></span>
                             <span className="truncate text-[13px] text-sub">{[r.suburb || r.address, r.areaM2 ? sizeLabel(r.areaM2) : null, INSULATION_WORDS[r.insulation]].filter(Boolean).join(" · ")}</span>
-                            <span className="flex items-center gap-1.5 text-xs text-sub"><span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", CATEGORY_DOT[r.category])} /><span className="truncate">{r.jobNumber} · {r.waitingOn}</span></span>
+                            <span className="truncate text-[13px] text-sub">{r.waitingOn}</span>
+                            {wrote && <span className="mt-1">{wrote}</span>}
                           </button>
-                          <ChevronRight className="h-4 w-4 shrink-0 self-center text-sub" aria-hidden />
                         </div>
                         {/* Computer: the decision 286 columns; the owner opens the side panel. */}
-                        <div className={cn("hidden items-center gap-x-3 px-4 py-2.5 text-[13px] hover:bg-mist/50 lg:grid", cols)}>
+                        <div className={cn("hidden min-h-[54px] items-center gap-x-3 px-5 py-2.5 text-[14px] hover:bg-mist/50 lg:grid", cols)}>
                           {sel}
-                          <span className="font-semibold">{r.jobNumber}</span>
+                          <span className="text-[13px] text-sub">{r.jobNumber}</span>
                           <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
                           <span className={cn("truncate", r.problems.length > 0 && "text-sub")} title={r.problems.length ? "Suburb / postcode looked up automatically" : undefined}>{r.address || "—"}</span>
                           <span>{sizeLabel(r.areaM2)}</span>
                           <span>{INSULATION_LABEL[r.insulation]}</span>
-                          <span className="font-semibold">{estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind })}</span>
-                          <span className="text-sub">{heardLabel(r.lastHeardAt, r.lastHeardChannel)}</span>
+                          <span className="font-display text-[16px] font-bold">{est}</span>
+                          <span className="text-[13px] text-sub">{heardLabel(r.lastHeardAt, r.lastHeardChannel)}</span>
                         </div>
                       </li>
                     );
@@ -233,7 +207,6 @@ export function EnquiriesScreen() {
           )}
           {d && <Pager page={d.page} totalPages={d.totalPages} total={d.total} shown={d.rows.length} onPage={setPage} />}
         </section>
-      </div>
       <JobPeek peek={peek} onClose={() => { setPeek(null); refresh(); }} />
       <ReasonDialog open={dialog === "cancel"} title={`Cancel ${ids.length} enquir${ids.length === 1 ? "y" : "ies"}`} description="Each moves to Jobs › Closed; reminders stop; history is kept (decision 227)." action="Cancel" danger presets={["Owner changed mind", "Not eligible", "No response", "Owner opted out", "Duplicate"]} onOpenChange={(v) => setDialog(v ? "cancel" : null)} run={async (reason) => { const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
       <ReasonDialog open={dialog === "remove"} title={`Remove ${ids.length}`} description="For duplicates and junk. Website enquiries only; they move to Jobs › Closed › Removed / test, history kept." action="Remove" danger presets={["Duplicate", "Junk / spam", "Test"]} onOpenChange={(v) => setDialog(v ? "remove" : null)} run={async (reason) => { const r = await remove({ ids, reason }, "Removed"); refresh(); return !!r; }} />

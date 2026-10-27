@@ -87,6 +87,34 @@ export function Pill({ tone = "plain", children, className }: { tone?: PillTone;
   return <span className={cn("inline-flex items-center whitespace-nowrap rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold", PILL[tone], className)}>{children}</span>;
 }
 
+/* ---------- Pill tabs: a row of views with counts (Jo 27 Oct 2026, office lists) ---------- */
+/** One row of rounded buttons; the one showing is filled navy. A count that failed to load shows "–", never 0.
+ *  Scrolls sideways on a phone. Buttons with aria-pressed (not a tablist): each one just changes the list below. */
+export function PillTabs<T extends string>({ options, value, onChange, label, className }: {
+  options: { value: T; label: string; count?: number | null; tone?: "rose" }[]; value: T; onChange: (v: T) => void; label: string; className?: string;
+}) {
+  return (
+    <nav aria-label={label} className={cn("-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0", className)}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button key={o.value} type="button" aria-pressed={on} onClick={() => onChange(o.value)} className={cn(
+            "inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue focus-visible:ring-offset-1",
+            on ? "border-ink bg-ink text-white" : "border-line bg-paper text-[#3d4a6b] hover:border-[#c9d1e6]",
+          )}>
+            {o.tone === "rose" && !on && !!o.count && <span aria-hidden className="h-2 w-2 rounded-full bg-rose" />}
+            {o.label}
+            {o.count !== undefined && <span className={cn("text-[13px] tabular-nums", on ? "text-[#aab6e6]" : "text-[#8a94ad]")}>{o.count == null ? "–" : o.count.toLocaleString("en-AU")}</span>}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The white card an office list sits in (Jo 27 Oct 2026). */
+export const listCard = "overflow-hidden rounded-[18px] border border-line bg-paper";
+
 /* ---------- "Now" panel: the current step ---------- */
 export type NowPair = { label: string; value: ReactNode };
 export function NowPanel({ eyebrow, due, status, next, pairs = [], action, attention = false }: {

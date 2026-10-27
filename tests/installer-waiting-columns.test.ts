@@ -163,3 +163,43 @@ test("the screen uses the shared heading popover, one search box, and the existi
   expect(needs).toContain("foldChooseInstaller");
   expect(needs).toContain("INSTALLER_WAITING_PATH");
 });
+
+// Jo 26–27 Oct 2026: group saved spots by area, flag the ones with nobody nearby, released spots in their own tab.
+test("tabs: released and waiting for the owner sit apart from the spots to release", async () => {
+  const { inWaitingTab, isWaitingOwner } = await import("../src/lib/installer-waiting-columns.core");
+  const released = row({ id: "r", release: { state: "pending", line: "Released to Acme · waiting for owner", releasable: false } });
+  const confirmed = row({ id: "c", release: { state: "confirmed", line: "Owner confirmed — choose installer", releasable: true } });
+  const plain = row({ id: "p" });
+  expect([released, confirmed, plain].map(isWaitingOwner)).toEqual([true, false, false]);
+  expect([released, confirmed, plain].filter((r) => inWaitingTab(r, "to_release")).map((r) => r.id)).toEqual(["c", "p"]);
+  expect([released, confirmed, plain].filter((r) => inWaitingTab(r, "waiting_owner")).map((r) => r.id)).toEqual(["r"]);
+});
+
+test("areas: counted from the postcode, in the usual order, empty areas left out", async () => {
+  const { areaCounts, areaOf, inArea } = await import("../src/lib/installer-waiting-columns.core");
+  const lilydale = row({ id: "l" }), frankston = row({ id: "f", suburb: "Frankston", postcode: "3199" }), unknown = row({ id: "u", suburb: "", postcode: "" });
+  expect(areaOf(lilydale)).toBe("east");
+  expect(areaOf(frankston)).toBe("south_east");
+  expect(areaOf(unknown)).toBeNull();
+  expect(areaCounts([lilydale, frankston, frankston, unknown])).toEqual([{ area: "east", n: 1 }, { area: "south_east", n: 2 }]);
+  expect(inArea(unknown, "everywhere")).toBe(true);
+  expect(inArea(unknown, "east")).toBe(false);
+});
+
+test("areas to recruit in: one line per suburb with a gap, most jobs first, saying what's missing", async () => {
+  const { coverageGap, recruitAreas } = await import("../src/lib/installer-waiting-columns.core");
+  expect(coverageGap({ installer: true, electrician: true })).toBeNull();
+  expect(coverageGap({ installer: false, electrician: true })).toBe("No installer");
+  expect(coverageGap({ installer: true, electrician: false })).toBe("No electrician");
+  expect(coverageGap({ installer: false, electrician: false })).toBe("No installer or electrician");
+  const rows = [
+    row({ id: "1", suburb: "Pakenham", postcode: "3810", coverage: { installer: false, electrician: true } }),
+    row({ id: "2", suburb: "Pakenham", postcode: "3810", coverage: { installer: true, electrician: false } }),
+    row({ id: "3", suburb: "Rosebud", postcode: "3939", coverage: { installer: false, electrician: true } }),
+    row({ id: "4" }),
+  ];
+  expect(recruitAreas(rows)).toEqual([
+    { place: "Pakenham 3810", n: 2, missing: "No installer or electrician" },
+    { place: "Rosebud 3939", n: 1, missing: "No installer" },
+  ]);
+});
