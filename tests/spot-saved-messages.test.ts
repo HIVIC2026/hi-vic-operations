@@ -47,8 +47,8 @@ describe("address never repeats", () => {
 });
 
 describe("Send to a friend (Jo, 27 Oct)", () => {
-  test("opens a new email with the checker link written in, not the checker itself", () => {
-    const link = "https://estimate.homeinsulationvictoria.com.au/?ref=abc";
+  test("opens a new email with the homeowner page link written in", () => {
+    const link = "https://homeinsulationvictoria.com.au/homeowner?ref=abc";
     const href = friendShareHref(link);
     expect(href.startsWith("mailto:?subject=")).toBe(true);
     const body = decodeURIComponent(new URL(href).searchParams.get("body") ?? "");

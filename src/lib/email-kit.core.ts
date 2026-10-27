@@ -242,9 +242,11 @@ export function tapTimeButtons(times: { day: string; time: string; href: string 
   return `${TABLE}>\n${rows.join("\n")}\n</table>${suggest ? `\n<p style="font-size:14px;line-height:1.5;margin:4px 0 0;color:${KIT.SUB};text-align:center;">None suit? ${link(suggest.href, "Suggest other days")}</p>` : ""}`;
 }
 
-/** "Send to a friend" (Jo, 27 Oct): opens a new email with the checker link already written, ready to send to a friend. */
+/** "Send to a friend" (Jo, 27 Oct): opens a new email with the homeowner page link already written, ready to send to a friend. */
+/** The public homeowner journey page that friends are sent to (Jo, 27 Oct: share the journey, not the calculator). */
+export const HOMEOWNER_PAGE_URL = "https://homeinsulationvictoria.com.au/homeowner";
 export const FRIEND_SHARE_SUBJECT = "Free ceiling insulation check";
-export const friendShareBody = (link: string) => `Hi, I thought this might help. Home Insulation Victoria has a free checker that shows if your home can get the Victorian ceiling insulation rebate. It takes about a minute: ${link}`;
+export const friendShareBody = (link: string) => `Hi, I thought this might help. Home Insulation Victoria can help you get the Victorian ceiling insulation rebate. Have a look here: ${link}`;
 export const friendShareHref = (link: string) => `mailto:?subject=${encodeURIComponent(FRIEND_SHARE_SUBJECT)}&body=${encodeURIComponent(friendShareBody(link))}`;
 
 /** White card with a bold title, grey body and a blue arrow link (friend card, "New to how we work?"). */
