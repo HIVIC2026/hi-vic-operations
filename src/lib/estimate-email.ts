@@ -1,6 +1,7 @@
 import { READY_CHECK_FEE, effectiveReadyCheckFee } from "./readycheck.core";
-/** Pure customer outcome email renderers: no data access, delivery, or side effects. */
+/** Shared customer email helpers (links, tracking, button, Ready Check fee). Pure: no data access or delivery. */
 import { CUSTOMER_BRAND } from "./customer-quote-system";
+import type { EstimateRemoval } from "./estimate-removal.core";
 
 export type EstimateEmailInput = {
   estimateUrl: string; outcome?: "likely" | "onsite"; estimatedTotal?: number | null;
@@ -24,7 +25,6 @@ export type EstimateEmailInput = {
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
 const BASE = "https://estimate.homeinsulationvictoria.com.au";
-/** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const SITE = "https://homeinsulationvictoria.com.au";
 /** Privacy page lives on the estimate site (Jo, 6 Oct 2026) — every customer email footer links here. */
 export const PRIVACY_URL = `${BASE}/privacy`;
@@ -32,7 +32,6 @@ const GREEN = CUSTOMER_BRAND.colors.green;
 const WHITE = CUSTOMER_BRAND.colors.white;
 
 export const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-const cleanReasons = (reasons: string[] | null | undefined) => (reasons ?? []).map((r) => r.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 6);
 
 /** Tracked Home Insulation Victoria URLs only: /t/e/<token> and /t/o/<token>.gif. */
 export function validTrackingUrl(u: string | null | undefined, kind: "click" | "pixel"): string | null {
@@ -56,8 +55,6 @@ export function validReferralUrl(u: string | null | undefined): string | null {
 }
 export const pixelTag = (u: string | null) => (u ? `<img src="${escape(u)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;">` : "");
 
-
-
 function readyCheckFeeOf(input: Pick<EstimateEmailInput, "readyCheckFeeIncGst">): number {
   return effectiveReadyCheckFee(input.readyCheckFeeIncGst ?? READY_CHECK_FEE);
 }
@@ -68,14 +65,9 @@ export function applyReadyCheckFee(mail: EstimateEmail, input: Pick<EstimateEmai
   return mail;
 }
 
-// ---------------------------------------------------------------------------
-// Current approved eligible-outcome email system.
-// ---------------------------------------------------------------------------
-
 /** Clean public calculator (no customer data in the URL). */
 export const PUBLIC_CALCULATOR_URL = "https://estimate.homeinsulationvictoria.com.au/";
 const FIGTREE = "'Figtree',Arial,Helvetica,sans-serif";
-const OUTFIT = "'Outfit','Figtree',Arial,Helvetica,sans-serif";
 const F = `font-family:${FIGTREE};`;
 const v2Button = (href: string, text: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td align="center" bgcolor="${GREEN}" style="background-color:${GREEN};border:0;border-radius:12px;mso-padding-alt:15px 18px;box-shadow:0 10px 24px -12px rgba(7,191,97,.55);"><a class="lx-button" href="${escape(href)}" style="display:block;padding:15px 18px;${F}color:${WHITE};font-size:16px;line-height:20px;font-weight:800;text-decoration:none;border-radius:12px;">${text}</a></td></tr></table>`;
 /** Campaign + spot-saved only (Jo, 6 Oct): web fonts are blocked in Outlook/Gmail, so every element carries an inline
