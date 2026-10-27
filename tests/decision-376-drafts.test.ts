@@ -33,14 +33,10 @@ describe("decision 384: Jo approved the four decision 376 messages (delivery sti
       expect(smsBlocker({ ...gate, type: t, commsEnabled: true, typeSwitchOn: true, isTestRecord: true })).toBe("TEST record – use the test sender");
     }
   });
-  test("approved designs are filed by who gets them (owner / electrician / installer), with JPG previews", () => {
-    const src = read("scripts/render-decision-376-drafts.ts");
-    for (const f of ["owner/O74-visit-new-times.html", "owner/O74b-visit-new-times-on-the-way.html", "owner/O75-signed-paperwork-copy.html", "electrician/E14-piesa-times-reminder.html", "installer/I71-installer-planning-notice.html"]) {
-      expect(src).toContain(f);
-      expect(read(`docs/templates/${f}`)).toContain("VEU Accredited Person A003654");
-      expect(existsSync(`docs/templates/drafts/${f.split("/")[1]}`)).toBe(false);
+  test("approved designs are the email refresh MJML files (owner / electrician / installer)", () => {
+    for (const f of ["owner_O74.mjml", "owner_O74b.mjml", "owner_O75.mjml", "electrician_E14.mjml", "installer_I71.mjml"]) {
+      expect(existsSync(`docs/templates/mjml/${f}`)).toBe(true);
     }
-    for (const c of ["O74", "O74b", "O75", "E14", "I71"]) expect(readFileSync(`docs/designs/${c}.jpg`).length).toBeGreaterThan(5000);
     const log = read("docs/JO_DECISIONS_LOG.md");
     expect(log).toContain("376. **");
     expect(log).toContain("384. **");

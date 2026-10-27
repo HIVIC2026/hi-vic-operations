@@ -14,7 +14,7 @@ export const PIESA_OWNER_CONFIRM_STEP_EVENT = "piesa_owner_confirm_reminder";
 /** Day-5 office alert (Needs me row `piesa_owner_unsigned`). */
 export const PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT = "piesa_owner_unconfirmed_5_days";
 export const PIESA_OWNER_CONFIRM_SMS_TYPE = "piesa_owner_confirm" as const;
-/** O71 email wording is a DRAFT (docs/templates/owner/O71-piesa-confirm.html) until Jo approves it. Real owners get
+/** O71 email wording is a DRAFT (docs/templates/mjml/owner_O71.mjml) until Jo approves it. Real owners get
  *  nothing while false; TEST jobs use test-send. The text has the same status in sms.core (`wordingApproved: false`). */
 /** Decision 311 (Jo 25 Oct 2026): O71 approved as drafted (no code, 30-day line). Delivery still behind customer_comms_enabled. */
 export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = true as boolean;

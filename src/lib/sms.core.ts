@@ -91,7 +91,7 @@ export const SMS_MESSAGE_TYPES = {
   // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
   installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
-  // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (docs/designs/O77.jpg).
+  // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
   spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389, approved)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;

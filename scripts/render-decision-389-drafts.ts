@@ -1,14 +1,14 @@
 // Renders the decision 389 approved "It's your turn" email O77 (and its day-2 reminder) into docs/templates/owner with fixed
 // sample data, prints the subjects, plain text and both SMS bodies, and with --jpg also saves a 640px-wide JPG preview of
-// the O77 design into docs/designs/O77.jpg (Playwright Chromium, local files only). Pure renderers; nothing is sent.
+// the O77 design into /tmp/designs/O77.jpg (Playwright Chromium, local files only). Pure renderers; nothing is sent.
 // Flags stay off until Jo sees the picture: SPOT_RELEASED_APPROVED (spot-release.core) + SMS type `spot_released`.
 // Run: bun scripts/render-decision-389-drafts.ts [--jpg]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { renderSpotReleasedEmail } from "../src/lib/spot-release-email.core";
 import { spotReleasePageLink, spotReleasedText } from "../src/lib/spot-release.core";
 
-const TEMPLATES = new URL("../docs/templates/owner/", import.meta.url).pathname;
-const DESIGNS = new URL("../docs/designs/", import.meta.url).pathname;
+const TEMPLATES = "/tmp/email-drafts/";
+const DESIGNS = "/tmp/designs/";
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
 const LINK = spotReleasePageLink(MY_JOB);
 
@@ -32,6 +32,6 @@ if (import.meta.main && process.argv.includes("--jpg")) {
   mkdirSync(DESIGNS, { recursive: true });
   await page.setContent(out[0]!.mail.html, { waitUntil: "load" });
   await page.screenshot({ path: `${DESIGNS}O77.jpg`, type: "jpeg", quality: 85, fullPage: true });
-  console.log("JPG: docs/designs/O77.jpg");
+  console.log("JPG: /tmp/designs/O77.jpg");
   await browser.close();
 }

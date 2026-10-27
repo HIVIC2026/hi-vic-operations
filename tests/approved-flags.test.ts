@@ -112,7 +112,7 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
   test("every SMS type is approved (decision 388 texts approved 25 Oct): the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
     // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
-    // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw docs/designs/O77.jpg).
+    // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     expect(off.sort()).toEqual([]);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
