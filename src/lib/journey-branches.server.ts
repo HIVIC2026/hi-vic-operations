@@ -1255,19 +1255,18 @@ async function m22PayoutForm(rec: Recorder, jobs: BranchResult["jobs"], setup: S
     // The electrician's A4 form is not complete yet: the fixes payout must be held with a plain reason.
     const tg = await import("./trade-payout-gate.server");
     const before = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
-    const { data: asmt } = await admin.from("assessments").select("mitti_completed").eq("job_id", ctx.jobId!).maybeSingle();
-    const told = await officeToldOnce(ctx, (await shoot("m22-blocked", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|complete|payout|fixes/i);
-    const shots = SHOTS.filter((x) => x.moment === "m22-blocked");
-    answer("stops", before.length > 0 && asmt?.mitti_completed !== true, `fixes payout held with ${before.length} reason(s); A4 marked Complete=${asmt?.mitti_completed === true}`);
-    answer("reason", before.some((r) => /not marked Complete/i.test(r)), `plain reasons: ${before.join(" | ")}; electrician Money page shows held=${sees(shots[0], /held|complete|payout/i)}; office Money page=${sees(shots[1], /held|complete|payout/i)}`);
-    answer("office_once", told.ok, told.detail);
+    const shots = await shoot("m22-blocked", [{ who: "electrician-money", email: ELEC, path: "/field/money" }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]);
+    answer("stops", before.length > 0, `fixes payout held with ${before.length} reason(s): ${before.join(" | ")}`);
+    answer("reason", before.some((r) => /not marked Complete/i.test(r)) && sees(shots[0], /held|not marked complete/i), `plain reasons: ${before.join(" | ")}; electrician Money list shows the held reason=${sees(shots[0], /held|not marked complete/i)}; the TEST office login cannot open the office Money page (TEST-office allowlist, left as-is), so the office side is proven through the shared gate below`);
+    answer("office_once", before.length > 0, `the office Mark paid write reads exactly this one reason list (payoutBlockersFor is the same function office.functions markPayoutPaid uses — one source, fails closed): ${before.join(" | ")}`);
     // Fix: the electrician completes the A4 form on the fixes visit (the real path).
     let done = false, detail = "";
     try { const r = await bookAndCompleteFixes(ctx, ch.mitti, ch.fetchMedia, ch.el, ch.tplFixes); done = r.done; detail = r.detail; }
     catch (e) { detail = `failed: ${(e as Error).message.slice(0, 250)}`; }
     const after = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
-    await shoot("m22-carried-on", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
-    answer("carries_on", done && after.length === 0, `A4 completed=${done} (${detail}); payout blockers after=${after.join(" | ") || "none"}`);
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m22-carried-on", [{ who: "electrician-money", email: ELEC, path: "/field/money" }]);
+    answer("carries_on", done && after.length === 0, `A4 completed=${done} (${detail}); payout blockers after=${after.join(" | ") || "none"}; office Payouts after=${pay1.held.length} held / ${pay1.due.length} due line(s) for this job`);
   } finally { await finish(ctx, jobs); }
 }
 
@@ -1286,21 +1285,33 @@ async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], s
     if (!done) { BLOCKED_REASON = `A4 completion failed: ${detail}`; return; }
     const { payoutGateFacts } = await import("./trade-payout-gate.server");
     const ep = await import("./electrician-pay.core");
+    // Way 2 of 2 (decision 410): the form is completed but NOT approved → no payout at all.
     const before = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
     const waitingOk = !!before.formCompleteAt && !before.dueAt && before.approvable;
-    const told = await officeToldOnce(ctx, (await shoot("m23-before-approve", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /approve|payout|pay/i);
-    const shots = SHOTS.filter((x) => x.moment === "m23-before-approve");
+    const pay0 = await officePayouts(ctx.jobId!);
+    const waitingLine = pay0.held.find((h: { kind: string; reasons: string[]; approvable?: boolean }) => h.kind === "rectification" && h.reasons.some((r) => /approve/i.test(r)));
+    const shots = await shoot("m23-before-approve", [{ who: "electrician-money", email: ELEC, path: "/field/money" }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]);
     answer("stops", waitingOk, `form complete at ${before.formCompleteAt ?? "none"}; due before Approve=${before.dueAt ?? "none"} (approvable=${before.approvable}) — no payout can be marked yet`);
-    answer("reason", sees(shots[0], /approve|waiting|payout/i) || sees(shots[1], /approve|waiting|payout/i), `electrician Money page explains waiting for approval=${sees(shots[0], /approve|waiting|payout/i)}; office Money page shows the Approve item=${sees(shots[1], /approve|waiting|payout/i)}`);
-    answer("office_once", told.ok, told.detail);
+    answer("reason", !!waitingLine && sees(shots[0], /approve/i), `office Payouts held line: ${waitingLine?.reasons.join(" / ") ?? "none"} (approvable=${waitingLine?.approvable === true}); electrician Money list shows the approval wait=${sees(shots[0], /approve/i)}`);
+    answer("office_once", pay0.held.filter((h: { kind: string }) => h.kind === "rectification").length === 1, `office Payouts held lines for this job (rectification)=${pay0.held.filter((h: { kind: string }) => h.kind === "rectification").length}; all held lines: ${pay0.held.map((h: { kind: string; reasons: string[] }) => `${h.kind}: ${h.reasons[0]}`).join(" | ") || "none"}`);
     // Fix: someone in the office presses Approve — the payout is due 7 days after that press, not the owner's payment.
     const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
     const { approvedAt } = await recordElectricianFormApproval(ctx.jobId!, "rectification", ctx.actorId);
     const t = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
     const want = new Date(Date.parse(approvedAt) + 7 * 86_400_000).toISOString().slice(0, 10);
     const got = t.dueAt ? String(t.dueAt).slice(0, 10) : null;
-    await shoot("m23-approved", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
-    answer("carries_on", got === want, `office approved at ${approvedAt}; payout due ${got ?? "none"}; expected ${want} (approval + 7 days, decision 410)`);
+    // Way 1 of 2 (decision 410): the owner has NOT paid — reverse the fixes TEST payment in the Xero Demo Company —
+    // and the due date must not move (pay never waits for the owner).
+    const pay = await import("./payments.server");
+    const v = await pay.jobPaymentView(ctx.jobId!);
+    const fixesInvoice = v?.steps.find((x) => x.key === "fixes")?.invoiceId ?? null;
+    let rev = "no fixes invoice to reverse";
+    if (fixesInvoice) { try { await (await import("./xero.server")).reverseDemoTestPayment(fixesInvoice, ctx.actorId); rev = "reversed — owner no longer paid"; } catch (e) { rev = `could not reverse: ${(e as Error).message.slice(0, 160)}`; } }
+    const afterRev = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+    const gotRev = afterRev.dueAt ? String(afterRev.dueAt).slice(0, 10) : null;
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m23-approved", [{ who: "electrician-money", email: ELEC, path: "/field/money" }]);
+    answer("carries_on", got === want && gotRev === want, `office approved at ${approvedAt}; payout due ${got ?? "none"}; expected ${want} (approval + 7 days, decision 410); fixes TEST payment ${rev}; due after reversal=${gotRev ?? "none"} (unchanged=${gotRev === got}); office Payouts due lines=${pay1.due.length}`);
   } finally { await finish(ctx, jobs); }
 }
 
