@@ -25,13 +25,16 @@ export async function readInstallerPrices(jobIds: string[]): Promise<Map<string,
 }
 
 /** The form snapshot with the portal price in front of any old-form price answers (every reader keeps working). */
+/** The chase reader: a failed read falls back to the form's own answers (it only words a reminder). */
 export async function entriesWithInstallerPrice<T extends { label: string; value: unknown }>(jobId: string, entries: T[]): Promise<(T | { label: string; value: string | null })[]> {
-  return (await entriesAndPriceSource(jobId, entries)).entries;
+  const stored = await readInstallerPrice(jobId).catch(() => null);
+  return withInstallerPrice(entries, stored?.record ?? null);
 }
 
 /** The same read, also saying whether the price card (decision 278) is the price. Jo 27 Oct 2026: when it is, the Mitti
- *  form's difficult-access charge/fee is ignored on the owner quote. */
+ *  form's difficult-access charge/fee is ignored on the owner quote. A failed read THROWS (never "no price card"), so the
+ *  quote draft stops and the 15-minute tick retries instead of withdrawing a good card-priced draft. */
 export async function entriesAndPriceSource<T extends { label: string; value: unknown }>(jobId: string, entries: T[]): Promise<{ entries: (T | { label: string; value: string | null })[]; fromPriceCard: boolean }> {
-  const stored = await readInstallerPrice(jobId).catch(() => null);
+  const stored = await readInstallerPrice(jobId);
   return { entries: withInstallerPrice(entries, stored?.record ?? null), fromPriceCard: !!stored?.record };
 }

@@ -22,11 +22,17 @@ CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(),
 
 // Same thin adapter as installer-payer-quote-db: embedded properties(postcode) and array inserts.
 const shim = postgrestShim(db);
+/** When true, the price-card read (`installer_price_set`) returns a database error. */
+let failPriceRead = false;
 const admin = {
   ...shim,
   from(t: string) {
     const b = shim.from(t) as Record<string, (...a: unknown[]) => unknown>;
-    const sel = b.select!, ins = b.insert!;
+    const sel = b.select!, ins = b.insert!, eq = b.eq!;
+    b.eq = (c: unknown, v: unknown) => {
+      if (failPriceRead && t === "workflow_events" && c === "event_type" && v === "installer_price_set") b.then = (r: (x: unknown) => unknown) => Promise.resolve(r({ data: null, error: { message: "read failed" } }));
+      return eq(c, v);
+    };
     b.select = (c?: unknown, o?: unknown) => sel(typeof c === "string" ? c.replace("properties(postcode)", "properties") : c, o);
     b.insert = (p: unknown) => {
       if (!Array.isArray(p)) return ins(p);
@@ -56,6 +62,7 @@ const installerLine = async (qid: string) => (await db.query<{ description: stri
 const setCardPrice = (price: number) => db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_price_set',$2)", [JOB, JSON.stringify({ price_inc_gst: price, included: ["Ceiling insulation - supply & install"], included_other: null })]);
 
 beforeEach(async () => {
+  failPriceRead = false;
   await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from quotes; delete from quote_items; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings; delete from admin_config_events;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, electrician_choice, properties) values ($1,'installer_sourced',$2,'hivic_organise','{\"postcode\":\"3000\"}')", [JOB, BIZ]);
   await db.query("insert into ceiling_measurements (job_id, is_current, measured_area_m2, removal_required) values ($1,true,120,false)", [JOB]);
@@ -98,5 +105,26 @@ describe("old forms with no price-card entry keep today's behaviour", () => {
     const [q] = await draftNow();
     expect(q).toBeDefined();
     expect(q!.release_hold_reason).toContain("confirm the difficult access fee");
+  });
+});
+
+// Review fix (27 Oct 2026): a failed price-card read must not withdraw a good draft. The draft step stops (throws) so the
+// 15-minute tick retries; it never falls back to the old form price or brings the Mitti access fee back.
+describe("price-card read fails", () => {
+  test("existing card-priced draft untouched, no new draft, access fee not reintroduced", async () => {
+    await setCardPrice(3000);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("200"), "audit_card");
+    const [before] = await draftNow();
+    expect(before).toBeDefined();
+    failPriceRead = true;
+    await expect(draftInstallerQuoteFromReadyCheck(JOB, U, form("200"), "audit_card")).rejects.toThrow();
+    failPriceRead = false;
+    const after = await draftNow();
+    expect(after.map((q) => q.id)).toEqual([before!.id]);
+    expect(after[0]!.release_hold_reason).toBe(before!.release_hold_reason);
+    const line = await installerLine(before!.id);
+    expect(Number(line.line_total_inc_gst)).toBe(3000);
+    expect(line.description).not.toMatch(/difficult access/i);
+    expect((await db.query("select id from quotes where job_id=$1", [JOB])).rows).toHaveLength(1);
   });
 });
