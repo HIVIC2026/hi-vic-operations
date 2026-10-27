@@ -763,7 +763,8 @@ async function p5Window(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
 
 // ---------- Path 6 — no time agreed in 24h, no confirmed booking in 48h (Ready Check visit, clock moved on this job) ----------
 async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
-  const ctx = await freshCtx();
+  const ctx = await newJourneyCtx({ installerEmail: "qa.installer.bravo@hivic-test.example", preparePeople: false });
+  ctx.notes["address_line"] = `${parseInt(ctx.runId.slice(0, 8), 16)} Journey Test Street`;
   try {
     const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
@@ -778,7 +779,7 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     const replaySweep = await timer.sweepOfficePickedOffers(ctx.actorId, new Date(), ctx.jobId ?? undefined);
     rec.checks.push({ n: "6.24", name: "one-job offer timer and replay", status: firstSweep.expired === 1 && replaySweep.expired === 0 ? "passed" : "failed", detail: `expired=${firstSweep.expired}; replay=${replaySweep.expired}; only job=${ctx.jobId}`, ids: {} });
     const sig25 = await officeSignals(ctx.jobId!);
-    const at25 = await shoot("p6-24h-no-times", [{ who: "installer-offer", email: INST, path: `/field/offer/${offerId}` }, ownerPage(ctx), ...officePages(ctx)]);
+    const at25 = await shoot("p6-24h-no-times", [{ who: "installer-offer", email: "qa.installer.bravo@hivic-test.example", path: `/field/offer/${offerId}` }, ownerPage(ctx), ...officePages(ctx)]);
     const { count: props25 } = await admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
     // Put the offer back as it was, then the installer offers 3 times (the fix for (a)).
     await admin.from("partner_offers").update({ status: "pending", offered_at: o0?.offered_at ?? new Date().toISOString(), expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
@@ -794,7 +795,7 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     await coordination.sweepCoordination(ctx.actorId, ctx.jobId ?? undefined);
     await coordination.sweepCoordination(ctx.actorId, ctx.jobId ?? undefined);
     const sig49 = await officeSignals(ctx.jobId!);
-    const at49 = await shoot("p6-48h-not-booked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]);
+    const at49 = await shoot("p6-48h-not-booked", [ownerPage(ctx), { who: "installer", email: "qa.installer.bravo@hivic-test.example", path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]);
     const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
     answer("stops", (props25 ?? 0) === 0 && (rcBooked ?? 0) === 0, `24h: times offered=${props25}; installer then ${offered}; 48h: Ready Check bookings=${rcBooked} (the all-jobs reminder sweep was NOT RUN: it would touch real jobs)`);
     answer("reason", sees(at25[0], /offer|times|accept|decline|expired|closed/i) && sees(at49[0], /pick|choose|time|Ready Check/i), `installer offer page at 24h: "${at25[0]?.text.slice(0, 160) ?? "-"}"; owner page at 48h asks to pick a time=${sees(at49[0], /pick|choose/i)}`);

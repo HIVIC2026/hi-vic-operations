@@ -246,6 +246,9 @@ async def main():
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
             await page.wait_for_timeout(2000)
+            if name == "practice:":
+                try: await page.get_by_text("Complete", exact=True).wait_for(state="visible", timeout=45000)
+                except Exception: res["missing"] = "completed TEST form readback"; res["clicked"] = False
             s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
         await b.close()
     Path(cfg["result"]).write_text(json.dumps(res))
