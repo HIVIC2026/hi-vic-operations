@@ -620,7 +620,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
   });
-  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Customer", "permission for Home Insulation Victoria to contact them", "Next"], mustNotSee: [...BANNED, "I'm at the property now", "Add a job for later", "Where is it from"] });
+  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Owner", "Home Insulation Victoria permission to contact them", "Add job"], mustNotSee: [...BANNED.filter((t) => t !== "optional"), // decisions 115/116: basics only, "Add job" button, one approved "(optional)" visit field
+    "I'm at the property now", "Add a job for later", "Where is it from"] });
 
   await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
     const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
@@ -657,13 +658,13 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [] });
     const s1 = await ii.installerIntakeState(a.jobId);
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
-    c("later measurements + quote saved on the same job", s1.areaM2 === 118 && s1.quoteIncGst === 2450, `${s1.areaM2} ${s1.quoteIncGst}`);
+    c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
     // wrong business refused BEFORE any write
     const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").limit(1).maybeSingle();
     const wrong = await ii.installerUpdateIntake(a.jobId, ownerId, other?.id ?? "00000000-0000-0000-0000-000000000000", { areaM2: 1, insulation: "none", quoteStatus: "not_quoted", quoteIncGst: null, includes: null, proposedR: null, files: [] }).then(() => "accepted", (e) => (e as Error).message);
     const s2 = await ii.installerIntakeState(a.jobId);
-    c("another business can't edit this job", wrong !== "accepted" && s2.areaM2 === 118, wrong);
+    c("another business can't edit this job", wrong !== "accepted" && (s2.areaM2 ?? s2.preliminaryAreaM2) === 118, wrong);
     const staffAdd = await pi.createImportFor(staffId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never).then(() => "accepted", (e) => (e as Error).message);
     c("staff login can't add a job (business owner only)", staffAdd !== "accepted", staffAdd);
     const badFile = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5", proposedR: 5, files: [{ path: "partners/other/x.pdf", name: "x.pdf", type: "application/pdf" }] }).then(() => "accepted", (e) => (e as Error).message);
@@ -671,7 +672,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     // server quote lines follow recorded electrician payer (office eligibility recorded on the TEST job only)
     const lines = async (jobId: string) => { const { data } = await admin.from("quotes").select("status, quote_items(code)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]); return (data ?? []).flatMap((q) => ((q.quote_items as { code: string | null }[]) ?? []).map((i) => i.code)); };
     await ii.recordCommercialEligibility(a.jobId, ownerId, "eligible", "TEST run: owner, property and occupancy checked (fictitious)");
-    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } });
+    // Quote after the Ready Check (Gate 3): record the visit + measured area and the quote's price basis/GST first.
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { attended: "attended", attendedOn: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" }), areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], commercial: { basis: "before_discount", gst: "inc_gst", inclusions: "R5 batts to 118 m2", exclusions: null, originalStatus: "prepared", removalPricing: null, removalAmountIncGst: null, extras: [] }, feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } } as never);
     const hq = await ii.draftQuoteFromIntake(a.jobId, ownerId).then(() => "drafted", (e) => (e as Error).message);
     const hl = await lines(a.jobId);
     c("HIV-arranged electrician: drafted quote carries the PIESA line", hq === "drafted" ? hl.includes("PIESA") : false, `${hq} / ${hl.join(",")}`);
