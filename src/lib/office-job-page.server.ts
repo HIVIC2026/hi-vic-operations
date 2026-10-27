@@ -75,8 +75,11 @@ export async function loadJobPage(jobId: string) {
   const facts = gathered.facts.get(jobId) ?? null;
   const closed = job.stage === "complete" ? "complete" as const : job.stage === "cancelled" ? "cancelled" as const : null;
   const stage = jobsStage({ stage: job.stage, priorStage: job.prior_stage, hasInstaller: !!installer });
+  const instQ = (quotes.data ?? []).find((q) => q.kind === "installation") ?? null;
   const next = nextAction({
     facts, status: status ? { key: status.key, label: status.label, waitingOn: status.waitingOn, detail: status.detail, dueAt: status.dueAt } : null, stage,
+    // "Quote sent" in the Next panel only when an installation quote was actually issued (Jo 27 Oct: a held or not-drafted quote must read as office work).
+    quoteIssued: !!instQ && instQ.status === "issued" && !!instQ.sent_at,
     closed: closed ? { kind: closed, reason: job.cancelled_reason } : job.eligibility_outcome === "does_not_appear_eligible" && !stage ? { kind: "ineligible", reason: null } : null,
     onHold: job.stage === "on_hold" ? { reason: job.hold_reason, until: job.hold_revisit_at } : null,
   }, now);
@@ -84,7 +87,6 @@ export async function loadJobPage(jobId: string) {
   const rcOffer = (offers.data ?? []).find((o) => o.kind === "ready_check" && o.status === "accepted") ?? (offers.data ?? []).find((o) => o.kind === "ready_check");
   const piesaOffer = (offers.data ?? []).find((o) => o.kind === "piesa");
   const book = (k: string) => (bookings.data ?? []).find((b) => b.kind === k)?.scheduled_start ?? null;
-  const instQ = (quotes.data ?? []).find((q) => q.kind === "installation") ?? null;
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const step = (k: string) => pay?.steps.find((x) => x.key === k) ?? null;
   const deadline = officeJob?.facts.installDeadline ?? null;

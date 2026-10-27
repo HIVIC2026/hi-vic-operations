@@ -72,7 +72,8 @@ export const WORKFLOW_DECISIONS = {
   piesaTiming: {
     windowDays: 30,
     clockStartsNoRectification: "initial_piesa_completed_and_signed",
-    clockStartsWithRectification: "section_c_completed_and_signed",
+    // Decision 316 (Jo 25 Oct 2026): the 30 days always run from the official PIESA, never the fixes (Section C).
+    clockStartsWithRectification: "official_piesa_not_fixes",
     mustBe: "installation_commenced_within_window",
     status: "operational_rule_pending_written_confirmation",
   },

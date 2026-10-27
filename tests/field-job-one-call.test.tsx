@@ -57,6 +57,8 @@ mock.module("@/lib/trade-view.functions", () => ({
   // Electrician-only cards (decisions 315/317/327): never rendered on the installer page under test.
   getTradeFixesTimes: refused("getTradeFixesTimes"), saveTradeFixesTimes: refused("saveTradeFixesTimes"), getTradeSafetyCheckDoc: refused("getTradeSafetyCheckDoc"), getTradeSafetyCheckPdf: refused("getTradeSafetyCheckPdf"),
   getTradeInstallAttendance: refused("getTradeInstallAttendance"), answerTradeInstallAttendance: refused("answerTradeInstallAttendance"),
+  // Decision 328: "Check my form now" — only called by a tap, never on first paint.
+  checkTradeInstallForm: refused("checkTradeInstallForm"),
 }));
 mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn") }));
 mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn") }));

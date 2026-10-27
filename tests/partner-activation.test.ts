@@ -3,24 +3,22 @@ import { activationBlockers, activationWorkers, approvedRateItems } from "../src
 import { REC_AGREEMENT_VERSION, type RecData } from "../src/lib/rec-onboarding.core";
 import { INSTALLER_AGREEMENT_VERSION, type InstData } from "../src/lib/installer-onboarding.core";
 
-// Decision 415: a REC needs a current electrical licence to activate.
-const licence = { licence_number: "A123", licence_expiry: "2099-01-01" };
-
 describe("partner activation", () => {
   test("blocks unsigned, stale-agreement and expired-insurance applications", () => {
-    const data = { public_liability_expiry: "2020-01-01", ...licence } as RecData;
-    expect(activationBlockers("rec", data, "old", null, new Date("2026-09-30T00:00:00Z"))).toHaveLength(3);
+    const data = { public_liability_expiry: "2020-01-01" } as RecData;
+    const b = activationBlockers("rec", data, "old", null, new Date("2026-09-30T00:00:00Z"));
+    expect(b.slice(0, 3)).toEqual(["The agreement has not been signed.", expect.stringContaining("must be accepted before activation"), "Public liability insurance is expired or missing."]);
   });
 
   test("preserves activation of previously signed installer and REC agreement versions", () => {
-    const currentInsurance = { public_liability_expiry: "2099-01-01" };
-    expect(activationBlockers("rec", { ...currentInsurance, ...licence } as RecData, "HI-VIC-A48-REC-2.3-2026-10-01", "2026-10-01")).toEqual([]);
+    const currentInsurance = { public_liability_expiry: "2099-01-01", public_liability_cover_amount: 5_000_000, licence_number: "A1", licence_expiry: "2099-01-01", rec_registration_number: "1" };
+    expect(activationBlockers("rec", currentInsurance as RecData, "HI-VIC-A48-REC-2.3-2026-10-01", "2026-10-01")).toEqual([]);
     expect(activationBlockers("installer", currentInsurance as InstData, "HI-VIC-A48-INST-1.13-2026-10-03", "2026-10-03")).toEqual([]);
   });
 
   test("converts GST-inclusive REC supplier rates to ex-GST rate-card values", () => {
     const data = { gst_registered: true, assessment_rate: 330 } as RecData;
-    expect(activationBlockers("rec", { ...data, ...licence, public_liability_expiry: "2099-01-01" }, REC_AGREEMENT_VERSION, "2026-09-30")).toEqual([]);
+    expect(activationBlockers("rec", { ...data, public_liability_expiry: "2099-01-01", public_liability_cover_amount: 5_000_000, licence_number: "A1", licence_expiry: "2099-01-01", rec_registration_number: "1" }, REC_AGREEMENT_VERSION, "2026-09-30")).toEqual([]);
     expect(approvedRateItems("rec", data).find((x) => x.code === "PIESA")?.unit_price_ex_gst).toBe(300);
   });
 
