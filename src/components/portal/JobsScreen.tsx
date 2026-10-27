@@ -51,7 +51,7 @@ function Piles() {
       <div className="flex flex-wrap gap-x-5 gap-y-1">
         {line("new", "New from installers", n(fresh.data ? (fresh.data.attention?.length ?? 0) + (fresh.data.fresh?.length ?? 0) : undefined))}
         {line("mitti", "Ready Checks started in Mitti", picks.isError ? "?" : n(picks.data?.rows.length))}
-        {line("sync", "Mitti sync problems", n(sync.data?.rows.length))}
+        {line("sync", "Mitti sync problems", sync.isError ? "?" : n(sync.data?.rows.length))}
       </div>
       {open === "new" && <div className="mt-3"><NewFromInstallers /></div>}
       {open === "mitti" && <div className="mt-3">{picks.data?.rows.length === 0 ? <p className="text-sm text-sub">No Ready Checks waiting to be linked.</p> : <MittiPickupsToLink />}</div>}
