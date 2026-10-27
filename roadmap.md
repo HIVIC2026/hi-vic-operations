@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 14:04 simulated Bravo invitation and remaining QA
+- [ ] Invite only TEST Bravo through the existing portal Mitti access path; prove check M refuses real Mitti.
+- [ ] Rerun browser journey at 390px; report all unreached steps, TEST emails, archive own job and restore TEST trades.
+- [ ] Investigate 13 identity-reuse failures before Phase 3; fix only demonstrated bugs with regression tests.
+- [ ] Run eight Phase 3 paths on separate TEST jobs with stop/reason/office-once/recovery evidence; fix demonstrated bugs.
+- [ ] If possible triage automatic enquiry email and journey A1/A2 failures; record unresolved groups honestly.
 ## Jo 27 Oct 10:46 TEST Bravo and browser rerun
 - [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
 - [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
