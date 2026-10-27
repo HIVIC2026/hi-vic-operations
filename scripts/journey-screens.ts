@@ -134,7 +134,7 @@ async def main():
             how = "role"
             if scope and not any([await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return true; n = n.parentElement; d++; } return false; }", scope) for x in cands]):
                 # A person would open "Show N more" lists to look for the named card.
-                for more in await page.get_by_role("button", name=re.compile(r"^Show \\d+ more", re.I)).all():
+                for more in await page.get_by_role("button", name=re.compile(r"^Show \d+ more", re.I)).all():
                     if await more.is_visible(): await more.click(); await page.wait_for_timeout(800); res["runner_notes"].append("opened a Show more list")
                 cands = [x for x in await loc.all() if await x.is_visible()]
             if not cands:
@@ -220,7 +220,7 @@ if (!ctx?.jobId || !safe) {
     const leaks = await otherHomes(n, s.person);
     if (runnerErr) { add({ step: s.step, person: s.person, status: "runner_error", detail: runnerErr, screenshot: r?.shots ?? [] }); broken = true; n++; continue; }
     if (r?.runner_notes?.length) add({ step: `${s.step}: runner note`, person: "runner", status: "runner_error", detail: r.runner_notes.join("; ") + " — runner fallback used, step continued." });
-    add({ step: s.step, person: s.person, status: why ? "fail" : "pass", severity: why ? s.severity : null, detail: why ?? `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
+    add({ step: s.step, person: s.person, status: why ? (broken ? "blocked" : "fail") : "pass", severity: why && !broken ? s.severity : null, detail: why ? (broken ? `earlier step not done — ${why}` : why) : `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
     n++;
