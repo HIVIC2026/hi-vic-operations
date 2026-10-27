@@ -44,6 +44,13 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
     g.routed.push(`${method} ${path.split("?")[0]}`);
     return g.sim(method, path, body);
   }
+  // Running-portal TEST routing (Jo 27 Oct): TEST people, sim_ ids and stored simulated forms go to the persistent simulator.
+  {
+    const { testMittiRoute, auditIdOfPath, isSimId } = await import("./mitti-test-route.core");
+    const audit = auditIdOfPath(path);
+    const stored = audit && !isSimId(audit) ? await (await import("./mitti-sim-store.server")).isStoredSimAudit(audit) : false;
+    if (testMittiRoute(method, path, body, () => stored)) return (await import("./mitti-sim-store.server")).persistentSimMittiCall(method, path, body);
+  }
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.", { code: "not_configured" });
   let res: Response;
@@ -82,6 +89,13 @@ export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
   if (!/^image\//.test(contentType)) throw new MittiError("Mitti returned something that is not an image for the signature.");
   return { bytes: new Uint8Array(await res.arrayBuffer()), contentType };
 };
+
+/** A whole Mitti flow for a TEST person (including its template read) uses the persistent simulator; otherwise unchanged. */
+export async function mittiCallFor(call: MittiCall, email: string | null | undefined): Promise<MittiCall> {
+  if (call !== realMittiCall) return call;
+  const { isTestMittiEmail } = await import("./mitti-test-route.core");
+  return isTestMittiEmail(email) ? (await import("./mitti-sim-store.server")).persistentSimMittiCall : call;
+}
 
 const wrap = (e: unknown) => (e instanceof MittiError ? new WorkflowError(e.message) : e);
 
@@ -144,7 +158,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const claimId = existingAuditId ? null : await claims.claimMittiCreate(jobId, kind, actorId,
     `Mitti ${measureOnly ? "measure-up" : "assessment"} creation started for ${prof?.email ?? "assigned trade"}`,
     { template_id: templateId, scope: scope.scope }, { officeOverride: opts.officeOverride === true });
-  const base = mittiApi(call);
+  const base = mittiApi(await mittiCallFor(call, prof?.email));
   const seen = { createAttempted: false, createdId: null as string | null };
   const api: typeof base = { ...base, createAudit: async (body) => {
     seen.createAttempted = true;
@@ -623,7 +637,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
   const { data: prev, error: previousError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (previousError) throw new WorkflowError("The existing PIISA audit could not be checked. Try again; no replacement form was created.");
-  const api = mittiApi(call);
+  const api = mittiApi(await mittiCallFor(call, email));
   const users = (await api.searchUsers(email)) as { users?: { id?: string; user_id?: string; email?: string }[] } | { id?: string; user_id?: string; email?: string }[];
   const list = Array.isArray(users) ? users : users?.users ?? [];
   const u = list.find((x) => String(x.email ?? "").toLowerCase() === email.toLowerCase());
@@ -774,7 +788,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
 export async function findMittiUserByEmail(email: string, call: MittiCall = realMittiCall): Promise<string | null> {
   const e = email.trim();
   if (!e) return null;
-  const u = pickUser(await mittiApi(call).searchUsers(e), e);
+  const u = pickUser(await mittiApi(await mittiCallFor(call, e)).searchUsers(e), e);
   const id = u?.id ?? u?.user_id;
   return id == null || id === "" ? null : String(id);
 }
@@ -792,7 +806,7 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
   if (!job) throw new WorkflowError("Job not found.");
   const allowed = (p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
   if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
-  const api = mittiApi(call);
+  const api = mittiApi(await mittiCallFor(call, p.email));
   let audit: Any;
   try { audit = await api.getAudit(p.auditId); } catch (e) { throw wrap(e); }
   const parsed = parseAudit(audit);
