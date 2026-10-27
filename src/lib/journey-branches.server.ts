@@ -955,8 +955,6 @@ export async function runPhase3(name: Phase3Name, shotDir: string): Promise<Phas
 // Same four answers per block: stops? plain reason? office told once? carries on after the fix?
 // Same TEST-only rules: fresh qa_test job, TEST people only, simulated Mitti, Xero Demo Company, nothing sent.
 // =====================================================================================================================
-const NOPR = "no real people";
-
 /** Office told once for a blocked job: exactly one signal — a Needs me row, an office exception, or the office job
  *  page showing the block. Zero signals = not told; more than one source still counts as told once per source. */
 async function officeToldOnce(ctx: JourneyCtx, page: Shot | undefined, re: RegExp) {
