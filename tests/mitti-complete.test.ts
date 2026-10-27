@@ -38,7 +38,7 @@ describe("completionPlan", () => {
   test("owner contact No is the hard stop it always was", () => expect(STOP_NO_CONTACT).toContain("contacted"));
 });
 
-test("wiring: one completion step for both forms, behind the switch; retry/watch sweep on the tick; eligibility from the form counts", () => {
+test("wiring: one completion step for both forms, behind the switch; retry/watch sweep on independent pull; eligibility from the form counts", () => {
   const sync = readFileSync("src/lib/mitti.server.ts", "utf8");
   expect(sync).toContain('ourLead: readyCheckVariant(job.channel) !== "ready_check_priced"');
   const srv = readFileSync("src/lib/mitti-complete.server.ts", "utf8");
@@ -49,7 +49,10 @@ test("wiring: one completion step for both forms, behind the switch; retry/watch
   expect(srv).toContain("stageEntryBlockers(jobId, to)"); // guarded stage moves, held with reasons
   // Decision 288: an A1 Complete texts the business owner the price link once (never our leads), before the quote steps.
   expect(srv).toContain('if (!i.ourLead) await (await import("./boss-price-link.server")).textBossPriceLink(jobId,');
-  expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepCompletedMittiReadyChecks()");
+  expect(readFileSync("src/routes/api/public/hooks/mitti-pull.ts", "utf8")).toContain("sweepCompletedMittiReadyChecks()");
+  const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
+  expect(tick).not.toContain("sweepCompletedMittiReadyChecks");
+  expect(tick).not.toContain("syncPendingMitti");
   const ve = readFileSync("src/lib/verified-eligibility.server.ts", "utf8");
   expect(ve).toContain("if (v && !verificationStale(v, { ref: e.readyCheck.ref, version: e.readyCheck.version })) return v.outcome === \"eligible\";"); // office decision wins
   const rel = readFileSync("src/lib/office-quote-review.server.ts", "utf8");
