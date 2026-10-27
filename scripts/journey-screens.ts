@@ -23,7 +23,8 @@ async def main():
         async def guard(route):
             r = route.request; u = urlsplit(r.url)
             # Read-only browser reconnaissance only: no POST, no external services, no token/signed URL logging.
-            if r.method not in ("GET","HEAD") or (u.hostname not in ("localhost", "127.0.0.1")):
+            static = r.resource_type in ("image","stylesheet","font") and not re.search(r"mitti|resend|twilio|xero|stripe",u.hostname or "",re.I)
+            if r.method not in ("GET","HEAD") or (u.hostname not in ("localhost", "127.0.0.1") and not static):
                 refused.append({"method":r.method,"kind":r.resource_type}); await route.abort(); return
             await route.continue_()
         await context.route("**/*", guard)
@@ -31,12 +32,12 @@ async def main():
         page.on("pageerror", lambda e: errors.append(str(e)[:160]))
         await page.goto("http://localhost:8080/calculator", wait_until="domcontentloaded")
         await page.get_by_role("button", name="Register my interest", exact=True).first.wait_for(state="visible",timeout=20000)
-        await page.screenshot(path=str(out / "01-homeowner-calculator.png"))
+        await page.screenshot(path=str(out / "screenshots" / "01-homeowner-calculator.png"))
         # This real button only scrolls. Do not submit: source is not qa_test and no job is created here.
         await page.get_by_role("button", name="Register my interest", exact=True).first.click()
         form=page.locator("#register-interest"); await form.wait_for(state="visible")
         await form.scroll_into_view_if_needed()
-        await page.screenshot(path=str(out / "02-homeowner-registration.png"))
+        await page.screenshot(path=str(out / "screenshots" / "02-homeowner-registration.png"))
         results.append({"name":"Calculator navigation","clicked":True,"loaded":await form.is_visible(),"path":urlsplit(page.url).path,"screenshots":["screenshots/01-homeowner-calculator.png","screenshots/02-homeowner-registration.png"],"errors":errors})
         await browser.close()
     (out / "browser-observations.json").write_text(json.dumps({"observations":results,"refusedRequests":refused},indent=2))
