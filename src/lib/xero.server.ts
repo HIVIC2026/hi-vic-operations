@@ -343,7 +343,7 @@ export type RepairsStepResult = "none" | "not_linked" | "busy" | "already" | "ad
 async function repairsFacts(inv: RepairsInvoice) {
   const [{ data: quote }, { data: rect }, { data: job }, { data: ev }] = await Promise.all([
     admin.from("quotes").select("customer_total_inc_gst, accepted_at").eq("id", inv.quote_id).maybeSingle(),
-    admin.from("quotes").select("id, customer_total_inc_gst, accepted_at").eq("job_id", inv.job_id).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
+    (await import("./fixes-quote-current.server")).currentFixesQuote(inv.job_id).then(q => ({ data: q?.status === "accepted" ? q : null })),
     admin.from("jobs").select("job_number").eq("id", inv.job_id).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", inv.job_id).eq("event_type", (await import("./xero-repairs.core")).REPAIRS_ADDED_EVENT),
   ]);

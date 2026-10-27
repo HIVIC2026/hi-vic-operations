@@ -811,3 +811,38 @@ export async function setCatchupFrom(from: string | null): Promise<void> {
     catchup_outbound_cursor: null, catchup_outbound_next_link: null,
   });
 }
+
+
+/**
+ * Jo 27 Oct 2026: once an owner email has been answered (Send) or dealt with (Done), move it out of the
+ * Outlook inbox into Archive. Immutable ids mean the portal still recognises it there. Never throws: a failure
+ * is logged on the job so the office can see it, and the email simply stays in the inbox.
+ */
+export async function archiveOutlookMessage(messageId: string | null | undefined, jobId: string | null, actorId: string | null): Promise<"archived" | "skipped" | "failed"> {
+  if (!messageId || !outlookConfigured()) return "skipped";
+  const loose = admin as unknown as SupabaseClient;
+  try {
+    const { data: already } = await loose.from("workflow_events").select("id").eq("event_type", "email_archived_in_outlook").eq("details->>message_id", messageId).limit(1);
+    if ((already ?? []).length) return "archived";
+    const mailbox = normaliseMailbox((await readOutlookSyncState()).expected_mailbox);
+    if (!mailbox) return "skipped";
+    const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/move`), {
+      method: "POST", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(20_000),
+      headers: {
+        Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
+        "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
+        Prefer: 'IdType="ImmutableId"',
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ destinationId: "archive" }),
+    });
+    if (!res.ok) throw new Error(`Outlook move failed (HTTP ${res.status})`);
+    await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: "email_archived_in_outlook", internal: true, summary: "Email moved to the Outlook Archive after it was dealt with", details: { message_id: messageId } });
+    return "archived";
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    console.error("Outlook archive failed", why);
+    await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: "email_archive_failed", internal: true, summary: "Couldn't move the email to the Outlook Archive — it's still in the inbox", details: { message_id: messageId, error: why.slice(0, 300) } });
+    return "failed";
+  }
+}

@@ -22,8 +22,8 @@ export function ownerFixesStep(f: OwnerFixesFacts): OwnerFixesStep {
   if (!f.quoteStatus) return "none";
   if (f.quoteStatus === "declined") return "declined";
   if (f.quoteStatus === "issued") return "approve";
-  if (f.bookedAt) return "booked";
   if (!f.paid) return "pay";
+  if (f.bookedAt) return "booked";
   if (f.pickedAt) return "booking";
   return f.pickable > 0 ? "pick" : "waiting_times";
 }

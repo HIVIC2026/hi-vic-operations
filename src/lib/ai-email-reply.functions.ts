@@ -27,3 +27,12 @@ export const discardAiReplyDraft = createServerFn({ method: "POST" }).middleware
     await (await import("./ai-email-reply.server")).discardAiDraft(data.eventId, context.userId);
     return { ok: true };
   });
+
+/** Save an edit to a draft as Jo types (Jo 27 Oct 2026). Never sends. */
+export const saveAiReplyDraftEdit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ eventId: z.string().uuid(), body: z.string().max(8000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./ai-email-reply.server")).saveDraftEdit(data.eventId, data.body, context.userId);
+  });

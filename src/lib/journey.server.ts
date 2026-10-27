@@ -716,15 +716,20 @@ export async function cleanupJourney(ctx: JourneyCtx) {
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
 }
 
-export async function newJourneyCtx(): Promise<JourneyCtx> {
+export async function newJourneyCtx(options: { installerEmail?: string; preparePeople?: boolean } = {}): Promise<JourneyCtx> {
   const runId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
-  const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
-  const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
+  if (!actor) throw new Error("TEST journey office actor is missing.");
+  const installerEmail = options.installerEmail ?? TEST_INSTALLER_EMAIL;
+  if (!installerEmail.endsWith(TEST_DOMAIN)) throw new Error("SAFETY STOP: installer must be a TEST-domain persona.");
+  const [installer, electrician] = await Promise.all([profileByEmail(installerEmail), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
+  const worker = installerEmail === TEST_INSTALLER_EMAIL ? await profileByEmail(TEST_WORKER_EMAIL).catch(() => null) : null;
   // Bring the TEST trades up to every current gate (TEST identities only, idempotent): journey-setup.server.ts.
-  const { ensureJourneyTestTrades } = await import("./journey-setup.server");
-  const setup = await ensureJourneyTestTrades(actor!.id, { ...installer, email: TEST_INSTALLER_EMAIL }, { ...electrician, email: TEST_ELECTRICIAN_EMAIL });
-  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: setup.before, setup: setup.log, lead_installer: setup.lead }, screens: [] };
+  const { ensureJourneyTestTrades, ensureTestBusinessReady } = await import("./journey-setup.server");
+  const setup = options.preparePeople === false
+    ? { before: [await ensureTestBusinessReady(actor.id, installer.business_id, "installer", []), await ensureTestBusinessReady(actor.id, electrician.business_id, "electrician", [])], log: ["TEST business preferences prepared only; people approvals unchanged"], lead: null }
+    : await ensureJourneyTestTrades(actor.id, { ...installer, email: installerEmail }, { ...electrician, email: TEST_ELECTRICIAN_EMAIL });
+  return { runId, startedAt: new Date().toISOString(), actorId: actor.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: setup.before, setup: setup.log, lead_installer: setup.lead }, screens: [] };
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */

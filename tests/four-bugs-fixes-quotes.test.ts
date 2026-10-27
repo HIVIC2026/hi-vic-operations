@@ -1,0 +1,37 @@
+import { expect, mock, test } from "bun:test";
+import { PGlite } from "@electric-sql/pglite";
+import { postgrestShim } from "./helpers/pglite-postgrest-shim";
+const db = new PGlite();
+await db.exec(`create table quotes(id uuid primary key,job_id text,kind text,status text,version int default 1,customer_total_inc_gst numeric,accepted_at timestamptz,created_at timestamptz default clock_timestamp(),created_by text); create table quote_items(id uuid primary key,quote_id uuid,description text,line_total_inc_gst numeric); create table quote_internals(quote_id uuid primary key,calc_snapshot jsonb);`);
+const shim = postgrestShim(db);
+let failLines = false;
+const admin = { from(t: string) { const b = shim.from(t); if (t === "quote_items" && failLines) b.upsert = () => Object.assign(b, { run: async () => ({ error: { message: "lines failed" }, data: null }) }); return b; } };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
+const { currentFixesQuote } = await import("../src/lib/fixes-quote-current.server");
+const { saveFixesQuote } = await import("../src/lib/fixes-quote-save.server");
+const values = { customer_total_inc_gst: 550, created_by: "office" };
+const lines = [{ description: "Fix cable", line_total_inc_gst: 550 }];
+const internals = { calc_snapshot: { rate: "test" } };
+test("retry saves one quote and one line; newer price invalidates older acceptance; two jobs stay separate", async () => {
+  const first = await saveFixesQuote("owner-one", values, lines, internals);
+  await db.query("update quotes set status='accepted',accepted_at=now() where id=$1", [first.id]);
+  const retry = await saveFixesQuote("owner-one", values, lines, internals);
+  expect(retry).toEqual({ id: first.id, already: true });
+  const other = await saveFixesQuote("owner-two", values, lines, internals);
+  expect(other.id).not.toBe(first.id);
+  const newQuote = await saveFixesQuote("owner-one", { ...values, customer_total_inc_gst: 700 }, [{ ...lines[0], line_total_inc_gst: 700 }], internals);
+  expect((await currentFixesQuote("owner-one"))?.id).toBe(newQuote.id);
+  expect((await currentFixesQuote("owner-one"))?.status).toBe("draft");
+  expect((await currentFixesQuote("owner-two"))?.id).toBe(other.id);
+  expect((await db.query("select status from quotes where id=$1", [first.id])).rows[0]?.status).toBe("superseded");
+  await saveFixesQuote("owner-one", { ...values, customer_total_inc_gst: 700 }, [{ ...lines[0], line_total_inc_gst: 700 }], internals);
+  expect((await db.query("select * from quotes where job_id='owner-one'")).rows.length).toBe(2);
+  expect((await db.query("select * from quote_items where quote_id=$1", [newQuote.id])).rows.length).toBe(1);
+});
+test("interrupted line save retries the same quote, never a duplicate", async () => {
+  failLines = true;
+  await expect(saveFixesQuote("interrupted", values, lines, internals)).rejects.toThrow("lines failed");
+  failLines = false;
+  await saveFixesQuote("interrupted", values, lines, internals);
+  expect((await db.query("select * from quotes where job_id='interrupted'")).rows.length).toBe(1);
+});
