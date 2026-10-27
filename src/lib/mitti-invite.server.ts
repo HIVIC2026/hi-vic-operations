@@ -197,11 +197,11 @@ export async function onPartnerPersonRemoved(workerId: string, actorId: string |
   const { data: w, error } = await admin.from("partner_workers").select("id, email, full_legal_name, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
   if (error || !w) throw new WorkflowError("Partner person not found.");
   const email = w.email?.trim().toLowerCase() ?? null;
-  const [{ data: b }, { data: others }] = await Promise.all([
+  const [{ data: b }, { data: others, error: othersError }] = await Promise.all([
     admin.from("businesses").select("name, onboarding_notes").eq("id", w.business_id).maybeSingle(),
     email ? admin.from("partner_workers").select("id, approval_status, removed_at").ilike("email", email) : Promise.resolve({ data: [] as { id: string; approval_status: string; removed_at: string | null }[], error: null }),
   ]);
-  if (others.error) throw new WorkflowError("Other active memberships could not be checked — Mitti access was not removed.");
+  if (othersError) throw new WorkflowError("Other active memberships could not be checked — Mitti access was not removed.");
   const stillActiveElsewhere = (others ?? []).some((o) => o.id !== w.id && !o.removed_at && o.approval_status === "approved");
   const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
   const step = mittiRemovalStep({ workerId, email, isTest: await isTestPerson(email, b ?? null), removedAt: w.removed_at, approvalStatus: w.approval_status, stillActiveElsewhere }, prior, sw);
