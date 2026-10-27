@@ -33,6 +33,11 @@ try {
   ctx.notes["address_line"] = `${Date.now()} Journey Test Street`;
   const r = { key: "s1_calculator", label: "setup", passed: false, checks: [] as { name: string; ok: boolean; detail?: string }[] };
   await J.journeyInternals.s1(ctx, r as never);
+  if (!ctx.jobId) throw new Error("No TEST job to protect.");
+  const { data: protectedJob, error: protectRead } = await admin.from("jobs").select("source,external_refs").eq("id", ctx.jobId).single();
+  if (protectRead || protectedJob?.source !== "qa_test") throw new Error("TEST delivery protection refused.");
+  const { error: protectWrite } = await admin.from("jobs").update({ external_refs: { ...((protectedJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (protectWrite) throw new Error("TEST delivery protection wasn't saved.");
   add({ step: "Setup: TEST job from journey s1 (website step skipped — covered by portal-qa)", person: "setup", status: "pass", detail: `${ctx.jobNumber} created as qa_test for a TEST-domain owner; ${r.checks.filter(c => c.ok).length} setup checks passed.` });
 } catch (e) { setupError = e instanceof Error ? e.message : String(e); add({ step: "Setup: TEST job from journey s1", person: "setup", status: "fail", severity: "Stop launch", detail: setupError }); }
 finally { ms.disarmJourneyMittiGuard(); }

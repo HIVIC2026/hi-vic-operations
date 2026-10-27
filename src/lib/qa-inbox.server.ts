@@ -2,6 +2,12 @@
 // the original intended recipient (masked unless TEST-domain) in the audit.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { qaInboxRoute, type QaInboxRoute } from "./qa-inbox.core";
+export async function qaDeliveryHeld(jobId: string | null): Promise<boolean> {
+  if (!jobId) return false;
+  const { data, error } = await admin.from("jobs").select("source,external_refs").eq("id", jobId).maybeSingle();
+  if (error) throw new Error("Could not verify TEST delivery safety.");
+  return (await import("./qa-no-delivery.core")).qaNoDelivery(data?.source, data?.external_refs);
+}
 
 export async function qaInboxRouteForJob(jobId: string | null, to: string): Promise<QaInboxRoute | null> {
   if (!jobId) return null;
