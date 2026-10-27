@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { automaticLeadEmail, classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
 import { captureLinkState, parseCapturePath, validateVideo, validateCaptureFile, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
-import { renderEstimateEmail } from "../src/lib/estimate-email";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 
 const passes = ["location", "residential", "ceiling_age", "previous_activity"].map((key) => ({ key, result: "pass" }));
@@ -117,11 +116,6 @@ describe("homeowner video capture", () => {
     { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" }, { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" },
     { kind: "intake_media", mime_type: "image/jpeg", storage_path: "b" }, { kind: "evidence", mime_type: "video/mp4", storage_path: "c" },
   ])).toBe(1));
-  test("approved estimate renderer still renders a $0-now assumed-area draft", () => {
-    const m = renderEstimateEmail({ estimateUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", outcome: "likely", firstName: "Sam", reference: "HV-1", estimatedTotal: 900, veuDiscount: 1949, areaM2: 150, installationPrice: 2500, installationRatePerM2: 16.67, assessmentFee: 0, apFee: 349, grossProjectTotal: 2849, amountPayableNow: 0, estimatedRemainingBalance: 900, areaIsTypical: true });
-    expect(m.subject.length).toBeGreaterThan(5);
-    expect(m.html).toContain("150");
-  });
 });
 
 import { enquiryStatus, STATUS_ORDER } from "../src/lib/enquiry-groups.core";

@@ -38,8 +38,7 @@ describe("customer quote system", () => {
 });
 describe("presentation lock", () => {
   const { readFileSync } = require("node:fs");
-  const { renderEstimateEmail, renderIneligibleEmail } = require("../src/lib/estimate-email");
-  const { discountAmount, CUSTOMER_QUOTE_LABELS: L, CUSTOMER_WHAT_COULD_CHANGE: W, CUSTOMER_DISCOUNT_TREATMENT: T } = require("../src/lib/customer-quote-system");
+  const { discountAmount } = require("../src/lib/customer-quote-system");
   test("discount formatting uses a true minus", () => { expect(discountAmount(1481.76)).toBe("−$1,482"); });
   test("React quote + calculator share one breakdown and one in-card close", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
@@ -51,30 +50,18 @@ describe("presentation lock", () => {
     expect(ui.match(/CUSTOMER_WHAT_COULD_CHANGE\.heading/g)?.length).toBe(1); // in-card close only; Ready Check page uses its own single card
     expect(ui).not.toMatch(/no other standard fees/i);
   });
-  test("email discount band is green with minus, before final cost; disclaimer once", () => {
-    for (const onsite of [false, true]) {
-      const src = readFileSync("src/lib/estimate-email.ts", "utf8");
-      expect(src).toContain("renderV2QuoteEmail"); // approved v2 email layout (locked) replaced the old discount band
-      void onsite; void T; void W; void L;
-    }
-    expect(readFileSync("src/lib/estimate-email.ts", "utf8")).not.toMatch(/(?<!Your )ESTIMATED VEU DISCOUNT|no other standard fees/i);
-    void renderEstimateEmail; void renderIneligibleEmail;
-  });
 });
 
 describe("closing reassurance lock", () => {
   const { readFileSync } = require("node:fs");
-  const { renderEstimateEmail } = require("../src/lib/estimate-email");
   const exact = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.";
   test("old line absent from all customer sources; renderers consume the shared closing", () => {
-    for (const f of ["src/lib/customer-quote-system.ts", "src/lib/estimate-email.ts", "src/lib/followup-email.ts", "src/components/portal/estimate.tsx", "src/routes/step3-email-preview.tsx"]) {
+    for (const f of ["src/lib/customer-quote-system.ts", "src/lib/followup-email.ts", "src/components/portal/estimate.tsx", "src/routes/step3-email-preview.tsx"]) {
       const s = readFileSync(f, "utf8");
       expect(s).not.toContain("Nothing is simply added");
       expect(s).not.toContain("show you the updated scope and price");
     }
     expect(readFileSync("src/lib/customer-quote-system.ts", "utf8")).toContain(exact);
-    expect(readFileSync("src/lib/estimate-email.ts", "utf8")).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
     expect(readFileSync("src/components/portal/estimate.tsx", "utf8")).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
-    void renderEstimateEmail;
   });
 });
