@@ -1585,6 +1585,8 @@ export type Database = {
           full_name: string
           id: string
           insulation_declared: string
+          intake_error: string | null
+          job_id: string | null
           mobile: string
           postcode: string
           source: string
@@ -1605,6 +1607,8 @@ export type Database = {
           full_name: string
           id?: string
           insulation_declared: string
+          intake_error?: string | null
+          job_id?: string | null
           mobile: string
           postcode: string
           source?: string
@@ -1625,6 +1629,8 @@ export type Database = {
           full_name?: string
           id?: string
           insulation_declared?: string
+          intake_error?: string | null
+          job_id?: string | null
           mobile?: string
           postcode?: string
           source?: string
@@ -1632,7 +1638,43 @@ export type Database = {
           suburb?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ceiling_measurements: {
         Row: {
