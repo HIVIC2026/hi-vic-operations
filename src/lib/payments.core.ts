@@ -475,3 +475,10 @@ export function payNowBlock(i: { step: PaymentStep | null; cardAvailable: boolea
     lines: [paymentLine(i.step.key, i.reference, i.step.key === "safety_check" ? i.step.amountCents : SAFETY_CHECK_CENTS), ...bankDetailLines(i.bank, i.reference)],
   };
 }
+
+/** May this Xero invoice read reverse recorded payments? Only when its Payments list accounts for all of Xero's AmountPaid.
+ *  A missing list counts as empty (Xero omits it when no live payment is left), so it is complete only when nothing is paid. */
+export function xeroPaymentsListComplete(payments: unknown, listedCents: number, xeroPaidCents: number): boolean {
+  if (payments != null && !Array.isArray(payments)) return false;
+  return listedCents >= xeroPaidCents;
+}

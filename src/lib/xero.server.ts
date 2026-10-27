@@ -258,7 +258,9 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       const { recordXeroPayments, reconciledInvoicePaidCents } = await import("./payments.server");
       const { reconciledPaidCents, xeroPaymentFacts } = await import("./payments.core");
       // Only a list that accounts for all of Xero's AmountPaid may reverse recorded payments (never on a partial shape).
-      const fullList = Array.isArray(x.Payments) && reconciledPaidCents([], xeroPaymentFacts(xeroPayments)) >= paidCents;
+      // Phase 3 path 3 (27 Oct): Xero leaves `Payments` out once the last payment is deleted; with AmountPaid 0 that is a
+      // complete (empty) list, so the deleted payment is reversed in the ledger instead of still counting as paid.
+      const fullList = xeroPaymentsListComplete(x.Payments, reconciledPaidCents([], xeroPaymentFacts(xeroPayments)), paidCents);
       ledgerChanged = await recordXeroPayments(invoiceId, inv.job_id, xeroPayments, actorId, { fullList });
       paidCents = await reconciledInvoicePaidCents(inv.job_id, invoiceId, { xeroPayments, xeroAmountPaid: ev.paid });
       // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts twice and is raised for the office once.
