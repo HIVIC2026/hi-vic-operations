@@ -10,6 +10,7 @@ import {
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 import { XERO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 import type { XeroPaymentInput } from "./payments.core";
+import { xeroPaymentsListComplete } from "./payments.core";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 

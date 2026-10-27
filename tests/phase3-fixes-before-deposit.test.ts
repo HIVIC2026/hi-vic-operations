@@ -30,3 +30,16 @@ describe("office label after a PIESA that found fixes", () => {
     expect(f({ completedAt: "2026-10-27", passed: true, sectionCAt: null })?.label).toBe("PIESA passed");
   });
 });
+
+import { xeroPaymentsListComplete } from "../src/lib/payments.core";
+describe("Xero payment deleted → reversed, not still paid", () => {
+  test("Payments left out with nothing paid = complete empty list (reversal allowed)", () => {
+    expect(xeroPaymentsListComplete(undefined, 0, 0)).toBe(true);
+  });
+  test("Payments left out while Xero still shows money paid = partial (no reversal)", () => {
+    expect(xeroPaymentsListComplete(undefined, 0, 34900)).toBe(false);
+  });
+  test("listed payments cover the amount = complete", () => {
+    expect(xeroPaymentsListComplete([{}], 34900, 34900)).toBe(true);
+  });
+});
