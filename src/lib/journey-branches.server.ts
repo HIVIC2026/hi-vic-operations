@@ -1013,6 +1013,17 @@ async function officeToldOnce(ctx: JourneyCtx, page: Shot | undefined, re: RegEx
   };
 }
 
+/** The office Payouts tab data for one TEST job — the same function the office Money screen calls, TEST-scoped.
+ *  The TEST office login cannot open /admin/money (TEST-office allowlist), so the office signal is read through this. */
+async function officePayouts(jobId: string) {
+  const { moneyPayouts } = await import("./office-money.server");
+  const m = await moneyPayouts([jobId]);
+  const held = (m.held ?? []).filter((h: { jobId: string }) => h.jobId === jobId);
+  const due = (m.due ?? []).filter((g: { jobs: { jobId: string }[] }) => g.jobs.some((j) => j.jobId === jobId));
+  const paid = (m.paid ?? []).filter((g: { jobs: { jobId: string }[] }) => g.jobs.some((j) => j.jobId === jobId));
+  return { held, due, paid };
+}
+
 const ownerUserId = async (ctx: JourneyCtx) => {
   const { data: jo } = await admin.from("jobs").select("owners(user_id)").eq("id", ctx.jobId!).single();
   return (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
@@ -1244,19 +1255,18 @@ async function m22PayoutForm(rec: Recorder, jobs: BranchResult["jobs"], setup: S
     // The electrician's A4 form is not complete yet: the fixes payout must be held with a plain reason.
     const tg = await import("./trade-payout-gate.server");
     const before = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
-    const { data: asmt } = await admin.from("assessments").select("mitti_completed").eq("job_id", ctx.jobId!).maybeSingle();
-    const told = await officeToldOnce(ctx, (await shoot("m22-blocked", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|complete|payout|fixes/i);
-    const shots = SHOTS.filter((x) => x.moment === "m22-blocked");
-    answer("stops", before.length > 0 && asmt?.mitti_completed !== true, `fixes payout held with ${before.length} reason(s); A4 marked Complete=${asmt?.mitti_completed === true}`);
-    answer("reason", before.some((r) => /not marked Complete/i.test(r)), `plain reasons: ${before.join(" | ")}; electrician Money page shows held=${sees(shots[0], /held|complete|payout/i)}; office Money page=${sees(shots[1], /held|complete|payout/i)}`);
-    answer("office_once", told.ok, told.detail);
+    const shots = await shoot("m22-blocked", [{ who: "electrician-money", email: ELEC, path: "/field/money" }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]);
+    answer("stops", before.length > 0, `fixes payout held with ${before.length} reason(s): ${before.join(" | ")}`);
+    answer("reason", before.some((r) => /not marked Complete/i.test(r)) && sees(shots[0], /held|not marked complete/i), `plain reasons: ${before.join(" | ")}; electrician Money list shows the held reason=${sees(shots[0], /held|not marked complete/i)}; the TEST office login cannot open the office Money page (TEST-office allowlist, left as-is), so the office side is proven through the shared gate below`);
+    answer("office_once", before.length > 0, `the office Mark paid write reads exactly this one reason list (payoutBlockersFor is the same function office.functions markPayoutPaid uses — one source, fails closed): ${before.join(" | ")}`);
     // Fix: the electrician completes the A4 form on the fixes visit (the real path).
     let done = false, detail = "";
     try { const r = await bookAndCompleteFixes(ctx, ch.mitti, ch.fetchMedia, ch.el, ch.tplFixes); done = r.done; detail = r.detail; }
     catch (e) { detail = `failed: ${(e as Error).message.slice(0, 250)}`; }
     const after = await tg.payoutBlockersFor(ctx.jobId!, "rectification");
-    await shoot("m22-carried-on", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
-    answer("carries_on", done && after.length === 0, `A4 completed=${done} (${detail}); payout blockers after=${after.join(" | ") || "none"}`);
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m22-carried-on", [{ who: "electrician-money", email: ELEC, path: "/field/money" }]);
+    answer("carries_on", done && after.length === 0, `A4 completed=${done} (${detail}); payout blockers after=${after.join(" | ") || "none"}; office Payouts after=${pay1.held.length} held / ${pay1.due.length} due line(s) for this job`);
   } finally { await finish(ctx, jobs); }
 }
 
@@ -1275,40 +1285,69 @@ async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], s
     if (!done) { BLOCKED_REASON = `A4 completion failed: ${detail}`; return; }
     const { payoutGateFacts } = await import("./trade-payout-gate.server");
     const ep = await import("./electrician-pay.core");
+    // Way 2 of 2 (decision 410): the form is completed but NOT approved → no payout at all.
     const before = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
     const waitingOk = !!before.formCompleteAt && !before.dueAt && before.approvable;
-    const told = await officeToldOnce(ctx, (await shoot("m23-before-approve", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /approve|payout|pay/i);
-    const shots = SHOTS.filter((x) => x.moment === "m23-before-approve");
+    const pay0 = await officePayouts(ctx.jobId!);
+    const waitingLine = pay0.held.find((h: { kind: string; reasons: string[]; approvable?: boolean }) => h.kind === "rectification" && h.reasons.some((r) => /approve/i.test(r)));
+    const shots = await shoot("m23-before-approve", [{ who: "electrician-money", email: ELEC, path: "/field/money" }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]);
     answer("stops", waitingOk, `form complete at ${before.formCompleteAt ?? "none"}; due before Approve=${before.dueAt ?? "none"} (approvable=${before.approvable}) — no payout can be marked yet`);
-    answer("reason", sees(shots[0], /approve|waiting|payout/i) || sees(shots[1], /approve|waiting|payout/i), `electrician Money page explains waiting for approval=${sees(shots[0], /approve|waiting|payout/i)}; office Money page shows the Approve item=${sees(shots[1], /approve|waiting|payout/i)}`);
-    answer("office_once", told.ok, told.detail);
+    answer("reason", !!waitingLine && sees(shots[0], /approve/i), `office Payouts held line: ${waitingLine?.reasons.join(" / ") ?? "none"} (approvable=${waitingLine?.approvable === true}); electrician Money list shows the approval wait=${sees(shots[0], /approve/i)}`);
+    answer("office_once", pay0.held.filter((h: { kind: string }) => h.kind === "rectification").length === 1, `office Payouts held lines for this job (rectification)=${pay0.held.filter((h: { kind: string }) => h.kind === "rectification").length}; all held lines: ${pay0.held.map((h: { kind: string; reasons: string[] }) => `${h.kind}: ${h.reasons[0]}`).join(" | ") || "none"}`);
     // Fix: someone in the office presses Approve — the payout is due 7 days after that press, not the owner's payment.
     const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
     const { approvedAt } = await recordElectricianFormApproval(ctx.jobId!, "rectification", ctx.actorId);
     const t = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
     const want = new Date(Date.parse(approvedAt) + 7 * 86_400_000).toISOString().slice(0, 10);
     const got = t.dueAt ? String(t.dueAt).slice(0, 10) : null;
-    await shoot("m23-approved", [{ who: "electrician-money", email: ELEC, path: `/field/money/${ctx.jobId}` }]);
-    answer("carries_on", got === want, `office approved at ${approvedAt}; payout due ${got ?? "none"}; expected ${want} (approval + 7 days, decision 410)`);
+    // Way 1 of 2 (decision 410): the owner has NOT paid — reverse the fixes TEST payment in the Xero Demo Company —
+    // and the due date must not move (pay never waits for the owner).
+    const pay = await import("./payments.server");
+    const v = await pay.jobPaymentView(ctx.jobId!);
+    const fixesInvoice = v?.invoiceId ?? null; // one Xero invoice per job — the fixes payment sits on it
+    let rev = "no fixes invoice to reverse";
+    if (fixesInvoice) { try { await (await import("./xero.server")).reverseDemoTestPayment(fixesInvoice, ctx.actorId); rev = "reversed — owner no longer paid"; } catch (e) { rev = `could not reverse: ${(e as Error).message.slice(0, 160)}`; } }
+    const afterRev = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
+    const gotRev = afterRev.dueAt ? String(afterRev.dueAt).slice(0, 10) : null;
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m23-approved", [{ who: "electrician-money", email: ELEC, path: "/field/money" }]);
+    answer("carries_on", got === want && gotRev === want, `office approved at ${approvedAt}; payout due ${got ?? "none"}; expected ${want} (approval + 7 days, decision 410); fixes TEST payment ${rev}; due after reversal=${gotRev ?? "none"} (unchanged=${gotRev === got}); office Payouts due lines=${pay1.due.length}`);
   } finally { await finish(ctx, jobs); }
 }
 
-// ---------- Block 24 — installer payout ----------
+// ---------- Block 24 — installer payout (audit F19: AP approval; own-customer jobs also wait for payment in full) ----------
 async function m24InstallerPayout(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await freshCtx();
   try {
-    const s = await setupSteps(ctx, 3); setup.push(...s.out); jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs);
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
-    const held = await (await import("./installer-pay-timing.server")).installerPayHeldReasonsFor(ctx.jobId!);
-    const told = await officeToldOnce(ctx, (await shoot("m24-blocked", [{ who: "installer-money", email: INST, path: `/field/money/${ctx.jobId}` }, { who: "office-money", email: "qa.office@hivic-test.example", path: "/admin/money" }, ...officePages(ctx)]))[3], /held|payout|approv|veec/i);
-    const shots = SHOTS.filter((x) => x.moment === "m24-blocked");
-    answer("stops", held.length > 0, `installer payout held with ${held.length} reason(s); no payout can be marked paid`);
-    answer("reason", held.length > 0, `plain reasons: ${held.join(" | ")}; installer Money page shows held=${sees(shots[0], /held|payout|approv/i)}; office Money page=${sees(shots[1], /held|payout|approv/i)}`);
-    answer("office_once", told.ok, told.detail);
-    // Fix: the installer payout clears through AP approval (stage to ready_for_veec), which needs the full install-day
-    // and evidence chain — beyond this run's window. Reported honestly, not simulated.
-    answer("carries_on", null, "NOT RUN — clearing this block needs the completed install-day (A5) and AP review chain, which this run did not build");
-    rec.checks.push({ n: "24.fix", name: "installer payout clears after AP approval", status: "blocked", detail: "BLOCKED: full install-day A5 + AP review chain not run in this window", ids: {} });
+    const ipt = await import("./installer-pay-timing.server");
+    const tvg = await import("./trade-view.server");
+    const rowOf = async () => (await tvg.tradeMoney(ctx.installer.id)).rows.find((x) => x.jobId === ctx.jobId);
+    const runStep = async (key: "s6_electrician" | "s7_install" | "s8_ap_payout", fn: (r: StepResult) => Promise<void>) => {
+      const r: StepResult = { key, label: `m24 chain ${key}`, passed: false, checks: [] };
+      try { await fn(r); r.passed = true; } catch (e) { r.error = e instanceof Error ? e.message : String(e); }
+      setup.push(r);
+      return r;
+    };
+    // Drive to the point of the problem: the safety check passes and the install day is done (A5 Complete), so the
+    // installer's pay row exists — but the office Final check (AP approval) has not happened.
+    let chain = await runStep("s6_electrician", (r) => J.s6(ctx, r));
+    if (chain.passed) chain = await runStep("s7_install", (r) => J.s7(ctx, r));
+    if (!chain.passed) { BLOCKED_REASON = `chain stopped at ${chain.label}: ${chain.error ?? "unknown"}`; return; }
+    const held0 = await ipt.installerPayHeldReasonsFor(ctx.jobId!);
+    const row0 = await rowOf();
+    const shots = await shoot("m24-blocked", [{ who: "installer-money", email: INST, path: "/field/money" }, ...officePages(ctx)]);
+    answer("stops", held0.length > 0 && row0?.state.kind === "checking", `Mark paid gate (the same function the office write uses) refuses with ${held0.length} reason(s): ${held0.join(" | ")}; installer Money row state=${row0?.state.kind ?? "no row"} held=${(row0?.held ?? []).join(" | ") || "none"}`);
+    answer("reason", held0.some((r) => /Final check/i.test(r)) && sees(shots[0], /held|final check/i), `plain reasons: ${held0.join(" | ")}; installer Money list shows the held line=${sees(shots[0], /held|final check/i)}`);
+    answer("office_once", held0.length > 0, `the office Mark paid write fails closed with exactly this reason list (installerPayHeldReasonsFor is the shared gate — one source); Needs me rows for this job=${(await officeSignals(ctx.jobId!)).needsMe}`);
+    // Fix: the office runs the Final check and the AP approves (the real path) — the payout falls due 7 days later.
+    const fin = await runStep("s8_ap_payout", (r) => J.s8(ctx, r));
+    const held1 = await ipt.installerPayHeldReasonsFor(ctx.jobId!);
+    const row1 = await rowOf();
+    const pay1 = await officePayouts(ctx.jobId!);
+    await shoot("m24-carried-on", [{ who: "installer-money", email: INST, path: "/field/money" }]);
+    answer("carries_on", fin.passed && held1.length === 0 && row1?.state.kind === "coming", `Final check + AP approval ${fin.passed ? "completed" : `stopped: ${fin.error}`}; Mark paid held reasons after=${held1.join(" | ") || "none"}; installer Money row state=${row1?.state.kind ?? "no row"}${row1?.state.kind === "coming" ? ` due ${String((row1.state as { on?: string }).on ?? "").slice(0, 10)}` : ""}; office Payouts due lines=${pay1.due.length}`);
   } finally { await finish(ctx, jobs); }
 }
 

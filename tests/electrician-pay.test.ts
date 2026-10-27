@@ -2,7 +2,7 @@
 // fixes (A4) within 7 days of someone in the office approving their completed Mitti form. It never waits for the owner.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ELECTRICIAN_PAY_RULE_LINE, electricianPayDueAt, electricianPayState, payPill, payState } from "../src/lib/trade-view.core";
+import { ELECTRICIAN_PAY_RULE_LINE, INSTALLER_PAY_WAITING_AP, electricianPayDueAt, electricianPayState, payPill, payState } from "../src/lib/trade-view.core";
 import { electricianFormCompleteAt, PAYOUT_FORM_NOT_COMPLETE, type TradePayoutFacts } from "../src/lib/trade-payout-gate.core";
 import { approvalKindFor, ELECTRICIAN_FORM_AWAITING_APPROVAL, electricianPayTiming } from "../src/lib/electrician-pay.core";
 
@@ -81,10 +81,18 @@ describe("wiring", () => {
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-money.server.ts", "src/lib/job-status.server.ts", "src/lib/office.functions.ts"])
       expect(readFileSync(f, "utf8")).not.toContain("ownerElectricalStepsPaidAt");
   });
+  test("trade Money held lines carry the 410 approval wait and the F19 installer wait — the same reasons the office shows", () => {
+    const tv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(tv).toContain("...(et?.waiting ?? [])");
+    expect(tv).toContain("installerPayHeldReasons({ installerSupplied:");
+    expect(ELECTRICIAN_FORM_AWAITING_APPROVAL.rectification).toContain("A4");
+    expect(INSTALLER_PAY_WAITING_AP).toContain("Final check");
+  });
   test("office Approve: admin only, one shared write, refused while the form gate holds it, the button on held rows", () => {
     const fn = readFileSync("src/lib/office.functions.ts", "utf8");
     const at = fn.indexOf("export const approveElectricianForm");
-    expect(fn.slice(at, at + 600)).toContain("await requireAdmin(context.supabase)");
+    // requireOfficeJob falls through to requireAdmin for everyone who is not the isolated TEST office login.
+    expect(fn.slice(at, at + 600)).toContain("await requireOfficeJob(context.supabase, data.jobId)");
     expect(fn.slice(at, at + 600)).toContain("recordElectricianFormApproval(data.jobId, data.kind, context.userId)");
     const w = readFileSync("src/lib/electrician-form-approval.server.ts", "utf8");
     expect(w).toContain("if (!gate || blockers.length) throw");
