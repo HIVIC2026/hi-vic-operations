@@ -16,6 +16,7 @@ function from(t: string) {
   Object.assign(q, {
     select: () => q,
     eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; },
+    ilike: (k: string, v: string) => { rows = rows.filter(r => String(r[k]).toLowerCase() === v.toLowerCase()); return q; },
     in: (k: string, v: unknown[]) => { rows = rows.filter((r) => v.includes(r[k])); return q; },
     or: () => q,
     contains: (k: string, v: Row) => { rows = rows.filter((r) => Object.entries(v).every(([kk, vv]) => (r[k] as Row | undefined)?.[kk] === vv)); return q; },
@@ -23,7 +24,7 @@ function from(t: string) {
     update: (p: Row) => { op = "update"; patch = p; return q; },
     insert: (r: Row) => { op = "insert"; (tables[t] ??= []).push({ created_at: new Date(Date.now() + (tables[t]?.length ?? 0)).toISOString(), ...r }); return q; },
     maybeSingle: async () => { apply(); return { data: op === "select" ? rows[0] ?? null : null, error: null }; },
-    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "select" ? rows : null, error: null }); },
+    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "insert" ? null : rows, error: null }); },
   });
   return q;
 }
@@ -56,7 +57,7 @@ const call = async (method: string, path: string, body?: unknown) => {
 const messages: string[] = [];
 const message = async (p: { workerId: string }) => { messages.push(p.workerId); return "text sent"; };
 
-const { onPartnerPersonApproved, onPartnerPersonRemoved, listOpenMittiInvites, confirmMittiInviteDone, realInviteMessenger } = await import("../src/lib/mitti-invite.server");
+const { onPartnerPersonApproved, onPartnerPersonRemoved, listOpenMittiInvites, confirmMittiInviteDone: confirmMittiInviteDone, realInviteMessenger } = await import("../src/lib/mitti-invite.server");
 const ON = { enabled: true, apiVerified: false, groupId: null }; // calls not verified: link or office item only
 const LIVE = { enabled: true, apiVerified: true, groupId: "group_trades" };
 const events = () => (tables["admin_config_events"] ?? []).map((e) => e["event_type"]);

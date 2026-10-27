@@ -69,7 +69,7 @@ describe("lookup → link / create / invite needed", () => {
     expect(mittiInviteStep({ ...installer, mittiAccess: "member" }, null, LIVE).action).toBe("skip");
   });
   test("approved again after a deactivation → reactivate the same Mitti user (never a second seat)", () => {
-    const prior = { type: "mitti_user_deactivated" as const, at: "t", mittiUserId: "user_5" };
+    const prior = { type: "mitti_user_deactivated" as const, at: "t", mittiUserId: "user_5", email: installer.email };
     expect(mittiInviteStep(installer, prior, LIVE)).toMatchObject({ action: "reactivate", mittiUserId: "user_5" });
     expect(mittiInviteStep(installer, prior, ON)).toMatchObject({ action: "fail", reason: expect.stringMatching(/reactivate them in Mitti by hand/) });
     expect(mittiInviteStep(installer, { ...prior, mittiUserId: null }, LIVE).action).toBe("fail");
@@ -78,7 +78,7 @@ describe("lookup → link / create / invite needed", () => {
 
 describe("removal → deactivate", () => {
   const gone: RemovalPerson = { workerId: "w1", email: "lee@warmroofs.com.au", isTest: false, removedAt: "2026-10-25T00:00:00Z", approvalStatus: "approved", stillActiveElsewhere: false };
-  const invited = { type: "mitti_user_invited" as const, at: "t", mittiUserId: "user_1" };
+  const invited = { type: "mitti_user_invited" as const, at: "t", mittiUserId: "user_1", email: gone.email };
   test("removed or rejected person with a recorded Mitti user → deactivate", () => {
     expect(mittiRemovalStep(gone, invited, LIVE)).toEqual({ action: "deactivate", mittiUserId: "user_1" });
     expect(mittiRemovalStep({ ...gone, removedAt: null, approvalStatus: "rejected" }, invited, LIVE).action).toBe("deactivate");
@@ -133,9 +133,15 @@ describe("Office list", () => {
     expect(open[2]!.todo[0]).toMatch(/Invite a@x.com.au to Mitti with that exact email \(lite seat\)/);
   });
   test("prior record per person + latest known Mitti user id feed idempotency and deactivation", () => {
-    expect(priorInviteFor("c", records)).toEqual({ type: "mitti_invite_office_done", at: "2026-10-24T03:00:00Z", mittiUserId: null });
-    expect(priorInviteFor("d", records)).toEqual({ type: "mitti_user_invited", at: "2026-10-24T04:00:00Z", mittiUserId: "u_d" });
+    expect(priorInviteFor("c", records)).toEqual({ type: "mitti_invite_office_done", at: "2026-10-24T03:00:00Z", mittiUserId: null, email: "c@x.com.au" });
+    expect(priorInviteFor("d", records)).toEqual({ type: "mitti_user_invited", at: "2026-10-24T04:00:00Z", mittiUserId: "u_d", email: "d@x.com.au" });
     expect(priorInviteFor("z", records)).toBeNull();
     expect(MITTI_INVITE_EVENTS.failed).toBe("mitti_access_failed");
   });
+});
+
+test("changed or unrecorded email never reactivates another Mitti identity", () => {
+  for (const email of ["another@warmroofs.com.au", null]) {
+    expect(mittiInviteStep(installer, { type: "mitti_user_deactivated", at: "t", mittiUserId: "old_user", email }, LIVE).action).toBe("fail");
+  }
 });

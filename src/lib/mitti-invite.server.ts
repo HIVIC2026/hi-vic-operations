@@ -63,7 +63,8 @@ async function loadPerson(workerId: string) {
     workerId: w.id, tradeRole: w.trade_role, approvalStatus: w.approval_status, removedAt: w.removed_at, email, ciiCleared,
     mittiAccess: p ? mittiAccessOf(p) : null, isTest: await isTestPerson(email, b ?? null),
   };
-  return { person, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string, profileId: w.profile_id as string | null };
+  const profileMismatch = !!w.profile_id && (!p || p.email?.trim().toLowerCase() !== email);
+  return { person, profileMismatch, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string, profileId: w.profile_id as string | null };
 }
 
 async function record(actorId: string | null, type: MittiInviteEventType, summary: string, details: Record<string, unknown>) {
@@ -74,8 +75,9 @@ async function record(actorId: string | null, type: MittiInviteEventType, summar
 async function linkProfile(profileId: string | null, mittiUserId: string, email: string) {
   if (!profileId) return;
   // Same record the Check Mitti access button writes: who was found, for which email, when.
-  const { error } = await admin.from("profiles").update({ mitti_user_id: mittiUserId, mitti_checked_email: email, mitti_checked_at: new Date().toISOString() }).eq("id", profileId);
+  const { data, error } = await admin.from("profiles").update({ mitti_user_id: mittiUserId, mitti_checked_email: email, mitti_checked_at: new Date().toISOString() }).eq("id", profileId).ilike("email", email).select("id");
   if (error) throw new WorkflowError(`Mitti user found, but the link could not be saved on the profile: ${error.message}`);
+  if (data?.length !== 1) throw new WorkflowError("The person's email changed before their Mitti link was saved — the office must check their account.");
 }
 
 async function realCall(): Promise<MittiCall> { return (await import("./mitti.server")).realMittiCall; }
@@ -110,7 +112,12 @@ type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMesse
 export async function onPartnerPersonApproved(workerId: string, actorId: string | null, opts: Opts = {}) {
   const sw = opts.switches ?? currentInviteSwitches();
   if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
-  const { person, name, mobile, business, businessId, profileId } = await loadPerson(workerId);
+  const { person, profileMismatch, name, mobile, business, businessId, profileId } = await loadPerson(workerId);
+  if (profileMismatch && !person.isTest) {
+    const reason = "The worker's email does not match their linked portal login — the office must correct the person link before Mitti access is changed.";
+    await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { worker_id: workerId, email: person.email, reason });
+    return { action: "fail" as const, reason };
+  }
   const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
   const call = opts.call ?? await realCall();
   const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole };
@@ -170,7 +177,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
     await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...details, reason, mitti_user_id: mittiUserId });
     return { action: "fail" as const, reason };
   }
-  await linkProfile(profileId, mittiUserId, person.email!).catch(() => null); // the event below still holds the id
+  await linkProfile(profileId, mittiUserId, person.email ?? "");
   const g = await addGroup(mittiUserId, step.addToGroup);
   const at = new Date().toISOString();
   // Recorded BEFORE the message, so a second approval finds it and never invites or messages again.
@@ -192,8 +199,9 @@ export async function onPartnerPersonRemoved(workerId: string, actorId: string |
   const email = w.email?.trim().toLowerCase() ?? null;
   const [{ data: b }, { data: others }] = await Promise.all([
     admin.from("businesses").select("name, onboarding_notes").eq("id", w.business_id).maybeSingle(),
-    email ? admin.from("partner_workers").select("id, approval_status, removed_at").eq("email", email) : Promise.resolve({ data: [] as { id: string; approval_status: string; removed_at: string | null }[] }),
+    email ? admin.from("partner_workers").select("id, approval_status, removed_at").ilike("email", email) : Promise.resolve({ data: [] as { id: string; approval_status: string; removed_at: string | null }[], error: null }),
   ]);
+  if (others.error) throw new WorkflowError("Other active memberships could not be checked — Mitti access was not removed.");
   const stillActiveElsewhere = (others ?? []).some((o) => o.id !== w.id && !o.removed_at && o.approval_status === "approved");
   const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
   const step = mittiRemovalStep({ workerId, email, isTest: await isTestPerson(email, b ?? null), removedAt: w.removed_at, approvalStatus: w.approval_status, stillActiveElsewhere }, prior, sw);
