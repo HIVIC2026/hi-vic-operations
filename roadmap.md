@@ -603,3 +603,12 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
 - [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
+
+## Team workers: Lead installer / Crew (Jo 27 Oct, decision 411)
+- [x] Worker role column (Lead/Crew, "Role needed"); Team list role buttons + Mitti status
+- [x] Mitti create-user test passed (Jo's email, Lite seat); invite limited to Lead installers
+- [x] Install day: Lead installers only; lead + crew install-day text with safety docs link (SWMS, PIESA, hazards)
+- [ ] Update 19 older tests to the new Lead-only rules; add new tests
+- [ ] Join form: make CII number + expiry required; role choice on staff invites
+- [ ] Turn the Mitti auto-invite switch ON (needs MITTI_AUTO_INVITE_ENABLED=true)
+- [ ] Install-day text switch (install_day_crew) — off until Jo says

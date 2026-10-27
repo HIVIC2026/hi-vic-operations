@@ -7,7 +7,7 @@ import { assignBlocker, linkState } from "./worker-links.core";
 
 type Sb = Pick<SupabaseClient<Database>, "rpc">;
 
-export const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status, certification";
+export const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, worker_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status, certification";
 
 export async function isAdminCaller(sb: Sb) {
   const { data } = await sb.rpc("is_admin");

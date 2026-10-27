@@ -45,6 +45,10 @@ function SafetyPlanLink() {
         <div><p className="font-medium">Hazards and the controls you use</p><ul className="space-y-1.5">{d.hazards.map((h) => <li key={h.name}><span className="font-medium">{h.name}:</span> {h.control}.</li>)}</ul><p className="mt-2">{SWMS_HOW_IN_PLACE}</p></div>
         <div><p className="font-medium">Specific to this house</p><p>{d.siteNote ?? "None recorded"}</p></div>
       </section>
+      <section className={`${card} space-y-3 text-sm`} data-safety-docs>
+        <div><p className="font-medium">Pre Insulation Electrical Safety Assessment (PIESA)</p><p>{!d.piesa ? "No PIESA result recorded yet." : `${d.piesa.outcome === "pass" ? "Passed" : d.piesa.outcome === "fail" ? "Fixes were needed" : "Result recorded"}${d.piesa.kind === "post_rectification" ? " after fixes" : ""}${d.piesa.completedDate ? ` on ${swmsDate(d.piesa.completedDate)}` : ""}.`}</p></div>
+        <div><p className="font-medium">Hazards noted at the Ready Check and PIESA</p><p>{d.hazardNote ?? "None recorded"}</p></div>
+      </section>
       {d.signedAt ? (
         <section className="rounded-[18px] border border-line bg-mint p-5 text-ink" data-swms-link-signed><p className="font-display text-2xl font-bold">You've signed the safety plan.</p><p className="mt-1">Signed {swmsDateTime(d.signedAt)} (Melbourne time).</p></section>
       ) : !d.open ? (

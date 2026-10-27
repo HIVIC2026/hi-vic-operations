@@ -79,6 +79,9 @@ export const SMS_MESSAGE_TYPES = {
   // My job → the booked trade is told once (installer: offer new times/days; electrician: booking cancelled, don't go).
   // Wording: ownerChangedVisitText (installer-texts.core.ts). Real sends still need the per-type switch.
   owner_changed_visit: { audience: "partner", label: "Owner changed the booked visit on My job – trade told (decision 337)", wordingApproved: true, quietHours: true },
+  // Decision 411 (Jo 27 Oct 2026, wording approved): install-day text to the lead + each crew member on their own mobile,
+  // with their own safety documents link. Wording: installDayCrewText (worker-role.core.ts). Real sends need the per-type switch.
+  install_day_crew: { audience: "partner", label: "Install day – lead and each crew member, 6:30am, safety docs link (decision 411)", wordingApproved: true, quietHours: false /* 6:30am like daily_mitti; the sender stops at 8pm (installDayTextDue) */ },
   // Decision 377 (Jo 25 Oct 2026): each crew member is texted their OWN safety plan (SWMS) sign link — once the install is
   // booked and the afternoon before while still unsigned. Wording: swmsSignLinkText (swms-sign-text.core.ts), DRAFT until Jo approves.
   swms_sign_link: { audience: "partner", label: "Safety plan – each crew member's own sign link, install booked + day before (decision 377; wording approved by Jo 25 Oct)", wordingApproved: true, quietHours: true },
@@ -161,6 +164,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA offer; also needs the offer still pending
   mitti_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the portal creating the Mitti user (recorded once per person before any send)
   owner_changed_visit: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's change on My job (recorded once per change before any send; installer-texts.server)
+  install_day_crew: { kind: "window" }, // key = job + worker + install date (worker-role.core installDayCrewKey); one event recorded before any send
   swms_sign_link: { kind: "window" }, // key = job + signer + install date + step (booked / day before); recomputed each tick, only while unsigned (swms-sign-text.core)
   visit_new_times: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the trade's cancel (visit_times_reopened); also needs the visit still not rebooked
   piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered

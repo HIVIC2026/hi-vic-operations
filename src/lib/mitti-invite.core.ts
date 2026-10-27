@@ -12,6 +12,7 @@
 //  - TEST people (@hivic.test etc. or a TEST partner) are skipped: Mitti rejects synthetic emails and TEST forms go to the
 //    test assignee.
 import { mjEmail, esc } from "./mail-mjml.core";
+import { mittiRoleSkip } from "./worker-role.core";
 import { plainText } from "./email-kit.core";
 
 /** Default when the env switch is not set. */
@@ -26,7 +27,9 @@ export const autoInviteEnabled = (v: string | null | undefined): boolean => (v ?
  * real address and confirmed (1) the user is created with the configured seat, (2) Mitti emails them to set a password,
  * (3) group add and deactivate work. False = never create/group/deactivate; the office does those steps by hand.
  */
-export const MITTI_USER_API_VERIFIED = false as boolean;
+// Verified 27 Oct 2026 (decision 411, Jo approved one paid Lite seat): POST /users created a Lite user for Jo's email
+// (user_5bb2b3c5454049379ba9bc9b5928c006, seat_type lite) and PUT /users/{id} {status} was accepted (USER_ALREADY_ACTIVE).
+export const MITTI_USER_API_VERIFIED = true as boolean;
 
 export type MittiSeat = "full" | "lite" | "free";
 /** Seat requested per trade. Decision 340 (Jo 25 Oct 2026): Lite seats for installers AND electricians; see docs/MITTI_ACCESS.md for the limits. */
@@ -124,6 +127,8 @@ export type InvitePerson = {
   mittiAccess: "member" | "not_found" | "unchecked" | "email_changed" | null;
   /** TEST person (test email or TEST partner business). */
   isTest: boolean;
+  /** Decision 411: installer role "lead" | "crew" | null (Role needed). Only Lead installers are invited to Mitti. */
+  workerRole?: string | null;
 };
 /** Latest stored record for this worker (any of MITTI_INVITE_EVENTS), or null. `mittiUserId` = the latest one known. */
 export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null } | null;
@@ -163,6 +168,8 @@ export function inviteEligibility(p: InvitePerson): string | null {
 export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteSwitches, lookup?: { mittiUserId: string | null }): InviteStep {
   if (!sw.enabled) return { action: "skip", reason: "Mitti auto-invite is switched off." };
   if (p.isTest) return { action: "skip", reason: TEST_SKIP };
+  const roleSkip = mittiRoleSkip(p.tradeRole, p.workerRole ?? null);
+  if (roleSkip) return { action: "skip", reason: roleSkip };
   const why = inviteEligibility(p);
   if (why) return { action: "skip", reason: why };
   const role = p.tradeRole as MittiTradeRole;

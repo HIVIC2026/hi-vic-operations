@@ -69,7 +69,22 @@ export type SwmsLinkDeps = {
   secret: () => string;
   load: (jobId: string) => Promise<{ plan: import("./swms.core").SwmsPlan; signatures: import("./swms.core").SwmsSignature[]; job: { installation_completed_at: string | null; deleted_at: string | null } | null }>;
   sign: (jobId: string, key: string, typedName: string) => Promise<{ complete: boolean; missing: string[] }>;
+  /** Decision 411: the PIESA result and the hazards noted at the Ready Check / PIESA, shown with the SWMS. */
+  extras?: (jobId: string) => Promise<SafetyExtras>;
 };
+export type SafetyExtras = { piesa: { outcome: string | null; kind: string | null; completedDate: string | null; notes: string | null } | null; hazardNote: string | null };
+
+export async function loadSafetyExtras(jobId: string): Promise<SafetyExtras> {
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const [{ data: p }, { data: a }] = await Promise.all([
+    admin.from("piesa_records").select("outcome, kind, completed_date, notes").eq("job_id", jobId).eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("assessments").select("hazards").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  return {
+    piesa: p ? { outcome: p.outcome ?? null, kind: p.kind ?? null, completedDate: p.completed_date ?? null, notes: p.notes ?? null } : null,
+    hazardNote: typeof a?.hazards === "string" && a.hazards.trim() ? a.hazards.trim() : null,
+  };
+}
 const defaultDeps: SwmsLinkDeps = {
   secret: () => swmsLinkSecret(),
   load: async (jobId) => {
@@ -95,8 +110,10 @@ async function resolve(token: string, deps: SwmsLinkDeps, nowMs: number) {
 }
 
 export async function swmsLinkView(token: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()) {
-  const { plan, signer, signed, open } = await resolve(token, deps, nowMs);
+  const { p, plan, signer, signed, open } = await resolve(token, deps, nowMs);
+  const extras = await (deps.extras ?? loadSafetyExtras)(p.jobId).catch(() => ({ piesa: null, hazardNote: null }) as SafetyExtras);
   return {
+    piesa: extras.piesa, hazardNote: extras.hazardNote,
     jobNumber: plan.jobNumber, address: plan.address, installDate: plan.installDate, businessName: plan.businessName,
     highRiskWork: plan.highRiskWork, hazards: plan.hazards.map((h) => ({ name: h.name, control: h.control })), siteNote: plan.siteNote,
     signer: { name: signer.name, role: signer.role }, signedAt: signed?.signedAt ?? null, open,
