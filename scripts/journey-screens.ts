@@ -95,7 +95,7 @@ const STEPS: Step[] = [
     expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
   { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
     expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
-  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
+  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
@@ -124,8 +124,12 @@ async def main():
             await page.goto("http://localhost:8080/auth", wait_until="domcontentloaded")
             await page.evaluate("([k,v]) => window.localStorage.setItem(k,v)", [cfg["key"], cfg["session"]])
         await page.goto("http://localhost:8080" + cfg["path"], wait_until="domcontentloaded")
-        try: await page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I)).first.wait_for(state="visible", timeout=25000); res["loaded"] = True
-        except Exception: res["loaded"] = False
+        # Loaded = the text is VISIBLE somewhere (a hidden desktop copy of the same words must not count as missing).
+        res["loaded"] = False
+        for _ in range(50):
+            ws = page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I))
+            if any([await x.is_visible() for x in await ws.all()]): res["loaded"] = True; break
+            await page.wait_for_timeout(500)
         await page.wait_for_timeout(800)
         s1 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-before.png"; await page.screenshot(path=str(out / s1)); res["shots"] = [s1]
         res["url"] = urlsplit(page.url).path
