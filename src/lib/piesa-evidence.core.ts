@@ -82,7 +82,7 @@ export function piesaHazardsListed(a: PiesaEvidenceAnswers): string[] {
     // Decision 295: only an item the electrician says is NOT safe as it is counts as a hazard (each has its own photo).
     const rows = applianceRows(a as Record<string, unknown>);
     // Decision 336: a typed row names its type and where it is; a decision-295 row keeps the old wording.
-    if (rows.length) for (const r of rows) { if (r.safe === "No") out.push(r.legacy ? `Appliance or flue needs work: ${(r.what || "(not described)").slice(0, 120)}` : `${r.type ?? "Item"} needs work: ${(r.what || "(not described)").slice(0, 120)}${r.where ? ` (${r.where.slice(0, 80)})` : ""}`); }
+    if (rows.length) for (const r of rows) { if (r.safe === "No") out.push(r.legacy ? `Appliance or flue needs work: ${(r.what || "(not described)").slice(0, 120)}` : `${r.type ?? "Item"} needs work${r.what ? `: ${r.what.slice(0, 120)}` : ""}${r.where ? ` (${r.where.slice(0, 80)})` : ""}`); }
     else { const d = String(a["applianceDetails"] ?? "").trim(); out.push(d ? `Appliances, exhaust fans or flues: ${d.slice(0, 120)}${d.length > 120 ? "…" : ""}` : "Appliances, exhaust fans or flues in the ceiling space"); }
   }
   return out;
