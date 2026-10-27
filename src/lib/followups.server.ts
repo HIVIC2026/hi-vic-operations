@@ -316,6 +316,7 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
 
 /** Fallback scan: eligible links and confirmed-ineligible jobs. Each sender rechecks official Gate 1 and idempotency. */
 export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?: DeliveryAdapter | null) {
+  await (await import("./verified-ineligible-email.server")).retryHeldVerifiedIneligibleEmails(limit);
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const counts = { scanned: 0, sent: 0, blocked: 0 };
   // Both global locks first: nothing to do while comms are OFF or delivery is disabled.
@@ -446,7 +447,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
  *  an ineligible job, so requiring one refused EVERY ineligible reply. "Review my result" opens the customer's link
  *  when one exists, otherwise the public homeowner page the previous ineligible email used; the calculator line
  *  opens the public calculator. Preview and send use the same rule, so the Office copy equals the sent email. */
-async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
+export async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
   const { safeReason } = await import("./ineligible-email");
   const who = await joRecipientFacts(jobId, reference);
   const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();

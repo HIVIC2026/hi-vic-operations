@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 02:15 guarded not-eligible email and journey rerun
+- [x] Actual portal xeroConnectionStatus normal environment: configured/connected true; only Home Insulation Victoria, no TEST Demo route. Separate workspace connection has Demo, but no connection/secret changed.
+- [x] Preview once-only approved T7 after current final not_eligible, durable held retry with normal customer/TEST guards; 10 new isolated tests and 39 existing eligibility/retry/practice checks pass; decision 407/source of truth recorded; build OK. Hosted flow unverified; no publish.
+- [ ] Both branch reruns BLOCKED: customer_comms_enabled is ON and selected XERO_API_KEY_1 has no Demo Company. No switch/secret changes, no jobs created/archived or messages sent. All 1.1–1.6 / 2.1–2.8 recorded blocked in Files journey/2026-10-27-guarded-rerun/report.md.
 ## Jo 27 Oct 02:14 Xero connections
 - [x] Show connected organisations: Home Insulation Victoria on Joannah's Xero (1); DC Construction Solutions Pty Ltd and Demo Company (AU) on Joannah's Xero.
 - [x] Verified test Demo Company access: Xero Organisation read returned HTTP 200, ACTIVE and IsDemoCompany=true; already connected, no re-authorisation needed. No invoices, switches or publication changed.

@@ -45,6 +45,7 @@ Preliminary labels: "Preliminary: likely eligible", "Looking good - needs onsite
 - Existing insulation "Yes" is never an automatic fail; assess type, condition, area and average R-value. R2.0 exactly is not "less than R2.0".
 - Previous VEU ceiling-insulation upgrade "Yes" → office review (potential certificate blocker until verified; office decides whether it is the same Activity 48 upgrade, whether it affects the proposed area, and whether the job can proceed).
 - Missing, conflicting or unclear evidence → needs_review.
+- Jo 27 Oct 2026: office-recorded current verified not_eligible after a final Ready Check automatically prepares the approved decision-73 T7 once per job, with safeReason and no prices. Normal customer-message, consent, opt-out and TEST allowlist gates apply; messages OFF records one held/not-sent email, retried when ON. needs_review sends nothing; repeated decisions never duplicate a sent/in-flight/uncertain T7. No stage, booking or payment change.
 
 ## Payment gate
 Retired: 50% deposit gate; `AmountPaid >= 50%` as PIESA unlock; `total / 2`; `deposit_pct: 0.5`; and the texts "Waiting on 50% deposit payment in Xero", "Owner to pay 50% deposit", "Booking opens as soon as your 50% deposit", "Locked - awaiting owner's 50% deposit".
