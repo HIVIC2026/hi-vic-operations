@@ -203,6 +203,19 @@ describe("installer status with no draft (HV-3129 shape)", () => {
     expect(many.applies).toBe(true);
     expect(installerQuoteLine(many)).toBe(QUOTE_ELECTRICIAN_NOT_ONBOARDED_LINE);
   });
+  test("the preview never reads a superseded draft: after a rebuild it shows the new draft; with only a superseded one it shows nothing", async () => {
+    const { loadInstallerQuote } = await import("../src/lib/installer-quote-status.server");
+    const old = await oldDraft();
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_preview");
+    const all = await quotes();
+    const fresh = all.find((q) => q.status === "draft")!;
+    expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+    expect((await loadInstallerQuote(JOB)).quote?.id).toBe(fresh.id);
+    await db.query("update quotes set status='superseded' where id=$1", [fresh.id]);
+    const none = await loadInstallerQuote(JOB);
+    expect(none.quote).toBeNull();
+  });
   test("no draft and no not-onboarded hold → still nothing to show", async () => {
     const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
     expect((await loadInstallerQuote(JOB)).applies).toBe(false);

@@ -81,6 +81,24 @@ describe("price card is the only price: the Mitti access fee is ignored", () => 
     expect(Number(line.line_total_inc_gst)).toBe(3000);
     expect(line.description).not.toMatch(/difficult access/i);
   });
+  test("HV-3197 shape: card $3,000, our electrician, access fee $200 → every figure on the rebuilt draft", async () => {
+    await setCardPrice(3000);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form("200"), "audit_3197");
+    const [q] = await draftNow();
+    expect(q).toBeDefined();
+    const lines = (await db.query<{ code: string; description: string; explanation: string | null; line_total_inc_gst: string }>("select code, description, explanation, line_total_inc_gst from quote_items where quote_id=$1", [q!.id])).rows;
+    const by = (code: string) => lines.find((l) => l.code === code);
+    expect(Number(by("INSTALLER_PRICE")!.line_total_inc_gst)).toBe(3000);
+    // With the product confirmed the description is the product wording (Jo 23 Oct); the ticked label is the line's explanation.
+    const inst = by("INSTALLER_PRICE")!, wording = `${inst.description}\n${inst.explanation ?? ""}`;
+    expect(wording).toContain("Ceiling insulation - supply & install");
+    expect(wording).not.toContain("R5.0");
+    expect(wording).not.toMatch(/difficult access/i);
+    expect(Number(by("PIESA")!.line_total_inc_gst)).toBe(349);
+    expect(Number(by("AP_FEE")!.line_total_inc_gst)).toBe(349);
+    const [{ veec_discount_inc_gst }] = (await db.query<{ veec_discount_inc_gst: string }>("select veec_discount_inc_gst from quotes where id=$1", [q!.id])).rows;
+    expect(Number(veec_discount_inc_gst)).toBeGreaterThan(0);
+  });
   test("card price + Mitti access charge with no usable fee → no access-fee hold", async () => {
     await setCardPrice(3000);
     await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_card");
