@@ -776,12 +776,8 @@ export const NOT_LISTED_BUILDERS: Record<string, string> = {
   renderHeaderArt: "Image art for email headers, not a template",
   renderHeadingArt: "Image art for email headers, not a template",
   renderAmountArt: "Image art for email headers, not a template",
-  renderEmailHeroPng: "Image art for email headers, not a template",
   renderErrorPage: "Browser error page, not a template",
   renderReloadPage: "Browser error page, not a template",
   testLoginEmail: "TEST partner login address helper",
   automaticLeadEmail: "Routing rule (which Jo template), not wording",
-  partnerLoginEmail: "Retired: no live sender (the login link goes out as I54 / E13)",
-  renderEstimateEmail: "Retired step-3 estimate email (P1-S77): no live sender",
-  renderIneligibleOutcomeEmail: "Retired ineligible email (P1-S77): no live sender",
 };

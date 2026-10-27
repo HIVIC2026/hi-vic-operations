@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { clickBody, isReferralToken, newReferralToken, planReferralToken, referralDedupe, referralShareUrl, submissionBody } from "../src/lib/referral.core";
 import { publicPayload } from "../src/lib/estimatelink.core";
-import { renderEstimateEmail } from "../src/lib/estimate-email";
 import { renderFollowupEmail } from "../src/lib/followup-email";
 
 const src = (p: string) => readFileSync(p, "utf8");
@@ -68,24 +67,6 @@ describe("customer payload + emails", () => {
     expect(p.referralShareUrl).toBe(url);
     expect(Object.keys(p).sort()).toEqual(["estimate", "job", "referralShareUrl"]);
     expect(src("src/lib/referral.server.ts")).toMatch(/Full share URL only/);
-  });
-  test("estimate email referral strip only when supplied", () => {
-    const url = referralShareUrl(newReferralToken());
-    const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
-    const withRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote });
-    // Likely email: referral is a quiet footer link, not a full card.
-    expect(withRef.html).toContain(`href="${url}"`);
-    expect(withRef.html).toContain("Refer a friend</a>");
-    expect(withRef.html).not.toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
-    expect(withRef.plainText).toContain(`Refer a friend: ${url}`);
-    const onsiteRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote, outcome: "onsite" });
-    expect(onsiteRef.html).toContain("Refer a friend</a>");
-    expect(onsiteRef.plainText).toContain(`Refer a friend: ${url}`);
-    const none = renderEstimateEmail({ estimateUrl, ...quote });
-    expect(none.html.toLowerCase()).not.toContain("refer a friend");
-    expect(none.plainText.toLowerCase()).not.toContain("refer a friend");
-    expect(() => renderEstimateEmail({ estimateUrl, referralUrl: "https://evil.example/homeowner?ref=x", ...quote })).toThrow();
-    expect(withRef.html).not.toContain("lovable.app");
   });
   test("follow-ups carry a small referral line only when supplied", () => {
     const url = referralShareUrl(newReferralToken());

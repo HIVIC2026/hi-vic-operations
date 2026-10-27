@@ -114,28 +114,6 @@ export const CUSTOMER_DISCOUNT_TREATMENT = {
 } as const;
 
 /** Exact shared approval reassurance (Ready Check, measured estimate, PIESA stage). */
-export const CUSTOMER_LIKELY_HERO = {
-  heading: "YOU'RE LIKELY ELIGIBLE",
-  intro: "Based on the information provided, your property appears likely to qualify for a VEU / VEEC discount on eligible ceiling insulation work.",
-  next: "Your preliminary estimate is below. The next step is to book your Ready Check so we can confirm the property details required to progress your quote.",
-} as const;
-
-export const CUSTOMER_INELIGIBLE_COPY = {
-  heading: "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE",
-  intro: "Based on the information we have, this is because:",
-  reviewHeading: "IS SOMETHING NOT RIGHT?",
-  review: "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.",
-  cta: "REVIEW MY RESULT →",
-} as const;
-
-
-/** Onsite-outcome hero: one heading, one subheading, dynamic reasons. */
-export const CUSTOMER_ONSITE_HERO = {
-  heading: "IT'S LOOKING GOOD SO FAR",
-  subheading: (count: number) => (count === 1 ? "WE JUST NEED TO CHECK ONE THING ONSITE:" : "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:"),
-  transition: "While these items still need to be checked, the preliminary estimate below shows what the project may cost based on the information currently available.",
-} as const;
-
 export const CUSTOMER_READY_CHECK_PAGE = {
   eyebrow: "NEXT STEP",
   heading: "BOOK YOUR READY CHECK",
