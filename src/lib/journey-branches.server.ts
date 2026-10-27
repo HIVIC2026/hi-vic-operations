@@ -426,6 +426,8 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const cap = new Date().toISOString();
       const media = (n: string) => ({ media_id: sim.simMediaId(`${ctx.runId}-a4-${n}`), captured_at: cap, date_created: cap, location: { ...sim.JOURNEY_SITE } });
       const Q = fd.FIXES_DAY_Q;
+      // Booking made the form through the product's persistent TEST simulator; hold the same id here so it is filled and read back in-run.
+      if (fixesAuditId && !mitti.audits.has(fixesAuditId) && tpl.fixes) mitti.seed(fixesAuditId, tpl.fixes);
       mitti.fill(fixesAuditId!, [
         { item_id: "a", label: Q.done, type: "question", responses: { selected: [{ label: "Yes" }] } },
         { item_id: "b", label: Q.coesNumber, type: "textsingle", responses: { text: "TEST-COES-0001" } },
