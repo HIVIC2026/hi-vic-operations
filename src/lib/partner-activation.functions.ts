@@ -75,7 +75,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     const { loadProfileInputs, applyPartnerProfile, queueApprovalMessage } = await import("./partner-profile.server");
     const { buildPartnerProfile } = await import("./partner-profile.core");
     const inputs = await loadProfileInputs(admin, app.id);
-    const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities);
+    const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities, inputs.credentialChecks);
     // TEST partners keep their fake 12-digit ABN so a real business with the typed ABN is never matched to them.
     if (isTest) profile.business.abn = (plan as { abn: string | null }).abn;
     await applyPartnerProfile(admin, r.business_id, profile, context.userId);

@@ -82,6 +82,13 @@ export function activationBlockers(type: PartnerType, data: RecData | InstData, 
   if (!signedAt) blockers.push("The agreement has not been signed.");
   if (type === "rec" ? !ACTIVATABLE_REC_VERSIONS.includes(agreementVersion ?? "") : !ACTIVATABLE_INSTALLER_VERSIONS.includes(agreementVersion ?? "")) blockers.push(`Agreement ${type === "rec" ? REC_AGREEMENT_VERSION : INSTALLER_AGREEMENT_VERSION} must be accepted before activation.`);
   if (!validCalendarDate(data.public_liability_expiry) || (data.public_liability_expiry as string) < melbourneToday(now)) blockers.push("Public liability insurance is expired or missing.");
+  // Jo 27 Oct 2026 (decision 415): a missing or expired electrical licence blocks an electrician/REC approval, like insurance.
+  if (type === "rec") {
+    const rec = data as RecData;
+    if (!(rec.licence_number ?? "").trim()) blockers.push("Electrical licence number is missing.");
+    if (!validCalendarDate(rec.licence_expiry)) blockers.push("Electrical licence expiry is missing.");
+    else if ((rec.licence_expiry as string) < melbourneToday(now)) blockers.push(`Electrical licence expired on ${rec.licence_expiry}.`);
+  }
   return blockers;
 }
 

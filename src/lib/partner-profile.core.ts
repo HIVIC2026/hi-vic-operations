@@ -21,7 +21,8 @@ export function normaliseMobile(v: unknown): string | null {
   return raw;
 }
 
-export type Credential = { kind: string; label: string; number: string | null; expires_at: string | null; issuer: string | null; has_file: boolean; verified: boolean; holder?: string | null; issued_at?: string | null; file_url?: string | null };
+/** `has_file` / `verified` are null when nothing records them (no upload field, no office check): the card then says nothing rather than "no". */
+export type Credential = { kind: string; label: string; number: string | null; expires_at: string | null; issuer: string | null; has_file: boolean | null; verified: boolean | null; holder?: string | null; issued_at?: string | null; file_url?: string | null };
 export type PartnerProfile = {
   business: { legal_name: string | null; trading_name: string | null; abn: string | null; type: ProfileType; address: string | null; base_suburb: string | null; email: string | null; phone: string | null; gst_registered: boolean | null };
   signer: { name: string | null; position: string | null; mobile: string | null; email: string | null };
@@ -43,8 +44,11 @@ export type AppMeta = {
 
 /** Office CII checks keyed by lower-case worker email. */
 export type CiiCheck = { status: string; expires_on?: string | null };
+/** Office verification of the approved business's REC / ESV licence credential (`business_credentials.verification`), when one exists. */
+export type ElectricianCredentialChecks = Partial<Record<"rec_registration" | "esv_licence", string | null>>;
+const officeVerified = (v: string | null | undefined) => (v === "verified" ? true : null);
 
-export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, CiiCheck> = new Map(), existingCapabilities: string[] = []): PartnerProfile {
+export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, CiiCheck> = new Map(), existingCapabilities: string[] = [], credentialChecks: ElectricianCredentialChecks = {}): PartnerProfile {
   const installer = app.partner_type === "installer";
   const caps = new Set([...existingCapabilities, installer ? "installer" : "electrician"]);
   const type: ProfileType = caps.has("installer") && caps.has("electrician") ? "both" : installer ? "installer" : "electrician";
@@ -66,8 +70,8 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
           issuer: txt(w["cii_issuer"]), expires_at: check?.expires_on ?? txt(w["cii_expiry"]), issued_at: txt(w["cii_issue_date"]), has_file: false, verified: check?.status === "verified" };
       })
     : [
-        { kind: "rec_registration", label: "REC number", number: txt(data["rec_registration_number"]) ?? txt(data["host_rec_number"]), issuer: "Energy Safe Victoria", expires_at: null, has_file: false, verified: false },
-        { kind: "esv_licence", label: "ESV electrical licence", holder: txt(data["primary_contact_name"]), number: txt(data["licence_number"]), issuer: "Energy Safe Victoria", expires_at: txt(data["licence_expiry"]) ?? txt(((data["electricians"] as Data[] | undefined)?.[0] ?? {})["licence_expiry"]), has_file: false, verified: false },
+        { kind: "rec_registration", label: "REC number", number: txt(data["rec_registration_number"]) ?? txt(data["host_rec_number"]), issuer: "Energy Safe Victoria", expires_at: null, has_file: null, verified: officeVerified(credentialChecks.rec_registration) },
+        { kind: "esv_licence", label: "ESV electrical licence", holder: txt(data["primary_contact_name"]), number: txt(data["licence_number"]), issuer: "Energy Safe Victoria", expires_at: txt(data["licence_expiry"]) ?? txt(((data["electricians"] as Data[] | undefined)?.[0] ?? {})["licence_expiry"]), has_file: null, verified: officeVerified(credentialChecks.esv_licence) },
       ];
   if (installer) {
     const files = (data["piisa_files"] ?? {}) as Record<string, string>;
