@@ -82,6 +82,16 @@ export function piesaCostExFor(i: { ownerDirect: boolean; paidOutInc: number | n
   return inc == null || !Number.isFinite(Number(inc)) ? null : r2(Number(inc) / (1 + (i.gstRate ?? 0.1)));
 }
 
+/** Installer pay ex GST: a recorded payout/offer, else the quote's agreed cost, else (installer's own jobs only) the price
+ *  the business owner entered in the portal — that price is what we pay them (Jo 27 Oct 2026, HV-3385). */
+export function installerPayExFor(i: { recordedInc: number | null | undefined; quoteCostEx: number | null | undefined; portalPriceInc: number | null | undefined; installerSourced: boolean; gstRate?: number }): number | null {
+  const g = 1 + (i.gstRate ?? 0.1);
+  if (i.recordedInc != null && Number.isFinite(Number(i.recordedInc))) return r2(Number(i.recordedInc) / g);
+  if (i.quoteCostEx != null && Number(i.quoteCostEx) > 0) return r2(Number(i.quoteCostEx));
+  if (i.installerSourced && i.portalPriceInc != null && Number(i.portalPriceInc) > 0) return r2(Number(i.portalPriceInc) / g);
+  return null;
+}
+
 /** VEEC value we receive: the lodged quantity at the sale price once sold; otherwise the quote's VEEC count at today's spot price. */
 export function veecValueReceived(f: { lodgedQty: number | null; salePrice: number | null; quoteCount: number | null; spotPrice: number | null }): { value: number | null; basis: "sold" | "lodged at today's price" | "quote at today's price" | "unknown" } {
   if (f.lodgedQty != null && f.salePrice != null) return { value: r2(f.lodgedQty * f.salePrice), basis: "sold" };
