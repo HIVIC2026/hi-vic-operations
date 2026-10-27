@@ -64,14 +64,16 @@ beforeEach(() => { choiceEvent = null; usualCfg = null; elecBiz = null; jobChann
 
 test("A3 price + included → ONE 'Electrical repair work' line at electrician price + margin; cost = price ex GST", async () => {
   snapshot = a4("$1,100.00", "Replace 6 downlights with IC-4 LEDs, install 1 RCD");
-  expect(await generateRectificationQuote("job", "actor")).toBe("new-quote");
+  // Four safeguards (Jo 27 Oct): the quote id is a content-based stable key, not the database default.
+  const qid = await generateRectificationQuote("job", "actor");
+  expect(qid).toMatch(/^[0-9a-f-]{36}$/);
   const [quote] = of("quotes");
   expect(quote).toMatchObject({ kind: "rectification", status: "draft", rate_card_id: "card-1", subtotal_inc_gst: 1100 + RECTIFICATION_MARGIN_INC_GST, customer_total_inc_gst: 1100 + RECTIFICATION_MARGIN_INC_GST, veec_discount_inc_gst: 0 });
   const [items] = of("quote_items");
   expect(items).toHaveLength(1);
-  expect(items[0]).toMatchObject({ quote_id: "new-quote", description: "Electrical repair work", explanation: "Replace 6 downlights with IC-4 LEDs, install 1 RCD", quantity: 1, line_total_inc_gst: 1200 });
+  expect(items[0]).toMatchObject({ quote_id: qid, description: "Electrical repair work", explanation: "Replace 6 downlights with IC-4 LEDs, install 1 RCD", quantity: 1, line_total_inc_gst: 1200 });
   const [internals] = of("quote_internals");
-  expect(internals).toMatchObject({ quote_id: "new-quote", cost_ex_gst: 1000, calc_snapshot: { pricing_source: "a4_piesa_electrician_total", electrician_price_inc_gst: 1100, rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST } });
+  expect(internals).toMatchObject({ quote_id: qid, cost_ex_gst: 1000, calc_snapshot: { pricing_source: "a4_piesa_electrician_total", electrician_price_inc_gst: 1100, rectification_margin_inc_gst: RECTIFICATION_MARGIN_INC_GST } });
   // Release rules unchanged: still a held draft for office review, nothing released even with every switch on.
   const release = updates.find((u) => u.table === "quotes" && "release_state" in u.patch)!.patch;
   expect(release).toMatchObject({ status: "draft", release_state: "held", sent_at: null, release_hold_reason: "Waiting for office review before sending" });
