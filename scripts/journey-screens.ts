@@ -82,11 +82,9 @@ const STEPS: Step[] = [
   { step: "Save my spot", person: "homeowner", path: () => `/estimate/${ctx!.token}/campaign`, wait: "Save my spot", button: "Save my spot", severity: "Stop launch", next: "spot",
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
-  { step: "Office release", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Release", severity: "Stop launch", next: "Next",
-    expect: async () => { const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx!.jobId!).ilike("event_type", "%release%"); return count ? null : "no release event"; } },
-  { step: "Office chooses installer", person: "office", path: () => "/admin/jobs/choose-installer", wait: "installer", button: "Send", severity: "Stop launch", next: "installer",
-    expect: async () => (offer = await offerId()) ? null : "no offer created" },
-  { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept", severity: "Stop launch", next: "Ready Check",
+  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", severity: "Stop launch", next: "Choose installer",
+    expect: async () => (offer = await offerId()) ? null : "no installer offer created" },
+  { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
   { step: "Ready Check completion", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", severity: "Fix soon", next: "Mitti", expect: stageIs("ready_check_complete", "measured_estimate_ready", "quote_sent") },
@@ -123,15 +121,17 @@ async def main():
         res["next"] = bool(re.search(re.escape(cfg["next"]), text, re.I))
         res["leaks"] = [m for m in cfg.get("mustNot", []) if m and m.lower() in text.lower()]
         res["clicked"] = None
-        if cfg.get("button"):
-            btn = page.get_by_role("button", name=re.compile(re.escape(cfg["button"]), re.I))
-            if await btn.count():
-                await btn.first.click(); res["clicked"] = True
-                try: await page.wait_for_load_state("networkidle", timeout=15000)
-                except Exception: pass
-                await page.wait_for_timeout(1500)
-                s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
-            else: res["clicked"] = False
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
+            rx = re.compile(re.escape(name), re.I); btn = page.get_by_role("button", name=rx)
+            try: await btn.or_(page.get_by_role("link", name=rx)).first.wait_for(state="visible", timeout=15000)
+            except Exception: pass
+            btn = btn.or_(page.get_by_role("link", name=rx))
+            if not await btn.count(): res["clicked"] = False; res["missing"] = name; break
+            await btn.first.click(); res["clicked"] = True
+            try: await page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception: pass
+            await page.wait_for_timeout(2000)
+            s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
         await b.close()
     Path(cfg["result"]).write_text(json.dumps(res))
 asyncio.run(main())
@@ -168,9 +168,9 @@ if (!ctx?.jobId || !safe) {
     if (broken || !path) { add({ step: s.step, person: s.person, status: "blocked", detail: broken ? "An earlier step did not reach its expected result." : "Prerequisite record missing (no offer)." }); n++; continue; }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, person: s.person, next: s.next });
     const st = await jobState();
-    const why = !r ? "browser step crashed" : !r.loaded ? `page content "${s.wait}" never appeared (${r.url})` : r.clicked === false ? `no "${s.button}" button on ${r.url}` : s.expect ? await s.expect() : null;
+    const why = !r ? "browser step crashed" : !r.loaded ? `page content "${s.wait}" never appeared (${r.url})` : r.clicked === false ? `no "${(r as { missing?: string }).missing ?? s.button}" button/link on the page (${r.url})` : s.expect ? await s.expect() : null;
     const leaks = await otherHomes(n, s.person);
-    add({ step: s.step, person: s.person, status: why ? "fail" : "pass", severity: why ? s.severity : null, detail: why ?? `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
+    add({ step: s.step, person: s.person, status: why ? "fail" : "pass", severity: why ? s.severity : null, detail: why ?? `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
     n++;
