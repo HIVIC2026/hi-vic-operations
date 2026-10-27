@@ -19,6 +19,8 @@ export type JobMarginInput = {
   installerPayEx: number | null;
   /** Electrician PIESA cost, ex GST. 0 when the installer's own electrician bills the owner directly. null = rate not agreed. */
   piesaCostEx: number | null;
+  /** false = no electrician assigned or accepted yet, so a missing PIESA cost says that (not "rate not agreed"). Default true. */
+  electricianChosen?: boolean;
   /** Electrician fixes cost, ex GST (accepted fixes quote's cost). 0 when there are no fixes. */
   fixesCostEx: number;
   /** VEEC value we receive ($). null = not worked out yet. */
@@ -51,7 +53,7 @@ export function jobMargin(i: JobMarginInput): JobMargin {
   const missing: string[] = [];
   if (i.ownerPriceInc == null || !(i.ownerPriceInc > 0)) missing.push("No accepted quote yet");
   if (i.installerPayEx == null) missing.push("Installer pay not recorded on the quote");
-  if (i.piesaCostEx == null) missing.push("Electrician PIESA rate not agreed");
+  if (i.piesaCostEx == null) missing.push(i.electricianChosen === false ? "No electrician chosen yet" : "Electrician PIESA rate not agreed");
   if (i.veecValue == null) missing.push("VEEC value not worked out (no VEEC count)");
   const priceInc = i.ownerPriceInc != null && i.ownerPriceInc > 0 ? r2(i.ownerPriceInc) : null;
   const priceEx = priceInc != null ? r2(priceInc / gst) : null;
@@ -70,6 +72,14 @@ export function jobMargin(i: JobMarginInput): JobMargin {
     { key: "veec_incentive", label: "VEEC incentive given to the owner", amount: -r2(Math.max(0, i.veecIncentive)) },
   ];
   return { known, missing, priceInc, priceEx, installerPay: i.installerPayEx != null ? r2(i.installerPayEx) : null, electrician, veecNet, margin, pct, lines };
+}
+
+/** Electrician PIESA cost ex GST for one job: 0 when the owner pays the electrician directly; else the recorded payout,
+ *  else the accepted PIESA offer's rate, else the chosen electrician's rate card PIESA rate; null when none is known. */
+export function piesaCostExFor(i: { ownerDirect: boolean; paidOutInc: number | null; offerRateInc: number | null; rateCardInc: number | null; gstRate?: number }): number | null {
+  if (i.ownerDirect) return 0;
+  const inc = i.paidOutInc ?? i.offerRateInc ?? i.rateCardInc;
+  return inc == null || !Number.isFinite(Number(inc)) ? null : r2(Number(inc) / (1 + (i.gstRate ?? 0.1)));
 }
 
 /** VEEC value we receive: the lodged quantity at the sale price once sold; otherwise the quote's VEEC count at today's spot price. */

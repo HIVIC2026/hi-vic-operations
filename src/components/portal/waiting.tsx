@@ -5,6 +5,7 @@ import { AlarmClock, ArrowRight, CalendarClock, FileText, MessageSquare, Wallet,
 import { Button } from "@/components/ui/button";
 import { getJobWaiting } from "@/lib/waiting.functions";
 import { useJobFile } from "@/components/portal/jobfile";
+import { timelineText } from "@/lib/jobfile.core";
 import type { AdminTab } from "@/lib/waiting.core";
 
 /** Party colours, shared by the "With" badge and timeline role chips. */
@@ -62,11 +63,11 @@ const iconFor = (t: { source: string; tags: string[] }) => t.source === "message
 
 /** What happened, when, by whom – newest first, plain language. */
 export function ClearTimeline({ jobId, initial = 8, admin = false }: { jobId: string; initial?: number; admin?: boolean }) {
-  const { data, error } = useJobFile(jobId);
+  const { data, error, refetch } = useJobFile(jobId);
   const [f, setF] = useState("all");
   const [all, setAll] = useState(false);
   const [auto, setAuto] = useState(false);
-  if (error) return <p className="text-sm text-danger">Couldn't load the timeline.</p>;
+  if (error && !data) return <p role="alert" className="text-sm text-danger">Couldn't load the timeline. <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Try again</button></p>;
   const items = [...(data?.timeline ?? [])].filter((t) => (KIND.find((x) => x.k === f) ?? KIND[0]!).match(t)).filter((t) => auto || !(t.internal && (t.actorRole ?? "System") === "System")).reverse();
   const shown = all ? items : items.slice(0, initial);
   return (
@@ -77,7 +78,7 @@ export function ClearTimeline({ jobId, initial = 8, admin = false }: { jobId: st
       </div>
       {!data ? <p className="text-sm text-muted-foreground">Loading…</p> : shown.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded yet.</p> : (
         <ol className="relative ml-3 border-l-2 border-border">
-          {shown.map((t) => { const Icon = iconFor(t); const note = t.detail && typeof t.detail === "object" && "note" in t.detail ? String((t.detail as Record<string, unknown>)["note"] ?? "") : t.detail && typeof t.detail === "object" && "body" in t.detail ? String((t.detail as Record<string, unknown>)["body"] ?? "") : "";
+          {shown.map((t) => { const Icon = iconFor(t); const { line, quote } = timelineText(t);
             return (
               <li key={t.id} className="relative mb-3 pl-5">
                 <span className={`absolute -left-[13px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-card ${chip(t.actorRole)}`}><Icon className="h-3.5 w-3.5" /></span>
@@ -87,8 +88,8 @@ export function ClearTimeline({ jobId, initial = 8, admin = false }: { jobId: st
                   <span className="text-xs text-muted-foreground">{t.actor}</span>
                   {t.internal && admin && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase">Internal</span>}
                 </div>
-                <div className="text-sm font-medium">{t.summary}</div>
-                {note && note !== t.summary && <blockquote className="mt-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm italic">“{note.slice(0, 400)}”</blockquote>}
+                <div className="whitespace-pre-wrap text-sm font-medium">{line}</div>
+                {quote && <blockquote className="mt-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm italic">“{quote.slice(0, 400)}”</blockquote>}
               </li>
             ); })}
         </ol>
