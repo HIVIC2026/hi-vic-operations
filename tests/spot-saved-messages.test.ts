@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderSpotSavedEmail, renderSpotSavedSms, addressBits } from "../src/lib/spot-saved-messages.core";
+import { friendShareHref, friendShareBody } from "../src/lib/email-kit.core";
 const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress: "12 Smith St, Ballarat", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/abc", optOutUrl: "https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=x" };
 describe("spot saved confirmations", () => {
   test("text wording", () => {
@@ -24,7 +25,7 @@ describe("spot saved confirmations", () => {
   test("referral card (Jo, 7 Oct): email + plain text when referralUrl present, absent without it, text message unchanged", () => {
     const ref = "https://homeinsulationvictoria.com.au/homeowner?ref=" + "R".repeat(43);
     const e = renderSpotSavedEmail({ ...i, referralUrl: ref });
-    for (const t of ["Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", "Send to a friend &rarr;", `href="${ref}"`]) expect(e.html).toContain(t);
+    for (const t of ["Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", "Send to a friend &rarr;", "href=\"mailto:?subject=Free%20ceiling%20insulation%20check&amp;body=", encodeURIComponent(ref)]) expect(e.html).toContain(t);
     for (const t of ["HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${ref}`]) expect(e.text).toContain(t);
     const without = renderSpotSavedEmail(i);
     expect(without.html).not.toContain("Have a friend who needs a spot saved?");
@@ -42,5 +43,16 @@ describe("address never repeats", () => {
     expect(ab("20 Banksia Street, Frankston VIC 3199", "Frankston").short).toBe("20 Banksia Street, Frankston");
     expect(fullAddress("20 Banksia Street, Frankston VIC 3199", "Frankston", "3199")).toBe("20 Banksia Street, Frankston VIC 3199");
     expect(fullAddress("20 Banksia Street", "Frankston", "3199")).toBe("20 Banksia Street, Frankston VIC 3199");
+  });
+});
+
+describe("Send to a friend (Jo, 27 Oct)", () => {
+  test("opens a new email with the checker link written in, not the checker itself", () => {
+    const link = "https://estimate.homeinsulationvictoria.com.au/?ref=abc";
+    const href = friendShareHref(link);
+    expect(href.startsWith("mailto:?subject=")).toBe(true);
+    const body = decodeURIComponent(new URL(href).searchParams.get("body") ?? "");
+    expect(body).toContain(link);
+    expect(body).toBe(friendShareBody(link));
   });
 });

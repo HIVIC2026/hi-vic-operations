@@ -250,7 +250,7 @@ export function renderReviewRequestEmail(i: ReviewRequestInput) {
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Tap a star</mj-text><mj-table align="center" width="250px" padding="0 12px 16px"><tr>${stars}</tr></mj-table></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${esc(google)}</mj-text><mj-button href="${esc(i.googleReviewUrl)}">Leave a Google review</mj-button></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">${esc(friendTitle)}</mj-text><mj-text padding="0 18px 8px">${esc(friendBody)}</mj-text><mj-text padding="0 18px 16px"><a href="${esc(i.referralUrl)}" style="color:#3C51C4;font-weight:700;">Send to a friend &#8594;</a></mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">${esc(friendTitle)}</mj-text><mj-text padding="0 18px 8px">${esc(friendBody)}</mj-text><mj-text padding="0 18px 16px"><a href="${esc(K.friendShareHref(i.referralUrl))}" style="color:#3C51C4;font-weight:700;">Send to a friend &#8594;</a></mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });

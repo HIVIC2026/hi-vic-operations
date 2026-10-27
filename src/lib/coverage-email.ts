@@ -23,7 +23,7 @@ export function renderCoverageUnavailableEmail(input: { firstName?: string | nul
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${K.esc(headline)}</mj-text><mj-text>${K.esc(intro)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What happens now</mj-text><mj-table padding="0 18px 6px">${next.map((t, n) => { const pad = n === next.length - 1 ? 12 : 14; return `<tr><td width="34" valign="top" style="padding:2px 0 ${pad}px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 ${pad}px;">${K.esc(t)}</td></tr>`; }).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 2px">${K.esc(friend.title)}</mj-text><mj-text padding="0 18px 6px">${K.esc(friend.body)}</mj-text><mj-text padding="0 18px 16px"><a href="${K.esc(PUBLIC_CALCULATOR_URL)}" style="color:#3C51C4;font-weight:700;">Send to a friend &rarr;</a></mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 2px">${K.esc(friend.title)}</mj-text><mj-text padding="0 18px 6px">${K.esc(friend.body)}</mj-text><mj-text padding="0 18px 16px"><a href="${K.esc(K.friendShareHref(PUBLIC_CALCULATOR_URL))}" style="color:#3C51C4;font-weight:700;">Send to a friend &rarr;</a></mj-text></mj-column></mj-section>`,
   ].join("\n");
   const html = mjEmail({ subject, preview: previewText, body, unsubscribe: "slot" });
   const plainText = K.plainText([

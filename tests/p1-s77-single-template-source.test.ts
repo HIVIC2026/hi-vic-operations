@@ -64,9 +64,12 @@ describe("Part A — Jo template defects fixed", () => {
 
   test("T7 “Checking another property?” calculator opens the PUBLIC calculator; T1–T6 open the customer's own estimate", () => {
     const t7 = sent(ALL[6]![1]);
-    // Decision 73: the T7 "Send to a friend" card opens the PUBLIC eligibility checker (no customer data in the link).
+    // Decision 73: the T7 "Send to a friend" card shares the PUBLIC eligibility checker (no customer data in the link).
+    // Jo, 27 Oct: the button opens a new email to the friend with that link written in, not the checker itself.
     expect(t7.plainText).toContain(`Send to a friend: ${PUBLIC_CALCULATOR_URL}`);
-    expect(t7.html).toContain(`href="${PUBLIC_CALCULATOR_URL}"`);
+    expect(t7.html).toContain('href="mailto:?subject=Free%20ceiling%20insulation%20check&amp;body=');
+    expect(t7.html).toContain(encodeURIComponent(PUBLIC_CALCULATOR_URL));
+    expect(t7.html).not.toContain(`href="${PUBLIC_CALCULATOR_URL}"`);
     for (const [, o] of ALL.slice(0, 6)) {
       const m = sent(o);
       expect(m.plainText).toContain(`Try a different ceiling size: ${TOK}#calculator`);
