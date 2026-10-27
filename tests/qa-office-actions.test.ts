@@ -20,6 +20,9 @@ for (const [label, fn, extra] of [
  ["electrician Approve", office.approveElectricianForm, { kind: "assessment" }],
  ["payout Mark paid", office.markPayoutPaid, { kind: "assessment", reference: "TEST reference" }],
  ["Final check Approve", ap.approveApJob, {}],
+ ["Final check read", ap.getFinalCheck, {}],
+ ["release state read", release.getSpotRelease, {}],
+ ["choose trades read", offer.listChooseTrades, { kind: "ready_check" }],
  ["release", release.releaseSpotFn, { businessId: business }],
  ["send chosen offer", offer.sendChosenOffers, { kind: "ready_check", businessIds: [business] }],
 ] as const) test(`${label} refuses real job before any effect; admin retains original path`, async () => {

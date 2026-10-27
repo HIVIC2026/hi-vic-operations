@@ -1,4 +1,16 @@
-# TEST office A/B status — 27 Oct 2026
+# TEST office deny-by-default status — 27 Oct 2026
+
+## Current result (supersedes earlier A/B status below)
+- Exact route/function allowlists permit Needs me, Enquiries, Active Jobs, Choose installer, a TEST job page/Money card/notes, release/offer, Final check approval and payouts. Other office capabilities remain denied, not individually converted.
+- Authentication and persisted sole qa_office role, verified reserved-domain email, database job/business capability and independent graph checks precede privileged work. Lists use server-derived TEST IDs and avoid admin snapshots. Search is TEST-only.
+- Three PGlite-proven migrations applied: 0172 foundation, 0173 job graph, 0174 API/role/storage boundary. Live catalog confirms the pre-request boundary and zero public tables without RLS. Existing admin predicates/helpers remain unchanged.
+- Exactly one qa.office@hivic-test.example account exists with sole qa_office role; password is held in project secret QA_OFFICE_PASSWORD and never printed.
+- Read-only browser check at 390×844: Needs me, Enquiries, Active Jobs, Choose installer and Payouts loaded; three visible jobs are TEST jobs with reserved-domain owners. Five denied pages display the required refusal. Direct real job opens an access refusal; direct API returns zero real jobs and rejects settings, owner-context views and has_role RPC. No browser page errors.
+- Existing TEST job HV-3219 opened; Money and contact history read TEST facts. Private File/export and AI reply panels remain unavailable. Stage-specific nested panels outside the exact allowlist still refuse their functions; no mutation was exercised. Final-check evidence/private-file opening is not enabled.
+- Focused security and existing regressions pass; the complete historic portal suite was not run. No real customer/partner records were changed, no delivery/publishing/switch changes performed.
+- Phase 2 NOT STARTED: full multi-person browser runner still does not implement the journey; website-created TEST submission and serving-process no-send/simulated-Mitti/Demo proof are not established. No run job created or archived; TEST trade flags untouched.
+
+## Earlier A/B status (historical, no longer current)
 
 ## Completed in preview
 - Separate server job capability verifies the authenticated, confirmed TEST email and persisted sole qa_office role. Admin continues through requireAdmin; mixed qa_office/admin is refused.
