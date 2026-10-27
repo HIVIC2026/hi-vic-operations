@@ -287,6 +287,7 @@ if (!ctx?.jobId || !safe) {
 let archived: string[] = [];
 const { data: communications } = ctx?.jobId ? await admin.from("job_communications").select("subject,recipients,delivery_status,provider_message_id,source_event,source_reference,created_at").eq("job_id", ctx.jobId).eq("channel", "email").order("created_at") : { data: [] };
 const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
+if (ctx?.jobId) await admin.from("qa_owner_codes").delete().eq("job_id", ctx.jobId);
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 
