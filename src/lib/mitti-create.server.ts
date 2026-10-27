@@ -130,10 +130,10 @@ export async function onReadyCheckBooked(jobId: string, actorId: string | null, 
 /** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
  *  needed. Same switches, same atomic claim; a booking entered later (decision 116) finds the form and skips. */
 export async function onReadyCheckJobAdded(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
-  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: false });
+  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: false, immediate: true });
 }
 
-async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | null, call: MittiCall | undefined, opts: { requireBooking: boolean }): Promise<"scheduled" | "skipped"> {
+async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | null, call: MittiCall | undefined, opts: { requireBooking: boolean; immediate?: boolean }): Promise<"scheduled" | "skipped"> {
   const f = await readyCheckFormFacts(jobId);
   if (!f || (opts.requireBooking && !f.booked) || f.auditId || f.measurementComplete || !f.installerUserId) return "skipped";
   if (!f.mittiInvited || !f.templateSet || !f.autoSend || !f.gateADone) return "skipped";
@@ -143,6 +143,9 @@ async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | 
     const { data: p } = await admin.from("profiles").select("full_name").eq("id", f.installerUserId).maybeSingle();
     assignee = { userId: f.installerUserId, fullName: p?.full_name ?? null, email: TEST_MITTI_ASSIGNEE };
   }
-  await scheduleReadyCheckFormCreation(jobId, actorId, assignee, call);
+  // Add a job starts the same guarded create now, even without waitUntil. No delayed request retries;
+  // the existing tick remains the backup. Booking/retry paths retain their background behaviour.
+  if (opts.immediate) await runReadyCheckFormCreation(jobId, actorId, assignee, call, { delaysMs: [] });
+  else await scheduleReadyCheckFormCreation(jobId, actorId, assignee, call);
   return "scheduled";
 }

@@ -33,7 +33,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     const cur = view?.current?.record;
     if (!cur) return;
     setPrice(String(cur.price_inc_gst)); setIncluded(removalBlocked ? cur.included.filter((x) => x !== REMOVAL_OPTION) : cur.included); setOther(cur.included_other ?? "");
-  }, [view?.current?.setAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view?.current?.setAt, removalBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!view?.canSet) return null;
   const current = view.current?.record ?? null;
   const lines = current ? priceCardLines(current) : null;
@@ -48,13 +48,15 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     <div id={PRICE_CARD_ANCHOR} data-installer-price className="mt-1.5 scroll-mt-4 border-t border-line pt-1.5">
       <p className="text-[13px] font-bold uppercase tracking-[1.1px] text-hiv-blue">Your price</p>
       {/* Jo 27 Oct 2026: the Ready Check details above the price box — same source the quote uses; missing = "Not on the Ready Check yet". */}
+      <Row label="Address" value={view.readyCheck.address} />
       <Row label="Install m²" value={view.readyCheck.install} />
       <Row label="Removal m²" value={view.readyCheck.removal} />
       <Row label="Access" value={view.readyCheck.access} />
-      <Row label="Electrical safety check" value={view.electrician} last={!lines || showForm} />
+      <Row label="Insulation product" value={view.readyCheck.product} />
+      <Row label="Electrician" value={view.electrician} last={!lines || showForm} />
       {lines && !showForm && (
         <>
-          <Row label="Price" value={lines.price} tone="bold" />
+          <div className="border-b border-line py-3"><p className="text-[15px] text-sub">Your price to the owner (inc GST)</p><p className="text-lg font-semibold">{lines.price}</p></div>
           <Row label="Includes" value={lines.included} last />
           <LinkRow onClick={() => setEditing(true)}>Change your price</LinkRow>
         </>
@@ -67,7 +69,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             <legend className="text-sm font-medium">What's included</legend>
             {PRICE_INCLUDED_OPTIONS.map((o) => (
               <Fragment key={o}>
-                <label className="flex min-h-10 items-center gap-2.5 text-[15px]"><input type="checkbox" checked={included.includes(o)} onChange={() => toggle(o)} />{o}</label>
+                <label className="flex min-h-12 items-center gap-2.5 text-[15px]"><input type="checkbox" checked={o === REMOVAL_OPTION && removalBlocked ? false : included.includes(o)} aria-disabled={o === REMOVAL_OPTION && removalBlocked} onChange={() => toggle(o)} />{o}</label>
                 {o === REMOVAL_OPTION && removalBlocked && removalNote && <p data-removal-note className="pb-1 pl-7 text-sm text-rose">{PRICE_ISSUES.noRemoval}</p>}
               </Fragment>
             ))}
