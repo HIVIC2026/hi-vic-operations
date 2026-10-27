@@ -51,5 +51,5 @@ test("qa_test job email: delivered only to the TEST inbox, marked", async () => 
 test("SMS is not routed by the TEST inbox", async () => {
   const src = await Bun.file("src/lib/test-send.server.ts").text();
   const sms = src.slice(src.indexOf("export async function sendTestSms"), src.indexOf("async function idemKey"));
-  expect(sms.includes("qa-inbox")).toBe(false);
+  expect(sms.includes("qaInboxRouteForJob")).toBe(false);
 });

@@ -17,6 +17,10 @@ export const getMittiFormLink = createServerFn({ method: "POST" }).middleware([r
     if (!jobId) throw new Error("This Mitti form isn't linked to a job.");
     const { data: ok, error } = await (context.supabase as unknown as Rpc).rpc("can_access_job", { _job: jobId });
     if (error || !ok) throw new Error("Not your job.");
+    if (data.auditId.startsWith("sim_")) {
+      await (await import("./mitti-practice.server")).practiceForm(context.userId, jobId, data.auditId);
+      return { url: `/field/practice/${jobId}/${encodeURIComponent(data.auditId)}`, deep: false as const };
+    }
     const { mittiFormUrl, deepLinkFromResponse } = await import("./mitti-link.core");
     try {
       const { mittiApi } = await import("./mitti.core");
