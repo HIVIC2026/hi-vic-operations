@@ -3,7 +3,7 @@
 // about price) never renders for staff. Decision 289: the electrician was chosen once at Add a job and is shown read-only
 // here — never asked again. Decision 290 (corrected): the Ready Check's access rating and issue notes show as the flag;
 // the boss prices any difficult access themselves. The boss's text (decision 288) deep-links to `#price`.
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Input } from "@/components/ui/input";
