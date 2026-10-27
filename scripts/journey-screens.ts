@@ -219,6 +219,10 @@ async def main():
                 handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
                 candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
                 el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "practice:":
+                answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
+                for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
+                el, how = page.get_by_role("button", name="Complete", exact=True), "TEST Complete button"
             else:
                 el, how = await find(name, scope)
             label = (name if name not in ("tick:", "time:") else ("own acknowledgement tick" if name == "tick:" else "an offered Ready Check time")) + (f" (in {scope})" if scope else "")
@@ -287,8 +291,17 @@ if (!ctx?.jobId || !safe) {
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
     if (!why && s.button === "prestart:") {
-      add({ step: "Ready Check completion", person: "runner", status: "runner_error", detail: "The installer reached the Mitti handoff. The runner has no simulated form-answer/Complete interaction yet; loading an unfinished form is not a portal failure. Later page inspections continue without inventing completion." });
-      broken = true;
+      const { data: m } = await admin.from("ceiling_measurements").select("external_id").eq("job_id", ctx.jobId).eq("is_current", true).eq("external_source", "mitti").maybeSingle();
+      const auditId = m?.external_id;
+      if (!auditId?.startsWith("sim_")) { add({ step: "Ready Check completion", person: "runner", status: "blocked", detail: "No job-bound simulated Ready Check exists." }); broken = true; }
+      else {
+        const form = await browse({ n: ++n, slug: "simulated-ready-check-complete", path: `/field/practice/${ctx.jobId}/${auditId}`, wait: "TEST Ready Check", person: "installer owner", next: "Complete", button: "practice:" });
+        const st = await jobState();
+        const { data: saved } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("mitti_sim_audits").select("completed").eq("id", auditId).single();
+        const completed = saved?.completed === true;
+        add({ step: "Ready Check completion", person: "installer owner", status: completed ? "pass" : "fail", detail: completed ? `Filled the TEST form and pressed Complete; normal Mitti pull ran; stage=${st.stage}.` : `TEST form not completed: ${form?.missing ?? form?.runner_error ?? "page interaction failed"}`, screenshot: form?.shots ?? [], stage: st.stage });
+        if (!completed) broken = true;
+      }
     }
     n++;
   }
