@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 09:07 TEST email inbox proof
+- [ ] Redirect qa_test customer/trade/office email to Jo's allowlisted inbox with the original-recipient marker; preserve real recipients/guards, keep SMS stopped and Mitti simulated.
+- [ ] Add routing/real-job regression tests, report unchanged blocking switches, and rerun the on-screen walkthrough once; list actual expected email sequence or report unreached steps honestly.
 ## Jo 27 Oct 08:58 browser walkthrough
 - [x] Ran safeguard preflight once: running enquiry endpoint reached, but signed TEST-pass path/credential absent in current code. 0 pass/1 fail/17 blocked; dependent message/Mitti/Demo probes not attempted. Five focused tests pass. No job created/archived or flags changed. Report journey/2026-10-27T09-00-40-screens/report.md in Files.
 - [ ] Full browser-first multi-person runner remains unimplemented and BLOCKED by failed signed TEST intake safeguard; serving-process no-send/job-Mitti/Demo probes depend on that run-owned TEST job. No unsafe substitute, provider actions, switch changes or publication.
