@@ -166,7 +166,7 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -178,7 +178,8 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
+  // Jo 28 Oct: a repeat PIESA after a lapsed window goes to electricians again; the first check's electrician does not block it.
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
@@ -190,7 +191,9 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     }
   }
   if (!opts.adding && !(await claimRecOfferBatch(jobId, kind))) throw new WorkflowError("Offers are already being prepared for this job. Refresh in a moment.");
-  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness, opts.auto);
+  // Jo 28 Oct: a repeat PIESA is a fresh round — offers from the first check don't count against it.
+  const repeatSince = opts.repeat ? (await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "repeat_piesa_payer_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.created_at : undefined;
+  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness, opts.auto, repeatSince ?? undefined);
   // Offers started: move the accepted-quote job to the PIESA stage so electricians can accept a time.
   if (kind === "piesa" && res.offered > 0) {
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
@@ -221,7 +224,7 @@ export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
 export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean };
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta): Promise<OfferBatchResult> {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
   const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
@@ -261,7 +264,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   }
   // Owner-picked times: a fresh round (owner gave more times) re-offers to every approved electrician.
   const win = kind === "piesa" ? await currentWindowRound(jobId) : null;
-  const priorInRound = (prior ?? []).filter((o) => !win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart);
+  const priorInRound = (prior ?? []).filter((o) => (!win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart) && (!repeatSince || ((o as { offered_at?: string }).offered_at ?? "") >= repeatSince));
   const offered = new Set(priorInRound.map((o) => o.business_id));
   const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });

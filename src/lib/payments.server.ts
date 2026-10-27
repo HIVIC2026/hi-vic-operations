@@ -172,7 +172,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const provisional = provisionalBookingDecision({ bookedAt, now: now.toISOString(), depositCleared: isStepCleared(steps, "install_deposit"), gateEnabled, hasInvoice: true, installStart });
   // Decision 144: card = Stripe Checkout, only for the $349 / fixes, only when the key + switch allow it for this job's mode.
   const { stripeBlocker } = await import("./stripe.core");
-  const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: process.env["STRIPE_SECRET_KEY"], jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
+  const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: (await import("./stripe.server")).stripeKeyFor(job?.source ?? null), jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
   return {
     invoiceId: inv.id, plan, steps, paidCents, due, reference, bank, onlineInvoiceUrl: inv.xero_online_url ?? null, jobSource: job?.source ?? null, safetyCheckSource: safety.source,
     stripe: { available: stripeBlock === null, blocker: stripeBlock },

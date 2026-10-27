@@ -10,6 +10,7 @@ import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
@@ -155,9 +156,31 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (!x.spotSaved && !x.offerLapsed && st && ["enquiry.spot_saved", "enquiry.spot_saved_video"].includes(st.key)) x.spotSaved = { at: j.facts.campaign?.spotSavedAt ?? st.since };
     if (!x.electricianToChoose && !x.offerLapsed && st?.key === "quote.paid") x.electricianToChoose = { at: st.since, usual: null };
     if (st?.key === "safety.fix_held") x.fixesQuoteToCheck = { at: st.since, reason: st.detail };
+    // Jo 28 Oct: a PIESA that found fixes tells the office once; leaves these stages when the fixes are done and Section C signed.
+    if (FIXES_PAUSED_STAGES.has(j.stage)) x.fixesFound = { at: st?.since ?? j.facts.lastActivityAt ?? j.facts.createdAt, stage: j.stage };
     if (st?.key === "signoff.ap") x.finalCheck = { at: st.since, flags: 0 };
     // 30-day window lapsed with no install (decision 1/2): watch.
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
+  }
+  // Jo 28 Oct: a current failed PIESA (fixes found) with no Section C pass yet also tells the office (stage may be piesa_complete).
+  if (ids.length) {
+    const cur = await byIds("current PIESA outcomes", ids, (chunk, a, b) => admin.from("piesa_records").select("job_id, kind, outcome, created_at").in("job_id", chunk).eq("is_current", true).range(a, b));
+    for (const r of cur) {
+      const x = f(String(r["job_id"])); const j = jobById.get(String(r["job_id"]));
+      if (x && j && !x.fixesFound && r["outcome"] === "fail" && r["kind"] !== "post_rectification" && !j.facts.installedAt) x.fixesFound = { at: String(r["created_at"]), stage: j.stage };
+    }
+  }
+  // Jo 28 Oct (decision 158, OFFICE CHOOSES): a lapsed window with no office payer choice for that deadline → one Today row.
+  const lapsedIds = [...facts.values()].filter((x) => x.lapsedWindow).map((x) => x.jobId);
+  if (lapsedIds.length) {
+    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired"]).range(a, b));
+    for (const id of lapsedIds) {
+      const x = f(id)!; const dl = x.lapsedWindow!.deadline;
+      const mine = ev.filter((e) => String(e["job_id"]) === id && String((e["details"] as { deadline?: string } | null)?.deadline) === dl);
+      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) continue;
+      const sp = String((mine.find((e) => e["event_type"] === "install_window_expired")?.["details"] as { payer?: string } | null)?.payer ?? "");
+      x.repeatPiesaChoice = { deadline: dl, suggested: sp && sp !== "undetermined" ? sp : null };
+    }
   }
 
   // Wave 2: follow-up reads keyed by what wave 1 found, all at once.

@@ -197,7 +197,11 @@ export async function piesaRequestFacts(jobId: string) {
     currentApprovedQuote(jobId), paymentGate(jobId),
     installerIntakeQualified(jobId).catch(() => false), // fails closed
   ]);
-  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake };
+  // Jo 28 Oct: a lapsed window's repeat PIESA waits for the office choice, the owner's acceptance and (owner pays) payment.
+  const { repeatPiesaGateBlocker } = await import("./repeat-piesa.core");
+  const repeat = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).catch(() => null);
+  const repeatBlocker = repeat ? repeatPiesaGateBlocker(repeat.state) : "Couldn't read the repeat safety check state.";
+  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake, repeatBlocker };
 }
 
 /** The one Ready Check entry blocker that depends on the booking row itself (confirmBooking pre-checks everything else). */

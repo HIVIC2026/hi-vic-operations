@@ -488,7 +488,7 @@ const s7: StepFn = async (ctx, r) => {
     check(r, "PIESA copies not held for another reason", !sent.hold, sent.hold ?? "");
     for (const to of ["owner", "installer"] as const) {
       if (sent.sent.includes(to)) continue;
-      check(r, `PIESA copy to the ${to} held only because the TEST address is not on the allowlist`, /not on the test allowlist/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
+      check(r, `PIESA copy to the ${to} held only by a TEST hold (allowlist or this run's no-delivery marker)`, /not on the test allowlist|TEST browser run: no delivery/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
       (r.simulated ??= []).push(`Signed PIESA copy email to the TEST ${to} (held by the TEST sender; recorded as delivered for this TEST job)`);
       await act(r, `signed PIESA copy recorded as delivered to the ${to} (simulated email)`, () => recordTestPiesaCopy(ctx, to, pd.recordDelivery));
     }
