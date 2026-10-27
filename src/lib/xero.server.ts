@@ -10,6 +10,7 @@ import {
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 import { XERO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 import type { XeroPaymentInput } from "./payments.core";
+import { xeroPaymentsListComplete } from "./payments.core";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 
@@ -75,6 +76,22 @@ export async function recordDemoTestPayment(invoiceId: string, amount: number, a
   if (!bank) throw new Error("Demo Company has no bank account to record the payment against.");
   await call("/api.xro/2.0/Payments", { method: "PUT", body: { Invoice: { InvoiceID: inv.xero_invoice_id }, Account: { AccountID: bank.AccountID }, Amount: amount, Date: melbourneDate(new Date().toISOString()), Reference: "TEST payment" } });
   await logEvent(inv.job_id, actorId, "xero_test_payment", `TEST payment of ${amount} recorded in Xero Demo Company`, { invoice_id: invoiceId, amount }, { internal: true });
+  await syncInvoiceFromXero(invoiceId, actorId);
+}
+
+/** TEST journeys only (Jo 27 Oct, Phase 3 path 3): delete the newest "TEST payment" on a TEST job's Demo Company invoice,
+ *  as a person reversing it in Xero would, then read the invoice back through the normal sync (ledger reversal row). */
+export async function reverseDemoTestPayment(invoiceId: string, actorId: string) {
+  if ((await modeForInvoice(invoiceId)) !== "test") throw new Error("Test payment reversals are only allowed on TEST jobs.");
+  const { data: inv } = await admin.from("invoices").select("job_id, xero_invoice_id").eq("id", invoiceId).single();
+  if (!inv?.xero_invoice_id) throw new Error("No Demo Company invoice.");
+  const call = await tenantCall("test");
+  const got = await call(`/api.xro/2.0/Invoices/${encodeURIComponent(inv.xero_invoice_id)}`);
+  const pays = ((got.Invoices?.[0]?.Payments ?? []) as { PaymentID?: string; Reference?: string; Status?: string }[]).filter((p) => p.PaymentID && String(p.Status ?? "AUTHORISED").toUpperCase() !== "DELETED");
+  const last = pays.filter((p) => (p.Reference ?? "") === "TEST payment").at(-1) ?? pays.at(-1);
+  if (!last?.PaymentID) throw new Error("No Demo Company payment to reverse.");
+  await call(`/api.xro/2.0/Payments/${encodeURIComponent(last.PaymentID)}`, { method: "POST", body: { Status: "DELETED" } });
+  await logEvent(inv.job_id, actorId, "xero_test_payment_reversed", "TEST payment deleted in Xero Demo Company", { invoice_id: invoiceId, xero_payment_id: last.PaymentID }, { internal: true });
   await syncInvoiceFromXero(invoiceId, actorId);
 }
 
@@ -242,7 +259,9 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       const { recordXeroPayments, reconciledInvoicePaidCents } = await import("./payments.server");
       const { reconciledPaidCents, xeroPaymentFacts } = await import("./payments.core");
       // Only a list that accounts for all of Xero's AmountPaid may reverse recorded payments (never on a partial shape).
-      const fullList = Array.isArray(x.Payments) && reconciledPaidCents([], xeroPaymentFacts(xeroPayments)) >= paidCents;
+      // Phase 3 path 3 (27 Oct): Xero leaves `Payments` out once the last payment is deleted; with AmountPaid 0 that is a
+      // complete (empty) list, so the deleted payment is reversed in the ledger instead of still counting as paid.
+      const fullList = xeroPaymentsListComplete(x.Payments, reconciledPaidCents([], xeroPaymentFacts(xeroPayments)), paidCents);
       ledgerChanged = await recordXeroPayments(invoiceId, inv.job_id, xeroPayments, actorId, { fullList });
       paidCents = await reconciledInvoicePaidCents(inv.job_id, invoiceId, { xeroPayments, xeroAmountPaid: ev.paid });
       // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts twice and is raised for the office once.

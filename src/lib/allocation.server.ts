@@ -81,6 +81,9 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
       has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
         && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
+      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence".
+      licence_blocker: expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"])
+        ?? partnerWorkBlocker(b as unknown as BusinessLike, bc) ?? null,
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,

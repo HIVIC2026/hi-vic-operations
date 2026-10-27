@@ -19,6 +19,27 @@ const { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURN
 const keep = process.argv.includes("--keep");
 // Opt-in hard cases (Jo 27 Oct 2026): --branch not-eligible | --branch piesa-fixes. Without --branch nothing below changes.
 const branchArg = process.argv.includes("--branch") ? process.argv[process.argv.indexOf("--branch") + 1] : null;
+if (branchArg && branchArg.startsWith("p") && /^p[1-8]-/.test(branchArg)) {
+  // Phase 3 (Jo 27 Oct 14:57): one path per run, fresh TEST job, 390px screens of the affected person and the office.
+  const { runPhase3, PHASE3 } = await import("../src/lib/journey-branches.server");
+  if (!(branchArg in PHASE3)) { console.error(`--branch must be one of: ${Object.keys(PHASE3).join(", ")}`); process.exit(2); }
+  const dir = `/mnt/documents/journey/${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}-${branchArg}`;
+  mkdirSync(dir, { recursive: true });
+  const res = await runPhase3(branchArg as never, `${dir}/screens`);
+  const verdict = res.blocked ? "BLOCKED" : res.answers.length === 4 && res.answers.every((a) => a.answer !== "no") ? "PASS" : "FAIL";
+  const md = [`# Phase 3 ${branchArg}: ${verdict}`, res.blocked ? `\nBlocked: ${res.blocked}` : "", "",
+    ...res.jobs.map((j) => `TEST job ${j.jobNumber ?? "-"} (${j.jobId ?? "-"}) — ${j.archived ? "archived" : "NOT archived"}`), "",
+    "## Four questions", ...res.answers.map((a) => `- **${a.q}: ${a.answer.toUpperCase()}** — ${a.detail}`), "",
+    "## Screens (390px)", ...res.shots.map((s) => `- ${s.moment} · ${s.who} · ${s.path} → ${s.landed ?? "did not load"}${s.overflow ? " · SIDEWAYS SCROLL" : ""}${s.errors.length ? ` · errors: ${s.errors.join("; ")}` : ""} · screens/${s.name}\n  > ${s.text.slice(0, 300)}`), "",
+    "## Checks", ...res.checks.map((c) => `- ${c.n} ${c.status.toUpperCase()} — ${c.name}: ${c.detail}`)].join("\n");
+  writeFileSync(`${dir}/report.md`, md);
+  writeFileSync(`${dir}/report.json`, JSON.stringify({ verdict, ...res }, null, 2));
+  console.log(`${verdict} ${branchArg}${res.blocked ? ` — ${res.blocked}` : ""}`);
+  for (const a of res.answers) console.log(`  ${a.q}: ${a.answer} — ${a.detail.slice(0, 400)}`);
+  for (const c of res.checks) console.log(`  ${c.status} ${c.n} ${c.name} — ${c.detail.slice(0, 200)}`);
+  console.log(`Report: ${dir}/report.md`);
+  process.exit(0);
+}
 if (branchArg) {
   if (branchArg !== "not-eligible" && branchArg !== "piesa-fixes") { console.error("--branch must be not-eligible or piesa-fixes"); process.exit(2); }
   const { runJourneyBranch } = await import("../src/lib/journey-branches.server");

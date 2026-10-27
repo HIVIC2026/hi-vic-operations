@@ -155,6 +155,13 @@ export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCe
 export const INSTALL_DEPOSIT_BLOCKER = "The 10% install deposit must be paid before the install is booked.";
 /** Stages where the install is the next thing to book, so the 10% deposit is due now. */
 export const INSTALL_DEPOSIT_DUE_STAGES: ReadonlySet<string> = new Set(["piesa_complete", "installation_scheduling", "installation_booked"]);
+/** Locked order (Jo 26 Oct): fixes approved, paid and signed off BEFORE the 10% deposit. At "piesa_complete" the deposit is
+ *  due only when the current PIESA passed or its fixes are signed off (Section C); a PIESA that found fixes asks for nothing yet. */
+export function installDepositDueNow(stage: string | null | undefined, piesa: { outcome?: string | null; section_c_signed_at?: string | null } | null | undefined): boolean {
+  if (!INSTALL_DEPOSIT_DUE_STAGES.has(stage ?? "")) return false;
+  if (stage !== "piesa_complete" || !piesa) return true;
+  return piesa.outcome === "pass" || !!piesa.section_c_signed_at;
+}
 export function installDepositBlocker(plan: Pick<PaymentPlan, "installDepositCents">, steps: PaymentStep[]): string | null {
   if (plan.installDepositCents <= 0) return null;
   return isStepCleared(steps, "install_deposit") ? null : INSTALL_DEPOSIT_BLOCKER;
@@ -467,4 +474,11 @@ export function payNowBlock(i: { step: PaymentStep | null; cardAvailable: boolea
     card: cardAllowedFor(i.step.key) && i.cardAvailable,
     lines: [paymentLine(i.step.key, i.reference, i.step.key === "safety_check" ? i.step.amountCents : SAFETY_CHECK_CENTS), ...bankDetailLines(i.bank, i.reference)],
   };
+}
+
+/** May this Xero invoice read reverse recorded payments? Only when its Payments list accounts for all of Xero's AmountPaid.
+ *  A missing list counts as empty (Xero omits it when no live payment is left), so it is complete only when nothing is paid. */
+export function xeroPaymentsListComplete(payments: unknown, listedCents: number, xeroPaidCents: number): boolean {
+  if (payments != null && !Array.isArray(payments)) return false;
+  return listedCents >= xeroPaidCents;
 }
