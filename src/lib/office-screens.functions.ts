@@ -46,17 +46,17 @@ export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([req
 export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobPage } = await import("./office-job-page.server");
-    return loadJobPage(data.jobId);
+    return loadJobPage(data.jobId, role === "qa_office");
   });
 
 export const getOfficeJobMoney = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId);
     const { loadJobMoney } = await import("./office-job-page.server");
-    return loadJobMoney(data.jobId);
+    return loadJobMoney(data.jobId, role === "qa_office");
   });
 
 export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

@@ -60,7 +60,7 @@ function JobPageRoute() {
       <MoneyCard jobId={jobId} />
       {!qaOffice && <AiReplyDrafts jobId={jobId} />}
       <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} />
-      <FileList jobId={jobId} />
+      {qaOffice ? <p className="text-sm text-sub">Not available for the TEST office login</p> : <FileList jobId={jobId} />}
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />
     </AppShell>
   );
