@@ -126,12 +126,16 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     const notOnboarded = mittiElectrician?.notOnboarded ?? null;
     if (!(prev?.audit_id === auditId && JSON.stringify(prev.blockers ?? []) === JSON.stringify(draft.blockers)))
       await logEvent(jobId, actorId, "installer_quote_held", notOnboarded ? `Quote held · ${mittiElectrician!.reasons[0]}` : "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers, ...(notOnboarded ? { electrician_not_onboarded: notOnboarded } : {}) });
-    // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
-    // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
-    if (notOnboarded) {
-      const holdNow = [...draft.blockers, "Waiting for office review before sending"].join(" · ");
-      for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE))
-        await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
+    // Jo 27 Oct 2026 (HV-3129): a held quote never keeps showing an older price. When the electrician's price is known
+    // (held only for other reasons) the held draft is rebuilt with the latest figures. When it is not known (own
+    // electrician with no agreed price, undecided, not onboarded) no owner quote is drafted (decision 113, never a
+    // guessed $349) and any open draft is withdrawn, so the installer sees only their own price.
+    if (electricianPriceKnown(mittiElectrician, draftInput.piesaIncGst) && heldFiguresBuildable(draft)) {
+      setPiesaExplanation(draft, mittiElectrician);
+      await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: [...draft.blockers, "Waiting for office review before sending"].join(" · "), intakePrice: !!intakePrice, mittiElectrician });
+    } else if ((open ?? []).some((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
+      const { error: se } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft").eq("option_code", INSTALLER_QUOTE_CODE);
+      if (se) throw new Error("The old quote could not be withdrawn.");
     }
     return draft;
   }
@@ -146,18 +150,48 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     : installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer });
   const holdReason = [rangeReason, ...releaseBlockers, "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
+  setPiesaExplanation(draft, mittiElectrician);
+  await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason, intakePrice: !!intakePrice, mittiElectrician });
+  return draft;
+}
+
+type InstallerDraft = ReturnType<typeof buildInstallerQuoteDraft>;
+type MittiElectrician = import("./usual-electrician.core").MittiElectricianResolution | null;
+
+/** Jo 27 Oct 2026: the electrician's price is known when the Ready Check electrician is ready with a price, or (no
+ *  Ready Check electrician) the job's payer gives the standard line. Not onboarded / no agreed price / undecided = unknown. */
+export function electricianPriceKnown(mittiElectrician: MittiElectrician, piesaIncGst: number | null): boolean {
+  if (mittiElectrician) return mittiElectrician.ready && mittiElectrician.priceIncGst != null && Number.isFinite(mittiElectrician.priceIncGst);
+  return piesaIncGst != null && Number.isFinite(piesaIncGst);
+}
+
+/** A held quote can be rebuilt only with a real installer price and a positive total. */
+export function heldFiguresBuildable(draft: Pick<InstallerDraft, "lines" | "subtotal">): boolean {
+  const installer = Number(draft.lines.find((l) => l.code === "INSTALLER_PRICE")?.line_total_inc_gst);
+  return Number.isFinite(installer) && installer > 0 && draft.subtotal > 0;
+}
+
+/** Identity is part of scope even if the selected electrician has the same price. */
+function setPiesaExplanation(draft: InstallerDraft, mittiElectrician: MittiElectrician) {
+  if (!mittiElectrician?.name) return;
+  const electricalLine = draft.lines.find((l) => l.code === "PIESA");
+  if (electricalLine) electricalLine.explanation = `Electrician: ${mittiElectrician.name}; licence: ${mittiElectrician.licence} (declared)`;
+}
+
+/** The one held-draft write for both the ready and the held paths: identical lines → only the hold reason is refreshed;
+ *  otherwise older drafts are superseded and a new held draft is inserted. Never sends anything. */
+async function writeHeldInstallerDraft(p: {
+  jobId: string; actorId: string | null; auditId: string; draft: InstallerDraft; holdReason: string; intakePrice: boolean; mittiElectrician: MittiElectrician;
+  open: { id: string; status: string; subtotal_inc_gst: number | string | null; veec_discount_inc_gst: number | string | null; option_code: string | null; discount_note?: string | null }[];
+}) {
+  const { jobId, actorId, auditId, draft, holdReason, mittiElectrician } = p;
   // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
-  // Identity is part of scope even if the selected electrician has the same price.
-  if (mittiElectrician?.name) {
-    const electricalLine = draft.lines.find((l) => l.code === "PIESA");
-    if (electricalLine) electricalLine.explanation = `Electrician: ${mittiElectrician.name}; licence: ${mittiElectrician.licence} (declared)`;
-  }
   const sig = quoteLineSignature(draft.lines, draft.discountNote);
   let same: { id: string } | undefined;
-  for (const q of open ?? []) {
+  for (const q of p.open) {
     if (q.status !== "draft" || q.option_code !== INSTALLER_QUOTE_CODE || Number(q.subtotal_inc_gst) !== draft.subtotal || Number(q.veec_discount_inc_gst) !== draft.discount) continue;
     const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst, description, quantity, unit, unit_price_inc_gst, explanation, is_other").eq("quote_id", q.id);
-    if (quoteLineSignature(items ?? [], (q as { discount_note?: string | null }).discount_note) === sig) { same = q; break; }
+    if (quoteLineSignature(items ?? [], q.discount_note) === sig) { same = q; break; }
   }
   if (same) {
     // Re-syncing fixed facts must refresh the hold reasons, not strand the identical-price draft.
@@ -168,11 +202,11 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       if (se) throw new Error("Could not check the quote electrician snapshot.");
       if (!snapshot) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: same.id, electrician: mittiElectrician }, { internal: true });
     }
-    return draft;
+    return;
   }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
+    job_id: jobId, kind: "installation", option_label: p.intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
     release_state: "held", release_hold_reason: holdReason,
     subtotal_inc_gst: draft.subtotal, gst_amount: Math.round((draft.subtotal - draft.subtotal / 1.1) * 100) / 100,
     veec_discount_inc_gst: draft.discount, discount_note: draft.discountNote, customer_total_inc_gst: draft.afterDiscount, created_by: actorId,
@@ -182,5 +216,4 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (ie) throw new Error(ie.message);
   await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held" }, { internal: true });
   if (mittiElectrician) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: q.id, electrician: mittiElectrician }, { internal: true });
-  return draft;
 }
