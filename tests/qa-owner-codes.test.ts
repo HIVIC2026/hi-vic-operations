@@ -19,7 +19,7 @@ test("TEST-domain owner on a qa_test job asking by email gets a copy", () => {
 
 test("the TEST code table is unreadable to signed-in and anonymous users (practice database)", async () => {
   const db = new PGlite();
-  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;`);
+  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;`);
   await db.exec(readFileSync(new URL("../docs/pending-migrations/qa-owner-codes.sql", import.meta.url), "utf8"));
   await db.exec(`INSERT INTO qa_owner_codes (job_id, code_id, code, expires_at) VALUES (gen_random_uuid(), gen_random_uuid(), '123456', now())`);
   for (const role of ["anon", "authenticated"]) {
