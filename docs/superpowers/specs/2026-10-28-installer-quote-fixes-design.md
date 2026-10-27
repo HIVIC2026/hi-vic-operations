@@ -42,6 +42,7 @@ difficult-access fee Jo never entered.
   - The office cannot swap the electrician. Only the installer can, because it's their job ("we can't just swap to
     ours on their jobs without permission from them").
   - When their electrician finishes onboarding, the quote is built at the agreed rate on the next rebuild.
+  - In the installer's job list, a job stuck like this sits under "Action needed" (Jo 28 Oct), not "In progress".
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).
