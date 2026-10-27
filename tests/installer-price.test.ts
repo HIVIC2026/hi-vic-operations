@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
@@ -243,5 +243,29 @@ describe("removal tick refused when the Ready Check says no removal (Jo 27 Oct 2
     const server = read("src/lib/installer-price-set.server.ts");
     expect(server).toContain("removal_required");
     expect(server).toContain("validateInstallerPrice({ ...input, removalRequired })");
+  });
+});
+
+describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone after the 06:07 push)", () => {
+  test("install m² from the current measurement; removal 'None' when the Ready Check says no removal", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: 75, removalRequired: false, removalM2: null })).toEqual({ install: "75 m²", removal: "None" });
+  });
+  test("removal m² shown when there is removal; missing values read 'Not on the Ready Check yet'", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: 140, removalRequired: true, removalM2: 32 })).toEqual({ install: "140 m²", removal: "32 m²" });
+    expect(readyCheckDetailLines({ hasReadyCheck: true, installAreaM2: null, removalRequired: true, removalM2: null })).toEqual({ install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK });
+  });
+  test("no current Ready Check at all = both rows 'Not on the Ready Check yet'", () => {
+    expect(readyCheckDetailLines({ hasReadyCheck: false, installAreaM2: null, removalRequired: null, removalM2: null })).toEqual({ install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK });
+  });
+  test("the card shows the three rows above the price, from the server's readyCheck view", () => {
+    const card = read("src/components/trade/InstallerPriceCard.tsx");
+    expect(card).toContain('label="Install m²"');
+    expect(card).toContain('label="Removal m²"');
+    expect(card).toContain('label="Access"');
+    expect(card.indexOf('label="Install m²"')).toBeLessThan(card.indexOf('label="Price"'));
+    const server = read("src/lib/installer-price-set.server.ts");
+    expect(server).toContain("measured_area_m2");
+    expect(server).toContain("readyCheckDetailLines");
+    expect(server).toContain("removalTotalM2");
   });
 });
