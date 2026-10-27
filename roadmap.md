@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 02:15 guarded not-eligible email and journey rerun
+- [ ] Run portal xeroConnectionStatus with normal credentials, read-only; confirm TEST Demo routing.
+- [ ] Add once-only approved not-eligible email after verified Ready Check failure, normal held/send guards; tests and decision documentation; no publish.
+- [ ] Rerun both TEST branches with Xero credentials retained only if isolated to Demo and customer messages OFF; report all checks and archive only newly created TEST jobs.
 ## Jo 27 Oct 02:14 Xero connections
 - [x] Show connected organisations: Home Insulation Victoria on Joannah's Xero (1); DC Construction Solutions Pty Ltd and Demo Company (AU) on Joannah's Xero.
 - [x] Verified test Demo Company access: Xero Organisation read returned HTTP 200, ACTIVE and IsDemoCompany=true; already connected, no re-authorisation needed. No invoices, switches or publication changed.
