@@ -20,7 +20,7 @@ export function FieldError({ children, id }: { children: string | undefined; id?
   return children ? <p id={id} role="alert" className="mt-1.5 text-[13px] font-semibold" style={{ color: ERR }} data-field-error>{children}</p> : null;
 }
 
-export function CustomerFields({ value, onChange, consentLabel, offline = false, errors = {} }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
+export function CustomerFields({ value, onChange, consentLabel, offline = false, errors = {}, addressProvider }: { addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
   // Jo 24 Oct: the address is picked from the Google list, so street number, suburb and postcode always match.
   // Typing afterwards clears the pick; the suburb/postcode are shown, never typed.
   const [text, setText] = useState(() => addressText(value));
@@ -41,7 +41,7 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
       : <div>
         <label className={FIELD_LABEL} htmlFor="customer-address">Address</label>
         <div className="mt-1.5" data-address-field data-invalid={errors.address ? "true" : undefined}>
-          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785"
+          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785" {...(addressProvider ? { provider: addressProvider } : {})}
             onChange={(next) => { setText(next); if (latest.current.address_verified) onChange({ ...latest.current, address_verified: false }); }}
             onSelect={(d) => {
               setResolved(d);
