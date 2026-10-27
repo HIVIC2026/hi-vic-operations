@@ -159,7 +159,7 @@ describe("wiring (source facts)", () => {
     // Jo 27 Oct 2026: the same pure check also receives the current Ready Check's removal flag.
     expect(s).toContain("const v = validateInstallerPrice({ ...input, removalRequired });");
     expect(s).toContain("readElectricianChoice(jobId)");
-    expect(s).toContain("access: accessFlagFromEntries(entries)");
+    expect(s).toContain("const access = accessFlagFromEntries(entries)");
     // The READ module is on the autoAdvance graph: never Mitti, never a sender (tests/comms.test.ts).
     const r = read("src/lib/installer-price.server.ts");
     expect(r).not.toMatch(/mitti\.server|auto-quote-send|installer-quote\.server|pilot\.server|logEvent/);
@@ -258,6 +258,7 @@ describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone af
     expect(readyCheckDetailLines({ hasReadyCheck: false, installAreaM2: null, removalRequired: null, removalM2: null })).toEqual({ install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK });
   });
   test("the card shows the three rows above the price, from the server's readyCheck view", () => {
+    const read = (f: string) => readFileSync(f, "utf8");
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain('label="Install m²"');
     expect(card).toContain('label="Removal m²"');
