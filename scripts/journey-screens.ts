@@ -99,7 +99,7 @@ const STEPS: Step[] = [
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
-  { step: "Ready Check completion", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", severity: "Fix soon", next: "Mitti", expect: stageIs("ready_check_complete", "measured_estimate_ready", "quote_sent") },
+  { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
 ];
 const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
@@ -211,6 +211,14 @@ async def main():
                 sec = page.locator("section,div").filter(has_text=re.compile("Choose your Ready Check time")).last
                 tiles = [t for t in await sec.get_by_role("button").all() if re.search(r"\d", await t.inner_text()) and not re.search(r"suggest|code", await t.inner_text(), re.I)]
                 el, how = (tiles[0] if tiles else None), "time tile"
+            elif name == "prestart:":
+                checks = page.locator("[data-prestart-checks]")
+                if await checks.count():
+                    for control in await checks.get_by_role("button").all():
+                        if await control.is_visible(): await control.click()
+                handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
+                candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
+                el, how = (candidates[0] if candidates else None), "prestart button"
             else:
                 el, how = await find(name, scope)
             label = (name if name not in ("tick:", "time:") else ("own acknowledgement tick" if name == "tick:" else "an offered Ready Check time")) + (f" (in {scope})" if scope else "")
@@ -278,6 +286,10 @@ if (!ctx?.jobId || !safe) {
     add({ step: s.step, person: s.person, status: why ? (broken ? "blocked" : "fail") : "pass", severity: why && !broken ? s.severity : null, detail: why ? (broken ? `earlier step not done — ${why}` : why) : `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
+    if (!why && s.button === "prestart:") {
+      add({ step: "Ready Check completion", person: "runner", status: "runner_error", detail: "The installer reached the Mitti handoff. The runner has no simulated form-answer/Complete interaction yet; loading an unfinished form is not a portal failure. Later page inspections continue without inventing completion." });
+      broken = true;
+    }
     n++;
   }
   for (const s of LATER) {
