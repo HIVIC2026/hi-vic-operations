@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 04:08 full journey proof Phases 1–2
+- [ ] Phase 1 read-only inventory: all job/person blocks with source, rule, exact text, notification and clearing condition; save journey/block-register.md in Files.
+- [ ] Add browser-first --screens mode without changing product rules/look; fail closed on missing TEST safety, provider isolation or rule conflicts; capture 390px step/person proof and data/email counts.
+- [ ] Run once with sending keys removed, real Mitti refused/check M, Demo-only; archive only newly created run jobs, preserve HV-3274/HV-3239; report honest pass/fail/blocked and screenshots.
+- [ ] Phases 3–4 deferred by Jo; do not implement.
 ## Jo 27 Oct 04:05 electrician payout rule replaces 355
 - [ ] BLOCKED on Jo's choice of approval mechanism: current portal records A3/A4 completion, not a separate HIV form approval. Do not silently treat completion as approval or add a new Office step without Jo's choice. New rule saved; payout code untouched.
 - [x] Read-only confirmed welcome tick/step 5 and manual Mitti invitation already use Jo's exact wording; all thirteen dummy trades have both offer flags false. No switches/data changed.
