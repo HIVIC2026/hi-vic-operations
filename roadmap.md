@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:09 HV-3385 review fixes
+- [ ] Refresh changed completed Mitti measurements, audit and redraft held quotes only; issued/accepted quotes unchanged.
+- [ ] Verify price is never listed as missing in Mitti; leave installer quote amount validation alone.
+- [ ] Create guarded Ready Check immediately after installer Add a job; tick remains backup.
+- [ ] Replace price-card rundown with address, areas, access/notes, product and electrician; preserve removal lock; phone check.
 ## Jo 27 Oct 06:02 independent Mitti pull
 - [x] Attempted no-message HV-3385 sync: refused because its measurement was already completed by production at 05:45; current form read confirmed 75m², batts below R2, remove75m², Bradford Gold R5 and easy access. No sends.
 - [x] Separate authenticated Mitti callback and remove only two requested sweeps from preview allocation; retain all other tick behaviour.
