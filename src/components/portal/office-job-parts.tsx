@@ -20,6 +20,8 @@ import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
 import { draftVeecReply, listComplianceRecords, markVeecReplySent, recordComplianceItem, runComplianceReview, setComplianceCheck, setEligibility, updateVeec } from "@/lib/portal.functions";
+import { panelLoad, readOrThrow } from "@/lib/panel-load.core";
+import { LoadFailed } from "@/components/portal/load-failed";
 
 export function JobCoverage({ jobId }: { jobId: string }) {
   const load = useServerFn(getJobCoverage);
@@ -66,17 +68,19 @@ export function EligibilityForm({ jobId }: { jobId: string }) {
 }
 
 export function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "piesa" | "rectification" }) {
-  const { data } = useQuery({
+  const { data, error, refetch } = useQuery({
     queryKey: ["assessment", jobId],
     queryFn: async () => {
-      const [{ data: a }, { data: items }, { data: piesa }] = await Promise.all([
+      const [ra, ri, rp] = await Promise.all([
         supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle(),
         supabase.from("rectification_items").select("*").eq("job_id", jobId).neq("status", "removed"),
         supabase.from("piesa_records").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
       ]);
-      return { a, items: items ?? [], piesa: piesa ?? [] };
+      return { a: readOrThrow(ra), items: readOrThrow(ri) ?? [], piesa: readOrThrow(rp) ?? [] };
     },
   });
+  const title = part === "piesa" ? "PIESA records (entered once by the electrician)" : part === "rectification" ? "Electrical fixes items" : "Electrical assessment record";
+  if (panelLoad({ error, data }) === "failed") return <Section title={title}><LoadFailed what={title} onRetry={() => void refetch()} /></Section>;
   if (!data) return null;
   if (!data.a && part === "assessment") return <Section title="Assessment"><p className="text-sm text-muted-foreground">Not started by the electrician yet.</p></Section>;
   const a = data.a ?? ({} as NonNullable<typeof data.a>);
@@ -110,9 +114,10 @@ export function AssessmentView({ jobId, part }: { jobId: string; part: "assessme
 export function Compliance({ jobId }: { jobId: string }) {
   const run = useAction(runComplianceReview);
   const set = useAction(setComplianceCheck);
-  const { data } = useQuery({ queryKey: ["compliance", jobId], queryFn: async () => (await supabase.from("compliance_checks").select("*").eq("job_id", jobId).order("sort")).data ?? [] });
+  const { data, error, refetch } = useQuery({ queryKey: ["compliance", jobId], queryFn: async () => readOrThrow(await supabase.from("compliance_checks").select("*").eq("job_id", jobId).order("sort")) ?? [] });
   return (
     <Section title="Compliance checks" action={<Button size="sm" variant="outline" onClick={() => run({ jobId }, "Automated checks updated")}>Run automated checks</Button>}>
+      {panelLoad({ error, data }) === "failed" && <LoadFailed what="Compliance checks" onRetry={() => void refetch()} />}
       <ul className="space-y-2">
         {data?.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-sm">
@@ -131,8 +136,9 @@ export function Compliance({ jobId }: { jobId: string }) {
 
 export function Veec({ jobId }: { jobId: string }) {
   const save = useAction(updateVeec);
-  const { data } = useQuery({ queryKey: ["veec", jobId], queryFn: async () => (await supabase.from("veec_lodgements").select("*").eq("job_id", jobId).maybeSingle()).data });
+  const { data, error, refetch } = useQuery({ queryKey: ["veec", jobId], queryFn: async () => readOrThrow(await supabase.from("veec_lodgements").select("*").eq("job_id", jobId).maybeSingle()) });
   const [pickedStatus, setPickedStatus] = useState<string | null>(null);
+  if (panelLoad({ error, data }) === "failed") return <Section title="VEEC lodgement"><LoadFailed what="VEEC lodgement" onRetry={() => void refetch()} /></Section>;
   if (!data) return null;
   const shownStatus = pickedStatus ?? data.status;
   return (
@@ -192,9 +198,13 @@ function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string
 export function ComplianceRecords({ jobId }: { jobId: string }) {
   const list = useServerFn(listComplianceRecords);
   const record = useAction(recordComplianceItem);
-  const { data = [] } = useQuery({ queryKey: ["compliance-records", jobId], queryFn: () => list({ data: { jobId } }) });
+  const { data, error, refetch } = useQuery({ queryKey: ["compliance-records", jobId], queryFn: () => list({ data: { jobId } }) });
   const [open, setOpen] = useState<RecordKey | null>(null);
   const today = melbourneToday();
+  // A failed or unfinished read must never list every record as missing with a Record button.
+  const load = panelLoad({ error, data });
+  if (load === "failed") return <Section title="Activity 48 records"><LoadFailed what="Activity 48 records" onRetry={() => void refetch()} /></Section>;
+  if (load === "loading" || !data) return <Section title="Activity 48 records"><p className="text-sm text-muted-foreground">Loading Activity 48 records…</p></Section>;
   return (
     <Section title="Activity 48 records">
       <p className="mb-2 text-xs text-muted-foreground">Permanent once saved. Missing items block the stage shown: life support plan (PIESA booking), pre-install documents (install start), safety assessment, completion documents and $200 co-payment (Final check — co-payment also clears when Xero shows ≥ $200 paid), assignment copy (Ready for VEEC).</p>

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { discardAiReplyDraft, getAiReplyDrafts, sendAiReplyDraft } from "@/lib/ai-email-reply.functions";
 import { btnClass } from "@/components/portal/kit";
 import { aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
+import { panelLoad } from "@/lib/panel-load.core";
+import { LoadFailed } from "@/components/portal/load-failed";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -42,6 +44,7 @@ export function AiReplyDrafts({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ai-reply-drafts", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 15_000 });
   const waiting = (q.data ?? []).filter((d) => d.status === "waiting");
+  if (panelLoad(q) === "failed") return <section aria-label="Email replies to check" className="mb-4 rounded-[14px] border border-danger p-4"><LoadFailed what="Email replies to check" onRetry={() => void q.refetch()} /></section>;
   if (!waiting.length) return null;
   return (
     <section id="stage-email-drafts" aria-label="Email replies to check" className="mb-4 grid gap-2 rounded-[14px] border border-hiv-blue/30 bg-mist p-4">
