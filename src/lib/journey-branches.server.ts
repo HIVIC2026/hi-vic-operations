@@ -1141,7 +1141,8 @@ async function m8QuotePayment(rec: Recorder, jobs: BranchResult["jobs"], setup: 
       answer("stops", allocBefore.startsWith("refused") && offersBefore === 0 && stage1 === stage0, `PIESA allocation ${allocBefore}; PIESA offers=${offersBefore}; stage ${stage0}→${stage1}`);
       const shots = SHOTS.filter((x) => x.moment === "m8-blocked");
       answer("reason", sees(shots[0], /accept|approve|quote|payment|pay/i), `owner My job page mentions accepting/approving the quote or paying=${sees(shots[0], /accept|approve|quote|payment|pay/i)}; plain refusal: ${allocBefore.slice(0, 200)}`);
-      answer("office_once", told.ok, `${told.detail}; scopeDiag: ${diag}`);
+      const diagAfter = (await scopeDiag(c.jobId!)).join(" | ");
+      answer("office_once", told.ok, `${told.detail}; scopeDiag before shoot: ${diag}; after shoot: ${diagAfter}`);
     });
     setup.push(...s.out);
     jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
