@@ -70,6 +70,33 @@ describe("website enquiry (our lead) is unchanged", () => {
   });
 });
 
+describe("Next panel: 'Quote sent' only when an installation quote was actually issued (HV-3385, 27 Oct 2026)", () => {
+  // HV-3385: installer job, measured_estimate_ready, no quote exists and the draft is held — the status facts miss the
+  // held draft, so the status reads "quote.sent_auto" (label "Quote sent"). The page's own quote row is the truth.
+  const f = base("measured_estimate_ready");
+  const s = status(f);
+  test("the status alone still says Quote sent / nothing to do (facts unknown = unchanged wording)", () => {
+    expect(s?.key).toBe("quote.sent_auto");
+    const n = nextAction({ facts: null, status: s, stage: "quote", closed: null, onHold: null }, NOW);
+    expect(n).toEqual({ who: "nobody", sentence: "Quote sent. Nothing for the office to do — it happens automatically.", button: null, blocked: null });
+  });
+  test("quote held or not drafted (quoteIssued false) = office work, not 'Quote sent'", () => {
+    const n = nextAction({ facts: null, status: s, stage: "quote", closed: null, onHold: null, quoteIssued: false }, NOW);
+    expect(n).toEqual({ who: "us", sentence: "Quote not made yet — see the reasons in Quote.", button: { label: "Open quote", section: "quote" }, blocked: null });
+  });
+  test("an actually issued quote (quoteIssued true) keeps the Quote sent wording", () => {
+    const n = nextAction({ facts: null, status: s, stage: "quote", closed: null, onHold: null, quoteIssued: true }, NOW);
+    expect(n.who).toBe("nobody");
+    expect(n.sentence).toBe("Quote sent. Nothing for the office to do — it happens automatically.");
+  });
+  test("a held quote the status facts DO see is unchanged (quote.held = us, review quote)", () => {
+    const held = base("measured_estimate_ready", { quote: { releaseState: "held", holdReason: "Price not entered by the business owner", sentAt: null, status: "draft", acceptedAt: null } });
+    const n = nextAction({ facts: null, status: status(held), stage: "quote", closed: null, onHold: null, quoteIssued: false }, NOW);
+    expect(n.who).toBe("us");
+    expect(n.sentence).toBe("Quote held · Price not entered by the business owner.");
+  });
+});
+
 describe("More ▾ / Actions ▾ menu placement (390px iPhone)", () => {
   test("button wrapped to the left edge: the menu opens to the right and is fully visible", () => {
     // Job page More ▾ at x=16, 84px wide, 240px menu: start-aligned fits (16 + 240 < 382).
