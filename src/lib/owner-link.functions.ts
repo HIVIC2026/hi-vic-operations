@@ -347,3 +347,22 @@ async function ownerJobId(t: string): Promise<string | null> {
   const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", t).eq("purpose", LINK_PURPOSE).maybeSingle();
   return l && linkUsable(l) ? l.job_id : null;
 }
+
+/** Jo 28 Oct (decision 158, OFFICE CHOOSES): the owner's view of a lapsed-window repeat safety check (null = none). */
+export const ownerRepeatPiesaFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { state } = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId);
+    return (await import("./repeat-piesa.core")).ownerRepeatView(state);
+  });
+
+export const ownerAcceptRepeatPiesaFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) throw new Error("This link isn't working.");
+    const s = await (await import("./repeat-piesa.server")).acceptRepeatPiesa(jobId);
+    return (await import("./repeat-piesa.core")).ownerRepeatView(s);
+  });
