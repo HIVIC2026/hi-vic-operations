@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 07:33 TEST-only office and Phase 2
+- [ ] Build fail-closed qa_office office access across database policies, server readers/actions and screens, preserving admin.
+- [ ] Prove real-id/list/settings denial and unchanged admin using two users on practice database before live changes.
+- [ ] Create exactly one reserved-domain qa_office login with project-secret-only password, after isolation is proven.
+- [ ] Run browser-first 390px Phase 2 website-to-payout; restore only TEST trade flags and archive only the created TEST job.
 ## Jo 27 Oct 07:26 stale tests
 - [x] Correct only the three stale test expectations: current MJML templates/folders, retired A3 question and Owner name in the updated-form test; 37 tests pass in three isolated files. No product changes, sends, switches or publication.
 ## Jo 27 Oct 07:23 decision 316
