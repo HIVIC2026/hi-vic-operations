@@ -13,7 +13,8 @@ import {
 
 const loose = admin as unknown as SupabaseClient;
 
-async function aiText(input: string): Promise<string> {
+/** The AI call shared by job replies and the Emails tab no-job replies (decision 414). */
+export async function aiText(input: string, instructions: string = AI_REPLY_INSTRUCTIONS): Promise<string> {
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured");
   const { createOpenAI } = await import("@ai-sdk/openai");
@@ -21,7 +22,7 @@ async function aiText(input: string): Promise<string> {
   const provider = createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" } });
   const result = streamText({
     model: provider.responses("openai/gpt-6-astra"),
-    instructions: AI_REPLY_INSTRUCTIONS,
+    instructions,
     messages: [{ role: "user", content: input }],
     providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", store: false, include: ["reasoning.encrypted_content"] } },
   } as Parameters<typeof streamText>[0]);

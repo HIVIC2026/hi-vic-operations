@@ -15,7 +15,7 @@ const exportsName = (file: string, name: string) => new RegExp(`export (?:async 
 
 describe("Templates navigation", () => {
   test("Templates sits under More (decision 218), not in the top bar", () => {
-    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["needs", "enquiries", "jobs", "partners", "money"]);
+    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["needs", "enquiries", "emails", "jobs", "partners", "money"]); // decision 414
     expect(sectionFor("/admin/templates", { cat: "mitti" })).toBe("more");
     expect(OFFICE_HEADINGS.filter((h) => h.label === "Templates").length).toBe(0);
   });

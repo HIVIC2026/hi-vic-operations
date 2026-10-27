@@ -6,8 +6,9 @@ import { buildOperationsPreview, type OperationInput } from "../src/lib/operatio
 const now = Date.parse("2026-10-08T08:35:00Z");
 const make = (id: string): OperationInput => ({ id, jobNumber: `TEST-${id}`, owner: "TEST", address: "TEST address", source: "website", channel: "hivic_sourced", businessUnit: "hivic", originatingInstaller: null, assignedInstaller: null, eligibility: "likely_eligible", eligibilityReason: null, verifiedEligibility: null, insulation: "none", mediaCount: 0, mediaReview: null, actualHandoff: false, evidence: [], communications: [], failures: [], facts: { id, stage: "preliminary_estimate_ready", createdAt: "2026-09-01T00:00:00Z", lastActivityAt: null, enteredStageAt: null } });
 describe("phase 3 presentation mapping", () => {
-  test("decision 218 top bar: Needs me · Enquiries · Jobs · Partners · Money, the rest under More", () => {
-    expect(OFFICE_HEADINGS.map((h) => h.label)).toEqual(["Needs me", "Enquiries", "Jobs", "Partners", "Money"]);
+  test("decision 218 top bar (+ Emails, decision 414): Needs me · Enquiries · Emails · Jobs · Partners · Money, the rest under More", () => {
+    expect(OFFICE_HEADINGS.map((h) => h.label)).toEqual(["Needs me", "Enquiries", "Emails", "Jobs", "Partners", "Money"]);
+    expect(sectionFor("/admin/emails")).toBe("emails");
     expect(sectionFor("/admin")).toBe("needs");
     expect(sectionFor("/admin/needs-me")).toBe("needs");
     expect(sectionFor("/admin/enquiries")).toBe("enquiries");

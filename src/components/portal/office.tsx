@@ -9,6 +9,7 @@ import { searchOffice } from "@/lib/office.functions";
 import { MORE_SECTIONS, OFFICE_HEADINGS, OFFICE_HOME, sectionFor } from "@/config/office-nav";
 import { cn } from "@/lib/utils";
 import { MenuPanel } from "@/components/portal/kit";
+import { useEmailsCount } from "@/components/portal/emails-count";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 /** One search for the whole office: job number, owner or address (top bar, decision 218). */
@@ -95,6 +96,8 @@ function Initials({ name, onSignOut }: { name: string; onSignOut: () => void }) 
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
+  const emails = useEmailsCount();
+  const badge = (key: string) => key === "emails" && emails ? <span className="ml-1 rounded-full bg-red-100 px-1.5 text-[11px] font-semibold text-red-800" aria-label={`${emails} emails waiting`}>{emails}</span> : null;
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-line bg-paper">
@@ -105,7 +108,7 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
           <nav aria-label="Office" className="hidden min-w-0 items-center gap-1 md:flex">
             {OFFICE_HEADINGS.map((h) => (
               <Link key={h.key} to={h.to} search={(h.search ?? {}) as never} aria-current={section === h.key ? "page" : undefined} className={cn("whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-semibold", section === h.key ? "bg-mist text-ink" : "text-sub hover:text-ink")}>
-                {h.label}
+                {h.label}{badge(h.key)}
               </Link>
             ))}
             <MoreMenu active={section === "more"} />
@@ -119,10 +122,10 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
         <div className="border-t border-line px-4 py-2 lg:hidden"><OfficeSearch /></div>
       </header>
       <nav aria-label="Office menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {OFFICE_HEADINGS.map((h) => (
             <Link key={h.key} to={h.to} search={(h.search ?? {}) as never} aria-current={section === h.key ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center px-1 text-center text-[11px] font-semibold", section === h.key ? "text-hiv-blue" : "text-sub")}>
-              {h.label}
+              <span>{h.label}{badge(h.key)}</span>
             </Link>
           ))}
         </div>

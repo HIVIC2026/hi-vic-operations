@@ -109,6 +109,7 @@ export function aiLinkLabel(url: string): string {
   if (/\/my-job\/[^?#\s]+\?screen=book\b/.test(url)) return "Change my booking time";
   if (/\/my-job\//.test(url)) return "Open my job page";
   if (/\/estimate\/[^/\s]+\/video\b/.test(url)) return "Save my spot";
+  if (/homeinsulationvictoria\.com\.au\/homeowner\b/.test(url)) return "Check my eligibility"; // decision 414
   return "Open link";
 }
 

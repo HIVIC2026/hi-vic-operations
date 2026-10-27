@@ -286,7 +286,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     askJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), suburb: (r["properties"] as { suburb?: string } | null)?.suburb ?? null, source: s(r["source"]) });
   const wantJob = (id: string | null) => !opts.onlyIds || (id != null && idSet.has(id));
   const emails: EmailRowInput[] = [];
-  for (const c of items.changes as unknown as { eventId: string; jobId: string; at: string; intent?: string; phrase?: string }[]) {
+  // Jo 27 Oct 2026 (decision 414): owner emails moved to the office Emails tab (emails-tab.server) — not listed here.
+  for (const c of [] as unknown as { eventId: string; jobId: string; at: string; intent?: string; phrase?: string }[]) {
     const j = askJobs.get(c.jobId);
     if (!wantJob(c.jobId) || (!opts.includeTest && j?.source === "qa_test")) continue;
     const line = CHANGE_LINE[(c.intent ?? "other") as keyof typeof CHANGE_LINE] ?? CHANGE_LINE.other;
