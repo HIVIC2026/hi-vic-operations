@@ -74,14 +74,17 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
   const mittiProduct = !intakePrice ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
 
-  const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const { data: m, error: me } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  // A failed read stops the step (the tick retries); it must never read as "no figures" and withdraw a good draft.
+  if (me) throw new Error("The measured area could not be read.");
   const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
-  const [{ data: loc }, { data: rs }, { data: workflow }] = await Promise.all([
+  const [{ data: loc, error: le }, { data: rs, error: rse }, { data: workflow }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
     admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle(),
   ]);
+  if (le || rse) throw new Error("The VEU location or fee settings could not be read.");
   const wholeVeec = loc && m2 && rs ? wholeVeecDiscount(m2, loc as unknown as LocationVariables, Number(rs.indicative_veec_value)) : null;
   // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
   // installer line and taken out only for the per-m² price check.
@@ -217,7 +220,8 @@ async function writeHeldInstallerDraft(p: {
   const { data: replacing, error: re } = await admin.from("quotes").select("*").eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   if (re) throw new Error("Could not check the quote being replaced.");
   const edited = (replacing ?? []).filter((q) => (q as { manually_adjusted?: boolean | null }).manually_adjusted === true).map((q) => String(q.id));
-  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
+  const { error: sup } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
+  if (sup) throw new Error("The old quote could not be withdrawn.");
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: p.intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
     release_state: "held", release_hold_reason: holdReason,

@@ -24,6 +24,8 @@ CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(),
 const shim = postgrestShim(db);
 /** When true, the price-card read (`installer_price_set`) returns a database error. */
 let failPriceRead = false;
+/** When set, every single-row read of that table returns a database error. */
+let failTable: string | null = null;
 const admin = {
   ...shim,
   from(t: string) {
@@ -33,6 +35,8 @@ const admin = {
       if (failPriceRead && t === "workflow_events" && c === "event_type" && v === "installer_price_set") b.then = (r: (x: unknown) => unknown) => Promise.resolve(r({ data: null, error: { message: "read failed" } }));
       return eq(c, v);
     };
+    const ms = b.maybeSingle;
+    if (ms) b.maybeSingle = (...a: unknown[]) => (failTable === t ? Promise.resolve({ data: null, error: { message: "read failed" } }) : ms(...a));
     b.select = (c?: unknown, o?: unknown) => sel(typeof c === "string" ? c.replace("properties(postcode)", "properties") : c, o);
     b.insert = (p: unknown) => {
       if (!Array.isArray(p)) return ins(p);
@@ -63,6 +67,7 @@ const setCardPrice = (price: number) => db.query("insert into workflow_events (j
 
 beforeEach(async () => {
   failPriceRead = false;
+  failTable = null;
   await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from quotes; delete from quote_items; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings; delete from admin_config_events;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, electrician_choice, properties) values ($1,'installer_sourced',$2,'hivic_organise','{\"postcode\":\"3000\"}')", [JOB, BIZ]);
   await db.query("insert into ceiling_measurements (job_id, is_current, measured_area_m2, removal_required) values ($1,true,120,false)", [JOB]);
@@ -89,11 +94,14 @@ describe("price card is the only price: the Mitti access fee is ignored", () => 
     const lines = (await db.query<{ code: string; description: string; explanation: string | null; line_total_inc_gst: string }>("select code, description, explanation, line_total_inc_gst from quote_items where quote_id=$1", [q!.id])).rows;
     const by = (code: string) => lines.find((l) => l.code === code);
     expect(Number(by("INSTALLER_PRICE")!.line_total_inc_gst)).toBe(3000);
-    // With the product confirmed the description is the product wording (Jo 23 Oct); the ticked label is the line's explanation.
-    const inst = by("INSTALLER_PRICE")!, wording = `${inst.description}\n${inst.explanation ?? ""}`;
-    expect(wording).toContain("Ceiling insulation - supply & install");
-    expect(wording).not.toContain("R5.0");
-    expect(wording).not.toMatch(/difficult access/i);
+    // With the product confirmed the description is the product wording (Jo 23 Oct); the ticked label is the explanation.
+    const inst = by("INSTALLER_PRICE")!;
+    expect(inst.explanation).toContain("Ceiling insulation - supply & install");
+    expect(inst.description).toBe("Supply and install of Bradford Gold R5 ceiling insulation – 120 m²");
+    for (const field of [inst.description, inst.explanation ?? ""]) {
+      expect(field).not.toContain("R5.0");
+      expect(field).not.toMatch(/difficult access/i);
+    }
     expect(Number(by("PIESA")!.line_total_inc_gst)).toBe(349);
     expect(Number(by("AP_FEE")!.line_total_inc_gst)).toBe(349);
     const [{ veec_discount_inc_gst }] = (await db.query<{ veec_discount_inc_gst: string }>("select veec_discount_inc_gst from quotes where id=$1", [q!.id])).rows;
@@ -145,4 +153,22 @@ describe("price-card read fails", () => {
     expect(line.description).not.toMatch(/difficult access/i);
     expect((await db.query("select id from quotes where job_id=$1", [JOB])).rows).toHaveLength(1);
   });
+});
+
+// Review fix round 1 (28 Oct 2026): a failed read of the measurement, the VEU location or the fee settings must stop the
+// draft step (so the tick retries), never read as "no figures" and withdraw a good draft.
+describe("figure reads fail", () => {
+  for (const table of ["ceiling_measurements", "veu_location_variables", "retail_estimator_settings"]) {
+    test(`${table} read error → existing draft untouched, no new draft`, async () => {
+      await setCardPrice(3000);
+      await draftInstallerQuoteFromReadyCheck(JOB, U, form("200"), "audit_fig");
+      const [before] = await draftNow();
+      expect(before).toBeDefined();
+      failTable = table;
+      await expect(draftInstallerQuoteFromReadyCheck(JOB, U, form("200"), "audit_fig")).rejects.toThrow();
+      failTable = null;
+      const all = (await db.query<{ id: string; status: string }>("select id, status from quotes where job_id=$1", [JOB])).rows;
+      expect(all).toEqual([{ id: before!.id, status: "draft" }]);
+    });
+  }
 });
