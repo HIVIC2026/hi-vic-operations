@@ -210,7 +210,9 @@ function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
 const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · bank transfer", balance: "On install day · bank transfer" };
-export function MoneyCard({ jobId }: { jobId: string }) {
+/** `anchor={false}` drops the `stage-money` id when a wrapper (the job page fold) already carries it. */
+export function MoneyCard({ jobId, anchor = true }: { jobId: string; anchor?: boolean }) {
+  const aid = anchor ? "stage-money" : undefined;
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
@@ -218,11 +220,11 @@ export function MoneyCard({ jobId }: { jobId: string }) {
   const [showMargin, setShowMargin] = useState(false);
   const [overriding, setOverriding] = useState(false);
   const [why, setWhy] = useState("");
-  if (error) return <section id="stage-money" className={cn(card, "mb-4 text-sm text-danger")}>Money could not load: {(error as Error).message}</section>;
-  if (!data) return <section id="stage-money" className={cn(card, "mb-4 text-sm text-sub")}>Loading money…</section>;
+  if (error) return <section id={aid} className={cn(card, "mb-4 text-sm text-danger")}>Money could not load: {(error as Error).message}</section>;
+  if (!data) return <section id={aid} className={cn(card, "mb-4 text-sm text-sub")}>Loading money…</section>;
   const v = data.view, m = data.margin;
   return (
-    <section id="stage-money" aria-label="Money" className={cn(card, "mb-4 scroll-mt-24")} data-why="decisions 139/140/141/144/152/209 one invoice + steps; 230 office-only margin; 240 no manual recording">
+    <section id={aid} aria-label="Money" className={cn(card, "mb-4 scroll-mt-24")} data-why="decisions 139/140/141/144/152/209 one invoice + steps; 230 office-only margin; 240 no manual recording">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold text-ink">Money{data.invoice ? ` · invoice ${data.invoice.number ?? "not in Xero yet"} · $${data.invoice.total.toLocaleString("en-AU", { maximumFractionDigits: 0 })} inc GST · paid $${data.invoice.paid.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : ""}</h2>
         {v?.onlineInvoiceUrl && <a href={v.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-hiv-blue underline">Xero invoice (office view)</a>}
@@ -271,14 +273,15 @@ export function MoneyCard({ jobId }: { jobId: string }) {
 
 /* ---------------- Contact history (decision 216) ---------------- */
 const DIR: Record<ContactRow["direction"], string> = { sent: "↑ Sent", received: "↓ Received", call: "☎ Call", note: "✎ Note" };
-export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void }) {
+/** `anchor={false}` drops the `stage-contact` id when a wrapper (the job page fold) already carries it. */
+export function ContactHistory({ jobId, rows, waitingFor, onLog, anchor = true }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void; anchor?: boolean }) {
   const [channel, setChannel] = useState<ContactChannel | "All">("All");
   const [all, setAll] = useState(false);
   const counts = useMemo(() => channelCounts(rows), [rows]);
   const shown = filterContacts(rows, channel);
   void jobId;
   return (
-    <section id="stage-contact" aria-label="Contact history" className={cn(card, "mb-4 scroll-mt-24")} data-why="decision 216 Contact history: every email/text/call with what we are waiting for">
+    <section id={anchor ? "stage-contact" : undefined} aria-label="Contact history" className={cn(card, "mb-4 scroll-mt-24")} data-why="decision 216 Contact history: every email/text/call with what we are waiting for">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold text-ink">Contact history · {rows.length}</h2>
         <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={onLog}>Log a call or note</button>
