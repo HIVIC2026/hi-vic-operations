@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { categoryCounts, enquiryCategory, inView, ownerWrote } from "../src/lib/enquiry-categories.core";
+import { CLOSABLE, ENQUIRY_CATEGORIES, ENQUIRY_VIEWS, categoryCounts, enquiryCategory, inView, ownerWrote } from "../src/lib/enquiry-categories.core";
 
 const NOW = Date.parse("2026-10-26T00:00:00Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -10,8 +10,31 @@ test("opted out wins, then an email that didn't send", () => {
   expect(enquiryCategory({ ...base, optedOut: true, sendFailed: true }, NOW)).toBe("opted_out");
   expect(enquiryCategory({ ...base, sendFailed: true, createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("not_sent");
   expect(enquiryCategory({ ...base, noResponseYet: true, createdAt: ago(1), lastOutboundAt: null }, NOW)).toBe("not_sent");
-  // An old lead that never got a response has gone quiet, not a send to chase.
-  expect(enquiryCategory({ ...base, noResponseYet: true, createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("quiet");
+  // Jo 27 Oct 2026: a lead that never got a first response is never "Gone quiet", whatever its age.
+  expect(enquiryCategory({ ...base, noResponseYet: true, createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("not_sent");
+});
+
+test("never contacted is never Gone quiet, so Close all can't reach it (Jo 27 Oct 2026)", () => {
+  const never = { ...base, noResponseYet: true, createdAt: ago(400), lastOutboundAt: null, lastOwnerAt: null };
+  expect(enquiryCategory(never, NOW)).toBe("not_sent");
+  // The owner wrote and we never answered: still an email to chase, not a quiet lead.
+  expect(enquiryCategory({ ...never, lastOwnerAt: ago(120) }, NOW)).toBe("not_sent");
+  // It sits in the opening view and is not one of the groups "Close all" can close.
+  expect(inView("not_sent", "active")).toBe(true);
+  expect(Object.keys(CLOSABLE)).toEqual(["quiet", "opted_out"]);
+  // With a first response recorded, the same age is still Gone quiet.
+  expect(enquiryCategory({ ...never, noResponseYet: false }, NOW)).toBe("quiet");
+});
+
+test("the screen's tabs and the office check share one list of names (Jo 27 Oct 2026)", () => {
+  expect(ENQUIRY_VIEWS).toEqual(["active", "all", ...ENQUIRY_CATEGORIES.map((c) => c.key)]);
+  const server = readFileSync("src/lib/office-screens.functions.ts", "utf8");
+  expect(server).toContain('import { ENQUIRY_VIEWS } from "./enquiry-categories.core"');
+  expect(server).toContain("view: z.enum(ENQUIRY_VIEWS)");
+  expect(server).not.toMatch(/view: z\.enum\(\[/);
+  const screen = readFileSync("src/components/portal/EnquiriesScreen.tsx", "utf8");
+  expect(screen).toContain("ENQUIRY_CATEGORIES.map");
+  expect(screen).not.toMatch(/value: "(offered|not_sent|opted_out|quiet)"/);
 });
 
 test("the journey: offered a spot; no questions step (Jo 26 Oct: we don't ask for answers)", () => {
