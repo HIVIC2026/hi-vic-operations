@@ -130,7 +130,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     // (held only for other reasons) the held draft is rebuilt with the latest figures. When it is not known (own
     // electrician with no agreed price, undecided, not onboarded) no owner quote is drafted (decision 113, never a
     // guessed $349) and any open draft is withdrawn, so the installer sees only their own price.
-    if (electricianPriceKnown(mittiElectrician, draftInput.piesaIncGst) && heldFiguresBuildable(draft)) {
+    if (electricianPriceKnown(mittiElectrician, draftInput.piesaIncGst) && heldFiguresBuildable(draft, { measuredM2: m2, wholeVeec })) {
       setPiesaExplanation(draft, mittiElectrician);
       await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: [...draft.blockers, "Waiting for office review before sending"].join(" · "), intakePrice: !!intakePrice, mittiElectrician });
     } else if ((open ?? []).some((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
@@ -165,10 +165,12 @@ export function electricianPriceKnown(mittiElectrician: MittiElectrician, piesaI
   return piesaIncGst != null && Number.isFinite(piesaIncGst);
 }
 
-/** A held quote can be rebuilt only with a real installer price and a positive total. */
-export function heldFiguresBuildable(draft: Pick<InstallerDraft, "lines" | "subtotal">): boolean {
+/** A held quote can be rebuilt only with a real installer price, a positive total, a known measured area and a known
+ *  whole-VEEC discount — a held preview never shows without the rebate. */
+export function heldFiguresBuildable(draft: Pick<InstallerDraft, "lines" | "subtotal">, rebate: { measuredM2: number | null; wholeVeec: { veecs: number; raw: number } | null }): boolean {
   const installer = Number(draft.lines.find((l) => l.code === "INSTALLER_PRICE")?.line_total_inc_gst);
-  return Number.isFinite(installer) && installer > 0 && draft.subtotal > 0;
+  const area = rebate.measuredM2 != null && Number.isFinite(rebate.measuredM2) && rebate.measuredM2 > 0;
+  return Number.isFinite(installer) && installer > 0 && draft.subtotal > 0 && area && rebate.wholeVeec != null;
 }
 
 /** Identity is part of scope even if the selected electrician has the same price. */

@@ -150,3 +150,32 @@ describe("an issued quote is never touched", () => {
     expect(all[0]).toMatchObject({ id: issued, status: "issued" });
   });
 });
+
+// Review fix (27 Oct 2026): a held preview never shows without the rebate. No measured area, or a VEU discount that
+// can't be worked out → the "not buildable" branch: the open draft is withdrawn and no new one is made.
+describe("held, rebate can't be worked out", () => {
+  test("missing measured area → old draft superseded, no new held draft", async () => {
+    await db.exec("delete from ceiling_measurements");
+    const old = await oldDraft();
+    await setCardPrice(2500);
+    const draft = await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_no_area");
+    expect(draft?.ready).toBe(false);
+    expect(draft?.blockers).toContain("Measured ceiling area is missing.");
+    const all = await quotes();
+    expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+    expect(all.filter((q) => q.status === "draft")).toEqual([]);
+    expect(await events("installer_quote_drafted")).toHaveLength(0);
+  });
+  test("VEU discount can't be worked out (postcode not listed) → old draft superseded, no new held draft", async () => {
+    await db.exec("delete from veu_location_variables");
+    const old = await oldDraft();
+    await setCardPrice(2500);
+    const draft = await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_no_veu");
+    expect(draft?.ready).toBe(false);
+    expect(draft?.blockers.some((b) => b.startsWith("VEU discount can't be worked out"))).toBe(true);
+    const all = await quotes();
+    expect(all.find((q) => q.id === old)?.status).toBe("superseded");
+    expect(all.filter((q) => q.status === "draft")).toEqual([]);
+    expect(await events("installer_quote_drafted")).toHaveLength(0);
+  });
+});
