@@ -50,12 +50,18 @@ mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail
   else tables.customer_email_sends.push({ job_id: p.jobId, purpose: p.purpose, idempotency_key: p.key, status: "sent" });
   deliveries++; return "sent";
 } }));
+const events: Row[] = [];
+let testSendBlocked: string | null = null;
+mock.module("../src/lib/workflow.server", () => ({ logEvent: async (jobId: string, _a: unknown, type: string, summary: string) => { events.push({ jobId, type, summary }); } }));
+mock.module("../src/lib/test-send.core", () => ({ testSendBlocker: () => testSendBlocked, isTestPartner: () => true }));
+mock.module("../src/lib/manual-communication.core", () => ({ MANUAL_SENT_EVENT: "manual", manualSendReference: () => "ref" }));
 const { sendVerifiedIneligibleEmail, retryHeldVerifiedIneligibleEmails } = await import("../src/lib/verified-ineligible-email.server");
 beforeEach(() => {
   Object.keys(tables).forEach(k => delete tables[k]);
   tables.jobs = [{ id: "job", stage: "ready_check_complete", source: "website", owners: { email: "owner@example.test" } }];
   tables.customer_email_sends = []; on = false; outcome = "not_eligible"; deliveries = 0; final = true;
   reason = "Existing insulation is R3.0"; renderedReason = null; consent = true;
+  events.length = 0; testSendBlocked = null;
 });
 test("switch OFF records exactly one held email without sending", async () => {
   await sendVerifiedIneligibleEmail("job"); await sendVerifiedIneligibleEmail("job");
@@ -86,4 +92,27 @@ test("no contact consent holds the email without sending", async () => {
 for (const status of ["sent", "sending", "delivered_unrecorded"]) test(`${status} T7 is never resent`, async () => {
   on = true; tables.customer_email_sends.push({ idempotency_key: "preliminary_ineligible:job", status });
   await sendVerifiedIneligibleEmail("job"); expect(deliveries).toBe(0);
+});
+// Jo 27 Oct: a refused email leaves one row + one office note on the job, and still goes once only.
+test("missing owner email records one blocked row and one office note, never sends", async () => {
+  on = true; tables.jobs[0].owners = { email: null };
+  await sendVerifiedIneligibleEmail("job"); await sendVerifiedIneligibleEmail("job");
+  expect(deliveries).toBe(0); expect(tables.customer_email_sends).toHaveLength(1);
+  expect(tables.customer_email_sends[0].error).toBe("blocked: No owner email address on the job");
+  expect(events.filter(e => e.type === "verified_ineligible_email_not_sent")).toHaveLength(1);
+});
+test("TEST job owner not on the test list records one blocked row with the reason", async () => {
+  on = true; tables.jobs[0].source = "qa_test"; testSendBlocked = "not on the test list";
+  await sendVerifiedIneligibleEmail("job"); await sendVerifiedIneligibleEmail("job");
+  expect(deliveries).toBe(0); expect(tables.customer_email_sends).toHaveLength(1);
+  expect(tables.customer_email_sends[0].error).toBe("blocked: not on the test list");
+  expect(events).toHaveLength(1); expect(events[0].summary).toContain("not on the test list");
+});
+test("messages off records one held row and one office note; blocked rows are not retried", async () => {
+  await sendVerifiedIneligibleEmail("job"); await sendVerifiedIneligibleEmail("job");
+  expect(events).toHaveLength(1); expect(events[0].summary).toContain("Customer messages are off");
+  tables.jobs[0].owners = { email: null }; on = true; await retryHeldVerifiedIneligibleEmails();
+  expect(tables.customer_email_sends[0].error).toStartWith("blocked:");
+  tables.jobs[0].owners = { email: "owner@example.test" }; await retryHeldVerifiedIneligibleEmails();
+  expect(deliveries).toBe(0);
 });
