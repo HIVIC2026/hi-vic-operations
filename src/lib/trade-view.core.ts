@@ -491,3 +491,10 @@ export function installerAttendanceLine(state: "confirmed" | "declined" | "waiti
   if (!state) return null;
   return state === "confirmed" ? ELECTRICIAN_ATTENDANCE_CONFIRMED : ELECTRICIAN_ATTENDANCE_WAITING;
 }
+
+/** Decision 412 (Jo 27 Oct 2026): on a job offer only the business owner sees money — the electrician's pay and the
+ *  installer's $/m² rate. Workers get null for both (checked on the server, not just hidden on screen). */
+export function offerMoney(boss: boolean, s: { electrician_rate_inc_gst?: number | null; installer_rate_per_m2?: number | null }): { pay: number | null; ratePerM2: number | null } {
+  if (!boss) return { pay: null, ratePerM2: null };
+  return { pay: s.electrician_rate_inc_gst ?? null, ratePerM2: s.installer_rate_per_m2 ?? null };
+}

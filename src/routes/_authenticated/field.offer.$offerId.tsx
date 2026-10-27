@@ -158,8 +158,8 @@ function OfferPage() {
           </>
         ) : (
           <>
-            <p className="-mt-1.5 text-[15px]"><span className="text-[22px] font-semibold text-hiv-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</span> <span className="text-sub">your rate for this job</span></p>
-            <NoFormNoPay line className="-mt-2" />
+            {data.boss && <p className="-mt-1.5 text-[15px]"><span className="text-[22px] font-semibold text-hiv-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</span> <span className="text-sub">your rate for this job</span></p>}
+            {data.boss && <NoFormNoPay line className="-mt-2" />}
             {mode === "cant" ? (
               <section className="rounded-[18px] border border-line p-4">
                 <h2 className="text-[17px] font-semibold">Suggest another time</h2>
