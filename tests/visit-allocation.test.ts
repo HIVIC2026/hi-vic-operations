@@ -130,6 +130,7 @@ const mittiUsers: Record<string, string> = { "deep@example.test": "mu-deep", "ma
 const reassigns: unknown[] = [];
 mock.module("../src/lib/mitti.server", () => ({
   realMittiCall: async () => { throw new Error("no network in tests"); },
+  mittiCallForJob: async () => async () => { throw new Error("no network in tests"); },
   findMittiUserByEmail: async (email: string) => mittiUsers[email.trim().toLowerCase()] ?? null,
   reassignMittiFormTo: async (p: unknown) => { reassigns.push(p); return { auditId: (p as { auditId: string }).auditId }; },
 }));
