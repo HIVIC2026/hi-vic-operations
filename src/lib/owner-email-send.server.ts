@@ -13,7 +13,10 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
     admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).in("event_type", (await import("./emailsafety.core")).SUPPRESSING_EVENTS),
   ]);
-  const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(p.to, p.jobSource);
+  // Jo 27 Oct 08:58: a persisted qa_test job's email goes to the TEST inbox, marked; real jobs unchanged (route null).
+  const route = await (await import("./qa-inbox.server")).qaInboxRouteForJob(p.jobId, p.to);
+  const to = route?.to ?? p.to;
+  const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(to, p.jobSource);
   if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") return "blocked — not sent";
   let { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: p.jobId, purpose: p.purpose, idempotency_key: p.key }).select("id").single();
   if ((error || !reserved) && p.retryAfterDefiniteFailure) {
@@ -34,7 +37,8 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
     throw e;
   }
   const { resendSend } = await import("./hot-leads-send.server");
-  const d = await resendSend(p.to, mail.subject, mail.html, mail.text, p.key, unsubscribe, mail.attachments).catch(() => null);
+  if (route) { mail = { ...mail, ...(await import("./qa-inbox.core")).markTestEmail(route, mail) }; await (await import("./qa-inbox.server")).auditQaInbox(p.jobId, route, p.purpose, p.key); }
+  const d = await resendSend(to, mail.subject, mail.html, mail.text, p.key, unsubscribe, mail.attachments).catch(() => null);
   const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
   await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: status === "sent" ? null : d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
   return status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
