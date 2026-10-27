@@ -170,7 +170,10 @@ async def main():
                 cands = [z[1] for z in scored]
             return (cands[0] if cands else None), how
         res["runner_notes"] = []
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
+        if re.search(r"Let's check it's you", text, re.I):
+            # The owner must enter a 6-digit code from their phone/email. Asking for one sends a message, so the runner stops here.
+            res["clicked"] = False; res["runner_error"] = "owner code check shown (Text me a code / Email me a code); the runner can't receive a code without sending a message, so it stopped"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error")]):
             scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
