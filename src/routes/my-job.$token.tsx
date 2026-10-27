@@ -112,7 +112,7 @@ function Hero({ v, level, size = "lg", headline }: { v: View; level: number; siz
         </div>
         <OwnerHouse level={level} size={size} />
       </div>
-      {size === "lg" && <>
+      {size === "lg" && !v.hero.closed && <>
         <div className="mt-4 grid grid-cols-5 gap-1.5" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <span key={i} className={`h-2 rounded-full ${i < step || v.stage === "complete" ? "bg-estimate-green" : i === step ? "bg-estimate-blue" : "bg-estimate-line"}`} />)}</div>
         <div className="mt-2 flex justify-between text-xs font-semibold"><span>Step {Math.min(step + 1, 5)} of 5 · {v.progress[step]?.label}</span><span className="text-estimate-green">You're saving {aud(v.numbers.rebate)}</span></div>
       </>}
