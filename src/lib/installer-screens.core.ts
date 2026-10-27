@@ -109,6 +109,7 @@ const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_schedu
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE, quoteLineYours } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
+import { isInstallerNotOnboardedNote } from "./rec-onboarded.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -168,6 +169,11 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
   return { kind: "none", title: "", home: "", yours: false };
 }
 
+/** Fix round 1 (Jo 28 Oct 2026, spec rule 3): the business owner's price card on an installer job shows the
+ *  not-signed-up note with the switch button, so the job page's Next panel says this short line instead (note once). */
+export const NOT_ONBOARDED_NEXT_TITLE = "Waiting on your electrician to sign up";
+const noteOnPriceCard = (f: Pick<JobNextFacts, "quoteLine" | "boss" | "channel">) => f.boss === true && f.channel === "installer_sourced" && isInstallerNotOnboardedNote(f.quoteLine);
+
 /** The one thing on the job page (decisions 36/41/196). Nothing about the install shows until the install is cleared;
  *  nothing about the rebate form until the Mitti install form is Complete. */
 export function jobNext(f: JobNextFacts): JobNext {
@@ -214,6 +220,7 @@ export function jobNext(f: JobNextFacts): JobNext {
     if (status.kind === "waiting_boss") return { panel: "waiting", title: status.title, sub: "Nothing else is needed from you on this job right now.", yours: false };
     if (f.quoteLine) {
       const yours = quoteLineYours(f.quoteLine);
+      if (noteOnPriceCard(f)) return { panel: "quote_status", title: NOT_ONBOARDED_NEXT_TITLE, sub: null, yours };
       return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, "").replace(/^Waiting on (owner|office):\s*/i, (_, w) => `Waiting on ${w}: `), sub: null, yours };
     }
     if (!f.formCompleted && f.readyCheckTurn === "booked" && f.readyCheckBookedAt) return { panel: "mitti_form", title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`, sub: "Fill in the Mitti form on site and press Complete when it's finished — we then send the owner their quote.", yours: true };
@@ -226,7 +233,7 @@ export function jobNext(f: JobNextFacts): JobNext {
     if (f.readyCheckBookedAt) return { panel: "form_coming", title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`, sub: "Your Ready Check form is being set up in Mitti. It appears within about 15 minutes.", yours: false };
     return { panel: "ready_check_set_time", title: "Your Ready Check form is being set up in Mitti", sub: "It appears within about 15 minutes. Enter the visit day and time below if you've agreed one with the owner.", yours: false };
   }
-  if (f.quoteLine) return { panel: "quote_status", title: f.quoteLine.replace(/^You:\s*/, ""), sub: null, yours: quoteLineYours(f.quoteLine) };
+  if (f.quoteLine) return { panel: "quote_status", title: noteOnPriceCard(f) ? NOT_ONBOARDED_NEXT_TITLE : f.quoteLine.replace(/^You:\s*/, ""), sub: null, yours: quoteLineYours(f.quoteLine) };
   return { panel: "waiting", title: "Nothing for you right now", sub: "We'll tell you when something needs you.", yours: false };
 }
 

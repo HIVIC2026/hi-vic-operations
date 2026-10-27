@@ -45,6 +45,13 @@ export function installerQuoteLine(f: InstallerQuoteFacts): string {
  *  electrician to finish, or switch to ours). Such a job sits under Action needed, never In progress. */
 export const quoteLineYours = (line: string | null | undefined): boolean => !!line && (line.startsWith("You:") || isInstallerNotOnboardedNote(line));
 
+/** The installer job list tab (trade-view tradeHome): a done job stays done; a quote line decides Action needed vs In
+ *  progress; no quote line keeps the tab from the job's place and stage. */
+export function quoteLineTab<T extends string>(tab: T, line: string | null | undefined): T | "action" | "progress" {
+  if (tab === "done") return tab;
+  return line ? (quoteLineYours(line) ? "action" : "progress") : tab;
+}
+
 /** Office Quotes to check: every draft is listed for Check & send; jobs with no draft yet (Ready Check basics
  *  missing, or held before drafting) are listed separately with what is missing. No installer-approval split. */
 export function splitQuotesToCheck<T extends { quoteId: string | null }>(rows: T[]): { drafts: T[]; notDrafted: T[] } {

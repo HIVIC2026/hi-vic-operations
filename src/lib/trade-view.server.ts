@@ -94,7 +94,7 @@ export async function tradeHome(userId: string) {
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
   // Speed (decision 280): the month figures, status facts, Ready Check quote lines and ended assignments do not depend
   // on each other — one round trip instead of five in a row, and the quote facts in one batch instead of one read per job.
-  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine, quoteLineYours }] = await Promise.all([
+  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine, quoteLineTab }] = await Promise.all([
     import("./job-status.server"), import("./installer-progress.core"), import("./installer-home.core"), import("./installer-quote-status.server"), import("./installer-quote-status.core"),
   ]);
   const liveIds = live.map((j) => j.id);
@@ -137,7 +137,7 @@ export async function tradeHome(userId: string) {
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
-  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? quoteLineYours(j.quoteLine) ? "action" as const : "progress" as const : j.tab }));
+  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: quoteLineTab(j.tab, j.quoteLine) }));
   const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));
   const { data: histJobs } = histIds.length
     ? await admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])

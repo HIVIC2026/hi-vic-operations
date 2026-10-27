@@ -44,11 +44,14 @@ mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
-mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => [] }));
+// Approved REC candidates (empty = nobody onboarded). The "onboarded electrician" test sets one.
+let recCandidates: unknown[] = [];
+mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => recCandidates }));
 mock.module("../src/lib/usual-electrician-reminder.server", () => ({ maybeRemindUsualElectrician: async () => { sent.push("reminder"); } }));
 mock.module("../src/lib/auto-quote-send.server", () => ({ maybeAutoSendInstallerQuote: async () => { sent.push("auto-send"); } }));
 // The job's Mitti Ready Check form (read-only fake). Same answers the Task 2 HV-3129 test uses.
 let mittiReads = 0;
+let mittiDown = false;
 const FORM = [
   ["Homeowner agrees to be contacted by Home Insulation Victoria", "Yes"],
   ["What insulation product will you be using on this job?", "Bradford Gold R5"],
@@ -58,6 +61,7 @@ const FORM = [
 mock.module("../src/lib/mitti.server", () => ({
   realMittiCall: async (method: string, path: string) => {
     mittiReads++;
+    if (mittiDown) throw new Error("TEST: Mitti is down");
     if (method !== "GET" || !path.startsWith("/audits/")) { sent.push(`mitti ${method} ${path}`); return {}; }
     return { audit_id: "audit_3129", items: FORM.map(([label, value], i) => ({ item_id: `i${i}`, label, type: "text", responses: { text: value } })) };
   },
@@ -65,8 +69,8 @@ mock.module("../src/lib/mitti.server", () => ({
 
 const { draftInstallerQuoteFromReadyCheck } = await import("../src/lib/installer-quote.server");
 const { switchToHivicElectricianFor, SWITCH_REFUSED } = await import("../src/lib/electrician-switch.server");
-const { loadInstallerQuote } = await import("../src/lib/installer-quote-status.server");
-const { installerQuoteLine, quoteLineYours, QUOTE_HELD_LINE } = await import("../src/lib/installer-quote-status.core");
+const { loadInstallerQuote, loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
+const { installerQuoteLine, quoteLineYours, quoteLineTab, QUOTE_HELD_LINE } = await import("../src/lib/installer-quote-status.core");
 
 const JOB = "00000000-0000-0000-0000-000000003129", BIZ = "00000000-0000-0000-0000-00000000b129", BIZ2 = "00000000-0000-0000-0000-00000000b200";
 const OWNER = "00000000-0000-0000-0000-00000000c129", WORKER = "00000000-0000-0000-0000-00000000c130", OTHER = "00000000-0000-0000-0000-00000000c200", OFFICE = "00000000-0000-0000-0000-00000000a001";
@@ -77,7 +81,7 @@ const switches = async () => (await db.query<{ details: { choice: string; source
 const choiceEvents = async () => (await db.query("select id from workflow_events where job_id=$1 and event_type='electrician_choice_set'", [JOB])).rows;
 
 beforeEach(async () => {
-  sent.length = 0; mittiReads = 0;
+  sent.length = 0; mittiReads = 0; mittiDown = false; recCandidates = [];
   await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from quotes; delete from quote_items; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings; delete from admin_config_events; delete from profiles; delete from business_members;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, electrician_choice, properties) values ($1,'installer_sourced',$2,'hivic_organise','{\"postcode\":\"3000\"}')", [JOB, BIZ]);
   await db.query("insert into ceiling_measurements (job_id, is_current, measured_area_m2, removal_required, external_source, external_id, status) values ($1,true,120,false,'mitti','audit_3129','complete')", [JOB]);
@@ -137,6 +141,36 @@ describe("the job's installer business owner switches a stuck job", () => {
     expect(mittiReads).toBe(1);
     expect(sent).toEqual([]);
   });
+
+  test("Mitti is down during the switch: the choice is kept, and the note, button and Action needed all go", async () => {
+    await stuckJob();
+    mittiDown = true;
+    expect(await switchToHivicElectricianFor(JOB, OWNER)).toEqual({ ok: true });
+    expect(await switches()).toHaveLength(1);
+    expect((await quotes()).filter((q) => q.status === "draft")).toEqual([]); // no rebuild yet; the 15-minute tick does it
+    expect((await loadInstallerQuote(JOB)).electricianNotOnboarded).toBeNull();
+    const batch = (await loadInstallerQuotes([JOB])).get(JOB)!;
+    expect(batch.electricianNotOnboarded).toBeNull();
+    // Job list tab (trade-view tradeHome): only applying quotes give a line; this one is not the installer's move.
+    const lineOf = batch.applies ? installerQuoteLine(batch) : null;
+    expect(quoteLineTab("progress", lineOf)).toBe("progress");
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("job list tab (trade-view tradeHome, batch loader)", () => {
+  const tabOf = async () => { const q = (await loadInstallerQuotes([JOB])).get(JOB)!; return quoteLineTab("progress", q.applies ? installerQuoteLine(q) : null); };
+  test("a stuck job sits under Action needed; after the switch it doesn't", async () => {
+    await stuckJob();
+    expect(await tabOf()).toBe("action");
+    expect((await switchToHivicElectricianFor(JOB, OWNER)).ok).toBe(true);
+    expect(await tabOf()).toBe("progress");
+  });
+  test("a done job stays done", async () => {
+    await stuckJob();
+    const q = (await loadInstallerQuotes([JOB])).get(JOB)!;
+    expect(quoteLineTab("done", installerQuoteLine(q))).toBe("done");
+  });
 });
 
 describe("refused", () => {
@@ -174,9 +208,19 @@ describe("refused", () => {
     await refusedUnchanged(await switchToHivicElectricianFor(JOB, OWNER), SWITCH_REFUSED.alreadyOurs);
     expect(await choiceEvents()).toHaveLength(1);
   });
-  test("a job whose electrician is onboarded (no not-signed-up hold)", async () => {
+  test("a job whose usual electrician IS onboarded (approved REC with a rate)", async () => {
+    await db.query("insert into admin_config_events (event_type, details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({ business_id: BIZ, electrician: { name: "TEST Sparky", licence: "TEST-LIC-3129" } })]);
+    recCandidates = [{ business_id: "00000000-0000-0000-0000-00000000e129", name: "TEST Sparky", trading_name: "TEST Sparky", rec_number: null, worker_licences: ["TEST-LIC-3129"], blocker: null,
+      onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "00000000-0000-0000-0000-00000000f129", rate_inc_gst: 299 } }];
     await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'electrician_choice_set',$2)", [JOB, JSON.stringify({ choice: "usual", source: "add_job" })]);
+    await draftInstallerQuoteFromReadyCheck(JOB, OWNER, entries, "audit_3129");
+    const drafts = (await quotes()).filter((q) => q.status === "draft");
+    expect(drafts).toHaveLength(1);
+    expect(await line(drafts[0]!.id, "PIESA")).toEqual([299]); // the onboarded rate, not held
+    expect((await loadInstallerQuote(JOB)).electricianNotOnboarded).toBeNull();
+    const before = await quotes();
     await refusedUnchanged(await switchToHivicElectricianFor(JOB, OWNER), SWITCH_REFUSED.notStuck);
     expect(await choiceEvents()).toHaveLength(1);
+    expect(await quotes()).toEqual(before);
   });
 });

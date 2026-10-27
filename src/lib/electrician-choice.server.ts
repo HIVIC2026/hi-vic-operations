@@ -12,6 +12,17 @@ export async function readElectricianChoice(jobId: string): Promise<ElectricianC
   return electricianChoiceFromEvent(data?.details);
 }
 
+/** `readElectricianChoice` for many jobs in one read: each job's latest recorded choice (missing = none recorded). */
+export async function readElectricianChoices(jobIds: string[]): Promise<Map<string, ElectricianChoice | null>> {
+  const out = new Map<string, ElectricianChoice | null>();
+  const ids = [...new Set(jobIds)];
+  if (!ids.length) return out;
+  const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", ELECTRICIAN_CHOICE_EVENT).order("created_at", { ascending: false });
+  if (error) throw new WorkflowError("The electrician choice could not be read.");
+  for (const e of data ?? []) if (e.job_id && !out.has(e.job_id)) out.set(e.job_id, electricianChoiceFromEvent(e.details)); // newest first
+  return out;
+}
+
 /** Records the choice (validated against the business's saved usual electrician). `choice` null = the default rule
  *  (usual when saved, else Home Insulation Victoria's) — bulk upload and legacy callers. Append-only; never sends. */
 export async function recordElectricianChoice(jobId: string, businessId: string, actorId: string | null, choice: ElectricianChoice | null | undefined, source: ElectricianChoiceRecord["source"]): Promise<ElectricianChoiceRecord> {

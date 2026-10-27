@@ -23,7 +23,8 @@ const heldNotOnboarded = (details: unknown): NotOnboarded => {
   for (const b of Array.isArray(d.blockers) ? d.blockers : []) { const m = named(notOnboardedNameFromReason(typeof b === "string" ? b : null)); if (m) return m; }
   return null;
 };
-/** No quote yet, but the latest hold says the electrician must finish onboarding: the installer sees that note. */
+/** No quote yet, but the latest hold says the electrician must finish onboarding (and the job wasn't switched to our
+ *  electrician since): the installer sees that note. */
 const NOT_ONBOARDED_NO_QUOTE = (channel: string | null, formCompleted: boolean, electrician: { name: string }): InstallerQuote => ({ applies: true, quote: null, channel, sent: false, accepted: false, declined: false, held: false, electricianNotOnboarded: electrician, formCompleted });
 
 const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
@@ -46,7 +47,9 @@ export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote>
   if (!q) {
     const { data: lastHeld, error: le } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_held").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (le) throw new WorkflowError("Quote hold could not be checked.");
-    const electrician = heldNotOnboarded(lastHeld?.details);
+    let electrician = heldNotOnboarded(lastHeld?.details);
+    // Fix round 1: once the job is switched to our electrician the note no longer applies, even before the rebuild.
+    if (electrician && (await (await import("./electrician-choice.server")).readElectricianChoice(jobId)) === "hivic") electrician = null;
     return electrician ? NOT_ONBOARDED_NO_QUOTE(channel, (basics?.details as { completed?: boolean } | null)?.completed === true, electrician) : NONE(channel);
   }
   if (!isReadyCheckQuote(q.option_code, m)) return NONE(channel);
@@ -101,10 +104,13 @@ export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string,
   if (qhe) throw new WorkflowError("Quote hold could not be checked.");
   const latestHeld = new Map<string, unknown>();
   for (const h of heldRows ?? []) if (h.job_id && !latestHeld.has(h.job_id)) latestHeld.set(h.job_id, h.details); // newest first
+  // Fix round 1: a job switched to our electrician (latest choice `hivic`) never shows the not-signed-up note.
+  const stuckIds = noQuoteIds.filter((id) => heldNotOnboarded(latestHeld.get(id)));
+  const choices = stuckIds.length ? await (await import("./electrician-choice.server")).readElectricianChoices(stuckIds) : new Map<string, string | null>();
   for (const id of ids) {
     const channel = channelOf.get(id) ?? null;
     const q = latestQuote.get(id) ?? null;
-    if (!q) { const electrician = heldNotOnboarded(latestHeld.get(id)); out.set(id, electrician ? NOT_ONBOARDED_NO_QUOTE(channel, latestBasics.get(id)?.completed === true, electrician) : NONE(channel)); continue; }
+    if (!q) { const electrician = choices.get(id) === "hivic" ? null : heldNotOnboarded(latestHeld.get(id)); out.set(id, electrician ? NOT_ONBOARDED_NO_QUOTE(channel, latestBasics.get(id)?.completed === true, electrician) : NONE(channel)); continue; }
     if (!isReadyCheckQuote(q.option_code, measurement.get(id) ?? null)) { out.set(id, NONE(channel)); continue; }
     const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
     out.set(id, {
