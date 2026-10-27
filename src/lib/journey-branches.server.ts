@@ -342,7 +342,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       await J.assertOwnTestJob(ctx);
       const rs = await import("./rectification.server");
       // Business days at least 2 business days away (calendar +3..+5 hit weekends on some dates).
-      const days = (await import("./piesa-times.core")).allowedPiesaTimeDays().slice(1, 4);
+      const days = (await import("./piesa-windows.core")).allowedPiesaDays().slice(0, 3);
       await rs.recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
