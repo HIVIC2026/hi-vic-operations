@@ -1,3 +1,4 @@
+import { commitCampaignSpot, repairCampaignSpotStage } from "./campaign-spot-save.server";
 // Preliminary email-based Save My Spot – server side (Jo, 22 Oct 2026).
 // Flow: an Office reviewer records an append-only preliminary review BOUND to the owner's genuine
 // inbound email (job_communications), which also records an immutable individual-reply permission
@@ -58,6 +59,7 @@ export async function preliminarySavePage(token: unknown) {
   if (!l || !linkUsable(l)) return null;
   const { jobDeletedBlocker } = await import("./job-live.server");
   if (await jobDeletedBlocker(l.job_id)) return null;
+  await repairCampaignSpotStage(l.job_id);
   const [{ data: job }, { data: resp }] = await Promise.all([
     admin.from("jobs").select("stage, owners(full_name)").eq("id", l.job_id).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", l.job_id).maybeSingle(),
@@ -87,8 +89,8 @@ export async function savePreliminarySpot(token: unknown) {
   if (resp?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   const consent = await (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId);
   if (!consent) throw new Error("Please contact our office so we can help you save your spot.");
-  const now = new Date().toISOString();
-  let firstSave = false;
+  let snapshot: Record<string, unknown> = {};
+  let saveLinkId = l.id;
   if (!resp?.spot_saved_at) {
     // Normal preparation uses the address, entered ceiling size and current pricing; it never sends.
     const { syncStep3 } = await import("./estimatelink.server");
@@ -98,29 +100,13 @@ export async function savePreliminarySpot(token: unknown) {
       admin.from("customer_estimate_links").select("id, token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
     ]);
     if (estimateError || linkError || !estLink || !linkUsable(estLink)) throw new Error("Your estimate is not ready. Please contact our office before saving your spot.");
-    const snapshot = preliminarySavedEstimateSnapshot(est ?? null, estLink.token);
-    const ins = await admin.from("lead_campaign_responses").upsert({ job_id: jobId, estimate_link_id: estLink.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: false, desk_check_status: "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
-    firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
-    if (!firstSave) {
-      const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, estimate_link_id: estLink.id, ...snapshot }).eq("job_id", jobId).is("opted_out_at", null).is("spot_saved_at", null).select("id");
-      firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
-    }
+    snapshot = preliminarySavedEstimateSnapshot(est ?? null, estLink.token);
+    saveLinkId = estLink.id;
   }
-  const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle();
-  if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
-  if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
-  if (firstSave) {
-    await logEvent(jobId, null, "campaign_spot_saved", "Owner saved a place for a free Ready Check (preliminary email invitation)", { campaign: LAUNCH_CAMPAIGN, preliminary_email: true }, { internal: true });
-    // Spot saved → free Ready Check next, same transition as every other save.
-    const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
-    if (j && ["preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(j.stage)) {
-      const { transition } = await import("./workflow.server");
-      const flag = (to: string) => (e: unknown) => logEvent(jobId, null, "campaign_spot_advance_blocked", `Spot saved but the job could not move to ${to}: ${(e as Error)?.message ?? e}`, { to }, { internal: true }).catch(() => null);
-      if (j.stage !== "preliminary_estimate_ready") await transition(jobId, "preliminary_estimate_ready", null, "Owner saved their spot – preliminary queue qualification; final onsite verification required").catch(flag("preliminary_estimate_ready"));
-      await transition(jobId, "ready_check_ready_to_schedule", null, "Owner saved their spot – free Ready Check next").catch(flag("ready_check_ready_to_schedule"));
-    }
-    await queuePreliminarySpotSavedConfirmation(jobId);
-  }
+  await commitCampaignSpot(jobId, saveLinkId, snapshot, false,
+    "Owner saved a place for a free Ready Check (preliminary email invitation)",
+    { campaign: LAUNCH_CAMPAIGN, preliminary_email: true });
+  await queuePreliminarySpotSavedConfirmation(jobId);
   return { ok: true as const };
 }
 
