@@ -2,7 +2,7 @@
 // source='qa_test', every person is on the TEST domain, and each step re-checks that before acting.
 // Shared by the daily endpoint and the browser runner (which adds screenshots on top of the same steps).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
+import { JOURNEY_INSTALL_CONSENT, JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
 
 export const JOURNEY_ACTOR_EMAIL = "admin@hivic.test";
 export const TEST_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
@@ -465,7 +465,7 @@ const s7: StepFn = async (ctx, r) => {
   {
     const cs = await import("./consent.server");
     const rec = await import("./job-records.server");
-    await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
+    await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId ?? "", actorId: ctx.actorId, input: JOURNEY_INSTALL_CONSENT, ip: "127.0.0.1", userAgent: "journey-test" }));
     // Decision 370: the AP part normally signs itself right after the owner; the office path runs only if it was held.
     if ((await cs.currentConsent(ctx.jobId!))?.status === "awaiting_ap") await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
     const esc = await import("./esc.server");
