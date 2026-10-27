@@ -122,13 +122,14 @@ export async function flagUnclearPaymentMatches(jobId: string, invoiceId: string
 
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. */
 export async function jobPaymentView(jobId: string, now = new Date()) {
-  const [{ data: inv, error: invoiceError }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }] = await Promise.all([
+  const [{ data: inv, error: invoiceError }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }, { data: piesaNow }] = await Promise.all([
     admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid, deposit_amount, xero_invoice_number, xero_reference, xero_online_url, xero_invoice_id, balance_due_date, quotes(accepted_at, customer_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
     currentFixesQuote(jobId).then(q => ({ data: q?.status === "accepted" ? q : null })),
     admin.from("bookings").select("id, created_at, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "completed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("jobs").select("job_number, stage, source").eq("id", jobId).maybeSingle(),
+    admin.from("piesa_records").select("outcome, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (invoiceError) throw new Error("The invoice could not be checked.");
   if (!inv) return null;
@@ -160,7 +161,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },
     fixes: { requestedAt: fixesCents > 0 ? rect?.accepted_at ?? null : null },
     // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold.
-    install_deposit: { requestedAt: bookedAt ?? (INSTALL_DEPOSIT_DUE_STAGES.has(job?.stage ?? "") ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
+    install_deposit: { requestedAt: bookedAt ?? (installDepositDueNow(job?.stage, piesaNow) ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
