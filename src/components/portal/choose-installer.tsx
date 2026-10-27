@@ -11,11 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
+import { btnClass } from "@/components/portal/kit";
+import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 
-export function ChooseInstallerPanel({ jobId }: { jobId: string }) {
+/** `reportLoad`: the Choose installer pop-up (the job is known to be waiting) says when the list is loading or failed,
+ *  instead of a blank box. The job page leaves it off: there the panel only appears for jobs at this step. */
+export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: string; reportLoad?: boolean }) {
   const qc = useQueryClient();
   const list = useServerFn(listChooseTrades);
   const release = useServerFn(releaseSpotFn);
@@ -25,7 +29,16 @@ export function ChooseInstallerPanel({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const d = q.data;
-  if (!d || d.channel !== "hivic_sourced" || d.stage !== "ready_check_ready_to_schedule" || d.hasInstaller) return null;
+  const state = choosePanelState({ isError: q.isError, hasData: !!d });
+  if (reportLoad && state === "error") return (
+    <div id="choose-installer" role="alert" className="space-y-2 rounded-md border border-danger/40 bg-danger-soft px-3 py-3 text-sm">
+      <p className="font-semibold text-danger">{CHOOSE_LOAD_FAILED}</p>
+      <p className="text-sub">This does not mean no installer can take the job.{q.error instanceof Error && q.error.message ? ` ${q.error.message}` : ""}</p>
+      <button type="button" className={btnClass("secondary")} disabled={q.isFetching} onClick={() => void q.refetch()}>{q.isFetching ? "Trying again…" : "Try again"}</button>
+    </div>
+  );
+  if (reportLoad && state === "loading") return <p className="text-sm text-sub">Loading installers…</p>;
+  if (!d ||d.channel !== "hivic_sourced" || d.stage !== "ready_check_ready_to_schedule" || d.hasInstaller) return null;
   const pick = async (id: string, name: string) => {
     if (busy) return;
     setBusy(id);
@@ -53,14 +66,14 @@ export function ChooseInstallerPanel({ jobId }: { jobId: string }) {
             : <p className="text-muted-foreground">{rel?.state === "lapsed" ? `${rel.line}. ` : ""}Tap Release next to an installer: the owner gets "It's your turn" and confirms first. Only then does that installer get the offer (24 hours to offer the owner 3 times).</p>}
           {!d.openOffer && !pending && (
             <ul className="divide-y rounded-md border">
-              {shown.length === 0 && <li className="px-3 py-3 text-muted-foreground">No approved installers cover {d.suburb || "this area"}.</li>}
+              {shown.length === 0 && <li className="px-3 py-3 text-muted-foreground">No installer can be offered {d.suburb || "this area"} right now{d.others.length ? " — show the others to see why" : ""}.</li>}
               {shown.map((t) => {
                 const blocked = !!t.blocker || t.alreadyOffered === "pending" || t.alreadyOffered === "declined" || t.alreadyOffered === "accepted";
                 return (
                   <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-3">
                     <div className="min-w-0">
                       <p className="font-semibold">{t.business}</p>
-                      <p className="text-xs text-muted-foreground">{t.matching ? "Services this area" : "Outside listed area"} · {t.distanceKm != null ? `${t.distanceKm} km` : t.areaNote} · {t.rate != null ? `R5 ${money(t.rate)} ${t.rateUnit}` : "No agreed rates"}</p>
+                      <p className="text-xs text-muted-foreground">{t.inArea ? "Services this area" : "Outside listed area"} · {t.distanceKm != null ? `${t.distanceKm} km` : t.areaNote} · {t.rate != null ? `R5 ${money(t.rate)} ${t.rateUnit}` : "No agreed rates"}</p>
                       {t.alreadyOffered === "declined" && <p className="text-xs text-muted-foreground">Said Not for me on this job</p>}
                       {t.alreadyOffered === "expired" && <p className="text-xs text-muted-foreground">Didn't answer in 24 hours last time</p>}
                       {t.blocker && <p className="text-xs text-destructive">Can't be offered: {t.blocker}</p>}

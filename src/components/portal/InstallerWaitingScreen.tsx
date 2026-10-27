@@ -18,7 +18,7 @@ import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
 import { INSULATION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
 import { estimateLabel, sizeLabel } from "@/lib/enquiry-columns.core";
 import {
-  INSTALLER_WAITING_COLUMNS, NO_INSTALLER_NOTE, activeWaitingFilters, noInstallerExplain, suburbLabel, waitingSinceLabel, waitingView,
+  INSTALLER_WAITING_COLUMNS, NO_INSTALLER_NOTE, activeWaitingFilters, noInstallerExplain, suburbLabel, waitingCountLine, waitingCounts, waitingSinceLabel, waitingView,
   type InstallerWaitingRow, type WaitingCoverage, type WaitingFilters,
 } from "@/lib/installer-waiting-columns.core";
 
@@ -55,7 +55,7 @@ function ChooseDialog({ row, onClose }: { row: InstallerWaitingRow | null; onClo
               <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => setAnyway(true)}>Show installers anyway</button>
             </div>
           </div>
-        ) : row ? <ChooseInstallerPanel jobId={row.id} /> : null}
+        ) : row ? <ChooseInstallerPanel jobId={row.id} reportLoad /> : null}
         {row && <Link to="/admin/jobs/$jobId" params={{ jobId: row.id }} className="text-xs font-semibold text-hiv-blue underline">Open the job page</Link>}
       </DialogContent>
     </Dialog>
@@ -101,7 +101,7 @@ export function InstallerWaitingScreen() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[30px] font-extrabold leading-tight text-ink">Choose installer</h1>
-          <p className="text-sm text-sub">{d ? `${d.rows.length.toLocaleString("en-AU")} spot${d.rows.length === 1 ? "" : "s"} saved, waiting for an installer${noInstaller ? ` · ${noInstaller} with no installer covering the area` : ""}` : "Our leads with a saved spot, waiting for you to pick an installer"}</p>
+          <p className="text-sm text-sub">{d ? `${waitingCountLine(waitingCounts(d.rows))}${noInstaller ? ` · ${noInstaller.toLocaleString("en-AU")} with no installer able to take the area` : ""}` :"Our leads with a saved spot, waiting for you to pick an installer"}</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <Link to="/admin/jobs/active" className="font-semibold text-hiv-blue underline">All active jobs</Link>
