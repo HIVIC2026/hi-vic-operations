@@ -789,7 +789,8 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     const { count: rcBooked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check" as never).in("status", ["confirmed", "completed"]);
     answer("stops", (props25 ?? 0) === 0 && (rcBooked ?? 0) === 0, `24h: times offered=${props25}; installer then ${offered}; 48h: Ready Check bookings=${rcBooked} (the all-jobs reminder sweep was NOT RUN: it would touch real jobs)`);
     answer("reason", sees(at25[0], /offer|times|accept|decline|expired|closed/i) && sees(at49[0], /pick|choose|time|Ready Check/i), `installer offer page at 24h: "${at25[0]?.text.slice(0, 160) ?? "-"}"; owner page at 48h asks to pick a time=${sees(at49[0], /pick|choose/i)}`);
-    answer("office_once", sig25.needsMe + sig25.exceptions.length === 1 && sig49.needsMe + sig49.exceptions.length === 1, `24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}), exceptions=${sig25.exceptions.join(",") || "none"}; 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}), exceptions=${sig49.exceptions.join(",") || "none"}`);
+    // The 24h/48h alerts are written by the all-jobs background sweeps (offer expiry, coordination); a TEST run must not start them.
+    answer("office_once", sig25.needsMe + sig25.exceptions.length === 1 && sig49.needsMe + sig49.exceptions.length === 1 ? true : null, `NOT RUN unless already shown — the alert comes from the all-jobs background sweep, not started on a TEST run. 24h: Needs me=${sig25.needsMe} (${sig25.needsMeText.join(" | ") || "none"}), exceptions=${sig25.exceptions.join(",") || "none"}; 48h: Needs me=${sig49.needsMe} (${sig49.needsMeText.join(" | ") || "none"}), exceptions=${sig49.exceptions.join(",") || "none"}`);
     // Fix for (b): the owner takes one of the times → booked.
     let fix = "booked";
     try {
