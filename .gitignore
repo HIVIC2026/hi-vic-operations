@@ -39,3 +39,4 @@ dist-ssr
 
 # ESC Registry robot explore dumps (scripts/esc-registry-robot-explore.ts): page HTML/screenshots, never committed
 tmp/esc-registry-explore/
+.superpowers/
