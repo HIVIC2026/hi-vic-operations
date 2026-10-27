@@ -70,3 +70,9 @@ test("installer payout deduction: only installer-pays choices, ex GST", async ()
   expect(repeatDeductionEx([{ payer: "owner", price_inc_gst: 220 }, { payer: "hivic", price_inc_gst: 220 }], 1.1)).toBe(0);
   expect(repeatDeductionEx([{ payer: "installer", price_inc_gst: null }], 1.1)).toBe(0);
 });
+
+test("installer page is paused at piesa_complete when the PIESA found fixes and Section C isn't signed", () => {
+  const facts = { channel: "hivic_sourced", stage: "piesa_complete", ownerFirstName: "Sam", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted — waiting for owner's payment", clearedOn: null, fixesOpen: true } as never;
+  expect(jobNext(facts).title).toBe(FIXES_PAUSED_TITLE);
+  expect(jobNext({ ...(facts as object), fixesOpen: false } as never).title).not.toBe(FIXES_PAUSED_TITLE);
+});
