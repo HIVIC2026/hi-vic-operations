@@ -135,7 +135,7 @@ async def main():
             if scope and not any([await x.evaluate("(el, s) => { let n = el, d = 0; while (n && d < 12) { if ((n.innerText || '').includes(s)) return true; n = n.parentElement; d++; } return false; }", scope) for x in cands]):
                 # A person would open "Show N more" lists to look for the named card.
                 for more in await page.get_by_role("button", name=re.compile(r"^Show \d+ more", re.I)).all():
-                    if await more.is_visible(): await more.click(); await page.wait_for_timeout(800); res["runner_notes"].append("opened a Show more list")
+                    if await more.is_visible(): await more.click(); await page.wait_for_timeout(800); res.setdefault("person_notes", []).append("opened a Show more list")
                 cands = [x for x in await loc.all() if await x.is_visible()]
             if not cands:
                 t = page.get_by_text(name, exact=True)
@@ -171,7 +171,10 @@ async def main():
                 else: res["clicked"] = False; res["missing"] = label
                 break
             if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
-            if not await el.is_enabled(): res["clicked"] = False; res["missing"] = "enabled " + label; break
+            if not await el.is_enabled():
+                card = await el.evaluate("el => (el.closest('li,tr,article,section,[role=listitem]') || el.parentElement).innerText")
+                why = re.search(r"Can't be offered:[^\n]*", card or "")
+                res["clicked"] = False; res["missing"] = "enabled " + label + (f" — card says: {why.group(0)}" if why else ""); break
             try: await el.click(timeout=10000)
             except Exception as e: res["clicked"] = False; res["runner_error"] = f'"{label}" visible but click failed: {str(e)[:100]}'; break
             res["clicked"] = True
