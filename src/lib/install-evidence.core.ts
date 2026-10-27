@@ -578,6 +578,10 @@ export function installCompletionDecision(i: InstallCompletionInput): InstallCom
   if (i.allFilledInTicked === false) return { record: false, reason: "Final tick not ticked on the Install day form", nextLine: `Install day form: ${FINAL_TICK_MISSING}`, outstanding: [FINAL_TICK_MISSING] };
   if (!i.declarationSaved) return { record: false, reason: "Signed installer declaration not saved yet", nextLine: "Sign the safety form (PIISA) in Mitti — the portal has not got a signed copy yet", outstanding: [] };
   if (!i.summary) return { record: false, reason: "Install-day evidence not read yet", nextLine: "Sync the Install day form — the evidence has not been read yet", outstanding: [] };
+  if (!Array.isArray(i.summary.rulerBlockers)) {
+    const outstanding = rulerPhotoBlockersOf(i.summary);
+    return { record: false, reason: "Current A5 ruler summary not read yet", nextLine: outstanding[0] ?? null, outstanding };
+  }
   // Decision 396: before the effective date the summary's blockers are the ruler photos only — they still hold completion.
   if (!i.summary.applies) {
     const ruler = rulerPhotoBlockersOf(i.summary);
