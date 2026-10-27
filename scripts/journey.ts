@@ -7,8 +7,14 @@
 // TEST only: never touches real jobs; nothing is sent to anyone outside the allowlist.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURNEY_ACTOR_EMAIL, TEST_INSTALLER_EMAIL, TEST_ELECTRICIAN_EMAIL, TEST_WORKER_EMAIL } from "../src/lib/journey.server";
 import { summarise, publishVerdict, type StepResult } from "../src/lib/journey-test.core";
+
+// Screens proof must not invoke legacy setup or server-driven actions before its safety preflight.
+if (process.argv.includes("--screens")) {
+  await import("./journey-screens");
+  process.exit(process.exitCode ?? 1);
+}
+const { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURNEY_ACTOR_EMAIL, TEST_INSTALLER_EMAIL, TEST_ELECTRICIAN_EMAIL, TEST_WORKER_EMAIL } = await import("../src/lib/journey.server");
 
 const keep = process.argv.includes("--keep");
 // Opt-in hard cases (Jo 27 Oct 2026): --branch not-eligible | --branch piesa-fixes. Without --branch nothing below changes.
