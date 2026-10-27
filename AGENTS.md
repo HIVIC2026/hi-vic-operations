@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Verified post-Ready-Check ineligible notifications share the existing T7 per-job email key and guarded sender; only durable held records retry after revalidating the current final verification. Why: no duplicate messages, no Gate 1 mutation or historical backlog release.
 - Document early recovery owns module error/rejection events; the router handles preload/route catches and cache-busts reloads; both use the pure page-recovery stale-export classifier. Why: competing refresh handlers or missed named lazy exports can leave stale tabs blank.
 - Read nested `AGENTS.md` before changing subdirectories, including `src/lib` domain rules and `scripts` QA rules. Why: keeps scoped rules local.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.

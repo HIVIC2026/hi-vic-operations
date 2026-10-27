@@ -205,7 +205,7 @@ export async function eligibilityView(jobId: string) {
   return { evidence, assessment, current, stale, history: (history ?? []) as Row[] };
 }
 
-/** Office-only. Records the result and an audit event. Never changes stage, quotes, payments, bookings or messages. */
+/** Office-only. Records the result/audit; final not-eligible decisions prepare the guarded T7 once per job. */
 export async function recordVerification(
   sb: SupabaseClient,
   jobId: string,
@@ -236,5 +236,9 @@ export async function recordVerification(
     } as never,
   );
   if (error) throw new Error(`Verified eligibility could not be recorded: ${error.message}`);
+  if (outcome === "not_eligible") {
+    await (await import("./verified-ineligible-email.server")).sendVerifiedIneligibleEmail(jobId)
+      .catch((e) => console.error("Verified not-eligible email not sent", jobId, String(e)));
+  }
   return { id: data as unknown as string };
 }
