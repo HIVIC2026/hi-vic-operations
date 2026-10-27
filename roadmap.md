@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 03:00 five follow-ups + journey rerun
+- [x] Real A3 read-only: no owner-name question under any label; nothing changed (Jo to add in Mitti).
+- [x] Journeys route product Mitti calls to the simulator and refuse any real Mitti call (check M); stray real A4 audit_5f87c528f09144589e0a0380916633ec left in place.
+- [x] 2.3 accepts decision-315 hold reason; 1.4 refused emails leave one held/blocked row + office note, once only.
+- [x] Xero duplicate was the test making a second invoice; removed from the test, reference unchanged.
+- [x] Reruns: not-eligible HV-3361/3362 all pass; piesa-fixes HV-3363 all pass; archived.
 ## Jo 27 Oct 02:24 DC Xero switch (clarified 02:25)
 - [x] Preview selects already-linked DC Xero; actual status configured/connected, DC live and Demo-only TEST routing confirmed; 53 tests pass, build OK. No messages, switches or publication.
 - [x] Jo 02:29 tracking fix: DC Projects → Home Insulation Victoria resolved against actual Xero read-only; 56 tests pass, build OK. Wrong-business/missing-tracking guards and Demo isolation retained; no invoices sent or publication.

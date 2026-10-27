@@ -24,15 +24,8 @@ export async function sendVerifiedIneligibleEmail(jobId: string): Promise<string
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   let held: string | null = null;
   try { await assertCustomerDeliveryAllowed(jobId, "Verified not-eligible email"); } catch (e) { held = e instanceof Error ? e.message : String(e); }
-  if (!to) held ??= "No owner email";
-  if (held) {
-    // One durable held record; never overwrite an in-flight/sent reservation during a race.
-    if (!prior) {
-      const { error } = await admin.from("customer_email_sends").upsert({ job_id: jobId, purpose: INELIGIBLE_PURPOSE, idempotency_key: key, status: "failed", error: `held: ${held}` }, { onConflict: "idempotency_key", ignoreDuplicates: true });
-      if (error) throw new Error(error.message);
-    }
-    return `held: ${held}`;
-  }
+  if (held) { await recordNotSent(jobId, key, !!prior, `held: ${held}`); return `held: ${held}`; }
+  if (!to) { const why = "blocked: No owner email address on the job"; await recordNotSent(jobId, key, !!prior, why); return why; }
   // Currency/price text must not leak through an office reason; fall back to approved T7 copy.
   const reason = /[$€£]|\b(?:AUD|GST|price|cost|dollars)\b/i.test(v.reason ?? "") ? null : safeReason(v.reason);
   const mail = await renderPreliminaryIneligibleMail(jobId, reason, job.external_enquiry_id);
@@ -43,7 +36,7 @@ export async function sendVerifiedIneligibleEmail(jobId: string): Promise<string
     const { isTestPartner } = await import("./test-send.core");
     const partnerIsTest = !ae && isTestPartner(assignment?.businesses as { onboarding_notes: string | null } | null);
     const blocked = testSendBlocker({ channel: "email", to, jobSource: job.source, partnerIsTest });
-    if (blocked) return `blocked: ${blocked}`;
+    if (blocked) { const why = `blocked: ${blocked}`; await recordNotSent(jobId, key, !!prior, why); return why; }
     const claim = prior
       ? await admin.from("customer_email_sends").update({ status: "sending", error: null }).eq("id", prior.id).eq("status", "failed").select("id").maybeSingle()
       : await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: INELIGIBLE_PURPOSE, idempotency_key: key }).select("id").single();
@@ -75,4 +68,19 @@ export async function retryHeldVerifiedIneligibleEmails(limit = 20) {
   const { data, error } = await admin.from("customer_email_sends").select("job_id").eq("purpose", INELIGIBLE_PURPOSE).eq("status", "failed").like("error", "held:%").order("created_at", { ascending: true }).limit(limit);
   if (error) throw new Error(error.message);
   for (const row of data ?? []) await sendVerifiedIneligibleEmail(row.job_id).catch((e) => console.error("Verified ineligible email remains held", row.job_id, String(e)));
+}
+/** Jo 27 Oct: a refused automatic not-eligible email leaves ONE durable row on the job (held = retried when messages
+ *  come on; blocked = not retried) plus one office-visible event, so the office can see the owner was not told.
+ *  Never overwrites an existing reservation, so the email still goes once only. */
+async function recordNotSent(jobId: string, key: string, hadPrior: boolean, why: string) {
+  if (hadPrior) {
+    await admin.from("customer_email_sends").update({ error: why }).eq("idempotency_key", key).eq("status", "failed");
+    return;
+  }
+  const { data, error } = await admin.from("customer_email_sends").upsert({ job_id: jobId, purpose: INELIGIBLE_PURPOSE, idempotency_key: key, status: "failed", error: why }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
+  if (error) throw new Error(error.message);
+  if ((data ?? []).length) {
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(jobId, null, "verified_ineligible_email_not_sent", `Not-eligible email NOT sent to the owner — ${why.replace(/^(held|blocked): /, "")}`, { idempotency_key: key, reason: why }, { internal: true });
+  }
 }
