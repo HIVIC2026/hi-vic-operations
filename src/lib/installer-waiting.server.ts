@@ -36,7 +36,11 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 
 /** Every installer / REC with the facts the coverage rule needs (one read each, no per-job lookups). */
 async function partnerFacts(testBusinessIds?: string[]): Promise<WaitingPartner[]> {
-  const scope = <T extends { in: (column: string, ids: string[]) => T }>(query: T, column: string) => testBusinessIds ? query.in(column, testBusinessIds.length ? testBusinessIds : ["00000000-0000-0000-0000-000000000000"]) : query;
+  type ScopedQuery = { in: (column: string, ids: string[]) => ScopedQuery; range: (from: number, to: number) => Res };
+  const scope = (query: unknown, column: string): ScopedQuery => {
+    const q = query as ScopedQuery;
+    return testBusinessIds ? q.in(column, testBusinessIds.length ? testBusinessIds : ["00000000-0000-0000-0000-000000000000"]) : q;
+  };
   const [bizs, creds, rates, workers] = await Promise.all([
     all("partners", (a, b) => scope(admin.from("businesses").select("id, name, trading_name, business_type, capabilities, onboarding_status, is_active, service_postcodes, service_regions, coverage_verified_at, accepting_new_jobs, receives_hivic_leads, free_measureups_for_hivic_quote_leads, onboarding_notes, rec_number"), "id").range(a, b)),
     all("partner documents", (a, b) => scope(admin.from("business_credentials").select("business_id, kind, label, expires_at, critical, verification"), "business_id").range(a, b)),
