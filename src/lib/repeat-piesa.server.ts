@@ -28,13 +28,13 @@ export async function repeatPiesaContext(jobId: string): Promise<{ state: Repeat
   const ev = rows ?? [];
   const d = (r: { details: unknown }) => (r.details ?? {}) as Record<string, unknown>;
   const chosen = ev.find((r) => r.event_type === REPEAT_PIESA_CHOSEN_EVENT);
-  const choice: RepeatChoice | null = chosen ? { payer: d(chosen).payer as RepeatPayer, priceIncGst: (d(chosen).price_inc_gst as number | null) ?? null, deadline: String(d(chosen).deadline), at: chosen.created_at } : null;
+  const choice: RepeatChoice | null = chosen ? { payer: d(chosen)["payer"] as RepeatPayer, priceIncGst: (d(chosen)["price_inc_gst"] as number | null) ?? null, deadline: String(d(chosen)["deadline"]), at: chosen.created_at } : null;
   // A lapse stays current until the repeat PIESA is offered (the job may leave installation_scheduling afterwards).
   const lapsedDeadline = c && c.deadline && c.expired && !c.booked ? c.deadline : choice?.deadline ?? null;
-  const forDeadline = (t: string) => ev.find((r) => r.event_type === t && String(d(r).deadline) === lapsedDeadline)?.created_at ?? null;
+  const forDeadline = (t: string) => ev.find((r) => r.event_type === t && String(d(r)["deadline"]) === lapsedDeadline)?.created_at ?? null;
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
-  const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r).deadline) === lapsedDeadline);
-  const sp = exp ? String(d(exp).payer ?? "") : "";
+  const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);
+  const sp = exp ? String(d(exp)["payer"] ?? "") : "";
   return { state, suggestion: sp && sp !== "undetermined" ? sp : null };
 }
 

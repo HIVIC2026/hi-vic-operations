@@ -10,6 +10,7 @@ import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
