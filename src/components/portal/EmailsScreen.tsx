@@ -72,7 +72,7 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
       {c.subject && <p className="text-sm text-sub">{c.subject}</p>}
       {c.intent !== "reply" && c.label && <p className="text-sm font-semibold text-ink">{c.label}</p>}
       <TheyWrote text={c.theyWrote} />
-      {c.draftClosed && !c.draft ? <p className="text-sm text-sub">A reply was already sent or discarded on the job page — press Done if it's sorted.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      {c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
       <div className="grid grid-cols-2 gap-2 md:flex">
         {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job")}>{busy ? "Working…" : "Send"}</button>}
         <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId } }), c.action === "done" ? "Marked done" : c.intent === "cancel" ? "Job cancelled" : "Applied")}>{c.action === "done" ? "Done" : c.action === "apply" ? "Apply" : "Dealt with"}</button>

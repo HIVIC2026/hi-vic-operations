@@ -7,7 +7,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
-  AI_EMAIL_DRAFTS_ENABLED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
+  AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
@@ -51,9 +51,12 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     if (facts.nextVisit) lines.push(`Next booked visit: ${facts.nextVisit.kind === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : facts.nextVisit.kind === "install" ? "install day" : "Ready Check"} on ${slotText(facts.nextVisit.slot)}.`);
     else lines.push("No visit is booked right now.");
     if (facts.quoteStatus) lines.push(`Quote: ${facts.quoteStatus === "issued" ? "sent, waiting for them to accept" : facts.quoteStatus}.`);
+    lines.push(...(await estimateFacts(p.jobId)));
+    // Jo 27 Oct 2026: the save link is the Save my spot page (/campaign), never the photo upload page.
+    const saveLink = facts.questionsLink ? facts.questionsLink.replace(/\/video$/, "/campaign") : null;
     const links = [
       ...(facts.myJobLink ? [{ label: "Their job page (status, quote, bookings)", url: facts.myJobLink }] : []),
-      ...(facts.questionsLink && !facts.spotSaved ? [{ label: "Save My Spot / insulation questions", url: facts.questionsLink }] : []),
+      ...(saveLink && !facts.spotSaved ? [{ label: "Save my free spot", url: saveLink }] : []),
     ];
     const input = buildAiReplyInput({
       jobNumber: job.job_number, ownerFirstName: firstNameOf(owner.full_name), stageLabel: (STAGE_LABEL as Record<string, string>)[job.stage] ?? job.stage,
@@ -62,17 +65,47 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
         .map((h) => ({ direction: h.direction === "outbound" ? "outbound" as const : "inbound" as const, at: h.received_at ?? h.sent_at ?? h.created_at, subject: h.subject, body: h.body ?? "" })),
       email: { from: m.from, subject: m.subject, body: m.body },
     });
-    const body = finishAiReply(await aiText(input));
-    const { error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
-      summary: `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
+    const raw = await aiText(input);
+    const noReply = raw.trim().replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
+    const body = noReply ? "" : finishAiReply(raw);
+    const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
+      summary: noReply ? "No reply needed (owner said no thanks / thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
-        body, kind: p.kind, reason: p.reason, idempotency_key: aiDraftKey(m.providerMessageId) } });
+        body, kind: p.kind, reason: p.reason, idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
     if (error) throw new Error(error.message);
+    // Jo 27 Oct 2026: a plain "no thanks" or "thanks" gets no reply; the draft is closed so the card just needs Done.
+    if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
+      summary: "No reply needed — filed away", details: { draft_event_id: (ins as { id: string }).id } });
     return "drafted";
   } catch (e) {
     console.error("AI reply draft skipped", e instanceof Error ? e.message : e);
     return "skipped";
   }
+}
+
+/** Their estimate in plain words for the AI (Jo 27 Oct 2026: replies must be specific to the job). */
+async function estimateFacts(jobId: string): Promise<string[]> {
+  const out: string[] = [];
+  try {
+    const { data: spot } = await loose.from("lead_campaign_responses").select("spot_saved_at, saved_area_m2, saved_total, saved_veu_discount, saved_gross_total, saved_insulation").eq("job_id", jobId).maybeSingle();
+    const s = spot as { spot_saved_at: string | null; saved_area_m2: number | null; saved_total: number | null; saved_veu_discount: number | null; saved_gross_total: number | null; saved_insulation: string | null } | null;
+    const money = (n: number) => `$${Math.round(Number(n)).toLocaleString("en-AU")}`;
+    const ins = (v: string | null | undefined) => v === "none" ? "no existing insulation" : v === "present" ? "some existing insulation" : v ? "existing insulation not known yet" : null;
+    if (s?.spot_saved_at && s.saved_total != null) {
+      out.push(`Saved price: ${s.saved_area_m2 != null ? `${Number(s.saved_area_m2)} m² ceiling, ` : ""}${money(s.saved_total)} after the ${money(s.saved_veu_discount ?? 0)} rebate${s.saved_gross_total != null ? ` (${money(s.saved_gross_total)} before)` : ""}, including GST.`);
+      if (ins(s.saved_insulation)) out.push(`They told us: ${ins(s.saved_insulation)}.`);
+      return out;
+    }
+    const { data: link } = await loose.from("customer_estimate_links").select("current_estimate_id").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
+    const estId = (link as { current_estimate_id: string | null } | null)?.current_estimate_id;
+    if (!estId) return out;
+    const { data: est } = await loose.from("indicative_estimates").select("area_m2, insulation_declared, scenarios").eq("id", estId).maybeSingle();
+    const e = est as { area_m2: number | null; insulation_declared: string | null; scenarios: { key: string; by_access?: { standard?: { pre_discount_total?: number; applied_discount?: number; estimated_customer_total?: number } } }[] | null } | null;
+    const std = (e?.scenarios ?? []).find((x) => x.key === "can_remain")?.by_access?.standard ?? (e?.scenarios ?? [])[0]?.by_access?.standard;
+    if (e && std?.estimated_customer_total != null) out.push(`Estimate: ${e.area_m2 != null ? `${Number(e.area_m2)} m² ceiling, ` : ""}${money(std.estimated_customer_total)} after the ${money(std.applied_discount ?? 0)} rebate (${money(std.pre_discount_total ?? 0)} before), including GST, if existing insulation can stay.`);
+    if (ins(e?.insulation_declared)) out.push(`They told us: ${ins(e?.insulation_declared)}.`);
+  } catch (err) { console.error("estimate facts skipped", err instanceof Error ? err.message : err); }
+  return out;
 }
 
 export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null };
@@ -159,6 +192,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
     summary: `Email reply sent to the owner (approved by office)`, details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
   await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "resend", subject, body: body.trim(), recipients: [to] as never,
     delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: eventId }).then(({ error }) => { if (error) console.error("AI reply not added to history", error.message); });
+  await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
   return { status };
 }
 
