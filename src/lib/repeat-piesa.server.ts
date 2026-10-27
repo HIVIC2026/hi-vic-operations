@@ -60,6 +60,9 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
   }
   await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
   const next = (await repeatPiesaContext(jobId)).state;
+  // Owner pays (decision 233): the price goes on the job's ONE Xero invoice now; every Sync retries / holds for the office.
+  if (next.stage === "owner_pay") await (await import("./xero.server")).addRepeatPiesaToXeroInvoice(jobId, null)
+    .catch((e) => console.error("repeat PIESA Xero line skipped", (e as Error).message));
   if (next.stage === "offer") await startRepeatOffer(jobId, next).catch((e) => logEvent(jobId, null, "repeat_piesa_offer_failed", `Repeat safety check offer didn't start: ${(e as Error).message}`, { deadline: next.deadline }, { internal: true }));
   return next;
 }
@@ -72,6 +75,22 @@ export async function recordRepeatPiesaPaid(jobId: string, actorId: string, refe
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);
   return next;
+}
+
+/** Xero sync: once payments on the ONE invoice grew by the repeat price since its line went on, record it paid once and
+ *  start the normal PIESA offer. Nothing happens before the line is on the invoice. */
+export async function repeatPaidFromInvoice(jobId: string, invoiceId: string, paidCents: number, actorId: string | null): Promise<boolean> {
+  const { state } = await repeatPiesaContext(jobId);
+  if (state.stage !== "owner_pay" || !state.deadline) return false;
+  const rpc = await import("./repeat-piesa.core");
+  const { data: added } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT).contains("details", { invoice_id: invoiceId, deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const d = (added?.details ?? null) as { amount_cents?: number; paid_at_add_cents?: number } | null;
+  if (!d) return false;
+  if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: Number(d.paid_at_add_cents ?? 0), priceCents: Number(d.amount_cents ?? 0) })) return false;
+  await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on the Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
+  const next = (await repeatPiesaContext(jobId)).state;
+  await startRepeatOffer(jobId, next);
+  return true;
 }
 
 async function startRepeatOffer(jobId: string, s: RepeatState) {
