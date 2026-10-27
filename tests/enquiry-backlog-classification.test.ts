@@ -108,7 +108,7 @@ describe("C. insulation status unknown → existing-insulation Save my spot (dec
 
   test("unknown insulation with no ceiling size gets the same offer on the labelled typical size; Office-reviewed keeps the request (T5)", () => {
     expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false }))).toMatchObject({ email: "offer_spot", assumedArea: true });
-    expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false, officeReviewed: true })).email).toBe("request_insulation");
+    expect(automaticLeadEmail(enquiry({ declaredInsulation: "unknown", ownerEnteredArea: false, officeReviewed: true })).email).toBe("offer_spot"); // decision 417
     expect(selectJoTemplate({ outcome: "likely_eligible", insulation: "unknown", ceilingSizeKnown: false })).toBe("potentially_eligible_unknown_size_unknown");
   });
 });

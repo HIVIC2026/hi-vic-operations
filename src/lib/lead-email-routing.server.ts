@@ -33,6 +33,7 @@ export async function selectLeadEmailRoute(jobId: string) {
     // A recorded Office photo review always outranks the owner's own description.
     insulationDetailRoute: latestOutcome ? null : tap?.route==="thin_patchy"?"likely_save_spot":insulationDetailRoute(declaredInsulationDetail(answers)),
     officeReviewed: !!latestOutcome,
+    officeReviewOutcome: latestOutcome ?? null,
     offerAllApproved: ALL_NEW_ENQUIRIES_OFFER_APPROVED,
     redFlag: newEnquiryRedFlag({ lifeSupport: job.life_support_status ?? null, buildDecade: buildDecadeFromAnswers(base44.raw?.answers ?? null), overFiveYears: ((base44 as { declared?: { over_five_years?: string | null } }).declared?.over_five_years) ?? null, state: (property as { state?: string | null } | null)?.state ?? null, propertyType: ((base44 as { declared?: { property_type?: string | null } }).declared?.property_type) ?? null }),
   });
