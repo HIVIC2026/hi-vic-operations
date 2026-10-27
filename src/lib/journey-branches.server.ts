@@ -58,6 +58,7 @@ class Recorder {
       this.checks.push({ n, name, status: r.ok ? "passed" : "failed", detail: r.detail, ids: r.ids ?? {} });
       return r.ok;
     } catch (e) {
+      if (process.env["JOURNEY_DEBUG"]) console.error(e);
       this.checks.push({ n, name, status: "failed", detail: `error: ${e instanceof Error ? e.message : String(e)}`, ids: {} });
       return false;
     }
