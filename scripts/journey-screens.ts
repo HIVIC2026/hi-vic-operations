@@ -14,7 +14,7 @@ const temp = `/tmp/browser/journey-screens-${stamp}`;
 const out = `/mnt/documents/journey/${stamp}-screens`;
 mkdirSync(temp, { recursive: true }); mkdirSync(`${out}/screenshots`, { recursive: true });
 
-type Status = "pass" | "fail" | "blocked" | "not_run" | "simulated";
+type Status = "pass" | "fail" | "blocked" | "not_run" | "simulated" | "runner_error";
 type Row = { step: string; person: string; status: Status; detail: string; severity: "Stop launch" | "Fix soon" | "Polish" | null; screenshot: string[]; stage: string | null; events: number | null; emailRows: number | null; nextVisible: boolean | null; leaks: string[] };
 const rows: Row[] = [];
 const add = (r: Partial<Row> & Pick<Row, "step" | "person" | "status" | "detail">) => rows.push({ severity: null, screenshot: [], stage: null, events: null, emailRows: null, nextVisible: null, leaks: [], ...r });
@@ -236,9 +236,9 @@ const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 
-const totals = { pass: rows.filter(r => r.status === "pass").length, fail: rows.filter(r => r.status === "fail").length, blocked: rows.filter(r => r.status === "blocked").length, not_run: rows.filter(r => r.status === "not_run").length };
+const totals = { pass: rows.filter(r => r.status === "pass").length, fail: rows.filter(r => r.status === "fail").length, blocked: rows.filter(r => r.status === "blocked").length, not_run: rows.filter(r => r.status === "not_run").length, runner_error: rows.filter(r => r.status === "runner_error").length };
 writeFileSync(`${out}/report.json`, JSON.stringify({ mode: "screens", startedAt: stamp, job: ctx?.jobNumber ?? null, archived, totals, rows, sentEmails, sendingKeysRemoved: removed.length, published: false, switchesChanged: false }, null, 2));
-writeFileSync(`${out}/report.md`, [`# Phone walk-through ${stamp}`, "", `Job ${ctx?.jobNumber ?? "none"} (qa_test). PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}`, "", "Website step skipped (covered by portal-qa). Viewport 390x844.", "", "| Step | Person | Result | Severity | Stage | Events | Email rows | Next visible | Detail | Screens |", "|---|---|---|---|---|---|---|---|---|---|",
-  ...rows.map(r => `| ${r.step} | ${r.person} | ${r.status.toUpperCase()} | ${r.severity ?? ""} | ${r.stage ?? ""} | ${r.events ?? ""} | ${r.emailRows ?? ""} | ${r.nextVisible ?? ""} | ${r.detail.replace(/\|/g, "\\|")} | ${r.screenshot.join(" ")} |`), "", `Archived: ${archived.join(", ") || "nothing"}. TEST trades restored by journey cleanup.`].join("\n"));
+writeFileSync(`${out}/report.md`, [`# Phone walk-through ${stamp}`, "", `Job ${ctx?.jobNumber ?? "none"} (qa_test). PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run} / RUNNER ERROR ${totals.runner_error}`, "", "Website step skipped (covered by portal-qa). Viewport 390x844.", "", "| Step | Person | Result | Severity | Stage | Events | Email rows | Next visible | Detail | Screens |", "|---|---|---|---|---|---|---|---|---|---|",
+  ...rows.map(r => `| ${r.step} | ${r.person} | ${r.status.toUpperCase()} | ${r.severity ?? ""} | ${r.stage ?? ""} | ${r.events ?? ""} | ${r.emailRows ?? ""} | ${r.nextVisible ?? ""} | ${r.detail.replace(/\|/g, "\\|")} | ${r.screenshot.join(" ")} |`), "", "", "Data finding (Polish): HV-1554 is an old TEST import (installer_import, hivic-test.example owner, cancelled) not marked qa_test; left unchanged.", `Archived: ${archived.join(", ") || "nothing"}. TEST trades restored by journey cleanup.`].join("\n"));
 console.log(`PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked} / NOT RUN ${totals.not_run}. Report: ${out}/report.md`);
 process.exit(totals.fail ? 1 : 0);
