@@ -91,7 +91,7 @@ export async function emailInstallerAboutOffer(offerId: string): Promise<string>
   if (job.source === "qa_test" || isTestPartner(b)) {
     const { sendTestEmail, TEST_APP_BASE } = await import("./test-send.server");
     const mail = renderReadyCheckOfferEmail({ installerFirstName: first, suburb, areaM2, offerUrl: `${TEST_APP_BASE}/field/offer/${offerId}`, test: true });
-    const r = await sendTestEmail({ jobId: o.job_id, jobSource: job.source, partnerIsTest: isTestPartner(b), label: `job_offer_email:${offerId}`, actorId: null }, to, mail.subject, mail.html, mail.text);
+    const r = await sendTestEmail({ jobId: o.job_id, jobSource: job.source, partnerIsTest: isTestPartner(b), label: `job_offer_email:${offerId}`, actorId: null, emailApproved: READY_CHECK_OFFER_EMAIL_APPROVED }, to, mail.subject, mail.html, mail.text);
     status = r.status; detail = r.detail;
   } else if (!READY_CHECK_OFFER_EMAIL_APPROVED) {
     await logEvent(o.job_id, null, READY_CHECK_OFFER_EMAIL_NOT_SENT_EVENT, `Job offer email to ${b?.name ?? "installer"} not sent: wording waiting for Jo's approval (${READY_CHECK_OFFER_EMAIL_VERSION})`, { offer_id: o.id, business_id: o.business_id, version: READY_CHECK_OFFER_EMAIL_VERSION }, { internal: true });

@@ -8,6 +8,12 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void> }): Promise<string> {
+  if (p.jobSource === "qa_test") {
+    const mail = p.build(null);
+    if (p.beforeSend) await p.beforeSend();
+    const r = await (await import("./test-send.server")).sendTestEmail({ jobId: p.jobId, jobSource: p.jobSource, partnerIsTest: false, label: `${p.purpose}:${p.key}`, actorId: null }, p.to, mail.subject, mail.html, mail.text, mail.attachments ? { attachments: mail.attachments } : {});
+    return `${r.status}: ${r.detail}`;
+  }
   const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),

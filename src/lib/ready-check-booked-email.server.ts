@@ -38,7 +38,7 @@ export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
     const mail = renderReadyCheckBookedEmail({ ...input, test: true });
-    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `ready_check_booked:${startIso}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
+    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `ready_check_booked:${startIso}`, actorId: null, emailApproved: READY_CHECK_BOOKED_EMAIL_APPROVED }, owner?.email ?? "", mail.subject, mail.html, mail.text);
     return `${r.status}: ${r.detail}`;
   }
   if (!READY_CHECK_BOOKED_EMAIL_APPROVED) {

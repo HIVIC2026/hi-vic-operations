@@ -134,7 +134,7 @@ export async function sendEstimateFollowupStep(j: JobRow, step: EstimateFollowup
   if (test) {
     const { sendTestEmail } = await import("./test-send.server");
     const m = render(null);
-    const r = await sendTestEmail({ jobId: j.id, jobSource: j.source, partnerIsTest: true, label: `estimate_followup:${step}`, actorId: null }, to, m.subject, m.html, m.text);
+    const r = await sendTestEmail({ jobId: j.id, jobSource: j.source, partnerIsTest: true, label: `estimate_followup:${step}`, actorId: null, emailApproved: ESTIMATE_FOLLOWUP_APPROVED }, to, m.subject, m.html, m.text);
     await result(r.status === "sent", `${r.status}: ${r.detail}`);
     return `test email ${r.status}: ${r.detail}`;
   }

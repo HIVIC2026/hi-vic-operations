@@ -84,7 +84,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
     const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy!.signatureDate, installStart: bk!.scheduled_start, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
     const key = piesaCopyKey(copyId!, recipient);
     if (test) {
-      const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text, { attachments });
+      const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null, emailApproved: PIESA_COPY_EMAIL_APPROVED }, to, mail.subject, mail.html, mail.text, { attachments });
       if (r.status === "sent") { await recordDelivery({ jobId, recipient, piesaRecordId: rec!.id, signedCopyId: copyId!, recipientUserId: recipient === "installer" ? asg?.user_id ?? null : null, to, detail: `TEST ${r.detail}` }); out.sent.push(recipient); }
       else out.held[recipient] = `TEST email ${r.status}: ${r.detail}`;
       continue;
