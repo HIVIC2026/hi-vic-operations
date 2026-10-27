@@ -10,19 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CalculatorRouteImport } from './routes/calculator'
-import { Route as CampaignPreviewRouteImport } from './routes/campaign-preview'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
-import { Route as InstallerPreviewRouteImport } from './routes/installer-preview'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SaveSpotRouteImport } from './routes/save-spot'
-import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/field'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -39,44 +37,21 @@ import { Route as SaveSpotPreliminaryTokenRouteImport } from './routes/save-spot
 import { Route as SpTokenRouteImport } from './routes/sp.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
-import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
-import { Route as AuthenticatedAdminBoardRouteImport } from './routes/_authenticated/admin.board'
-import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
-import { Route as AuthenticatedAdminCampaignEmailsRouteImport } from './routes/_authenticated/admin.campaign-emails'
+import { Route as AuthenticatedAdminSplatRouteImport } from './routes/_authenticated/admin.$'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
-import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
-import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
-import { Route as AuthenticatedAdminDeletedRouteImport } from './routes/_authenticated/admin.deleted'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
-import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
-import { Route as AuthenticatedAdminHotLeadsRouteImport } from './routes/_authenticated/admin.hot-leads'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin.jobs'
-import { Route as AuthenticatedAdminLaunchCampaignRouteImport } from './routes/_authenticated/admin.launch-campaign'
-import { Route as AuthenticatedAdminListRouteImport } from './routes/_authenticated/admin.list'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
 import { Route as AuthenticatedAdminNeedsMeRouteImport } from './routes/_authenticated/admin.needs-me'
-import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
-import { Route as AuthenticatedAdminOperationsPreviewRouteImport } from './routes/_authenticated/admin.operations-preview'
-import { Route as AuthenticatedAdminOwnerPaperworkRouteImport } from './routes/_authenticated/admin.owner-paperwork'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
-import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
-import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
-import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
-import { Route as AuthenticatedAdminQuotesRouteImport } from './routes/_authenticated/admin.quotes'
-import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
 import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
 import { Route as AuthenticatedAdminSaveSpotReminderBlastRouteImport } from './routes/_authenticated/admin.save-spot-reminder-blast'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
-import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
-import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin.today'
-import { Route as AuthenticatedAdminTodoRouteImport } from './routes/_authenticated/admin.todo'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
-import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authenticated/admin.veec'
-import { Route as AuthenticatedAdminWorkersRouteImport } from './routes/_authenticated/admin.workers'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
 import { Route as AuthenticatedFieldBusinessRouteImport } from './routes/_authenticated/field.business'
@@ -87,11 +62,9 @@ import { Route as AuthenticatedFieldWelcomeRouteImport } from './routes/_authent
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
-import { Route as AuthenticatedPartnerAddRouteImport } from './routes/_authenticated/partner.add'
+import { Route as AuthenticatedPartnerSplatRouteImport } from './routes/_authenticated/partner.$'
 import { Route as AuthenticatedPartnerBulkImportRouteImport } from './routes/_authenticated/partner.bulk-import'
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
-import { Route as AuthenticatedPartnerPaymentsRouteImport } from './routes/_authenticated/partner.payments'
-import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
 import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
@@ -141,6 +114,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -155,11 +133,6 @@ const CalculatorRoute = CalculatorRouteImport.update({
   path: '/calculator',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CampaignPreviewRoute = CampaignPreviewRouteImport.update({
-  id: '/campaign-preview',
-  path: '/campaign-preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
   id: '/electrician-onboarding',
   path: '/electrician-onboarding',
@@ -168,11 +141,6 @@ const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
   id: '/installer-onboarding',
   path: '/installer-onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstallerPreviewRoute = InstallerPreviewRouteImport.update({
-  id: '/installer-preview',
-  path: '/installer-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalRoute = PortalRouteImport.update({
@@ -198,11 +166,6 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const SaveSpotRoute = SaveSpotRouteImport.update({
   id: '/save-spot',
   path: '/save-spot',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
-  id: '/step3-email-preview',
-  path: '/step3-email-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -286,51 +249,15 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminApQueueRoute =
-  AuthenticatedAdminApQueueRouteImport.update({
-    id: '/ap-queue',
-    path: '/ap-queue',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminBoardRoute = AuthenticatedAdminBoardRouteImport.update({
-  id: '/board',
-  path: '/board',
+const AuthenticatedAdminSplatRoute = AuthenticatedAdminSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminBusinessesRoute =
-  AuthenticatedAdminBusinessesRouteImport.update({
-    id: '/businesses',
-    path: '/businesses',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminCampaignEmailsRoute =
-  AuthenticatedAdminCampaignEmailsRouteImport.update({
-    id: '/campaign-emails',
-    path: '/campaign-emails',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminCommunicationsRoute =
   AuthenticatedAdminCommunicationsRouteImport.update({
     id: '/communications',
     path: '/communications',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminComplianceRoute =
-  AuthenticatedAdminComplianceRouteImport.update({
-    id: '/compliance',
-    path: '/compliance',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminCoverageRoute =
-  AuthenticatedAdminCoverageRouteImport.update({
-    id: '/coverage',
-    path: '/coverage',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminDeletedRoute =
-  AuthenticatedAdminDeletedRouteImport.update({
-    id: '/deleted',
-    path: '/deleted',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminElectricianRatesRoute =
@@ -345,18 +272,6 @@ const AuthenticatedAdminEnquiriesRoute =
     path: '/enquiries',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminEnquiryGroupsRoute =
-  AuthenticatedAdminEnquiryGroupsRouteImport.update({
-    id: '/enquiry-groups',
-    path: '/enquiry-groups',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminHotLeadsRoute =
-  AuthenticatedAdminHotLeadsRouteImport.update({
-    id: '/hot-leads',
-    path: '/hot-leads',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminInterestsRoute =
   AuthenticatedAdminInterestsRouteImport.update({
     id: '/interests',
@@ -366,17 +281,6 @@ const AuthenticatedAdminInterestsRoute =
 const AuthenticatedAdminJobsRoute = AuthenticatedAdminJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
-const AuthenticatedAdminLaunchCampaignRoute =
-  AuthenticatedAdminLaunchCampaignRouteImport.update({
-    id: '/launch-campaign',
-    path: '/launch-campaign',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminListRoute = AuthenticatedAdminListRouteImport.update({
-  id: '/list',
-  path: '/list',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedAdminMoneyRoute = AuthenticatedAdminMoneyRouteImport.update({
@@ -390,58 +294,10 @@ const AuthenticatedAdminNeedsMeRoute =
     path: '/needs-me',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminOperationsRoute =
-  AuthenticatedAdminOperationsRouteImport.update({
-    id: '/operations',
-    path: '/operations',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminOperationsPreviewRoute =
-  AuthenticatedAdminOperationsPreviewRouteImport.update({
-    id: '/operations-preview',
-    path: '/operations-preview',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminOwnerPaperworkRoute =
-  AuthenticatedAdminOwnerPaperworkRouteImport.update({
-    id: '/owner-paperwork',
-    path: '/owner-paperwork',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/partners',
     path: '/partners',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminPartnersOverviewRoute =
-  AuthenticatedAdminPartnersOverviewRouteImport.update({
-    id: '/partners-overview',
-    path: '/partners-overview',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminPipelineRoute =
-  AuthenticatedAdminPipelineRouteImport.update({
-    id: '/pipeline',
-    path: '/pipeline',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminPricingRoute =
-  AuthenticatedAdminPricingRouteImport.update({
-    id: '/pricing',
-    path: '/pricing',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminQuotesRoute =
-  AuthenticatedAdminQuotesRouteImport.update({
-    id: '/quotes',
-    path: '/quotes',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminReadyCheckRoute =
-  AuthenticatedAdminReadyCheckRouteImport.update({
-    id: '/ready-check',
-    path: '/ready-check',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminSaveMySpotRulesRoute =
@@ -462,12 +318,6 @@ const AuthenticatedAdminSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminTeamUpsRoute =
-  AuthenticatedAdminTeamUpsRouteImport.update({
-    id: '/team-ups',
-    path: '/team-ups',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminTemplatesRoute =
   AuthenticatedAdminTemplatesRouteImport.update({
     id: '/templates',
@@ -480,32 +330,11 @@ const AuthenticatedAdminTestCentreRoute =
     path: '/test-centre',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminTodayRoute = AuthenticatedAdminTodayRouteImport.update({
-  id: '/today',
-  path: '/today',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
-const AuthenticatedAdminTodoRoute = AuthenticatedAdminTodoRouteImport.update({
-  id: '/todo',
-  path: '/todo',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminVeecRoute = AuthenticatedAdminVeecRouteImport.update({
-  id: '/veec',
-  path: '/veec',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
-const AuthenticatedAdminWorkersRoute =
-  AuthenticatedAdminWorkersRouteImport.update({
-    id: '/workers',
-    path: '/workers',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedFieldIndexRoute = AuthenticatedFieldIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -559,11 +388,12 @@ const AuthenticatedPartnerIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPartnerRoute,
   } as any)
-const AuthenticatedPartnerAddRoute = AuthenticatedPartnerAddRouteImport.update({
-  id: '/add',
-  path: '/add',
-  getParentRoute: () => AuthenticatedPartnerRoute,
-} as any)
+const AuthenticatedPartnerSplatRoute =
+  AuthenticatedPartnerSplatRouteImport.update({
+    id: '/$',
+    path: '/$',
+    getParentRoute: () => AuthenticatedPartnerRoute,
+  } as any)
 const AuthenticatedPartnerBulkImportRoute =
   AuthenticatedPartnerBulkImportRouteImport.update({
     id: '/bulk-import',
@@ -574,18 +404,6 @@ const AuthenticatedPartnerImportRoute =
   AuthenticatedPartnerImportRouteImport.update({
     id: '/import',
     path: '/import',
-    getParentRoute: () => AuthenticatedPartnerRoute,
-  } as any)
-const AuthenticatedPartnerPaymentsRoute =
-  AuthenticatedPartnerPaymentsRouteImport.update({
-    id: '/payments',
-    path: '/payments',
-    getParentRoute: () => AuthenticatedPartnerRoute,
-  } as any)
-const AuthenticatedPartnerProfileRoute =
-  AuthenticatedPartnerProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
     getParentRoute: () => AuthenticatedPartnerRoute,
   } as any)
 const AuthenticatedPartnerWorkersRoute =
@@ -836,18 +654,16 @@ const ApiPublicEmailArtTokenFileRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
-  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/installer-preview': typeof InstallerPreviewRoute
   '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
-  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/field': typeof AuthenticatedFieldRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
@@ -863,44 +679,21 @@ export interface FileRoutesByFullPath {
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
-  '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
-  '/admin/board': typeof AuthenticatedAdminBoardRoute
-  '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
-  '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
+  '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
-  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
-  '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
-  '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
-  '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
-  '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
-  '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
-  '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
-  '/admin/operations': typeof AuthenticatedAdminOperationsRoute
-  '/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
-  '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
-  '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
-  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/admin/quotes': typeof AuthenticatedAdminQuotesRoute
-  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
-  '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/veec': typeof AuthenticatedAdminVeecRoute
-  '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/field/business': typeof AuthenticatedFieldBusinessRoute
   '/field/guide': typeof AuthenticatedFieldGuideRoute
@@ -908,11 +701,9 @@ export interface FileRoutesByFullPath {
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
-  '/partner/add': typeof AuthenticatedPartnerAddRoute
+  '/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
-  '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
@@ -963,18 +754,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
-  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/installer-preview': typeof InstallerPreviewRoute
   '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
-  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
@@ -986,44 +775,21 @@ export interface FileRoutesByTo {
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
-  '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
-  '/admin/board': typeof AuthenticatedAdminBoardRoute
-  '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
-  '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
+  '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
-  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
-  '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
-  '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
-  '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
-  '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
-  '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
-  '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
-  '/admin/operations': typeof AuthenticatedAdminOperationsRoute
-  '/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
-  '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
-  '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
-  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/admin/quotes': typeof AuthenticatedAdminQuotesRoute
-  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
-  '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/veec': typeof AuthenticatedAdminVeecRoute
-  '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/field/business': typeof AuthenticatedFieldBusinessRoute
   '/field/guide': typeof AuthenticatedFieldGuideRoute
@@ -1031,11 +797,9 @@ export interface FileRoutesByTo {
   '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
-  '/partner/add': typeof AuthenticatedPartnerAddRoute
+  '/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
-  '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
@@ -1088,18 +852,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/$': typeof SplatRoute
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
-  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/installer-preview': typeof InstallerPreviewRoute
   '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
-  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/field': typeof AuthenticatedFieldRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -1115,44 +877,21 @@ export interface FileRoutesById {
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
-  '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
-  '/_authenticated/admin/board': typeof AuthenticatedAdminBoardRoute
-  '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
-  '/_authenticated/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
+  '/_authenticated/admin/$': typeof AuthenticatedAdminSplatRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
-  '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
-  '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
-  '/_authenticated/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
-  '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
-  '/_authenticated/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
-  '/_authenticated/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
-  '/_authenticated/admin/list': typeof AuthenticatedAdminListRoute
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/_authenticated/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
-  '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
-  '/_authenticated/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
-  '/_authenticated/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
-  '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
-  '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/_authenticated/admin/quotes': typeof AuthenticatedAdminQuotesRoute
-  '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/_authenticated/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
-  '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
-  '/_authenticated/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
-  '/_authenticated/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/field/business': typeof AuthenticatedFieldBusinessRoute
   '/_authenticated/field/guide': typeof AuthenticatedFieldGuideRoute
@@ -1160,11 +899,9 @@ export interface FileRoutesById {
   '/_authenticated/field/setup': typeof AuthenticatedFieldSetupRoute
   '/_authenticated/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
-  '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
+  '/_authenticated/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/_authenticated/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
-  '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
@@ -1217,18 +954,16 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/auth'
     | '/calculator'
-    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/installer-preview'
     | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/save-spot'
-    | '/step3-email-preview'
     | '/admin'
     | '/field'
     | '/home'
@@ -1244,44 +979,21 @@ export interface FileRouteTypes {
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
     | '/w/$token'
-    | '/admin/ap-queue'
-    | '/admin/board'
-    | '/admin/businesses'
-    | '/admin/campaign-emails'
+    | '/admin/$'
     | '/admin/communications'
-    | '/admin/compliance'
-    | '/admin/coverage'
-    | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiries'
-    | '/admin/enquiry-groups'
-    | '/admin/hot-leads'
     | '/admin/interests'
     | '/admin/jobs'
-    | '/admin/launch-campaign'
-    | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
-    | '/admin/operations'
-    | '/admin/operations-preview'
-    | '/admin/owner-paperwork'
     | '/admin/partners'
-    | '/admin/partners-overview'
-    | '/admin/pipeline'
-    | '/admin/pricing'
-    | '/admin/quotes'
-    | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
     | '/admin/save-spot-reminder-blast'
     | '/admin/settings'
-    | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
-    | '/admin/today'
-    | '/admin/todo'
     | '/admin/users'
-    | '/admin/veec'
-    | '/admin/workers'
     | '/field/$jobId'
     | '/field/business'
     | '/field/guide'
@@ -1289,11 +1001,9 @@ export interface FileRouteTypes {
     | '/field/setup'
     | '/field/welcome'
     | '/owner/$jobId'
-    | '/partner/add'
+    | '/partner/$'
     | '/partner/bulk-import'
     | '/partner/import'
-    | '/partner/payments'
-    | '/partner/profile'
     | '/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
@@ -1344,18 +1054,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/auth'
     | '/calculator'
-    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/installer-preview'
     | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/save-spot'
-    | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
     | '/estimate/$token'
@@ -1367,44 +1075,21 @@ export interface FileRouteTypes {
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
     | '/w/$token'
-    | '/admin/ap-queue'
-    | '/admin/board'
-    | '/admin/businesses'
-    | '/admin/campaign-emails'
+    | '/admin/$'
     | '/admin/communications'
-    | '/admin/compliance'
-    | '/admin/coverage'
-    | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiries'
-    | '/admin/enquiry-groups'
-    | '/admin/hot-leads'
     | '/admin/interests'
     | '/admin/jobs'
-    | '/admin/launch-campaign'
-    | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
-    | '/admin/operations'
-    | '/admin/operations-preview'
-    | '/admin/owner-paperwork'
     | '/admin/partners'
-    | '/admin/partners-overview'
-    | '/admin/pipeline'
-    | '/admin/pricing'
-    | '/admin/quotes'
-    | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
     | '/admin/save-spot-reminder-blast'
     | '/admin/settings'
-    | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
-    | '/admin/today'
-    | '/admin/todo'
     | '/admin/users'
-    | '/admin/veec'
-    | '/admin/workers'
     | '/field/$jobId'
     | '/field/business'
     | '/field/guide'
@@ -1412,11 +1097,9 @@ export interface FileRouteTypes {
     | '/field/setup'
     | '/field/welcome'
     | '/owner/$jobId'
-    | '/partner/add'
+    | '/partner/$'
     | '/partner/bulk-import'
     | '/partner/import'
-    | '/partner/payments'
-    | '/partner/profile'
     | '/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
@@ -1468,18 +1151,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/$'
     | '/auth'
     | '/calculator'
-    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/installer-preview'
     | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/save-spot'
-    | '/step3-email-preview'
     | '/_authenticated/admin'
     | '/_authenticated/field'
     | '/_authenticated/home'
@@ -1495,44 +1176,21 @@ export interface FileRouteTypes {
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
     | '/w/$token'
-    | '/_authenticated/admin/ap-queue'
-    | '/_authenticated/admin/board'
-    | '/_authenticated/admin/businesses'
-    | '/_authenticated/admin/campaign-emails'
+    | '/_authenticated/admin/$'
     | '/_authenticated/admin/communications'
-    | '/_authenticated/admin/compliance'
-    | '/_authenticated/admin/coverage'
-    | '/_authenticated/admin/deleted'
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/enquiries'
-    | '/_authenticated/admin/enquiry-groups'
-    | '/_authenticated/admin/hot-leads'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/jobs'
-    | '/_authenticated/admin/launch-campaign'
-    | '/_authenticated/admin/list'
     | '/_authenticated/admin/money'
     | '/_authenticated/admin/needs-me'
-    | '/_authenticated/admin/operations'
-    | '/_authenticated/admin/operations-preview'
-    | '/_authenticated/admin/owner-paperwork'
     | '/_authenticated/admin/partners'
-    | '/_authenticated/admin/partners-overview'
-    | '/_authenticated/admin/pipeline'
-    | '/_authenticated/admin/pricing'
-    | '/_authenticated/admin/quotes'
-    | '/_authenticated/admin/ready-check'
     | '/_authenticated/admin/save-my-spot-rules'
     | '/_authenticated/admin/save-spot-reminder-blast'
     | '/_authenticated/admin/settings'
-    | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
-    | '/_authenticated/admin/today'
-    | '/_authenticated/admin/todo'
     | '/_authenticated/admin/users'
-    | '/_authenticated/admin/veec'
-    | '/_authenticated/admin/workers'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/field/business'
     | '/_authenticated/field/guide'
@@ -1540,11 +1198,9 @@ export interface FileRouteTypes {
     | '/_authenticated/field/setup'
     | '/_authenticated/field/welcome'
     | '/_authenticated/owner/$jobId'
-    | '/_authenticated/partner/add'
+    | '/_authenticated/partner/$'
     | '/_authenticated/partner/bulk-import'
     | '/_authenticated/partner/import'
-    | '/_authenticated/partner/payments'
-    | '/_authenticated/partner/profile'
     | '/_authenticated/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
@@ -1597,18 +1253,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  SplatRoute: typeof SplatRoute
   AuthRoute: typeof AuthRoute
   CalculatorRoute: typeof CalculatorRoute
-  CampaignPreviewRoute: typeof CampaignPreviewRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
-  InstallerPreviewRoute: typeof InstallerPreviewRoute
   PortalRoute: typeof PortalRoute
   PrivacyRoute: typeof PrivacyRoute
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SaveSpotRoute: typeof SaveSpotRoute
-  Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
@@ -1655,6 +1309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -1676,13 +1337,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalculatorRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/campaign-preview': {
-      id: '/campaign-preview'
-      path: '/campaign-preview'
-      fullPath: '/campaign-preview'
-      preLoaderRoute: typeof CampaignPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/electrician-onboarding': {
       id: '/electrician-onboarding'
       path: '/electrician-onboarding'
@@ -1695,13 +1349,6 @@ declare module '@tanstack/react-router' {
       path: '/installer-onboarding'
       fullPath: '/installer-onboarding'
       preLoaderRoute: typeof InstallerOnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/installer-preview': {
-      id: '/installer-preview'
-      path: '/installer-preview'
-      fullPath: '/installer-preview'
-      preLoaderRoute: typeof InstallerPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portal': {
@@ -1737,13 +1384,6 @@ declare module '@tanstack/react-router' {
       path: '/save-spot'
       fullPath: '/save-spot'
       preLoaderRoute: typeof SaveSpotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/step3-email-preview': {
-      id: '/step3-email-preview'
-      path: '/step3-email-preview'
-      fullPath: '/step3-email-preview'
-      preLoaderRoute: typeof Step3EmailPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -1858,32 +1498,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/ap-queue': {
-      id: '/_authenticated/admin/ap-queue'
-      path: '/ap-queue'
-      fullPath: '/admin/ap-queue'
-      preLoaderRoute: typeof AuthenticatedAdminApQueueRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/board': {
-      id: '/_authenticated/admin/board'
-      path: '/board'
-      fullPath: '/admin/board'
-      preLoaderRoute: typeof AuthenticatedAdminBoardRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/businesses': {
-      id: '/_authenticated/admin/businesses'
-      path: '/businesses'
-      fullPath: '/admin/businesses'
-      preLoaderRoute: typeof AuthenticatedAdminBusinessesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/campaign-emails': {
-      id: '/_authenticated/admin/campaign-emails'
-      path: '/campaign-emails'
-      fullPath: '/admin/campaign-emails'
-      preLoaderRoute: typeof AuthenticatedAdminCampaignEmailsRouteImport
+    '/_authenticated/admin/$': {
+      id: '/_authenticated/admin/$'
+      path: '/$'
+      fullPath: '/admin/$'
+      preLoaderRoute: typeof AuthenticatedAdminSplatRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/communications': {
@@ -1891,27 +1510,6 @@ declare module '@tanstack/react-router' {
       path: '/communications'
       fullPath: '/admin/communications'
       preLoaderRoute: typeof AuthenticatedAdminCommunicationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/compliance': {
-      id: '/_authenticated/admin/compliance'
-      path: '/compliance'
-      fullPath: '/admin/compliance'
-      preLoaderRoute: typeof AuthenticatedAdminComplianceRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/coverage': {
-      id: '/_authenticated/admin/coverage'
-      path: '/coverage'
-      fullPath: '/admin/coverage'
-      preLoaderRoute: typeof AuthenticatedAdminCoverageRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/deleted': {
-      id: '/_authenticated/admin/deleted'
-      path: '/deleted'
-      fullPath: '/admin/deleted'
-      preLoaderRoute: typeof AuthenticatedAdminDeletedRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/electrician-rates': {
@@ -1928,20 +1526,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/enquiry-groups': {
-      id: '/_authenticated/admin/enquiry-groups'
-      path: '/enquiry-groups'
-      fullPath: '/admin/enquiry-groups'
-      preLoaderRoute: typeof AuthenticatedAdminEnquiryGroupsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/hot-leads': {
-      id: '/_authenticated/admin/hot-leads'
-      path: '/hot-leads'
-      fullPath: '/admin/hot-leads'
-      preLoaderRoute: typeof AuthenticatedAdminHotLeadsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/interests': {
       id: '/_authenticated/admin/interests'
       path: '/interests'
@@ -1954,20 +1538,6 @@ declare module '@tanstack/react-router' {
       path: '/jobs'
       fullPath: '/admin/jobs'
       preLoaderRoute: typeof AuthenticatedAdminJobsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/launch-campaign': {
-      id: '/_authenticated/admin/launch-campaign'
-      path: '/launch-campaign'
-      fullPath: '/admin/launch-campaign'
-      preLoaderRoute: typeof AuthenticatedAdminLaunchCampaignRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/list': {
-      id: '/_authenticated/admin/list'
-      path: '/list'
-      fullPath: '/admin/list'
-      preLoaderRoute: typeof AuthenticatedAdminListRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/money': {
@@ -1984,67 +1554,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminNeedsMeRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/operations': {
-      id: '/_authenticated/admin/operations'
-      path: '/operations'
-      fullPath: '/admin/operations'
-      preLoaderRoute: typeof AuthenticatedAdminOperationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/operations-preview': {
-      id: '/_authenticated/admin/operations-preview'
-      path: '/operations-preview'
-      fullPath: '/admin/operations-preview'
-      preLoaderRoute: typeof AuthenticatedAdminOperationsPreviewRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/owner-paperwork': {
-      id: '/_authenticated/admin/owner-paperwork'
-      path: '/owner-paperwork'
-      fullPath: '/admin/owner-paperwork'
-      preLoaderRoute: typeof AuthenticatedAdminOwnerPaperworkRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/partners': {
       id: '/_authenticated/admin/partners'
       path: '/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/partners-overview': {
-      id: '/_authenticated/admin/partners-overview'
-      path: '/partners-overview'
-      fullPath: '/admin/partners-overview'
-      preLoaderRoute: typeof AuthenticatedAdminPartnersOverviewRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/pipeline': {
-      id: '/_authenticated/admin/pipeline'
-      path: '/pipeline'
-      fullPath: '/admin/pipeline'
-      preLoaderRoute: typeof AuthenticatedAdminPipelineRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/pricing': {
-      id: '/_authenticated/admin/pricing'
-      path: '/pricing'
-      fullPath: '/admin/pricing'
-      preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/quotes': {
-      id: '/_authenticated/admin/quotes'
-      path: '/quotes'
-      fullPath: '/admin/quotes'
-      preLoaderRoute: typeof AuthenticatedAdminQuotesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/ready-check': {
-      id: '/_authenticated/admin/ready-check'
-      path: '/ready-check'
-      fullPath: '/admin/ready-check'
-      preLoaderRoute: typeof AuthenticatedAdminReadyCheckRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/save-my-spot-rules': {
@@ -2068,13 +1582,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/team-ups': {
-      id: '/_authenticated/admin/team-ups'
-      path: '/team-ups'
-      fullPath: '/admin/team-ups'
-      preLoaderRoute: typeof AuthenticatedAdminTeamUpsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/templates': {
       id: '/_authenticated/admin/templates'
       path: '/templates'
@@ -2089,39 +1596,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTestCentreRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/today': {
-      id: '/_authenticated/admin/today'
-      path: '/today'
-      fullPath: '/admin/today'
-      preLoaderRoute: typeof AuthenticatedAdminTodayRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/todo': {
-      id: '/_authenticated/admin/todo'
-      path: '/todo'
-      fullPath: '/admin/todo'
-      preLoaderRoute: typeof AuthenticatedAdminTodoRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/veec': {
-      id: '/_authenticated/admin/veec'
-      path: '/veec'
-      fullPath: '/admin/veec'
-      preLoaderRoute: typeof AuthenticatedAdminVeecRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/workers': {
-      id: '/_authenticated/admin/workers'
-      path: '/workers'
-      fullPath: '/admin/workers'
-      preLoaderRoute: typeof AuthenticatedAdminWorkersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/field/': {
@@ -2194,11 +1673,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerIndexRouteImport
       parentRoute: typeof AuthenticatedPartnerRoute
     }
-    '/_authenticated/partner/add': {
-      id: '/_authenticated/partner/add'
-      path: '/add'
-      fullPath: '/partner/add'
-      preLoaderRoute: typeof AuthenticatedPartnerAddRouteImport
+    '/_authenticated/partner/$': {
+      id: '/_authenticated/partner/$'
+      path: '/$'
+      fullPath: '/partner/$'
+      preLoaderRoute: typeof AuthenticatedPartnerSplatRouteImport
       parentRoute: typeof AuthenticatedPartnerRoute
     }
     '/_authenticated/partner/bulk-import': {
@@ -2213,20 +1692,6 @@ declare module '@tanstack/react-router' {
       path: '/import'
       fullPath: '/partner/import'
       preLoaderRoute: typeof AuthenticatedPartnerImportRouteImport
-      parentRoute: typeof AuthenticatedPartnerRoute
-    }
-    '/_authenticated/partner/payments': {
-      id: '/_authenticated/partner/payments'
-      path: '/payments'
-      fullPath: '/partner/payments'
-      preLoaderRoute: typeof AuthenticatedPartnerPaymentsRouteImport
-      parentRoute: typeof AuthenticatedPartnerRoute
-    }
-    '/_authenticated/partner/profile': {
-      id: '/_authenticated/partner/profile'
-      path: '/profile'
-      fullPath: '/partner/profile'
-      preLoaderRoute: typeof AuthenticatedPartnerProfileRouteImport
       parentRoute: typeof AuthenticatedPartnerRoute
     }
     '/_authenticated/partner/workers': {
@@ -2555,93 +2020,45 @@ const AuthenticatedAdminJobsRouteWithChildren =
   )
 
 interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminApQueueRoute: typeof AuthenticatedAdminApQueueRoute
-  AuthenticatedAdminBoardRoute: typeof AuthenticatedAdminBoardRoute
-  AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
-  AuthenticatedAdminCampaignEmailsRoute: typeof AuthenticatedAdminCampaignEmailsRoute
+  AuthenticatedAdminSplatRoute: typeof AuthenticatedAdminSplatRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
-  AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
-  AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
-  AuthenticatedAdminDeletedRoute: typeof AuthenticatedAdminDeletedRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
-  AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
-  AuthenticatedAdminHotLeadsRoute: typeof AuthenticatedAdminHotLeadsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRouteWithChildren
-  AuthenticatedAdminLaunchCampaignRoute: typeof AuthenticatedAdminLaunchCampaignRoute
-  AuthenticatedAdminListRoute: typeof AuthenticatedAdminListRoute
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
   AuthenticatedAdminNeedsMeRoute: typeof AuthenticatedAdminNeedsMeRoute
-  AuthenticatedAdminOperationsRoute: typeof AuthenticatedAdminOperationsRoute
-  AuthenticatedAdminOperationsPreviewRoute: typeof AuthenticatedAdminOperationsPreviewRoute
-  AuthenticatedAdminOwnerPaperworkRoute: typeof AuthenticatedAdminOwnerPaperworkRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
-  AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
-  AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
-  AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
-  AuthenticatedAdminQuotesRoute: typeof AuthenticatedAdminQuotesRoute
-  AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
   AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
   AuthenticatedAdminSaveSpotReminderBlastRoute: typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
-  AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
-  AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
-  AuthenticatedAdminTodoRoute: typeof AuthenticatedAdminTodoRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
-  AuthenticatedAdminVeecRoute: typeof AuthenticatedAdminVeecRoute
-  AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminPartnersApplicationEnquiryIdRoute: typeof AuthenticatedAdminPartnersApplicationEnquiryIdRoute
   AuthenticatedAdminPartnersBusinessBusinessIdRoute: typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminApQueueRoute: AuthenticatedAdminApQueueRoute,
-  AuthenticatedAdminBoardRoute: AuthenticatedAdminBoardRoute,
-  AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
-  AuthenticatedAdminCampaignEmailsRoute: AuthenticatedAdminCampaignEmailsRoute,
+  AuthenticatedAdminSplatRoute: AuthenticatedAdminSplatRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
-  AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
-  AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
-  AuthenticatedAdminDeletedRoute: AuthenticatedAdminDeletedRoute,
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
-  AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
-  AuthenticatedAdminHotLeadsRoute: AuthenticatedAdminHotLeadsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRouteWithChildren,
-  AuthenticatedAdminLaunchCampaignRoute: AuthenticatedAdminLaunchCampaignRoute,
-  AuthenticatedAdminListRoute: AuthenticatedAdminListRoute,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
   AuthenticatedAdminNeedsMeRoute: AuthenticatedAdminNeedsMeRoute,
-  AuthenticatedAdminOperationsRoute: AuthenticatedAdminOperationsRoute,
-  AuthenticatedAdminOperationsPreviewRoute:
-    AuthenticatedAdminOperationsPreviewRoute,
-  AuthenticatedAdminOwnerPaperworkRoute: AuthenticatedAdminOwnerPaperworkRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
-  AuthenticatedAdminPartnersOverviewRoute:
-    AuthenticatedAdminPartnersOverviewRoute,
-  AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
-  AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
-  AuthenticatedAdminQuotesRoute: AuthenticatedAdminQuotesRoute,
-  AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
   AuthenticatedAdminSaveMySpotRulesRoute:
     AuthenticatedAdminSaveMySpotRulesRoute,
   AuthenticatedAdminSaveSpotReminderBlastRoute:
     AuthenticatedAdminSaveSpotReminderBlastRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
-  AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
-  AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
-  AuthenticatedAdminTodoRoute: AuthenticatedAdminTodoRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
-  AuthenticatedAdminVeecRoute: AuthenticatedAdminVeecRoute,
-  AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminPartnersApplicationEnquiryIdRoute:
     AuthenticatedAdminPartnersApplicationEnquiryIdRoute,
@@ -2716,21 +2133,17 @@ const AuthenticatedOwnerRouteWithChildren =
   AuthenticatedOwnerRoute._addFileChildren(AuthenticatedOwnerRouteChildren)
 
 interface AuthenticatedPartnerRouteChildren {
-  AuthenticatedPartnerAddRoute: typeof AuthenticatedPartnerAddRoute
+  AuthenticatedPartnerSplatRoute: typeof AuthenticatedPartnerSplatRoute
   AuthenticatedPartnerBulkImportRoute: typeof AuthenticatedPartnerBulkImportRoute
   AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
-  AuthenticatedPartnerPaymentsRoute: typeof AuthenticatedPartnerPaymentsRoute
-  AuthenticatedPartnerProfileRoute: typeof AuthenticatedPartnerProfileRoute
   AuthenticatedPartnerWorkersRoute: typeof AuthenticatedPartnerWorkersRoute
   AuthenticatedPartnerIndexRoute: typeof AuthenticatedPartnerIndexRoute
 }
 
 const AuthenticatedPartnerRouteChildren: AuthenticatedPartnerRouteChildren = {
-  AuthenticatedPartnerAddRoute: AuthenticatedPartnerAddRoute,
+  AuthenticatedPartnerSplatRoute: AuthenticatedPartnerSplatRoute,
   AuthenticatedPartnerBulkImportRoute: AuthenticatedPartnerBulkImportRoute,
   AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
-  AuthenticatedPartnerPaymentsRoute: AuthenticatedPartnerPaymentsRoute,
-  AuthenticatedPartnerProfileRoute: AuthenticatedPartnerProfileRoute,
   AuthenticatedPartnerWorkersRoute: AuthenticatedPartnerWorkersRoute,
   AuthenticatedPartnerIndexRoute: AuthenticatedPartnerIndexRoute,
 }
@@ -2760,18 +2173,16 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  SplatRoute: SplatRoute,
   AuthRoute: AuthRoute,
   CalculatorRoute: CalculatorRoute,
-  CampaignPreviewRoute: CampaignPreviewRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
-  InstallerPreviewRoute: InstallerPreviewRoute,
   PortalRoute: PortalRoute,
   PrivacyRoute: PrivacyRoute,
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SaveSpotRoute: SaveSpotRoute,
-  Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,

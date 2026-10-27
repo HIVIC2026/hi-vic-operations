@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { publicLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { CUSTOMER_BASE, PIXEL_GIF, clickUrl, dedupe, estimateUrl, newTrackingToken, pixelResponse, pixelToken, pixelUrl, planFollowup, planInitialFollowups, redirectResponse, safeMetadata, sendBlocker, summarize, type EngagementEvent } from "../src/lib/engagement.core";
@@ -185,7 +186,7 @@ describe("email renderers", () => {
     expect(delivery).toBeGreaterThan(guard);
   });
   test("sample preview never calls live tracking", () => {
-    const p = src("src/routes/step3-email-preview.tsx");
-    expect(p).not.toMatch(/tracking(Click|Pixel)Url|\/t\/e\/|\/t\/o\//);
+    // The preview page is retired: its old address only redirects to Templates (legacy-links.core.ts).
+    expect(publicLegacyTarget("step3-email-preview")).toEqual({ to: "/admin/templates", search: { cat: "owner" } });
   });
 });

@@ -1,6 +1,7 @@
 // Office build B (O5 Partners, O6 Money, O7 Communications / Settings): the pure rules behind every new screen element.
 // Each block names the decision it proves; the screen-level proof table is docs/OFFICE_STATES_PROOF_B.md.
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { jobMargin, marginTotal, veecValueReceived } from "../src/lib/job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel } from "../src/lib/office-money.core";
@@ -124,11 +125,8 @@ describe("O5 Partners: people, checks, coverage (decisions 130, 153, 22/188, 229
     expect(read("src/lib/office-partners.server.ts")).toContain("partner_bank_details_revealed");
   });
   test("audit removals: Partners overview and Team-ups are redirects only", () => {
-    for (const f of ["admin.partners-overview.tsx", "admin.team-ups.tsx"]) {
-      const s = read(`src/routes/_authenticated/${f}`);
-      expect(s).toContain("throw redirect");
-      expect(s).not.toMatch(/getPartnersOverview|useQuery/);
-    }
+    expect(officeLegacyTarget("partners-overview")).toEqual({ to: "/admin/partners" });
+    expect(officeLegacyTarget("team-ups")).toEqual({ to: "/admin/partners", search: { tab: "people" } });
   });
 });
 
@@ -177,7 +175,6 @@ describe("O7 Settings: switches, rules, removals (decisions 159, 246, 248; audit
     expect(code.map((s) => s.key)).toEqual(["auto_quote_send", "consent_copy"]);
     for (const s of code) expect(switchState(s, {}).editable).toBe(false);
     expect(JSON.stringify(SWITCHES)).not.toContain("owner_resign");
-    expect(read("src/routes/_authenticated/admin.owner-paperwork.tsx")).not.toMatch(/ResignSwitch|setResignSwitchFn/);
     expect(read("src/components/portal/owner-documents.tsx")).not.toMatch(/ResignSwitch|setResignSwitchFn/);
   });
   test("per-type text switches only change their own key; unapproved wording can't be switched on", () => {
@@ -193,7 +190,7 @@ describe("O7 Settings: switches, rules, removals (decisions 159, 246, 248; audit
   test("Compliance Setup + Owner paperwork merged into Settings › Templates; Xero moved to Settings", () => {
     const settings = read("src/routes/_authenticated/admin.settings.tsx");
     for (const c of ["<ComplianceVersions", "<OwnerDocuments />", "<XeroConnectionCard />", "<MittiFormsSection />", "<EscConfigSection />"]) expect(settings).toContain(c);
-    expect(read("src/routes/_authenticated/admin.compliance.tsx")).toContain("throw redirect");
+    expect(officeLegacyTarget("compliance", { key: "k" })).toEqual({ to: "/admin/settings", search: { tab: "templates", key: "k" } });
     expect(read("src/routes/_authenticated/admin.test-centre.tsx")).not.toContain("XeroConnectionCard");
     expect(read("src/components/portal/compliance-versions.tsx")).not.toMatch(/COMPLIANCE<|installer declaration after installation/);
   });

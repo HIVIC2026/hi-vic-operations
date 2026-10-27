@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "fs";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
+import { existsSync, readFileSync } from "fs";
 
 const functions = readFileSync("src/lib/portal.functions.ts", "utf8");
-const pipeline = readFileSync("src/routes/_authenticated/admin.board.tsx", "utf8");
 const schema = readFileSync("drizzle/migrations/0000_hivic_core_schema.sql", "utf8");
 
 describe("admin pipeline visibility", () => {
@@ -23,8 +23,8 @@ describe("admin pipeline visibility", () => {
   });
 
   it("the Pipeline board is retired (decision 218, audit removal 1): it only redirects and never runs maintenance on open", () => {
-    expect(pipeline).toContain('redirect({ to: "/admin/jobs/active"');
-    expect(pipeline).not.toMatch(/import[^\n]*(sweepAuthorities|autoAdvancePipeline|getAdminPipeline)|useServerFn/);
+    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/active" });
+    expect(existsSync("src/routes/_authenticated/admin.board.tsx")).toBe(false);
   });
 
   it("keeps unrelated jobs hidden from non-admins at the RLS boundary", () => {

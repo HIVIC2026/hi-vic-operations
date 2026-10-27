@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { buildOperationsPreview, classifyOperation, communicationLabel, sendingControlState, type OperationInput } from "../src/lib/operations-preview.core";
 
@@ -85,10 +86,9 @@ describe("isolated operations presentation", () => {
     expect(result.stages[0]?.parties.find((p) => p.party === "Office")?.tasks).toBe(2); // two received evidence checks; sync task belongs to System
   });
   test("route and endpoint both require admin; direct only; no mutations", () => {
-    const route = readFileSync("src/routes/_authenticated/admin.operations-preview.tsx", "utf8");
     const endpoint = readFileSync("src/lib/operations-preview.functions.ts", "utf8");
     const server = readFileSync("src/lib/operations-preview.server.ts", "utf8");
-    expect(route).toContain('/_authenticated/admin/operations-preview');
+    expect(officeLegacyTarget("operations-preview")).toEqual({ to: "/admin/jobs/active" });
     expect(readFileSync("src/routes/_authenticated/admin.tsx", "utf8")).toContain('.admin');
     expect(endpoint).toContain('.middleware([requireSupabaseAuth])'); expect(endpoint.indexOf('await requireAdmin')).toBeLessThan(endpoint.indexOf('client.server'));
     expect(server).toContain(".eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test')");

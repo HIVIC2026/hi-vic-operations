@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
 import { classifyNewInstallerJob, sortNewInstallerJobs, howAdded, type NewJobFacts } from "../src/lib/installer-new-jobs.core";
 
@@ -103,7 +104,7 @@ describe("New from installers (no manual 'seen' step)", () => {
     expect(panel).not.toMatch(/Mark seen|markInstallerJobsSeen/);
     // One pile (0218): New from installers lives only on Jobs › Active (Today's brief retired, decision 218).
     expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain("<NewFromInstallers />");
-    expect(readFileSync("src/routes/_authenticated/admin.today.tsx", "utf8")).not.toContain("<NewFromInstallers />");
+    expect(officeLegacyTarget("today")).toEqual({ to: "/admin/needs-me" });
   });
 });
 

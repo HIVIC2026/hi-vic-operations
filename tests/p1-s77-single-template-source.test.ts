@@ -8,6 +8,7 @@
  *                retired template surfaces can no longer be listed, edited or previewed.
  */
 import { describe, expect, test } from "bun:test";
+import { officeLegacyTarget, publicLegacyTarget } from "../src/lib/legacy-links.core";
 import { existsSync, readFileSync } from "node:fs";
 import {
   renderJoOutcomeEmail,
@@ -129,12 +130,11 @@ describe("Part B — one template source; superseded templates unreachable", () 
   });
 
   test("legacy preview / copy-editing pages redirect to Templates and cannot save copy", () => {
-    for (const f of ["src/routes/_authenticated/admin.campaign-emails.tsx", "src/routes/step3-email-preview.tsx"]) {
-      expect(code(f)).toMatch(/beforeLoad: \(\) => \{ throw redirect\(\{ to: "\/admin\/templates"/);
-    }
+    expect(officeLegacyTarget("campaign-emails")).toEqual({ to: "/admin/templates", search: { cat: "owner" } });
+    expect(publicLegacyTarget("step3-email-preview")).toEqual({ to: "/admin/templates", search: { cat: "owner" } });
     expect(existsSync("src/lib/campaign-emails.functions.ts")).toBe(false);
-    expect(code("src/routes/campaign-preview.tsx")).not.toContain("renderLaunchGroupEmail");
-    expect(code("src/routes/_authenticated/admin.launch-campaign.tsx")).not.toContain("renderLaunchGroupEmail");
+    expect(publicLegacyTarget("campaign-preview")).toEqual({ to: "/" });
+    expect(officeLegacyTarget("launch-campaign")).toEqual({ to: "/admin/communications" });
     expect(code("src/lib/office-nav.ts")).not.toContain('"/admin/campaign-emails" }');
   });
 });
