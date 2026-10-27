@@ -6,6 +6,7 @@
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
 import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
+import { installDayRoleBlocker } from "./worker-role.core";
 
 export type VisitKind = "ready_check" | "install";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -23,6 +24,8 @@ export type AllocationCandidate = {
   clearance?: CrewClearanceFacts | null;
   /** Decision 319: White Card state (installers). Undefined = not loaded → the White Card rule is not applied. */
   whiteCard?: WhiteCardState | null;
+  /** Decision 411: "lead" | "crew" | null (Role needed). Only Lead installers can be given an install day. */
+  workerRole?: string | null;
 };
 
 export type AllocationOption = { workerId: string; name: string; mobile: string | null; allowed: boolean; reason: string | null; note: string | null };
@@ -40,6 +43,8 @@ export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today
   if (c.removedAt) return ALLOCATION_REASON.removed;
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
+  const role = installDayRoleBlocker(c.workerRole ?? null);
+  if (role) return role;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
   if (!cl.cleared) return cl.reason;
   return install ? whiteCardBlocker(c.whiteCard, install.bookingCreatedAt) : null;

@@ -12,16 +12,17 @@ const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-l
 
 /** Every current staff row of the business, with derived clearance facts for installers (reuses the PIISA crew loader). */
 export async function allocationCandidates(businessId: string): Promise<AllocationCandidate[]> {
-  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at").eq("business_id", businessId).is("removed_at", null);
+  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at, worker_role").eq("business_id", businessId).is("removed_at", null);
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
   const staff = await (await import("./piisa-a3.server")).crewStaff(businessId);
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null }[]).map((w) => {
+  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role: string | null }[]).map((w) => {
     const s = byId.get(w.id);
     return {
       workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
       whiteCard: s?.whiteCard ?? null,
+      workerRole: w.worker_role ?? null,
     };
   });
 }
