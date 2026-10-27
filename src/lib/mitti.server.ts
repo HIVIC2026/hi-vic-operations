@@ -44,6 +44,13 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
     g.routed.push(`${method} ${path.split("?")[0]}`);
     return g.sim(method, path, body);
   }
+  // Running-portal TEST routing (Jo 27 Oct): TEST people, sim_ ids and stored simulated forms go to the persistent simulator.
+  {
+    const { testMittiRoute, auditIdOfPath, isSimId } = await import("./mitti-test-route.core");
+    const audit = auditIdOfPath(path);
+    const stored = audit && !isSimId(audit) ? await (await import("./mitti-sim-store.server")).isStoredSimAudit(audit) : false;
+    if (testMittiRoute(method, path, body, () => stored)) return (await import("./mitti-sim-store.server")).persistentSimMittiCall(method, path, body);
+  }
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.", { code: "not_configured" });
   let res: Response;
@@ -82,6 +89,13 @@ export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
   if (!/^image\//.test(contentType)) throw new MittiError("Mitti returned something that is not an image for the signature.");
   return { bytes: new Uint8Array(await res.arrayBuffer()), contentType };
 };
+
+/** A whole Mitti flow for a TEST person (including its template read) uses the persistent simulator; otherwise unchanged. */
+export async function mittiCallFor(call: MittiCall, email: string | null | undefined): Promise<MittiCall> {
+  if (call !== realMittiCall) return call;
+  const { isTestMittiEmail } = await import("./mitti-test-route.core");
+  return isTestMittiEmail(email) ? (await import("./mitti-sim-store.server")).persistentSimMittiCall : call;
+}
 
 const wrap = (e: unknown) => (e instanceof MittiError ? new WorkflowError(e.message) : e);
 
