@@ -32,7 +32,20 @@ export function officeSpotSavedCount(rows: { spot_saved_at: string | null; opted
 export function campaignSaveAllowed(group: LaunchGroup, deskStatus: string | null | undefined, ownerQualified = false) {
   if (group === "likely") return true;
   if (deskStatus === "not_eligible" || deskStatus === "needs_onsite_check") return false;
-  return deskStatus === "looks_eligible" || ownerQualified;
+  // Decision 416 (Jo 27 Oct 2026, "Let them save now"): existing/unknown insulation no longer waits for an office check —
+  // the installer checks it at the Ready Check. (ownerQualified kept in the signature for callers; no longer needed.)
+  void ownerQualified;
+  return true;
+}
+
+/** Can this owner save their spot from the Save My Spot email/page? Decision 416 (Jo 27 Oct 2026, "Let them save now",
+ *  incl. unclear / set-aside photos): only a real negative finding stops them — the office said not eligible or needs an
+ *  onsite check, or photos show insulation already R2 or more. Everything else is checked by the installer at the Ready Check. */
+export function campaignSaveDecision(c: { group: LaunchGroup; mediaReview: string | null | undefined; criteriaPassed?: boolean }, deskStatus: string | null | undefined): boolean {
+  if (deskStatus === "not_eligible" || deskStatus === "needs_onsite_check" || c.mediaReview === "over_r2") return false;
+  // Existing/unknown insulation still needs its official eligibility result in and settled (declarationCriteriaPassed).
+  if (c.group === "onsite" && c.criteriaPassed !== true) return false;
+  return campaignSaveAllowed(c.group, deskStatus);
 }
 
 export function launchGroup(outcome: string | null, insulation: string | null): LaunchGroup | null {

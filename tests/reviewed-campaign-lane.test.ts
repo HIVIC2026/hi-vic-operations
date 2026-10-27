@@ -37,16 +37,18 @@ test('the photo review cannot invent a likely-eligible official decision', async
   tables.jobs![0]!.eligibility_outcome = 'needs_onsite_confirmation';
   expect(await campaignLink(token)).toBeNull();
 });
-test('a later unclear review removes the offer permission', async () => {
+// Decision 416 (Jo 27 Oct 2026): an unclear photo review no longer removes the offer — the installer checks at the Ready Check.
+test('a later unclear review keeps the offer permission (decision 416)', async () => {
   tables.customer_engagement_events!.push({ id: 'later', job_id: 'job', event_type: 'intake_media_reviewed', source: 'office', metadata: { outcome: 'unclear' }, occurred_at: '2026-10-20T11:00:00Z' });
   const result = await campaignLink(token);
-  expect(result?.group).toBe('onsite'); expect(campaignPermission(result!, null)).toBe(false);
+  expect(result?.group).toBe('onsite'); expect(result!.mediaReview).toBe('unclear'); expect(campaignPermission({ ...result!, criteriaPassed: true }, null)).toBe(true);
 });
 // Jo 24 Oct "Fix the saving": an owner who answered the 3 questions saves their spot even with photos on file.
-test('photo owners who answered the 3 questions may save their spot; photos alone still wait for the office', () => {
+// Decision 416: photos on file (set aside) no longer wait for the office; failed initial checks, R2+ or not eligible still stop.
+test('photo owners may save their spot; initial checks, R2+ and not eligible still stop them (decision 416)', () => {
   const base = { group: 'onsite', criteriaPassed: true, ownerQualified: true, mediaReview: null, media: { excluded: true, received: true, uncertain: false, pendingSync: false, count: 5 } } as never as Parameters<typeof campaignPermission>[0];
   expect(campaignPermission({ ...base, answeredQuestions: true }, 'pending')).toBe(true);
-  expect(campaignPermission({ ...base, answeredQuestions: false }, 'pending')).toBe(false);
+  expect(campaignPermission({ ...base, answeredQuestions: false }, 'pending')).toBe(true);
   expect(campaignPermission({ ...base, answeredQuestions: true, criteriaPassed: false }, 'pending')).toBe(false);
   expect(campaignPermission({ ...base, answeredQuestions: true, mediaReview: 'over_r2' }, 'pending')).toBe(false);
   expect(campaignPermission({ ...base, answeredQuestions: true }, 'not_eligible')).toBe(false);
