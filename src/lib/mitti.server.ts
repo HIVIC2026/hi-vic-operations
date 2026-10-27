@@ -158,7 +158,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const claimId = existingAuditId ? null : await claims.claimMittiCreate(jobId, kind, actorId,
     `Mitti ${measureOnly ? "measure-up" : "assessment"} creation started for ${prof?.email ?? "assigned trade"}`,
     { template_id: templateId, scope: scope.scope }, { officeOverride: opts.officeOverride === true });
-  const base = mittiApi(call);
+  const base = mittiApi(await mittiCallFor(call, prof?.email));
   const seen = { createAttempted: false, createdId: null as string | null };
   const api: typeof base = { ...base, createAudit: async (body) => {
     seen.createAttempted = true;
@@ -637,7 +637,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
   const { data: prev, error: previousError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (previousError) throw new WorkflowError("The existing PIISA audit could not be checked. Try again; no replacement form was created.");
-  const api = mittiApi(call);
+  const api = mittiApi(await mittiCallFor(call, email));
   const users = (await api.searchUsers(email)) as { users?: { id?: string; user_id?: string; email?: string }[] } | { id?: string; user_id?: string; email?: string }[];
   const list = Array.isArray(users) ? users : users?.users ?? [];
   const u = list.find((x) => String(x.email ?? "").toLowerCase() === email.toLowerCase());
@@ -788,7 +788,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
 export async function findMittiUserByEmail(email: string, call: MittiCall = realMittiCall): Promise<string | null> {
   const e = email.trim();
   if (!e) return null;
-  const u = pickUser(await mittiApi(call).searchUsers(e), e);
+  const u = pickUser(await mittiApi(await mittiCallFor(call, e)).searchUsers(e), e);
   const id = u?.id ?? u?.user_id;
   return id == null || id === "" ? null : String(id);
 }
@@ -806,7 +806,7 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
   if (!job) throw new WorkflowError("Job not found.");
   const allowed = (p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
   if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
-  const api = mittiApi(call);
+  const api = mittiApi(await mittiCallFor(call, p.email));
   let audit: Any;
   try { audit = await api.getAudit(p.auditId); } catch (e) { throw wrap(e); }
   const parsed = parseAudit(audit);
