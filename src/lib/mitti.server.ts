@@ -41,7 +41,7 @@ export function disarmJourneyMittiGuard() { delete (globalThis as Record<string,
 
 /** Resolve the recorded source for EVERY job-aware call, including ticks and webhooks. */
 export async function mittiCallForJob(jobId: string, call: MittiCall = realMittiCall): Promise<MittiCall> {
-  if (call !== realMittiCall) return call; // existing isolated unit/command simulator injection
+  if (call !== realMittiCall && call !== liveMittiCall) return call; // existing isolated unit/command simulator injection
   const { data: job, error } = await admin.from("jobs").select("source").eq("id", jobId).single();
   if (error || !job) throw new MittiError("SAFETY STOP: Mitti job source could not be verified");
   if (mittiRoute(job.source, qaContextActive(), true) === "simulated") return (await import("./mitti-simulated.server")).simulatedJobMitti(jobId);

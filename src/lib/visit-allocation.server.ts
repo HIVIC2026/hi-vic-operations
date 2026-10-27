@@ -85,7 +85,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   const why = allocationBlocker(kind, cand, melbourneToday(), kind === "install" ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined);
   if (why) throw new WorkflowError(`${cand.name} can't take this ${VISIT_LABEL[kind]}: ${why}`);
   const mitti = await import("./mitti.server");
-  const useCall = await mitti.mittiCallForJob(jobId, call);
+  const useCall = call ?? await mitti.mittiCallForJob(jobId);
   // TEST partners never reach a real installer's Mitti user; their forms live under the TEST Mitti account.
   const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (cand.email ?? "");
   const mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
