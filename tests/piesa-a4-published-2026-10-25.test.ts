@@ -22,7 +22,8 @@ import {
 } from "../src/lib/official-short.core";
 
 const def = JSON.parse(readFileSync("tests/fixtures/mitti-piesa/a4-published-2026-10-25.json", "utf8"));
-const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, APPLIANCE_Q.type, APPLIANCE_Q.what, APPLIANCE_Q.where, APPLIANCE_Q.problem, APPLIANCE_Q.action, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL, FIXES_PRICE_LABEL].map((l) => `Missing: ${l}`);
+// Decision 404: "What is it?" is retired, not a missing required question.
+const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, APPLIANCE_Q.type, APPLIANCE_Q.where, APPLIANCE_Q.problem, APPLIANCE_Q.action, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL, FIXES_PRICE_LABEL].map((l) => `Missing: ${l}`);
 const APPLIANCE_BLOCK_LABEL = "Add an appliance or flue";
 const APPLIANCE_PARENT_OLD = "Are there any appliances, exhaust fans or flues in the ceiling space?";
 const RETIRED = ["Can the repair work be done before installation?", "No means an electrician must be present on installation day instead.", REPAIR_TICKS_LEGACY_LABEL, REPAIR_OTHER_LEGACY_LABEL];
@@ -58,6 +59,8 @@ function republished() {
   kids.splice(at, 1, list("d336-type", APPLIANCE_Q.type, false), text("d336-what", APPLIANCE_Q.what), text("d336-where", APPLIANCE_Q.where));
   kids.push(text("d336-problem", APPLIANCE_Q.problem), text("d336-action", APPLIANCE_Q.action));
   const job = d.template.items.find((s: { label: string }) => s.label === "Job");
+  // Jo's 27 Oct published A3 includes Owner name; retain the historical 25 Oct fixture unchanged.
+  job.children.push(text("published-owner-name", "Owner name"));
   job.children.push({ id: "d323-tick", label: NO_PRICE_TALK_LABEL, children: [], checkbox: { options: { weighting: null, is_mandatory: true } } });
   return d;
 }
@@ -69,6 +72,7 @@ describe("published A3 PIESA", () => {
   });
   test("once republished with them (help text on its own line) it validates clean", () => {
     const d = republished();
+    expect(d.template.items.find((s: { label: string }) => s.label === "Job").children.some((c: { label: string }) => c.label === "Owner name")).toBe(true);
     expect(validateTemplate("piesa", flattenDefinition(d)).issues).toEqual([]);
     expect((validateSavedDefinition("piesa" as never, d) as { issues: string[] }).issues).toEqual([]);
   });

@@ -22,7 +22,8 @@ describe("approved page wording", () => {
   // P6 (decision 296, owner confirms the PIESA by secure link) is pinned line by line in tests/piesa-owner-confirm.test.ts.
   test("P6 PIESA confirmation page", () => inApproved("P6-piesa-confirm-page.html", [P6.kicker, P6.title, P6.formEyebrow, P6.button, P6.lockHint, P6.afterNote, P6.confirmedTitle]));
   test("decision 137: the 30-day clock wording matches the approved emails", () => {
-    const o26 = approved("O26-safety-check-times.html"); const o29 = approved("O29-fixes-quote.html");
+    const o26 = readFileSync("docs/templates/mjml/owner_O26.mjml", "utf8").replace(/&#9200;/g, "⏰");
+    const o29 = readFileSync("docs/templates/mjml/owner_O29.mjml", "utf8");
     expect(o26).toContain(THIRTY_DAY_CLOCK.title); expect(o26).toContain(`<strong>${THIRTY_DAY_CLOCK.lead}</strong>${THIRTY_DAY_CLOCK.body}`);
     expect(o29).toContain(`<strong>${THIRTY_DAY_CLOCK.fixesLead}</strong>${THIRTY_DAY_CLOCK.fixesBefore}<strong>5 December</strong>${THIRTY_DAY_CLOCK.fixesAfter}`);
   });
