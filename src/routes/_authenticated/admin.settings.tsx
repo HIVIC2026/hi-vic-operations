@@ -113,7 +113,7 @@ function Switches() {
     <tr key={s.key} data-why={s.why}>
       <td className="font-semibold">{s.label}</td>
       <td className="text-xs">{s.what}{s.note && <span className="mt-0.5 block text-sub">{s.note}</span>}</td>
-      <td>{s.on == null ? <Pill>Unknown</Pill> : s.on ? <Pill tone="green">On</Pill> : <Pill>Off</Pill>}</td>
+      <td>{s.on == null ? <Pill tone="rose">Couldn't read</Pill> : s.on ? <Pill tone="green">On</Pill> : <Pill>Off</Pill>}</td>
       <td>{s.editable && s.on != null && <Btn tone="secondary" onClick={() => setFlip(s)}>Turn {s.on ? "off" : "on"}</Btn>}</td>
     </tr>
   );
