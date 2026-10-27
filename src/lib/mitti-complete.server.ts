@@ -97,8 +97,9 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     // My business, or the form changed to our electrician) this tick prepares the installer's draft from the form.
     if (j.channel === "installer_sourced" && entries.length && j.stage !== "awaiting_quote_acceptance") {
       const { completedDraftAllowed } = await import("./mitti-completed-refresh.server");
-      const { data: open } = await admin.from("quotes").select("id").eq("job_id", r.job_id).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).limit(1);
-      if ((changed || !open?.length) && await completedDraftAllowed(r.job_id)) await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(r.job_id, null, entries, String(r.external_id)).catch(() => null);
+      // The draft helper deduplicates unchanged scope. Retrying held drafts also repairs a refresh whose
+      // subsequent draft attempt was interrupted, without touching issued/accepted quotes.
+      if (await completedDraftAllowed(r.job_id)) await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(r.job_id, null, entries, String(r.external_id)).catch(() => null);
     } else if (changed && entries.length && j.channel !== "installer_sourced" && await (await import("./mitti-completed-refresh.server")).completedDraftAllowed(r.job_id)) {
       await (await import("./insulation-product.server")).mittiProductForJob(r.job_id, null, entries, String(r.external_id));
       await (await import("./ready-check-quote.server")).draftHivReadyCheckQuote(r.job_id, null, String(r.external_id), modifiedAt, entries);

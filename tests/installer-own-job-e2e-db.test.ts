@@ -429,6 +429,15 @@ describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its 
 });
 
 describe("Jo 27 Oct completed Ready Check edit recovery", () => {
+  test("price rundown stays business-owner-only; another user cannot see this business's records", async () => {
+    const { installerPriceView } = await import("../src/lib/installer-price-set.server");
+    const view = await installerPriceView(A, INST);
+    expect(view?.readyCheck).toMatchObject({ address: "1 Test Street, Frankston, VIC 3199", install: "120 m²", removal: "None", product: "Bradford Gold R5" });
+    expect(await installerPriceView(A, "40000000-0000-4000-8000-000000000099")).toBeNull();
+    const worker = "40000000-0000-4000-8000-000000000098";
+    await q("insert into business_members(business_id,user_id,member_role,active) values($1,$2,'member',true)", [BIZ, worker]);
+    expect(await installerPriceView(A, worker)).toBeNull();
+  });
   test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
     const beforeSends = sent.length;
     const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { electricianChoice: "hivic" });

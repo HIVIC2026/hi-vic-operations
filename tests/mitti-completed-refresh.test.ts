@@ -6,6 +6,7 @@ describe("edited completed Ready Checks", () => {
   test("75m² removal added after Complete refreshes the measurement", () => {
     expect(completedRefreshPlan(input)).toMatchObject({ measured_area_m2: 75, removal_required: true, removal_m2: 75, access_difficulty: "easy" });
     expect(completedRefreshPlan({ ...input, current: { ...current, raw_snapshot: input.snapshot } })).toBeNull();
+    expect(completedRefreshPlan({ ...input, current: { ...current, raw_snapshot: [{ value: "75", label: "Remove" }] } })).toBeNull(); // jsonb key order is not an edit.
   });
   test("cleared removal does not retain the old area", () => expect(completedRefreshPlan({ ...input, values: { removal_required: false } })).toMatchObject({ removal_required: false, removal_m2: null, access_difficulty: null }));
   test("accepted measurements and other forms are not overwritten", () => {
