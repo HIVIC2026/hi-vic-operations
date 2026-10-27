@@ -6,9 +6,10 @@ CREATE OR REPLACE FUNCTION public.is_qa_office()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM public.user_roles r JOIN public.profiles p ON p.id = r.user_id
+    SELECT 1 FROM public.user_roles r JOIN auth.users u ON u.id = r.user_id
     WHERE r.user_id = (SELECT auth.uid()) AND r.role::text = 'qa_office'
-      AND p.email ~* '^[^@[:space:]]+@hivic-test[.]example$'
+      AND u.email_confirmed_at IS NOT NULL
+      AND u.email ~* '^[^@[:space:]]+@hivic-test[.]example$'
   ) AND NOT EXISTS (
     SELECT 1 FROM public.user_roles r WHERE r.user_id = (SELECT auth.uid()) AND r.role::text <> 'qa_office'
   )
