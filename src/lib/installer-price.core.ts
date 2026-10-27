@@ -72,6 +72,8 @@ export function validateInstallerPrice(i: InstallerPriceInput): { ok: boolean; i
   else if (!included.includes(INCLUDED_BASE)) issues.push(PRICE_ISSUES.base);
   const other = String(i.includedOther ?? "").trim();
   if (included.includes("Other") && !other) issues.push(PRICE_ISSUES.other);
+  // Jo 27 Oct 2026: the Ready Check positively says no removal → the removal tick is refused (server-side, not only the screen).
+  if (i.removalRequired === false && included.includes(INCLUDED_REMOVAL)) issues.push(PRICE_ISSUES.noRemoval);
   if (issues.length || price == null) return { ok: false, issues, record: null };
   return { ok: true, issues: [], record: { price_inc_gst: r2(price), included, included_other: included.includes("Other") ? other : null, electrician: null } };
 }

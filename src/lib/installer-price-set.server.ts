@@ -17,12 +17,16 @@ async function a1JobOrThrow(jobId: string) {
   return j as { id: string; channel: string; originating_installer_business_id: string; stage: string | null };
 }
 
-/** The current Ready Check snapshot's entries (empty when no Mitti form yet). Read-only. */
-async function currentFormEntries(jobId: string): Promise<{ label: string; value: string | null }[]> {
-  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+/** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
+ *  (null when there is no current Ready Check at all). Read-only. */
+async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null }> {
+  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
   const list = Array.isArray(raw) ? raw : [];
-  return (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+  const entries = (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+  const { readyCheckRemovalRequired } = await import("./ready-check-answers.core");
+  const removalRequired = readyCheckRemovalRequired(entries, m as { removal_required?: boolean | null } | null);
+  return { entries, removalRequired };
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
