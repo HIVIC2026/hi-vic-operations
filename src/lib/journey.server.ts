@@ -424,7 +424,8 @@ const s6: StepFn = async (ctx, r) => {
   let auditId = a0?.external_mitti_id ?? null;
   if (auditId) mitti.seed(auditId, tpl);
   else auditId = (await act(r, "office backup: the A3 form is made for the electrician", () => import("./mitti.server").then((m) => m.createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })))).auditId;
-  mitti.fill(auditId, pass.items);
+  // The real portal prefills Portal Job Number; a blank one fails closed under the identity rule, so fill it as the prefill would.
+  mitti.fill(auditId, [{ item_id: "sim_a3_office_0", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...pass.items] as never);
   const synced = await act(r, "electrician completes the A3 → read by the Mitti sync", async () => { await assertOwnTestJob(ctx); return (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, async () => ({ bytes: TINY_JPEG, contentType: "image/jpeg" })); });
   check(r, "A3 synced as complete with its geotagged evidence", synced.completed, synced.issues.join("; "));
   // The electrician's own "No electrical fixes required" tick on the job page (the same assessment field saveAssessment writes).
