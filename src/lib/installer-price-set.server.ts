@@ -39,17 +39,19 @@ async function currentMeasurementNumbers(jobId: string): Promise<{ measuredM2: n
   };
 }
 
-/** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
+/** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the current Ready Check
+ *  facts (install m², removal m², access rating + notes). Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
   const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   const { myBusinesses } = await import("./pilot.server");
   if ((await myBusinesses(userId)).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [stored, usual, recorded, entries] = await Promise.all([
+  const [stored, usual, recorded, entries, numbers] = await Promise.all([
     readInstallerPrice(jobId),
     (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
     (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
     currentFormEntries(jobId).catch(() => [] as { label: string; value: string | null }[]),
+    currentMeasurementNumbers(jobId).catch(() => ({ measuredM2: null, removalRequired: null, removalM2: null })),
   ]);
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
@@ -59,7 +61,7 @@ export async function installerPriceView(jobId: string, userId: string) {
   return {
     canSet: true as const, current: stored,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
-    access: accessFlagFromEntries(entries),
+    readyCheck: { ...numbers, access: accessFlagFromEntries(entries) },
   };
 }
 
