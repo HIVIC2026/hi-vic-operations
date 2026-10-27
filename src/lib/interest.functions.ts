@@ -98,6 +98,18 @@ export const registerInterest = createServerFn({ method: "POST" })
     return { ok: true, duplicate: false };
   });
 
+/** Read-only proof of the running preview boundary, never a settings/connection change. */
+export const previewJourneySafety = createServerFn({ method: "GET" }).handler(async () => {
+  const { qaContextActive } = await import("./qa-context.server");
+  if (!qaContextActive()) throw new Error("Authorised preview TEST request required");
+  const { realMittiCall } = await import("./mitti.server");
+  let unattributedRefused = false;
+  try { await realMittiCall("POST", "/users/search", { email: ["boundary@hivic-test.example"] }); }
+  catch (e) { if (e instanceof Error && e.message.includes("SAFETY STOP")) unattributedRefused = true; else throw e; }
+  const status = await (await import("./xero.server")).xeroConnectionStatus();
+  return { qa: true, unattributedRefused, deliveryAdapterAbsent: (await (await import("./delivery.server")).configuredDeliveryAdapter()) === null, demoConnected: status.configured && status.connected && status.orgs.some(o => o.name === "Demo Company (AU)") };
+});
+
 export const listInterests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<InterestRow[]> => {
