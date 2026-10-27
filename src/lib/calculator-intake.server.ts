@@ -20,8 +20,9 @@ export async function startCalculatorEnquiry(interestId: string, v: NormalisedIn
   const r = await upsertEnquiry(input as never, source, null);
   // Office marker: where it came from, kept beside any existing references on a matched job.
   const { data: j } = await admin.from("jobs").select("external_refs").eq("id", r.job_id).maybeSingle();
-  const refs = { ...((j?.external_refs as Record<string, unknown> | null) ?? {}), intake_channel: (j?.external_refs as Record<string, unknown> | null)?.["intake_channel"] ?? CALCULATOR_INTAKE_CHANNEL, calculator_interest_id: interestId };
-  await admin.from("jobs").update({ external_refs: refs as Json }).eq("id", r.job_id);
+  const prev = (j?.external_refs as Record<string, Json> | null) ?? {};
+  const refs: Record<string, Json> = { ...prev, intake_channel: prev["intake_channel"] ?? CALCULATOR_INTAKE_CHANNEL, calculator_interest_id: interestId };
+  await admin.from("jobs").update({ external_refs: refs }).eq("id", r.job_id);
   // TEST jobs skip the website-only consent step inside upsertEnquiry; the consent version and time are kept the same way.
   if (source === "qa_test") {
     const { data: job } = await admin.from("jobs").select("owner_id").eq("id", r.job_id).single();
