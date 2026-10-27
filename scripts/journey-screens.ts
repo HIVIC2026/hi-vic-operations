@@ -98,7 +98,7 @@ const STEPS: Step[] = [
   { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
-  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
+  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
   { step: "Ready Check completion", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", severity: "Fix soon", next: "Mitti", expect: stageIs("ready_check_complete", "measured_estimate_ready", "quote_sent") },
 ];
 const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
