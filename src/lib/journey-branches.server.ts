@@ -776,7 +776,7 @@ async function p6Timing(rec: Recorder, jobs: BranchResult["jobs"], setup: StepRe
     const at25 = await shoot("p6-24h-no-times", [{ who: "installer-offer", email: INST, path: `/field/offer/${offerId}` }, ownerPage(ctx), ...officePages(ctx)]);
     const { count: props25 } = await admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "proposed");
     // Put the offer back as it was, then the installer offers 3 times (the fix for (a)).
-    await admin.from("partner_offers").update({ offered_at: o0?.offered_at, expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
+    await admin.from("partner_offers").update({ offered_at: o0?.offered_at ?? new Date().toISOString(), expires_at: o0?.expires_at ?? null }).eq("id", offerId).eq("job_id", ctx.jobId!);
     const tv = await import("./trade-view.server");
     const rct = await import("./ready-check-times.core");
     const days = rct.allowedReadyCheckDays().slice(0, 3);
