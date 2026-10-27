@@ -77,9 +77,31 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
   const stored = await readInstallerPrice(jobId);
   if (!stored) throw new WorkflowError("The price was not saved.");
-  // Prepare (never send) the owner's quote from the portal price through the existing guarded Ready Check paths: the
-  // regular sync while the form is open; the completed-form draft + the auto-send decision once it is Complete. Any
-  // failure here is picked up by the 15-minute tick.
+  // Speed (Jo 28 Oct 2026): prepare (never send) the owner's quote ONCE from the Ready Check already stored, then reply.
+  // The Mitti sync, and on a Complete form the fresh-form auto-send decision, run after the reply; any failure in either is
+  // picked up by the 15-minute tick.
+  try { await draftFromStoredReadyCheck(jobId, userId); } catch { /* tick */ }
+  (await import("./background.server")).runAfterResponse(() => mittiAfterPriceSaved(jobId, userId));
+  return stored;
+}
+
+/** The same guarded draft the Mitti sync makes (open form: only once the basics are in; Complete form: always), from the
+ *  Ready Check answers the last sync stored. No Mitti call. Nothing stored yet = nothing to draft (the sync does it). */
+async function draftFromStoredReadyCheck(jobId: string, userId: string) {
+  const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id, status, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (m?.external_source !== "mitti" || !m.external_id) return;
+  const raw = (m as { raw_snapshot?: unknown }).raw_snapshot;
+  const entries = (Array.isArray(raw) ? raw as { label?: unknown; value?: unknown }[] : []).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
+  if (!entries.length) return;
+  const auditId = String(m.external_id);
+  const completed = m.status === "complete";
+  if (!completed && !(await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, userId, entries, false, auditId))?.ready) return;
+  const d = await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, auditId);
+  if (!completed && d?.ready) await (await import("./pilot.server")).applyCobrand(jobId);
+}
+
+/** After the reply: the regular guarded Mitti sync; on a Complete form, the auto-send decision from the fresh form. Never throws. */
+async function mittiAfterPriceSaved(jobId: string, userId: string) {
   try { await (await import("./mitti.server")).syncMittiAssessment(jobId, userId); } catch { /* tick */ }
   try {
     const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
@@ -87,9 +109,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
       const { mittiApi, parseAudit } = await import("./mitti.core");
       const a = await mittiApi((await import("./mitti.server")).realMittiCall).getAudit(String(m.external_id));
       const entries = parseAudit(a).snapshot as { label: string; value: string | null }[];
-      await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
       await (await import("./auto-quote-send.server")).maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: a?.modified_at ?? a?.audit_data?.date_modified ?? null, entries });
     }
   } catch { /* tick */ }
-  return stored;
 }
