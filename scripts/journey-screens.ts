@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { SCREEN_PEOPLE, SCREEN_STEPS, screenMutationBlocker, screenTotals, type ScreenRow } from "./journey-screens.core";
+import { probeRunningPreview } from "./journey-preflight";
 
 const removed: string[] = [];
 for (const key of Object.keys(process.env)) if (/RESEND|TWILIO|SMS.*(?:KEY|TOKEN)|EMAIL.*(?:KEY|TOKEN)|SMTP|SENDGRID|MAILGUN|POSTMARK|CUSTOMER_EMAIL|DELIVERY.*(?:KEY|SECRET)/i.test(key)) { delete process.env[key]; removed.push(key); }
@@ -10,6 +11,18 @@ const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const temp = `/tmp/browser/journey-screens-${stamp}`;
 const out = `/mnt/documents/journey/${stamp}-screens`;
 mkdirSync(temp, { recursive: true }); mkdirSync(`${out}/screenshots`, { recursive: true });
+const preflight = await probeRunningPreview("http://localhost:8080", false);
+if (preflight.some(p => p.status === "fail")) {
+  const rows: ScreenRow[] = [
+    ...preflight.map(p => ({ step: p.step, person: "safety", status: p.status, detail: p.detail, severity: p.status === "fail" ? "Stop launch" as const : null, screenshot: null, database: null, emailRows: null })),
+    ...SCREEN_STEPS.map(step => ({ step, person: "next responsible person", status: "blocked" as const, detail: "Not executed after signed TEST intake safeguard failed.", severity: null, screenshot: null, database: null, emailRows: null })),
+  ];
+  const totals = screenTotals(rows);
+  writeFileSync(`${out}/report.json`, JSON.stringify({ mode: "screens", preflight, totals, rows, createdJobs: [], archivedJobs: [], tradesChanged: false, published: false, switchesChanged: false, sent: false, walkthroughImplemented: false }, null, 2));
+  writeFileSync(`${out}/report.md`, ["# Phone walkthrough — safeguard run", "", `PASS ${totals.pass} / FAIL ${totals.fail} / BLOCKED ${totals.blocked}`, "", ...preflight.map(p => `- ${p.status.toUpperCase()}: ${p.step}: ${p.detail}`), "", "Stop launch: signed TEST website pass is absent from the current running preview handler; no job was submitted or manufactured.", "Fix soon: the full button-by-button multi-person walkthrough remains unimplemented. This run is a failed preflight, not a completed journey.", "No job created or archived, no TEST trade flags changed, no messages/forms/invoices/switch changes/publication.", "Screenshot and database/event/email evidence is unavailable because no step was entered."].join("\n"));
+  console.log(`Preflight failed. ${totals.pass} pass / ${totals.fail} fail / ${totals.blocked} blocked. Report: ${out}/report.md`);
+  process.exit(1);
+}
 const python = String.raw`
 import asyncio, json, re, sys
 from pathlib import Path

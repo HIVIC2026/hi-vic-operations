@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 08:58 browser walkthrough
+- [x] Ran safeguard preflight once: running enquiry endpoint reached, but signed TEST-pass path/credential absent in current code. 0 pass/1 fail/17 blocked; dependent message/Mitti/Demo probes not attempted. Five focused tests pass. No job created/archived or flags changed. Report journey/2026-10-27T09-00-40-screens/report.md in Files.
+- [ ] Full browser-first multi-person runner remains unimplemented and BLOCKED by failed signed TEST intake safeguard; serving-process no-send/job-Mitti/Demo probes depend on that run-owned TEST job. No unsafe substitute, provider actions, switch changes or publication.
 ## Jo 27 Oct 08:04 deny-by-default TEST office
 - [x] Default-denied route/server capability and exact walk-through allowlist; TEST-scoped lists/search/actions and practice RLS/API/storage proof. Admin regression branches preserved. Nested non-allowlisted tools/private evidence remain refused; full mutation journey not claimed.
 - [x] Applied three practice-proven RLS/API layers; exactly one secret-password TEST office login. Read-only 390px proof: five allowed lists, five denied pages, TEST job/Money, real-id refusal and direct API checks; zero real jobs displayed. Screenshots under /tmp/browser/qa-office/screenshots; current coverage in docs/qa/qa-office-27oct-access-coverage.md.
