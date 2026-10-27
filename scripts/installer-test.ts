@@ -672,7 +672,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     // server quote lines follow recorded electrician payer (office eligibility recorded on the TEST job only)
     const lines = async (jobId: string) => { const { data } = await admin.from("quotes").select("status, quote_items(code)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]); return (data ?? []).flatMap((q) => ((q.quote_items as { code: string | null }[]) ?? []).map((i) => i.code)); };
     await ii.recordCommercialEligibility(a.jobId, ownerId, "eligible", "TEST run: owner, property and occupancy checked (fictitious)");
-    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } });
+    // Quote after the Ready Check (Gate 3): record the visit + measured area and the quote's price basis/GST first.
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { attended: "attended", attendedOn: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" }), areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], commercial: { basis: "before_discount", gst: "inc_gst", inclusions: "R5 batts to 118 m2", exclusions: null, originalStatus: "prepared", removalPricing: null, removalAmountIncGst: null, extras: [] }, feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } } as never);
     const hq = await ii.draftQuoteFromIntake(a.jobId, ownerId).then(() => "drafted", (e) => (e as Error).message);
     const hl = await lines(a.jobId);
     c("HIV-arranged electrician: drafted quote carries the PIESA line", hq === "drafted" ? hl.includes("PIESA") : false, `${hq} / ${hl.join(",")}`);
