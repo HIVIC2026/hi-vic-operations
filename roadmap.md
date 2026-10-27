@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 04:05 electrician payout rule replaces 355
+- [ ] Electrician A3/A4 pay: agreed rate due seven days after approval of completed form; no owner/HIV receipt waiting. Installer rules unchanged.
+- [ ] Align electrician pay wording, record decision, test shared payout readers/write guard; verify prior manual Mitti wording and dummy-trade pause without switch changes.
 ## Jo 27 Oct 03:57 main journey deposit order
 - [x] A3 Owner name untouched/required. Main test now pays Demo TEST 10% deposit before install-day offers and booking. Same boundary guard plus hard network refusal as branches; M recorded even if allowlist check fails. Guard, restore and install-day regressions pass; preview build OK.
 - [x] Safe rerun HV-3372 with sending keys removed and verified Demo-only network wrapper: steps 1–6 PASS, 7 FAIL (test ESC consent lacks four required ticks), 8 SKIPPED, 9–10 PASS, M PASS zero real Mitti calls. Deposit paid and install booked before new failure. Only run jobs HV-3371/HV-3372 archived; HV-3274/HV-3239 unchanged; Alpha/Delta paused flags restored. Earlier invocation did not propagate the preload safety wrapper; latest run explicitly verified it ran in the child process. Screenshots for trade pages remain loading, so browser content verification NOT_RUN despite runner PASS labels. No further changes authorised.
