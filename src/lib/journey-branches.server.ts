@@ -161,6 +161,19 @@ async function notEligible(rec: Recorder, jobs: BranchResult["jobs"], setup: Ste
       return { ok: refused && mentions && (offers ?? 0) === 0, detail: `${res}; PIESA offers saved=${offers}; ${diff(b, a)}` };
     }, ["1.1"]);
 
+    // Jo 27 Oct: the approved not-eligible email (decision 73, T7) is only sent when the office presses
+    // "Not eligible – close" (SpotPhotoCheck → reviewLeadMedia close + the reviewed-ineligible send). Press it as the office would.
+    let closeResult = "not pressed";
+    await rec.run("1.4a", "office presses \"Not eligible – close\" with a reason (TEST job)", async () => {
+      await J.assertOwnTestJob(ctx);
+      const b = await counts(ctx.jobId!);
+      await (await import("./enquiry-groups.server")).reviewLeadMedia(ctx.jobId!, "over_r2", ctx.actorId, reason, true);
+      const r = await (await import("./followups.server")).sendPreliminaryIneligibleEmail(ctx.jobId!, ctx.actorId);
+      closeResult = r.sent ? "sent" : `not sent: ${r.reason}`;
+      const a = await counts(ctx.jobId!);
+      return { ok: true, detail: `close saved; not-eligible email ${closeResult}; stage now ${await J.stageOf(ctx)}; ${diff(b, a)}` };
+    }, ["1.1"]);
+
     await rec.run("1.4", "exactly one not-eligible owner email row (TEST address, simulated), no prices", async () => {
       const e = await emailsSince(ctx.jobId!, since);
       const notElig = [...e.ces.filter((x) => /not.?eligible|ineligible/i.test(x.purpose ?? "")), ...e.comm.filter((x) => /not.?eligible|doesn.t appear eligible|does not appear eligible/i.test(`${x.subject} ${x.body}`))];
