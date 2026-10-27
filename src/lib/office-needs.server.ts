@@ -155,6 +155,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (!x.spotSaved && !x.offerLapsed && st && ["enquiry.spot_saved", "enquiry.spot_saved_video"].includes(st.key)) x.spotSaved = { at: j.facts.campaign?.spotSavedAt ?? st.since };
     if (!x.electricianToChoose && !x.offerLapsed && st?.key === "quote.paid") x.electricianToChoose = { at: st.since, usual: null };
     if (st?.key === "safety.fix_held") x.fixesQuoteToCheck = { at: st.since, reason: st.detail };
+    // Jo 28 Oct: a PIESA that found fixes tells the office once; leaves these stages when the fixes are done and Section C signed.
+    if (FIXES_PAUSED_STAGES.has(j.stage)) x.fixesFound = { at: st?.since ?? j.facts.lastActivityAt ?? j.facts.createdAt, stage: j.stage };
     if (st?.key === "signoff.ap") x.finalCheck = { at: st.since, flags: 0 };
     // 30-day window lapsed with no install (decision 1/2): watch.
     if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
