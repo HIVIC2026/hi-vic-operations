@@ -151,3 +151,15 @@ export function accessFlagLine(f: { rating: string | null; issues: string[] }): 
   if (!f.rating && !f.issues.length) return null;
   return [f.rating ? `Ceiling access: ${f.rating}` : null, f.issues.length ? `Issues: ${f.issues.join("; ")}` : null].filter(Boolean).join(" · ");
 }
+
+/** Jo 27 Oct 2026 (redone): the Ready Check details the boss's price card shows above the price box, from the SAME
+ *  source the quote uses — the current ceiling measurement (install m²) and the form's per-area removal m². Removal
+ *  "None" when the Ready Check positively says there is no removal; anything missing reads "Not on the Ready Check yet". */
+export const NOT_ON_READY_CHECK = "Not on the Ready Check yet";
+export function readyCheckDetailLines(d: { hasReadyCheck: boolean; installAreaM2: number | null; removalRequired: boolean | null; removalM2: number | null }): { install: string; removal: string } {
+  if (!d.hasReadyCheck) return { install: NOT_ON_READY_CHECK, removal: NOT_ON_READY_CHECK };
+  return {
+    install: d.installAreaM2 != null && d.installAreaM2 > 0 ? `${Math.round(d.installAreaM2)} m²` : NOT_ON_READY_CHECK,
+    removal: d.removalRequired === false ? "None" : d.removalM2 != null && d.removalM2 > 0 ? `${Math.round(d.removalM2)} m²` : NOT_ON_READY_CHECK,
+  };
+}

@@ -19,14 +19,15 @@ async function a1JobOrThrow(jobId: string) {
 
 /** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
  *  (null when there is no current Ready Check at all). Read-only. */
-async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null }> {
-  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+async function currentReadyCheck(jobId: string): Promise<{ entries: { label: string; value: string | null }[]; removalRequired: boolean | null; hasReadyCheck: boolean; installAreaM2: number | null; removalM2: number | null }> {
+  const { data: m } = await admin.from("ceiling_measurements").select("raw_snapshot, removal_required, measured_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
   const list = Array.isArray(raw) ? raw : [];
   const entries = (list as { label?: unknown; value?: unknown }[]).filter((e) => e && typeof e.label === "string").map((e) => ({ label: String(e.label), value: e.value == null ? null : String(e.value) }));
-  const { readyCheckRemovalRequired } = await import("./ready-check-answers.core");
+  const { readyCheckRemovalRequired, removalTotalM2 } = await import("./ready-check-answers.core");
   const removalRequired = readyCheckRemovalRequired(entries, m as { removal_required?: boolean | null } | null);
-  return { entries, removalRequired };
+  const measured = (m as { measured_area_m2?: number | null } | null)?.measured_area_m2 ?? null;
+  return { entries, removalRequired, hasReadyCheck: !!m, installAreaM2: measured == null ? null : Number(measured), removalM2: removalTotalM2(entries) };
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
