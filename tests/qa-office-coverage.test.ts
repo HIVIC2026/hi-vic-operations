@@ -10,7 +10,8 @@ mock.module("@tanstack/react-start", () => ({ createServerFn: () => {
   return chain;
 } }));
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-mock.module("../src/lib/workflow.server", () => ({ requireAdmin: async () => { if (role !== "admin") throw new Error("Admin only"); } }));
+class WorkflowError extends Error {}
+mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: async () => {}, requireAdmin: async () => { if (role !== "admin") throw new Error("Admin only"); } }));
 mock.module("../src/lib/qa-office-access.server", () => ({
   requireOfficeJob: async () => role, officeTestBusinessIds: async () => { if (role !== "qa_office") throw new Error("Dedicated TEST office required."); return [TEST_INSTALLER, TEST_REC]; },
 }));
