@@ -68,7 +68,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       (() => { const q = admin.from("bookings").select("business_id").eq("status", "confirmed").gte("scheduled_start", wk0.toISOString()).lt("scheduled_start", wk1.toISOString()).in("business_id", inIds); return testJobs ? q.in("job_id", testJobs.length ? testJobs : NONE) : q; })(),
       (() => { const q = admin.from("partner_offers").select("business_id").eq("status", "pending").in("business_id", inIds); return testJobs ? q.in("job_id", testJobs.length ? testJobs : NONE) : q; })(),
       admin.from("partner_offers").select("business_id, status, offered_at, expires_at").eq("job_id", data.jobId).eq("kind", data.kind),
-      admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
+      officeRole === "qa_office" ? Promise.resolve({ data: null }) : admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
       admin.from("jobs").select("job_number, source, channel, stage, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
     ]);
     // Rate for this job: electricians = agreed PIESA rate (inc GST); installers = active installer rate card R5 line (inc GST per m²).
@@ -99,8 +99,8 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
         rate, rateUnit: isRc ? "per m²" : "per visit",
         weekJobs: count(books, c.business_id), openOffers: count(pend, c.business_id),
         capacity: b?.weekly_capacity != null ? `${b.weekly_capacity}/week` : b?.daily_job_limit != null ? `${b.daily_job_limit}/day` : null,
-        acceptRate: typeof accepted === "number" ? Math.round(accepted * 100) : null,
-        avgAcceptHours: c.avg_accept_hours != null ? Math.round(c.avg_accept_hours * 10) / 10 : null,
+        acceptRate: officeRole === "qa_office" ? null : typeof accepted === "number" ? Math.round(accepted * 100) : null,
+        avgAcceptHours: officeRole === "qa_office" ? null : c.avg_accept_hours != null ? Math.round(c.avg_accept_hours * 10) / 10 : null,
         warnings: chooseWarnings({
           today, rate, ownerPrice,
           insuranceExpiresOn: (creds ?? []).filter((x) => x.business_id === c.business_id && /insurance/.test(x.kind)).map((x) => x.expires_at),
@@ -123,7 +123,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       channel: job?.channel ?? null, stage: job?.stage ?? null, hasInstaller: !!asgRc,
       openOffer: open ? { business: trades.find((t) => t.id === open.business_id)?.business ?? null, expiresAt: open.expires_at } : null,
       jobNumber: job?.job_number ?? null, suburb: [p?.suburb, p?.postcode].filter(Boolean).join(" "), ownerPrice, isTestJob: job?.source === "qa_test",
-      officePicks: officePicks(await dispatchMode(), job?.offer_dispatch_override ?? null), jobOverride: job?.offer_dispatch_override === "office_picks",
+      officePicks: officeRole === "qa_office" ? true : officePicks(await dispatchMode(), job?.offer_dispatch_override ?? null), jobOverride: officeRole === "qa_office" ? false : job?.offer_dispatch_override === "office_picks",
       matching: trades.filter((t) => t.matching), others: trades.filter((t) => !t.matching),
     };
   });
