@@ -45,6 +45,13 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
     return { data: null, count: 0, error: null };
   }
   return q;
+}, async rpc(name: string, args: Record<string, any>) {
+  if (name === 'save_campaign_spot_atomic') {
+    if (!response?.spot_saved_at) response = { ...response, ...args.p_snapshot, estimate_link_id: args.p_link, spot_saved_at: '2026-10-27T05:16:00Z' };
+    if (!events.includes('campaign_spot_saved')) events.push('campaign_spot_saved');
+    job.stage = 'ready_check_ready_to_schedule';
+  }
+  return { data: true, error: null };
 } } }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async (_j: string, _a: unknown, e: string) => { events.push(e); }, transition: async () => {} }));
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));
@@ -100,5 +107,19 @@ test("missing estimate cannot save a price-free snapshot or send", async () => {
   estimateReady = false;
   await expect(savePreliminarySpot(token)).rejects.toThrow("Your estimate is not ready");
   expect(response).toBeNull();
+  expect(sends).toBe(0);
+});
+test('retry finishes the stage and confirmation even when the original save was interrupted', async () => {
+  response = { saved_total: 4098, saved_gross_total: 5498, saved_veu_discount: 1400, saved_area_m2: 100, saved_estimate_id: 'saved-estimate', estimate_link_id: 'estimate-link', spot_saved_at: '2026-10-22T00:00:00Z' };
+  job.stage = 'preliminary_estimate_ready';
+  events.push('campaign_spot_saved');
+  estimateReady = false; // retry uses the frozen save, not a new estimate
+  await savePreliminarySpot(token);
+  expect(job.stage).toBe('ready_check_ready_to_schedule');
+  expect(builtEmails).toHaveLength(1);
+  expect(preparations).toBe(0);
+  expect(events.filter(e => e === 'campaign_spot_saved')).toHaveLength(1);
+  await savePreliminarySpot(token);
+  expect(builtEmails).toHaveLength(1);
   expect(sends).toBe(0);
 });
