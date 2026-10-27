@@ -37,6 +37,7 @@ function useMittiInvited() {
 }
 import { MeasurementReadOnly, useJobScope } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
+import { TRADE_MONEY_QUERIES } from "@/components/trade/job-cache";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
@@ -78,8 +79,8 @@ function useTradeJobBundle(jobId: string) {
   return useQuery({
     queryKey: ["trade-job-bundle", jobId],
     queryFn: async ({ queryKey }) => {
-      // `useAction` invalidates every query after an action; the cards refetch themselves then, so the bundle is not
-      // asked again (its first answer is kept) — one call on first paint, none after.
+      // A trade `useAction` invalidates this job's queries after an action; the cards refetch themselves then, so the
+      // bundle is not asked again (its first answer is kept) — one call on first paint, none after.
       const prev = qc.getQueryData<Awaited<ReturnType<typeof load>>>(queryKey);
       if (prev) return prev;
       const bundle = await load({ data: { jobId } });
@@ -148,7 +149,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
 /** Jo 24 Oct 2026 (decision 110): on the installer's own job the installer enters the Ready Check day and time. It is
  *  saved as the job's Ready Check booking, so the 6:30am text lists it with the Mitti form link. Nothing goes to the owner. */
 function A1ReadyCheckTimeCard({ jobId }: { jobId: string }) {
-  const save = useAction(setA1ReadyCheckTimeFn);
+  const save = useAction(setA1ReadyCheckTimeFn, { refresh: { jobId } });
   const days = allowedReadyCheckDays();
   const [day, setDay] = useState(days[0] ?? melbourneToday());
   const [time, setTime] = useState("");
@@ -197,8 +198,9 @@ type A = Record<string, string | number | boolean | null>;
 
 function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: string; expired: boolean }) {
   const mittiInvited = useMittiInvited();
-  const save = useAction(saveAssessment);
-  const complete = useAction(completeAssessment);
+  // Speed (Jo 28 Oct 2026): a field save keeps its own local copy and reloads nothing; Complete re-reads this job only.
+  const save = useAction(saveAssessment, { refresh: false });
+  const complete = useAction(completeAssessment, { refresh: { jobId } });
   const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle()).data });
   const [f, setF] = useState<A>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -231,7 +233,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   return (
     <>
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
+        stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook trade />
       )}
       {/* Decision 318: the pay rule sits beside the PIESA / fixes Mitti forms. */}
       {(stage === "rectification_booked" || (a?.external_mitti_id && assessing)) && <NoFormNoPay />}
@@ -267,9 +269,9 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
 }
 
 function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
-  const add = useAction(addOtherRectItem);
-  const addApproved = useAction(addApprovedRectItem);
-  const remove = useAction(removeRectItem);
+  const add = useAction(addOtherRectItem, { refresh: { jobId } });
+  const addApproved = useAction(addApprovedRectItem, { refresh: { jobId } });
+  const remove = useAction(removeRectItem, { refresh: { jobId } });
   const { data } = useQuery({ queryKey: ["rect", jobId], queryFn: async () => (await supabase.from("rectification_items").select("*").eq("job_id", jobId).neq("status", "removed")).data ?? [] });
   const { data: approvedRates = [] } = useQuery({ queryKey: ["assigned-rec-rates", jobId], queryFn: () => getAssignedRecRates({ data: { jobId } }) });
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
@@ -295,7 +297,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
 }
 
 function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectification" | "reassessment"; title: string }) {
-  const rec = useAction(recordPiesa);
+  const rec = useAction(recordPiesa, { refresh: { jobId } });
   const [date, setDate] = useState(melbourneToday());
   const [sectionC, setSectionC] = useState(false);
   const [sectionCDate, setSectionCDate] = useState(melbourneToday());
@@ -333,7 +335,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
-  const done = useAction(completeInstallation);
+  const done = useAction(completeInstallation, { refresh: { jobId, also: TRADE_MONEY_QUERIES } });
   const owner = firstName(job.owner_name);
   const rcTurn: ReadyCheckTurn = rc && rc.applies ? (rc.turn as ReadyCheckTurn) : null;
   const next = page ? jobNext({

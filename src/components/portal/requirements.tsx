@@ -152,7 +152,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
 /** Trade view: accepted measure-up read-only + "needs review" flag (never re-entry). */
 export function MeasurementReadOnly({ jobId, canFlag }: { jobId: string; canFlag: boolean }) {
   const { data: ms } = useMeasurements(jobId);
-  const flag = useAction(flagMeasurement);
+  const flag = useAction(flagMeasurement, { refresh: { jobId } });
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [fields, setFields] = useState<MeasureField[]>([]);

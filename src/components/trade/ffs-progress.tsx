@@ -27,7 +27,7 @@ const when = (iso: string) =>
 
 export function FfsProgressCard({ jobId }: { jobId: string }) {
   const load = useServerFn(listFfsProgress);
-  const submit = useAction(recordFfsProgress);
+  const submit = useAction(recordFfsProgress, { refresh: { jobId } });
   const { data, error } = useQuery({
     queryKey: ["ffs-progress", jobId],
     queryFn: () => load({ data: { jobId } }),

@@ -98,10 +98,10 @@ export function useInstallerInstallDays(jobId: string) {
  *  the owner's suggested days or offer 3 new ones; booked → Change day. Rendered INSIDE the job page's one Next panel,
  *  so it carries no heading of its own. Turn comes from installDayTurn on the server only. */
 export function InstallerInstallDays({ jobId, ownerFirstName }: { jobId: string; ownerFirstName?: string | null }) {
-  const qc = useQueryClient();
-  const offer = useAction(installerOfferInstallDays);
-  const take = useAction(installerTakeInstallDay);
-  const change = useAction(installerChangeInstallDay);
+  // Speed (Jo 28 Oct 2026): only this job's cards re-read, behind the button (no second, awaited invalidation).
+  const offer = useAction(installerOfferInstallDays, { refresh: { jobId } });
+  const take = useAction(installerTakeInstallDay, { refresh: { jobId } });
+  const change = useAction(installerChangeInstallDay, { refresh: { jobId } });
   const { data } = useInstallerInstallDays(jobId);
   const [picks, setPicks] = useState<string[]>([]);
   const [offering, setOffering] = useState(false);
@@ -110,7 +110,7 @@ export function InstallerInstallDays({ jobId, ownerFirstName }: { jobId: string;
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
   const owner = ownerFirstName ?? "the owner";
-  const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); setPicks([]); setTimes({}); setOffering(false); setSure(false); await qc.invalidateQueries({ queryKey: ["installer-install-days", jobId] }); await qc.invalidateQueries({ queryKey: ["job", jobId] }); await qc.invalidateQueries({ queryKey: ["trade-job-page", jobId] }); } finally { setBusy(false); } };
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); setPicks([]); setTimes({}); setOffering(false); setSure(false); } finally { setBusy(false); } };
   if (!data || data.turn === "not_ready" || data.turn === "expired") return null;
   const line = thirtyDayLine(data.deadline);
   const foot = line && <p className="mt-3 border-t border-line pt-2.5 text-[13px] leading-[1.45] text-sub">⏰ {line}</p>;

@@ -18,6 +18,7 @@ import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayExtras, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { completeInstallation } from "@/lib/portal.functions";
 import { useAction } from "@/hooks/use-me";
+import { TRADE_MONEY_QUERIES } from "@/components/trade/job-cache";
 import { COULDNT_GET_IN, couldntGetInMessage } from "@/lib/trade-view.core";
 import { ACCESS_LABEL, DAY_WHAT, areaLine, arrivalPill, couldntGetInSheet, dayNext, electricianOnSite, leadInstallerDeclaration, payNote, signRebateChecks, signRebateThen, sourceLabel, whatWeKnow } from "@/lib/installer-screens.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
@@ -35,7 +36,7 @@ function DayPage() {
   const loadExtras = useServerFn(getTradeDayExtras);
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
-  const done = useAction(completeInstallation);
+  const done = useAction(completeInstallation, { refresh: { jobId, also: TRADE_MONEY_QUERIES } });
   const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000,
     // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
     retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });

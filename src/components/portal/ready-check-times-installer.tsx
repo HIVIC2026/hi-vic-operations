@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { refreshInBackground } from "@/components/trade/job-cache";
 import { changeTradeReadyCheckTime, getTradeReadyCheckTimes, offerTradeReadyCheckNewTimes, takeTradeReadyCheckDay } from "@/lib/trade-view.functions";
 import { READY_CHECK_INSTALLER_TIMES, allowedReadyCheckTimes, formatReadyCheckTime, installerTimesBlockers } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
@@ -67,7 +68,7 @@ export function InstallerReadyCheckTimesCard({ jobId, ownerFirstName }: { jobId:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const owner = ownerFirstName ?? "the owner";
-  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); setChanging(false); await qc.invalidateQueries(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); setChanging(false); refreshInBackground(qc, { jobId }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   if (!data || !data.applies || data.turn === "no_installer") return null;
   if (data.turn === "booked") {
     if (!data.canChange) return null;

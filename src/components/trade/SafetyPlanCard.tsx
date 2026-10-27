@@ -4,7 +4,7 @@
 // Decision 364: each person signs on their OWN phone — the Sign button shows only on the viewer's own line; other lines
 // say "Waiting for <name>" (crew without a login sign through their own text link).
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { getTradeSwms, saveTradeSwmsNote, signTradeSwms } from "@/lib/trade-view.functions";
@@ -19,11 +19,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getTradeSwms);
-  const qc = useQueryClient();
   const key = ["trade-swms", jobId];
   const { data } = useQuery({ queryKey: key, queryFn: () => load({ data: { jobId } }), retry: false, staleTime: 20_000 });
-  const saveNote = useAction(saveTradeSwmsNote);
-  const sign = useAction(signTradeSwms);
+  const saveNote = useAction(saveTradeSwmsNote, { refresh: { jobId } });
+  const sign = useAction(signTradeSwms, { refresh: { jobId } });
   const [note, setNote] = useState<string | null>(null);
   const [signing, setSigning] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
@@ -32,7 +31,6 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const { plan, signatures, status, editable } = data;
   const myKeys = data.myKeys ?? [];
   const signedBy = new Map(signatures.map((s) => [s.key, s]));
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
   return (
     <Section title="Safety plan" right={status.complete ? <span className="inline-flex items-center gap-1 text-sm font-semibold text-success"><CheckCircle2 className="h-4 w-4" /> Signed</span> : <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose"><ShieldAlert className="h-4 w-4" /> Not signed</span>}>
       <div className="space-y-3 text-sm" data-safety-plan>
@@ -51,7 +49,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
           {editable ? (
             <div className="space-y-2">
               <Textarea value={note ?? plan.siteNote ?? ""} onChange={(e) => setNote(e.target.value)} placeholder="E.g. tight access near the hot water unit" />
-              {note != null && note !== (plan.siteNote ?? "") && <Button size="sm" onClick={async () => { await saveNote({ jobId, note }, "Saved"); setNote(null); await refresh(); }}>Save note</Button>}
+              {note != null && note !== (plan.siteNote ?? "") && <Button size="sm" onClick={async () => { await saveNote({ jobId, note }, "Saved"); setNote(null); }}>Save note</Button>}
             </div>
           ) : <p>{plan.siteNote ?? "None recorded"}</p>}
         </div>
@@ -75,7 +73,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
                     <div className="mt-2 space-y-2">
                       <label className="flex min-h-12 items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={ok} onCheckedChange={(x) => setOk(!!x)} /> I am {s.name}. {SWMS_SIGN_STATEMENT}.</label>
                       <Input className="h-12" placeholder={`Type ${s.name}'s full name to sign`} value={typed} onChange={(e) => setTyped(e.target.value)} />
-                      <Button size="field" className="w-full" disabled={!ok || typed.trim().length < 2} onClick={async () => { await sign({ jobId, key: s.key, typedName: typed }, "Signed"); setSigning(null); await refresh(); }}>Sign the safety plan</Button>
+                      <Button size="field" className="w-full" disabled={!ok || typed.trim().length < 2} onClick={async () => { await sign({ jobId, key: s.key, typedName: typed }, "Signed"); setSigning(null); }}>Sign the safety plan</Button>
                     </div>
                   )}
                 </li>

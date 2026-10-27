@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { refreshInBackground } from "@/components/trade/job-cache";
 import { electricianOfferPiesaTimesFn, electricianTakePiesaDayFn, getElectricianPiesaTimes } from "@/lib/piesa-times.functions";
 import { PIESA_OFFER_TIMES, allowedPiesaTimes, electricianPiesaTimesBlockers, formatPiesaTime } from "@/lib/piesa-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
@@ -47,7 +48,7 @@ export function ElectricianPiesaTimesCard({ jobId }: { jobId: string }) {
   const [offering, setOffering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); await qc.invalidateQueries(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await f(); setOffering(false); refreshInBackground(qc, { jobId }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   if (!data || !data.applies || data.turn === "booked" || data.turn === "no_electrician" || data.turn === "legacy_owner_windows") return null;
   const form = <PiesaTimesForm days={data.days} busy={busy} sendLabel="Send these times to the owner" onSend={(picks) => run(() => offer({ data: { jobId, picks } }))} note="The owner picks one or suggests other days." />;
   return (

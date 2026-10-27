@@ -16,6 +16,7 @@ import { getJobOverview } from "@/lib/admin-records.functions";
 
 type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
 import { useAction } from "@/hooks/use-me";
+import { refreshInBackground } from "@/components/trade/job-cache";
 import {
   confirmEvidenceUpload, createBooking, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
   getJobBlockers, overrideDepositGate, requestEvidenceUpload, respondToQuote, 
@@ -124,7 +125,7 @@ export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: str
           // The installer's Ready Check uses "measure"; its area before-photos must stay uploadable before Start.
           const areaBefore = r.responsible_role === "installer" && !!(r as { area_key?: string | null }).area_key && r.category === "before_ceiling_space";
           const measureUpload = role === "measure" && (["measurement", "existing_insulation_r_value"].includes(r.category) || areaBefore);
-          return <EvidenceRow key={r.id} req={r} canUpload={role === "admin" || r.responsible_role === role || measureUpload} isAdmin={role === "admin"} />;
+          return <EvidenceRow key={r.id} jobId={jobId} req={r} canUpload={role === "admin" || r.responsible_role === role || measureUpload} isAdmin={role === "admin"} />;
         })}
       </div>
     </Section>
@@ -141,7 +142,7 @@ function currentFix(): Promise<{ lat: number; lng: number; accuracyM: number; ca
     () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }));
 }
 
-function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean; isAdmin: boolean }) {
+function EvidenceRow({ jobId, req, canUpload, isAdmin }: { jobId: string; req: Req; canUpload: boolean; isAdmin: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const uploadLock = useRef(false);
@@ -183,7 +184,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
       if (!result?.ok) throw new Error("Upload confirmation failed. Please retry confirmation.");
       pending.current = null;
       setUploaded(true);
-      void qc.invalidateQueries().catch(() => undefined);
+      refreshInBackground(qc, isAdmin ? true : { jobId }); // trade pages: only this job's cards re-read
     } catch (e) {
       const message = e instanceof Error ? e.message : "The upload failed. Please try again.";
       // Stored-byte validation deletes a rejected file; it cannot be confirmed again.
@@ -259,7 +260,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
 export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin: boolean; role?: "owner" | "electrician" }) {
   const [body, setBody] = useState("");
   const [internal, setInternal] = useState(false);
-  const send = useAction(sendMessage);
+  const send = useAction(sendMessage, role === "electrician" ? { refresh: { jobId } } : undefined); // trade page: only this job's cards re-read
   const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
   const { data, refetch } = useQuery({
     queryKey: ["messages", jobId],
@@ -332,10 +333,11 @@ export function TimelinePanel({ jobId, admin = false }: { jobId: string; admin?:
 }
 
 // ---------------- Bookings ----------------
-export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId: string; kind: "assessment" | "rectification" | "installation"; canBook: boolean; isAdmin?: boolean }) {
+export function BookingPanel({ jobId, kind, canBook, isAdmin = false, trade = false }: { jobId: string; kind: "assessment" | "rectification" | "installation"; canBook: boolean; isAdmin?: boolean; trade?: boolean }) {
   const [when, setWhen] = useState("");
-  const book = useAction(createBooking);
-  const cancel = useAction(cancelBooking);
+  const refresh = trade ? { refresh: { jobId } } : undefined; // trade page: only this job's cards re-read
+  const book = useAction(createBooking, refresh);
+  const cancel = useAction(cancelBooking, refresh);
   const reason = useReasonDialog();
   const { data } = useQuery({
     queryKey: ["bookings", jobId],

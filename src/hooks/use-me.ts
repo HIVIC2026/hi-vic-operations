@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInBackground, type ActionRefresh } from "@/components/trade/job-cache";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,8 +27,8 @@ export function useMe() {
   });
 }
 
-/** Run a server action with toast feedback and refresh all data. */
-export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean }) {
+/** Run a server action with toast feedback; it finishes when the server replies, then the data refreshes behind it. */
+export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: ActionRefresh }) {
   const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
   const qc = useQueryClient();
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
@@ -35,7 +36,7 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
       const out = await call({ data });
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
       if (success) toast.success(success);
-      if (options?.refresh !== false) await qc.invalidateQueries();
+      refreshInBackground(qc, options?.refresh);
       return out;
     } catch (e) {
       // Blocked/failed actions are expected (workflow gates): show them, never crash the page.
@@ -55,6 +56,6 @@ export function useAccess() {
       const { loadAccess } = await import("@/lib/route-guards");
       return loadAccess(u.user.id);
     },
-    staleTime: 60_000, // the guard memo's own life; `useAction`'s invalidation still refreshes it after every action
+    staleTime: 60_000, // the guard memo's own life; an office `useAction` still refreshes it after every action
   });
 }

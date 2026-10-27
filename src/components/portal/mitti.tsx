@@ -35,9 +35,10 @@ function status(a: { external_mitti_id: string | null; mitti_sync_status: string
 
 export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const { data } = useMittiState(jobId);
-  const create = useAction(createMittiAssessment);
-  const sync = useAction(syncFromMitti);
-  const batch = useAction(syncPendingMittiAssessments);
+  const refresh = isAdmin ? undefined : { refresh: { jobId } }; // trade page: only this job's cards re-read
+  const create = useAction(createMittiAssessment, refresh);
+  const sync = useAction(syncFromMitti, refresh);
+  const batch = useAction(syncPendingMittiAssessments, refresh);
   const [busy, setBusy] = useState(false);
   if (!data) return null;
   const a = data.a;

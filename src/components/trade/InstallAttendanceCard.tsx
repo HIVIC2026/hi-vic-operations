@@ -14,7 +14,7 @@ import { DayGrid, dayTileLabel } from "@/components/trade/installer-kit";
 export function InstallAttendanceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getTradeInstallAttendance);
   const { data } = useQuery({ queryKey: ["trade-install-attendance", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
-  const answer = useAction(answerTradeInstallAttendance);
+  const answer = useAction(answerTradeInstallAttendance, { refresh: { jobId } });
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState<AttendanceReason | null>(null);
   const [other, setOther] = useState("");

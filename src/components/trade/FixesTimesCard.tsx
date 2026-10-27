@@ -19,7 +19,7 @@ export function useTradeFixesTimes(jobId: string) {
 
 export function FixesTimesCard({ jobId }: { jobId: string }) {
   const { data } = useTradeFixesTimes(jobId);
-  const save = useAction(saveTradeFixesTimes);
+  const save = useAction(saveTradeFixesTimes, { refresh: { jobId } });
   const [plan, setPlan] = useState<RectPlan>({ hours: "", picks: [] });
   const [busy, setBusy] = useState(false);
   // The text link opens on this card: scroll to it once it has drawn.

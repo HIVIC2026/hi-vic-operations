@@ -69,7 +69,7 @@ export function ReadyCheckVisitChange({ token }: { token: string }) {
 /** Booked trade: large onsite buttons (trade design: card, green action, plain secondary). */
 export function TradeVisitCard({ jobId }: { jobId: string }) {
   const get = useServerFn(getVisitChangeState);
-  const act = useAction(tradeVisitAction);
+  const act = useAction(tradeVisitAction, { refresh: { jobId } });
   const [mode, setMode] = useState<null | "cancel" | "owner_not_home">(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
