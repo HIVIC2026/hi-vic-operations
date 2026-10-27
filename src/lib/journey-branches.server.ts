@@ -955,6 +955,52 @@ export async function runPhase3(name: Phase3Name, shotDir: string): Promise<Phas
 // Same four answers per block: stops? plain reason? office told once? carries on after the fix?
 // Same TEST-only rules: fresh qa_test job, TEST people only, simulated Mitti, Xero Demo Company, nothing sent.
 // =====================================================================================================================
+/** Diagnosis only (Phase 4): replicates qa_office_job_allowed clause by clause via admin reads, so a refused
+ *  office job page can be pinned to the exact failing condition without guessing. Never authorizes anything. */
+async function scopeDiag(jobId: string): Promise<string[]> {
+  const reserved = (e: string | null | undefined) => !!e && /@hivic-test[.]example$/i.test(e.trim());
+  const out: string[] = [];
+  const { data: j } = await admin.from("jobs").select("source,deleted_at,qa_archived_at,owner_id,property_id,originating_installer_user_id,originating_installer_business_id").eq("id", jobId).single();
+  if (!j) return ["job row missing"];
+  out.push(`job: source=${j.source} deleted=${!!j.deleted_at} archived=${!!j.qa_archived_at}`);
+  const { data: o } = await admin.from("owners").select("email,user_id").eq("id", j.owner_id).maybeSingle();
+  out.push(`owner email reserved=${reserved(o?.email)} (${o?.email})`);
+  if (o?.user_id) { const { data: u } = await admin.from("profiles").select("email").eq("id", o.user_id).maybeSingle(); out.push(`owner user email reserved=${reserved(u?.email)} (${u?.email})`); }
+  const { data: p } = await admin.from("properties").select("owner_id,managed_by_business_id").eq("id", j.property_id).maybeSingle();
+  out.push(`property owner matches=${p?.owner_id === j.owner_id}`);
+  if (j.originating_installer_user_id) { const { data: u } = await admin.from("profiles").select("email").eq("id", j.originating_installer_user_id).maybeSingle(); out.push(`originating installer user reserved=${reserved(u?.email)} (${u?.email})`); }
+  const biz = async (id: string | null | undefined): Promise<string> => {
+    if (!id) return "none";
+    const { data: b } = await admin.from("businesses").select("email,onboarding_notes,signer_email").eq("id", id).single();
+    const base = reserved(b?.email) && String(b?.onboarding_notes ?? "").includes("[TEST PARTNER]") && (b?.signer_email == null || reserved(b.signer_email));
+    const { data: realJobs } = await admin.from("jobs").select("id").eq("originating_installer_business_id", id).neq("source", "qa_test");
+    const { data: asg } = await admin.from("job_assignments").select("job_id").eq("business_id", id);
+    const { data: of } = await admin.from("partner_offers").select("job_id").eq("business_id", id);
+    const { data: bk } = await admin.from("bookings").select("job_id").eq("business_id", id);
+    const ids = [...new Set([...(asg ?? []), ...(of ?? []), ...(bk ?? [])].map((r) => r.job_id))];
+    const { data: realLinked } = ids.length ? await admin.from("jobs").select("id").in("id", ids).neq("source", "qa_test") : { data: [] };
+    const { data: ws } = await admin.from("partner_workers").select("email").eq("business_id", id);
+    const badWorkers = (ws ?? []).filter((w) => !reserved(w.email)).length;
+    const allowed = base && (realJobs ?? []).length === 0 && (realLinked ?? []).length === 0 && badWorkers === 0;
+    return `${id.slice(0, 8)} allowed=${allowed} (emailReserved=${reserved(b?.email)} marker=${String(b?.onboarding_notes ?? "").includes("[TEST PARTNER]")} realJobLinks=${(realJobs ?? []).length}/${(realLinked ?? []).length} badWorkerEmails=${badWorkers})`;
+  };
+  if (j.originating_installer_business_id) out.push(`originating business: ${await biz(j.originating_installer_business_id)}`);
+  if (p?.managed_by_business_id) out.push(`managed_by business: ${await biz(p.managed_by_business_id)}`);
+  const { data: otherReal } = await admin.from("jobs").select("id").or(`owner_id.eq.${j.owner_id},property_id.eq.${j.property_id}`).neq("source", "qa_test");
+  out.push(`other real jobs same owner/property=${(otherReal ?? []).length}`);
+  const { data: asg } = await admin.from("job_assignments").select("business_id,user_id,profiles(email)").eq("job_id", jobId);
+  for (const a of asg ?? []) out.push(`assignment: biz=${await biz(a.business_id)} userReserved=${reserved((a.profiles as { email?: string | null } | null)?.email)}`);
+  const { data: off } = await admin.from("partner_offers").select("business_id,kind,status").eq("job_id", jobId);
+  for (const x of off ?? []) out.push(`offer ${x.kind}/${x.status}: biz=${await biz(x.business_id)}`);
+  const { data: bk } = await admin.from("bookings").select("business_id,contractor_id,profiles(email)").eq("job_id", jobId);
+  for (const k of bk ?? []) out.push(`booking: biz=${await biz(k.business_id)} contractorReserved=${reserved((k.profiles as { email?: string | null } | null)?.email)}`);
+  const { data: as } = await admin.from("assessments").select("assessor_id,profiles(email)").eq("job_id", jobId);
+  for (const a of as ?? []) out.push(`assessor: reserved=${reserved((a.profiles as { email?: string | null } | null)?.email)}`);
+  const { data: ms } = await admin.from("ceiling_measurements").select("completed_by,measured_by_business_id,profiles(email)").eq("job_id", jobId);
+  for (const m of ms ?? []) out.push(`measurement: completedByReserved=${reserved((m.profiles as { email?: string | null } | null)?.email)} measuredByBiz=${await biz(m.measured_by_business_id)}`);
+  return out;
+}
+
 /** Office told once for a blocked job: exactly one signal — a Needs me row, an office exception, or the office job
  *  page showing the block. Zero signals = not told; more than one source still counts as told once per source. */
 async function officeToldOnce(ctx: JourneyCtx, page: Shot | undefined, re: RegExp) {
