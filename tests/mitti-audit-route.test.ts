@@ -1,12 +1,26 @@
-// Mitti instant-notice public route: token check, body check, always 200 once the token is good. Handler is stubbed.
+// Mitti instant-notice public route: token check, body check, always 200 once the token is good. Handler is stubbed;
+// runAfterResponse is stubbed to hold the background task so the test decides when it runs.
 // Run alone: bun test tests/mitti-audit-route.test.ts
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
 let handlerCalls: string[];
 let handlerResult: { action: string } | Error;
+let handlerGate: Promise<void> | null = null;
 mock.module("@/lib/mitti-webhook.server", () => ({
-  handleMittiNotice: async (id: string) => { handlerCalls.push(id); if (handlerResult instanceof Error) throw handlerResult; return handlerResult; },
+  handleMittiNotice: async (id: string) => {
+    handlerCalls.push(id);
+    if (handlerGate) await handlerGate;
+    if (handlerResult instanceof Error) throw handlerResult;
+    return handlerResult;
+  },
 }));
+let tasks: (() => Promise<unknown>)[];
+mock.module("@/lib/background.server", () => ({
+  requestContext: { getStore: () => undefined },
+  runAfterResponse: (task: () => Promise<unknown>) => { tasks.push(task); return "wait_until"; },
+}));
+/** Runs every queued background task; a task that throws fails the test (the route must catch inside it). */
+const drain = async () => { for (const t of tasks.splice(0)) await t(); };
 
 const { Route } = await import("../src/routes/api/public/hooks/mitti-audit");
 const post = (Route as unknown as { options: { server: { handlers: { POST: (x: { request: Request }) => Promise<Response> } } } }).options.server.handlers.POST;
@@ -14,7 +28,7 @@ const call = (query: string, body: string) => post({ request: new Request(`http:
 const good = JSON.stringify({ event: "audit.updated", data: { audit_id: "aud_123" } });
 
 const saved = process.env["MITTI_WEBHOOK_TOKEN"];
-beforeEach(() => { handlerCalls = []; handlerResult = { action: "synced" }; process.env["MITTI_WEBHOOK_TOKEN"] = "secret-token"; });
+beforeEach(() => { handlerCalls = []; handlerResult = { action: "synced" }; handlerGate = null; tasks = []; process.env["MITTI_WEBHOOK_TOKEN"] = "secret-token"; });
 afterEach(() => { if (saved === undefined) delete process.env["MITTI_WEBHOOK_TOKEN"]; else process.env["MITTI_WEBHOOK_TOKEN"] = saved; });
 
 describe("mitti-audit route", () => {
@@ -36,23 +50,52 @@ describe("mitti-audit route", () => {
     expect(r.status).toBe(200);
     expect(handlerCalls).toEqual([]);
   });
-  test("good ?t, valid body → 200, handler called once with the id", async () => {
+  test("good ?t, valid body → 200 before the handler runs, then the handler is called once with the id", async () => {
     const r = await call("?t=secret-token", good);
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true });
+    expect(handlerCalls).toEqual([]); // answered first
+    expect(tasks).toHaveLength(1);
+    await drain();
+    expect(handlerCalls).toEqual(["aud_123"]);
+  });
+  test("200 is returned while the handler is still running", async () => {
+    let release!: () => void;
+    handlerGate = new Promise<void>((res) => { release = res; });
+    const r = await call("?t=secret-token", good);
+    expect(r.status).toBe(200);
+    const running = drain();
+    for (let i = 0; i < 100 && handlerCalls.length === 0; i++) await new Promise((res) => setTimeout(res, 1));
+    let finished = false;
+    void running.then(() => { finished = true; });
+    await new Promise((res) => setTimeout(res, 5));
+    expect(handlerCalls).toEqual(["aud_123"]); // started
+    expect(finished).toBe(false); // ...and still running after the 200
+    release();
+    await running;
     expect(handlerCalls).toEqual(["aud_123"]);
   });
   test("good ?t, handler returns failed → still 200", async () => {
     handlerResult = { action: "failed" };
     expect((await call("?t=secret-token", good)).status).toBe(200);
+    await drain();
   });
-  test("handler throws → still 200, logs a message with no body or owner details", async () => {
+  test("handler throws → still 200; the error is logged with the audit id and message, not thrown", async () => {
     handlerResult = new Error("db down");
     const err = spyOn(console, "error").mockImplementation(() => {});
     const r = await call("?t=secret-token", good);
     expect(r.status).toBe(200);
-    expect(err).toHaveBeenCalledWith("mitti notice: handler failed", "db down");
+    await drain(); // must not reject
+    expect(err).toHaveBeenCalledWith("mitti notice: handler failed", "aud_123", "db down");
     err.mockRestore();
+  });
+  test("aborted body → 200, nothing runs", async () => {
+    const body = new ReadableStream({ pull(c) { c.error(new Error("aborted")); } });
+    const req = new Request("http://x/api/public/hooks/mitti-audit?t=secret-token", { method: "POST", body, duplex: "half" } as RequestInit);
+    const r = await post({ request: req });
+    expect(r.status).toBe(200);
+    expect(tasks).toEqual([]);
+    expect(handlerCalls).toEqual([]);
   });
 });
 
