@@ -1,1 +1,1 @@
-No changes planned. This was a read-only question; the answer is in chat. Approve or skip — nothing will be built either way. Tell me if you want any of the approval or Mitti invite wording changed.
+No changes planned. The preview page list shows the app's real pages; no editor setting exists to hide individual entries. Removing an entry would mean removing that page from the app, which is not authorised. Approve or skip; nothing will be built.
