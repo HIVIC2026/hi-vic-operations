@@ -22,7 +22,7 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
   const mail = renderInstallerAcceptedEmail({ installerFirstName: prof.full_name?.split(/\s+/)[0] ?? null, ownerName: (job.owners as { full_name: string | null } | null)?.full_name ?? null, address, jobNumber: job.job_number, jobUrl: `${SET_PASSWORD_BASE}/field/${jobId}`, test });
   let status: string, detail: string;
   if (test) {
-    const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: `installer_accepted:${quoteId}`, actorId: null } as never, prof.email, mail.subject, mail.html, mail.text);
+    const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: `installer_accepted:${quoteId}`, actorId: null, emailApproved: INSTALLER_ACCEPTED_EMAIL_APPROVED }, prof.email, mail.subject, mail.html, mail.text);
     status = r.status; detail = r.detail;
   } else {
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: prof.email, contactName: prof.full_name, subject: mail.subject, message: mail.text, label: "installer_quote_accepted", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });

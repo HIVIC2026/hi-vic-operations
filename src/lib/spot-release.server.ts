@@ -91,7 +91,7 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
-    const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz ?? null), label: `${SPOT_RELEASED_PURPOSE}:${s.seq}:${step}`, actorId: null };
+    const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz ?? null), label: `${SPOT_RELEASED_PURPOSE}:${s.seq}:${step}`, actorId: null, emailApproved: opts.approved?.email ?? SPOT_RELEASED_APPROVED };
     if (withEmail) { const mail = build(null, true); const e = await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text); out.push(`email ${e.status}: ${e.detail}`); }
     const t = await sendTestSms(ctx, owner?.phone ?? "", smsBody);
     out.push(`sms ${t.status}: ${t.detail}`);

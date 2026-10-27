@@ -48,7 +48,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
     const mail = renderInstallBookedEmail({ ...input, test: true });
-    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `install_booked:${startIso}${opts.depositReceived ? ":deposit-received" : ""}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
+    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `install_booked:${startIso}${opts.depositReceived ? ":deposit-received" : ""}`, actorId: null, emailApproved: INSTALL_BOOKED_EMAIL_APPROVED }, owner?.email ?? "", mail.subject, mail.html, mail.text);
     return `${r.status}: ${r.detail}`;
   }
   if (!INSTALL_BOOKED_EMAIL_APPROVED) {

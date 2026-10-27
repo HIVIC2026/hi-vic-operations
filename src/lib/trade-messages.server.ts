@@ -76,7 +76,7 @@ export async function emailElectricianAboutOffer(offerId: string): Promise<strin
   try {
     if (c.test) {
       const { sendTestEmail } = await import("./test-send.server");
-      const r = await sendTestEmail({ jobId: c.offer.job_id, jobSource: c.job.source, partnerIsTest: (await import("./test-send.core")).isTestPartner(c.biz), label: `piesa_offer_email:${offerId}`, actorId: null }, to, mail.subject, mail.html, mail.text);
+      const r = await sendTestEmail({ jobId: c.offer.job_id, jobSource: c.job.source, partnerIsTest: (await import("./test-send.core")).isTestPartner(c.biz), label: `piesa_offer_email:${offerId}`, actorId: null, emailApproved: ELECTRICIAN_OFFER_EMAIL_APPROVED }, to, mail.subject, mail.html, mail.text);
       return `electrician email (test) ${r.status}: ${r.detail}`;
     }
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: null, subject: mail.subject, message: mail.text, label: "piesa_offer_email", record: { businessId: c.offer.business_id }, html: mail.html, text: mail.text });

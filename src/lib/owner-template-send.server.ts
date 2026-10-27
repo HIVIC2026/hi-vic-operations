@@ -44,7 +44,7 @@ export async function sendOwnerTemplateEmail(p: {
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
     const mail = p.render(facts);
-    const r = await sendTestEmail({ jobId: p.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${p.purpose}:${p.key}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text, p.attachments?.length ? { attachments: p.attachments } : {});
+    const r = await sendTestEmail({ jobId: p.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${p.purpose}:${p.key}`, actorId: null, emailApproved: p.approved }, owner?.email ?? "", mail.subject, mail.html, mail.text, p.attachments?.length ? { attachments: p.attachments } : {});
     return `${r.status}: ${r.detail}`;
   }
   if (!p.approved) {

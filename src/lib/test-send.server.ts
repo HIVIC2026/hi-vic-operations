@@ -4,11 +4,12 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { normaliseAuMobile, normaliseEmail, testSendBlocker } from "./test-send.core";
 import { brandSmsBody } from "./sms.core";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import { qaEmailGuard, qaEmailRoute } from "./qa-email-routing.core";
 
 export const TEST_APP_BASE = "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app";
 const FROM_EMAIL = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 
-type Ctx = { jobId: string | null; jobSource: string | null; partnerIsTest: boolean; label: string; actorId: string | null };
+type Ctx = { jobId: string | null; jobSource: string | null; partnerIsTest: boolean; label: string; actorId: string | null; emailApproved?: boolean };
 export type SendResult = { channel: "sms" | "email"; to: string; status: "sent" | "blocked" | "failed"; detail: string };
 
 async function record(ctx: Ctx, r: SendResult, subject: string | null, body: string) {
@@ -31,7 +32,7 @@ function gw() {
 export async function sendTestSms(ctx: Ctx, to: string, rawBody: string): Promise<SendResult> {
   const body = brandSmsBody(rawBody);
   const norm = normaliseAuMobile(to) ?? to;
-  const blocked = testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const blocked = ctx.jobSource === "qa_test" ? "TEST job SMS stays stopped — nothing sent" : testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "sms", to: norm, status: "blocked", detail: blocked };
   else {
@@ -55,8 +56,14 @@ async function idemKey(to: string, subject: string, html: string) {
 }
 
 export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string, opts: { attachments?: import("./email-kit.core").EmailAttachment[] } = {}): Promise<SendResult> {
-  const norm = normaliseEmail(to);
-  const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const route = qaEmailRoute(ctx.jobSource, to, html, text);
+  const norm = normaliseEmail(route.to);
+  let blocked: string | null;
+  if (route.redirected) {
+    const { data: job, error } = ctx.jobId ? await admin.from("jobs").select("source").eq("id", ctx.jobId).maybeSingle() : { data: null, error: null };
+    blocked = error || job?.source !== "qa_test" ? "Persisted TEST job not verified — nothing sent" : qaEmailGuard(await (await import("./comms.server")).customerCommsEnabled(), ctx.emailApproved);
+    blocked ??= testSendBlocker({ channel: "email", to: norm, jobSource: "qa_test", partnerIsTest: true });
+  } else blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "email", to: norm, status: "blocked", detail: blocked };
   else {
@@ -65,15 +72,15 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
       if (!resend) throw new Error("Email is not connected");
       const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
         method: "POST",
-        headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json", "Idempotency-Key": await idemKey(norm, subject, html) },
-        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text, ...(opts.attachments?.length ? { attachments: opts.attachments.map((a) => ({ filename: a.filename, content: a.content, content_type: a.contentType })) } : {}) }),
+        headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json", "Idempotency-Key": await idemKey(norm, subject, route.html) },
+        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html: route.html, text: route.text, ...(opts.attachments?.length ? { attachments: opts.attachments.map((a) => ({ filename: a.filename, content: a.content, content_type: a.contentType })) } : {}) }),
         signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
       });
       const t = await res.text();
       r = res.ok ? { channel: "email", to: norm, status: "sent", detail: `Resend accepted${(() => { try { const id = (JSON.parse(t) as { id?: string }).id; return id ? ` (id ${id})` : ""; } catch { return ""; } })()}` } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };
     } catch (e) { r = { channel: "email", to: norm, status: "failed", detail: `sent_unknown (no clear answer from Resend; do not retry by hand within 24h — Resend drops an identical repeat): ${(e as Error).message}` }; }
   }
-  await record(ctx, r, subject, text);
+  await record(ctx, r, subject, route.text);
   return r;
 }
 
