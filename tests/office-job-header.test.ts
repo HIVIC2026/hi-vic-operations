@@ -33,7 +33,7 @@ describe("installer's own customer (A1) at ready_check_scheduled, Mitti form lin
   });
   test("Next panel line: installer is doing the Ready Check · nothing for the office", () => {
     const n = nextAction({ facts: null, status: status(f), stage: "ready_check", closed: null, onHold: null }, NOW);
-    expect(n).toEqual({ who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: null });
+    expect(n).toEqual({ who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: null, kind: null });
   });
   test("same words at every pre-Ready-Check stage an installer job can sit in", () => {
     for (const stage of ["ready_check_ready_to_schedule", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"]) {

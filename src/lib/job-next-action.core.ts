@@ -7,7 +7,7 @@ import type { JobsStage } from "./office-jobs.core";
 export type NextWho = "us" | "owner" | "installer" | "electrician" | "nobody";
 export const NEXT_WHO_LABEL: Record<NextWho, string> = { us: "us", owner: "owner", installer: "installer", electrician: "electrician", nobody: "nothing to do" };
 
-export type NextAction = { who: NextWho; sentence: string; button: { label: string; section: JobSection } | null; blocked: string | null };
+export type NextAction = { who: NextWho; sentence: string; button: { label: string; section: JobSection } | null; blocked: string | null; /** The top needs candidate's kind, else null. */ kind: string | null };
 
 export type NextInput = {
   facts: NeedsFacts | null;
@@ -36,8 +36,8 @@ const WHO_FROM_STATUS: Record<string, NextWho> = {
 };
 
 export function nextAction(i: NextInput, now: number): NextAction {
-  if (i.closed) return { who: "nobody", sentence: i.closed.kind === "complete" ? "Complete. The record is kept for six years." : `${i.closed.kind === "cancelled" ? "Cancelled" : "Not eligible"}${i.closed.reason ? `: ${i.closed.reason}` : ""}. Reopen it from Jobs › Closed if that was wrong.`, button: null, blocked: null };
-  if (i.onHold) return { who: "us", sentence: `On hold${i.onHold.reason ? `: ${i.onHold.reason}` : ""}${i.onHold.until ? ` · until ${i.onHold.until}` : ""}. Reminders and texts are paused.`, button: null, blocked: null };
+  if (i.closed) return { who: "nobody", sentence: i.closed.kind === "complete" ? "Complete. The record is kept for six years." : `${i.closed.kind === "cancelled" ? "Cancelled" : "Not eligible"}${i.closed.reason ? `: ${i.closed.reason}` : ""}. Reopen it from Jobs › Closed if that was wrong.`, button: null, blocked: null, kind: null };
+  if (i.onHold) return { who: "us", sentence: `On hold${i.onHold.reason ? `: ${i.onHold.reason}` : ""}${i.onHold.until ? ` · until ${i.onHold.until}` : ""}. Reminders and texts are paused.`, button: null, blocked: null, kind: null };
   const top = i.facts ? needsCandidates(i.facts, now)[0] : undefined;
   if (top && i.facts) {
     const watch = top.group === "watch";
@@ -47,13 +47,14 @@ export function nextAction(i: NextInput, now: number): NextAction {
       sentence: make ? make(i.facts) : top.line,
       button: top.button.to === "job" && top.button.section ? { label: top.button.label, section: top.button.section } : null,
       blocked: i.blockers?.length ? i.blockers.join(" · ") : null,
+      kind: top.kind,
     };
   }
-  if (!i.status) return { who: "us", sentence: "This job's status could not be worked out — check its records.", button: null, blocked: null };
+  if (!i.status) return { who: "us", sentence: "This job's status could not be worked out — check its records.", button: null, blocked: null, kind: null };
   // Installer's own customer at the Ready Check (decision 54): the installer arranges and does it; the office only watches.
-  if (i.status.key === "ready_check.installer_own") return { who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
+  if (i.status.key === "ready_check.installer_own") return { who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null, kind: null };
   const who = WHO_FROM_STATUS[i.status.waitingOn] ?? "us";
   const tail = i.status.detail ? ` · ${i.status.detail}` : "";
   const sentence = who === "nobody" ? `${i.status.label}${tail}. Nothing for the office to do — it happens automatically.` : who === "us" ? `${i.status.label}${tail}.` : `Waiting for the ${who}: ${i.status.label.charAt(0).toLowerCase()}${i.status.label.slice(1)}${tail}.`;
-  return { who, sentence, button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
+  return { who, sentence, button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null, kind: null };
 }

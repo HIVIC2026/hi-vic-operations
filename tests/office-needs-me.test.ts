@@ -70,10 +70,10 @@ test("age column", () => {
 test("Next panel: same facts as Needs me, else who it waits on", () => {
   const facts = job("3104", { electricianToChoose: { at: "2026-10-23T23:00:00Z", usual: "Volt Right Electrical" } });
   expect(nextAction({ facts, status: null, stage: "piesa", closed: null, onHold: null }, NOW)).toEqual({
-    who: "us", sentence: "Choose the electrician for the PIESA — Volt Right Electrical is the installer's usual electrician.", button: { label: "Send offer", section: "piesa" }, blocked: null,
+    who: "us", sentence: "Choose the electrician for the PIESA — Volt Right Electrical is the installer's usual electrician.", button: { label: "Send offer", section: "piesa" }, blocked: null, kind: "choose_electrician",
   });
   expect(nextAction({ facts: job("x", {}), status: { label: "Quote sent", waitingOn: "Owner", detail: null, dueAt: null }, stage: "quote", closed: null, onHold: null }, NOW))
-    .toEqual({ who: "owner", sentence: "Waiting for the owner: quote sent.", button: null, blocked: null });
+    .toEqual({ who: "owner", sentence: "Waiting for the owner: quote sent.", button: null, blocked: null, kind: null });
   expect(nextAction({ facts: null, status: null, stage: null, closed: { kind: "cancelled", reason: "Owner changed mind" }, onHold: null }, NOW).sentence).toBe("Cancelled: Owner changed mind. Reopen it from Jobs › Closed if that was wrong.");
   expect(nextAction({ facts: null, status: null, stage: null, closed: null, onHold: { reason: "Owner overseas", until: "2026-11-10" } }, NOW).sentence).toBe("On hold: Owner overseas · until 2026-11-10. Reminders and texts are paused.");
 });
