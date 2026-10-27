@@ -5,7 +5,7 @@
 - [x] Identity suite 13 failures investigated: 11 stale harness-load failures plus absent-field expectation and contradictory-field bypass. Fixed active job-field conflicts, ambiguous search IDs, worker/profile/history binding, conditional writes and fail-closed membership reads; 70 identity/invite/guard checks pass separately.
 - [ ] Complete main simulated Mitti form-answer/Complete interaction and later browser actions; BLOCKED by runner implementation, not credentials or a portal finding.
 - [ ] Eight Phase 3 phone paths NOT_RUN: no separate adverse fixtures/browser steps assembled. 95 relevant isolated rule checks pass; no stop/reason/office-once/recovery phone claim.
-- [x] Triaged email21 and A1/A2 36: stale route decisions392/416/417/419 and mismatched simulator fixture. A2 authenticated fixture corrected (10→8 failures); remaining fixture conversion not done. Isolated suite7259 pass/226 fail/36 skip after final two-file reruns; single-process suite polluted (6084/914/91 errors), not comparable.
+- [x] Triaged email21 and A1/A2 36: stale route decisions392/416/417/419 and mismatched simulator fixture. A2 authenticated fixture corrected (10→8 failures); remaining fixture conversion not done. Isolated suite7261 pass/226 fail/36 skip after final two-file reruns; single-process suite polluted (6084/914/91 errors), not comparable.
 ## Jo 27 Oct 10:46 TEST Bravo and browser rerun
 - [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
 - [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.
