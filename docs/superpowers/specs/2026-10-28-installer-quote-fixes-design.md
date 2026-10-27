@@ -50,6 +50,11 @@ difficult-access fee Jo never entered.
     safety check "payable by the owner ($349…)"), hold reasons, and the official ESC rebate form's amounts (owner's
     price before the rebate, the rebate, what they pay). The rebate form's amounts are for the business owner only
     (Jo 28 Oct).
+  - The same rule covers electrician staff: only a trade business's owner ever sees a price (Jo 28 Oct). "Owner"
+    means owner of the business on that job, not of some other business the person also belongs to.
+  - Crew never see office-typed notes (hold reasons, typed next steps). They see a set line instead, e.g. "On hold —
+    the office will be in touch" (Jo 28 Oct). Only known, system-written, price-free text is shown to crew.
+  - On the rebate form, crew don't see a "Price details" line at all (Jo 28 Oct).
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).
