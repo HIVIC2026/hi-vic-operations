@@ -13786,6 +13786,7 @@ export type Database = {
         Returns: boolean
       }
       is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
+      is_qa_office: { Args: never; Returns: boolean }
       issue_owner_link_code: {
         Args: {
           _channel: string
@@ -14035,6 +14036,7 @@ export type Database = {
         | "installer"
         | "owner"
         | "property_manager"
+        | "qa_office"
       assignment_role: "electrician" | "installer" | "property_manager"
       assignment_status:
         | "draft"
@@ -14295,6 +14297,7 @@ export const Constants = {
         "installer",
         "owner",
         "property_manager",
+        "qa_office",
       ],
       assignment_role: ["electrician", "installer", "property_manager"],
       assignment_status: [
