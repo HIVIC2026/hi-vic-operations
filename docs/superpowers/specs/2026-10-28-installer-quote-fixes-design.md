@@ -46,6 +46,10 @@ difficult-access fee Jo never entered.
   - Crew (installer workers who aren't the business owner) never see any price ("The crew shouldn't see the price!!!",
     Jo 28 Oct). On a stuck job they see only "Waiting on your electrician to sign up", with no note, no button and no
     $ amount, in both the job page and the job list. For crew it is not an action; it sits under "In progress".
+  - This applies to everything sent to a crew member's phone, not only what's on screen: job notes (e.g. a repeat
+    safety check "payable by the owner ($349…)"), hold reasons, and the official ESC rebate form's amounts (owner's
+    price before the rebate, the rebate, what they pay). The rebate form's amounts are for the business owner only
+    (Jo 28 Oct).
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).
