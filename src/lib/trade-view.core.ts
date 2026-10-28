@@ -75,6 +75,20 @@ export function payPill(p: PayState): { label: string; tone: "blue" | "blush" | 
   return { label: "Being checked", tone: "blush" };
 }
 
+/** One line of the pay statement (Money tab "Download statement"). */
+export type StatementRow = { jobNumber: string | number | null; surname: string | null; suburb: string | null; what: string; amount: number | null; state: PayState; held: string[] };
+
+/** The statement as CSV: every cell quoted, quotes doubled, CRLF line ends. A held payout reads "Held". */
+export function statementCsv(rows: StatementRow[]): string {
+  const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...rows.map((r) => [r.jobNumber ?? "", r.surname ?? "", r.suburb ?? "", r.what, String(r.amount ?? ""), (r.state.kind === "paid" ? null : heldPayPill(r.held))?.label ?? payPill(r.state).label])];
+  return lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+}
+
+/** "pay-statement-2026-10-28.csv" (Melbourne date). */
+export function statementFileName(now: Date = new Date()): string {
+  return `pay-statement-${new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)}.csv`;
+}
+
 /** Pay state from facts: paid event wins; office AP approval starts the 7-day clock; otherwise it's being checked. */
 /** Jo's terms: the clock starts only once BOTH office AP approval and the owner's payment in full are recorded (later of the two).
  * `ownerPaidInFullAt` omitted = legacy callers (AP approval only). */

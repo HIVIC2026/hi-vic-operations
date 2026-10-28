@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { INSTALLER_PAY_WAITING_AP, INSTALLER_PAY_WAITING_OWNER, accountEnding, installerPayHeldReasons, payState } from "../src/lib/trade-view.core";
+import { INSTALLER_PAY_WAITING_AP, INSTALLER_PAY_WAITING_OWNER, accountEnding, installerPayHeldReasons, payState, statementCsv, statementFileName } from "../src/lib/trade-view.core";
 import { moneyJobDetail, moneyWords } from "../src/lib/installer-screens.core";
 const src = (p: string) => readFileSync(p, "utf8");
 
@@ -48,5 +48,17 @@ describe("E3 why pay is held", () => {
     const f = { installerSupplied: true, apApprovedAt: "2026-10-01T00:00:00Z", ownerPaidInFullAt: null };
     expect(payState({ paidAt: null, ...f }).kind).toBe("checking");
     expect(installerPayHeldReasons(f)).toEqual([INSTALLER_PAY_WAITING_OWNER]);
+  });
+});
+describe("E4 statement", () => {
+  test("csv escapes, shows Held, iPhone-safe save", () => {
+    const csv = statementCsv([{ jobNumber: "HV-1", surname: 'O"Brien, J', suburb: null, what: "Install", amount: 1200, state: { kind: "checking" }, held: ["Form not Complete"] }]);
+    expect(csv.split("\r\n")).toEqual(['"Job","Owner","Suburb","What","Amount","Status"', '"HV-1","O""Brien, J","","Install","1200","Held"']);
+    expect(statementFileName(new Date("2026-10-27T14:30:00Z"))).toBe("pay-statement-2026-10-28.csv");
+    const page = src("src/routes/_authenticated/field.money.tsx");
+    expect(page).not.toContain("data:text/csv");
+    expect(page.match(/saveFile\(/g)?.length).toBeGreaterThanOrEqual(1);
+    const sf = src("src/components/trade/save-file.ts");
+    for (const s of ["navigator.canShare", "navigator.share", "createObjectURL", "revokeObjectURL", "AbortError"]) expect(sf).toContain(s);
   });
 });
