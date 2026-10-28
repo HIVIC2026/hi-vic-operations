@@ -780,4 +780,5 @@ export const NOT_LISTED_BUILDERS: Record<string, string> = {
   renderReloadPage: "Browser error page, not a template",
   testLoginEmail: "TEST partner login address helper",
   automaticLeadEmail: "Routing rule (which Jo template), not wording",
+  renderAddressRequestEmail: "Draft full-address request email (plan 2026-10-28) — shown to Jo before go-live, not live yet",
 };

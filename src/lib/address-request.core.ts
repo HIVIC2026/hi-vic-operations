@@ -33,3 +33,17 @@ export function addressRequestStep(f: AddressRequestFacts, now: number): "send" 
   if (f.reminderAt === null && now - Date.parse(f.sentAt) >= ADDRESS_REQUEST_REMINDER_HOURS * 3600_000) return "remind";
   return "none";
 }
+
+/** Email purposes and once-only keys (one request, one reminder per job). */
+export const ADDRESS_REQUEST_PURPOSE = "address_request";
+export const ADDRESS_REQUEST_REMINDER_PURPOSE = "address_request_reminder";
+export const addressRequestKey = (jobId: string, reminder: boolean) => `${reminder ? "address-request-reminder" : "address-request"}:v1:${jobId}`;
+/** The owner's secure page to pick their address (their estimate-link token). */
+export const addressRequestPageUrl = (base: string, token: string) => `${base}/my-address/${token}`;
+
+/** Owner text (sms types address_request / address_request_reminder). DRAFT: held until Jo approves the wording. */
+export function addressRequestText(link: string, reminder = false): string {
+  return reminder
+    ? `Reminder from Home Insulation Victoria: we need your full address to check your home. Pick it here: ${link}`
+    : `Home Insulation Victoria: we need your full address to check your home. Pick it here: ${link}`;
+}
