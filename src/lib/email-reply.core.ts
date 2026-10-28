@@ -42,7 +42,7 @@ export const TRADE_PORTAL_URL = `${CUSTOMER_BASE}/field`;
 // ---------- Facts (read by the server from the live job / partner records) ----------
 export type Money = { fullPrice: number; rebate: number; youPay: number };
 export type Slot = { start: string; end: string | null };
-export type DueStep = { key: "safety_check" | "fixes" | "install_deposit" | "balance"; outstanding: number; dueAt: string | null; state: "requested" | "overdue"; cardAvailable: boolean };
+export type DueStep = { key: import("./payments.core").PaymentStepKey; outstanding: number; dueAt: string | null; state: "requested" | "overdue"; cardAvailable: boolean };
 
 export type OwnerFacts = {
   jobNumber: string;
