@@ -1,12 +1,8 @@
-## Fix the one build error from PR #54 (only if Jo approves)
+Read-only answers for the Mitti retry check (PR #54). Nothing changed, nothing sent.
 
-The merge is in, but the preview build stops on one type error in `src/lib/mitti-retry.server.ts` (line 108).
+1. Build: the route list already includes the mitti-retry route (13 references), so it does not need regenerating. One type error remains in mitti-retry.server.ts line 108 (a form-kind value typed as plain text). Fixing it is a one-line change, but only if Jo approves.
+2. Secrets present: RESEND_API_KEY, LOVABLE_API_KEY, LOVABLE_CRON_SECRET, MITTI_API_TOKEN. Missing: MITTI_API_USER_ID.
+3. API account: user_e59d8de5cd484fbfa182eff443d9a866, shown as "LOVABLE API KEY Service User" as the creator on portal-made audits, including HV-3519's audit_90ce5b92664e4a9692e1ccaecb8a6696. The owner/assignee is the trade, and Mitti has no whoami endpoint. Not set.
+4. Live site: the retry address now answers 401 (it refuses unsigned callers) instead of the earlier 404, so the published portal already has the new route. No publish needed for it. People/Lead-Crew work from earlier today is not live.
 
-### Change
-- In `mitti-retry.server.ts`, change the type of `BOOKING_KIND` from `Record<MittiFormKind, string>` to `Record<MittiFormKind, "ready_check" | "assessment" | "rectification" | "installation">`. The values and behaviour stay the same.
-
-### Not included
-- No cron schedule, no `MITTI_API_USER_ID` secret, no publishing, no data changes, no sends.
-
-### Check
-- Typecheck and build come back clean, and `src/routeTree.gen.ts` still lists `/api/public/hooks/mitti-retry`.
+Approve only if you want the one-line type fix in item 1; otherwise skip.
