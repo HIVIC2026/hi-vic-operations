@@ -104,13 +104,13 @@ const STEPS: Step[] = [
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
+  { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
   { step: "Office quote release", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
     expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "issued").limit(1).maybeSingle()).data ? null : "no issued quote after Send quote" },
   { step: "Owner acceptance", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=quote`, wait: "Say yes", button: "sign:", severity: "Stop launch", next: "You said yes",
     expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "accepted").limit(1).maybeSingle()).data ? null : "quote not accepted" },
-  { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
 ];
-const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
+const LATER = ["PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
 const py = String.raw`
 import asyncio, json, re, sys
