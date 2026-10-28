@@ -18,29 +18,34 @@ import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey 
 import {
   NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
   missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef,
-  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkArrivedSenders, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
+  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkStates, type LinkState, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
 const loose = admin as unknown as SupabaseClient;
 type Det = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 
-/** Senders whose website-link email actually went (Jo 28 Oct 2026: a failed attempt doesn't count). */
-async function linkArrivedFor(senders: string[]): Promise<Set<string>> {
-  const out = new Set<string>();
+/** Per sender: do they have the website link? (Jo 28 Oct 2026: only a definitely-failed link email doesn't count.) */
+async function linkStatesFor(senders: string[]): Promise<Map<string, LinkState>> {
+  const out = new Map<string, LinkState>();
   for (const part of chunks(senders)) {
-    const [auto, office] = await Promise.all([
+    const [claims, auto, office] = await Promise.all([
+      loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).in("details->>from", part),
       loose.from("admin_config_events").select("details").eq("event_type", "new_sender_reply_delivery").in("details->>from", part),
       loose.from("workflow_events").select("details").eq("event_type", NO_JOB_REPLY_SENT_EVENT).in("details->>to", part),
     ]);
-    if (auto.error || office.error) throw new Error(`Emails unavailable: ${(auto.error ?? office.error)?.message}`);
-    for (const x of linkArrivedSenders({
+    const err = claims.error ?? auto.error ?? office.error;
+    if (err) throw new Error(`Emails unavailable: ${err.message}`);
+    const st = linkStates({
+      claims: ((claims.data ?? []) as { details: { from?: string; mode?: string } | null }[]).filter((r) => r.details?.mode !== "test").map((r) => r.details?.from ?? ""),
       automatic: ((auto.data ?? []) as { details: { from?: string; outcome?: string } | null }[]).map((r) => r.details ?? {}),
       office: ((office.data ?? []) as { details: { to?: string; status?: string; kind?: string } | null }[]).map((r) => r.details ?? {}),
-    })) out.add(x);
+    });
+    for (const [k, v] of st) out.set(k, v);
   }
   return out;
 }
+const withLink = (m: Map<string, LinkState>) => new Set([...m].filter(([, v]) => v.hasLink).map(([k]) => k));
 
 export async function loadEmailsTab(): Promise<EmailsTab> {
   const { openEmailItems } = await import("./email-office.server");
@@ -67,7 +72,7 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
     many<{ id: string; job_id: string | null; event_type: string; details: Det }>(ids, (part) => loose.from("workflow_events").select("id, job_id, event_type, details").in("event_type", [AI_EMAIL_DRAFT_EVENT, NO_JOB_DRAFT_EVENT]).in("details->>message_id", part).order("created_at", { ascending: false })),
     many<{ provider_message_id: string | null; body: string | null }>(ids, (part) => admin.from("job_communications").select("provider_message_id, body").eq("channel", "email").eq("direction", "inbound").in("provider_message_id", part)),
     many<{ id: string; stage: string; deleted_at: string | null; owners: { full_name: string | null } | null }>(jobIds, (part) => admin.from("jobs").select("id, stage, deleted_at, owners(full_name)").in("id", part)),
-    linkArrivedFor(senders),
+    linkStatesFor(senders).then(withLink),
     many<{ details: { message_id?: string; outcome?: string; mode?: string } | null }>(ids, (part) => loose.from("admin_config_events").select("details").eq("event_type", "new_sender_reply_delivery").in("details->>message_id", part)),
     many<{ details: { unmatched_event_id?: string; status?: string } | null }>(unmatched.map((u) => u.eventId), (part) => loose.from("workflow_events").select("details").eq("event_type", NO_JOB_REPLY_SENT_EVENT).in("details->>unmatched_event_id", part)),
   ]);
@@ -133,7 +138,7 @@ async function draftForUnmatched(unmatchedEventId: string): Promise<string> {
   const subject = str(ev.details["subject"]);
   const sender = (str(ev.details["from"]) ?? "").trim().toLowerCase();
   // Jo 28 Oct 2026: someone who already got the website link gets an answer-only reply, never the link again.
-  const followUp = !!sender && (await linkArrivedFor([sender])).has(sender);
+  const followUp = !!sender && !!(await linkStatesFor([sender])).get(sender)?.hasLink;
   const { data: dup } = await loose.from("workflow_events").select("id, details").eq("event_type", NO_JOB_DRAFT_EVENT).eq("details->>message_id", mid).limit(5);
   if (((dup ?? []) as { details: Det | null }[]).some((d) => (d.details?.["kind"] === "follow_up") === followUp)) return "already";
   if (followUp) return draftFollowUp(ev, mid, fromName, subject);
@@ -217,9 +222,17 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   const { error: claimErr } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NEW_SENDER_REPLIED_EVENT, internal: true,
     summary: `Website reply (office, Emails tab) to ${to}`,
     details: { mode: "live", from: to, template: `${NEW_SENDER_REPLY_TEMPLATE}-office`, message_id: str(ev.details["message_id"]), draft_event_id: draft.id, idempotency_key: newSenderReplyKey(to) } });
-  // Jo 28 Oct 2026: the claim blocks a second link email only when the first one actually went; a failed one can be re-sent.
-  if (claimErr?.code === "23505" && (await linkArrivedFor([to])).has(to)) throw new WorkflowError("This person has already had a reply with the website link.");
-  if (claimErr && claimErr.code !== "23505") throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
+  if (claimErr?.code === "23505") {
+    // Jo 28 Oct 2026: a second link email only when every earlier one definitely failed (unclear or still sending = had
+    // it). The retry takes its own once-only claim, so two sends at once still can't both go.
+    const st = (await linkStatesFor([to])).get(to);
+    if (!st?.failedOnly) throw new WorkflowError("This person has already had a reply with the website link.");
+    const { error: again } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NEW_SENDER_REPLIED_EVENT, internal: true,
+      summary: `Website reply (office, Emails tab, earlier one failed) to ${to}`,
+      details: { mode: "live", from: to, template: `${NEW_SENDER_REPLY_TEMPLATE}-office`, message_id: str(ev.details["message_id"]), draft_event_id: draft.id, idempotency_key: `${newSenderReplyKey(to)}:retry${st.failures}` } });
+    if (again?.code === "23505") throw new WorkflowError("This person's website-link reply is already being sent.");
+    if (again) throw new WorkflowError(`Not sent — couldn't record the reply first (${again.message}).`);
+  } else if (claimErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
   const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
   const key = `${noJobDraftKey(String(draft.details["message_id"]))}:send:${draft.id}`;
   const K = await import("./email-kit.core");
@@ -227,7 +240,13 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   const text = K.plainText(aiReplyText(body), { unsubscribe: null });
   const { resendSend } = await import("./hot-leads-send.server");
   const d = await resendSend(to, subject, html, text, key, null).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error" }));
-  if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
+  if (d.outcome === "rejected" || d.outcome === "not_attempted") {
+    // Recorded so the link counts as definitely failed (no draft_event_id, so the draft stays open to try again).
+    await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
+      summary: `Website-link reply to ${to} not sent: ${d.detail}`, details: { failed_draft_event_id: draft.id, unmatched_event_id: ev.id, to, status: `failed: ${d.detail}`, kind: "link" } })
+      .then(({ error: e }) => { if (e) console.error("failed link reply not recorded", e.message); });
+    throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
+  }
   const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
     summary: `Reply sent to ${to} pointing to the homeowner page (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, idempotency_key: key } });

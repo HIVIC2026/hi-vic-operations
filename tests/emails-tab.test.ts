@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildEmailsTab, buildNoJobFollowUpInput, buildNoJobInput, chunks, finishNoJobFollowUp, finishNoJobReply, jobDraftKey, missingDrafts, NOTHING_TO_ANSWER, noJobBaseText, followUpRetryDue, linkArrivedSenders, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, noJobReplyProblems, stripQuotedEmail, type JobEmailRow, type UnmatchedRow } from "../src/lib/emails-tab.core";
+import { buildEmailsTab, buildNoJobFollowUpInput, buildNoJobInput, chunks, finishNoJobFollowUp, finishNoJobReply, jobDraftKey, missingDrafts, NOTHING_TO_ANSWER, noJobBaseText, followUpRetryDue, linkStates, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, noJobReplyProblems, stripQuotedEmail, type JobEmailRow, type UnmatchedRow } from "../src/lib/emails-tab.core";
 import { HOMEOWNER_ENQUIRY_URL } from "../src/lib/engagement.core";
 
 // Jo 27 Oct 2026, decision 414: the office Emails tab.
@@ -144,12 +144,26 @@ describe("Follow-up questions from people who already got the website link (Jo 2
     expect(noJobFollowUpKey("m9", "Hi")).not.toBe(noJobFollowUpKey("m9", "Hello"));
     expect(noJobFollowUpKey("m9", "Hi").startsWith(noJobFollowUpSentKey("m9"))).toBe(true);
   });
-  test("'already has the link' only when the link email actually went (Jo 28 Oct 2026)", () => {
-    const got = linkArrivedSenders({
-      automatic: [{ from: "A@x.com", outcome: "accepted" }, { from: "b@x.com", outcome: "rejected" }, { from: "c@x.com", outcome: "uncertain" }],
-      office: [{ to: "d@x.com", status: "sent", kind: null }, { to: "e@x.com", status: "delivery uncertain: x", kind: null }, { to: "f@x.com", status: "sent", kind: "follow_up" }],
+  test("'already has the link' unless the link email definitely failed (Jo 28 Oct 2026; unclear or still sending counts as had, so it can't go twice)", () => {
+    const st = linkStates({
+      claims: ["a@x.com", "b@x.com", "c@x.com", "p@x.com", "o@x.com", "r@x.com"],
+      automatic: [{ from: "A@x.com", outcome: "accepted" }, { from: "b@x.com", outcome: "rejected" }, { from: "c@x.com", outcome: "uncertain" }, { from: "r@x.com", outcome: "not_attempted" }],
+      office: [{ to: "o@x.com", status: "failed: bounced", kind: "link" }, { to: "r@x.com", status: "sent", kind: null }, { to: "b@x.com", status: "sent", kind: "follow_up" }],
     });
-    expect([...got].sort()).toEqual(["a@x.com", "d@x.com"]);
+    expect(st.get("a@x.com")).toEqual({ hasLink: true, failedOnly: false, failures: 0 });
+    expect(st.get("b@x.com")).toEqual({ hasLink: false, failedOnly: true, failures: 1 });
+    expect(st.get("c@x.com")?.hasLink).toBe(true);
+    expect(st.get("p@x.com")?.hasLink).toBe(true); // claimed, result not written yet
+    expect(st.get("o@x.com")).toEqual({ hasLink: false, failedOnly: true, failures: 1 });
+    expect(st.get("r@x.com")?.hasLink).toBe(true); // failed once, then the office link went
+    expect(st.get("nobody@x.com")).toBeUndefined();
+  });
+  test("follow-ups never contain our website at all (any form)", () => {
+    for (const b of ["see homeinsulationvictoria.com.au", "www.homeinsulationvictoria.com.au/homeowner", "HomeInsulationVictoria.com.au"]) expect(noJobFollowUpProblems(`Hi, ${b}`)).toHaveLength(1);
+  });
+  test("Outlook-style quotes are cut too", () => {
+    expect(stripQuotedEmail("When can you come? From: Home Insulation Victoria <info@x.com> Sent: Tuesday To: me")).toBe("When can you come?");
+    expect(stripQuotedEmail("Yes please -----Original Message----- old")).toBe("Yes please");
   });
   test("a failed AI attempt waits 30 minutes before trying that email again", () => {
     const now = Date.parse("2026-10-28T10:00:00Z");
@@ -181,7 +195,9 @@ describe("Send safety (decision 414 review)", () => {
     const send = src.indexOf("await resendSend(to,");
     expect(claim).toBeGreaterThan(0);
     expect(send).toBeGreaterThan(claim);
-    expect(src).toContain('claimErr?.code === "23505" && (await linkArrivedFor([to])).has(to)');
+    // A second link email only goes when every earlier attempt definitely failed, under its own once-only claim.
+    expect(src).toContain("if (claimErr?.code === \"23505\") {");
+    expect(src).toContain("retry${");
   });
   test("a follow-up reply does NOT use the one-link-per-person claim, but checks it wasn't already sent and uses a per-email key", () => {
     const fu = src.slice(src.indexOf("async function sendNoJobFollowUp"));

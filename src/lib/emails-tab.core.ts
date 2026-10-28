@@ -98,22 +98,33 @@ export const NO_JOB_FOLLOWUP_INSTRUCTIONS = [
   "Return only the email body text, no subject line.",
 ].join("\n");
 
-/** Senders (lower-case) whose website-link email actually went — the automatic reply accepted by the email service,
- *  or an office link reply sent. A failed or uncertain attempt doesn't count (Jo 28 Oct 2026: "only if it arrived"). */
-export function linkArrivedSenders(i: {
+/** Per sender (lower-case): do they have the website link? Jo 28 Oct 2026: a link email that definitely failed doesn't
+ *  count, so they can be sent it. Unclear or still-sending counts as had, so the link can never go twice. */
+export type LinkState = { hasLink: boolean; failedOnly: boolean; failures: number };
+export function linkStates(i: {
+  claims: readonly string[];
   automatic: readonly { from?: string | null; outcome?: string | null }[];
   office: readonly { to?: string | null; status?: string | null; kind?: string | null }[];
-}): Set<string> {
-  const out = new Set<string>();
-  for (const r of i.automatic) if (r.outcome === "accepted" && r.from) out.add(r.from.trim().toLowerCase());
-  for (const r of i.office) if (r.status === "sent" && r.kind !== "follow_up" && r.to) out.add(r.to.trim().toLowerCase());
+}): Map<string, LinkState> {
+  const n = (x: string | null | undefined) => (x ?? "").trim().toLowerCase();
+  const att = new Map<string, boolean[]>(); // true = definitely failed
+  const add = (k: string, failed: boolean) => { if (k) att.set(k, [...(att.get(k) ?? []), failed]); };
+  const claimed = new Set(i.claims.map(n).filter(Boolean));
+  for (const r of i.automatic) if (r.outcome) add(n(r.from), r.outcome === "rejected" || r.outcome === "not_attempted");
+  for (const r of i.office) if (r.kind !== "follow_up" && r.status) add(n(r.to), r.status.startsWith("failed"));
+  const out = new Map<string, LinkState>();
+  for (const k of new Set([...claimed, ...att.keys()])) {
+    const a = att.get(k) ?? [];
+    const failedOnly = a.length > 0 && a.every(Boolean);
+    out.set(k, { hasLink: !failedOnly, failedOnly, failures: a.filter(Boolean).length });
+  }
   return out;
 }
 
 /** Their new words only: cuts the quoted earlier email ("On 28 Oct 2026, at 6:35 pm, … <info@…" / "… wrote:").
  *  Capital "On" followed by a date number, so "on weekends" or a signature with an email address is never cut. */
 export function stripQuotedEmail(text: string): string {
-  const cut = text.search(/\s*\bOn\s(?=[^<\n]{0,40}?\b\d{1,4}\b)[^<\n]{3,120}?(?:\bwrote:|<[^>\s]*@)/);
+  const cut = text.search(/\s*(?:\bOn\s(?=[^<\n]{0,40}?\b\d{1,4}\b)[^<\n]{3,120}?(?:\bwrote:|<[^>\s]*@)|-{3,}\s*Original Message|\bFrom:\s[^\n]{0,160}?\bSent:)/);
   const t = cut >= 0 ? text.slice(0, cut) : text;
   return t.split("\n").filter((l) => !/^\s*>/.test(l)).join("\n").trim();
 }
@@ -138,7 +149,7 @@ export function finishNoJobFollowUp(raw: string): string | null {
 export function noJobFollowUpProblems(body: string): string[] {
   if (!body.trim()) return ["The reply is empty."];
   const out = noJobReplyProblems(`${body}\n${HOMEOWNER_ENQUIRY_URL}`);
-  if (body.includes(HOMEOWNER_ENQUIRY_URL.replace(/^https?:\/\//, ""))) out.push("Take out the website link — they already have it.");
+  if (/homeinsulationvictoria\.com\.au/i.test(body)) out.push("Take out the website link — they already have it.");
   return out;
 }
 
@@ -201,7 +212,7 @@ export function buildEmailsTab(i: {
   /** What the owner wrote, per Outlook message id (from the job's email history). */
   inboundByMessage: Map<string, string>;
   ownerNameByJob: Map<string, string | null>;
-  /** Senders (lower-case) whose website-link email actually went (linkArrivedSenders). */
+  /** Senders (lower-case) who have the website link (linkStates: anything but a definitely-failed link email). */
   autoRepliedSenders: Set<string>;
   /** Exact messages with confirmed sent replies; claims, failures and later emails stay visible. */
   answeredNoJobMessageIds?: Set<string>;
