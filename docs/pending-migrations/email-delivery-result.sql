@@ -5,6 +5,7 @@
 -- Apply BEFORE the code that reads these columns goes live: the portal's email lists and contact history select them,
 -- and a missing column makes those queries fail.
 -- Proven on PGlite: tests/email-delivery-result-practice-db.test.ts. Rollback: email-delivery-result.rollback.sql.
+BEGIN;
 ALTER TABLE public.customer_email_sends
   ADD COLUMN IF NOT EXISTS delivery_result text NULL,
   ADD COLUMN IF NOT EXISTS delivery_detail text NULL,
@@ -29,3 +30,4 @@ CREATE INDEX IF NOT EXISTS customer_email_sends_provider_message_id_idx
   ON public.customer_email_sends (provider_message_id) WHERE provider_message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS job_communications_provider_message_id_idx
   ON public.job_communications (provider_message_id) WHERE provider_message_id IS NOT NULL;
+COMMIT;

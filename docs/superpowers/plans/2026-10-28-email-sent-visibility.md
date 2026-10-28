@@ -35,7 +35,7 @@
 ### Task 1: Delivery result columns
 
 **Files:**
-- Create: `drizzle/migrations/0178_email_delivery_result.sql`
+- Create: `drizzle/migrations/0178_email_delivery_result.sql` (moved to `docs/pending-migrations/email-delivery-result.sql` in catch-up plan Task 3)
 - Modify: `src/integrations/supabase/types.ts` (add the columns to both tables' Row/Insert/Update)
 
 **Interfaces:**

@@ -104,3 +104,10 @@ While this was being built, the live portal gained follow-up replies (decision 4
    - On-screen wording stays as live.
 
 Also fixed: the delivery-result database change moves to `docs/pending-migrations/` with an undo file and a PGlite proof, the way this portal ships database changes. It is applied to the live database only when Jo puts this live.
+
+**Going live**
+- Before publishing, apply `docs/pending-migrations/email-delivery-result.sql` and `docs/pending-migrations/followup-send-claim.sql` (any order). The delivery one is required: without it the office lists and job page fail. Without the follow-up one, follow-up replies are refused safely.
+- To undo: put the old code back first, then run the two `.rollback.sql` files.
+- Reconnect Outlook in Lovable with send permission.
+- Add `RESEND_WEBHOOK_SECRET`, and a Resend webhook for `email.delivered` and `email.bounced` pointing at `/api/public/hooks/resend-delivery`.
+- Regenerate `src/routeTree.gen.ts` in a real build.

@@ -71,8 +71,8 @@ export function noJobReplyProblems(body: string): string[] {
 export const NOTHING_TO_ANSWER = "NOTHING_TO_ANSWER";
 /** One sent follow-up per email, ever (checked before sending). */
 export const noJobFollowUpSentKey = (messageId: string) => `nojob-email-followup:v1:${messageId}`;
-/** The email service's once-only key: same email + same words → same key, so a double tap can't send twice;
- *  words edited after a refused send get a new key, so the retry isn't mistaken for the earlier attempt. */
+/** Only a recorded idempotency_key (same email + same words → same key; edited words → new key). It does not stop a
+ *  double send: the once-only guarantee is the follow-up claim below. */
 export const noJobFollowUpKey = (messageId: string, body: string) => `${noJobFollowUpSentKey(messageId)}:${shortHash(body.trim())}`;
 /** Once-only claim written BEFORE a follow-up goes through Outlook (unique on details->>'claim_key',
  *  docs/pending-migrations/followup-send-claim.sql): key `${noJobFollowUpSentKey(mid)}:try<n>`, n = earlier definite failures. */
