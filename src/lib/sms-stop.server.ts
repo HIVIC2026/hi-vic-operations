@@ -32,6 +32,18 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
       .select("id,stage,owner_phone").eq("id", row.id).eq("office_bucket", row.bucket).maybeSingle();
     if (readError) throw new Error("Could not recheck enquiry for STOP closure");
     if (!current || current.stage !== row.stage || toAuE164(current.owner_phone) !== phone) continue;
+    // An installer already accepted (active assignment) or is still being asked (pending offer): release them and tell
+    // the installer through the one full-cancel path, which logs its own stage change (no second history row here).
+    const [{ data: assigned, error: assignedError }, { data: offered, error: offeredError }] = await Promise.all([
+      db.from("job_assignments").select("id").eq("job_id", row.id).eq("active", true).limit(1),
+      db.from("partner_offers").select("id").eq("job_id", row.id).eq("status", "pending").limit(1),
+    ]);
+    if (assignedError || offeredError) throw new Error("Could not check installer for STOP closure");
+    if ((assigned ?? []).length || (offered ?? []).length) {
+      const { cancelJobFully } = await import("./office-actions.server");
+      await cancelJobFully(row.id, SMS_STOP_CLOSED_REASON, null, { tell: { owner: false, installer: true } });
+      continue;
+    }
     const { data: changed, error } = await db.from("jobs").update({
       stage: "cancelled", prior_stage: row.stage, cancelled_reason: SMS_STOP_CLOSED_REASON,
       hold_reason: null, last_activity_at: now,
