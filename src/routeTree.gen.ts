@@ -103,6 +103,7 @@ import { Route as ApiPublicHooksMittiPullRouteImport } from './routes/api/public
 import { Route as ApiPublicHooksMittiRetryRouteImport } from './routes/api/public/hooks/mitti-retry'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
+import { Route as ApiPublicHooksResendDeliveryRouteImport } from './routes/api/public/hooks/resend-delivery'
 import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
@@ -626,6 +627,12 @@ const ApiPublicHooksPostIntakeRoute =
     path: '/api/public/hooks/post-intake',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksResendDeliveryRoute =
+  ApiPublicHooksResendDeliveryRouteImport.update({
+    id: '/api/public/hooks/resend-delivery',
+    path: '/api/public/hooks/resend-delivery',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksStripePaymentsRoute =
   ApiPublicHooksStripePaymentsRouteImport.update({
     id: '/api/public/hooks/stripe-payments',
@@ -779,6 +786,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -880,6 +888,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -987,6 +996,7 @@ export interface FileRoutesById {
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -1094,6 +1104,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1195,6 +1206,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1301,6 +1313,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1357,6 +1370,7 @@ export interface RootRouteChildren {
   ApiPublicHooksMittiRetryRoute: typeof ApiPublicHooksMittiRetryRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
+  ApiPublicHooksResendDeliveryRoute: typeof ApiPublicHooksResendDeliveryRoute
   ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
@@ -2026,6 +2040,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPostIntakeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/resend-delivery': {
+      id: '/api/public/hooks/resend-delivery'
+      path: '/api/public/hooks/resend-delivery'
+      fullPath: '/api/public/hooks/resend-delivery'
+      preLoaderRoute: typeof ApiPublicHooksResendDeliveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/stripe-payments': {
       id: '/api/public/hooks/stripe-payments'
       path: '/api/public/hooks/stripe-payments'
@@ -2320,6 +2341,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksMittiRetryRoute: ApiPublicHooksMittiRetryRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
+  ApiPublicHooksResendDeliveryRoute: ApiPublicHooksResendDeliveryRoute,
   ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
   ApiPublicReferralsRecordSubmissionRoute:
