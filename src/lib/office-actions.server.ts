@@ -157,6 +157,15 @@ export async function logCallOrNote(jobId: string, actorId: string, i: { what: L
   return { id };
 }
 
+/** "Clear" on the Email bounced tag: one internal event (append-only); the tag compares its time with the newest bounce. */
+export async function clearEmailBounce(jobId: string, actorId: string) {
+  const { emailBouncedSet } = await import("./office-lists.server");
+  if (!(await emailBouncedSet([jobId])).has(jobId)) return { cleared: false };
+  const { EMAIL_BOUNCE_CLEARED_EVENT } = await import("./email-delivery.core");
+  await logEvent(jobId, actorId, EMAIL_BOUNCE_CLEARED_EVENT, "Office cleared the Email bounced tag", {}, { internal: true });
+  return { cleared: true };
+}
+
 /**
  * The one audited save for an enquiry's name / street / suburb / postcode (decision 216 tidy on save; decision 281: used
  * by the automatic address completion — the inline form on Enquiries is gone). Nothing is required beyond a street: a

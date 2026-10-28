@@ -74,3 +74,33 @@ export function matchBounce(
   const bySubject = cands.find(({ s }) => !!s.subject?.trim() && nSubject.includes(s.subject.trim().toLowerCase()));
   return (bySubject ?? cands[0])?.s.id ?? null;
 }
+
+/** workflow_events type written when the office clears the "Email bounced" tag (append-only; the tag compares against the newest). */
+export const EMAIL_BOUNCE_CLEARED_EVENT = "email_bounce_cleared";
+
+export type EmailResult = { at: string; result: DeliveryResult | null };
+
+/** The "Email bounced" tag: the newest email with a result bounced, it is newer than the last clear, and nothing delivered since. */
+export function emailBouncedNow(sends: EmailResult[], clearedAt: string | null): boolean {
+  let newest: { t: number; result: DeliveryResult } | null = null;
+  for (const e of sends) {
+    if (!e.result) continue;
+    const t = Date.parse(e.at);
+    if (!Number.isFinite(t)) continue;
+    if (!newest || t > newest.t) newest = { t, result: e.result };
+  }
+  if (!newest || newest.result !== "bounced") return false;
+  const cleared = clearedAt ? Date.parse(clearedAt) : NaN;
+  return !(Number.isFinite(cleared) && newest.t <= cleared);
+}
+
+/** Many jobs at once: which of them show the tag. Rows are outbound emails that have a result, plus clear events. */
+export function bouncedJobIds(emails: (EmailResult & { jobId: string })[], clears: { jobId: string; at: string }[]): Set<string> {
+  const byJob = new Map<string, EmailResult[]>();
+  for (const e of emails) byJob.set(e.jobId, [...(byJob.get(e.jobId) ?? []), e]);
+  const cleared = new Map<string, string>();
+  for (const c of clears) if (!cleared.get(c.jobId) || cleared.get(c.jobId)! < c.at) cleared.set(c.jobId, c.at);
+  const out = new Set<string>();
+  for (const [id, rows] of byJob) if (emailBouncedNow(rows, cleared.get(id) ?? null)) out.add(id);
+  return out;
+}

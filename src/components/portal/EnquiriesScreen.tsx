@@ -169,6 +169,7 @@ export function EnquiriesScreen() {
                     const open = () => setPeek({ jobId: r.id });
                     // The owner emailed and we haven't written since: the email is on the job (open it to reply).
                     const wrote = r.ownerWroteAt ? <Pill tone="green" className="shrink-0 gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill> : null;
+                    const bounced = r.emailBounced ? <Pill tone="rose" className="shrink-0">Email bounced</Pill> : null;
                     const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
                     const sel = (
                       <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--hiv-blue)] lg:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
@@ -182,14 +183,14 @@ export function EnquiriesScreen() {
                             <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] font-semibold text-ink">{r.ownerName || r.jobNumber}</strong><span className="ml-auto shrink-0 font-display text-[16px] font-bold text-ink">{est}</span></span>
                             <span className="truncate text-[13px] text-sub">{[r.suburb || r.address, r.areaM2 ? sizeLabel(r.areaM2) : null, INSULATION_WORDS[r.insulation]].filter(Boolean).join(" · ")}</span>
                             <span className="truncate text-[13px] text-sub">{r.waitingOn}</span>
-                            {wrote && <span className="mt-1">{wrote}</span>}
+                            {(wrote || bounced) && <span className="mt-1 flex flex-wrap gap-1.5">{bounced}{wrote}</span>}
                           </button>
                         </div>
                         {/* Computer: the decision 286 columns; the owner opens the side panel. */}
                         <div className={cn("hidden min-h-[54px] items-center gap-x-3 px-5 py-2.5 text-[14px] hover:bg-mist/50 lg:grid", cols)}>
                           {sel}
                           <span className="text-[13px] text-sub">{r.jobNumber}</span>
-                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
+                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{bounced}{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
                           <span className={cn("truncate", r.problems.length > 0 && "text-sub")} title={r.problems.length ? "Suburb / postcode looked up automatically" : undefined}>{r.address || "—"}</span>
                           <span>{sizeLabel(r.areaM2)}</span>
                           <span>{INSULATION_LABEL[r.insulation]}</span>

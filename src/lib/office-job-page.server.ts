@@ -119,8 +119,11 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       readyForVeecAt: s(readyForVeec.data?.created_at), lodged: veec.data?.submitted_date ? `VEEC lodged ${day(veec.data.submitted_date)}` : null },
   };
   const lastHeard = lastHeardFromUs(contacts);
+  const { emailBouncedSet } = await import("./office-lists.server");
+  const emailBounced = (await emailBouncedSet([jobId])).has(jobId);
   return {
     now,
+    emailBounced,
     header: {
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
