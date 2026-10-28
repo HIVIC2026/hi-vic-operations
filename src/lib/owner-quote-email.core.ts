@@ -104,7 +104,7 @@ function quoteRowHtml(r: K.QuoteRow, first: boolean): string {
   const bt = first ? "" : "border-top:1px solid #E4E9F5;";
   const left = `<strong${r.color ? ` style="color:${r.color};"` : ""}>${esc(r.title)}</strong>${r.detail ? `<br /><span class="muted" style="font-size:13px;line-height:19px;">${esc(r.detail)}</span>` : ""}`;
   const amount = r.bold ? `<strong>${esc(r.amount)}</strong>` : esc(r.amount);
-  return `<tr><td valign="top" style="${bt}padding:${first ? "0 12px 12px 0" : "12px 12px 12px 0"};">${left}</td><td align="right" valign="top" style="${bt}padding:${first ? "0 0 12px" : "12px 0"};white-space:nowrap;${r.color ? `color:${r.color};` : ""}">${amount}</td></tr>`;
+  return `<tr><td valign="top" style="${bt}padding:${first ? "0 12px 12px 0" : "12px 12px 12px 0"};">${left}</td><td width="110" align="right" valign="top" style="${bt}padding:${first ? "0 0 12px" : "12px 0"};white-space:nowrap;min-width:110px;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;${r.color ? `color:${r.color};` : ""}">${amount}</td></tr>`;
 }
 
 export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: string; html: string; text: string } {
@@ -134,7 +134,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   // Jo 26 Oct: no HIV phone number and no "call us" in owner emails — owners reply by email only.
   const questions = "Questions? Just reply to this email.";
   const closing = [validity, NOT_FOR_YOU, questions].filter(Boolean).join(" ");
-  const youPay = `<tr><td valign="middle" style="border-top:2px solid #22376B;padding:12px 12px 12px 0;font-size:18px;"><strong>You pay</strong></td><td align="right" valign="middle" style="border-top:2px solid #22376B;padding:12px 0;white-space:nowrap;font-size:18px;color:#3C51C4;"><strong>${esc(f.total)}</strong></td></tr>`;
+  const youPay = `<tr><td valign="middle" style="border-top:2px solid #22376B;padding:12px 12px 12px 0;font-size:18px;"><strong>You pay</strong></td><td width="110" align="right" valign="middle" style="border-top:2px solid #22376B;padding:12px 0;white-space:nowrap;min-width:110px;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;font-size:18px;color:#3C51C4;"><strong>${esc(f.total)}</strong></td></tr>`;
   const quote = rows.length
     ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
     : `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`;

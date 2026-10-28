@@ -70,6 +70,24 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
   expect(m.html).not.toContain("TEST — only sent to Jo");
 });
 
+test("quote price cells, including You pay, keep a 110px minimum width and do not break words", () => {
+  const { html } = renderOwnerQuoteEmail(base);
+  const rows = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)]
+    .map((match) => match[1] ?? "")
+    .filter((row) => /<td\b[^>]*align="right"/.test(row));
+  expect(rows).toHaveLength(base.lines.length + 3); // Full price, VEU rebate, You pay.
+  expect(rows.some((row) => row.includes("<strong>You pay</strong>"))).toBe(true);
+  for (const row of rows) {
+    const priceCell = row.match(/<td\b[^>]*align="right"[^>]*>/)?.[0] ?? "";
+    expect(priceCell).toContain('width="110"');
+    expect(priceCell).toContain("min-width:110px;");
+    expect(priceCell).toContain("word-break:keep-all;");
+    expect(priceCell).toContain("white-space:nowrap;");
+    expect(priceCell).toContain("overflow-wrap:normal;");
+    expect(priceCell).toContain("word-wrap:normal;");
+  }
+});
+
 test("EEC line only for an approved installer; removal only when there is removal", () => {
   const m = renderOwnerQuoteEmail({ ...base, installerName: "X", installerCertified: false, removalM2: null });
   expect(m.text).not.toContain("EEC-certified");
