@@ -91,6 +91,12 @@ export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: numb
   return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;
 }
 
+/** Paid by card = a card payment on the invoice since acceptance, and payments grew by at least the repeat price since
+ *  the owner accepted (what they had paid before is recorded on the accepted event). */
+export function repeatCardPaid(i: { priceCents: number; paidCents: number; paidBeforeAcceptCents: number | null; cardRowAfterAccept: boolean }): boolean {
+  return i.cardRowAfterAccept && i.paidBeforeAcceptCents != null && i.priceCents > 0 && i.paidCents - i.paidBeforeAcceptCents >= i.priceCents;
+}
+
 /** Total (ex GST) to take off an installer's install payout for every repeat PIESA the office charged to the installer. */
 export function repeatDeductionEx(choices: { payer?: string; price_inc_gst?: number | null }[], gst: number): number {
   const inc = choices.filter((c) => c.payer === "installer" && typeof c.price_inc_gst === "number" && c.price_inc_gst > 0).reduce((a, c) => a + (c.price_inc_gst as number), 0);

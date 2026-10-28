@@ -21,7 +21,7 @@ export async function setRepeatPiesaPrice(priceIncGst: number | null, actorId: s
 }
 
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
-export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
+export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null; paidBeforeAcceptCents: number | null }> {
   const { installDayContext } = await import("./install-days.server");
   const c = await installDayContext(jobId).catch(() => null);
   const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
@@ -35,7 +35,9 @@ export async function repeatPiesaContext(jobId: string): Promise<{ state: Repeat
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
   const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);
   const sp = exp ? String(d(exp)["payer"] ?? "") : "";
-  return { state, suggestion: sp && sp !== "undetermined" ? sp : null };
+  const acc = ev.find((r) => r.event_type === REPEAT_PIESA_ACCEPTED_EVENT && String(d(r)["deadline"]) === lapsedDeadline);
+  const pb = acc ? d(acc)["paid_before_cents"] : null;
+  return { state, suggestion: sp && sp !== "undetermined" ? sp : null, paidBeforeAcceptCents: typeof pb === "number" && Number.isFinite(pb) ? pb : null };
 }
 
 /** Office choice. The suggestion is recorded alongside, never used to decide. */
@@ -102,6 +104,24 @@ export async function repeatPaidFromInvoice(jobId: string, invoiceId: string, pa
   const paidAtAdd = Math.max(Number.isFinite(before) ? before : 0, Number(d.paid_at_add_cents ?? 0));
   if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: paidAtAdd, priceCents: Number(d.amount_cents ?? 0) })) return false;
   await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on the Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
+  const next = (await repeatPiesaContext(jobId)).state;
+  await startRepeatOffer(jobId, next);
+  return true;
+}
+
+/** Stripe: a card payment for the repeat safety check counts at once. Once a card row for this step landed after the owner
+ *  accepted and payments grew by the repeat price, record it paid and start the normal PIESA offer. Idempotent: the
+ *  second call sees stage "offer" and does nothing. */
+export async function repeatPaidByCard(jobId: string, invoiceId: string, paidCents: number): Promise<boolean> {
+  const { state, paidBeforeAcceptCents } = await repeatPiesaContext(jobId);
+  if (state.stage !== "owner_pay" || !state.deadline || !state.priceIncGst) return false;
+  const { data: acc } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_ACCEPTED_EVENT).contains("details", { deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!acc) return false;
+  const { PAYMENT_EVENT } = await import("./payment-ledger.server");
+  const { data: card } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PAYMENT_EVENT).contains("details", { invoice_id: invoiceId, source: "card", step: "repeat_safety_check" }).gt("created_at", acc.created_at).limit(1);
+  const rpc = await import("./repeat-piesa.core");
+  if (!rpc.repeatCardPaid({ priceCents: Math.round(state.priceIncGst * 100), paidCents, paidBeforeAcceptCents, cardRowAfterAccept: (card ?? []).length > 0 })) return false;
+  await logEvent(jobId, null, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid by card`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "card", invoice_id: invoiceId }, { internal: true });
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);
   return true;

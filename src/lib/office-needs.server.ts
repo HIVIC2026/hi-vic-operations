@@ -56,7 +56,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const listMode = !opts.onlyIds;
   const { loadQuotesToCheck } = await import("./installer-quote-review.server");
   // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the plan maths for the unpaid-payment alert.
-  const { paymentPlan, fixesCountedCents, toCents, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow } = await import("./payments.core");
+  const { paymentPlan, fixesCountedCents, repeatCreditCents, toCents, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow } = await import("./payments.core");
   const { openRobotFailureRows } = await import("./esc-registry-robot.server");
   const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
   const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
@@ -373,12 +373,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // payStageEv is newest-first: the first row per job is the latest entry into a deposit-due stage.
     const depositSinceByJob = new Map<string, string>();
     for (const e of payStageEv) { const id = String(e["job_id"]); if (!depositSinceByJob.has(id)) depositSinceByJob.set(id, String(e["created_at"])); }
-    const repeatByJob = new Map<string, { price: number; acceptedAt: string | null; paid: boolean }>();
+    const repeatByJob = new Map<string, { price: number; acceptedAt: string | null; paid: boolean; paidBeforeCents: number | null }>();
     for (const e of payRepeatEv) { // newest-first
       const id = String(e["job_id"]); const t = String(e["event_type"]);
-      const cur = repeatByJob.get(id) ?? { price: 0, acceptedAt: null, paid: false };
+      const cur = repeatByJob.get(id) ?? { price: 0, acceptedAt: null, paid: false, paidBeforeCents: null };
       if (t === "repeat_piesa_payer_chosen" && cur.price === 0) { const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null; if (d?.payer === "owner") cur.price = Number(d?.price_inc_gst ?? 0); }
-      else if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) cur.acceptedAt = String(e["created_at"]);
+      else if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) { cur.acceptedAt = String(e["created_at"]); const pb = (e["details"] as { paid_before_cents?: unknown } | null)?.paid_before_cents; cur.paidBeforeCents = typeof pb === "number" && Number.isFinite(pb) ? pb : null; }
       else if (t === REPEAT_PIESA_PAID_EVENT) cur.paid = true;
       repeatByJob.set(id, cur);
     }
@@ -395,14 +395,16 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const safety = safetyCheckCentsFor({ lines: piesaLinesByQuote.get(String(installQ["id"])) ?? [], settingIncGst: (paySettings?.["safety_check_payment_inc_gst"] ?? null) as number | null }).cents;
       const fixesCents = fixesCountedCents({ rectTotalCents: toCents(rectQ?.["customer_total_inc_gst"] as number | null), rectAcceptedAt: rectQ ? String(rectQ["accepted_at"]) : null, installAcceptedAt: installAccepted });
       const rep = repeatByJob.get(id);
-      const repeatCents = rep && rep.price > 0 && rep.acceptedAt && !rep.paid ? toCents(rep.price) : 0;
+      const repeatCents = rep && rep.price > 0 && rep.acceptedAt ? toCents(rep.price) : 0;
+      const credit = repeatCreditCents({ repeatCents, paidCents, paidBeforeAcceptCents: rep?.paidBeforeCents ?? null, recordedPaid: !!rep?.paid });
+      const own = paidCents - credit; // the repeat's money never counts toward the other steps
       const plan = paymentPlan({ quoteTotalCents: toCents(installQ["customer_total_inc_gst"] as number | null), safetyCheckCents: safety, fixesCents, repeatCents });
       const steps: { key: PaymentStepKey; since: string }[] = [];
-      if (!waivedInvoices.has(String(inv["id"])) && paidCents < plan.thresholds.safety_check) steps.push({ key: "safety_check", since: installAccepted });
-      if (fixesCents > 0 && rectQ && paidCents < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
+      if (!waivedInvoices.has(String(inv["id"])) && own < plan.thresholds.safety_check) steps.push({ key: "safety_check", since: installAccepted });
+      if (fixesCents > 0 && rectQ && own < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
       const depSince = depositSinceByJob.get(id);
-      if (depSince && INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null) && paidCents < plan.thresholds.install_deposit) steps.push({ key: "install_deposit", since: depSince });
-      if (repeatCents > 0 && rep?.acceptedAt && paidCents < plan.thresholds.repeat_safety_check) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
+      if (depSince && INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null) && own < plan.thresholds.install_deposit) steps.push({ key: "install_deposit", since: depSince });
+      if (repeatCents > 0 && rep?.acceptedAt && !rep.paid && paidCents < plan.thresholds.repeat_safety_check) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
       const stall = paymentStall(steps, now);
       if (stall) x.paymentStalled = stall;
     }

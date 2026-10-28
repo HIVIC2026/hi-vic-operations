@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_ARRANGING_TITLE, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
+import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatCardPaid, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_ARRANGING_TITLE, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
 import { fixesFoundLine, needsCandidates } from "../src/lib/office-needs.core";
 import { jobNext, FIXES_PAUSED_TITLE } from "../src/lib/installer-screens.core";
 
@@ -119,4 +119,13 @@ describe("owner-pays repeat PIESA on the ONE Xero invoice (decision 233, Jo 28 O
     // Paid invoice → held for the office, not a second invoice.
     expect(core.repairsAmendDecision({ enabled: true, repairs: { rectQuoteId: "2026-11-20", amountCents: 34900 }, key: "k", recorded: [], baseTotalCents: 100000, xero: { ...x, AmountPaid: 349 }, tag }).action).toBe("hold");
   });
+});
+
+test("card covers the repeat price after acceptance → paid", () => {
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: true })).toBe(true);
+});
+test("card short of the price, no card row, or no paid-before → not paid", () => {
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 60_000, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: true })).toBe(false);
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: false })).toBe(false);
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: null, cardRowAfterAccept: true })).toBe(false);
 });
