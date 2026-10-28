@@ -43,7 +43,14 @@ function OfferPage() {
   const [confirmDecline, setConfirmDecline] = useState(false);
   const flight = useRef(false); // one booking/reply at a time, even for same-tick double taps
   const rc = data?.kind === "ready_check";
-  if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
+  if (error) return (
+    <TradeShell installer={false}>
+      <Screen>
+        <p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p>
+        <Link to="/field" className={outlineLinkClass}>Back to My work</Link>
+      </Screen>
+    </TradeShell>
+  );
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading the job…</p></TradeShell>;
   const what = rc ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)";
   const tap = async (id: string, start: string) => {
