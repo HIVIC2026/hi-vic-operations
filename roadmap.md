@@ -674,6 +674,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
 
 ## 28 Oct — Jo-approved people/crew spec
-- [ ] People without an email (nullable partner_workers.email, pending migration + PGlite proof, null-safe readers)
-- [ ] Lead / Crew role on Team page (worker_role, Mitti invite/deactivate rules, audit event)
-- [ ] Crew reminder email 2pm Melbourne day before install (flag OFF until Jo approves wording)
+- [x] People without an email (pending migration NOT applied live) (nullable partner_workers.email, pending migration + PGlite proof, null-safe readers)
+- [x] Lead / Crew role on Team page (worker_role, Mitti invite/deactivate rules, audit event)
+- [x] Crew reminder email 2pm Melbourne day before install (flag OFF until Jo approves wording)
