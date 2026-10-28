@@ -74,7 +74,8 @@ export const noJobFollowUpSentKey = (messageId: string) => `nojob-email-followup
 /** The email service's once-only key: same email + same words → same key, so a double tap can't send twice;
  *  words edited after a refused send get a new key, so the retry isn't mistaken for the earlier attempt. */
 export const noJobFollowUpKey = (messageId: string, body: string) => `${noJobFollowUpSentKey(messageId)}:${shortHash(body.trim())}`;
-function shortHash(t: string): string {
+/** Short fingerprint of a reply's words, for once-only send keys. */
+export function shortHash(t: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h.toString(36);

@@ -198,6 +198,7 @@ describe("Send safety (decision 414 review)", () => {
     // A second link email only goes when every earlier attempt definitely failed, under its own once-only claim.
     expect(src).toContain("if (claimErr?.code === \"23505\") {");
     expect(src).toContain("retry${");
+    expect(src).toContain(":send:${draft.id}:${shortHash(body.trim())}");
   });
   test("a follow-up reply does NOT use the one-link-per-person claim, but checks it wasn't already sent and uses a per-email key", () => {
     const fu = src.slice(src.indexOf("async function sendNoJobFollowUp"));

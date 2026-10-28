@@ -18,7 +18,7 @@ import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey 
 import {
   NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
   missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef,
-  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkStates, type LinkState, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
+  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkStates, shortHash, type LinkState, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -234,7 +234,8 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
     if (again) throw new WorkflowError(`Not sent — couldn't record the reply first (${again.message}).`);
   } else if (claimErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
   const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
-  const key = `${noJobDraftKey(String(draft.details["message_id"]))}:send:${draft.id}`;
+  // Same draft + same words = same key (double tap safe); edited words after a refused send = a new key.
+  const key = `${noJobDraftKey(String(draft.details["message_id"]))}:send:${draft.id}:${shortHash(body.trim())}`;
   const K = await import("./email-kit.core");
   const html = aiReplyEmailHtml(body, { subject, unsubscribe: null });
   const text = K.plainText(aiReplyText(body), { unsubscribe: null });
