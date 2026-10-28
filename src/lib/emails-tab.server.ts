@@ -177,12 +177,8 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
   const html = aiReplyEmailHtml(body, { subject, unsubscribe: null });
   const { sendViaOutlook } = await import("./outlook-send.server");
   const d = await sendViaOutlook({ replyToMessageId: str(ev.details["message_id"]), to, subject, html }).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error", messageId: "" }));
-  if (d.outcome === "failed") {
-    // Nothing was sent, so release the claim we just made — the office can try again.
-    await loose.from("workflow_events").delete().eq("event_type", NEW_SENDER_REPLIED_EVENT).eq("details->>idempotency_key", newSenderReplyKey(to))
-      .then(({ error: e }) => { if (e) console.error("Outlook send failed; claim not released", e.message); });
-    throw new WorkflowError("Not sent — Outlook couldn't send it. Try again.");
-  }
+  // A refused send keeps the claim (workflow_events is append-only, so it cannot be released); the office replies from Outlook.
+  if (d.outcome === "failed") throw new WorkflowError("Not sent — Outlook couldn't send it. Reply to them from Outlook instead.");
   const status = d.outcome === "sent" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
     summary: `Reply sent to ${to} pointing to the homeowner page (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, idempotency_key: key } });

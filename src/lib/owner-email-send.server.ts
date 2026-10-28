@@ -55,7 +55,7 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
       const { error: ue } = await admin.from("customer_email_sends").update(row).eq("id", reserved.id);
       if (ue) console.error("Outlook send record update failed", ue.message);
     } catch (e) { console.error("Outlook send record update failed", e instanceof Error ? e.message : "unknown"); }
-    if (r.outcome === "uncertain") return "delivery uncertain — not retried";
+    if (r.outcome === "uncertain") { notify({ provider: "outlook", messageId: r.messageId, internetMessageId: null }); return "delivery uncertain — not retried"; }
     if (r.outcome !== "sent") return "failed: Outlook couldn't send it";
     notify({ provider: "outlook", messageId: r.messageId, internetMessageId: r.internetMessageId });
     return "sent";

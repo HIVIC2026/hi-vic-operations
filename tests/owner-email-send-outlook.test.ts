@@ -111,7 +111,10 @@ describe("guarded send, Outlook transport", () => {
   });
   test("send 5xx or timeout is uncertain: recorded delivered_unrecorded and never resent, even with retry", async () => {
     sendThrows = true;
-    expect(await send({ transport: OUT })).toBe("delivery uncertain — not retried");
+    let got: any;
+    expect(await send({ transport: OUT, onSent: (r) => { got = r; } })).toBe("delivery uncertain — not retried");
+    expect(got).toMatchObject({ provider: "outlook", internetMessageId: null });
+    expect(typeof got.messageId).toBe("string");
     expect(tables["customer_email_sends"]![0]).toMatchObject({ status: "delivered_unrecorded", provider: "outlook" });
     const before = fetched.length;
     sendThrows = false;

@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 type Row = Record<string, any>;
 let tables: Record<string, Row[]> = {};
 let n = 0;
+let deleteAttempts = 0;
 let failInsertOn: string | null = null;
 function from(table: string) {
   const f: ((r: Row) => boolean)[] = [];
@@ -19,6 +20,7 @@ function from(table: string) {
       return { data: null, error: null };
     }
     const hit = rows().filter((r) => f.every((x) => x(r)));
+    if (op === "delete") { deleteAttempts++; if (table === "workflow_events") throw new Error("workflow_events is append-only"); }
     if (op === "delete") { tables[table] = rows().filter((r) => !hit.includes(r)); return { data: null, error: null }; }
     return { data: one ? hit[0] ?? null : hit, error: null };
   };
@@ -60,6 +62,7 @@ const { NEW_SENDER_REPLIED_EVENT } = await import("../src/lib/new-sender-reply.c
 
 const BODY = "Hi Sam,\n\nYes, your spot is saved. We will be in touch.\n\nCheers, the Home Insulation Victoria team";
 const FAIL = "Not sent — Outlook couldn't send it. Try again.";
+const FAIL_NOJOB = "Not sent — Outlook couldn't send it. Reply to them from Outlook instead.";
 const seedJob = (source = "website") => {
   tables["jobs"] = [{ id: "J", source, owner_id: "O" }];
   tables["owners"] = [{ id: "O", email: "owner@example.com" }];
@@ -72,7 +75,7 @@ const seedNoJob = () => {
   ];
 };
 beforeEach(() => {
-  tables = {}; n = 0; failInsertOn = null; guardCalls = []; outlookSends = []; archived = []; testSends = 0;
+  tables = {}; n = 0; deleteAttempts = 0; failInsertOn = null; guardCalls = []; outlookSends = []; archived = []; testSends = 0;
   guardResult = { status: "sent", sent: { provider: "outlook", messageId: "AAMk-sent-1", internetMessageId: "<in-1@x>" } };
   outlookResult = { outcome: "sent", messageId: "AAMk-sent-1", internetMessageId: "<in-1@x>" };
 });
@@ -111,13 +114,19 @@ describe("job reply (sendAiDraft)", () => {
     expect(tables["job_communications"] ?? []).toHaveLength(0);
     expect(archived).toHaveLength(0);
   });
-  test("an uncertain send counts as sent: event and history recorded (no Outlook id known), archived, not an error", async () => {
+  test("an uncertain send counts as sent: event and history recorded (archived, not an error", async () => {
     seedJob();
     guardResult = { status: "delivery uncertain — not retried" };
     expect(await sendAiDraft("D1", BODY, "actor")).toEqual({ status: "delivery uncertain — not retried" });
     expect(tables["workflow_events"]!.filter((e) => e.event_type === AI_EMAIL_DRAFT_SENT_EVENT)).toHaveLength(1);
     expect(tables["job_communications"]![0]).toMatchObject({ provider: "outlook", provider_message_id: null, source_reference: "D1" });
     expect(archived).toHaveLength(1);
+  });
+  test("an uncertain send stores the Outlook message id on the history row", async () => {
+    seedJob();
+    guardResult = { status: "delivery uncertain — not retried", sent: { provider: "outlook", messageId: "AAMk-unc", internetMessageId: null } };
+    await sendAiDraft("D1", BODY, "actor");
+    expect(tables["job_communications"]![0]).toMatchObject({ provider: "outlook", provider_message_id: "AAMk-unc", source_reference: "D1" });
   });
   test("other refusals keep their old wording", async () => {
     seedJob();
@@ -149,11 +158,12 @@ describe("no-job reply (sendNoJobEmailReply)", () => {
     expect(tables["workflow_events"]!.filter((e) => e.event_type === NO_JOB_REPLY_SENT_EVENT)[0]!.details["status"]).toBe("sent");
     expect(archived).toHaveLength(1);
   });
-  test("definite failure releases the claim just inserted and throws the exact message", async () => {
+  test("definite failure keeps the claim (the log is append-only, no delete attempted) and throws the exact message", async () => {
     seedNoJob();
     outlookResult = { outcome: "failed", detail: "nope" };
-    await expect(sendNoJobEmailReply("U1", "ND1", "Hi Sam,\n\nThanks for getting in touch! See https://homeinsulationvictoria.com.au/homeowner", "actor")).rejects.toThrow(FAIL);
-    expect(claims()).toHaveLength(0);
+    await expect(sendNoJobEmailReply("U1", "ND1", "Hi Sam,\n\nThanks for getting in touch! See https://homeinsulationvictoria.com.au/homeowner", "actor")).rejects.toThrow(FAIL_NOJOB);
+    expect(deleteAttempts).toBe(0);
+    expect(claims()).toHaveLength(1);
     expect(tables["workflow_events"]!.some((e) => e.event_type === NO_JOB_REPLY_SENT_EVENT)).toBe(false);
     expect(archived).toHaveLength(0);
   });
