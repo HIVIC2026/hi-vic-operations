@@ -53,3 +53,13 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   if (signature(previous?.details) !== signature(details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
 }
+/** A3: the saved usual electrician and whether they are onboarded (approved REC; flat-paid installers need no rate).
+ *  Reads candidates only when one is saved. */
+export async function readUsualElectricianStatus(businessId: string): Promise<{ electrician: import("./usual-electrician.core").UsualElectrician | null; onboarded: boolean }> {
+  const { electrician } = await readUsualElectrician(businessId);
+  if (!electrician) return { electrician: null, onboarded: false };
+  const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
+  const flat = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(businessId)?.piesaIncGst ?? null;
+  const { usualIsOnboarded } = await import("./rec-onboarded.core");
+  return { electrician, onboarded: usualIsOnboarded(electrician, candidates, flat) };
+}

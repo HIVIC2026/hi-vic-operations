@@ -28,8 +28,8 @@ export const addJobOptions = createServerFn({ method: "POST" }).middleware([requ
   .handler(async ({ data, context }) => {
     const { requireMember } = await import("./pilot.server");
     await requireMember(context.userId, data.businessId);
-    const { electrician } = await (await import("./usual-electrician.server")).readUsualElectrician(data.businessId);
-    return { usualElectrician: electrician ? { name: electrician.name } : null };
+    const { electrician, onboarded } = await (await import("./usual-electrician.server")).readUsualElectricianStatus(data.businessId);
+    return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null };
   });
 
 export const onsiteFormStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

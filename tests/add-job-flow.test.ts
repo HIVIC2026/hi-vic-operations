@@ -51,7 +51,7 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
   test("page: basics + permission tick + one optional visit field; no mode choice, measurements, price, files or electrician (decision 34)", () => {
     const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
     // Decision 289: plus ONE required electrician choice (HIV / my usual electrician), defaulting to the usual one when set.
-    for (const h of ["startOnsiteReadyCheck", "OWNER_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form", "data-electrician-choice", "ELECTRICIAN_CHOICE_QUESTION", "defaultElectricianChoice(usual)"]) expect(ui).toContain(h);
+    for (const h of ["startOnsiteReadyCheck", "OWNER_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form", "data-electrician-choice", "ELECTRICIAN_CHOICE_QUESTION", "defaultElectricianChoice(pickable)"]) expect(ui).toContain(h);
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later", "A different electrician"]) expect(ui).not.toContain(gone);
     expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={businessId}");
   });

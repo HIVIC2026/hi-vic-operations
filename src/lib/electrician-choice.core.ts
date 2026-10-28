@@ -14,7 +14,20 @@ export const usualElectricianOptionLabel = (name: string) => `My usual electrici
 export const ELECTRICIAN_CHOICE_ISSUES = {
   missing: "Choose who does the electrical safety check.",
   usual: "You have no usual electrician saved — add them under My business first, or choose Home Insulation Victoria's electrician.",
+  notOnboarded: "Your usual electrician isn't onboarded with Home Insulation Victoria yet — choose Home Insulation Victoria's electrician.",
 } as const;
+
+/** A3: the usual electrician as Add a job sees it — saved, and whether they are onboarded. */
+export type UsualStatus = { name: string; onboarded: boolean } | null;
+/** Only an onboarded usual electrician can be offered, defaulted or chosen. */
+export const addJobUsual = (s: UsualStatus): { name: string } | null => (s?.onboarded ? { name: s.name } : null);
+/** Add a job's electrician problem: the usual rule, plus "usual" needs that electrician to be onboarded. */
+export function addJobElectricianProblem(choice: ElectricianChoice | null | undefined, s: UsualStatus): string | null {
+  const base = electricianChoiceProblem(choice, s ? { name: s.name } : null);
+  if (base) return base;
+  if (choice === "usual" && !s?.onboarded) return ELECTRICIAN_CHOICE_ISSUES.notOnboarded;
+  return null;
+}
 
 /** The radio options Add a job shows: HIV always; "My usual electrician (<name>)" only when one is saved. */
 export function electricianChoiceOptions(usual: Pick<UsualElectrician, "name"> | null | undefined): { value: ElectricianChoice; label: string }[] {

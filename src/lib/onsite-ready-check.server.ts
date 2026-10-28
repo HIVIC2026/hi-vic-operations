@@ -25,10 +25,12 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
   const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
-  const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
-  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
-  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(usual);
-  const ecp = electricianChoiceProblem(electricianChoice, usual); if (ecp) problems.push(ecp);
+  // A3: "my usual electrician" can be picked only once that electrician is onboarded (checked here as well as on the form).
+  const { defaultElectricianChoice, addJobUsual, addJobElectricianProblem } = await import("./electrician-choice.core");
+  const usualStatus = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
+  const status = usualStatus.electrician ? { name: usualStatus.electrician.name, onboarded: usualStatus.onboarded } : null;
+  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(addJobUsual(status));
+  const ecp = addJobElectricianProblem(electricianChoice, status); if (ecp) problems.push(ecp);
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
   // checked BEFORE anything is saved, so a bad time never leaves a job behind.
   if (opts.visit) problems.push(...(await import("./ready-check-times.core")).a1ReadyCheckTimeBlockers(opts.visit, now));
@@ -63,7 +65,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
   // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
-  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
+  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job");
   if (open && clash === "save_and_flag") {
     const { DUPLICATE_ADDRESS_EVENT, hivLeadClashSummary } = await import("./duplicate-address.core");
     await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, hivLeadClashSummary(open.job_number), { from: "add_a_job", existing_job_id: open.id, existing_job_number: open.job_number, needs_office: true }, { internal: true });

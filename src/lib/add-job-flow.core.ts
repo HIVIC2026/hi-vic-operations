@@ -124,6 +124,7 @@ export const ELECTRICIAN_CARD = {
   title: "Electrical safety check",
   sub: "Who does the Pre Insulation Electrical Safety Assessment (PIESA) once the owner accepts the quote. Your usual electrician is set under My business.",
   noUsual: "To use your own electrician, add them under My business first.",
+  notOnboarded: (name: string) => `${name} can be picked here once they finish onboarding with Home Insulation Victoria.`,
 } as const;
 
 /** The approved "Job added" screen: tick header, Mitti card, what we do now, two links. Every fact comes from the save result. */
