@@ -12,6 +12,10 @@ import { READY_CHECK_BOOKED } from "./installer-ready-check.core";
 import { PRICE_NEXT_ACTION } from "./ready-check-basics.core";
 import { VISIT_LABEL } from "./visit-events.core";
 
+/** The electrician job page's `assessments` reads: every column except `mitti_raw_snapshot` (the whole Mitti form,
+ *  which holds the electrician's repair price). No page shows the snapshot. */
+export const ASSESSMENT_PAGE_COLUMNS = "access_difficulty, assessed_on, assessor_id, completed_at, created_at, downlights_qty, downlights_type, downlights_upgrade_qty, exhaust_fans_clearance_qty, exhaust_fans_qty, existing_r_value, external_mitti_id, hazards, id, insulation_present, job_id, life_support_confirmed, measured_area_m2, mitti_assignee_email, mitti_assignee_user_id, mitti_completed, mitti_created_at, mitti_last_error, mitti_modified_at, mitti_prefill_count, mitti_scope, mitti_sync_status, mitti_synced_at, mitti_template_id, mitti_validation_issues, no_rectification_confirmed, notes, piesa_outcome, rcds_present, rcds_required_qty, removal_m2, removal_required, status, switchboard_condition, updated_at";
+
 /** How every lapsed 30-day-window next-action line starts (thirty-day-rule.core `repeatPiesaNextAction`). */
 export const REPEAT_PIESA_LAPSED = "New PIESA needed: 30-day window lapsed";
 /** The non-owner's version of that line: same meaning, no amount, no payer. */

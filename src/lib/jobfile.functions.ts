@@ -11,7 +11,11 @@ export const getJobFile = createServerFn({ method: "POST" }).middleware([require
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     const { buildJobFile } = await import("./jobfile.server");
-    return buildJobFile(data.jobId, role as never);
+    // Jo 28 Oct 2026 (spec rule 3): a trade login that isn't the owner of the job's business for its role gets only
+    // known, price-free system lines in the timeline (event summaries can carry amounts, e.g. the approved fixes total).
+    const trade = role === "electrician" || role === "installer";
+    const priceFree = trade && !(await (await import("./crew-no-price.server")).ownsJobBusiness(data.jobId, context.userId, role));
+    return buildJobFile(data.jobId, role as never, { priceFree });
   });
 
 export const getJobFileHeader = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

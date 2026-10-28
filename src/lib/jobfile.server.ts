@@ -54,7 +54,7 @@ async function withAttachmentLinks<T extends { id: string; attachmentFiles?: { n
   return out;
 }
 
-export async function buildJobFile(jobId: string, role: Role) {
+export async function buildJobFile(jobId: string, role: Role, opts: { priceFree?: boolean } = {}) {
   const [src, { data: job }] = await Promise.all([
     loadSources(jobId),
     admin.from("jobs").select("owners(user_id), created_at, stage, updated_at").eq("id", jobId).single(),
@@ -69,7 +69,10 @@ export async function buildJobFile(jobId: string, role: Role) {
   const name = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? "User"]));
   const isAdminUser = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
   const correspondence = buildCorrespondence(src.messages, src.comms, (id) => (id && isAdminUser.has(id) ? "admin" : null));
-  const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs, proposals: src.proposals });
+  const built = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs, proposals: src.proposals });
+  // Non-owner trade login (crew / electrician staff): workflow summaries only from the known price-free list.
+  const { timelineForViewer } = await import("./crew-no-price.core");
+  const timeline = opts.priceFree ? built.filter((t) => t.source !== "workflow" || timelineForViewer([t], 1).length > 0) : built;
   const ownerUser = (job?.owners as { user_id: string | null } | null)?.user_id ?? null;
   const ROLE_NAME: Record<string, string> = { electrician: "Electrician", installer: "Installer", property_manager: "Property manager" };
   const roleOf = (id: string | null): string => {

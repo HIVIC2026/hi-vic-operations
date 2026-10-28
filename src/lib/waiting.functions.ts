@@ -20,10 +20,15 @@ export const getJobWaiting = createServerFn({ method: "POST" }).middleware([requ
       admin.from("workflow_settings").select("due_trade_reply_warn_hours, due_trade_reply_exception_hours, due_owner_reminder_days, due_owner_flag_days").limit(1).maybeSingle(),
     ]);
     if (!job) throw new Error("Job not found.");
+    // Jo 28 Oct 2026 (spec rule 3): office-typed hold / review text never reaches a trade login that isn't the owner of
+    // the job's business for its role (the sentence repeats it).
+    const trade = role === "electrician" || role === "installer";
+    const facts = trade && !(await (await import("./crew-no-price.server")).ownsJobBusiness(data.jobId, context.userId, role))
+      ? (await import("./crew-no-price.core")).overviewForViewer(job, false) : job;
     const bizIds = (asg ?? []).map((a) => a.business_id).filter(Boolean) as string[];
     const { data: biz } = bizIds.length ? await admin.from("businesses").select("id, name, trading_name").in("id", bizIds) : { data: [] };
     const nameFor = (r: string) => { const a = (asg ?? []).find((x) => x.role === r); const b = (biz ?? []).find((x) => x.id === a?.business_id); return b ? b.trading_name || b.name : null; };
-    const w = waitingOn(job, {
+    const w = waitingOn(facts, {
       now: new Date(), stageEnteredAt: ev?.[0]?.created_at ?? null,
       electricianName: nameFor("electrician"), installerName: nameFor("installer"),
       proposals: (props ?? []) as Proposal[], bookings: (books ?? []) as BookingFact[],

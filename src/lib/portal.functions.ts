@@ -421,14 +421,20 @@ export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).mid
     return { ok: true };
   });
 
+// Jo 28 Oct 2026 (spec rule 3): electrician staff add Other items with no price (a price they send is refused); the
+// item waits as `needs_office_pricing` for the electrician business owner or the office. Owner and office unchanged.
 export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, description: z.string().trim().min(2).max(300), quantity: z.number().positive().max(1000), unitPriceIncGst: z.number().min(0).max(100000), explanation: z.string().trim().min(5).max(2000) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, description: z.string().trim().min(2).max(300), quantity: z.number().positive().max(1000), unitPriceIncGst: z.number().min(0).max(100000).optional(), explanation: z.string().trim().min(5).max(2000) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const fixItems = await import("./electrician-fix-items.server");
+    const canPrice = await fixItems.canPriceFixItems(data.jobId, context.userId, role);
+    if (!canPrice && data.unitPriceIncGst !== undefined) throw new WorkflowError(fixItems.STAFF_PRICE_REFUSED);
+    if (canPrice && data.unitPriceIncGst === undefined) throw new WorkflowError("Enter the price inc GST.");
     const stage = await getStage(data.jobId);
-    if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage))
+    if (!fixItems.FIX_ITEM_STAGES.includes(stage))
       throw new WorkflowError("Other items can only be added before the owner approves electrical fixes.");
-    await admin.from("rectification_items").insert({ job_id: data.jobId, description: data.description, quantity: data.quantity, is_other: true, other_unit_price_inc_gst: data.unitPriceIncGst, explanation: data.explanation, added_by: context.userId });
+    await admin.from("rectification_items").insert({ job_id: data.jobId, description: data.description, quantity: data.quantity, is_other: true, other_unit_price_inc_gst: canPrice ? data.unitPriceIncGst! : null, needs_office_pricing: !canPrice, explanation: data.explanation, added_by: context.userId });
     await logEvent(data.jobId, context.userId, "rectification_other_added", `Other electrical fixes item added: ${data.description}`, { explanation: data.explanation });
     if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(data.jobId, context.userId);
     return { ok: true };
@@ -437,14 +443,23 @@ export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([r
 export const getAssignedRecRates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: assigned } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
     if (!assigned?.business_id) return [];
     const { data: card } = await admin.from("rate_cards").select("id").eq("business_id", assigned.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
     if (!card) return [];
     const { data: rates, error } = await admin.from("rate_card_items").select("code,description,unit,display_unit,unit_price_ex_gst").eq("rate_card_id", card.id).eq("category", "electrical").like("code", "CUSTOM_%").order("sort");
     if (error) throw new WorkflowError("Approved REC rates could not be loaded.");
-    return rates ?? [];
+    // Jo 28 Oct 2026 (spec rule 3): electrician staff get the rows without the rate.
+    return (await import("./electrician-fix-items.server")).ratesForViewer(data.jobId, context.userId, role, rates ?? []);
+  });
+
+/** The electrician job page's fix items: staff (not the owner of the job's electrician business) get no price. */
+export const getElectricianFixItems = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    return (await import("./electrician-fix-items.server")).fixItemsFor(data.jobId, context.userId, role);
   });
 
 export const addApprovedRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -532,11 +547,23 @@ export const syncPendingMittiAssessments = createServerFn({ method: "POST" }).mi
 export const priceRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ itemId: uuid, unitPriceIncGst: z.number().min(0).max(100000), reason: z.string().trim().min(5).max(2000) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { data: it } = await admin.from("rectification_items").select("job_id,is_other,description").eq("id", data.itemId).single();
+    // Jo 28 Oct 2026 (spec rule 3): the office as before; the owner of the job's electrician business may price an item
+    // still waiting for a price (a staff item) before the owner approves the fixes. Staff never.
+    const office = await requireAdmin(context.supabase).then(() => true, () => false);
+    const { data: it } = await admin.from("rectification_items").select("job_id,is_other,description,needs_office_pricing").eq("id", data.itemId).single();
+    if (!office) {
+      if (!it) throw new WorkflowError("Not found");
+      const role = await requireJobRole(context.supabase, it.job_id, ["electrician"]);
+      const fixItems = await import("./electrician-fix-items.server");
+      if (!(await fixItems.canPriceFixItems(it.job_id, context.userId, role))) throw new WorkflowError(fixItems.STAFF_PRICING_REFUSED);
+      if (!it.needs_office_pricing) throw new WorkflowError("This item already has a price.");
+      if (!fixItems.FIX_ITEM_STAGES.includes(await getStage(it.job_id))) throw new WorkflowError("Items can only be priced before the owner approves electrical fixes.");
+    }
     if (!it?.is_other) throw new WorkflowError("Only manual items can be priced here.");
     await admin.from("rectification_items").update({ other_unit_price_inc_gst: data.unitPriceIncGst, needs_office_pricing: false }).eq("id", data.itemId);
-    await logEvent(it.job_id, context.userId, "rectification_item_priced", `Office priced: ${it.description}`, { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason });
+    await logEvent(it.job_id, context.userId, "rectification_item_priced", office ? `Office priced: ${it.description}` : `Business owner priced: ${it.description}`, { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason });
+    // Same as adding an item: while the owner is deciding on the fixes quote, the owner's price rebuilds it.
+    if (!office && (await getStage(it.job_id)) === "awaiting_owner_rectification_approval") await generateRectificationQuote(it.job_id, context.userId);
     return { ok: true };
   });
 

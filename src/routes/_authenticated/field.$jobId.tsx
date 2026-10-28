@@ -43,7 +43,9 @@ import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
-import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment } from "@/lib/portal.functions";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, getElectricianFixItems, recordPiesa, removeRectItem, saveAssessment } from "@/lib/portal.functions";
+import { ASSESSMENT_PAGE_COLUMNS } from "@/lib/crew-no-price.core";
+import { PriceItemForm } from "@/components/portal/mitti";
 import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -200,7 +202,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const mittiInvited = useMittiInvited();
   const save = useAction(saveAssessment);
   const complete = useAction(completeAssessment);
-  const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle()).data });
+  const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select(ASSESSMENT_PAGE_COLUMNS).eq("job_id", jobId).maybeSingle()).data });
   const [f, setF] = useState<A>({});
   const [saved, setSaved] = useState<string | null>(null);
   useEffect(() => { if (a) setF(a as unknown as A); }, [a]);
@@ -271,7 +273,11 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   const add = useAction(addOtherRectItem);
   const addApproved = useAction(addApprovedRectItem);
   const remove = useAction(removeRectItem);
-  const { data } = useQuery({ queryKey: ["rect", jobId], queryFn: async () => (await supabase.from("rectification_items").select("*").eq("job_id", jobId).neq("status", "removed")).data ?? [] });
+  // Jo 28 Oct 2026 (spec rule 3): staff (not the owner of the job's electrician business) get no price from the server,
+  // see no price and get no price field; their items wait for the owner or the office to price them.
+  const { data: fix } = useQuery({ queryKey: ["electrician-fix-items", jobId], queryFn: () => getElectricianFixItems({ data: { jobId } }) });
+  const data = fix?.items;
+  const canPrice = fix?.canPrice === true;
   const { data: approvedRates = [] } = useQuery({ queryKey: ["assigned-rec-rates", jobId], queryFn: () => getAssignedRecRates({ data: { jobId } }) });
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
   const [approved, setApproved] = useState({ code: "", quantity: "1" });
@@ -280,13 +286,13 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
       {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved electrical fixes item added")}>Add</Button></div></div>}
       <p className="mb-2 text-xs text-sub">Standard items are priced from your answers.</p>
       <ul className="mb-3 space-y-1 text-sm">
-        {data?.map((i) => <li key={i.id} className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</li>)}
+        {data?.map((i) => <li key={i.id}><div className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{canPrice && i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</div>{canPrice && editable && i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}
       </ul>
       {editable && (
-        <form className="grid gap-2" onSubmit={async (e) => { e.preventDefault(); await add({ jobId, description: o.description, quantity: Number(o.quantity), unitPriceIncGst: Number(o.price), explanation: o.explanation }, "Item added"); setO({ description: "", quantity: "1", price: "", explanation: "" }); }}>
+        <form className="grid gap-2" onSubmit={async (e) => { e.preventDefault(); await add({ jobId, description: o.description, quantity: Number(o.quantity), ...(canPrice ? { unitPriceIncGst: Number(o.price) } : {}), explanation: o.explanation }, "Item added"); setO({ description: "", quantity: "1", price: "", explanation: "" }); }}>
           <div className="text-sm font-medium">Add an "Other" item</div>
           <Input className="h-12" placeholder="Description" value={o.description} onChange={(e) => setO({ ...o, description: e.target.value })} required />
-          <div className="grid grid-cols-2 gap-2"><Input className="h-12" type="number" placeholder="Qty" value={o.quantity} onChange={(e) => setO({ ...o, quantity: e.target.value })} required /><Input className="h-12" type="number" step="0.01" placeholder="Price inc GST" value={o.price} onChange={(e) => setO({ ...o, price: e.target.value })} required /></div>
+          <div className="grid grid-cols-2 gap-2"><Input className="h-12" type="number" placeholder="Qty" value={o.quantity} onChange={(e) => setO({ ...o, quantity: e.target.value })} required />{canPrice && <Input className="h-12" type="number" step="0.01" placeholder="Price inc GST" value={o.price} onChange={(e) => setO({ ...o, price: e.target.value })} required />}</div>
           <Textarea placeholder="Why is this needed?" value={o.explanation} onChange={(e) => setO({ ...o, explanation: e.target.value })} required />
           <Button type="submit" size="field" variant="outline">Add item</Button>
         </form>
