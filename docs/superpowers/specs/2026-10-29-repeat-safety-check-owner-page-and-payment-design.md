@@ -38,7 +38,7 @@ install deposit instead. Card payments for it only count at the next Xero sync.
 1. **Its own money.** The repeat step is taken out of the running total that the other steps use.
    - Money credited to the repeat check = the money paid since the owner accepted it, up to its price
      (the same "paid since acceptance" rule the repeat gate already uses, `paid_before_cents` on the accepted
-     event). Once the repeat paid event is recorded, the full price is credited.
+     event). Only money that has actually arrived since acceptance is ever credited, even once the paid event is recorded (final review, 29 Oct: crediting the full price on "Record paid" could ask an owner to re-pay steps already paid).
    - The repeat step shows **paid** when the repeat paid event is recorded for the current lapsed deadline
      (the same fact the booking gate uses, so the page and the gate always agree). Before that it shows
      owing the price less what's been credited.
