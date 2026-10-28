@@ -1,6 +1,7 @@
 // Resend delivery updates: pure rules. Signature check follows Svix (what Resend uses), event mapping, plain bounce words.
 import { createHmac } from "node:crypto";
 import { OUR_DOMAINS, type MailMessage } from "./outlook-correspondence.core";
+import { isMailSystemSender } from "./owner-email-presentation.core";
 
 export type DeliveryResult = "delivered" | "bounced";
 
@@ -39,8 +40,10 @@ export function resendEventResult(evt: { type: string; data?: { email_id?: strin
   return null;
 }
 
-/** An Outlook "couldn't be delivered" notice: inbound, from the mail system or with a bounce-style subject. */
+/** An Outlook "couldn't be delivered" notice: from the mail system (any direction — Exchange Online sends these from our
+ *  own domain, which normalises as outbound), or inbound with a mail-system sender or a bounce-style subject. */
 export function isBounceNotice(m: MailMessage): boolean {
+  if (isMailSystemSender(m.from)) return true;
   if (m.direction !== "inbound") return false;
   if (/mailer-daemon|postmaster|microsoftexchange/i.test(m.from ?? "")) return true;
   return /^\s*(undeliverable:|delivery status notification \(failure\)|mail delivery failed)/i.test(m.subject ?? "");

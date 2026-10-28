@@ -49,7 +49,17 @@ test("Exchange bounce notice is detected, owner's out of office is not", () => {
   expect(isBounceNotice(mail({ from: "owner@example.com", subject: "Out of office" }))).toBe(false);
   expect(isBounceNotice(mail({ from: "a@b.com", subject: "Mail delivery failed: returning message" }))).toBe(true);
   expect(isBounceNotice(mail({ from: "MAILER-DAEMON@x.com", subject: "hi" }))).toBe(true);
-  expect(isBounceNotice({ ...notice, direction: "outbound" })).toBe(false);
+  // An ordinary sender writing an NDR-style subject outbound (e.g. our own forward) is not a notice.
+  expect(isBounceNotice(mail({ direction: "outbound", from: "info@homeinsulationvictoria.com.au", subject: "Undeliverable: RE: your quote" }))).toBe(false);
+});
+test("final review 2: Exchange notices from our own domain count even though they normalise as outbound", () => {
+  for (const from of ["postmaster@homeinsulationvictoria.com.au", "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@homeinsulationvictoria.com.au", "mailer-daemon@homeinsulationvictoria.com.au"]) {
+    const m = { ...notice, from: from.toLowerCase(), direction: "outbound" as const };
+    expect(isBounceNotice(m)).toBe(true);
+    expect(bouncedAddress(m)).toBe("owner@example.com");
+  }
+  // A person whose name merely contains "postmaster" is not the mail system.
+  expect(isBounceNotice(mail({ direction: "outbound", from: "jo.postmaster@homeinsulationvictoria.com.au", subject: "Hi" }))).toBe(false);
 });
 test("bouncedAddress skips our addresses and the sender", () => {
   expect(bouncedAddress(notice)).toBe("owner@example.com");

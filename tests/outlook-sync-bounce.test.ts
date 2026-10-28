@@ -73,3 +73,20 @@ test("our own reply read back from Sent Items adds no second row", practice(asyn
   assert.equal(Number((await h.db.query(`SELECT count(*)::int n FROM job_communications`)).rows[0]!.n), 1);
   assert.equal(counts.stored, 0);
 }));
+
+// Final review 2: Exchange Online writes its notices from postmaster@ / MicrosoftExchange…@ at OUR domain, so they
+// normalise as "outbound". They must still be matched, and never stored on a job as an owner email.
+for (const sender of ["postmaster@homeinsulationvictoria.com.au", "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@homeinsulationvictoria.com.au"]) {
+  test(`a bounce notice from ${sender.split("@")[0]} at our own domain is matched and never stored`, practice(async (h) => {
+    await storeSentReply(h, daysAgo(1));
+    const calls = recordCalls(h);
+    const counts = h.counts();
+    await h.server.processMessages([notice(`notice-own-${sender.length}`, { from: { emailAddress: { address: sender } }, sentDateTime: daysAgo(0) })], TEST_MAILBOX, counts, WINDOW);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].providerMessageId, SENT_ID);
+    assert.equal(calls[0].result, "bounced");
+    assert.equal(archiveRequests(h).length, 1);
+    assert.equal(counts.stored, 0);
+    assert.equal(Number((await h.db.query(`SELECT count(*)::int n FROM job_communications`)).rows[0]!.n), 1);
+  }));
+}
