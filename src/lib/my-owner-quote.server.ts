@@ -13,10 +13,11 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string) {
   const { installerQuoteLine, quoteLineForViewer } = await import("./installer-quote-status.core");
   // Decision 278: on the installer's own jobs the figures are the business owner's — a team member gets the status only.
   // Jo 28 Oct 2026: crew never see a price, so a crew member's status line never carries the not-signed-up note ($349).
-  // (On our leads the viewer is only looked up when the line would differ for crew.)
+  // (On our leads the viewer is only looked up when the line would differ for crew.) "Owner" = owner of the installer
+  // business on THIS job (crew-no-price.server), not of the first business the person belongs to.
   const raw = installerQuoteLine(a);
-  const ctx = a.channel !== "hivic_sourced" || quoteLineForViewer(raw, false) !== raw ? await (await import("./trade-view.server")).tradeContext(userId).catch(() => null) : null;
-  const boss = ctx?.boss === true;
+  const boss = a.channel !== "hivic_sourced" || quoteLineForViewer(raw, false) !== raw ? await (await import("./crew-no-price.server")).ownsJobBusiness(jobId, userId, "installer").catch(() => false) : false;
+  const ctx = { boss };
   const line = quoteLineForViewer(raw, boss);
   // Jo 24 Oct: on our leads the installer sees the quote's status only — never the owner's price or our margin.
   if (a.channel === "hivic_sourced") return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line };

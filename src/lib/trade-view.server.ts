@@ -8,6 +8,7 @@ import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
+import { nextActionForViewer } from "./crew-no-price.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
 
@@ -113,8 +114,10 @@ export async function tradeHome(userId: string) {
   const paidThisMonth = money.filter((r) => r.state.kind === "paid" && new Date(r.state.on) >= m0).reduce((t, r) => t + (r.amount ?? 0), 0);
   const offerList = (offers ?? []).filter((o) => myOffer(o.kind))
     .map((o) => { const s = (o.summary ?? {}) as { suburb?: string | null; approx_area_m2?: number | null }; return { id: o.id, kind: o.kind, suburb: s.suburb ?? null, areaM2: s.approx_area_m2 ?? null, expiresAt: o.expires_at }; });
+  // Jo 28 Oct 2026: non-owners get only allow-listed next-action text (crew-no-price.core). Every job here is held
+  // through this business (`assignmentQuery`), so `c.boss` is the owner of the business on that job.
   const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Arranging the Ready Check time", ready_check_complete: "Office checking your Ready Check", on_hold: "On hold (office review)" };
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!.place, status: (j as { next_action?: string | null }).next_action?.startsWith("Needs finishing") ? (j as { next_action: string }).next_action : STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j) }));
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!.place, status: (j as { next_action?: string | null }).next_action?.startsWith("Needs finishing") ? nextActionForViewer((j as { next_action: string }).next_action, c.boss)! : STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j) }));
   // Done: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, source, terminal reason) — no owner, address, contact or price, and no reopened access.
   const quoteLine = new Map<string, string>();

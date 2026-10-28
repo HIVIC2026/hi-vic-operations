@@ -330,14 +330,15 @@ export function InstallerFinalDeclaration({ jobId }: { jobId: string }) {
   const a = data.current as Any;
   if (a?.installer_signed_at) return <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Your part of the rebate form is signed · {ASSIGNMENT_LABEL[a.status as AssignmentStatus] ?? a.status}</p>;
   if (!data.installationCompleted) return <p className="text-sm text-muted-foreground">Once you mark the installation complete, sign your part of the rebate form (Section 3 Part B) here.</p>;
-  const prep = data.veecPrep as { blockers: string[] } | null;
-  const notReady = a ? null : prep?.blockers?.length ? prep.blockers : data.finalBlockers.length ? data.finalBlockers : null;
+  // Jo 28 Oct 2026: crew get no price lines; `formPending` keeps Sign off while the office is still finishing the form.
+  const prep = data.veecPrep as { blockers: string[]; formPending?: boolean } | null;
+  const notReady = a ? null : prep?.blockers?.length || prep?.formPending ? prep.blockers : data.finalBlockers.length ? data.finalBlockers : null;
   return (
     <div className="space-y-3 text-sm">
       <p className="font-medium">Sign your part of the rebate form (Section 3 Part B – declaration by lead installer)</p>
       <Official title="Part B: Declaration by lead installer" body={INSTALLER_DECLARATION} />
       {a && <p>Installed: {a.installed_product} · {a.installed_area_m2} m²</p>}
-      {notReady ? <div className="rounded border border-warning bg-warning-soft p-3"><p className="font-medium">Home Insulation Victoria is finishing the form details first:</p><ul className="list-disc pl-5">{notReady.map((b) => <li key={b}>{b}</li>)}</ul></div> : <>
+      {notReady ? <div className="rounded border border-warning bg-warning-soft p-3"><p className="font-medium">Home Insulation Victoria is finishing the form details first{notReady.length ? ":" : "."}</p>{notReady.length > 0 && <ul className="list-disc pl-5">{notReady.map((b) => <li key={b}>{b}</li>)}</ul>}</div> : <>
         <label className="flex min-h-12 items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={ok} onCheckedChange={(x) => setOk(!!x)} /> I make the declaration above.</label>
         <Input className="h-12" placeholder="Type your full name to sign" value={sig} onChange={(e) => setSig(e.target.value)} />
         <Button size="field" className="w-full" disabled={!ok || sig.trim().length < 2} onClick={() => signFinal({ jobId, party: "installer", signatureName: sig }, "Signed")}>Sign as lead installer</Button>

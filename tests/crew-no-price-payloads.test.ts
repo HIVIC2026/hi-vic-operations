@@ -60,7 +60,7 @@ mock.module("../src/lib/job-status.server", () => ({ statusFactsFor: async () =>
 mock.module("../src/lib/installer-quote-status.server", () => ({
   loadInstallerQuotes: async () => new Map([[STUCK, { applies: true, sent: false, accepted: false, declined: false, held: true, formCompleted: true, electricianNotOnboarded: { name: "TEST Sparky" } }]]),
 }));
-mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrices: async () => new Map([[STUCK, { price_inc_gst: 2500 }]]) }));
+mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrices: async () => new Map([[STUCK, { price_inc_gst: 2500 }]]), readInstallerPrice: async () => null }));
 
 const sbAs = (role: string) => ({ auth: { getUser: async () => ({ data: { user: { user_metadata: {} } } }) }, rpc: async () => ({ data: role, error: null }) }) as never;
 
@@ -127,9 +127,9 @@ describe("job page overview (jobOverviewFor = bundle `overview` and getJobOvervi
       noPrice(row);
     }
     expect((await jobOverviewFor(sbAs("installer"), CREW, LAPSED)).row.next_action).toBe("Repeat electrical safety check needed — the office will arrange it");
-    // Price-free text is kept as it was.
+    // Allow-listed system text is kept as it was; every hold reason is the set line (fix round 4).
     expect((await jobOverviewFor(sbAs("installer"), CREW, STUCK)).row.next_action).toBe("Needs finishing: your price on the job page");
-    expect((await jobOverviewFor(sbAs("installer"), CREW, STUCK)).row.hold_reason).toBeNull();
+    expect((await jobOverviewFor(sbAs("installer"), CREW, STUCK)).row.hold_reason).toBe("On hold — the office will be in touch");
   });
   test("crew without the contact release (own business job, and another business's job): still no price", async () => {
     T = tables(); REL = false;
@@ -169,16 +169,15 @@ describe("job page overview (jobOverviewFor = bundle `overview` and getJobOvervi
 });
 
 describe("worker link page (/w/$token) never shows a stored price", () => {
-  test("next_action goes through the crew rule", () => {
+  // Fix round 4: allow-list instead of a "$" block-list (tests/crew-no-price-allowlist.test.ts drives the real page data).
+  test("next_action goes through the allow-list", () => {
     const src = readFileSync("src/lib/worker-links.functions.ts", "utf8");
-    expect(src).toContain("next_action: jobTextForViewer(j.next_action, false)");
+    expect(src).toContain("next_action: nextActionForViewer(j.next_action, false)");
   });
-  test("timeline drops event summaries with a price (e.g. the bulk 'Installer quoted $… inc GST')", async () => {
-    const { hasPrice } = await import("../src/lib/crew-no-price.core");
-    expect(readFileSync("src/lib/worker-links.functions.ts", "utf8")).toContain("timeline: (events ?? []).filter((e) => !hasPrice(e.summary))");
-    expect(hasPrice("Installer quoted $2500 inc GST")).toBe(true);
-    expect(hasPrice("Repeat PIESA 349 inc GST")).toBe(true);
-    expect(hasPrice("Ready Check booked for 3 Nov")).toBe(false);
+  test("timeline keeps known system summaries only (e.g. the bulk 'Installer quoted $… inc GST' is dropped)", async () => {
+    const { timelineForViewer } = await import("../src/lib/crew-no-price.core");
+    expect(readFileSync("src/lib/worker-links.functions.ts", "utf8")).toContain("timeline: timelineForViewer(events ?? [])");
+    expect(timelineForViewer([{ summary: "Installer quoted $2500 inc GST" }, { summary: "Repeat PIESA 349 incl GST" }, { summary: "Ready Check completed" }])).toEqual([{ summary: "Ready Check completed" }]);
   });
 });
 
@@ -198,9 +197,11 @@ describe("rebate form payload (getAssignment) for the installer side", () => {
     expect(ready.current).toEqual({ id: "a1", status: "awaiting_installer_signature", installer_signed_at: null, installed_product: "Bradford Gold R5", installed_area_m2: 120, final_facts: null });
     expect(ready.installationCompleted).toBe(true);
     expect(ready.veecPrep!.blockers).toEqual([]);
-    const blocked = assignmentForInstaller("installer", null, common(priceLabels.map((l) => `Missing: ${l}`).concat("Missing: Date completed")), false);
+    const blocked = assignmentForInstaller("installer", null, common(priceLabels.map((l) => `Missing: ${l}`).concat("Missing: Date installation was completed", "Some other note")), false);
     noPrice(blocked);
-    expect(blocked.veecPrep!.blockers).toEqual(["Price details", "Missing: Date completed"]);
+    // Fix round 4 (Jo 28 Oct): no "Price details" line at all; the price-free field line is kept; Sign stays off.
+    expect(blocked.veecPrep!.blockers).toEqual(["Missing: Date installation was completed"]);
+    expect(blocked.veecPrep!.formPending).toBe(true);
   });
   test("owner (business owner): as before — no amounts, form wording kept", async () => {
     const { assignmentForInstaller } = await import("../src/lib/crew-no-price.core");
@@ -211,7 +212,7 @@ describe("rebate form payload (getAssignment) for the installer side", () => {
     expect(JSON.stringify(boss.current)).not.toMatch(/4201|798/);
     expect(boss.agreement).toBeNull(); expect(boss.consent).toBeNull(); expect(boss.history).toEqual([]);
   });
-  test("getAssignment uses it for installers (boss from tradeContext); office/owner branch unchanged", () => {
+  test("getAssignment uses it for installers (owner of the job's business); office/owner branch unchanged", () => {
     const src = readFileSync("src/lib/portal.functions.ts", "utf8");
     expect(src).toContain("return assignmentForInstaller(role, cur, common, boss);");
     expect(src).toContain("return { role, agreement, consent: consentView, current: cur, history: history ?? [], variations: v ?? [], ...common };");

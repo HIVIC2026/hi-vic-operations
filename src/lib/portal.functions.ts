@@ -1525,7 +1525,8 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
     if (role === "installer") {
       // Trades never see prices, consent contact details or consumer signature evidence. Jo 28 Oct 2026: the rebate
       // form's amounts are the business owner's only — crew also get no form wording (crew-no-price.core).
-      const boss = (await (await import("./trade-view.server")).tradeContext(context.userId))?.boss === true;
+      // "Owner" = owner of the installer business on THIS job (crew-no-price.server).
+      const boss = await (await import("./crew-no-price.server")).ownsJobBusiness(data.jobId, context.userId, "installer");
       return assignmentForInstaller(role, cur, common, boss);
     }
     return { role, agreement, consent: consentView, current: cur, history: history ?? [], variations: v ?? [], ...common };

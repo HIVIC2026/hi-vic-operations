@@ -81,6 +81,7 @@ export function memoryPostgrest(tables: Tables) {
         update(p: Row) { op = "update"; payload = p; wantRows = false; return b; },
         eq(c: string, v: unknown) { filters.push((r) => get(table, r, c) === v); return b; },
         neq(c: string, v: unknown) { filters.push((r) => get(table, r, c) !== v); return b; },
+        like(c: string, p: string) { const re = new RegExp(`^${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`, "s"); filters.push((r) => re.test(String(get(table, r, c) ?? ""))); return b; },
         in(c: string, v: unknown[]) { filters.push((r) => v.includes(get(table, r, c))); return b; },
         is(c: string, v: null) { if (v !== null) throw new Error("memory-postgrest: is() only with null"); filters.push((r) => get(table, r, c) == null); return b; },
         gte(c: string, v: unknown) { filters.push((r) => cmp(get(table, r, c), v) >= 0); return b; },

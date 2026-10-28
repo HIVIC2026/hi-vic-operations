@@ -114,7 +114,8 @@ let stuck = true, boss = false, channel = "installer_sourced";
 mock.module("../src/lib/installer-quote-status.server", () => ({
   loadInstallerQuote: async () => ({ applies: true, channel, quote: { id: "q1", quote_items: [], subtotal_inc_gst: 1, veec_discount_inc_gst: 0, customer_total_inc_gst: 1 }, ...STATES[stuck ? "stuck" : "held"] }),
 }));
-mock.module("../src/lib/trade-view.server", () => ({ tradeContext: async () => ({ boss }) }));
+// Fix round 4: "owner" is the owner of the business on THIS job (crew-no-price.server), not tradeContext.
+mock.module("../src/lib/crew-no-price.server", () => ({ ownsJobBusiness: async () => boss }));
 mock.module("../src/lib/office-quote-review.server", () => ({ officeQuoteBlockers: async () => [] }));
 const { myOwnerQuoteFor } = await import("../src/lib/my-owner-quote.server");
 const sb = { rpc: async () => ({ data: true, error: null }) };

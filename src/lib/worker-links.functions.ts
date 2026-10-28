@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, logEvent } from "./workflow.server";
 import { myBusinesses, requireMember } from "./pilot.server";
 import { WORKER_COLS, isAdminCaller, jobBusinesses } from "./worker-links.server";
-import { hasPrice, jobTextForViewer } from "./crew-no-price.core";
+import { nextActionForViewer, timelineForViewer } from "./crew-no-price.core";
 import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
 
 const uuid = z.string().uuid();
@@ -168,7 +168,8 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     // Speed (decision 280): every read here depends only on the link — one round trip, not three (this page polls every 20s).
     const [{ data: j }, { data: events }, { data: msgs }, { data: a }, { data: m }, { data: books }, { data: mb }, { data: rels }, { visitIsCurrent }] = await Promise.all([
       admin.from("job_overview").select("job_number, stage, next_action, property_address, owner_name, piesa_date, install_deadline, days_remaining, life_support").eq("id", l.job_id).maybeSingle(),
-      admin.from("workflow_events").select("summary, created_at").eq("job_id", l.job_id).eq("internal", false).order("created_at", { ascending: false }).limit(15),
+      // Filtered to known system lines below, THEN the newest 15 (so the page still shows up to 15).
+      admin.from("workflow_events").select("summary, created_at").eq("job_id", l.job_id).eq("internal", false).order("created_at", { ascending: false }).limit(500),
       admin.from("messages").select("id, body, created_at, sender_label, worker_id, sender_id, profiles(full_name)").eq("job_id", l.job_id).eq("internal", false).order("created_at"),
       admin.from("assessments").select("external_mitti_id").eq("job_id", l.job_id).maybeSingle(),
       admin.from("ceiling_measurements").select("external_id, external_source").eq("job_id", l.job_id).eq("is_current", true).maybeSingle(),
@@ -184,12 +185,13 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
-      // Jo 28 Oct 2026: link holders are staff, never shown a price — the stored next action can hold one (repeat PIESA).
-      job: { ...j, next_action: jobTextForViewer(j.next_action, false), owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      // Jo 28 Oct 2026: link holders are staff (installer crew / electrician staff), never shown a price — no office-typed
+      // next action, only allow-listed system text (crew-no-price.core). Messages typed by people are not filtered.
+      job: { ...j, next_action: nextActionForViewer(j.next_action, false), owner_first_name: firstName(j.owner_name), owner_name: undefined },
       ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
       mittiUrl: mittiId ? (await import("./mitti-link.core")).mittiFormUrl(mittiId) : null,
       bookings: books ?? [],
-      timeline: (events ?? []).filter((e) => !hasPrice(e.summary)), // e.g. "Installer quoted $… inc GST" is not for staff
+      timeline: timelineForViewer(events ?? []), // known system summaries only, then the newest 15
       messages: (msgs ?? []).map((x) => ({ id: x.id, body: x.body, created_at: x.created_at, mine: x.worker_id === l.worker_id, from: x.sender_label ?? (x.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria" })),
     };
   });

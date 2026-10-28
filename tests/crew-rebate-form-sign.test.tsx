@@ -1,4 +1,4 @@
-// Jo 28 Oct 2026 (spec rule 3, fix round 3): the rebate form's amounts are the business owner's only. The lead installer
+// Jo 28 Oct 2026 (spec rule 3, fix rounds 3–4): the rebate form's amounts are the business owner's only. The lead installer
 // — who may be crew — still signs Section 3 Part B from the job page. Real `InstallerFinalDeclaration` in happy-dom, fed
 // the crew payload `getAssignment` now returns (crew-no-price.core `assignmentForInstaller`); only server calls stubbed.
 // Run on its own: bun test tests/crew-rebate-form-sign.test.tsx
@@ -56,12 +56,24 @@ describe("crew lead installer signs Part B with the price-free payload", () => {
     expect(signCalls[0]).toEqual({ jobId: JOB, party: "installer", signatureName: "TEST Crew" });
   });
 
-  test("not ready (price fields still empty): 'Price details' in the list, no $ shown, no Sign button", async () => {
+  // Fix round 4 (Jo 28 Oct): crew don't see a "Price details" line at all.
+  test("not ready (only price fields still empty): no price line at all, no $ shown, no Sign button", async () => {
     payload = crewPayload(priceLabels.map((l) => `Missing: ${l}`), null);
     const v = show();
-    await waitFor(() => v.getByText("Home Insulation Victoria is finishing the form details first:"));
-    expect(v.getByText("Price details")).toBeTruthy();
+    await waitFor(() => v.getByText("Home Insulation Victoria is finishing the form details first."));
+    expect(v.queryByText("Price details")).toBeNull();
+    expect(v.container.querySelector("li")).toBeNull();
     expect(v.container.textContent).not.toContain("$");
+    expect(v.queryByText("Sign as lead installer")).toBeNull();
+  });
+
+  test("not ready (price and other fields empty): only the price-free field is listed", async () => {
+    payload = crewPayload([...priceLabels.map((l) => `Missing: ${l}`), "Missing: Date installation was completed"], null);
+    const v = show();
+    await waitFor(() => v.getByText("Home Insulation Victoria is finishing the form details first:"));
+    expect([...v.container.querySelectorAll("li")].map((l) => l.textContent)).toEqual(["Missing: Date installation was completed"]);
+    expect(v.container.textContent).not.toContain("$");
+    expect(v.container.textContent).not.toContain("Price details");
     expect(v.queryByText("Sign as lead installer")).toBeNull();
   });
 
