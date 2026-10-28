@@ -171,6 +171,26 @@
 - [ ] **Step 4: Run them.** Expected: PASS. Rerun the crew-no-price test files.
 - [ ] **Step 5: Commit.**
 
+### Task 8 (build): Staff finish the PIESA while an item waits for a price
+
+**Files:**
+- Modify: the PIESA completion gate (`completeAssessment` and its blocker for `needs_office_pricing` items, see
+  src/lib/AGENTS.md "Mitti bridge"); the fixes quote send/release check; the electrician job page (staff hint)
+- Test: tests/electrician-staff-complete-unpriced.test.ts
+
+- [ ] **Step 1: Write failing tests.**
+  - Staff complete the PIESA with one unpriced "Other" item: completion succeeds.
+  - The fixes quote is not released or sent while any item is unpriced. Once the owner or office prices it, the
+    normal flow continues.
+  - Staff see exactly "Your business owner or the office will add the price." under their unpriced item.
+  - Staff page data has no price.
+  - Owner and office behaviour is unchanged.
+- [ ] **Step 2: Run them.** Expected: FAIL.
+- [ ] **Step 3: Implement.** Move the "unpriced item" block from PIESA completion to fixes-quote release. Do not
+  change any safety or regulatory gate on the PIESA itself.
+- [ ] **Step 4: Run them.** Expected: PASS. Rerun Task 7's tests and the rectification and fixes tests.
+- [ ] **Step 5: Commit.**
+
 ### Task 6: Bring in main and check the whole branch
 
 - [ ] **Step 1: Merge main.** Run `git fetch origin main && git merge origin/main`, keeping both sides on conflict. Check `git diff origin/main..HEAD --stat` lists only this branch's files.

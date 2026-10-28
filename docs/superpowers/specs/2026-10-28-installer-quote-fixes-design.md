@@ -59,6 +59,14 @@ difficult-access fee Jo never entered.
     touch" (wording approved by Jo 28 Oct).
   - Electrician fixes: electrician staff can still add "Other" fix items with a description, but never see or enter a
     price. The electrician business owner, or the office, sets the price (Jo 28 Oct).
+    - Staff are never asked for a price. After adding an unpriced item they see: "Your business owner or the office
+      will add the price."
+    - Staff can complete the PIESA on site even while their item is unpriced. The fixes quote to the homeowner is not
+      sent until every item has a price (Jo 28 Oct).
+    - The repair-price question is removed from the Mitti PIESA form. Jo does this in Mitti. Fix items from the form
+      arrive unpriced, and the electrician owner or the office prices them in the portal.
+    - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
+      (Jo 28 Oct: "Yes, close it").
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).
