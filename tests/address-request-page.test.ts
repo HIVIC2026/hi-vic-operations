@@ -138,6 +138,26 @@ describe("owner picks their full address", () => {
     expect(searches).toEqual(["12 Wattle"]);
   });
 
+  const notWaiting: [string, () => void][] = [
+    ["office/partner-channel job", () => { tables["jobs"]![0]!["channel"] = "installer_sourced"; }],
+    ["job created before go-live", () => { tables["jobs"]![0]!["created_at"] = "2026-10-19T00:00:00Z"; }],
+    ["job whose street is already full", () => { tables["properties"]![0]!["address_line"] = "7 Gum Rd"; }],
+    ["feature switched off (no go-live date)", () => { tables["workflow_settings"]![0]!["address_request_live_at"] = null; }],
+  ];
+  for (const [name, setUp] of notWaiting) {
+    test(`${name} → unavailable, save refused, address unchanged, no event`, async () => {
+      setUp();
+      const before = { ...tables["properties"]![0]! };
+      expect(await getOwnerAddressState({ data: { token: TOKEN } })).toEqual({ state: "unavailable" });
+      expect(await save("vic")).toEqual({ ok: false, error: LINK_UNAVAILABLE });
+      expect(tables["properties"]![0]).toEqual(before);
+      expect(updates["properties"] ?? []).toEqual([]);
+      expect(updates["owners"] ?? []).toEqual([]);
+      expect(answered()).toHaveLength(0);
+      expect(tables["workflow_events"]).toEqual([]);
+    });
+  }
+
   test("query under 3 characters returns []", async () => {
     expect(await search("12")).toEqual([]);
     expect(await search("  1 ")).toEqual([]);

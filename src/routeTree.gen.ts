@@ -29,6 +29,7 @@ import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticate
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as MyAddressTokenRouteImport } from './routes/my-address.$token'
 import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
@@ -210,6 +211,11 @@ const EstimateTokenRoute = EstimateTokenRouteImport.update({
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyAddressTokenRoute = MyAddressTokenRouteImport.update({
+  id: '/my-address/$token',
+  path: '/my-address/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyEstimateTokenRoute = MyEstimateTokenRouteImport.update({
@@ -699,6 +705,7 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-address/$token': typeof MyAddressTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/notice/$token': typeof NoticeTokenRoute
@@ -799,6 +806,7 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-address/$token': typeof MyAddressTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/notice/$token': typeof NoticeTokenRoute
@@ -905,6 +913,7 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-address/$token': typeof MyAddressTokenRoute
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/notice/$token': typeof NoticeTokenRoute
@@ -1011,6 +1020,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-address/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/notice/$token'
@@ -1111,6 +1121,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-address/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/notice/$token'
@@ -1216,6 +1227,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-address/$token'
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/notice/$token'
@@ -1317,6 +1329,7 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
+  MyAddressTokenRoute: typeof MyAddressTokenRoute
   MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   NoticeTokenRoute: typeof NoticeTokenRoute
@@ -1493,6 +1506,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-address/$token': {
+      id: '/my-address/$token'
+      path: '/my-address/$token'
+      fullPath: '/my-address/$token'
+      preLoaderRoute: typeof MyAddressTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-estimate/$token': {
@@ -2272,6 +2292,7 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
+  MyAddressTokenRoute: MyAddressTokenRoute,
   MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   NoticeTokenRoute: NoticeTokenRoute,

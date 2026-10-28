@@ -23,9 +23,16 @@ async function ownerFullName(jobId: string): Promise<string> {
   return (job?.owners as { full_name?: string | null } | null)?.full_name ?? "";
 }
 
-async function alreadyAnswered(jobId: string): Promise<boolean> {
+/** answered: the owner already gave it. open: this job is really waiting for the owner's address (a website/email
+ *  enquiry since go-live with no street). Anything else is unavailable, so a link holder can never change the address of
+ *  a job that isn't asking for it. */
+async function addressRequestStatus(jobId: string): Promise<"answered" | "open" | "unavailable"> {
   const { loadAddressRequestFacts } = await import("./address-request.server");
-  return !!(await loadAddressRequestFacts(jobId))?.answeredAt;
+  const { addressRequestOpen } = await import("./address-request.core");
+  const facts = await loadAddressRequestFacts(jobId);
+  if (!facts) return "unavailable";
+  if (facts.answeredAt) return "answered";
+  return addressRequestOpen(facts) ? "open" : "unavailable";
 }
 
 export type OwnerAddressState = { state: "open" | "answered" | "unavailable" };
@@ -37,7 +44,7 @@ export const getOwnerAddressState = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data }): Promise<OwnerAddressState> => {
     const jobId = await jobIdForAddressToken(data.token);
     if (!jobId) return { state: "unavailable" };
-    return { state: (await alreadyAnswered(jobId)) ? "answered" : "open" };
+    return { state: await addressRequestStatus(jobId) };
   });
 
 export const searchOwnerAddress = createServerFn({ method: "POST" }).middleware([withRequestMeta])
@@ -57,7 +64,9 @@ export const saveOwnerAddress = createServerFn({ method: "POST" }).middleware([w
     const { LINK_UNAVAILABLE } = await import("./estimatelink.core");
     const jobId = await jobIdForAddressToken(data.token);
     if (!jobId) return { ok: false, error: LINK_UNAVAILABLE };
-    if (await alreadyAnswered(jobId)) return { ok: true };
+    const status = await addressRequestStatus(jobId);
+    if (status === "answered") return { ok: true };
+    if (status !== "open") return { ok: false, error: LINK_UNAVAILABLE };
     const { lookupAddressDetails } = await import("./address-lookup.server");
     const place = await lookupAddressDetails(data.placeId);
     if (!place) return { ok: false, error: "We couldn't find that address. Please try again." };
