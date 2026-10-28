@@ -72,7 +72,7 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
     safety_check: safetyCheckCents,
     fixes: safetyCheckCents + fixesCents,
     install_deposit: safetyCheckCents + fixesCents + installDepositCents,
-    balance: grandTotalCents,
+    balance: quoteTotalCents + fixesCents,
     repeat_safety_check: grandTotalCents,
   };
   return { quoteTotalCents, safetyCheckCents, fixesCents, repeatCents, installDepositCents, balanceCents, grandTotalCents, thresholds };

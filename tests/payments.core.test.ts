@@ -21,7 +21,7 @@ describe("amount maths (cents)", () => {
     expect(p.balanceCents).toBe(339_705);
     expect(p.safetyCheckCents + p.installDepositCents + p.balanceCents).toBe(412_350);
     expect(p.grandTotalCents).toBe(412_350);
-    expect(p.thresholds).toEqual({ safety_check: 34_900, fixes: 34_900, install_deposit: 72_645, balance: 412_350 });
+    expect(p.thresholds).toEqual({ safety_check: 34_900, fixes: 34_900, install_deposit: 72_645, balance: 412_350, repeat_safety_check: 412_350 });
   });
   test("deposit rounds half up to the cent and never breaks the total", () => {
     const p = paymentPlan({ quoteTotalCents: 34_900 + 1_005 }); // remainder $10.05 → 10% = 1.005 → $1.01
