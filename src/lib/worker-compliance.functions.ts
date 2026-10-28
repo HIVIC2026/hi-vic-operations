@@ -11,7 +11,7 @@ const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australi
 const COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, licence_expires_on, piisa_status, piisa_completed_on, piisa_certificate_path, piisa_verified_at, approval_status, removed_at, certification_status, certification";
 
 /** Decision 130: attach each installer's ESC collection notice state so flags, prompts and offer blocking share one rule. */
-async function withNoticeAck<T extends { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; removed_at: string | null }>(rows: T[]) {
+async function withNoticeAck<T extends { id: string; business_id: string; email: string | null; full_legal_name: string; trade_role: string; removed_at: string | null }>(rows: T[]) {
   const map = await (await import("./esc-collection-notice.server")).noticeAckMap(rows);
   return rows.map((w) => ({ ...w, collection_notice_acknowledged: w.trade_role === "installer" ? map.get(w.id) ?? null : null }));
 }
