@@ -235,7 +235,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     releaseIds.length ? import("./spot-release.server").then((m) => m.spotReleaseStates(releaseIds)) : Promise.resolve(new Map()),
     payQuoteIds.length ? byIds("PIESA lines for unpaid payments", payQuoteIds, (chunk, a, b) => admin.from("quote_items").select("quote_id, line_total_inc_gst").in("quote_id", chunk).eq("code", "PIESA").range(a, b)) : Promise.resolve([] as Row[]),
     payInvIds.length ? byIds("deposit overrides", payInvIds, (chunk, a, b) => admin.from("payment_overrides").select("invoice_id").in("invoice_id", chunk).eq("gate", "deposit").range(a, b)) : Promise.resolve([] as Row[]),
-    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
+    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES] as ("piesa_complete" | "installation_scheduling" | "installation_booked")[]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
   ]);
   {
     const { officeItemWithRelease } = await import("./spot-release.core");
@@ -391,12 +391,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (!installQ) continue;
       const rectQ = byAccepted("rectification");
       const installAccepted = String(installQ["accepted_at"]);
-      const paidCents = toCents(inv["total_paid"]);
+      const paidCents = toCents(inv["total_paid"] as number | null);
       const safety = safetyCheckCentsFor({ lines: piesaLinesByQuote.get(String(installQ["id"])) ?? [], settingIncGst: (paySettings?.["safety_check_payment_inc_gst"] ?? null) as number | null }).cents;
-      const fixesCents = fixesCountedCents({ rectTotalCents: toCents(rectQ?.["customer_total_inc_gst"]), rectAcceptedAt: rectQ ? String(rectQ["accepted_at"]) : null, installAcceptedAt: installAccepted });
+      const fixesCents = fixesCountedCents({ rectTotalCents: toCents(rectQ?.["customer_total_inc_gst"] as number | null), rectAcceptedAt: rectQ ? String(rectQ["accepted_at"]) : null, installAcceptedAt: installAccepted });
       const rep = repeatByJob.get(id);
       const repeatCents = rep && rep.price > 0 && rep.acceptedAt && !rep.paid ? toCents(rep.price) : 0;
-      const plan = paymentPlan({ quoteTotalCents: toCents(installQ["customer_total_inc_gst"]), safetyCheckCents: safety, fixesCents, repeatCents });
+      const plan = paymentPlan({ quoteTotalCents: toCents(installQ["customer_total_inc_gst"] as number | null), safetyCheckCents: safety, fixesCents, repeatCents });
       const steps: { key: PaymentStepKey; since: string }[] = [];
       if (!waivedInvoices.has(String(inv["id"])) && paidCents < plan.thresholds.safety_check) steps.push({ key: "safety_check", since: installAccepted });
       if (fixesCents > 0 && rectQ && paidCents < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
