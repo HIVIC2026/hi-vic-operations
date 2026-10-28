@@ -7,7 +7,8 @@ import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { useState, type ReactNode } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
-import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+import { electricianYourJobs } from "@/lib/work-places.core";
 import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
@@ -98,9 +99,10 @@ function MyWork() {
   }
 
   // Electrician view (unchanged apart from the retired installer fact pills).
-  const chasing = data.jobs.filter((j) => j.line && j.line.tone !== "ok");
-  const moving = data.jobs.filter((j) => j.place === "moving");
-  const shown = onlyMoving ? moving : onlyChasing ? chasing : data.jobs;
+  const yourJobs = electricianYourJobs(data.jobs);
+  const chasing = yourJobs.filter((j) => j.line && j.line.tone !== "ok");
+  const moving = yourJobs.filter((j) => j.place === "moving");
+  const shown = onlyMoving ? moving : onlyChasing ? chasing : yourJobs;
   return (
     <TradeShell installer={false} boss={data.boss} test={data.isTest}>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
@@ -108,7 +110,7 @@ function MyWork() {
         {([
           ["Offers", data.offers.length, "Pre Insulation Electrical Safety Assessment (PIESA)"],
           ["Needs me", data.yourMove.length, "Your next actions"],
-          ["Moving automatically", moving.length, "No action needed now"],
+          [ELECTRICIAN_WORK_WORDS.waitingTile, moving.length, ELECTRICIAN_WORK_WORDS.waitingSub],
           ["Coming up", data.coming.length, "Booked visits"],
         ] as [string, number, string][]).map(([k, n, s]) => (
           <div key={k} className="rounded-[18px] border border-line bg-paper p-3.5"><p className="text-xs font-semibold text-estimate-navy">{k}</p><p className="mt-1 font-display text-2xl font-bold">{n}</p><p className="mt-1 text-[11px] text-sub">{s}</p></div>
@@ -147,11 +149,11 @@ function MyWork() {
             <span className="min-w-0 flex-1"><span className="block font-bold">{b.what} · {b.surname}</span><span className="block truncate text-sm text-sub">{b.address}</span></span><ChevronRight className="h-5 w-5" />
           </Link>); })}</div> : <p className={`${card} text-sm`}>Nothing booked yet.</p>}
       </section>
-      {data.jobs.length > 0 && (
+      {yourJobs.length > 0 && (
         <section data-your-jobs>
-          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
-            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing || onlyMoving ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing && !onlyMoving} onClick={() => { setOnlyChasing(false); setOnlyMoving(false); }}>All</button><button data-moving-filter className={btnClass(onlyMoving ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyMoving} onClick={() => { setOnlyMoving(true); setOnlyChasing(false); }}>Moving automatically ({moving.length})</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => { setOnlyChasing(true); setOnlyMoving(false); }}>Needs chasing{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
-          {onlyChasing && !shown.length && <p className={`${card} text-sm`}>Nothing needs chasing right now.</p>}
+          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{yourJobs.length}</span></h2>
+            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing || onlyMoving ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing && !onlyMoving} onClick={() => { setOnlyChasing(false); setOnlyMoving(false); }}>All</button><button data-moving-filter className={btnClass(onlyMoving ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyMoving} onClick={() => { setOnlyMoving(true); setOnlyChasing(false); }}>{ELECTRICIAN_WORK_WORDS.waitingFilter} ({moving.length})</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => { setOnlyChasing(true); setOnlyMoving(false); }}>{ELECTRICIAN_WORK_WORDS.slowFilter}{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
+          {onlyChasing && !shown.length && <p className={`${card} text-sm`}>{ELECTRICIAN_WORK_WORDS.slowEmpty}</p>}
           <div className="space-y-2">{shown.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
               <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>{sourceLabel(j.channel) && <span className="block text-[13px] text-sub">{sourceLabel(j.channel)}</span>}<span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span></span><ChevronRight className="h-5 w-5" />

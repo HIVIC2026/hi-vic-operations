@@ -525,3 +525,12 @@ export function accountEnding(raw: string | null | undefined): string | null {
   const digits = String(raw ?? "").replace(/\D/g, "");
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
+
+/** Electrician My work: plain trade words for jobs that are waiting on someone else (Jo, 28 Oct 2026). */
+export const ELECTRICIAN_WORK_WORDS = {
+  waitingTile: "Waiting on others",
+  waitingSub: "Nothing for you to do now",
+  waitingFilter: "Waiting on others",
+  slowFilter: "Taking a while",
+  slowEmpty: "Nothing is taking a while right now.",
+} as const;
