@@ -46,11 +46,11 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
       const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
       if (error || !before) throw new Error("Worker not found.");
       const reapprove = !office && needsReapproval(before as Record<string, unknown>, fields);
-      const { error: ue } = await admin.from("partner_workers").update({ ...fields, ...(reapprove ? { approval_status: "pending", approved_at: null, approved_by: null } : {}) }).eq("id", id);
+      const { error: ue } = await admin.from("partner_workers").update({ ...fields, ...(reapprove ? { approval_status: "pending", approved_at: null, approved_by: null } : {}) } as never).eq("id", id);
       if (ue) throw new Error(ue.message);
       return { ok: true, pending: reapprove || before.approval_status === "pending" };
     }
-    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) });
+    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never);
     if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
     return { ok: true, pending: !office };
   });

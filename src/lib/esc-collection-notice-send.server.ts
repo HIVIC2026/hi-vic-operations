@@ -82,7 +82,7 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const { sendTestSms, sendTestEmail } = await import("./test-send.server");
     const ctx = { jobId: null, jobSource: null, partnerIsTest: true, label: `esc_notice_link:${p.attempt}`, actorId: p.actorId };
     sms = p.worker.mobile ? await sendTestSms(ctx, p.worker.mobile, noticeLinkSmsBody(first, url)) : { status: "blocked", detail: "No mobile on the worker record." };
-    email = await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text);
+    email = p.worker.email ? await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text) : { status: "blocked", detail: "No email on the worker record." };
   } else {
     const { sendRealSms } = await import("./sms.server");
     // Decision 165 (`window` type): attempts 1/2/3 are planned from the recorded send history (held ones included), so a
@@ -90,7 +90,8 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const key = p.manual ? `esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}` : `esc-notice-link:v1:${p.worker.id}:${p.attempt}`;
     const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: key, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
     sms = { status: r.status, detail: r.detail };
-    if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
+    if (!p.worker.email) email = { status: "blocked", detail: "No email on the worker record." };
+    else if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
     else {
       const r2 = await (await import("./office-email.server")).sendOfficeEmail({ actorId: p.actorId ?? "", recipient: "partner", to: p.worker.email, contactName: p.worker.full_legal_name, subject: mail.subject, message: rendered.text, label: "esc_notice_link", record: { businessId: p.worker.business_id }, html: rendered.html, text: rendered.text });
       email = { status: r2.status, detail: r2.detail };

@@ -19,7 +19,7 @@ import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
 
 export type PersonView = {
-  id: string; name: string; email: string; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
+  id: string; name: string; email: string | null; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
   /** Decision 319: worker-compliance.core whiteCardState + the card number recorded so far. */
   whiteCard?: string | null; whiteCardNumber?: string | null;
   ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; clearedReason: string | null;

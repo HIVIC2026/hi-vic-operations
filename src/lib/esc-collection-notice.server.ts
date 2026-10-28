@@ -10,7 +10,7 @@ import {
   noticeEmailKey, noticeLinkState, type NoticeAck, type NoticeStatus, type NoticeWorker,
 } from "./esc-collection-notice.core";
 
-export type NoticeWorkerRow = { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; removed_at: string | null; mobile?: string | null; profile_id?: string | null };
+export type NoticeWorkerRow = { id: string; business_id: string; email: string | null; full_legal_name: string; trade_role: string; removed_at: string | null; mobile?: string | null; profile_id?: string | null };
 export const NOTICE_WORKER_COLS = "id, business_id, email, full_legal_name, trade_role, removed_at, mobile, profile_id";
 
 /** Every current record for the given businesses: onboarding stamps from their activated application(s) plus later events. */
