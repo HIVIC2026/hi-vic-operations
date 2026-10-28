@@ -205,7 +205,7 @@ describe("wiring (source facts)", () => {
     expect(a2).toContain('installerDifficultAccessExGst: rate("DIFFICULT_ACCESS")');
     expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
   });
-  test("A9: the price box, price step and price save are for installers' own jobs only; the HIV quote builder refuses them", () => {
+  test("A9: the price box, price step and price save are for installers' own jobs only; the HIV quote builder refuses them and prices from the installer's agreed rates", () => {
     expect(priceFromPortal("installer_sourced")).toBe(true);
     expect(priceFromPortal("hivic_sourced")).toBe(false);
     expect(installerPriceState({ channel: "hivic_sourced", record: null, entries: [] })).toEqual({ required: false, present: true, source: null });
@@ -216,7 +216,8 @@ describe("wiring (source facts)", () => {
     expect(set).toContain("if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;");
     const q = read("src/lib/quotes.server.ts");
     expect(q).toContain('if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError(');
-    expect(q).toContain("the quote uses that installer's agreed rates");
+    expect(q).toContain("if (!inst?.business_id) throw new WorkflowError(\"Assign the installer before quoting – the quote uses that installer's agreed rates.\");");
+    expect(q).toContain('const card = await activeRateCard("installer", inst.business_id, false);');
   });
 });
 
