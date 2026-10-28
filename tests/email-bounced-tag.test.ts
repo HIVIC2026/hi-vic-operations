@@ -39,3 +39,31 @@ test("bouncedJobIds works out each job on its own", () => {
   );
   expect([...ids].sort()).toEqual(["a", "d"]);
 });
+
+// Final review 6: only owner-facing emails count toward the tag — never trade/installer emails.
+import { bounceTagEmails } from "../src/lib/email-delivery.core";
+test("bounceTagEmails keeps owner-facing emails and drops trade/installer ones", () => {
+  const rows = bounceTagEmails(
+    [
+      { job_id: "a", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: null, delivery_result: "bounced", purpose: "owner_reply" },
+      { job_id: "b", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: null, delivery_result: "bounced", purpose: "job_cancelled_installer" },
+    ],
+    [
+      { job_id: "c", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: "2026-10-01T01:00:00Z", delivery_result: "bounced", visibility: "customer" },
+      { job_id: "d", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: null, delivery_result: "bounced", visibility: "trade" },
+      { job_id: "e", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: null, delivery_result: "bounced", visibility: "internal" },
+    ],
+  );
+  expect(rows).toEqual([
+    { jobId: "a", at: "2026-10-01T00:00:00Z", result: "bounced" },
+    { jobId: "c", at: "2026-10-01T01:00:00Z", result: "bounced" },
+  ]);
+  expect([...bouncedJobIds(rows, [])].sort()).toEqual(["a", "c"]);
+});
+test("a trade bounce after a delivered owner email does not turn the tag on", () => {
+  const rows = bounceTagEmails([], [
+    { job_id: "a", sent_at: "2026-10-01T00:00:00Z", created_at: "2026-10-01T00:00:00Z", delivery_at: null, delivery_result: "delivered", visibility: "customer" },
+    { job_id: "a", sent_at: "2026-10-02T00:00:00Z", created_at: "2026-10-02T00:00:00Z", delivery_at: null, delivery_result: "bounced", visibility: "trade" },
+  ]);
+  expect(bouncedJobIds(rows, []).has("a")).toBe(false);
+});

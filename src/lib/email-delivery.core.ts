@@ -107,3 +107,12 @@ export function bouncedJobIds(emails: (EmailResult & { jobId: string })[], clear
   for (const [id, rows] of byJob) if (emailBouncedNow(rows, cleared.get(id) ?? null)) out.add(id);
   return out;
 }
+
+/** Final review 6: only owner-facing emails feed the "Email bounced" tag. Trade/installer sends (a customer_email_sends
+ *  purpose ending _installer / _electrician, or a job_communications row not visible to the customer) never count. */
+type ResultRow = { job_id: unknown; sent_at: unknown; created_at: unknown; delivery_at: unknown; delivery_result: unknown };
+const isTradePurpose = (p: unknown) => /_(installer|electrician)$/.test(String(p ?? ""));
+export function bounceTagEmails(sends: (ResultRow & { purpose: unknown })[], comms: (ResultRow & { visibility: unknown })[]): (EmailResult & { jobId: string })[] {
+  const toResult = (r: ResultRow) => ({ jobId: String(r.job_id), at: String(r.delivery_at ?? r.sent_at ?? r.created_at), result: r.delivery_result === "bounced" ? "bounced" as const : r.delivery_result === "delivered" ? "delivered" as const : null });
+  return [...sends.filter((r) => !isTradePurpose(r.purpose)).map(toResult), ...comms.filter((r) => r.visibility === "customer").map(toResult)];
+}

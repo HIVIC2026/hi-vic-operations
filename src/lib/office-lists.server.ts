@@ -11,7 +11,7 @@ import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters 
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
-import { bouncedJobIds, EMAIL_BOUNCE_CLEARED_EVENT } from "./email-delivery.core";
+import { bouncedJobIds, bounceTagEmails, EMAIL_BOUNCE_CLEARED_EVENT } from "./email-delivery.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -40,15 +40,16 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   return out;
 }
 
-/** Jobs showing the "Email bounced" tag: outbound emails with a delivery result and the newest clear, loaded for all ids at once. */
+/** Jobs showing the "Email bounced" tag: owner-facing outbound emails with a delivery result (never trade/installer emails)
+ *  and the newest clear, loaded for all ids at once. */
 export async function emailBouncedSet(ids: string[]): Promise<Set<string>> {
   const [sends, comms, clears] = await Promise.all([
-    byIds("email results", ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, sent_at, created_at, delivery_at, delivery_result").in("job_id", c).not("delivery_result", "is", null).range(f, t)),
-    byIds("recorded email results", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, created_at, delivery_at, delivery_result").in("job_id", c).eq("direction", "outbound").eq("channel", "email").not("delivery_result", "is", null).range(f, t)),
+    byIds("email results", ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, sent_at, created_at, delivery_at, delivery_result, purpose").in("job_id", c).not("delivery_result", "is", null).range(f, t)),
+    byIds("recorded email results", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, created_at, delivery_at, delivery_result, visibility").in("job_id", c).eq("direction", "outbound").eq("channel", "email").eq("visibility", "customer").not("delivery_result", "is", null).range(f, t)),
     byIds("bounce clears", ids, (c, f, t) => admin.from("workflow_events").select("job_id, created_at").in("job_id", c).eq("event_type", EMAIL_BOUNCE_CLEARED_EVENT).range(f, t)),
   ]);
   return bouncedJobIds(
-    [...sends, ...comms].map((r) => ({ jobId: String(r["job_id"]), at: String(r["delivery_at"] ?? r["sent_at"] ?? r["created_at"]), result: r["delivery_result"] === "bounced" ? "bounced" as const : r["delivery_result"] === "delivered" ? "delivered" as const : null })),
+    bounceTagEmails(sends as never, comms as never),
     clears.map((r) => ({ jobId: String(r["job_id"]), at: String(r["created_at"]) })),
   );
 }
