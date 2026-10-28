@@ -6,12 +6,15 @@ const realRelease = await import("../src/lib/spot-release.server");
 const realTestSend = await import("../src/lib/test-send.server");
 const realOutlook = await import("../src/lib/outlook-sync.server");
 
-const world = { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none" as string, inserts: [] as Record<string, unknown>[], sent: 0 };
+const world = { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none" as string, inserts: [] as Record<string, unknown>[], sent: 0, jobReads: 0, failLaterJobReads: false };
 const draft = { id: "d1", job_id: "j1", event_type: "email_ai_draft", details: { to: "sam@x.au", subject: "Re: Hi", message_id: "m1" } };
 const q = (table: string) => {
   const b: Record<string, unknown> = {};
   for (const f of ["select", "eq", "in", "contains", "limit", "order"]) b[f] = () => b;
-  b["maybeSingle"] = async () => ({ error: null, data: table === "workflow_events" ? draft : table === "jobs" ? { id: "j1", source: "qa_test", owner_id: "o1", channel: world.channel, stage: world.stage } : { email: "sam@x.au" } });
+  b["maybeSingle"] = async () => {
+    if (table === "jobs" && ++world.jobReads > 1 && world.failLaterJobReads) return { error: { message: "read failed" }, data: null };
+    return { error: null, data: table === "workflow_events" ? draft : table === "jobs" ? { id: "j1", source: "qa_test", owner_id: "o1", channel: world.channel, stage: world.stage } : { email: "sam@x.au" } };
+  };
   b["insert"] = (r: Record<string, unknown>) => { world.inserts.push(r); return Object.assign(Promise.resolve({ error: null }), { then: (f: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(f) }); };
   b["then"] = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
   return b;
@@ -28,7 +31,7 @@ afterAll(() => {
 });
 
 const BAD = "Hi Sam,\n\nYour free Ready Check is coming.\n\nCheers, the Home Insulation Victoria team";
-const reset = (o: Partial<typeof world>) => { Object.assign(world, { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none", inserts: [], sent: 0 }, o); };
+const reset = (o: Partial<typeof world>) => { Object.assign(world, { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none", inserts: [], sent: 0, jobReads: 0, failLaterJobReads: false }, o); };
 
 describe("sendAiDraft and the spot-only rule", () => {
   test("pre-release owner: Ready Check wording is refused, nothing sent", async () => {
@@ -45,6 +48,17 @@ describe("sendAiDraft and the spot-only rule", () => {
   });
   test("job past the Ready Check with no release event: the same reply goes", async () => {
     reset({ stage: "ready_check_scheduled" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
+  });
+  test("final fix: does not fail open — the job already read at Send decides, a failing second read can't let it through", async () => {
+    reset({ failLaterJobReads: true });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect(world.sent).toBe(0);
+  });
+  test("F1: owner already offered times (awaiting acceptance) is not pre-release at Send", async () => {
+    reset({ stage: "ready_check_awaiting_acceptance" });
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
     expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
   });
