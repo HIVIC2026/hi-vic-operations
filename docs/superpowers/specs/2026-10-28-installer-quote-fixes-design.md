@@ -75,6 +75,18 @@ difficult-access fee Jo never entered.
       They enter the total repair price inc GST; the ticked work list from the form is shown read-only. The office can
       also enter it. Staff never see the card or the price. The homeowner's fixes quote is built from that price, and
       is held until it is entered.
+    - Price card wording (Jo 28 Oct):
+      - title "Price the repairs"
+      - list heading "Repairs from the safety check"
+      - box label "Your price for all of these (inc GST)"
+      - button "Save price"
+      - after saving: "Your price: $X — Change"
+      - extras heading "Extra items to price"
+    - Owner text, approved: "The safety check at [street, suburb] needs electrical repairs. Enter your price for the
+      repair work: [link]".
+    - Owner error messages, approved: "Enter your total price for all the repair work, inc GST (more than $0)." /
+      "The repair quote has already gone to the homeowner. To change it, contact the office." / "The repair price can
+      only be set after the safety check and before the homeowner has the repair quote."
     - If the repair price still isn't entered 24 hours after the link was sent, the job shows "Waiting on the
       electrician's price" on Active jobs for the office (Jo 28 Oct). No reminder text.
     - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
