@@ -160,6 +160,19 @@ async function releaseStaleTradeOnReopen(jobId: string, stage: string): Promise<
   const r = REOPEN_RELEASE[stage];
   if (!r) return { tradeOffers: 0, bookings: 0 };
   const now = new Date().toISOString();
+  if (r.bookingKinds.includes("assessment")) {
+    // Re-review: a finished safety check may still be stored as "confirmed" (older moves to PIESA complete never marked
+    // it). If the visit is in the past and the job has a finished check (A3 complete or a PIESA record), it is DONE:
+    // mark it completed (the old electrician's pay reads it), never cancel it. Only future / undone visits are cancelled.
+    const [{ data: a3 }, { data: rec }] = await Promise.all([
+      admin.from("assessments").select("id").eq("job_id", jobId).eq("mitti_completed", true).limit(1).maybeSingle(),
+      admin.from("piesa_records").select("id").eq("job_id", jobId).limit(1).maybeSingle(),
+    ]);
+    if (a3 || rec) {
+      const { error } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").lt("scheduled_start", now);
+      if (error) throw new Error(`Reopened, but marking the finished safety check done failed: ${error.message}. Open the job and check.`);
+    }
+  }
   const [offers, books] = await Promise.all([
     admin.from("partner_offers").update({ status: "withdrawn", decline_reason: "job reopened", superseded_at: now }).eq("job_id", jobId).eq("status", "accepted").in("kind", r.offerKinds).select("id"),
     admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).in("kind", r.bookingKinds as never).select("id"),

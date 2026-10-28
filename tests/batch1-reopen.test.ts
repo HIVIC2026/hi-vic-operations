@@ -34,6 +34,7 @@ mock.module("../src/lib/xero.server", () => ({ addRepeatPiesaToXeroInvoice: asyn
 mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => undefined }));
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ safetyCheckPayeesFor: async () => new Map() }));
 const holds: string[] = [];
 mock.module("../src/lib/install-holds.server", () => ({ createInstallHold: async (id: string) => { holds.push(id); return null; }, moveHoldForPiesa: async () => null, moveHoldForRectification: async () => null }));
 
@@ -282,6 +283,39 @@ describe("F3: a reopened job gets its trade prompt again (stale accepted offers 
     expect(events(rp.REPEAT_REOPEN_EVENT)).toHaveLength(0);
     expect(byId("partner_offers", "o-piesa")["status"]).toBe("accepted");
     expect(holds).toEqual([]);
+  });
+
+  test("re-review: a finished safety check still stored as confirmed is marked completed on reopen (not cancelled) — the old electrician's pay line stays, unpaid; a future confirmed visit is still cancelled", async () => {
+    seed("installation_booked", true); // PIESA record on file, A3 done
+    tables["jobs"]![0]!["channel"] = "hivic_sourced";
+    tables["bookings"] = [{ ...booking("bk-done", "assessment", "confirmed", OLD), business_id: "e-old" }, booking("bk-future", "assessment", "confirmed", FUTURE)];
+    tables["job_assignments"] = [{ id: "ja-1", job_id: J, business_id: "e-old", role: "electrician", active: true }];
+    Object.assign(tables, { businesses: [{ id: "e-old", name: "Old Sparks", trading_name: null }], quotes: [], quote_internals: [], invoices: [], installer_declarations: [], pricing_settings: [{ id: "ps", piesa_rec_cost_ex_gst: 300, gst_rate: 0.1, is_active: true }], electrician_rates: [] });
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(byId("bookings", "bk-done")["status"]).toBe("completed");
+    expect(byId("bookings", "bk-future")["status"]).toBe("cancelled");
+    const { moneyPayouts } = await import("../src/lib/office-money.server");
+    const r = await moneyPayouts();
+    const line = [...r.held.map((h) => ({ visitId: h.visitId, business: h.business, paid: false })), ...r.due.flatMap((g) => g.jobs.map((j) => ({ visitId: j.visitId, business: g.business, paid: false }))), ...r.paid.flatMap((g) => g.jobs.map((j) => ({ visitId: j.visitId, business: g.business, paid: true })))].find((l) => l.visitId === "bk-done");
+    expect(line).toMatchObject({ business: "Old Sparks", paid: false });
+  });
+
+  test("re-review: a past confirmed safety check with no finished check (no record, A3 not complete) is still cancelled", async () => {
+    seed("piesa_scheduled", false);
+    tables["bookings"] = [booking("bk-undone", "assessment", "confirmed", OLD)];
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(byId("bookings", "bk-undone")["status"]).toBe("cancelled");
+  });
+
+  test("re-review: moving to PIESA complete (requirements) marks the confirmed safety check visit completed", async () => {
+    seed("installation_booked", true);
+    job()["stage"] = "piesa_scheduled";
+    Object.assign(tables, { compliance_checks: [], evidence_requirements: [] });
+    tables["bookings"] = [booking("bk-as", "assessment", "confirmed", OLD), booking("bk-rc", "ready_check", "confirmed", OLD)];
+    const res = await advanceSiteRequirements(J, "admin-1");
+    expect(res.advanced).toBe(true);
+    expect(byId("bookings", "bk-as")["status"]).toBe("completed");
+    expect(byId("bookings", "bk-rc")["status"]).toBe("confirmed");
   });
 
   test("a job never reopened still counts every PIESA offer (auto-offer runs once, as before)", async () => {

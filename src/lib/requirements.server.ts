@@ -106,6 +106,10 @@ async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) 
     await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
     return { advanced: false, scope, held: e.message };
   }
+  // The safety check visit is done: mark the confirmed assessment booking completed (same as piesa-complete.server), so the
+  // electrician's pay line shows and a later reopen never cancels a finished visit.
+  const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed");
+  if (visitErr) console.error("safety check visit not marked done", visitErr.message);
   const rectCount = await deriveRectificationItems(jobId, actorId);
   await admin.from("compliance_checks").update({ status: piesaClearsElectrical(decision.outcome, rectCount) ? "pass" : "pending" }).eq("job_id", jobId).eq("check_key", "electrical_assessment");
   if (piesaNeedsRectification(decision.outcome, rectCount)) {
