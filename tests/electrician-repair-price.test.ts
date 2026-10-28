@@ -149,7 +149,8 @@ describe("pure rules", () => {
 
   test("SMS type: partner text, quiet hours, 24h freshness, its own switch (absent = OFF)", async () => {
     const { SMS_MESSAGE_TYPES, SMS_FRESHNESS, smsBlocker } = await import("../src/lib/sms.core");
-    expect(SMS_MESSAGE_TYPES.repair_price_link).toMatchObject({ audience: "partner", quietHours: true });
+    // The owner text is approved (Jo 28 Oct); the type's own switch (absent = OFF) is the only gate.
+    expect(SMS_MESSAGE_TYPES.repair_price_link).toMatchObject({ audience: "partner", quietHours: true, wordingApproved: true });
     expect(SMS_FRESHNESS.repair_price_link).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
     const base = { type: "repair_price_link", to: "0466 777 888", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-28T02:00:00.000Z" };
     expect(smsBlocker(base)).toBeNull();
@@ -202,14 +203,9 @@ describe("the text to the electrician business owner", () => {
     expect(sent).toHaveLength(0);
   });
 
-  test("wiring: the A3 sync calls it only when the PIESA is completed; the sender keeps the installer pattern", () => {
+  test("wiring: the A3 sync calls it only when the PIESA is completed; the read side never imports the sender", () => {
     expect(readFileSync("src/lib/mitti.server.ts", "utf8")).toContain('if (completed) await (await import("./repair-price-link.server")).textRepairPriceLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });');
-    const s = readFileSync("src/lib/repair-price-link.server.ts", "utf8");
-    const idx = (t: string) => { const i = s.indexOf(t); expect(i, t).toBeGreaterThan(-1); return i; };
-    expect(idx("repairPriceLinkBlocker({")).toBeLessThan(idx("logEvent(jobId, null, REPAIR_PRICE_LINK_EVENT"));
-    expect(idx("logEvent(jobId, null, REPAIR_PRICE_LINK_EVENT")).toBeLessThan(idx("sendTestSms("));
-    expect(s).toContain("sendRealSms({ type: REPAIR_PRICE_SMS_TYPE, idempotencyKey: key,");
-    expect(s).not.toMatch(/fetch\(|twilio/i);
+    // Event-before-send and the sender used are proven by the behaviour tests above (eventBefore, via: "real" / "test").
     for (const f of ["src/lib/electrician-repair-price.server.ts", "src/lib/quotes.server.ts", "src/lib/auto-fixes-quote-send.server.ts"]) expect(readFileSync(f, "utf8")).not.toContain("repair-price-link.server");
   });
 });
@@ -315,7 +311,7 @@ describe("the office", () => {
     expect(priceEvents()[0]!["details"]).toMatchObject({ price_inc_gst: 950, audit_id: AUDIT, set_by: OFFICE, by: "office" });
     expect(rebuilt).toHaveLength(1);
     expect(rebuilt[0]!.source).toMatchObject({ electricianPriceIncGst: 950 });
-    expect(readFileSync("src/components/portal/office-job.tsx", "utf8")).toContain("<RepairPriceCard jobId={jobId} />");
+    expect(readFileSync("src/components/portal/office-job.tsx", "utf8")).toContain("<RepairPriceCard jobId={jobId} office />");
   });
 });
 
@@ -349,14 +345,19 @@ describe("the fixes quote reads the portal price first", () => {
     expect((await fixesPriceSourceForJob(JOB)).path).toBe("rate_card");
   });
 
-  test("every quote reader uses it, and both send paths keep the existing unpriced / $0 blocker", () => {
-    const q = readFileSync("src/lib/quotes.server.ts", "utf8");
-    expect(q).toContain('return (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(jobId);');
-    const auto = readFileSync("src/lib/auto-fixes-quote-send.server.ts", "utf8");
-    expect(auto).toContain('(await (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(jobId)).path !== "a4_price"');
-    const rel = readFileSync("src/lib/fixes-quote-release.server.ts", "utf8");
-    expect(rel).toContain("const b = await fixesQuoteSendBlocker(q, how);");
-    expect(auto).toContain('rel.fixesQuoteSendBlocker(quote, "auto", { ignoreTimesHold: true })');
+  test("the automatic send builds the quote from the portal price, and waits while there is no price anywhere", async () => {
+    const { maybeAutoSendFixesQuote } = await import("../src/lib/auto-fixes-quote-send.server");
+    T = tables(); rebuilt.length = 0;
+    expect(await maybeAutoSendFixesQuote(JOB, { generate: true, enabled: true })).toMatchObject({ result: "waiting", reason: "no electrician repair price on the A3" });
+    expect(rebuilt).toHaveLength(0);
+    T["workflow_events"]!.push({ id: "p1", job_id: JOB, event_type: "electrician_repair_price_set", details: { price_inc_gst: 1800, audit_id: AUDIT }, created_at: "2026-10-28T00:00:00Z" });
+    await maybeAutoSendFixesQuote(JOB, { generate: true, enabled: true });
+    expect(rebuilt).toEqual([{ jobId: JOB, source: expect.objectContaining({ path: "a4_price", electricianPriceIncGst: 1800 }) }]);
+  });
+
+  test("the generator reads the portal price through the one shared reader", () => {
+    // Source check: the real generateRectificationQuote is mocked in this file.
+    expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain('return (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(jobId);');
   });
 });
 
@@ -435,9 +436,7 @@ describe("office alert: waiting on the electrician's price", () => {
     expect(repairPriceWaitingSince([link(hoursAgo(25), "audit-new")], { ...wanted, currentAuditId: null })).toBeNull();
   });
 
-  test("Active jobs reads it from the events and the current form; it never reaches trade data", async () => {
-    const office = readFileSync("src/lib/office.server.ts", "utf8");
-    expect(office).toContain('repairPriceLinkSentAt: repairWaitSince.get(id) ?? null');
+  test("it never reaches trade data (the Active jobs loader itself runs for real in tests/repair-price-wait-office.test.ts)", async () => {
     const users = (await import("node:fs")).readdirSync("src/lib").filter((f) => /\.(ts|tsx)$/.test(f) && readFileSync(`src/lib/${f}`, "utf8").includes("repair-price-wait.core"));
     expect(users.sort()).toEqual(["office-status.core.ts", "office.server.ts"]);
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/trade-view.core.ts", "src/lib/trade-job-bundle.server.ts", "src/lib/electrician-repair-price-set.server.ts"]) expect(readFileSync(f, "utf8")).not.toContain("Waiting on the electrician's price");
@@ -532,5 +531,32 @@ describe("a draft built from an earlier price is never sent over a newer one", a
     draft(1200);
     await (await portalFns())["priceRectItem"]!({ data: { itemId: ITEM, unitPriceIncGst: 150, reason: "Owner checked the job" }, context: ctx(BOSS) });
     expect(rebuilt).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Jo 28 Oct 2026 (spec rule 3): the price card's wording, exactly.
+describe("the price card wording is Jo's", () => {
+  test("exact texts", async () => {
+    const { REPAIR_PRICE_CARD } = await import("../src/lib/electrician-repair-price.core");
+    expect(REPAIR_PRICE_CARD).toEqual({
+      title: "Price the repairs", officeTitle: "Electrician's repair price", listHeading: "Repairs from the safety check",
+      priceLabel: "Your price for all of these (inc GST)", saveButton: "Save price", yourPrice: "Your price:", change: "Change", extrasHeading: "Extra items to price",
+    });
+  });
+
+  test("the card shows those texts (and none of the old drafts); the office page uses the office title", () => {
+    const card = readFileSync("src/components/trade/RepairPriceCard.tsx", "utf8");
+    for (const k of ["title", "officeTitle", "listHeading", "priceLabel", "saveButton", "yourPrice", "change", "extrasHeading"]) expect(card, k).toContain(`REPAIR_PRICE_CARD.${k}`);
+    for (const old of ["Your total price", "Change your price", "Save new price", "Other items waiting for a price", "The repair work on the safety check form", 'title="Your price"']) expect(card, old).not.toContain(old);
+    expect(readFileSync("src/components/portal/office-job.tsx", "utf8")).toContain("<RepairPriceCard jobId={jobId} office />");
+    expect(readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8")).toContain('<RepairPriceCard jobId={jobId} />');
+  });
+
+  test("the three error messages and the owner text are the approved ones", async () => {
+    const c = await import("../src/lib/electrician-repair-price.core");
+    expect(c.REPAIR_PRICE_ISSUE).toBe("Enter your total price for all the repair work, inc GST (more than $0).");
+    expect(c.REPAIR_PRICE_LOCKED).toBe("The repair quote has already gone to the homeowner. To change it, contact the office.");
+    expect(c.REPAIR_PRICE_STAGE_REFUSED).toBe("The repair price can only be set after the safety check and before the homeowner has the repair quote.");
   });
 });

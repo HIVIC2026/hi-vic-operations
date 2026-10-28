@@ -160,7 +160,7 @@ export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: Car
         <AssessmentView jobId={jobId} part="piesa" />
         <AssessmentView jobId={jobId} part="rectification" />
         {/* Task 9 (Jo 28 Oct 2026): the office can enter the electrician's repair price here too. */}
-        <RepairPriceCard jobId={jobId} />
+        <RepairPriceCard jobId={jobId} office />
         <OfficeFixesQuoteReview jobId={jobId} />
         <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void regen({ jobId }, "Electrical fixes quote re-priced")}>Re-price fixes quote</button>
         <details className="rounded-[12px] border border-line p-3"><summary className="cursor-pointer text-sm font-semibold">Earlier electrical assessment record (older jobs)</summary><div className="mt-2"><AssessmentView jobId={jobId} part="assessment" /></div></details>

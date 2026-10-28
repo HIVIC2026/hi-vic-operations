@@ -12,12 +12,12 @@ import { Button, Section } from "@/components/trade/trade-ui";
 import { PriceItemForm } from "@/components/portal/mitti";
 import { useAction } from "@/hooks/use-me";
 import { getRepairPriceFn, setRepairPriceFn } from "@/lib/electrician-repair-price.functions";
-import { validateRepairPrice } from "@/lib/electrician-repair-price.core";
+import { REPAIR_PRICE_CARD, validateRepairPrice } from "@/lib/electrician-repair-price.core";
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 
 const aud = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 
-export function RepairPriceCard({ jobId }: { jobId: string }) {
+export function RepairPriceCard({ jobId, office = false }: { jobId: string; office?: boolean }) {
   const load = useServerFn(getRepairPriceFn);
   const q = useQuery({ queryKey: ["repair-price", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setRepairPriceFn);
@@ -36,14 +36,12 @@ export function RepairPriceCard({ jobId }: { jobId: string }) {
   const showForm = view.canSet && (editing || !view.current);
   return (
     <div id={PRICE_CARD_ANCHOR} className="scroll-mt-4" data-repair-price>
-      <Section title="Your price">
-        <p className="text-sm font-medium">The repair work on the safety check form</p>
+      <Section title={office ? REPAIR_PRICE_CARD.officeTitle : REPAIR_PRICE_CARD.title}>
+        <p className="text-sm font-medium">{REPAIR_PRICE_CARD.listHeading}</p>
         {view.workList.length ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">{view.workList.map((w) => <li key={w}>{w}</li>)}</ul> : <p className="mt-1 text-sm text-sub">{view.workIssue ?? "No work listed."}</p>}
         {view.current && !showForm && (
           <div className="mt-3 border-t border-line pt-3">
-            <p className="text-sm text-sub">Your total price for the repair work (inc GST)</p>
-            <p className="text-lg font-semibold">{aud(view.current.priceIncGst)}</p>
-            {view.canSet && <button type="button" className="mt-1 text-sm font-semibold text-hiv-blue" onClick={() => setEditing(true)}>Change your price</button>}
+            <p className="text-lg font-semibold">{REPAIR_PRICE_CARD.yourPrice} {aud(view.current.priceIncGst)}{view.canSet && <> — <button type="button" className="text-base font-semibold text-hiv-blue" onClick={() => setEditing(true)}>{REPAIR_PRICE_CARD.change}</button></>}</p>
           </div>
         )}
         {!view.current && view.formPrice != null && !showForm && <p className="mt-3 text-sm">Price on the form: {aud(view.formPrice)} inc GST</p>}
@@ -52,11 +50,11 @@ export function RepairPriceCard({ jobId }: { jobId: string }) {
             e.preventDefault(); if (!check.ok) return; setBusy(true);
             try { const r = await save({ jobId, priceIncGst: price }, "Price saved"); if (r) { setEditing(false); await q.refetch(); } } finally { setBusy(false); }
           }}>
-            <Label htmlFor="rp-price">Your total price for all the repair work (inc GST)</Label>
+            <Label htmlFor="rp-price">{REPAIR_PRICE_CARD.priceLabel}</Label>
             <Input id="rp-price" inputMode="decimal" placeholder={view.formPrice != null ? String(view.formPrice) : "e.g. 1200"} value={price} onChange={(e) => setPrice(e.target.value)} />
             {!check.ok && price && <p className="text-sm text-rose">{check.issue}</p>}
             <div className="flex gap-2">
-              <Button type="submit" size="field" disabled={busy || !check.ok}>{busy ? "Saving…" : view.current ? "Save new price" : "Save price"}</Button>
+              <Button type="submit" size="field" disabled={busy || !check.ok}>{busy ? "Saving…" : REPAIR_PRICE_CARD.saveButton}</Button>
               {view.current && <button type="button" className="min-h-11 px-4 text-[15px] font-semibold text-sub" onClick={() => setEditing(false)}>Cancel</button>}
             </div>
           </form>
@@ -64,7 +62,7 @@ export function RepairPriceCard({ jobId }: { jobId: string }) {
         {view.lockedReason && <p className="mt-3 text-sm text-sub">{view.lockedReason}</p>}
         {view.unpricedItems.length > 0 && (
           <div className="mt-3 border-t border-line pt-3">
-            <p className="text-sm font-medium">Other items waiting for a price</p>
+            <p className="text-sm font-medium">{REPAIR_PRICE_CARD.extrasHeading}</p>
             <ul className="mt-1 space-y-2 text-sm">{view.unpricedItems.map((i) => <li key={i.id}>{i.description} × {i.quantity}<PriceItemForm itemId={i.id} /></li>)}</ul>
           </div>
         )}

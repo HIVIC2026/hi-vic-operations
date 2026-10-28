@@ -16,6 +16,18 @@ export const REPAIR_PRICE_LINK_EVENT = "repair_price_link_sent" as const;
 /** The real-sender message type (sms.core SMS_MESSAGE_TYPES); its own switch, absent = OFF. */
 export const REPAIR_PRICE_SMS_TYPE = "repair_price_link" as const;
 
+/** The price card's wording, exactly as Jo gave it (28 Oct 2026, spec rule 3). The office sees the same card under its own title. */
+export const REPAIR_PRICE_CARD = {
+  title: "Price the repairs",
+  officeTitle: "Electrician's repair price",
+  listHeading: "Repairs from the safety check",
+  priceLabel: "Your price for all of these (inc GST)",
+  saveButton: "Save price",
+  yourPrice: "Your price:",
+  change: "Change",
+  extrasHeading: "Extra items to price",
+} as const;
+
 export const REPAIR_PRICE_ISSUE = "Enter your total price for all the repair work, inc GST (more than $0).";
 export const REPAIR_PRICE_LOCKED = "The repair quote has already gone to the homeowner. To change it, contact the office.";
 export const REPAIR_PRICE_STAGE_REFUSED = "The repair price can only be set after the safety check and before the homeowner has the repair quote.";

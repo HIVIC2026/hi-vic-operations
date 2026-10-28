@@ -18,7 +18,7 @@ const ASSESS = "00000000-0000-4000-8000-000000000802";
 const QUOTE = "00000000-0000-4000-8000-000000000803";
 const HINT = "Your business owner or the office will add the price.";
 const UNPRICED = "Some electrical fixes items still need office pricing.";
-const ZERO_LINE = "This electrical fixes quote has an item with no price or a $0 price. Price or remove the item, then rebuild the quote.";
+const NOT_REVIEWED = "Electrical fixes quote must be reviewed by the office before it is sent.";
 
 function tables(stage = "piesa_scheduled"): Tables {
   return {
@@ -180,7 +180,8 @@ describe("the fixes quote is drafted held and not sent until every item has a pr
     expect(item()["needs_office_pricing"]).toBe(false);
     // Task 9 (Jo 28 Oct): pricing at piesa_complete rebuilt the held draft — no $0 line is left on it.
     expect(T["quote_items"]!.map((l) => l["unit_price_inc_gst"])).toEqual([120]);
-    expect(await fixesQuoteSendBlocker(quote() as never, "office")).not.toBe(ZERO_LINE);
+    // The rebuilt draft is a fresh one the office has not reviewed yet: that is the ONLY thing left to stop the send.
+    expect(await fixesQuoteSendBlocker(quote() as never, "office")).toBe(NOT_REVIEWED);
     quote()["office_reviewed_at"] = "2026-10-28T02:00:00Z";
     expect(await fixesQuoteSendBlocker(quote() as never, "office")).toBeNull();
     await releaseFixesQuote(QUOTE, OFFICE, "office");
