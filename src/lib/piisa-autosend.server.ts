@@ -43,6 +43,9 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
       created++;
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "created", message: r.reused ? `re-shared ${r.auditId}` : `created ${r.auditId}` });
     } catch (e) {
+      // A held claim / uncertain outcome is owned by the retry sweep and the office item: skip, never log a new failure each hour.
+      const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
+      if (e instanceof MittiClaimHeld || e instanceof MittiOutcomeUncertain) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: (e as Error).message }); continue; }
       const message = (e as Error).message;
       await logEvent(j.id, null, PIISA_AUTOSEND_FAILED_EVENT, `Automatic PIISA form not created: ${message}`, { install_start: start, message }, { internal: true }).catch(() => undefined);
       // F15: install today or tomorrow → one office item per install start (cleared by the form being created).
