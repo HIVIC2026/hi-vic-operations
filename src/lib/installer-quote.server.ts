@@ -44,6 +44,47 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
   return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
 }
 
+/** When the office last hand-edited this quote (`adjustQuote` → `quote_adjusted`), or null. A failed read throws. */
+async function officeEditedAt(jobId: string, quoteId: string): Promise<string | null> {
+  const { data, error } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_adjusted").contains("details", { quote_id: quoteId }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error("Could not check the office's edits to the quote.");
+  const at = (data as { created_at?: unknown } | null)?.created_at;
+  return at == null ? null : at instanceof Date ? at.toISOString() : String(at);
+}
+
+/** Jo 28 Oct 2026 (final review Imp 1): an installer quote is never sent (office Send or auto-send, both through
+ *  `officeQuoteBlockers`) with an installer price other than the latest saved one (`installer_price_set`, latest wins).
+ *  Modelled on the fixes side's `stalePriceBlocker`. Null = fine / not an installer quote. A failed read blocks. */
+export async function installerPriceStaleBlocker(quoteId: string): Promise<string | null> {
+  const { data: q, error } = await admin.from("quotes").select("job_id, option_code, status, release_hold_reason").eq("id", quoteId).maybeSingle();
+  if (error) return "The installer's price could not be checked";
+  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
+  const { INSTALLER_PRICE_REBUILD_FAILED, INSTALLER_PRICE_STALE, installerPriceStale } = await import("./installer-price.core");
+  if (String(q.release_hold_reason ?? "").split(" · ").includes(INSTALLER_PRICE_REBUILD_FAILED)) return INSTALLER_PRICE_REBUILD_FAILED;
+  try {
+    const stored = await (await import("./installer-price.server")).readInstallerPrice(q.job_id);
+    if (!stored) return null;
+    const { data: line, error: le } = await admin.from("quote_items").select("line_total_inc_gst").eq("quote_id", quoteId).eq("code", "INSTALLER_PRICE").limit(1).maybeSingle();
+    if (le) return "The installer's price could not be checked";
+    const editedAt = await officeEditedAt(q.job_id, quoteId);
+    return installerPriceStale({ lineIncGst: line?.line_total_inc_gst ?? null, latest: { priceIncGst: stored.record.price_inc_gst, setAt: stored.setAt }, editedAt }) ? INSTALLER_PRICE_STALE : null;
+  } catch { return "The installer's price could not be checked"; }
+}
+
+/** Save price's rebuild failed: an open installer draft that is now stale is held with the plain reason (never sent). */
+export async function holdStaleInstallerDraft(jobId: string): Promise<void> {
+  const { data: drafts, error } = await admin.from("quotes").select("id, release_hold_reason").eq("job_id", jobId).eq("kind", "installation").eq("status", "draft").eq("option_code", INSTALLER_QUOTE_CODE);
+  if (error) throw new Error("Could not read the owner's quote to hold it.");
+  const { INSTALLER_PRICE_REBUILD_FAILED, INSTALLER_PRICE_STALE } = await import("./installer-price.core");
+  for (const d of drafts ?? []) {
+    if ((await installerPriceStaleBlocker(d.id)) !== INSTALLER_PRICE_STALE) continue;
+    const parts = String(d.release_hold_reason ?? "").split(" · ").map((s) => s.trim()).filter(Boolean);
+    const reason = [INSTALLER_PRICE_REBUILD_FAILED, ...parts.filter((p) => p !== INSTALLER_PRICE_REBUILD_FAILED)].join(" · ");
+    const { error: ue } = await admin.from("quotes").update({ release_state: "held", release_hold_reason: reason }).eq("id", d.id).eq("status", "draft");
+    if (ue) throw new Error("Could not hold the owner's quote.");
+  }
+}
+
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
   const { data: job } = await admin.from("jobs").select("channel, stage, deleted_at, qa_archived_at, ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;

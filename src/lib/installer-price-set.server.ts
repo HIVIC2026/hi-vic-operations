@@ -86,8 +86,10 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   if (!stored) throw new WorkflowError("The price was not saved.");
   // Prepare (never send) the owner's quote from the portal price through the existing guarded Ready Check paths: the
   // regular sync while the form is open; the completed-form draft + the auto-send decision once it is Complete. Any
-  // failure here is picked up by the 15-minute tick.
-  try { await (await import("./mitti.server")).syncMittiAssessment(jobId, userId); } catch { /* tick */ }
+  // failure here is picked up by the 15-minute tick. Jo 28 Oct 2026: when a rebuild fails, an open draft still showing
+  // the older price is held with a plain reason so it can't go out before the rebuild (Send also re-checks the price).
+  let failed = false;
+  try { await (await import("./mitti.server")).syncMittiAssessment(jobId, userId); } catch { failed = true; }
   try {
     const { data: m } = await admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
     if (m?.external_source === "mitti" && m.external_id && m.status === "complete") {
@@ -97,6 +99,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
       await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
       await (await import("./auto-quote-send.server")).maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: a?.modified_at ?? a?.audit_data?.date_modified ?? null, entries });
     }
-  } catch { /* tick */ }
+  } catch { failed = true; }
+  if (failed) await (await import("./installer-quote.server")).holdStaleInstallerDraft(jobId).catch(() => undefined); // tick retries
   return stored;
 }

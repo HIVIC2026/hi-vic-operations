@@ -18,7 +18,7 @@ mock.module("../src/lib/workflow.server", () => ({ WorkflowError: Error, logEven
   stageEntryBlockers: async () => stageBlockers, transition: async (_j: string, to: string) => { moved.push(to); } }));
 mock.module("../src/lib/estimatelink.server", () => ({ ensureOwnerLink: async () => true }));
 mock.module("../src/lib/installer-intake.server", () => ({ intakeSendBlockers: async () => blockers }));
-mock.module("../src/lib/installer-quote.server", () => ({ quoteBillingBlocker: async () => null }));
+mock.module("../src/lib/installer-quote.server", () => ({ quoteBillingBlocker: async () => null, installerPriceStaleBlocker: async () => null }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (!consent) throw Error("No contact consent"); } }));
 mock.module("../src/lib/pilot.server", () => ({ applyCobrand: async () => {} }));
 mock.module("../src/lib/quote-ready-notify.server", () => ({ notifyOwnerQuoteReady: async () => { notifications++; return { email: "test accepted", sms: "test accepted" }; } }));

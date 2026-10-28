@@ -12,6 +12,21 @@ import { ELECTRICIAN_OPTIONS, INCLUDED_OPTIONS, LEAN_Q } from "./ready-check-lea
 export const INSTALLER_PRICE_EVENT = "installer_price_set";
 /** The auto quote holds with exactly this reason while neither the portal nor an old form carries a price. */
 export const PRICE_NOT_ENTERED = "Price not entered by the business owner";
+/** Office Send / auto-send refuse with this while the draft's installer line is not the latest saved price (Jo 28 Oct). */
+export const INSTALLER_PRICE_STALE = "The installer's price has changed since this quote was built. Rebuild the quote, then send it.";
+/** The draft is held with this when the rebuild after Save price fails (Jo 28 Oct). */
+export const INSTALLER_PRICE_REBUILD_FAILED = "The installer's price changed but the quote could not be rebuilt. Rebuild the quote before sending.";
+
+/** Jo 28 Oct 2026: a draft is stale when its INSTALLER_PRICE line is not the latest saved installer price. An office
+ *  hand-edit made AFTER that price was saved is the office's decision and stands (it is replaced only when the price or
+ *  the form changes again). No saved price (old forms) = nothing to compare. Cents, so 2500 and "2500.00" agree. */
+export function installerPriceStale(i: { lineIncGst: number | string | null | undefined; latest: { priceIncGst: number; setAt: string } | null; editedAt: string | null }): boolean {
+  if (!i.latest) return false;
+  if (i.editedAt && Date.parse(i.editedAt) > Date.parse(i.latest.setAt)) return false;
+  const line = Number(i.lineIncGst);
+  return !(i.lineIncGst != null && Number.isFinite(line) && Math.round(line * 100) === Math.round(i.latest.priceIncGst * 100));
+}
+
 /** Jobs whose price must come from the business owner (A1 only). */
 export const priceFromPortal = (channel: string | null | undefined): boolean => channel === "installer_sourced";
 

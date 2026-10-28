@@ -3,12 +3,12 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { quoteReviewReasons, quoteNeedsOfficeReview } from "./office-quote-review.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { intakeSendBlockers } from "./installer-intake.server";
-import { quoteBillingBlocker } from "./installer-quote.server";
+import { installerPriceStaleBlocker, quoteBillingBlocker } from "./installer-quote.server";
 
 export async function officeQuoteBlockers(jobId: string, quote: { id: string; created_at: string; release_hold_reason?: string | null; option_code?: string | null }) {
   // One read of the current measurement serves both the Mitti check and the measurement check below (was two).
   const { jobProductProblems } = await import("./install-evidence.server");
-  const [{ data: job, error: je }, { data: events, error: ee }, intake, billing, { data: mitti, error: me }, product] = await Promise.all([
+  const [{ data: job, error: je }, { data: events, error: ee }, intake, billing, { data: mitti, error: me }, product, stalePrice] = await Promise.all([
     admin.from("jobs").select("stage, deleted_at, qa_archived_at, channel").eq("id", jobId).maybeSingle(),
     admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }).limit(1),
     intakeSendBlockers(jobId), quoteBillingBlocker(quote.id),
@@ -16,6 +16,8 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     // Decision 205 (checklist D6): the declared product must be on the ESC register, in date and reach R5.0 — shown here
     // so the office sees it on Quotes to check, long before AP review blocks on the same rule.
     jobProductProblems(jobId),
+    // Jo 28 Oct 2026: never sent with an older installer price (office Send and auto-send both come through here).
+    installerPriceStaleBlocker(quote.id),
   ]);
   if (je || ee || !job) throw new WorkflowError("Quote readiness could not be checked.");
   const e = events?.[0];
@@ -32,7 +34,7 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
   // Jo 24 Oct: no installer approval on any Ready Check quote — Complete in Mitti + these checks are the gate.
-  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...product])];
+  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...(stalePrice ? [stalePrice] : []), ...product])];
 }
 
 /** Office "Send quote" (an authenticated button). */
