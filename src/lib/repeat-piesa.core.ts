@@ -86,6 +86,14 @@ export const REPEAT_XERO_HELD_EVENT = "xero_invoice_repeat_piesa_held";
 export const repeatLineTag = (deadline: string) => `repeat PIESA ${deadline}`;
 export const repeatLineKey = (invoiceId: string, deadline: string, cents: number) => `xero-repeat-piesa:v1:${invoiceId}:${deadline}:${Math.round(cents)}`;
 export const repeatLineDescription = (reference: string, deadline: string) => `${reference} – New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+/** Owner pays: the repeat line belongs on the ONE Xero invoice from acceptance (stage owner_pay), and still after a card
+ *  payment moved the job on to "offer" until a line-added event is recorded for this invoice + deadline. */
+export function repeatLineDue(i: { state: RepeatState; lineAdded: boolean }): boolean {
+  const s = i.state;
+  if (s.payer !== "owner" || !s.deadline || !s.priceIncGst) return false;
+  if (s.stage === "owner_pay") return true;
+  return s.stage === "offer" && !i.lineAdded;
+}
 /** Paid = Xero/card payments on the invoice grew by at least the repeat price since the line went on. */
 export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: number; priceCents: number }): boolean {
   return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;

@@ -129,3 +129,22 @@ test("card short of the price, no card row, or no paid-before → not paid", () 
   expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: false })).toBe(false);
   expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: null, cardRowAfterAccept: true })).toBe(false);
 });
+
+describe("Xero repeat line still goes on after a card payment (final review 2)", () => {
+  it("owner-pays: due at owner_pay, and at offer only until the line is recorded on the invoice", async () => {
+    const { repeatLineDue } = await import("../src/lib/repeat-piesa.core");
+    const paidByCard = accepted("owner", true);
+    expect(paidByCard.stage).toBe("offer");
+    expect(repeatLineDue({ state: accepted("owner"), lineAdded: false })).toBe(true);
+    expect(repeatLineDue({ state: accepted("owner"), lineAdded: true })).toBe(true); // unchanged: the step itself says "already"
+    expect(repeatLineDue({ state: paidByCard, lineAdded: false })).toBe(true);
+    expect(repeatLineDue({ state: paidByCard, lineAdded: true })).toBe(false);
+  });
+  it("never for installer / HIVIC payers or before acceptance", async () => {
+    const { repeatLineDue } = await import("../src/lib/repeat-piesa.core");
+    expect(repeatLineDue({ state: accepted("installer"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: accepted("hivic"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: chose("owner"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: lapsed, lineAdded: false })).toBe(false);
+  });
+});
