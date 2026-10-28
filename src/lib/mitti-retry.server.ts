@@ -3,7 +3,6 @@
 // for this job, link it if there is exactly one, create nothing if we cannot tell, otherwise release the old attempt
 // and try again through the normal creator (and its claim guard). Two retries, then one email to the office.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import type { Database } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
 import { formatPropertyAddress } from "./address";
 import { mittiApi, pickUser, type MittiCall } from "./mitti.core";
@@ -99,7 +98,7 @@ export async function adoptExistingAudit(
 
 // ---------- the office alert ----------
 const TRADE_ROLE: Record<MittiFormKind, "installer" | "electrician"> = { ready_check: "installer", install_day: "installer", piesa: "electrician", fixes: "electrician" };
-const BOOKING_KIND: Record<MittiFormKind, Database["public"]["Enums"]["booking_kind"]> = { ready_check: "ready_check", piesa: "assessment", fixes: "rectification", install_day: "installation" };
+const BOOKING_KIND: Record<MittiFormKind, "ready_check" | "assessment" | "rectification" | "installation"> = { ready_check: "ready_check", piesa: "assessment", fixes: "rectification", install_day: "installation" };
 
 async function alertOffice(c: FailureCase, error: string, counts: RetrySweepResult) {
   const { data: job } = await admin.from("jobs").select("job_number, property_id").eq("id", c.jobId).maybeSingle();

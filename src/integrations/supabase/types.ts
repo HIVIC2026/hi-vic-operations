@@ -12818,6 +12818,7 @@ export type Database = {
       }
       workflow_settings: {
         Row: {
+          address_request_live_at: string | null
           ai_email_auto_send_enabled: boolean
           authority_validity_months: number
           auto_electrician_offers: boolean
@@ -12874,6 +12875,7 @@ export type Database = {
           urgency_red_days: number
         }
         Insert: {
+          address_request_live_at?: string | null
           ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean
@@ -12930,6 +12932,7 @@ export type Database = {
           urgency_red_days?: number
         }
         Update: {
+          address_request_live_at?: string | null
           ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean
