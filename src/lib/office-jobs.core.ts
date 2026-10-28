@@ -3,7 +3,7 @@
 // completes addresses itself; every enquiry is "Waiting on owner").
 // Jobs = six stages from a saved spot: Choose installer · Ready Check · Quote · PIESA · Install · Final check,
 // plus Closed (Completed · Cancelled · Ineligible · Removed / test). PURE: labels and piles only, never moves a job.
-import { STAGE_ORDER, type Stage } from "./workflow";
+import type { Stage } from "./workflow";
 
 export type JobsStage = "choose_installer" | "ready_check" | "quote" | "piesa" | "install" | "final_check";
 export const JOBS_STAGES: { key: JobsStage; label: string }[] = [
@@ -93,10 +93,16 @@ export function reopenBlocker(j: { stage: string | null; priorStage: string | nu
  */
 const REOPEN_TO_CHOOSE_INSTALLER = new Set(["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready"]);
 const REOPEN_NEW_PIESA_FROM: Stage = "piesa_and_install_window_pending";
+// "PIESA stage or later", listed (not by STAGE_ORDER position: the legacy ready_for_installer_quotes /
+// awaiting_quote_acceptance sit after it there but come before quote acceptance — they reopen to themselves).
+const REOPEN_TO_NEW_PIESA = new Set<string>([
+  "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required",
+  "awaiting_owner_rectification_approval", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked",
+  "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review",
+]);
 export function reopenStageFor(priorStage: string): { stage: string; needsNewPiesa: boolean } {
   if (REOPEN_TO_CHOOSE_INSTALLER.has(priorStage)) return { stage: "ready_check_ready_to_schedule", needsNewPiesa: false };
-  const at = STAGE_ORDER.indexOf(priorStage as Stage);
-  if (at >= STAGE_ORDER.indexOf(REOPEN_NEW_PIESA_FROM) && priorStage !== "complete") return { stage: REOPEN_NEW_PIESA_FROM, needsNewPiesa: true };
+  if (REOPEN_TO_NEW_PIESA.has(priorStage)) return { stage: REOPEN_NEW_PIESA_FROM, needsNewPiesa: true };
   return { stage: priorStage, needsNewPiesa: false };
 }
 

@@ -71,6 +71,9 @@ describe("reopenStageFor — where a reopened job goes", () => {
   for (const s of same) test(`${s} → unchanged, no new safety check`, () => expect(reopenStageFor(s)).toEqual({ stage: s, needsNewPiesa: false }));
   for (const s of ["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready"])
     test(`${s} → choose installer (Ready Check ready to schedule)`, () => expect(reopenStageFor(s)).toEqual({ stage: "ready_check_ready_to_schedule", needsNewPiesa: false }));
+  // F4: these come before quote acceptance — they reopen to themselves, not to the PIESA stage.
+  for (const s of ["ready_for_installer_quotes", "awaiting_quote_acceptance"])
+    test(`legacy ${s} → unchanged, no new safety check`, () => expect(reopenStageFor(s)).toEqual({ stage: s, needsNewPiesa: false }));
   test("measured_quote_accepted → unchanged, no new safety check", () => expect(reopenStageFor("measured_quote_accepted")).toEqual({ stage: "measured_quote_accepted", needsNewPiesa: false }));
   const later = ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval",
     "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review"];
