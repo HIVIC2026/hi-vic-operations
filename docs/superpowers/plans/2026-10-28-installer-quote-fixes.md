@@ -191,6 +191,36 @@
 - [ ] **Step 4: Run them.** Expected: PASS. Rerun Task 7's tests and the rectification and fixes tests.
 - [ ] **Step 5: Commit.**
 
+### Task 9 (build): Electrician owner prices the repair work in the portal
+
+**Files:**
+- Model on the installer setup: src/lib/installer-price*.ts, src/components/trade/InstallerPriceCard.tsx and
+  src/lib/boss-price-link.server.ts (decisions 278/289: the business owner gets one `/field/{jobId}#price` link text;
+  SMS type and event recorded before send; TEST jobs use the test sender).
+- Read: src/lib/fixes-price.core.ts (`fixesPriceSource`, today it reads `fixesPriceIncGst` from the A3 form),
+  src/lib/official-short.core.ts (`FIXES_PRICE_LABEL`).
+- Test: tests/electrician-repair-price.test.ts
+
+**Interfaces:**
+- Consumes: `ownsJobBusiness(jobId, userId, "electrician")`.
+- Produces: an electrician price record (event, latest wins) that `fixesPriceSource` reads FIRST; the A3 form price
+  is only a fallback for old forms.
+
+- [ ] **Step 1: Write failing tests.**
+  - A3 completed with repair work and no price: the electrician business owner gets exactly one text with the
+    job's #price link (event before send, TEST uses the test sender). There is no second text on later syncs.
+  - The owner opens the job and sees a "Your price" card: the ticked work list read-only, and a total inc GST input.
+    Saving the price builds the held fixes quote from it.
+  - Staff: no card, no price in page data, and saving is refused server-side.
+  - The office can enter the same price from the office job page.
+  - The fixes quote is never sent while there is no price. This reuses the existing $0/unpriced send blocker.
+  - Old forms that still carry a price keep working (used as the fallback).
+- [ ] **Step 2: Run them.** Expected: FAIL.
+- [ ] **Step 3: Implement.** Reuse the installer pieces where they fit; don't copy them. The comms master switch,
+  per-type text switch, quiet hours and STOP rules all apply.
+- [ ] **Step 4: Run them.** Expected: PASS. Rerun the Task 7/8 tests and the fixes-quote tests.
+- [ ] **Step 5: Commit.**
+
 ### Task 6: Bring in main and check the whole branch
 
 - [ ] **Step 1: Merge main.** Run `git fetch origin main && git merge origin/main`, keeping both sides on conflict. Check `git diff origin/main..HEAD --stat` lists only this branch's files.

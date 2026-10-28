@@ -66,8 +66,13 @@ difficult-access fee Jo never entered.
     - While the homeowner is deciding, the fixes quote is rebuilt after any item is added, priced or removed, so the
       homeowner never sees a removed item (Jo 28 Oct). A fixes quote with any $0 item can't be sent; a $0 item should
       be removed, not sent (Jo 28 Oct).
-    - The repair-price question is removed from the Mitti PIESA form. Jo does this in Mitti. Fix items from the form
-      arrive unpriced, and the electrician owner or the office prices them in the portal.
+    - The repair-price question ("Your total price for all the repair work, including GST") is removed from the Mitti
+      PIESA form. Jo does this in Mitti, but only after the portal price card below is live.
+    - Repair price works the same as the installer setup (Jo 28 Oct): when the safety check is completed with repair
+      work and no price, the electrician BUSINESS OWNER gets one text with a link to a "Your price" card on that job.
+      They enter the total repair price inc GST; the ticked work list from the form is shown read-only. The office can
+      also enter it. Staff never see the card or the price. The homeowner's fixes quote is built from that price, and
+      is held until it is entered.
     - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
       (Jo 28 Oct: "Yes, close it").
 
