@@ -103,13 +103,14 @@ function smsLine(s: FailedSms, now: number): string | null {
  * Partner texts with no job (e.g. a job offer to a trade): one row per business, newest first. Same window, same
  * statuses, same clearing rule (a later delivered text of the same kind to that business) as the per-job rows.
  */
-export function partnerSendFailedRows(i: { now: number; sms: FailedSms[]; windowDays?: number }): PartnerSendFailedRow[] {
+export function partnerSendFailedRows(i: { now: number; sms: FailedSms[]; windowDays?: number; covered?: ReadonlySet<string> }): PartnerSendFailedRow[] {
   const since = i.now - (i.windowDays ?? SEND_FAILED_WINDOW_DAYS) * DAY;
   const lastOk = new Map<string, number>();
   for (const s of i.sms) if (!s.job_id && s.business_id && (SUCCESS_SMS_STATUSES as readonly string[]).includes(s.status)) { const k = `${s.business_id}|${s.message_type}`, t = Date.parse(s.created_at); if (t > (lastOk.get(k) ?? -Infinity)) lastOk.set(k, t); }
   const byBiz = new Map<string, { at: string; line: string }[]>();
   for (const s of i.sms) {
     if (s.job_id || !s.business_id || Date.parse(s.created_at) < since) continue;
+    if (i.covered?.has(`${s.business_id}|${s.message_type}`)) continue; // already its own "Daily text to … failed" row
     const line = smsLine(s, i.now); if (!line) continue;
     if ((lastOk.get(`${s.business_id}|${s.message_type}`) ?? -Infinity) > Date.parse(s.created_at)) continue;
     byBiz.set(s.business_id, [...(byBiz.get(s.business_id) ?? []), { at: s.created_at, line }]);
@@ -121,6 +122,16 @@ export function partnerSendFailedRows(i: { now: number; sms: FailedSms[]; window
     rows.push({ businessId, count: fs.length, latestAt: fs[0]!.at, text: [...shown, more > 0 ? `and ${more} more` : null].filter(Boolean).join(" · ") });
   }
   return rows.sort((a, b) => Date.parse(b.latestAt) - Date.parse(a.latestAt));
+}
+
+/** Daily trade text log kinds and the text type they send (daily-mitti-text.server). */
+const TRADE_TEXT_SMS_TYPE: Record<string, string> = { daily: "daily_mitti", update: "daily_mitti_update" };
+/** `business|text type` keys already shown as "Daily text to … failed" (open failed trade_text_log rows), so the
+ *  job-less partner row doesn't show the same failure twice. */
+export function tradeTextCoveredKeys(failedLog: { business_id: string | null; kind: string | null }[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of failedLog) { const t = r.kind ? TRADE_TEXT_SMS_TYPE[r.kind] : undefined; if (r.business_id && t) out.add(`${r.business_id}|${t}`); }
+  return out;
 }
 
 /**

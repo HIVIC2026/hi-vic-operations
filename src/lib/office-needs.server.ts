@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice, type OfficeJob } from "./office.server";
 import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
-import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows } from "./send-failed.core";
+import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
@@ -490,7 +490,13 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const r of recLinks) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
     // Batch 2: texts to a trade with no job (e.g. a job offer) that failed or may not have arrived — one row per business, named.
     {
-      const pr = partnerSendFailedRows({ now, sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), business_id: s(m["business_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) });
+      // Job-less daily trade texts already have their own "Daily text to … failed" row (office.server, open trade_text_log
+      // failures): don't show the same failure twice (same business + type).
+      const tradeLog = smsFails.some((m) => !m["job_id"] && /^daily_mitti/.test(String(m["message_type"])))
+        ? await all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("business_id, kind").eq("status", "failed").is("acknowledged_at", null).range(a, b)) // eslint-disable-line @typescript-eslint/no-explicit-any
+        : [];
+      const covered = tradeTextCoveredKeys(tradeLog.map((r: Row) => ({ business_id: s(r["business_id"]), kind: s(r["kind"]) })));
+      const pr = partnerSendFailedRows({ now, covered, sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), business_id: s(m["business_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) });
       const names = new Map((pr.length ? await byIds("partner text businesses", pr.map((r) => r.businessId), (chunk, a, b) => admin.from("businesses").select("id, name").in("id", chunk).range(a, b)) : []).map((b) => [String(b["id"]), s(b["name"])]));
       for (const r of pr) system.push({ key: `partner-send:${r.businessId}`, tag: "Partner", who: names.get(r.businessId) ?? "A trade business", line: `Send failed · ${r.text}`, since: r.latestAt, button: "Open", href: `/admin/partners/business/${r.businessId}` });
     }

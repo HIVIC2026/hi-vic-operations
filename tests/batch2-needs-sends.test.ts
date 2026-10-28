@@ -1,6 +1,6 @@
 // Batch 2 task 2: Needs me shows sends the office must know about. Run: bun test tests/batch2-needs-sends.test.ts
 import { describe, expect, test } from "bun:test";
-import { partnerSendFailedRows, sendFailedRows } from "../src/lib/send-failed.core";
+import { partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "../src/lib/send-failed.core";
 import { mittiOfficeItems } from "../src/lib/ready-check-chase.core";
 import { NEEDS_TEXT } from "../src/lib/allocation.core";
 import { buildNeedsRows, stopReleaseFailedFact, type NeedsFacts } from "../src/lib/office-needs.core";
@@ -58,6 +58,22 @@ describe("partner texts with no job", () => {
       { job_id: null, business_id: "b1", message_type: "job_offer", status: "failed", created_at: ago(2 * H), detail: null },
       { job_id: null, business_id: "b1", message_type: "job_offer", status: "delivered", created_at: ago(H), detail: null }] })).toEqual([]);
     expect(partnerSendFailedRows({ now: NOW, sms: [{ job_id: "j", business_id: "b1", message_type: "job_offer", status: "failed", created_at: ago(H), detail: null }] })).toEqual([]);
+  });
+  test("final fix: a job-less daily trade text already shown as \"Daily text to … failed\" is not shown twice (same business + type)", () => {
+    const covered = tradeTextCoveredKeys([{ business_id: "b1", kind: "daily" }, { business_id: "b2", kind: "update" }, { business_id: "b3", kind: "test" }]);
+    expect([...covered].sort()).toEqual(["b1|daily_mitti", "b2|daily_mitti_update"]);
+    const sms = [
+      { job_id: null, business_id: "b1", message_type: "daily_mitti", status: "failed", created_at: ago(H), detail: null },
+      { job_id: null, business_id: "b1", message_type: "job_offer", status: "failed", created_at: ago(H), detail: null },
+      { job_id: null, business_id: "b2", message_type: "daily_mitti", status: "failed", created_at: ago(H), detail: null },
+    ];
+    const rows = partnerSendFailedRows({ now: NOW, sms, covered });
+    expect(rows.map((r) => [r.businessId, r.count])).toEqual([["b1", 1], ["b2", 1]]);
+    expect(rows.find((r) => r.businessId === "b1")!.text).toContain("Job offer text");
+    expect(partnerSendFailedRows({ now: NOW, sms }).find((r) => r.businessId === "b1")!.count).toBe(2);
+    const src = readFileSync("src/lib/office-needs.server.ts", "utf8");
+    expect(src).toContain('from("trade_text_log").select("business_id, kind")');
+    expect(src).toMatch(/partnerSendFailedRows\(\{[^}]*covered/);
   });
   test("Needs me reads business_id and shows the business name in the Partner fold", () => {
     const src = readFileSync("src/lib/office-needs.server.ts", "utf8");
