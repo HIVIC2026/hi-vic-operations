@@ -105,9 +105,22 @@ const STEPS: Step[] = [
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
   { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
+  { step: "Office quote release", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
+    expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "issued").limit(1).maybeSingle()).data ? null : "no issued quote after Send quote" },
+  { step: "Owner acceptance", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=quote`, wait: "Say yes", button: "sign:", severity: "Stop launch", next: "You said yes",
+    expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "accepted").limit(1).maybeSingle()).data ? null : "quote not accepted" },
 ];
-const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
+const LATER = ["PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
+const stripeTest = !!process.env["STRIPE_TEST_SECRET_KEY"];
+const LATER_WHY: Record<string, string> = {
+  "PIESA payment and booking": `the $349 safety check must really be paid first — card needs the Stripe TEST key (${stripeTest ? "present" : "not set"}), bank transfer needs a payment recorded in Xero; the runner never records a payment itself, and PIESA times only open once it is paid`,
+  "PIESA completed form approval": "needs the electrician's PIESA Mitti form filled and completed; the TEST practice form page exists only for the Ready Check, and the PIESA must be booked first",
+  "Install deposit and days": "the 10% deposit is bank transfer / PayID only, so it needs a real payment recorded in Xero; install days also need the PIESA done first",
+  "Install day and evidence": "needs the A5 install-day Mitti form filled and completed; there is no TEST practice page for A5, and the install must be booked first",
+  "AP final check": "needs a finished install with evidence and a completion pack on this job",
+  "Final payout": "needs the AP final check approved on this job",
+};
 const py = String.raw`
 import asyncio, json, re, sys
 from pathlib import Path
@@ -223,6 +236,36 @@ async def main():
                 handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
                 candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
                 el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "sign:":
+                # A person ticks every box in "Say yes", types their name twice, presses the button, proves it's them, presses again.
+                box = page.locator("[data-testid=say-yes]")
+                try: await box.wait_for(state="visible", timeout=30000)
+                except Exception: pass
+                el, how = None, "say-yes button"
+                if await box.count():
+                    for lab in await box.locator("label").filter(has=page.locator("input[type=checkbox]")).all():
+                        cb = lab.locator("input[type=checkbox]")
+                        if not await cb.is_checked(): await lab.click()
+                    for inp in await box.locator("input:not([type=checkbox])").all():
+                        if await inp.is_visible(): await inp.fill("Test Journey")
+                    btn = box.locator("button[aria-disabled]").last
+                    if await btn.is_enabled():
+                        await btn.click(); await page.wait_for_timeout(2500)
+                        em = page.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+                        cr = cfg.get("codeRead")
+                        if await em.count() and cr:
+                            await em.first.click(); await page.wait_for_timeout(2500)
+                            import urllib.request
+                            code = None
+                            for _ in range(20):
+                                rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"], headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                                rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                                if rows_: code = rows_[0]["code"]; break
+                                await asyncio.sleep(1)
+                            if code:
+                                await page.get_by_label("Enter code").fill(code)
+                                await page.get_by_role("button", name="Check my code").click(); await page.wait_for_timeout(3000)
+                        el = btn
             elif name == "practice:":
                 answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
                 for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
@@ -287,6 +330,14 @@ if (!ctx?.jobId || !safe) {
     const path = s.path();
     if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
     if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
+    if (s.step === "Office quote release") {
+      const pol = await import("../src/lib/qa-office-policy.core");
+      if (!pol.qaOfficeFunctionAllowed("src/lib/installer-quote.functions.ts", "getInstallerQuoteDraft") || !pol.qaOfficeFunctionAllowed("src/lib/installer-quote.functions.ts", "sendInstallerQuote")) {
+        const r = await browse({ n, slug: "office-quote-release", path, wait: s.wait, person: s.person, next: s.next });
+        add({ step: s.step, person: s.person, status: "blocked", detail: "The TEST office login is not allowed to load or send the installer quote (the quote card stays on \"Loading installer quote…\"); widening the TEST office allowlist needs Jo's decision. Nothing pressed.", screenshot: r?.shots ?? [] });
+        broken = true; n++; continue;
+      }
+    }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
     const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;
@@ -317,7 +368,7 @@ if (!ctx?.jobId || !safe) {
     const path = person === "homeowner" ? `/my-job/${ctx.token}` : person === "installer owner" ? `/field/day/${ctx.jobId}` : `/admin/jobs/${ctx.jobId}`;
     const r = await browse({ n: n++, slug: s.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: person === "office" ? ctx.jobNumber ?? "HV-" : person === "homeowner" ? "Your progress" : "Install", person, next: s });
     const st = await jobState();
-    add({ step: s, person, status: broken ? "blocked" : "not_run", detail: `Page inspected (${r?.url ?? "browser failed"}); ${broken ? "required earlier workflow state not reached" : "this step's page controls are not implemented in the runner"}. No downstream state manufactured.`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails });
+    add({ step: s, person, status: "blocked", detail: `Page inspected (${r?.url ?? "browser failed"}); ${broken ? "required earlier workflow state not reached; also " : ""}${LATER_WHY[s]}. No downstream state manufactured.`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails });
   }
 }
 
