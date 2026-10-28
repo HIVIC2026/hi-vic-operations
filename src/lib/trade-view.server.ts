@@ -870,7 +870,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady] = await Promise.all([
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
     admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),

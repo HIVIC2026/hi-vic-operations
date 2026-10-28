@@ -69,3 +69,15 @@ describe("initial PIESA completion marks the safety check visit done", () => {
     expect(lines.map((l) => [l.jobId, l.business])).toEqual([["j1", "Sparky Co"]]);
   });
 });
+
+describe("readers that print the safety check date after completion accept a completed booking", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const lineWith = (file: string, needle: string) => readFileSync(file, "utf8").split("\n").find((l) => l.includes(needle) && l.includes('"kind", "assessment"'))!;
+  test("official PIESA form data (mitti.server) and installer job panels (trade-view.server)", () => {
+    for (const [f, n] of [["src/lib/mitti.server.ts", 'select("scheduled_start,status")'], ["src/lib/trade-view.server.ts", 'select("scheduled_start").eq("job_id", jobId)']] as const) {
+      const l = lineWith(f, n);
+      expect(l).toContain('.in("status", ["confirmed", "completed"])');
+      expect(l).not.toContain('.eq("status", "confirmed")');
+    }
+  });
+});

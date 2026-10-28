@@ -134,7 +134,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
-    admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     // Stage 5 (Jo 23 Oct): a Ready Check form carries the OWNER'S BOOKED Ready Check date — the PIESA
     // booking is irrelevant here and must never leak onto a Ready Check form.
     admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),

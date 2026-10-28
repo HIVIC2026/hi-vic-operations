@@ -78,7 +78,8 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
   // The safety check visit is done: mark the confirmed assessment booking completed so the electrician's pay line shows in the
   // office Payouts (office-money lists it only for a completed assessment booking). Same as piesa-record.server does for fixes.
-  await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "confirmed");
+  const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "confirmed");
+  if (visitErr) console.error("safety check visit not marked done", visitErr.message);
   await logEvent(data.jobId, userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
   // Decision 350: a PIESA done on the Mitti form files the official PIESA signed copy now (held with a reason, never
   // invented). Best-effort: the completion above stands either way.
