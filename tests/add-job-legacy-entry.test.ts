@@ -29,3 +29,8 @@ test("team management is business owner/admin only", () => {
   expect(partnerPathAllowed("/partner/workers", base)).toBe(false);
   expect(partnerPathAllowed("/partner/workers", { ...base, businessAdmin: true })).toBe(true);
 });
+
+test("A5: installer staff reach Add a job (they're told there); electricians don't", () => {
+  expect(partnerPathAllowed("/partner/import", base)).toBe(true);
+  expect(partnerPathAllowed("/partner/import", { ...base, installer: false, electrician: true, businessAdmin: true })).toBe(false);
+});

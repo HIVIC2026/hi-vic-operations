@@ -32,6 +32,14 @@ export const addJobOptions = createServerFn({ method: "POST" }).middleware([requ
     return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null };
   });
 
+/** A5: who is opening Add a job — owner (gets the form), staff (told only the owner can add) or none. Read-only. */
+export const addJobStart = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { myBusinesses } = await import("./pilot.server");
+    const { addJobStartState } = await import("./add-job-flow.core");
+    return addJobStartState(await myBusinesses(context.userId));
+  });
+
 export const onsiteFormStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, retry: z.boolean().default(false) }).parse(d))
   .handler(async ({ data, context }) => {

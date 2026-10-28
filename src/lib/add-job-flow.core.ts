@@ -9,6 +9,14 @@ export const ADD_JOB_DETAIL = "Enter the details perfectly and in full — they 
 /** Mock-up M3 "what happens next" (decisions 115, 163). */
 export const WHAT_HAPPENS_NEXT = "The Ready Check form appears in your Mitti app within about 15 minutes. Press Complete in Mitti only when it's fully finished — that sends the owner their quote. Your typed details stay on your phone if the signal drops.";
 
+/** A5 (Jo 28 Oct): what staff (not the business owner) are told at the start, instead of the form. */
+export const ADD_JOB_STAFF_ONLY = "Only your business owner can add jobs. Ask them to add this customer for you.";
+/** Same membership rule as the save (`requireMember(…, true)`): owner of any business → that business; staff only → staff. */
+export function addJobStartState(m: Map<string, "business_admin" | "member">): { kind: "owner"; businessId: string } | { kind: "staff" } | { kind: "none" } {
+  for (const [businessId, role] of m) if (role === "business_admin") return { kind: "owner", businessId };
+  return m.size > 0 ? { kind: "staff" } : { kind: "none" };
+}
+
 export const blankCustomer = (): OnsiteInput => ({ full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false, consent_by: null });
 
 /** A restored phone draft never carries consent forward: it must be ticked again for this job. */

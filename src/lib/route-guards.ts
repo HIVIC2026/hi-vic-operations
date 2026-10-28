@@ -64,11 +64,13 @@ export function userIdOf(context: unknown): string {
 
 /** Which partner pages need the business boss, and which are installer-only. */
 const BOSS_ONLY = ["/partner/payments", "/partner/profile", "/partner/workers"];
-const INSTALLER_BOSS_ONLY = ["/partner/add", "/partner/import"];
+const INSTALLER_BOSS_ONLY = ["/partner/add"];
 export function partnerPathAllowed(path: string, a: Access): boolean {
   if (a.admin) return true;
   const p = path.replace(/\/$/, "");
   if (INSTALLER_BOSS_ONLY.some((x) => p.startsWith(x))) return a.installerBusinessAdmin;
+  // Add a job: installer staff may open it (they are told only the owner can add; saving stays owner-only on the server).
+  if (p.startsWith("/partner/import")) return a.installer;
   if (BOSS_ONLY.some((x) => p.startsWith(x))) return a.businessAdmin;
   return a.installer || a.electrician;
 }
