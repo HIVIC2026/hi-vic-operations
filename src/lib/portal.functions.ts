@@ -11,7 +11,7 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { clearInstallDueDate } from "./install-balance.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
@@ -829,11 +829,7 @@ async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: s
   // Jo 24 Oct: tell the installer (best-effort; never affects the owner's acceptance).
   try { await (await import("./installer-accepted-email.server")).emailInstallerQuoteAccepted(jobId, quoteId); }
   catch (e) { console.error("installer accepted email skipped", (e as Error).message); }
-  try { await createInvoiceForQuote(quoteId, actorId); }
-  catch (e) {
-    const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
-    await logEvent(jobId, actorId, "invoice_create_failed", `Quote accepted but the invoice step failed – office action needed: ${(e as Error)?.message ?? e}`, { quote_id: quoteId, invoice_id: inv?.id ?? null, local_invoice_exists: !!inv }, { internal: true }).catch(() => null);
-  }
+  await (await import("./invoice-after-acceptance.server")).createInvoiceAfterAcceptance(quoteId, jobId, actorId);
 }
 
 // ---------- Payments (Xero mirror + gates) ----------

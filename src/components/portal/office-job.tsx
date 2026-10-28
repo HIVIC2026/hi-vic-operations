@@ -20,6 +20,7 @@ import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
+import { retryInvoiceFn } from "@/lib/office-money.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
 import { reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
@@ -217,6 +218,7 @@ export function MoneyCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
+  const createInvoice = useAction(retryInvoiceFn);
   const { data, error } = useQuery({ queryKey: ["office-job-money", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 30_000 });
   const [showMargin, setShowMargin] = useState(false);
   const [overriding, setOverriding] = useState(false);
@@ -230,6 +232,12 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         <h2 className="font-display text-lg font-bold text-ink">Money{data.invoice ? ` · invoice ${data.invoice.number ?? "not in Xero yet"} · $${data.invoice.total.toLocaleString("en-AU", { maximumFractionDigits: 0 })} inc GST · paid $${data.invoice.paid.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : ""}</h2>
         {v?.onlineInvoiceUrl && <a href={v.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-hiv-blue underline">Xero invoice (office view)</a>}
       </div>
+      {data.hasAcceptedQuote && !data.invoice?.linked && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-rose/30 bg-pink px-3 py-2 text-sm">
+          <span className="font-semibold text-rose">The invoice is not in Xero yet.</span>
+          <button type="button" className={cn(btn, "bg-ink text-white")} onClick={() => void createInvoice({ jobId }, "Invoice created")}>Create invoice</button>
+        </div>
+      )}
       {!v ? <p className="text-sm text-sub">No invoice yet — the one Xero invoice is created when the owner accepts the quote.</p> : (
         <ul className="divide-y divide-line rounded-[12px] border border-line">
           {(v.steps as PaymentStep[]).map((s) => (

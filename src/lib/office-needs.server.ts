@@ -348,6 +348,22 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
+  try {
+    const { invoiceFailedFact } = await import("./office-needs.core");
+    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id, summary, created_at")).eq("event_type", "invoice_create_failed").range(a, b));
+    const failIds = [...new Set(fails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    if (failIds.length) {
+      const invs = await byIds("invoices of failed jobs", failIds, (c, a, b) => admin.from("invoices").select("job_id, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).eq("kind", "installation").range(a, b));
+      for (const id of failIds) {
+        const hit = invoiceFailedFact(
+          fails.filter((e) => String(e["job_id"]) === id).map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+          invs.filter((i) => String(i["job_id"]) === id).map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+        );
+        const x = f(id); if (x && hit) x.invoiceFailed = hit;
+      }
+    }
+  } catch { unavailable.push("failed invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };

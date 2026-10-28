@@ -18,7 +18,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -100,6 +100,8 @@ export type NeedsFacts = {
   /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
    *  → ONE row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. */
   paymentStalled?: PaymentStall | null;
+  /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. */
+  invoiceFailed?: { at: string; text: string } | null;
 };
 
 /** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
@@ -109,6 +111,20 @@ export function fixesFoundLine(stage: string): string {
     : stage === "rectification_booked" ? "waiting on the fixes and Section C sign-off"
     : "waiting on fixes quote/approval";
   return `Safety check found electrical fixes — ${what}`;
+}
+
+/** The newest `invoice_create_failed` event, unless a Xero-linked invoice has appeared since (the office created it) or a
+ *  local invoice already shows its own Xero problem (that one reaches Needs me through the job's status, not twice). */
+export function invoiceFailedFact(
+  events: readonly { at: string; text: string }[],
+  invoices: readonly { xero_invoice_id: string | null; last_synced_at: string | null; created_at: string; last_sync_error: string | null; status?: string | null }[],
+): { at: string; text: string } | null {
+  const latest = [...events].sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  if (!latest) return null;
+  if (invoices.some((i) => i.last_sync_error || i.status === "xero_sync_error")) return null;
+  const linkedAt = invoices.filter((i) => i.xero_invoice_id).map((i) => Date.parse(i.last_synced_at ?? i.created_at)).filter(Number.isFinite);
+  if (linkedAt.length && Math.max(...linkedAt) >= Date.parse(latest.at)) return null;
+  return latest;
 }
 
 const HOUR = 3_600_000;
@@ -127,6 +143,7 @@ type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "sub
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
+  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: "Invoice didn't reach Xero · owner can't pay yet", since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
   // Review R04: an owner email with no clear answer from the email service — never resent automatically.
   if (f.sendUnknown) add({ rank: 11, group: "today", kind: "send_failed", line: f.sendUnknown.text, since: f.sendUnknown.at, button: { label: "Open job", to: "job", section: "contact" } });

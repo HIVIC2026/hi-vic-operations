@@ -151,7 +151,7 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
     db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", jobId).maybeSingle(),
     testOffice ? Promise.resolve({ data: null }) : db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
-    admin.from("invoices").select("xero_invoice_number, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("invoices").select("xero_invoice_number, xero_invoice_id, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
   ]);
   const q = quote.data;
@@ -196,7 +196,9 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
     installerPayEx, piesaCostEx, electricianChosen, fixesCostEx, veecValue: veec.value, veecIncentive: q ? Number(q.veec_discount_inc_gst) : 0,
   }), veecBasis: veec.basis, quoteStatus: q?.status ?? null };
   return {
-    invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error } : null,
+    invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error, linked: !!inv.data.xero_invoice_id } : null,
+    /** Batch 1: an accepted installation quote exists — with no Xero-linked invoice the Money card offers "Create invoice". */
+    hasAcceptedQuote: ((await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1)).data ?? []).length > 0,
     view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
     margin, quoteStatus: q?.status ?? null,
   };

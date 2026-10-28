@@ -291,3 +291,14 @@ export async function setVeecSpotPrice(price: number, actorId: string) {
   await db.from("admin_config_events").insert({ actor_id: actorId, event_type: "current_veec_price_changed", summary: `VEEC spot price set to $${price} (Money › VEECs)`, details: { from: ws.current_veec_price, to: price, priced_on: pricedOn } });
   return { ok: true, pricedOn };
 }
+
+/** Office "Create invoice": the job's accepted installation quote goes through the same invoice step the acceptance uses. */
+export async function createInvoiceForJob(jobId: string, actorId: string | null): Promise<{ ok: true }> {
+  const { WorkflowError } = await import("./workflow.server");
+  const { data: q, error } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError(`Could not read the accepted quote: ${error.message}`);
+  if (!q) throw new WorkflowError("This job has no accepted installation quote, so there is nothing to invoice.");
+  const r = await (await import("./invoice-after-acceptance.server")).createInvoiceAfterAcceptance(q.id, jobId, actorId);
+  if (!r.ok) throw new WorkflowError(`The invoice still did not reach Xero: ${r.error ?? "unknown error"}`);
+  return { ok: true };
+}
