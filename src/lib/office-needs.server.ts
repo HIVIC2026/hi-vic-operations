@@ -81,7 +81,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
