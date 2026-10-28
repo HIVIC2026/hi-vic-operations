@@ -1,12 +1,12 @@
 // Installer "My work" (approved mock-up M1, decision 198; decisions 36, 41, 43, 48). PURE presentation only: it
-// puts each of the installer's jobs in exactly ONE of Action needed / In progress / Done and writes ONE "Next:" line
+// puts each of the installer's jobs in exactly ONE of Coming up / Action needed / In progress / Done and writes ONE "Next:" line
 // per job from facts the server has already decided (place, stage, quote status, Mitti basics, bookings).
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { installerStatusLine } from "./installer-screens.core";
 
-export type HomeGroup = "action" | "progress" | "done" | "offer";
+export type HomeGroup = "action" | "coming" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
   jobId: string;
   jobNumber: string | number | null;
@@ -86,7 +86,7 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (j.quoteLine === QUOTE_HELD_LINE) return { group: "progress", next: "Next: nothing yet — office is checking the quote" };
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };
-  if (j.place === "coming_up" && j.upcoming) return { group: "progress", next: `Next: ${j.upcoming.what.toLowerCase() === "install" ? "install" : j.upcoming.what} ${fmtWeekdayDayMonth(j.upcoming.start)} at ${exactTime(j.upcoming.start)}` };
+  if (j.place === "coming_up" && j.upcoming) return { group: "coming", next: `Next: ${j.upcoming.what.toLowerCase() === "install" ? "install" : j.upcoming.what} ${fmtWeekdayDayMonth(j.upcoming.start)} at ${exactTime(j.upcoming.start)}` };
   if (j.place === "needs_me") {
     const t = j.placeTitle ?? "";
     if (/suggested time/i.test(t)) return { group: "action", next: "Next: reply to the owner's suggested time" };
@@ -129,14 +129,20 @@ export function doneSub(channel: string | null | undefined, stage: string, ended
   return [sourceLabel(channel), doneLine(stage, endedAt)].filter(Boolean).join(" · ");
 }
 
-/** Three groups, every job in exactly one; offers are shown in the offer panel, not in a group. */
-export function installerHomeGroups(jobs: InstallerHomeJob[]): { action: InstallerHomeRow[]; progress: InstallerHomeRow[]; done: InstallerHomeRow[] } {
+/** Four groups, every job in exactly one; offers are shown in the offer panel, not in a group. */
+export function installerHomeGroups(jobs: InstallerHomeJob[]): { action: InstallerHomeRow[]; coming: InstallerHomeRow[]; progress: InstallerHomeRow[]; done: InstallerHomeRow[] } {
   const rows = jobs.map((j) => ({ ...j, ...installerNext(j) }));
-  return { action: rows.filter((r) => r.group === "action"), progress: rows.filter((r) => r.group === "progress"), done: rows.filter((r) => r.group === "done") };
+  return { action: rows.filter((r) => r.group === "action"), coming: rows.filter((r) => r.group === "coming"), progress: rows.filter((r) => r.group === "progress"), done: rows.filter((r) => r.group === "done") };
+}
+
+/** Booked visits for the Coming up list: only jobs the groups placed in Coming up, order kept (one job, one list). */
+export function comingForInstaller<T extends { jobId: string }>(coming: T[], home: { coming: { jobId: string }[] }): T[] {
+  const ids = new Set(home.coming.map((r) => r.jobId));
+  return coming.filter((c) => ids.has(c.jobId));
 }
 
 /** Section heading count: "Action needed · 3". */
-export const GROUP_LABEL: Record<Exclude<HomeGroup, "offer">, string> = { action: "Action needed", progress: "In progress", done: "Done" };
+export const GROUP_LABEL: Record<Exclude<HomeGroup, "offer" | "coming">, string> = { action: "Action needed", progress: "In progress", done: "Done" };
 
 /** Offer panel words (approved state M1-more-offers, decision 201 wording): "1 new job offer" · "Ready Check in Glen Waverley" ·
  *  "Owner says ~120 m² · Home Insulation Victoria lead" (or "No size yet · …" when the enquiry has no size). */
