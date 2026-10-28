@@ -47,7 +47,10 @@ type Line = { code: string | null; description: string; quantity: number; unit: 
 // REMOVED (security review 6 Oct): legacy priceInstallerOption and its flat per-m² VEEC credit
 // (pricing_settings.veec_credit_per_m2_inc_gst). Every discount uses wholeVeecDiscount + applyDiscountRules.
 
-export async function generateInstallerQuotes(jobId: string, actorId: string | null, options: { mittiDraft?: boolean } = {}) {
+/** Options: `mittiDraft` prices a draft from the Ready Check measurement before it is accepted. Batch 3a ("Send me a new
+ *  quote"): `holdReason` forces a HELD draft with that office reason (never issued), and `excludeAcceptedFixes` builds the
+ *  quote from the measurement only (an accepted electrical fixes quote is not folded in). */
+export async function generateInstallerQuotes(jobId: string, actorId: string | null, options: { mittiDraft?: boolean; holdReason?: string; excludeAcceptedFixes?: boolean } = {}) {
   // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
   const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst, property_id").eq("id", jobId).single();
   if (!jobRow) throw new WorkflowError("Job not found.");
@@ -76,7 +79,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const metro = loc ? loc.metropolitan_or_regional === "Metropolitan" : null;
 
   // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
-  const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: rectQuote } = options.excludeAcceptedFixes ? { data: null }
+    : await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rectLines = ((rectQuote?.quote_items ?? []) as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null }[])
     .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
@@ -138,7 +142,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
   // Jo 22 Oct 23:45: no confirmed approved product from the form → held, office confirms the product.
   const { PRODUCT_NEEDS_OFFICE } = await import("./insulation-product.core");
-  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
+  const holds = [...(options.holdReason ? [options.holdReason] : []), ...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
   const release: typeof baseRelease = holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";

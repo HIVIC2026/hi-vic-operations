@@ -388,6 +388,26 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("expired quotes not emailable"); }
+  // Batch 3a: the owner asked for a new quote but the installer is no longer active → one row until an installer is on the
+  // job or a new installation quote exists.
+  try {
+    const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, newQuoteNeedsInstallerFact } = await import("./new-quote-request.core");
+    const raised = await all("new quotes needing an installer", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", NEW_QUOTE_NEEDS_INSTALLER_EVENT).range(a, b));
+    const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    if (raisedIds.length) {
+      const [ev, inst, qs] = await Promise.all([
+        byIds("new quote requests", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", c).eq("event_type", NEW_QUOTE_NEEDS_INSTALLER_EVENT).range(a, b)),
+        byIds("installers of new quote requests", raisedIds, (c, a, b) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(a, b)),
+        byIds("quotes of new quote requests", raisedIds, (c, a, b) => admin.from("quotes").select("job_id, created_at").in("job_id", c).eq("kind", "installation").range(a, b)),
+      ]);
+      const withInst = new Set(inst.map((r) => String(r["job_id"])));
+      for (const id of raisedIds) {
+        const hit = newQuoteNeedsInstallerFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]) })),
+          { hasActiveInstaller: withInst.has(id), quoteCreatedAts: qs.filter((q) => q["job_id"] === id).map((q) => String(q["created_at"])) });
+        const x = f(id); if (x && hit) x.newQuoteInstaller = hit;
+      }
+    }
+  } catch { unavailable.push("new quotes needing an installer"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
     const { invoiceFailedFact } = await import("./office-needs.core");

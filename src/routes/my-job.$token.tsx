@@ -30,12 +30,15 @@ import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBulle
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
 import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
+import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
+import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn"] as const satisfies readonly OwnerScreen[];
+// Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -84,6 +87,7 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
+          : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -261,6 +265,18 @@ function TurnScreen({ token }: { token: string }) {
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
     </section>
   );
+}
+
+/** Batch 3a: O78's "Send me a new quote". The tap is the request (sent once on arrival; a second tap gets the same
+ *  answer and changes nothing). Refused (not a job closed by an expired quote) → the normal My job page. */
+function NewQuoteScreen({ v, token }: { v: View; token: string }) {
+  const ask = useServerFn(ownerRequestNewQuoteFn);
+  const qc = useQueryClient();
+  const { data: r, isLoading, isError } = useQuery({ queryKey: ["owner-newquote", token], queryFn: () => ask({ data: { token } }), retry: false, staleTime: Infinity, refetchOnWindowFocus: false });
+  useEffect(() => { if (r?.kind === "thanks") void qc.invalidateQueries({ queryKey: ["my-job", token] }); }, [r?.kind, qc, token]);
+  if (isLoading) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  if (isError || r?.kind !== "thanks") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
+  return <section data-testid="owner-newquote" className="space-y-4 rounded-[22px] bg-card p-6 shadow-sm"><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{NEW_QUOTE_THANKS}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
 }
 
 /** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
