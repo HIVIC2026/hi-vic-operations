@@ -570,12 +570,15 @@ export const priceRectItem = createServerFn({ method: "POST" }).middleware([requ
     }
     if (!it?.is_other) throw new WorkflowError("Only manual items can be priced here.");
     const stage = await getStage(it.job_id);
-    if (!office && !fixItems.FIX_ITEM_STAGES.includes(stage)) throw new WorkflowError("Items can only be priced before the owner approves electrical fixes.");
+    if (!office && !fixItems.OWNER_PRICE_STAGES.includes(stage)) throw new WorkflowError("Items can only be priced before the owner approves electrical fixes.");
     await admin.from("rectification_items").update({ other_unit_price_inc_gst: data.unitPriceIncGst, needs_office_pricing: false }).eq("id", data.itemId);
     await logEvent(it.job_id, context.userId, "rectification_item_priced", office ? `Office priced: ${it.description}` : `Business owner priced: ${it.description}`, { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason });
     // Spec rule 3: the fixes quote is not sent until every item has a price. While the owner is deciding on it, any
     // price (owner's or office's) rebuilds it, the same as adding an item, so no $0 line is left on the held draft.
     if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(it.job_id, context.userId);
+    // Task 9 (Jo 28 Oct 2026): after the PIESA is complete (owner or office), a held, unsent fixes quote is rebuilt too,
+    // so the office never has to Regenerate by hand. A sent or accepted quote is never touched.
+    else await (await import("./electrician-repair-price-set.server")).rebuildHeldFixesQuote(it.job_id, context.userId, stage, { build: false });
     return { ok: true };
   });
 

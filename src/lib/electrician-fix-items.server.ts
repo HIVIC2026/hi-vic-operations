@@ -10,6 +10,9 @@ export const STAFF_PRICE_REFUSED = "Only your business owner or the office can s
 export const STAFF_PRICING_REFUSED = "Only your business owner or the office can set a price.";
 /** Stages where electrician fix items may still be added (and, for the owner, priced): before the owner approves. */
 export const FIX_ITEM_STAGES: readonly string[] = ["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"];
+/** Task 9 (Jo 28 Oct 2026): the owner may still price a waiting item after the PIESA is complete (staff can complete it
+ *  while an item is unpriced, Task 8) — on the "Your price" card at piesa_complete / electrical_variation_pending. */
+export const OWNER_PRICE_STAGES: readonly string[] = [...FIX_ITEM_STAGES, "piesa_complete", "electrical_variation_pending"];
 
 /** The office, or the owner of the job's electrician business. Any failure = may not price. */
 export async function canPriceFixItems(jobId: string, userId: string, role: string): Promise<boolean> {

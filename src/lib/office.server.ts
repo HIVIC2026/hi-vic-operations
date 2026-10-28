@@ -7,6 +7,8 @@ import { limits, officeStatus, type JobFacts, type OfficeStatus } from "./office
 import { buildNeedsMe, type NeedsJob, type PartnerItem, type Snooze } from "./needs-me.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { QUOTE_EDIT_REPLACED_EVENT } from "./quote-edit-replaced.core";
+import { repairPriceWaitingSince } from "./repair-price-wait.core";
+import { REPAIR_PRICE_EVENT, REPAIR_PRICE_LINK_EVENT } from "./electrician-repair-price.core";
 
 type Admin = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
@@ -99,6 +101,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     skip("owner paperwork signatures", (c) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", c).order("signed_at").order("id")),
     // Jo 28 Oct 2026: an office-edited draft was rebuilt from the installer's price → "check this quote" on the status line.
     scoped("quote alerts", (c) => admin.from("workflow_events").select("job_id, details").eq("event_type", QUOTE_EDIT_REPLACED_EVENT).in("job_id", c)),
+    // Task 9 (Jo 28 Oct 2026): the electrician's price link and price events → "Waiting on the electrician's price" after 24h.
+    scoped("repair price links", (c) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("event_type", [REPAIR_PRICE_LINK_EVENT, REPAIR_PRICE_EVENT]).in("job_id", c)),
     ]);
   };
   const early = statusOnly ? perJob(opts.onlyIds!, [], []) : null;
@@ -132,8 +136,10 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
   const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
   const tIds = timed.map((j) => String(j["id"]));
-  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows, editAlerts] = await (early ?? perJob(ids, pickJobs, tIds));
+  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows, editAlerts, repairPriceEv] = await (early ?? perJob(ids, pickJobs, tIds));
   const editReplacedQuotes = new Set(editAlerts.map((e) => String((e["details"] as { quote_id?: string } | null)?.quote_id ?? "")).filter(Boolean));
+  const repairEvBy = new Map<string, Row[]>(); for (const e of repairPriceEv) { const k = String(e["job_id"]); if (!repairEvBy.has(k)) repairEvBy.set(k, []); repairEvBy.get(k)!.push(e); }
+  const repairWaitSince = new Map<string, string>(); for (const [k, evs] of repairEvBy) { const at = repairPriceWaitingSince(evs as never); if (at) repairWaitSince.set(k, at); }
   const { chosenTradeNoAnswer } = await import("./trade-choice.core");
   const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
   const pickAllBy = new Map<string, Row[]>(); for (const o of pickAll) { const k = String(o["job_id"]); if (!pickAllBy.has(k)) pickAllBy.set(k, []); pickAllBy.get(k)!.push(o); }
@@ -248,6 +254,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]), editReplaced: editReplacedQuotes.has(String(q["id"])) } : null,
       rectQuote: rq ? { releaseState: s(rq["release_state"]), sentAt: s(rq["sent_at"]), status: String(rq["status"]) } : null,
+      repairPriceLinkSentAt: repairWaitSince.get(id) ?? null,
       paymentCleared: paid.has(id),
       piesa: p ? { completedAt: s(p["completed_date"]), passed: p["outcome"] === "pass", sectionCAt: s(p["section_c_signed_at"]) } : null,
       elecOfferAt: offerAt.get(`${id}:piesa`) ?? null, elecBookingAt: bookAt.get(`${id}:assessment`) ?? null, rectBookingAt: bookAt.get(`${id}:rectification`) ?? null,

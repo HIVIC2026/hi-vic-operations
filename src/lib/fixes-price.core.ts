@@ -67,15 +67,19 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 /** The quote line explanation from the ticks, in form order, quantities written in:
  *  "Replace 6 downlights with IC-4 rated LED downlights; Install 1 RCD safety switch; Other: …". */
 export function describeFixesWork(i: { ticks: string[]; downlights: number | null; rcds: number | null; other: string }): string {
+  return describeFixesWorkLines(i).join("; ");
+}
+/** The same wording, one line per tick (Task 9: the read-only work list on the electrician owner's "Your price" card). */
+export function describeFixesWorkLines(i: { ticks: string[]; downlights: number | null; rcds: number | null; other: string }): string[] {
   return i.ticks.map((t) => {
     if (t === FIXES_DOWNLIGHT_OPTION && i.downlights != null) return `Replace ${i.downlights} ${plural(i.downlights, "downlight with an IC-4 rated LED downlight", "downlights with IC-4 rated LED downlights")}`;
     if (t === FIXES_RCD_OPTION && i.rcds != null) return `Install ${i.rcds} ${plural(i.rcds, "RCD safety switch", "RCD safety switches")}`;
     if (t === FIXES_OTHER_OPTION) return `Other: ${i.other}`;
     return t;
-  }).join("; ");
+  });
 }
 
-export type FixesInclusions = { ok: true; included: string } | { ok: false; reason: string } | { ok: false; reason: null };
+export type FixesInclusions = { ok: true; included: string; lines: string[] } | { ok: false; reason: string } | { ok: false; reason: null };
 /** Decision 308: the inclusions from the ticks (+ counts / Other). `reason: null` = nothing ticked at all (old form). */
 export function fixesInclusionsFromTicks(short: Record<string, unknown>): FixesInclusions {
   // Decision 338: the "on site at the start" question (Yes) counts exactly like the old tick (same quote-line wording).
@@ -87,7 +91,8 @@ export function fixesInclusionsFromTicks(short: Record<string, unknown>): FixesI
   if (ticks.includes(FIXES_RCD_OPTION) && rcds == null) return { ok: false, reason: "The PIESA form ticks RCD safety switches but not how many are being installed" };
   const other = typeof short["fixesOtherDetail"] === "string" ? short["fixesOtherDetail"].trim() : "";
   if (ticks.includes(FIXES_OTHER_OPTION) && !other) return { ok: false, reason: "The PIESA form ticks Other but does not describe the other work" };
-  return { ok: true, included: describeFixesWork({ ticks, downlights, rcds, other }) };
+  const lines = describeFixesWorkLines({ ticks, downlights, rcds, other });
+  return { ok: true, included: lines.join("; "), lines };
 }
 
 export type FixesPriceSource =
@@ -95,12 +100,15 @@ export type FixesPriceSource =
   | { path: "rate_card"; reason: string };
 
 /** Which way the fixes quote is priced, from the synced PIESA short answers (shortAnswersFromEntries("piesa", …)).
- *  Needs the price + at least one tick (with its count / Other detail); an old form's decision-305 free text is the fallback. */
-export function fixesPriceSource(short: Record<string, unknown> | null | undefined): FixesPriceSource {
+ *  Needs the price + at least one tick (with its count / Other detail); an old form's decision-305 free text is the fallback.
+ *  Task 9 (Jo 28 Oct 2026): `portalPriceIncGst` = the electrician business owner's (or the office's) price from the
+ *  portal "Your price" card (electrician-repair-price.core). It wins; the form's own price is only the fallback for old forms. */
+export function fixesPriceSource(short: Record<string, unknown> | null | undefined, portalPriceIncGst: number | null = null): FixesPriceSource {
   if (!short) return { path: "rate_card", reason: "No synced PIESA form answers" };
-  const rawPrice = short["fixesPriceIncGst"];
   const ticks = fixesInclusionsFromTicks(short);
   const legacy = typeof short["fixesIncluded"] === "string" ? short["fixesIncluded"].trim() : "";
+  const portal = portalPriceIncGst != null && Number.isFinite(portalPriceIncGst) && portalPriceIncGst > 0 ? r2(portalPriceIncGst) : null;
+  const rawPrice = portal ?? short["fixesPriceIncGst"];
   const blankPrice = rawPrice == null || (typeof rawPrice === "string" && !rawPrice.trim());
   if (blankPrice && !ticks.ok && ticks.reason === null && !legacy) return { path: "rate_card", reason: "The PIESA form has no repair price (older form)" };
   const price = parseFixesPrice(rawPrice);

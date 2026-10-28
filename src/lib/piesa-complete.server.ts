@@ -50,10 +50,15 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // on site. The fixes quote is never sent while any item is unpriced (fixes-quote-release.server `fixesQuoteSendBlocker`).
   // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
   const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
-  // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):
+  // A live A3 that says repair work is needed carries the electrician's own repair list (decisions 305/324):
   // that IS today's fixes quote (generated from the A3 after completion, decision 354), so no portal items are needed.
-  const a3Priced = liveA3 && a.piesa_outcome === "fail" && (await import("./fixes-price.core")).fixesPriceSource(shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? [])).path === "a4_price";
-  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+  // Task 9 (Jo 28 Oct 2026): the price may come later from the electrician business owner's "Your price" card, so a
+  // ticked repair list counts with or without a price on the form (staff can complete on site; the quote waits).
+  const a3Short = shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []);
+  const { fixesPriceSource } = await import("./fixes-price.core");
+  const { repairPriceNeeded } = await import("./electrician-repair-price.core");
+  const a3Lists = liveA3 && a.piesa_outcome === "fail" && (repairPriceNeeded(a3Short) || fixesPriceSource(a3Short).path === "a4_price");
+  if (!rectCount && a.no_rectification_confirmed !== true && !a3Lists) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
   if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
   // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were
@@ -84,7 +89,7 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   }
   let res: { advanced: boolean; scope: string };
   if (stage === "piesa_scheduled") {
-    await transition(data.jobId, "piesa_complete", userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Priced ? ", electrical fixes priced on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
+    await transition(data.jobId, "piesa_complete", userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Lists ? ", electrical fixes listed on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
     res = { advanced: true, scope: s.scope };
   } else res = await advanceSiteRequirements(data.jobId, userId);
   if (rectCount && !timesAlreadyGiven && data.rectWindows?.length) {

@@ -63,6 +63,7 @@ import { readyCheckIncompleteText } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
 import { fixesTimesLinkText } from "./fixes-times.core";
+import { repairPriceLinkText } from "./electrician-repair-price.core";
 import { attendanceSmsText, attendanceReminderText, attendanceBookedText, installerCantAttendText } from "./install-attendance.core";
 import { installDayResultText, installDayReminderText } from "./install-day-confirm.core";
 import { FORMS, type FormField } from "./mitti-forms.core";
@@ -586,6 +587,9 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A3 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
     source: { builder: "src/lib/fixes-times.core.ts", fn: "fixesTimesLinkText", sender: "src/lib/fixes-times-link.server.ts" },
     render: () => text(fixesTimesLinkText({ address: SHORT_ADDRESS, link: FIELD })) }),
+  ENTRY({ id: "electrician:sms-repair_price_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Enter your price for the repair work (text)", when: "The A3 says repair work is needed and has no price yet: to the electrician business owner", who: "Electrician business owner", approvalNote: "Drafted 28 Oct 2026 (spec rule 3) — waits for its own text switch", gate: { kind: "text", smsType: "repair_price_link" },
+    source: { builder: "src/lib/electrician-repair-price.core.ts", fn: "repairPriceLinkText", sender: "src/lib/repair-price-link.server.ts" },
+    render: () => text(repairPriceLinkText({ address: SHORT_ADDRESS, link: `${FIELD}#price` })) }),
   ENTRY({ id: "electrician:sms-electrician_install_attendance", section: "electrician", step: "install", kind: "text", code: "", name: "Be there at the start of the install (text)", when: "Install day booked when the A3 says the electrician must be on site at the start; 24h reminder", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_install_attendance" },
     source: { builder: "src/lib/install-attendance.core.ts", fn: "attendanceSmsText", sender: "src/lib/install-attendance.server.ts" },
     render: () => texts([

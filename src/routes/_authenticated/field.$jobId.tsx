@@ -62,6 +62,7 @@ import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { isInstallerNotOnboardedNote } from "@/lib/rec-onboarded.core";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
+import { RepairPriceCard } from "@/components/trade/RepairPriceCard";
 import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
@@ -136,6 +137,8 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
         {role === "electrician" && <ElectricianPiesaTimesCard jobId={jobId} />}
         {role === "electrician" && <FixesTimesCard jobId={jobId} />}
+        {/* Task 9 (Jo 28 Oct 2026): the electrician business owner prices the repair work here; the server gives staff nothing. */}
+        {role === "electrician" && <RepairPriceCard jobId={jobId} />}
         {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}

@@ -4,6 +4,7 @@
 
 import { SITUATION } from "./job-wording";
 import { withEditReplacedNotice } from "./quote-edit-replaced.core";
+import { withRepairPriceWaiting } from "./repair-price-wait.core";
 
 export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
 export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
@@ -120,6 +121,9 @@ export type JobFacts = {
     /** Jo 28 Oct 2026: this draft rebuilt an office-edited draft from the installer's price — the office checks it. */
     editReplaced?: boolean } | null;
   rectQuote?: { releaseState: string | null; sentAt: string | null; status: string } | null;
+  /** Task 9 (Jo 28 Oct 2026): when the electrician business owner's price link was sent and no repair price is in yet
+   *  (repair-price-wait.core). 24 hours on, the status line says "Waiting on the electrician's price". */
+  repairPriceLinkSentAt?: string | null;
   paymentCleared?: boolean;
   piesa?: { completedAt: string | null; passed: boolean; sectionCAt: string | null } | null;
   elecOfferAt?: string | null; elecBookingAt?: string | null; rectBookingAt?: string | null;
@@ -143,8 +147,15 @@ const MAPPED_STAGES = new Set([
 /** True when the portal stage has a rule here. Unknown stages are flagged by the daily "nothing lost" check. */
 export const isMappedStage = (s: string) => MAPPED_STAGES.has(s);
 
-/** Exactly one status for a job, or null if no rule matches (the "nothing lost" check flags that). */
+/** Exactly one status for a job, or null if no rule matches (the "nothing lost" check flags that). Task 9: 24 hours after
+ *  the electrician's price link with no price, the detail starts with "Waiting on the electrician's price". */
 export function officeStatus(f: JobFacts, now: number, lim: Record<string, number> = DEFAULT_LIMITS): OfficeStatus | null {
+  const st = statusFor(f, now, lim);
+  if (!st || !f.repairPriceLinkSentAt) return st;
+  return { ...st, detail: withRepairPriceWaiting(st.detail, f.repairPriceLinkSentAt, now) };
+}
+
+function statusFor(f: JobFacts, now: number, lim: Record<string, number>): OfficeStatus | null {
   const pick = (key: StatusKey, since: string | null | undefined, opts: { due?: string | null; detail?: string | null } = {}): OfficeStatus => {
     const d = OFFICE_STATUSES[key] as Def;
     const s = since ?? f.enteredStageAt ?? f.createdAt;
@@ -196,7 +207,7 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       if (q?.sentAt && q.status === "issued") return pick("quote.waiting_sign", q.sentAt);
       // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled
       // (an installer's own customer then reads "Ready Check" — the installer arranges it directly, never "needs estimate").
-      if (!f.rcBookingAt) return officeStatus({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
+      if (!f.rcBookingAt) return statusFor({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
       if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${f.rcBookingAt.slice(0, 10)}` });
       return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
     }

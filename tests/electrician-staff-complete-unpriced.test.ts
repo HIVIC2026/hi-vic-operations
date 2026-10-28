@@ -167,17 +167,20 @@ describe("the fixes quote is drafted held and not sent until every item has a pr
     expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_quote_issued");
   });
 
-  test("the office prices it: the $0 line still stops the send until the quote is rebuilt; then the normal flow sends it", async () => {
+  test("the office prices it: the held quote is rebuilt straight away (Task 9, no Regenerate by hand); then the normal flow sends it", async () => {
     reset();
     await complete();
     const qs = await import("../src/lib/quotes.server");
     await qs.generateRectificationQuote(JOB, OFFICE);
-    await (await fns())["priceRectItem"]!({ data: { itemId: item()["id"], unitPriceIncGst: 120, reason: "Priced from the photos" }, context: ctx(OFFICE) });
-    expect(item()["needs_office_pricing"]).toBe(false);
     quote()["office_reviewed_at"] = "2026-10-28T01:00:00Z";
     const { fixesQuoteSendBlocker, releaseFixesQuote } = await release();
-    expect(await fixesQuoteSendBlocker(quote() as never, "office")).toBe(ZERO_LINE);
-    await qs.generateRectificationQuote(JOB, OFFICE);
+    // Before the price: the unpriced item stops the send.
+    expect(await fixesQuoteSendBlocker(quote() as never, "office")).toBe(UNPRICED);
+    await (await fns())["priceRectItem"]!({ data: { itemId: item()["id"], unitPriceIncGst: 120, reason: "Priced from the photos" }, context: ctx(OFFICE) });
+    expect(item()["needs_office_pricing"]).toBe(false);
+    // Task 9 (Jo 28 Oct): pricing at piesa_complete rebuilt the held draft — no $0 line is left on it.
+    expect(T["quote_items"]!.map((l) => l["unit_price_inc_gst"])).toEqual([120]);
+    expect(await fixesQuoteSendBlocker(quote() as never, "office")).not.toBe(ZERO_LINE);
     quote()["office_reviewed_at"] = "2026-10-28T02:00:00Z";
     expect(await fixesQuoteSendBlocker(quote() as never, "office")).toBeNull();
     await releaseFixesQuote(QUOTE, OFFICE, "office");

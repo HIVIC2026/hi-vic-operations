@@ -1,8 +1,7 @@
 // CENTRAL QUOTE CALCULATIONS. All customer-facing prices are stored inc GST.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { applyRectificationMargin } from "./rectification-pricing.core";
-import { A4_FIXES_PRICING_SOURCE, buildA4FixesQuote, fixesMarginFor, fixesPriceSource } from "./fixes-price.core";
-import { shortAnswersFromEntries } from "./official-short.core";
+import { A4_FIXES_PRICING_SOURCE, buildA4FixesQuote, fixesMarginFor } from "./fixes-price.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
@@ -188,11 +187,11 @@ export async function deriveRectificationItems(jobId: string, actorId: string) {
   return count ?? 0;
 }
 
-/** Decision 305: the electrician's one total for the repair work, read from the synced A3 PIESA snapshot (pure decision in fixes-price.core). */
+/** Decision 305: the electrician's one total for the repair work (pure decision in fixes-price.core). Task 9 (Jo 28 Oct
+ *  2026): the electrician business owner's (or the office's) portal price comes FIRST; the synced A3 form's own price is
+ *  only the fallback for old forms. */
 async function a4FixesPriceSource(jobId: string) {
-  const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
-  const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]) : [];
-  return fixesPriceSource(entries.length ? shortAnswersFromEntries("piesa", entries) : null);
+  return (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(jobId);
 }
 
 /** Decision 305 (Jo 25 Oct 2026): ONE line from the electrician's A3 total + the decision-142 margin; no rate-card lookup.

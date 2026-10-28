@@ -39,10 +39,8 @@ export async function maybeAutoSendFixesQuote(jobId: string, opts: { actorId?: s
     let quote = (quotes ?? [])[0] ?? null;
     if (!quote) {
       if (!opts.generate || !a4Completed) return out("waiting", "no fixes quote", null);
-      const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
-      const { shortAnswersFromEntries } = await import("./official-short.core");
-      const { fixesPriceSource } = await import("./fixes-price.core");
-      if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
+      // Task 9: the electrician business owner's portal price first; the A3 form's own price is the fallback.
+      if ((await (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(jobId)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
       const quoteId = await (await import("./quotes.server")).generateRectificationQuote(jobId, opts.actorId ?? null);
       const { data: fresh, error: fe } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at, created_at, quote_internals(calc_snapshot)").eq("id", quoteId).maybeSingle();
       if (fe) throw new Error(fe.message);
