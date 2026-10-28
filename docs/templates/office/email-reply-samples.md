@@ -43,7 +43,7 @@ Check before sending: no
 ```text
 Hi Priya,
 
-Thanks for getting in touch. Your estimate for your Ringwood home is ready: you could save $1,610 with the VEU rebate and pay $2,188 (full price $3,798 incl. GST). Certified installers are in high demand, so we book homes in the order people save their spot. Save your free spot here, no payment and no obligation: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2/campaign
+Thanks for getting in touch. Your estimate for your Ringwood home is ready: you could save $1,610 with the VEU rebate and pay $2,188 (full price $3,798 incl. GST). Spots are released in the order they were saved. Save your free spot here, no payment and no obligation: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN2/campaign
 
 Jo, Home Insulation Victoria
 ```

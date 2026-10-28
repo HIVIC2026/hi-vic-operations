@@ -90,7 +90,7 @@ describe("owner_status", () => {
   test("spot saved, no booking yet: says how booking works, never invents a date", () => {
     const d = draft(owner("Hi, when is my free Ready Check? Haven't heard anything.", { stage: "spot_saved" }));
     expect(d.type).toBe("owner_status");
-    expect(d.text).toContain("we book homes in the order people saved their spot");
+    expect(d.text).toContain("Spots are released in the order they were saved.");
     expect(d.text).not.toMatch(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/);
     wellFormed(d, "Helen");
   });

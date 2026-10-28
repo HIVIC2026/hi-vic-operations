@@ -11,6 +11,7 @@
 // Decision 292 (Jo 25 Oct, replaces 255): an unmatched NEW sender is NOT drafted for here and never gets an enquiry
 // created from their email — new-sender-reply.core sends them the one website reply (O70); every other unmatched
 // non-partner email waits for the office's Match (decision 247).
+import { SPOT_IN_TOUCH, SPOT_ORDER } from "./spot-only-copy.core";
 import { classifyEmailIntents, looksLikeNewEnquiry, type EmailIntent, type IntentHit } from "./email-intent.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { PayState } from "./trade-view.core";
@@ -244,7 +245,11 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
   // Card only where Stripe is actually available for this step (decision 144); otherwise bank transfer / PayID.
   const dueLine = (d: DueStep) => `The next step is your ${PAY_STEP_WORDS[d.key].what} of ${money(d.outstanding)}, ${d.cardAvailable ? PAY_STEP_WORDS[d.key].how : "by bank transfer or PayID"}.`;
   switch (f.stage) {
-    case "spot_saved": case "ready_check_ready_to_schedule": case "ready_check_awaiting_payment": case "preliminary_estimate_ready":
+    // Decision 388: before release, spot-only wording (spot-only-copy.core).
+    case "spot_saved": case "ready_check_ready_to_schedule": case "preliminary_estimate_ready":
+      lines.push("Your spot is saved.", SPOT_ORDER, SPOT_IN_TOUCH);
+      break;
+    case "ready_check_awaiting_payment":
       lines.push("Your spot is saved.", "Certified installers are in high demand, so we book homes in the order people saved their spot.", "When an installer near you is free, they'll offer you times for your free Ready Check and we'll email them to you.");
       break;
     case "ready_check_awaiting_acceptance":
@@ -324,7 +329,6 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
 }
 
 // ---------- new_enquiry ----------
-const DEMAND = "Certified installers are in high demand, so we book homes in the order people save their spot.";
 const campaignLink = (ownerLink: string) => `${ownerLink.replace(/\/$/, "")}/campaign`;
 
 /** A matched owner still at an enquiry stage (estimate sent, spot not saved): their own page, never the calculator. */
@@ -336,7 +340,7 @@ function newEnquiry(f: OwnerFacts): Built {
   if (f.estimate) {
     lines.push(`Your estimate${f.suburb ? ` for your ${f.suburb} home` : ""} is ready: you could save ${money(f.estimate.rebate)} with the VEU rebate and pay ${money(f.estimate.youPay)} (full price ${money(f.estimate.fullPrice)} incl. GST).`);
   } else { lines.push(officeConfirms("your estimate")); flags.push("Missing: current estimate"); }
-  lines.push(DEMAND);
+  lines.push(SPOT_ORDER);
   let linkLine: string | null = null;
   if (f.ownerLink) { link = campaignLink(f.ownerLink); linkLine = `Save your free spot here, no payment and no obligation: ${link}`; }
   else { flags.push("No secure estimate link on the job"); }

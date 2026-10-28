@@ -29,6 +29,7 @@ import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } f
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { AI_BUSINESS_RULES_PRE_RELEASE, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
+import { composeReply, type OwnerFacts } from "../src/lib/email-reply.core";
 import { CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const clean = (label: string, text: string) => expect({ label, found: preReleaseViolations(text) }).toEqual({ label, found: [] });
@@ -165,5 +166,21 @@ describe("approval flags: reworded live messages with a flag are held; nothing e
   test("the O1/O2 flag really holds the real senders", () => {
     expect(readFileSync("src/lib/hot-leads-send.server.ts", "utf8")).toContain("if (!SAVE_SPOT_REAL_SEND_APPROVED) return false;");
     expect(readFileSync("src/lib/followups.server.ts", "utf8")).toContain('if (!SAVE_SPOT_REAL_SEND_APPROVED) return { sent: false as const, reason: "wording_not_approved" };');
+  });
+});
+
+describe("old reply composer before release is spot-only", () => {
+  const facts = (stage: string, o: Partial<OwnerFacts> = {}): OwnerFacts => ({
+    jobNumber: "HV-3150", jobSource: "hivic_sourced", stage, spotSaved: true, ownerFullName: "Helen Sample", suburb: "Glen Waverley",
+    readyCheck: null, piesa: null, install: null, quote: null, fixesQuoteSent: false, estimate: { fullPrice: 3798, rebate: 1610, youPay: 2188, areaM2: 137 },
+    insulationDeclared: null, paymentDue: null, installHeldUntil: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/tok", matchedJobs: 1, ...o,
+  });
+  const reply = (body: string, stage: string, spotSaved = true) => composeReply({ subject: "Re: HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: new Date("2026-10-26T01:00:00Z"), owner: facts(stage, { spotSaved }) } as never);
+  for (const stage of ["spot_saved", "preliminary_estimate_ready", "ready_check_ready_to_schedule"]) {
+    test(`status reply at ${stage}`, () => { const d = reply("Any update on my job?", stage); expect(d).not.toBeNull(); clean(stage, d!.text); expect(d!.text).toContain(SPOT_RELEASE_LINE); });
+  }
+  test("new enquiry reply", () => {
+    const d = reply("Any update?", "preliminary_estimate_ready", false);
+    expect(d).not.toBeNull(); expect(d!.type).toBe("new_enquiry"); clean("new_enquiry", d!.text);
   });
 });
